@@ -59,6 +59,11 @@ static ASensorRef g_accelerometer = 0;
 static int g_accelerometerEnabled = 0;
 static uint32_t g_accelerometerFrequency = 1000000/60;
 static GLFWTouch* g_MouseEmulationTouch = 0;
+uint32_t g_EventLock = 0;
+int g_AppCommands[MAX_APP_COMMANDS];
+int g_NumAppCommands = 0;
+struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
+int g_NumAppInputEvents = 0;
 
 static void initThreads( void )
 {
@@ -78,6 +83,8 @@ static void initThreads( void )
 #ifdef _GLFW_HAS_PTHREAD
     _glfwThrd.First.PosixID  = pthread_self();
 #endif
+
+    g_EventLock = 0;
 }
 
 
@@ -170,7 +177,7 @@ static const char* GetCmdName(int32_t cmd)
 
 #undef CASE_RETURN
 
-static void computeIconifiedState()
+void computeIconifiedState()
 {
     // We do not cancel iconified status when RESUME is received, as we can
     // see the following order of commands when returning from a locked state:
@@ -182,10 +189,15 @@ static void computeIconifiedState()
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
     // Iconified unless opened, resumed (not paused)
-    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWin.paused && _glfwWin.hasSurface);
+    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWinAndroid.paused && _glfwWinAndroid.has_window != 0);
 }
 
-static void handleCommand(struct android_app* app, int32_t cmd) {
+GLFWAPI int32_t glfwAndroidWindowOpened()
+{
+    return _glfwWin.opened;
+}
+
+void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
 
     switch (cmd)
@@ -193,11 +205,6 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_SAVE_STATE:
         break;
     case APP_CMD_INIT_WINDOW:
-        if (_glfwWin.opened)
-        {
-            create_gl_surface(&_glfwWin);
-            _glfwWin.hasSurface = 1;
-        }
         _glfwWin.opened = 1;
         computeIconifiedState();
         break;
@@ -211,8 +218,16 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             // application will attempt to open the GL window before it has regained focus.
             g_appLaunchInterrupted = 1;
         }
-        destroy_gl_surface(&_glfwWin);
-        _glfwWin.hasSurface = 0;
+
+        if (_glfwWin.clientAPI != GLFW_NO_API)
+        {
+            spinlock_lock(&_glfwWinAndroid.m_RenderLock);
+
+            destroy_gl_surface(&_glfwWinAndroid);
+
+            spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
+        }
+        _glfwWinAndroid.has_window = 0;
         computeIconifiedState();
         break;
     case APP_CMD_GAINED_FOCUS:
@@ -230,7 +245,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_RESUME:
         _glfwWin.active = 1;
-        _glfwWin.paused = 0;
+        _glfwWinAndroid.paused = 0;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
@@ -243,7 +258,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         // See _glfwPlatformSwapBuffers for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
-        _glfwWin.paused = 1;
+        _glfwWinAndroid.paused = 1;
         _glfwWin.active = 0;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
@@ -254,10 +269,30 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
-        final_gl(&_glfwWin);
+        final_gl(&_glfwWinAndroid);
         computeIconifiedState();
         break;
     }
+}
+
+void glfwAndroidHandleCommand(struct android_app* app, int32_t cmd)
+{
+    spinlock_lock(&g_EventLock);
+
+    if (g_NumAppCommands < MAX_APP_COMMANDS)
+    {
+        // this is handled on the current thread (looper_main)
+        _glfwAndroidHandleCommand(app, cmd);
+
+        // This will let the engine thread know (engine_main)
+        g_AppCommands[g_NumAppCommands++] = cmd;
+    }
+    else
+    {
+        LOGE("glfwAndroidHandleCommand: max num app commands per frame reached");
+    }
+
+    spinlock_unlock(&g_EventLock);
 }
 
 static GLFWTouch* touchById(void *ref)
@@ -367,7 +402,7 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
 
 void *pointerIdToRef(int32_t id)
 {
-    return (void*)(0x1 + id);
+    return (void*)(uintptr_t)(0x1 + id);
 }
 
 static void updateGlfwMousePos(int32_t x, int32_t y)
@@ -376,11 +411,11 @@ static void updateGlfwMousePos(int32_t x, int32_t y)
     _glfwInput.MousePosY = y;
 }
 
-// return 1 to handle the event, 0 for default handling
-static int32_t handleInput(struct android_app* app, AInputEvent* event)
-{
-    int32_t event_type = AInputEvent_getType(event);
 
+// return 1 to handle the event, 0 for default handling
+int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct InputEvent* event)
+{
+    int event_type = event->m_Type;
     if (event_type == AINPUT_EVENT_TYPE_MOTION)
     {
         if (g_KeyboardActive && g_autoCloseKeyboard) {
@@ -389,14 +424,11 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
         }
 
         // touch_handling
-        int32_t action = AMotionEvent_getAction(event);
-        int32_t pointer_index = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
-        int32_t pointer_id = AMotionEvent_getPointerId(event, pointer_index);
+        int32_t action = event->m_Action;
+        void* pointer_ref = event->m_Ref;
 
-        void *pointer_ref = pointerIdToRef(pointer_id);
-
-        int32_t x = AMotionEvent_getX(event, pointer_index);
-        int32_t y = AMotionEvent_getY(event, pointer_index);
+        int32_t x = event->m_X;
+        int32_t y = event->m_Y;
 
         int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
 
@@ -434,20 +466,11 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
                 break;
             case AMOTION_EVENT_ACTION_MOVE:
                 {
-                    // these events contain updates for all pointers.
-                    int i, max = AMotionEvent_getPointerCount(event);
-                    for (i=0;i<max;i++)
+                    if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_MOVED) == g_MouseEmulationTouch)
                     {
-                        x = AMotionEvent_getX(event, i);
-                        y = AMotionEvent_getY(event, i);
-                        pointer_ref = pointerIdToRef(AMotionEvent_getPointerId(event, i));
-
-                        if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_MOVED) == g_MouseEmulationTouch)
-                        {
-                            updateGlfwMousePos(x,y);
-                            if (_glfwWin.mousePosCallback) {
-                                _glfwWin.mousePosCallback(x, y);
-                            }
+                        updateGlfwMousePos(x,y);
+                        if (_glfwWin.mousePosCallback) {
+                            _glfwWin.mousePosCallback(x, y);
                         }
                     }
                 }
@@ -458,16 +481,16 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
     }
     else if (event_type == AINPUT_EVENT_TYPE_KEY)
     {
-        int32_t code = AKeyEvent_getKeyCode(event);
-        int32_t action = AKeyEvent_getAction(event);
-        int32_t flags = AKeyEvent_getFlags(event);
-        int32_t meta = AKeyEvent_getMetaState(event);
-        int32_t scane_code = AKeyEvent_getScanCode(event);
-        int32_t repeat = AKeyEvent_getRepeatCount(event);
-        int32_t device_id = AInputEvent_getDeviceId(event);
-        int32_t source = AInputEvent_getSource(event);
-        int64_t down_time = AKeyEvent_getDownTime(event);
-        int64_t event_time = AKeyEvent_getEventTime(event);
+        int32_t code = event->m_Code;;
+        int32_t action = event->m_Action;
+        int32_t flags = event->m_Flags;
+        int32_t meta = event->m_Meta;
+        int32_t scan_code = event->m_ScanCode;
+        int32_t repeat = event->m_Repeat;
+        int32_t device_id = event->m_DeviceId;
+        int32_t source = event->m_Source;
+        int64_t down_time = event->m_DownTime;
+        int64_t event_time = event->m_EventTime;
         int glfw_action = -1;
         if (action == AKEY_EVENT_ACTION_DOWN)
         {
@@ -607,25 +630,200 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
                 break;
         }
 
-        JNIEnv* env = g_AndroidApp->activity->env;
-        JavaVM* vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
-
         jclass KeyEventClass = (*env)->FindClass(env, "android/view/KeyEvent");
         jmethodID KeyEventConstructor = (*env)->GetMethodID(env, KeyEventClass, "<init>", "(JJIIIIIIII)V");
         jobject keyEvent = (*env)->NewObject(env, KeyEventClass, KeyEventConstructor,
-                down_time, event_time, action, code, repeat, meta, device_id, scane_code, flags, source);
+                down_time, event_time, action, code, repeat, meta, device_id, scan_code, flags, source);
         jmethodID KeyEvent_getUnicodeChar = (*env)->GetMethodID(env, KeyEventClass, "getUnicodeChar", "(I)I");
 
         int unicode = (*env)->CallIntMethod(env, keyEvent, KeyEvent_getUnicodeChar, meta);
         (*env)->DeleteLocalRef( env, keyEvent );
 
-        (*vm)->DetachCurrentThread(vm);
-
         _glfwInputChar( unicode, glfw_action );
     }
 
     return 0;
+}
+
+static int32_t addInputEvents(struct android_app* app, const AInputEvent* event, struct InputEvent* out, int* out_count, int max_out_count)
+{
+    out->m_Type = AInputEvent_getType(event);
+
+    if (out->m_Type == AINPUT_EVENT_TYPE_MOTION)
+    {
+        // touch_handling
+        int32_t action = AMotionEvent_getAction(event);
+        int32_t pointer_index = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+        int32_t pointer_id = AMotionEvent_getPointerId(event, pointer_index);
+
+
+        int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
+
+        switch (action_action)
+        {
+            case AMOTION_EVENT_ACTION_DOWN:
+            case AMOTION_EVENT_ACTION_UP:
+            case AMOTION_EVENT_ACTION_POINTER_DOWN:
+            case AMOTION_EVENT_ACTION_POINTER_UP:
+            case AMOTION_EVENT_ACTION_CANCEL:
+                out->m_Action = action;
+                out->m_Ref = pointerIdToRef(pointer_id);
+                out->m_X = AMotionEvent_getX(event, pointer_index);
+                out->m_Y = AMotionEvent_getY(event, pointer_index);
+                (*out_count)++;
+                out++;
+                break;
+            case AMOTION_EVENT_ACTION_MOVE:
+                {
+                    // these events contain updates for all pointers.
+                    int i, max = AMotionEvent_getPointerCount(event);
+                    for (i=0;i<max;i++)
+                    {
+                        if ((*out_count) < max_out_count)
+                        {
+                            out->m_Action = action;
+                            out->m_X = AMotionEvent_getX(event, i);
+                            out->m_Y = AMotionEvent_getY(event, i);
+                            out->m_Ref = pointerIdToRef(AMotionEvent_getPointerId(event, i));
+                            (*out_count)++;
+                            out++;
+                        }
+                    }
+                }
+                break;
+        }
+
+        return 1;
+    }
+    else if (out->m_Type == AINPUT_EVENT_TYPE_KEY)
+    {
+        out->m_Code = AKeyEvent_getKeyCode(event);
+        out->m_Action = AKeyEvent_getAction(event);
+        out->m_Flags = AKeyEvent_getFlags(event);
+        out->m_Meta = AKeyEvent_getMetaState(event);
+        out->m_ScanCode = AKeyEvent_getScanCode(event);
+        out->m_Repeat = AKeyEvent_getRepeatCount(event);
+        out->m_DeviceId = AInputEvent_getDeviceId(event);
+        out->m_Source = AInputEvent_getSource(event);
+        out->m_DownTime = AKeyEvent_getDownTime(event);
+        out->m_EventTime = AKeyEvent_getEventTime(event);
+        (*out_count)++;
+        out++;
+
+        int glfw_action = -1;
+        if (out->m_Action == AKEY_EVENT_ACTION_DOWN)
+        {
+            glfw_action = GLFW_PRESS;
+        }
+        else if (out->m_Action == AKEY_EVENT_ACTION_UP)
+        {
+            glfw_action = GLFW_RELEASE;
+        }
+        else if (out->m_Action == AKEY_EVENT_ACTION_MULTIPLE && out->m_Code == AKEYCODE_UNKNOWN)
+        {
+            // complex character, let DefoldActivity#dispatchKeyEvent handle it
+            // such characters are not copied into AInputEvent due to NDK bug
+            return 0;
+        }
+
+        // virtual keyboard enter and backspace needs to generate both a press
+        // and release but we cannot create them both here in the same frame
+        // There's an ugly hack in android_window.c that counts down the
+        // g_SpecialKeyActive and when it reaches zero it generates a release
+        // event for the keys checked below
+        if (g_KeyboardActive && (glfw_action == GLFW_PRESS)) {
+            switch (out->m_Code) {
+            case AKEYCODE_DEL:      return 1;
+            case AKEYCODE_ENTER:    return 1;
+            }
+        }
+
+        // check for key events that should generate a key trigger
+        switch (out->m_Code) {
+        case AKEYCODE_MENU:             return 1;
+        case AKEYCODE_BACK:             return 1;
+        case AKEYCODE_ESCAPE:           return 1;
+        case AKEYCODE_F1:               return 1;
+        case AKEYCODE_F2:               return 1;
+        case AKEYCODE_F3:               return 1;
+        case AKEYCODE_F4:               return 1;
+        case AKEYCODE_F5:               return 1;
+        case AKEYCODE_F6:               return 1;
+        case AKEYCODE_F7:               return 1;
+        case AKEYCODE_F8:               return 1;
+        case AKEYCODE_F9:               return 1;
+        case AKEYCODE_F10:              return 1;
+        case AKEYCODE_F11:              return 1;
+        case AKEYCODE_F12:              return 1;
+        case AKEYCODE_DPAD_UP:          return 1;
+        case AKEYCODE_DPAD_DOWN:        return 1;
+        case AKEYCODE_DPAD_LEFT:        return 1;
+        case AKEYCODE_DPAD_RIGHT:       return 1;
+        case AKEYCODE_SHIFT_LEFT:       return 1;
+        case AKEYCODE_SHIFT_RIGHT:      return 1;
+        case AKEYCODE_CTRL_LEFT:        return 1;
+        case AKEYCODE_CTRL_RIGHT:       return 1;
+        case AKEYCODE_NUM:              return 1;
+        case AKEYCODE_ALT_LEFT:         return 1;
+        case AKEYCODE_ALT_RIGHT:        return 1;
+        case AKEYCODE_TAB:              return 1;
+        case AKEYCODE_INSERT:           return 1;
+        case AKEYCODE_DEL:              return 1;
+        case AKEYCODE_PAGE_UP:          return 1;
+        case AKEYCODE_PAGE_DOWN:        return 1;
+        case AKEYCODE_MOVE_HOME:        return 1;
+        case AKEYCODE_MOVE_END:         return 1;
+        case AKEYCODE_NUMPAD_0:         return 1;
+        case AKEYCODE_NUMPAD_1:         return 1;
+        case AKEYCODE_NUMPAD_2:         return 1;
+        case AKEYCODE_NUMPAD_3:         return 1;
+        case AKEYCODE_NUMPAD_4:         return 1;
+        case AKEYCODE_NUMPAD_5:         return 1;
+        case AKEYCODE_NUMPAD_6:         return 1;
+        case AKEYCODE_NUMPAD_7:         return 1;
+        case AKEYCODE_NUMPAD_8:         return 1;
+        case AKEYCODE_NUMPAD_9:         return 1;
+        case AKEYCODE_NUMPAD_DIVIDE:    return 1;
+        case AKEYCODE_NUMPAD_MULTIPLY:  return 1;
+        case AKEYCODE_NUMPAD_SUBTRACT:  return 1;
+        case AKEYCODE_NUMPAD_ADD:       return 1;
+        case AKEYCODE_NUMPAD_DOT:       return 1;
+        case AKEYCODE_NUMPAD_EQUALS:    return 1;
+        case AKEYCODE_NUMPAD_ENTER:     return 1;
+        case AKEYCODE_NUM_LOCK:         return 1;
+        case AKEYCODE_CAPS_LOCK:        return 1;
+        case AKEYCODE_SCROLL_LOCK:      return 1;
+        case AKEYCODE_META_LEFT:        return 1;
+        case AKEYCODE_META_RIGHT:       return 1;
+        case AKEYCODE_BREAK:            return 1;
+        case AKEYCODE_DPAD_CENTER:      return 1;
+        default:
+            return 0;
+            break;
+        }
+    }
+
+    return 0;
+}
+
+int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
+{
+    int ret = 0;
+    spinlock_lock(&g_EventLock);
+
+    if (g_NumAppInputEvents < MAX_APP_INPUT_EVENTS)
+    {
+        // This will let the engine thread know (engine_main)
+        ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, MAX_APP_INPUT_EVENTS);
+    }
+    else
+    {
+        LOGE("glfwAndroidHandleInput: max num app input events per frame reached");
+    }
+
+    spinlock_unlock(&g_EventLock);
+
+    return ret;
 }
 
 void _glfwPreMain(struct android_app* state)
@@ -634,30 +832,9 @@ void _glfwPreMain(struct android_app* state)
 
     g_AndroidApp = state;
 
-    state->onAppCmd = handleCommand;
-    state->onInputEvent = handleInput;
-
     _glfwWin.opened = 0;
-    _glfwWin.hasSurface = 0;
 
-    JavaVM* vm = g_AndroidApp->activity->vm;
     ares_library_init_jvm(g_AndroidApp->activity->vm);
-
-    // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
-    while (_glfwWin.opened == 0)
-    {
-        int ident;
-        int events;
-        struct android_poll_source* source;
-
-        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
-        {
-            // Process this event.
-            if (source != NULL) {
-                source->process(state, source);
-            }
-        }
-    }
 
     char* argv[] = {0};
     argv[0] = strdup("defold-app");
@@ -670,7 +847,7 @@ void _glfwPreMain(struct android_app* state)
 static int LooperCallback(int fd, int events, void* data)
 {
     struct Command cmd;
-    if (read(_glfwWin.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
+    if (read(_glfwWinAndroid.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
         if (cmd.m_Command == CMD_INPUT_CHAR) {
             // Trick to "fool" glfw. Otherwise repeated characters will be filtered due to repeat
             _glfwInputChar( (int)cmd.m_Data, GLFW_RELEASE );
@@ -723,18 +900,19 @@ int _glfwPlatformInit( void )
         return GL_FALSE;
     }
 
-    _glfwWin.display = EGL_NO_DISPLAY;
-    _glfwWin.context = EGL_NO_CONTEXT;
-    _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
-    _glfwWin.paused = 0;
-    _glfwWin.app = g_AndroidApp;
 
-    int result = pipe(_glfwWin.m_Pipefd);
+    memset(&_glfwWinAndroid, 0, sizeof(_glfwWinAndroid));
+    _glfwWinAndroid.app = g_AndroidApp;
+    _glfwWinAndroid.display = EGL_NO_DISPLAY;
+    _glfwWinAndroid.context = EGL_NO_CONTEXT;
+    _glfwWinAndroid.surface = EGL_NO_SURFACE;
+
+    int result = pipe(_glfwWinAndroid.m_Pipefd);
     if (result != 0) {
         LOGF("Could not open pipe for communication: %d", result);
     }
-    result = ALooper_addFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
+    result = ALooper_addFd(g_AndroidApp->looper, _glfwWinAndroid.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
     if (result != 1) {
         LOGF("Could not add file descriptor to looper: %d", result);
     }
@@ -758,13 +936,6 @@ int _glfwPlatformInit( void )
     // Start the timer
     _glfwInitTimer();
 
-    // Initialize display
-    if (init_gl(&_glfwWin) == 0)
-    {
-        return GL_FALSE;
-    }
-    SaveWin(&_glfwWin);
-
     return GL_TRUE;
 }
 
@@ -787,12 +958,12 @@ int _glfwPlatformTerminate( void )
     glfwCloseWindow();
 
 
-    int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0]);
+    int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWinAndroid.m_Pipefd[0]);
     if (result != 1) {
         LOGF("Could not remove fd from looper: %d", result);
     }
 
-    close(_glfwWin.m_Pipefd[0]);
+    close(_glfwWinAndroid.m_Pipefd[0]);
 
     ASensorManager* sensorManager = ASensorManager_getInstance();
     ASensorManager_destroyEventQueue(sensorManager, g_sensorEventQueue);
@@ -801,14 +972,14 @@ int _glfwPlatformTerminate( void )
     JNIEnv* env = g_AndroidApp->activity->env;
     JavaVM* vm = g_AndroidApp->activity->vm;
     (*vm)->AttachCurrentThread(vm, &env, NULL);
-    close(_glfwWin.m_Pipefd[1]);
+    close(_glfwWinAndroid.m_Pipefd[1]);
     (*vm)->DetachCurrentThread(vm);
 
     // Call finish and let Android life cycle take care of the termination
     ANativeActivity_finish(g_AndroidApp->activity);
 
      // Wait for gl context destruction
-    while (_glfwWin.display != EGL_NO_DISPLAY)
+    while (_glfwWinAndroid.display != EGL_NO_DISPLAY)
     {
         int ident;
         int events;
