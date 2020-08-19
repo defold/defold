@@ -1234,12 +1234,15 @@ class Configuration(object):
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
                'sign']
-        if self.windows_cert:
-            cmd.append('--windows-cert="%s"' % self.windows_cert)
-        if self.windows_cert_pass:
-            cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
-        if self.codesigning_identity:
-            cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.windows_cert:
+                cmd.append('--windows-cert="%s"' % self.windows_cert)
+            if self.windows_cert_pass:
+                cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
@@ -1252,8 +1255,11 @@ class Configuration(object):
                '--platform=x86_64-darwin',
                '--bundle-dir=%s' % editor_bundle_dir,
                'installer']
-        if self.codesigning_identity:
-            cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
         # notarize dmg
@@ -1943,7 +1949,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'skip code signing. Default is false')
+                      help = 'skip code signing (engine and editor). Default is false')
 
     parser.add_option('--skip-docs', dest='skip_docs',
                       action = 'store_true',

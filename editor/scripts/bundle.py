@@ -147,35 +147,39 @@ def mac_certificate(codesigning_identity):
         return None
 
 def sign_files(platform, options, dir):
+    if options.skip_codesign:
+        return
     if 'win32' in platform:
         certificate = options.windows_cert
         certificate_pass = options.windows_cert_pass
         if certificate == None:
-            print("Warning: Codesigning certificate not found, files will not be signed")
-        else:
-            exec_command([
-                'SignTool',
-                'sign',
-                '/fd', 'sha256',
-                '/a',
-                '/f', certificate,
-                '/p', certificate_pass,
-                '/tr', 'http://timestamp.comodoca.com',
-                dir])
+            print("No codesigning certificate specified")
+            sys.exit(1)
+
+        exec_command([
+            'SignTool',
+            'sign',
+            '/fd', 'sha256',
+            '/a',
+            '/f', certificate,
+            '/p', certificate_pass,
+            '/tr', 'http://timestamp.comodoca.com',
+            dir])
     elif 'darwin' in platform:
         codesigning_identity = options.codesigning_identity
         certificate = mac_certificate(codesigning_identity)
         if certificate == None:
-            print("Warning: Codesigning certificate not found for signing identity %s, files will not be signed" % (codesigning_identity))
-        else:
-            exec_command([
-                'codesign',
-                '--deep',
-                '--force',
-                '--options', 'runtime',
-                '--entitlements', './scripts/entitlements.plist',
-                '-s', certificate,
-                dir])
+            print("Codesigning certificate not found for signing identity %s" % (codesigning_identity))
+            sys.exit(1)
+
+        exec_command([
+            'codesign',
+            '--deep',
+            '--force',
+            '--options', 'runtime',
+            '--entitlements', './scripts/entitlements.plist',
+            '-s', certificate,
+            dir])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
@@ -390,6 +394,7 @@ def sign(options):
         # create editor bundle with signed files
         os.remove(bundle_file)
         ziptree(sign_dir, bundle_file, sign_dir)
+        rmtree(sign_dir)
 
 
 
@@ -432,10 +437,12 @@ def create_dmg(options):
     exec_command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
-    certificate = mac_certificate(options.codesigning_identity)
-    if certificate == None:
-        print("Warning: Codesigning certificate not found, DMG will not be signed")
-    else:
+    if not option.skip_codesign:
+        certificate = mac_certificate(options.codesigning_identity)
+        if certificate == None:
+            error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
+            sys.exit(1)
+
         exec_command(['codesign', '-s', certificate, dmg_file])
 
 
@@ -486,6 +493,11 @@ Commands:
                       action = 'store_true',
                       default = False,
                       help = 'Skip tests when building')
+
+    parser.add_option('--skip-codesign', dest='skip_codesign',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Skip code signing when bundling')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
