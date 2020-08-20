@@ -263,7 +263,9 @@ class Configuration(object):
                  github_target_repo = None,
                  github_sha1 = None,
                  version = None,
-                 codesigning_identity = None):
+                 codesigning_identity = None,
+                 windows_cert = None,
+                 windows_cert_pass = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -303,6 +305,8 @@ class Configuration(object):
         self.github_sha1 = github_sha1
         self.version = version
         self.codesigning_identity = codesigning_identity
+        self.windows_cert = windows_cert
+        self.windows_cert_pass = windows_cert_pass
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -1267,24 +1271,47 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
-               '--codesigning-identity=%s' % self.codesigning_identity,
                'bundle']
+        self.run_editor_script(cmd)
+
+    def sign_editor2(self):
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
+        cmd = ['./scripts/bundle.py',
+               '--platform=%s' % self.target_platform,
+               '--bundle-dir=%s' % editor_bundle_dir,
+               'sign']
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.windows_cert:
+                cmd.append('--windows-cert="%s"' % self.windows_cert)
+            if self.windows_cert_pass:
+                cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
         if self.target_platform != "x86_64-darwin":
             return
 
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
         # create dmg installer
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
-               '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
+               '--bundle-dir=%s' % editor_bundle_dir,
                'installer']
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
         # notarize dmg
+        editor_dmg = join(editor_bundle_dir, 'Defold-x86_64-darwin.dmg')
         cmd = ['./scripts/notarize.py',
-               join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg'),
+               editor_dmg,
                self.notarization_username,
                self.notarization_password,
                self.notarization_itc_provider]
@@ -1937,6 +1964,7 @@ install_go       - Install go dev tools
 build_go         - Build go code
 archive_go       - Archive go binaries
 build_editor2    - Build editor
+sign_editor2     - Sign editor
 bundle_editor2   - Bundle editor (zip)
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
@@ -1970,7 +1998,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'skip code signing. Default is false')
+                      help = 'skip code signing (engine and editor). Default is false')
 
     parser.add_option('--skip-docs', dest='skip_docs',
                       action = 'store_true',
@@ -2055,6 +2083,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Codesigning identity for macOS version of the editor')
 
+    parser.add_option('--windows-cert', dest='windows_cert',
+                      default = None,
+                      help = 'Path to codesigning certificate for Windows version of the editor')
+
+    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+                      default = None,
+                      help = 'Password to codesigning certificate for Windows version of the editor')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2092,7 +2128,9 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       github_target_repo = options.github_target_repo,
                       github_sha1 = options.github_sha1,
                       version = options.version,
-                      codesigning_identity = options.codesigning_identity)
+                      codesigning_identity = options.codesigning_identity,
+                      windows_cert = options.windows_cert,
+                      windows_cert_pass = options.windows_cert_pass)
 
     for cmd in args:
         f = getattr(c, cmd, None)
