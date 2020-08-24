@@ -101,6 +101,17 @@ public class AndroidBundler implements IBundler {
         FileUtils.writeStringToFile(new File(path), content);
     }
 
+    private static String getJavaBinFile(String file) {
+        String javaHome = System.getProperty("java.home");
+        if (javaHome == null) {
+            javaHome = System.getenv("JAVA_HOME");
+        }
+        if (javaHome != null) {
+            file = Paths.get(javaHome, "bin", file).toString();
+        }
+        return file;
+    }
+
     private static Result exec(List<String> args) throws IOException {
         log("exec: " + String.join(" ", args));
         Map<String, String> env = new HashMap<String, String>();
@@ -127,7 +138,7 @@ public class AndroidBundler implements IBundler {
             String keystorePassword = "android";
             String keystorePasswordFile = "debug.keystore.pass.txt";
             if (!new File(keystore).exists()) {
-                Result r = exec("keytool",
+                Result r = exec(getJavaBinFile("keytool"),
                     "-genkey",
                     "-v",
                     "-noprompt",
@@ -175,7 +186,7 @@ public class AndroidBundler implements IBundler {
         if (alias.length() == 0) {
 
             List<String> args = new ArrayList<String>();
-            args.add("keytool");
+            args.add(getJavaBinFile("keytool"));
             args.add("-list");
             args.add("-keystore"); args.add(keystore);
             args.add("-storepass"); args.add(keystorePassword);
