@@ -114,7 +114,6 @@ public class AndroidBundler implements IBundler {
     }
 
 
-
     /**
     * Get keystore. If none is provided a debug keystore will be generated in the project root and used
     * when bundling.

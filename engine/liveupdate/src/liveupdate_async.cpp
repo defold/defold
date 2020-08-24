@@ -72,6 +72,8 @@ namespace dmLiveUpdate
 #if !(defined(__EMSCRIPTEN__))
     static void AsyncThread(void* args)
     {
+        (void)args;
+
         // Liveupdate async thread batch processing requested liveupdate tasks
         AsyncResourceRequest request;
         while (m_Active)

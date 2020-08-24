@@ -39,6 +39,7 @@
 #include "engine.h"
 #include "engine_service.h"
 #include "engine_ddf.h"
+#include "engine.h"
 
 namespace dmEngine
 {
@@ -110,9 +111,6 @@ namespace dmEngine
         dmEngineService::HEngineService             m_EngineService;
         dmConfigFile::HConfig                       m_Config;
 
-        PreRun                                      m_PreRun;
-        PostRun                                     m_PostRun;
-        void*                                       m_PrePostRunContext;
         RunResult                                   m_RunResult;
         bool                                        m_Alive;
 
@@ -182,12 +180,42 @@ namespace dmEngine
     HEngine New(dmEngineService::HEngineService engine_service);
     void Delete(HEngine engine);
     bool Init(HEngine engine, int argc, char *argv[]);
-    RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context);
     void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config);
     void UnloadBootstrapContent(HEngine engine);
+
+
+
+    // Creates and initializes the engine. Returns the engine instance
+    typedef void* (*EngineCreate)(int argc, char** argv);
+    // Destroys the engine instance after finalizing each system
+    typedef void (*EngineDestroy)(void* engine);
+    // Steps the engine 1 tick
+    typedef dmEngine::UpdateResult (*EngineUpdate)(void* engine);
+    // Called before the destroy function
+    typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+    struct RunLoopParams
+    {
+        int     m_Argc;
+        char**  m_Argv;
+
+        void*   m_AppCtx;
+        void    (*m_AppCreate)(void* ctx);
+        void    (*m_AppDestroy)(void* ctx);
+
+        EngineCreate        m_EngineCreate;
+        EngineDestroy       m_EngineDestroy;
+        EngineUpdate        m_EngineUpdate;
+        EngineGetResult     m_EngineGetResult;
+    };
+
+    /**
+     *
+     */
+    int RunLoop(const RunLoopParams* params);
 }
 
 #endif // DM_ENGINE_PRIVATE_H

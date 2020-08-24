@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -429,19 +429,6 @@ public class Project {
         return propertyFiles;
     }
 
-    private void logExceptionToStdErr(IResource res, int line)
-    {
-        String resourceString = "unspecified";
-        String resourceLineString = "";
-        if (res != null) {
-            resourceString = res.toString();
-        }
-        if (line > 0) {
-            resourceLineString = String.format(" at line %d", line);
-        }
-        System.err.println("Error in resource: " + resourceString + resourceLineString);
-    }
-
     /**
      * Build the project
      * @param monitor
@@ -454,11 +441,11 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
-            logExceptionToStdErr(e.getResource(), e.getLineNumber());
+            String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            System.err.println(s);
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
-            logExceptionToStdErr(e.getContextResource(), -1);
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {

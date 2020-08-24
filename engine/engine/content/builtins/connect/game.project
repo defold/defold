@@ -1,0 +1,20 @@
+[project]
+title = Connect
+
+[bootstrap]
+main_collection = /builtins/connect/connect.collectionc
+
+[input]
+game_binding = /builtins/connect/game.input_bindingc
+gamepads = /builtins/input/default.gamepadsc
+
+[display]
+width = 1280
+height = 720
+
+[render]
+clear_color_red = 1
+clear_color_green = 1
+clear_color_blue = 1
+clear_color_alpha = 0
+

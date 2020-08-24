@@ -37,7 +37,6 @@ namespace dmHttpService
     // (Reason: Our HTTP service threads call getaddrinfo() which
     //  resulted in a writes outside the stack space inside libc.)
     const uint32_t THREAD_STACK_SIZE = 0x20000;
-    const uint32_t THREAD_COUNT = 4;
     const uint32_t DEFAULT_RESPONSE_BUFFER_SIZE = 64 * 1024;
     const uint32_t DEFAULT_HEADER_BUFFER_SIZE = 16 * 1024;
 
@@ -305,7 +304,7 @@ namespace dmHttpService
             service->m_Run = false;
         } else {
             dmMessage::URL r = message->m_Receiver;
-            r.m_Socket = service->m_Workers[service->m_LoadBalanceCount % THREAD_COUNT]->m_Socket;
+            r.m_Socket = service->m_Workers[service->m_LoadBalanceCount % service->m_Workers.Size()]->m_Socket;
             dmMessage::Post(&message->m_Sender,
                             &r,
                             message->m_Id,
@@ -341,33 +340,46 @@ namespace dmHttpService
         }
     }
 
-    HHttpService New()
+    HHttpService New(const Params* params)
     {
         HttpService* service = new HttpService;
 
-        dmHttpCache::NewParams cache_params;
-        char path[1024];
-        dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
-        if (sys_result == dmSys::RESULT_OK)
+        if (params->m_UseHttpCache)
         {
-            // NOTE: The other cache (streaming) is called /cache
-            dmStrlCat(path, "/http-cache", sizeof(path));
-            cache_params.m_Path = path;
-            dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
-            if (cache_r != dmHttpCache::RESULT_OK)
+            dmHttpCache::NewParams cache_params;
+            char path[1024];
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+            if (sys_result == dmSys::RESULT_OK)
             {
-                dmLogWarning("Unable to open http cache (%d)", cache_r);
+                // NOTE: The other cache (streaming) is called /cache
+                dmStrlCat(path, "/http-cache", sizeof(path));
+                cache_params.m_Path = path;
+                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
+                if (cache_r != dmHttpCache::RESULT_OK)
+                {
+                    dmLogWarning("Unable to open http cache (%d)", cache_r);
+                }
+            }
+            else
+            {
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
             }
         }
         else
         {
-            dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
+            dmLogWarning("Http cache disabled");
         }
+
+        int threadcount = params->m_ThreadCount;
+#if defined(__NX__)
+        if (threadcount > 2)
+            threadcount = 2;
+#endif
 
         service->m_Run = true;
         dmMessage::NewSocket(HTTP_SOCKET_NAME, &service->m_Socket);
-        service->m_Workers.SetCapacity(THREAD_COUNT);
-        for (uint32_t i = 0; i < THREAD_COUNT; ++i)
+        service->m_Workers.SetCapacity(threadcount);
+        for (uint32_t i = 0; i < threadcount; ++i)
         {
             Worker* worker = new Worker();
             char tmp[128];
@@ -378,7 +390,7 @@ namespace dmHttpService
             worker->m_Request = 0;
             worker->m_Status = 0;
             worker->m_Service = service;
-            worker->m_CacheFlusher = i == 0;
+            worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
             service->m_Workers.Push(worker);
 
@@ -407,7 +419,7 @@ namespace dmHttpService
         dmMessage::URL url;
         url.m_Socket = http_service->m_Socket;
         dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
-        for (uint32_t i = 0; i < THREAD_COUNT; ++i)
+        for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
             url.m_Socket = worker->m_Socket;
@@ -424,7 +436,8 @@ namespace dmHttpService
         }
         dmThread::Join(http_service->m_Balancer);
         dmMessage::DeleteSocket(http_service->m_Socket);
-        dmHttpCache::Close(http_service->m_HttpCache);
+        if (http_service->m_HttpCache)
+            dmHttpCache::Close(http_service->m_HttpCache);
         delete http_service;
     }
 

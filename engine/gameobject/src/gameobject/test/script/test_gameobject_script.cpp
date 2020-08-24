@@ -20,6 +20,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <dlib/log.h>
+#include <dlib/sys.h>
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
@@ -28,6 +29,12 @@
 #include "../proto/gameobject/lua_ddf.h"
 
 using namespace Vectormath::Aos;
+
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
 
 class ScriptTest : public jc_test_base_class
 {
@@ -40,7 +47,7 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/script";
-        m_Factory = dmResource::NewFactory(&params, m_Path);
+        m_Factory = dmResource::NewFactory(&params, MOUNTFS "build/default/src/gameobject/test/script");
         m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -212,11 +219,11 @@ TEST_F(ScriptTest, TestReload)
 {
     const char* script_resource_name = "/__test__.scriptc";
     char script_file_name[512];
-    dmSnPrintf(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
+    dmSnPrintf(script_file_name, sizeof(script_file_name), "%s%s%s", MOUNTFS, m_Path, script_resource_name);
 
     const char* go_resource_name = "/__go__.goc";
     char go_file_name[512];
-    dmSnPrintf(go_file_name, sizeof(go_file_name), "/%s%s", m_Path, go_resource_name);
+    dmSnPrintf(go_file_name, sizeof(go_file_name), "%s%s%s", MOUNTFS, m_Path, go_resource_name);
 
     dmGameObjectDDF::PrototypeDesc prototype;
     memset(&prototype, 0, sizeof(prototype));
@@ -228,11 +235,11 @@ TEST_F(ScriptTest, TestReload)
     prototype.m_Components.m_Data = &component_desc;
 
     // NOTE: +1 to remove /
-    dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name + 1);
+    dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name);
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
     // NOTE: +1 to remove /
-    CreateScriptFile(script_file_name + 1,
+    CreateScriptFile(script_file_name,
                "function update(self)\n"
                "    go.set_position(vmath.vector3(1,2,3))\n"
                "end\n");
@@ -252,7 +259,7 @@ TEST_F(ScriptTest, TestReload)
     dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     // NOTE: +1 to remove /
-    CreateScriptFile(script_file_name + 1,
+    CreateScriptFile(script_file_name,
                "function update(self)\n"
                "    go.set_position(vmath.vector3(10,20,30))\n"
                "end\n");
@@ -266,12 +273,11 @@ TEST_F(ScriptTest, TestReload)
     ASSERT_EQ(20, p2.getY());
     ASSERT_EQ(30, p2.getZ());
 
-    // NOTE: +1 to remove /
-    unlink(script_file_name + 1);
+    dmSys::Unlink(script_file_name);
     rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
-    unlink(go_file_name);
+    dmSys::Unlink(go_file_name);
 }
 
 TEST_F(ScriptTest, Null)
@@ -312,10 +318,10 @@ TEST_F(ScriptTest, TestReloadModule)
 {
     const char* script_resource_name = "/test_reload_mod.luac";
     char script_file_name[512];
-    dmSnPrintf(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
+    dmSnPrintf(script_file_name, sizeof(script_file_name), "%s%s%s", MOUNTFS, m_Path, script_resource_name);
 
     // NOTE: +1 to remove /
-    CreateScriptFile(script_file_name + 1,
+    CreateScriptFile(script_file_name,
                "function test_reload_mod_func()\n"
                "    return 1010\n"
                "end\n");
@@ -326,7 +332,7 @@ TEST_F(ScriptTest, TestReloadModule)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     // NOTE: +1 to remove /
-    CreateScriptFile(script_file_name + 1,
+    CreateScriptFile(script_file_name,
                "function test_reload_mod_func()\n"
                "    return 2020\n"
                "end\n");
@@ -339,6 +345,7 @@ TEST_F(ScriptTest, TestReloadModule)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
+    dmSys::Unlink(script_file_name);
 }
 
 TEST_F(ScriptTest, TestURL)
