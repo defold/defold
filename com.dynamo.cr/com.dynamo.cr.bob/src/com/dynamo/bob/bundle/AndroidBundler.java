@@ -97,6 +97,21 @@ public class AndroidBundler implements IBundler {
         return new String(encoded, StandardCharsets.UTF_8);
     }
 
+    private static void createFile(String path, String content) throws IOException {
+        FileUtils.writeStringToFile(new File(path), content);
+    }
+
+    private static String getJavaBinFile(String file) {
+        String javaHome = System.getProperty("java.home");
+        if (javaHome == null) {
+            javaHome = System.getenv("JAVA_HOME");
+        }
+        if (javaHome != null) {
+            file = Paths.get(javaHome, "bin", file).toString();
+        }
+        return file;
+    }
+
     private static Result exec(List<String> args) throws IOException {
         log("exec: " + String.join(" ", args));
         Map<String, String> env = new HashMap<String, String>();
@@ -109,16 +124,55 @@ public class AndroidBundler implements IBundler {
         return exec(Arrays.asList(args));
     }
 
+
+    /**
+    * Get keystore. If none is provided a debug keystore will be generated in the project root and used
+    * when bundling.
+    * https://stackoverflow.com/a/4055893/1266551
+    */
+    private static String getKeystore(Project project) throws IOException {
+        String keystore = project.option("keystore", "");
+        if (keystore.length() == 0) {
+            keystore = "debug.keystore";
+            String keystoreAlias = "androiddebugkey";
+            String keystorePassword = "android";
+            String keystorePasswordFile = "debug.keystore.pass.txt";
+            if (!new File(keystore).exists()) {
+                Result r = exec(getJavaBinFile("keytool"),
+                    "-genkey",
+                    "-v",
+                    "-noprompt",
+                    "-dname", "CN=Android, OU=Debug, O=Android, L=Unknown, ST=Unknown, C=US",
+                    "-keystore", keystore,
+                    "-storepass", keystorePassword,
+                    "-alias", keystoreAlias,
+                    "-keyalg", "RSA",
+                    "-validity", "14000");
+
+                if (r.ret != 0) {
+                    throw new IOException(new String(r.stdOutErr));
+                }
+                createFile(keystorePasswordFile, keystorePassword);
+            }
+
+            project.setOption("keystore", keystore);
+            project.setOption("keystore-pass", keystorePasswordFile);
+            project.setOption("keystore-alias", keystoreAlias);
+        }
+        return keystore;
+    }
+
+
     /**
      * Get keystore password. This loads the keystore password file and returns
      * the password stored in the file.
      */
-    private static String getKeystorePassword(Project project) throws IOException {
+    private static String getKeystorePassword(Project project) throws IOException, CompileExceptionError {
         String keystorePassword = project.option("keystore-pass", "");
-        if (keystorePassword.length() > 0) {
-            keystorePassword = readFile(keystorePassword).trim();
+        if (keystorePassword.length() == 0) {
+            throw new CompileExceptionError(null, -1, "No keystore password");
         }
-        return keystorePassword;
+        return readFile(keystorePassword).trim();
     }
 
     /**
@@ -126,13 +180,13 @@ public class AndroidBundler implements IBundler {
      * provided as a project option or the first alias in the keystore.
      */
     private static String getKeystoreAlias(Project project) throws IOException, CompileExceptionError {
-        String keystore = project.option("keystore", "");
+        String keystore = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
-        if (keystore.length() > 0 && keystorePassword.length() > 0 && alias.length() == 0) {
+        if (alias.length() == 0) {
 
             List<String> args = new ArrayList<String>();
-            args.add("keytool");
+            args.add(getJavaBinFile("keytool"));
             args.add("-list");
             args.add("-keystore"); args.add(keystore);
             args.add("-storepass"); args.add(keystorePassword);
@@ -509,23 +563,18 @@ public class AndroidBundler implements IBundler {
         log("Sign " + signFile);
         BundleHelper.throwIfCanceled(canceled);
 
-        String keystore = project.option("keystore", "");
+        String keystore = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
 
-        if (keystore.length() > 0 && keystorePassword.length() > 0 && keystoreAlias.length() > 0) {
-            Result r = exec("jarsigner",
-                "-verbose",
-                "-keystore", keystore,
-                "-storepass", keystorePassword,
-                signFile.getAbsolutePath(),
-                keystoreAlias);
-            if (r.ret != 0) {
-                throw new IOException(new String(r.stdOutErr));
-            }
-        }
-        else {
-            log("No keystore settings provided. File will not be signed.");
+        Result r = exec("jarsigner",
+            "-verbose",
+            "-keystore", keystore,
+            "-storepass", keystorePassword,
+            signFile.getAbsolutePath(),
+            keystoreAlias);
+        if (r.ret != 0) {
+            throw new IOException(new String(r.stdOutErr));
         }
     }
 
@@ -614,7 +663,7 @@ public class AndroidBundler implements IBundler {
      */
     private static File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         log("Creating universal APK set");
-        String keystore = project.option("keystore", "");
+        String keystore = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
 
@@ -632,11 +681,9 @@ public class AndroidBundler implements IBundler {
             args.add("--mode"); args.add("universal");
             args.add("--bundle"); args.add(aabPath);
             args.add("--output"); args.add(apksPath);
-            if (keystore.length() > 0 && keystorePassword.length() > 0 && keystoreAlias.length() > 0) {
-                args.add("--ks"); args.add(keystore);
-                args.add("--ks-pass"); args.add("pass:" + keystorePassword);
-                args.add("--ks-key-alias"); args.add(keystoreAlias);
-            }
+            args.add("--ks"); args.add(keystore);
+            args.add("--ks-pass"); args.add("pass:" + keystorePassword);
+            args.add("--ks-key-alias"); args.add(keystoreAlias);
 
             Result res = exec(args);
             if (res.ret != 0) {
