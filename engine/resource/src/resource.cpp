@@ -1109,7 +1109,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         factory->m_HttpStatus = -1;
 
         char uri[RESOURCE_PATH_MAX*2];
-        dmURI::Encode(factory_path, uri, sizeof(uri));
+        dmURI::Encode(factory_path, uri, sizeof(uri), 0);
 
         dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, uri);
         if (http_result != dmHttpClient::RESULT_OK)
