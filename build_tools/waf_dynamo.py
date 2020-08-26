@@ -195,7 +195,8 @@ def apidoc_extract_task(bld, src):
         elements = extract_docs(bld, src)
         target = []
         for ns in elements.keys():
-            target.append(ns + '.apidoc')
+            if ns is not None:
+                target.append(ns + '.apidoc')
         return bld.new_task_gen(rule=write_docs, name='apidoc_extract', source = src, target = target)
 
 
