@@ -24,7 +24,6 @@
 #error "Unsupported platform"
 #endif
 
-
 #define MBED_DEBUG_LEVEL 1
 
 #if defined(MBEDTLS_DEBUG_C)
@@ -67,10 +66,56 @@ struct SSLSocketContext
     mbedtls_ssl_config          m_MbedConf;
 } g_SSLSocketContext;
 
+#define MBEDTLS_RESULT_TO_STRING_CASE(x) case x: return #x;
 
 // see net_sockets.h, ssl.h and x509.h for error codes
-#define SSL_LOGW(MSG, RET) dmLogWarning(MSG  ": %d (%c0x%04X)", (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
-#define SSL_LOGE(MSG, RET) dmLogError(MSG  ": %d (%c0x%04X)", (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
+static const char* MbedTlsToString(int ret)
+{
+    switch(ret)
+    {
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_SOCKET_FAILED);           // -0x0042  /**< Failed to open a socket. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_CONNECT_FAILED);          // -0x0044  /**< The connection to the given server / port failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_BIND_FAILED);             // -0x0046  /**< Binding of the socket failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_LISTEN_FAILED);           // -0x0048  /**< Could not listen on the socket. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_ACCEPT_FAILED);           // -0x004A  /**< Could not accept the incoming connection. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_RECV_FAILED);             // -0x004C  /**< Reading information from the socket failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_SEND_FAILED);             // -0x004E  /**< Sending information through the socket failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_CONN_RESET);              // -0x0050  /**< Connection was reset by peer. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_UNKNOWN_HOST);            // -0x0052  /**< Failed to get an IP address for the given hostname. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_BUFFER_TOO_SMALL);        // -0x0043  /**< Buffer is too small to hold the data. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_INVALID_CONTEXT);         // -0x0045  /**< The context is invalid, eg because it was free()ed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_POLL_FAILED);             // -0x0047  /**< Polling the net context failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_BAD_INPUT_DATA);          // -0x0049  /**< Input invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE);    // -0x2080  /**< Unavailable feature, e.g. RSA hashing/encryption combination. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_UNKNOWN_OID);            // -0x2100  /**< Requested OID is unknown. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_FORMAT);         // -0x2180  /**< The CRT/CRL/CSR format is invalid, e.g. different type expected. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_VERSION);        // -0x2200  /**< The CRT/CRL/CSR version element is invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_SERIAL);         // -0x2280  /**< The serial tag or value is invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_ALG);            // -0x2300  /**< The algorithm tag or value is invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_NAME);           // -0x2380  /**< The name tag or value is invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_DATE);           // -0x2400  /**< The date tag or value is invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_SIGNATURE);      // -0x2480  /**< The signature tag or value invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_EXTENSIONS);     // -0x2500  /**< The extension tag or value is invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_UNKNOWN_VERSION);        // -0x2580  /**< CRT/CRL/CSR has an unsupported version number. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_UNKNOWN_SIG_ALG);        // -0x2600  /**< Signature algorithm (oid) is unsupported. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_SIG_MISMATCH);           // -0x2680  /**< Signature algorithms do not match. (see \c ::mbedtls_x509_crt sig_oid) */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_CERT_VERIFY_FAILED);     // -0x2700  /**< Certificate verification failed, e.g. CRL, CA or signature check failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_CERT_UNKNOWN_FORMAT);    // -0x2780  /**< Format not recognized as DER or PEM. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_BAD_INPUT_DATA);         // -0x2800  /**< Input invalid. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_ALLOC_FAILED);           // -0x2880  /**< Allocation of memory failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FILE_IO_ERROR);          // -0x2900  /**< Read/write of file failed. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_BUFFER_TOO_SMALL);       // -0x2980  /**< Destination buffer is too small. */
+    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FATAL_ERROR);            // -0x3000  /**< A fatal error occurred, eg the chain is too long or the vrfy callback failed. */
+
+    default:
+        return "Unknown error";
+    }
+}
+
+#undef MBEDTLS_RESULT_TO_STRING_CASE
+
+#define SSL_LOGW(MSG, RET) dmLogWarning(MSG  ": %s - %d (%c0x%04X)", MbedTlsToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
+#define SSL_LOGE(MSG, RET) dmLogError(MSG  ": %s - %d (%c0x%04X)", MbedTlsToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
 
 static dmSocket::Result SSLToSocket(int r) {
     // Currently a very limited list but
