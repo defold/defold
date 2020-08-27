@@ -320,7 +320,10 @@ namespace dmConnectionPool
             if (dmSSLSocket::RESULT_OK != result)
             {
                 c->m_SSLSocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
-                *sr = dmSocket::RESULT_UNKNOWN;
+                if (dmSSLSocket::RESULT_WOULDBLOCK == result)
+                    *sr = dmSocket::RESULT_WOULDBLOCK;
+                else
+                    *sr = dmSocket::RESULT_UNKNOWN;
                 return RESULT_HANDSHAKE_FAILED;
             }
         }
