@@ -30,40 +30,81 @@
 
 namespace dmSSLSocket
 {
+    /*# result enumeration
+     *
+     * Result enumeration.
+     *
+     * @enum
+     * @name dmSSLSocket::Result
+     * @member dmSSLSocket::RESULT_OK (0)
+     * @member dmSSLSocket::RESULT_SSL_INIT_FAILED (-2000)
+     * @member dmSSLSocket::RESULT_HANDSHAKE_FAILED (-2001)
+     * @member dmSSLSocket::RESULT_WOULDBLOCK (-2002)
+     * @member dmSSLSocket::RESULT_CONNREFUSED (-2003)
+     *
+     */
     enum Result
     {
-        RESULT_OK,
-        RESULT_SSL_INIT_FAILED = -2000,//!< RESULT_SSL_INIT_FAILED
-        RESULT_HANDSHAKE_FAILED = -2001,//!< RESULT_HANDSHAKE_FAILED
-        RESULT_WOULDBLOCK = -2002,//!< RESULT_WOULDBLOCK
-        RESULT_CONNREFUSED = -2003,//!< RESULT_WOULDBLOCK
+        RESULT_OK = 0,
+        RESULT_SSL_INIT_FAILED = -2000,
+        RESULT_HANDSHAKE_FAILED = -2001,
+        RESULT_WOULDBLOCK = -2002,
+        RESULT_CONNREFUSED = -2003,
     };
 
+    /*# Socket type definition
+     *
+     * ```cpp
+     * typedef struct SSLSocket* Socket
+     * ```
+     *
+     * @typedef
+     * @name Socket
+     *
+     */
     typedef struct SSLSocket* Socket;
 
     const Socket INVALID_SOCKET_HANDLE = 0;
 
-    /*#
+    /*# create a secure socket
      * Create a new secure socket
      * @name dmSSLSocket::New
-     * @param socket The socket to wrap
-     * @param handshake_timeout The timeout for the handshake procedure
-     * @param sslsocket Pointer to created socket
+     * @param socket [type:dmSocket::Socket] The socket to wrap
+     * @param host [type:const char*] The name of the host (e.g. "httpbin.org")
+     * @param timeout [type:uint64_t] The timeout for the handshake procedure. (microseconds)
+     * @param sslsocket [type:dmSSLSocket::Socket*] Pointer to a secure socket
      * @return RESULT_OK on succcess
+     * @examples
+     * ```cpp
+     * dmSSLSocket::Result result;
+     * dmSSLSocket::Socket sslsocket;
+     * result = dmSSLSocket::New(socket, "httpbin.org", 500*1000, &sslsocket);
+     * if (dmSSLSocket::RESULT_OK == result)
+     * {
+     *     // ...
+     * } else {
+     *     // ...
+     * }
+     * ```
      */
-    Result New(dmSocket::Socket socket, const char* host, uint64_t handshake_timeout, Socket* sslsocket);
+    Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* sslsocket);
 
-    /*#
+    /*# delete a secure socket
      * Delete a secure socket. Does not close the underlying socket
      * @name dmSSLSocket::Delete
-     * @param socket Secure socket to close
+     * @param socket [type:dmSSLSocket::Socket] Secure socket to close
      * @return RESULT_OK on success
+     * @examples
+     * ```cpp
+     * dmSSLSocket::Delete(sslsocket);
+     * ```
      */
     Result Delete(Socket socket);
 
-    /**
+    /*# send a message on a secure socket
      * Send a message on a secure socket
-     * @param socket SSL socket to send a message on
+     * @name dmSSLSocket::Send
+     * @param socket [type:dmSSLSocket::Socket] SSL socket to send a message on
      * @param buffer Buffer to send
      * @param length Length of buffer to send
      * @param sent_bytes Number of bytes sent (result)
@@ -71,9 +112,10 @@ namespace dmSSLSocket
      */
     dmSocket::Result Send(Socket socket, const void* buffer, int length, int* sent_bytes);
 
-    /*#
+    /*# receive data on a secure socket
      * Receive data on a secure socket
-     * @param socket Socket to receive data on
+     * @name dmSSLSocket::Receive
+     * @param socket [type:dmSSLSocket::Socket] Socket to receive data on
      * @param buffer Buffer to receive to
      * @param length Receive buffer length
      * @param received_bytes Number of received bytes (result)
