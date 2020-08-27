@@ -168,16 +168,6 @@ namespace dmSocket
     Result Shutdown(Socket socket, ShutdownType how);
 
     /**
-     * Send a message on a socket
-     * @param socket Socket to send a message on
-     * @param buffer Buffer to send
-     * @param length Length of buffer to send
-     * @param sent_bytes Number of bytes sent (result)
-     * @return RESULT_OK on success
-     */
-    Result Send(Socket socket, const void* buffer, int length, int* sent_bytes);
-
-    /**
      * Send a message to a specific address
      * @param socket Socket to send a message on
      * @param buffer Buffer to send
@@ -188,16 +178,6 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result SendTo(Socket socket, const void* buffer, int length, int* sent_bytes, Address to_addr, uint16_t to_port);
-
-    /**
-     * Receive data on a socket
-     * @param socket Socket to receive data on
-     * @param buffer Buffer to receive to
-     * @param length Receive buffer length
-     * @param received_bytes Number of received bytes (result)
-     * @return RESULT_OK on success
-     */
-    Result Receive(Socket socket, void* buffer, int length, int* received_bytes);
 
     /**
      * Receive from socket
@@ -274,13 +254,6 @@ namespace dmSocket
      * @param count actual count
      */
     void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count);
-
-    /**
-     * Convert result value to string
-     * @param result Result to convert
-     * @return Result as string
-     */
-    const char* ResultToString(Result result);
 
     /**
      * Converts a native result (error) to dmSocket::Result
