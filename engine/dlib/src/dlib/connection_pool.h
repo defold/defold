@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,8 +14,20 @@
 #define DM_CONNECTION_POOL
 
 #include <stdint.h>
+
+// Cannot forward declare enums
 #include <dlib/socket.h>
-#include <dlib/dns.h>
+
+// Please note that the underlying types may change at our discretion
+namespace dmSSLSocket
+{
+    typedef struct SSLSocket* Socket;
+}
+
+namespace dmDNS
+{
+    typedef struct Channel* HChannel;
+}
 
 /**
  * Connection pooling
@@ -133,17 +145,17 @@ namespace dmConnectionPool
      * Get socket for connection
      * @param pool
      * @param connection
-     * @return RESULT_OK on success
+     * @return dmSocket::Socket on success
      */
     dmSocket::Socket GetSocket(HPool pool, HConnection connection);
 
     /**
-     * Get ssl-handle. The returned value is an mbedtls_ssl_context* (mbedtls)
+     * Get secure socket.
      * @param pool
      * @param connection
-     * @return An mbedtls_ssl_context* pointer on success
+     * @return An dmSSLSocket::Socket on success
      */
-    void* GetSSLConnection(HPool pool, HConnection connection);
+    dmSSLSocket::Socket GetSSLSocket(HPool pool, HConnection connection);
 
     /**
      * Get reuse count for a connection
