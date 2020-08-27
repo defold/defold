@@ -17,6 +17,8 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/thread.h>
+#include <dlib/socket.h>
+#include <dlib/sslsocket.h>
 #include <graphics/graphics.h>
 #include <crash/crash.h>
 
@@ -44,6 +46,7 @@ static void AppCreate(void* _ctx)
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
+    dmSSLSocket::Initialize();
     dmDNS::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
@@ -59,6 +62,7 @@ static void AppDestroy(void* _ctx)
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmDNS::Finalize();
+    dmSSLSocket::Finalize();
     dmSocket::Finalize();
 }
 
