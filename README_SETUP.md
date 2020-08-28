@@ -4,7 +4,7 @@
 
 ## Required Software
 
-### Java JDK 11
+### Required Software - Java JDK 11
 
 You need Java JDK 11 installed to build the tools. [Download and install release 11.0.1 from OpenJDK](https://jdk.java.net/archive/). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
 
@@ -29,7 +29,7 @@ On Linux you can use apt-get to install the open jdk:
     > apt-get update
     > apt-get install -y openjdk-11-jdk
 
-### Python 2
+### Required Software - Python 2
 
 You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.16. You also need `easy_install` to install additional packages.
 
@@ -56,9 +56,7 @@ Configure use of Easy Install (if it's not already installed: `which easy_instal
     > chmod +x /usr/local/bin/easy_install
 
 
-## Additional required software
-
-### Linux
+### Required Software - Linux
 
 You need additional files and tools to be able to build and work with Defold on Linux:
 
@@ -88,7 +86,7 @@ Download and install using `apt-get`:
 
     > sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
 
-### Windows
+### Required Software - Windows
 
 #### Visual C++ 2019 Community
 
@@ -135,53 +133,13 @@ Now you should be able to clone the defold repo from a command prompt:
 
 If this won't work, you can try cloning using Github Desktop.
 
-#### Misc
+### Required Software - macOS
 
-These tools are not essential, but merely things that might help during your development
-
-##### [Chocolatey](https://chocolatey.org/docs/installation) (Win32)
-
-Chocolatey is another package installer that will help install various helper tools such as [ripgrep](https://github.com/BurntSushi/ripgrep)
-
-
-##### [ripgrep](https://github.com/BurntSushi/ripgrep)
-
-A very fast text search program
-
-###### Linux
-
-Install snapd package manager:
-
-    > sudo apt install snapd
-
-Install ripgrep:
-
-    > sudo snap install ripgrep --classic
-    
-### Command Prompt
-
-It's useful to modify your command prompt to show the status of the repo you're in.
-E.g. it makes it easier to keep the git branches apart.
-
-You do this by editing the `PS1` variable. Put it in the recommended config for your system (e.g. `.profile` or `.bashrc`)
-Here's a very small improvement on the default prompt, whic shows you the time of the last command, as well as the current git branch name and its status:
-
-    git_branch() {
-        git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
-    }
-    acolor() {
-      [[ -n $(git status --porcelain=v2 2>/dev/null) ]] && echo 31 || echo 33
-    }
-    export PS1='\t \[\033[32m\]\w\[\033[$(acolor)m\] $(git_branch)\[\033[00m\] $ '
-
-
-
-### macOS
-
-You need the `dos2unix` command line tool to convert line endings of certain source files. You can install `dos2unix` using [Brew](https://brew.sh/):
+You need the `dos2unix` command line tool to convert line endings of certain source files when building files in `share/ext`. You can install `dos2unix` using [Brew](https://brew.sh/):
 
     > brew install dos2unix
 
+---
 
 ## Optional Software
 
@@ -202,3 +160,42 @@ Quick and easy install:
 Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 
     > /usr/local/bin/ccache --max-size=5G
+
+
+### Optional Software - Windows
+
+* [Chocolatey](https://chocolatey.org/docs/installation) - Chocolatey is another package installer that will help install various helper tools such as [ripgrep](https://github.com/BurntSushi/ripgrep)
+
+* [ripgrep](https://github.com/BurntSushi/ripgrep) - A very fast text search program
+
+### Optional Software - Linux
+
+Install snapd package manager:
+
+    > sudo apt install snapd
+
+Install ripgrep:
+
+    > sudo snap install ripgrep --classic
+
+---
+
+## Optional Setup
+
+### Optional Setup - Command Prompt
+
+It's useful to modify your command prompt to show the status of the repo you're in.
+E.g. it makes it easier to keep the git branches apart.
+
+You do this by editing the `PS1` variable. Put it in the recommended config for your system (e.g. `.profile` or `.bashrc`)
+Here's a very small improvement on the default prompt, whic shows you the time of the last command, as well as the current git branch name and its status:
+
+    git_branch() {
+        git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+    }
+    acolor() {
+      [[ -n $(git status --porcelain=v2 2>/dev/null) ]] && echo 31 || echo 33
+    }
+    export PS1='\t \[\033[32m\]\w\[\033[$(acolor)m\] $(git_branch)\[\033[00m\] $ '
+
+
