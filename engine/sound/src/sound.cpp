@@ -382,6 +382,10 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[master_index];
         master->m_Gain.Reset(master_gain);
 
+        sound->m_IsRunning = true;
+        sound->m_IsPaused = false;
+        sound->m_Status = RESULT_NOTHING_TO_PLAY;
+
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
         if (params->m_UseThread)
@@ -390,9 +394,6 @@ namespace dmSound
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
         }
 
-        sound->m_IsRunning = true;
-        sound->m_IsPaused = false;
-        sound->m_Status = RESULT_NOTHING_TO_PLAY;
         return RESULT_OK;
     }
 
