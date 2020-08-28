@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -13,6 +13,8 @@
 #ifndef DM_DNS_H
 #define DM_DNS_H
 
+#include <dmsdk/dlib/dns.h>
+
 namespace dmSocket
 {
     struct Address;
@@ -20,22 +22,6 @@ namespace dmSocket
 
 namespace dmDNS
 {
-    /**
-     * A channel roughly translates to a socket on which to put the name lookup requests on.
-     * Internal implementation resides in dns.cpp.
-     */
-    struct  Channel;
-    typedef Channel* HChannel;
-
-    enum Result
-    {
-        RESULT_OK             = 0,
-        RESULT_INIT_ERROR     = -1,
-        RESULT_HOST_NOT_FOUND = -2,
-        RESULT_CANCELLED      = -3,
-        RESULT_UNKNOWN_ERROR  = -4
-    };
-
     /**
      * Initialize the DNS system. Some platforms require socket initialization to be called
      * before this function. I.e: call dmSocket::Initialize() before dmDNS::Initialize() on win32.
@@ -48,32 +34,6 @@ namespace dmDNS
      * @return RESULT_OK on success
      */
     Result Finalize();
-
-    /**
-     * Creates a new channel that can be used for DNS queries.
-     * @param channel Pointer to the created channel if successfull, will be left alone otherwise
-     * @return RESULT_OK on succcess
-     */
-    Result NewChannel(HChannel* channel);
-
-    /**
-     * Stops the current request (if available) on a channel.
-     * @param channel Handle to the channel
-     */
-    void StopChannel(HChannel channel);
-
-    /**
-     * Deletes the current channel and cancels all requests.
-     * Note: You must always make sure to call StopChannel(channel) before calling this function.
-     * @param channel Handle to the channel
-     */
-    void DeleteChannel(HChannel channel);
-
-    /**
-     * Refreshes the channel configuration so that the latest DNS servers are used.
-     * @param channel Handle to the channel
-     */
-    Result RefreshChannel(HChannel channel);
 
     /**
      * Get host by name. Note that this function is not entirely thread-safe, even though it is used in a threaded environment.
@@ -90,4 +50,4 @@ namespace dmDNS
     const char* ResultToString(Result r);
 }
 
-#endif //DM_DSTRINGS_H
+#endif // DM_DNS_H
