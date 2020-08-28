@@ -858,7 +858,7 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     //       But Encode for now is kind to not encode '/'
     const char* message = "testing 1 2";
     snprintf(buf, 128, "/echo/%s", message);
-    dmURI::Encode(buf, uri, sizeof(uri));
+    dmURI::Encode(buf, uri, sizeof(uri), 0);
 
     m_Content = "";
     dmHttpClient::Result r = dmHttpClient::Get(m_Client, uri);
