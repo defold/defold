@@ -2,16 +2,21 @@
 
 Defold uses the Python based build system [Waf](https://waf.io/). Most of the interaction is done through the `build.py` script but it is also possible to use Waf directly.
 
+## IMPORTANT PREREQUISITE!
+
+Make sure you have followed the [setup guide](/README_SETUP.md) before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
+
+
 ## Standard workflow
 
-The standard workflow when working on the engine is the following:
+The standard workflow when building the engine once or while developing a feature in the engine is the following:
 
-1. Setup platform specific environment
-2. Install platform specific dependencies
+1. Setup environment
+2. Install platform specific libraries and SDKs
 3. (Re)Build the engine
 4. Develop a feature
 5. Test
-6. Repeat steps 3-5 until done. Start from 1 when switching platform.
+6. Repeat steps 3-5 until done. Start from 2 when switching platform.
 
 ### Platforms
 
@@ -35,9 +40,9 @@ The following platforms are supported:
 
 Start by setting up the build environment:
 
-    $ ./scripts/build.py shell --platform=...
+    $ ./scripts/build.py shell
 
-This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc). This step is required whenever you switch target platform.
+This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc).
 
 ### Install packages and SDKs
 
@@ -45,9 +50,10 @@ Next thing you need to do is to install external packages and download required 
 
     $ ./scripts/build.py install_ext --platform=... --package-path=...
 
-It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). If you do not provide a platform the command will default to the host platform. When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
+It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
 
-IMPORTANT! You need to rerun this command whenever you switch target platform, as different packages and SDKs are installed.
+**IMPORTANT!**
+You need to rerun this command whenever you switch target platform, as different packages and SDKs are installed.
 
 #### Installing packages
 The command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet, Protocol Buffers (a.k.a. protobuf), WebP and c-ares. This step also installs some Python dependencies such as `requests`, `boto` and `Pygments`.
@@ -61,7 +67,7 @@ Due to licensing restrictions the SDKs are not distributed with Defold. You need
 
 ### Build the engine
 
-With these two steps done you're ready to build the engine:
+With the setup and installation done you're ready to build the engine:
 
     $ ./scripts/build.py build_engine --platform=...
 
