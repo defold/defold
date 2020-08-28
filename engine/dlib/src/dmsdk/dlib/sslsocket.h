@@ -53,14 +53,8 @@ namespace dmSSLSocket
     };
 
     /*# Socket type definition
-     *
-     * ```cpp
-     * typedef struct SSLSocket* Socket
-     * ```
-     *
      * @typedef
      * @name Socket
-     *
      */
     typedef struct SSLSocket* Socket;
 
