@@ -21,6 +21,8 @@
 #include "dlib/math.h"
 #include "dlib/thread.h"
 #include "dlib/uri.h"
+#include "dlib/socket.h"
+#include "dlib/sslsocket.h"
 #include "dlib/http_client.h"
 #include "dlib/http_client_private.h"
 #include "dlib/http_cache_verify.h"
@@ -907,6 +909,7 @@ const char* params_http_client_external_test[] = {  // They expire after a few d
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
 #endif
 
+
 const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
 
@@ -1171,10 +1174,12 @@ int main(int argc, char **argv)
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
+    dmSSLSocket::Initialize();
     dmDNS::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmDNS::Finalize();
+    dmSSLSocket::Finalize();
     dmSocket::Finalize();
     return ret;
 }
