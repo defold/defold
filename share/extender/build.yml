@@ -1,6 +1,6 @@
 context:
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include']
-    symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt", "GraphicsAdapterOpenGL"]
+    symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt", "GraphicsAdapterOpenGL"]
     allowedLibs: ["engine","engine_release","webviewext","profilerext","profilerext_null","crashext","crashext_null","facebookext","iapext","pushext","iacext","record","record_null","gameobject","ddf","resource","gamesys","graphics","graphics_null","physics_2d","physics_3d","physics_null","BulletDynamics","BulletCollision","LinearMath","Box2D","render","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","dmglfw","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
                   "libengine.lib","libengine_release.lib","libwebviewext.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","libfacebookext.lib","libiapext.lib","libpushext.lib","libiacext.lib","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgraphics.lib","libgraphics_null.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libLinearMath.lib","libBox2D.lib","librender.lib",
                   "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
@@ -97,6 +97,7 @@ platforms:
     linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX10.15.sdk/ -m64 -O2 -g -stdlib=libc++ -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   x86-osx:
@@ -136,6 +137,7 @@ platforms:
     linkCmd: 'clang++ -arch arm64 -target arm-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS13.5.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   armv7-ios:
@@ -169,6 +171,7 @@ platforms:
     linkCmd: 'clang++ -arch armv7 -target arm-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS13.5.sdk/ -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   x86_64-ios:
@@ -202,6 +205,7 @@ platforms:
     linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneSimulator13.5.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   android:
@@ -218,7 +222,7 @@ platforms:
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind", "cares"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "cares"]
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{env.STL_LIB}}"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
@@ -249,6 +253,7 @@ platforms:
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
     rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --non-constant-id --auto-add-overlay -M {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
+    manifestName:     'AndroidManifest.xml'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   arm64-android:
@@ -262,7 +267,7 @@ platforms:
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind", "cares"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "cares"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-android", "{{dynamo_home}}/ext/lib/arm64-android", "{{env.STL_LIB}}"]
         defines:    ["DM_PLATFORM_ANDROID", "__aarch64__", "LUA_BYTECODE_ENABLE_64"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
@@ -293,6 +298,7 @@ platforms:
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
     rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --non-constant-id --auto-add-overlay -M {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
+    manifestName:     'AndroidManifest.xml'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   web:
@@ -330,6 +336,7 @@ platforms:
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    manifestName:     'engine_template.html'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   wasm-web:
@@ -364,6 +371,7 @@ platforms:
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    manifestName:     'engine_template.html'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   win32:
@@ -470,3 +478,4 @@ platforms:
     compileCmd:     'clang++ {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} -Wl,--end-group -Wl,-Bdynamic -Wl,-rpath=$ORIGIN,--enable-new-dtags {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}}'
     libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+

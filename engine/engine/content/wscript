@@ -42,7 +42,7 @@ def build(bld):
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
 
-    for d in ['manifests']:
+    for d in ['manifests', 'assets']:
         bld.install_files('${PREFIX}/content',
                   bld.path.ant_glob('builtins/%s/**' % d),
                   cwd=bld.path.find_dir('builtins'),

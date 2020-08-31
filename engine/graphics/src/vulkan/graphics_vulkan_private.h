@@ -13,6 +13,9 @@
 #ifndef __GRAPHICS_DEVICE_VULKAN__
 #define __GRAPHICS_DEVICE_VULKAN__
 
+#include <stdint.h>
+#include <dlib/hashtable.h>
+
 namespace dmGraphics
 {
     const static uint8_t DM_MAX_SET_COUNT              = 2;
@@ -360,13 +363,113 @@ namespace dmGraphics
         bool     HasMultiSampling();
     };
 
+    typedef dmHashTable64<Pipeline>    PipelineCache;
+    typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
+
+    // In flight frames - number of concurrent frames being processed
+    static const uint8_t g_max_frames_in_flight       = 2;
+
+    struct Context
+    {
+        Context(const ContextParams& params, const VkInstance vk_instance)
+        : m_MainRenderTarget(0)
+        {
+            memset(this, 0, sizeof(*this));
+            m_Instance                = vk_instance;
+            m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+            m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+            m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+            m_UseValidationLayers     = params.m_UseValidationLayers;
+            m_RenderDocSupport        = params.m_RenderDocSupport;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+        }
+
+        ~Context()
+        {
+            if (m_Instance != VK_NULL_HANDLE)
+            {
+                vkDestroyInstance(m_Instance, 0);
+                m_Instance = VK_NULL_HANDLE;
+            }
+        }
+
+        Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        PipelineCache                   m_PipelineCache;
+        PipelineState                   m_PipelineState;
+        SwapChain*                      m_SwapChain;
+        SwapChainCapabilities           m_SwapChainCapabilities;
+        PhysicalDevice                  m_PhysicalDevice;
+        LogicalDevice                   m_LogicalDevice;
+        FrameResource                   m_FrameResources[g_max_frames_in_flight];
+        VkInstance                      m_Instance;
+        VkSurfaceKHR                    m_WindowSurface;
+        dmArray<TextureSampler>         m_TextureSamplers;
+        uint32_t*                       m_DynamicOffsetBuffer;
+        uint16_t                        m_DynamicOffsetBufferSize;
+        // Window callbacks
+        WindowResizeCallback            m_WindowResizeCallback;
+        void*                           m_WindowResizeCallbackUserData;
+        WindowCloseCallback             m_WindowCloseCallback;
+        void*                           m_WindowCloseCallbackUserData;
+        WindowFocusCallback             m_WindowFocusCallback;
+        void*                           m_WindowFocusCallbackUserData;
+        WindowIconifyCallback           m_WindowIconifyCallback;
+        void*                           m_WindowIconifyCallbackUserData;
+        // Main device rendering constructs
+        dmArray<VkFramebuffer>          m_MainFrameBuffers;
+        dmArray<VkCommandBuffer>        m_MainCommandBuffers;
+        VkCommandBuffer                 m_MainCommandBufferUploadHelper;
+        ResourcesToDestroyList*         m_MainResourcesToDestroy[3];
+        dmArray<ScratchBuffer>          m_MainScratchBuffers;
+        dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
+        VkRenderPass                    m_MainRenderPass;
+        Texture                         m_MainTextureDepthStencil;
+        RenderTarget                    m_MainRenderTarget;
+        Viewport                        m_MainViewport;
+        // Rendering state
+        RenderTarget*                   m_CurrentRenderTarget;
+        DeviceBuffer*                   m_CurrentVertexBuffer;
+        VertexDeclaration*              m_CurrentVertexDeclaration;
+        Program*                        m_CurrentProgram;
+        // Misc state
+        TextureFilter                   m_DefaultTextureMinFilter;
+        TextureFilter                   m_DefaultTextureMagFilter;
+        Texture*                        m_DefaultTexture;
+        uint32_t                        m_TextureFormatSupport;
+        uint32_t                        m_Width;
+        uint32_t                        m_Height;
+        uint32_t                        m_WindowWidth;
+        uint32_t                        m_WindowHeight;
+        uint32_t                        m_FrameBegun           : 1;
+        uint32_t                        m_CurrentFrameInFlight : 1;
+        uint32_t                        m_WindowOpened         : 1;
+        uint32_t                        m_VerifyGraphicsCalls  : 1;
+        uint32_t                        m_ViewportChanged      : 1;
+        uint32_t                        m_CullFaceChanged      : 1;
+        uint32_t                        m_UseValidationLayers  : 1;
+        uint32_t                        m_RenderDocSupport     : 1;
+        uint32_t                                               : 24;
+    };
+
     // Implemented in graphics_vulkan_context.cpp
     VkResult CreateInstance(VkInstance* vkInstanceOut,
+        // Extension names, e.g. "VK_KHR_SURFACE_EXTENSION_NAME"
+        const char** extensionNames, uint16_t extensionNameCount,
         // Validation Layer Names, i.e "VK_LAYER_LUNARG_standard_validation"
         const char** validationLayers, uint16_t validationLayerCount,
         // Req. Validation Layer Extensions, i.e "VK_EXT_DEBUG_UTILS_EXTENSION_NAME"
         const char** validationLayerExtensions, uint16_t validationLayerExtensionCount);
     void     DestroyInstance(VkInstance* vkInstance);
+
+    // Implemented in graphics_vulkan.cpp
+    VkResult CreateMainFrameBuffers(HContext context);
+    VkResult DestroyMainFrameBuffers(HContext context);
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
 
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
@@ -374,6 +477,7 @@ namespace dmGraphics
         uint32_t width, uint32_t height,
         VkImageView* vk_attachments, uint8_t attachmentCount, // Color & depth/stencil attachments
         VkFramebuffer* vk_framebuffer_out);
+    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer);
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool,
         uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out);
     VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes,
@@ -398,6 +502,7 @@ namespace dmGraphics
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
         RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
+    void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device,
@@ -410,7 +515,6 @@ namespace dmGraphics
     // Destroy funcions
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
-    void           DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
     void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
     void           DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle);
     void           DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
@@ -433,18 +537,63 @@ namespace dmGraphics
         uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
 
+    void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value);
+    void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
+
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
-        uint32_t* wantedWidth, uint32_t* wantedHeight, const bool wantVSync,
+        uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync,
         SwapChainCapabilities& capabilities, SwapChain* swapChain);
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
+    // called from OpenWindow
+    bool InitializeVulkan(HContext context, const WindowParams* params);
+
+    void OnWindowResize(int width, int height);
+    int OnWindowClose();
+    void OnWindowFocus(int focus);
+
+    inline void SynchronizeDevice(VkDevice vk_device)
+    {
+        vkDeviceWaitIdle(vk_device);
+    }
+
     // Implemented per supported platform
+
+    const char** GetExtensionNames(uint16_t* num_extensions);
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
+    const char** GetValidationLayersExt(uint16_t* num_layers);
+
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+
     bool     LoadVulkanLibrary();
     void     LoadVulkanFunctions(VkInstance vk_instance);
+
+
+    void SwapBuffers();
+
+
+    bool NativeInit(const struct ContextParams& params);
+    void NativeExit();
+    
+    void NativeBeginFrame(HContext context);
+
+    WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
+    void VulkanCloseWindow(HContext context);
+    uint32_t VulkanGetDisplayDpi(HContext context);
+    uint32_t VulkanGetWidth(HContext context);
+    uint32_t VulkanGetHeight(HContext context);
+    uint32_t VulkanGetWindowWidth(HContext context);
+    uint32_t VulkanGetWindowHeight(HContext context);
+    uint32_t VulkanGetWindowRefreshRate(HContext context);
+    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
+    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
+    void VulkanIconifyWindow(HContext context);
+    uint32_t VulkanGetWindowState(HContext context, WindowState state);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

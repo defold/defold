@@ -77,8 +77,8 @@ extern uint32_t DEBUG_FPC_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
 
-    extern unsigned char CONNECT_PROJECT[];
-    extern uint32_t CONNECT_PROJECT_SIZE;
+    extern unsigned char GAME_PROJECT[];
+    extern uint32_t GAME_PROJECT_SIZE;
 #endif
 
 using namespace Vectormath::Aos;
@@ -392,19 +392,26 @@ namespace dmEngine
             char p2[DMPATH_MAX_PATH];
             char p3[DMPATH_MAX_PATH];
             char tmp[DMPATH_MAX_PATH];
-            char* paths[] = { p1, p2, p3 };
+            char* paths[3];
             uint32_t count = 0;
 
-            dmStrlCpy(p1, "./game.projectc", sizeof(p1));
-            dmStrlCpy(p2, "build/default/game.projectc", sizeof(p2));
+            const char* mountstr = "";
+#if defined(__NX__)
+            mountstr = "data:/";
+            // there's no way to check for a named mount, and it will assert
+            // So we'll only enter here if it's set on this platform
+            if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
+                mountstr = "host:/";
+#endif
+            dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
+            dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
+            paths[count++] = p1;
+            paths[count++] = p2;
+
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
                 dmPath::Concat(tmp, "game.projectc", p3, sizeof(p3));
-                count = 3;
-            }
-            else
-            {
-                count = 2;
+                paths[count++] = p3;
             }
 
             for (uint32_t i = 0; i < count; ++i)
@@ -467,7 +474,7 @@ namespace dmEngine
         engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
-        char* qoe_s = getenv("DM_QUIT_ON_ESC");
+        char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
         char project_file[DMPATH_MAX_PATH];
@@ -514,7 +521,7 @@ namespace dmEngine
             dmLogFatal("Unable to load project");
             return false;
 #else
-            dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
+            dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) GAME_PROJECT, GAME_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
                 dmLogFatal("Unable to load builtin connect project");
@@ -533,8 +540,10 @@ namespace dmEngine
             verify_graphics_calls = false;
 
         bool renderdoc_support = false;
+        bool use_validation_layers = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
         const char renderdoc_support_arg[] = "--renderdoc";
+        const char validation_layers_support_arg[] = "--use-validation-layers";
         for (int i = 0; i < argc; ++i)
         {
             const char* arg = argv[i];
@@ -552,6 +561,10 @@ namespace dmEngine
             else if (strncmp(renderdoc_support_arg, arg, sizeof(renderdoc_support_arg)-1) == 0)
             {
                 renderdoc_support = true;
+            }
+            else if (strncmp(validation_layers_support_arg, arg, sizeof(validation_layers_support_arg)-1) == 0)
+            {
+                use_validation_layers = true;
             }
         }
 
@@ -587,7 +600,10 @@ namespace dmEngine
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport = renderdoc_support;
+        graphics_context_params.m_RenderDocSupport = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+
+        graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
+        graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -687,15 +703,21 @@ namespace dmEngine
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
-        int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
+
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+            int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
             if (http_cache)
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
+
+        int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
+        if (liveupdate_enable)
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
 
 #if defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
@@ -953,6 +975,9 @@ namespace dmEngine
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
 
+        // Variables need to be declared up here due to the goto's
+        bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
@@ -1072,10 +1097,21 @@ namespace dmEngine
         dmGameObject::Init(engine->m_MainCollection);
 
         engine->m_LastReloadMTime = 0;
-        struct stat file_stat;
-        if (stat("build/default/content/reload", &file_stat) == 0)
+
+#if defined(__NX__)
+        // there's no way to check for a named mount, and it will assert
+        // So we'll only enter here if it's set on this platform
+        if (has_host_mount)
+#endif
         {
-            engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+            const char* mountstr = has_host_mount ? "host:/" : "";
+            char path[512];
+            dmSnPrintf(path, sizeof(path), "%sbuild/default/content/reload", mountstr);
+            struct stat file_stat;
+            if (stat(path, &file_stat) == 0)
+            {
+                engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+            }
         }
 
         if (update_order)
@@ -1228,6 +1264,7 @@ bail:
     {
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
 
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
@@ -1508,70 +1545,11 @@ bail:
         return engine->m_Alive;
     }
 
-#if defined(__EMSCRIPTEN__)
-    static void PreStepEmscripten(HEngine engine)
-    {
-        dmEngine::RunResult run_result = engine->m_RunResult;
-        if (run_result.m_Action == dmEngine::RunResult::REBOOT)
-        {
-            dmEngineService::HEngineService engine_service = engine->m_EngineService;
-            PreRun pre_run = engine->m_PreRun;
-            PostRun post_run = engine->m_PostRun;
-            void* context = engine->m_PrePostRunContext;
-
-            dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
-
-            emscripten_pause_main_loop(); // stop further callbacks
-            emscripten_cancel_main_loop(); // Causes an exception
-
-            if (engine->m_PostRun)
-            {
-                engine->m_PostRun(engine, context);
-            }
-
-            dmEngine::Delete(engine);
-
-            // enters the main loop again (i.e. calls emscripten_set_main_loop_arg(PerformStep, engine))
-            dmEngine::InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
-            return;
-        }
-        else if (run_result.m_Action == dmEngine::RunResult::EXIT)
-        {
-            dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
-
-            emscripten_pause_main_loop();
-            emscripten_cancel_main_loop();
-
-            if (engine->m_PostRun)
-            {
-                engine->m_PostRun(engine, engine->m_PrePostRunContext);
-            }
-
-            dmEngine::Delete(engine);
-        }
-
-        if (!dmCrash::IsEnabled()) {
-            dmCrash::SetEnabled(true);
-        }
-    }
-#endif // __EMSCRIPTEN__
-
-    static void PerformStep(void* context)
-    {
-        HEngine engine = (HEngine)context;
-
-#if defined(__EMSCRIPTEN__)
-        PreStepEmscripten(engine);
-#endif
-
-        Step(engine);
-    }
-
     static void Exit(HEngine engine, int32_t code)
     {
         engine->m_Alive = false;
         engine->m_RunResult.m_ExitCode = code;
-        engine->m_RunResult.m_Action =  dmEngine::RunResult::EXIT;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
@@ -1607,66 +1585,6 @@ bail:
 
         engine->m_Alive = false;
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
-    }
-
-    RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
-    {
-        dmEngine::HEngine engine = dmEngine::New(engine_service);
-        dmEngine::RunResult run_result;
-        if (dmEngine::Init(engine, argc, argv))
-        {
-            engine->m_PreRun = pre_run;
-            engine->m_PostRun = post_run;
-            engine->m_PrePostRunContext = context;
-
-            if (engine->m_PreRun)
-            {
-                engine->m_PreRun(engine, engine->m_PrePostRunContext);
-            }
-
-            // Note that this will not return on certain platforms (currently HTML5)
-            dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
-            run_result = engine->m_RunResult;
-
-            if (engine->m_PostRun)
-            {
-                engine->m_PostRun(engine, engine->m_PrePostRunContext);
-            }
-        }
-        else
-        {
-            run_result.m_ExitCode = 1;
-            run_result.m_Action = dmEngine::RunResult::EXIT;
-        }
-        dmEngine::Delete(engine);
-
-        return run_result;
-    }
-
-    int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
-    {
-        dmEngineService::HEngineService engine_service = 0;
-
-        if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
-        {
-            uint16_t engine_port = dmEngineService::GetServicePort(8001);
-            engine_service = dmEngineService::New(engine_port);
-        }
-
-        dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
-        while (run_result.m_Action == dmEngine::RunResult::REBOOT)
-        {
-            dmEngine::RunResult tmp = InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
-            run_result.Free();
-            run_result = tmp;
-        }
-        run_result.Free();
-
-        if (engine_service)
-        {
-            dmEngineService::Delete(engine_service);
-        }
-        return run_result.m_ExitCode;
     }
 
     void Dispatch(dmMessage::Message* message, void* user_ptr)
@@ -1908,31 +1826,33 @@ void dmEngineDestroy(dmEngine::HEngine engine)
     Delete(engine);
 }
 
-int dmEngineUpdate(dmEngine::HEngine engine)
+static dmEngine::UpdateResult GetAppResultFromAction(int action)
+{
+    switch(action) {
+    case dmEngine::RunResult::REBOOT:   return dmEngine::RESULT_REBOOT;
+    case dmEngine::RunResult::EXIT:     return dmEngine::RESULT_EXIT;
+    default:                            return dmEngine::RESULT_OK;
+    }
+}
+
+dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine)
 {
     if (dmEngine::IsRunning(engine))
     {
-        dmEngine::PerformStep(engine);
+        dmEngine::Step(engine);
+    }
+    else {
+        if (engine->m_RunResult.m_Action == dmEngine::RunResult::NONE)
+            return dmEngine::RESULT_EXIT;
     }
 
-    if (engine->m_RunResult.m_Action == dmEngine::RunResult::REBOOT)
-    {
-        return 1;
-    }
-    else if (engine->m_RunResult.m_Action == dmEngine::RunResult::EXIT)
-    {
-        return -1;
-    }
-    else
-    {
-        return 0;
-    }
+    return GetAppResultFromAction(engine->m_RunResult.m_Action);
 }
 
 void dmEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
 {
     if (run_action)
-        *run_action = engine->m_RunResult.m_Action;
+        *run_action = (int)GetAppResultFromAction(engine->m_RunResult.m_Action);
     if (exit_code)
         *exit_code = engine->m_RunResult.m_ExitCode;
 

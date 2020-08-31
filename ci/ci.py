@@ -105,6 +105,13 @@ def setup_keychain(args):
     print("Done with keychain setup")
 
 
+def setup_windows_cert(args):
+    print("Setting up certificate")
+    cert_path = os.path.join("ci", "windows_cert.pfx")
+    with open(cert_path, "wb") as file:
+        file.write(base64.decodestring(args.windows_cert))
+
+
 def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
@@ -142,6 +149,9 @@ def install(args):
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
+    elif system == "Windows":
+        if args.windows_cert:
+            setup_windows_cert(args)
 
 
 def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False, channel = None):
@@ -223,6 +233,23 @@ def download_editor2(channel = None, platform = None):
     for platform in platforms:
         call('python scripts/build.py download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
 
+
+def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
+    args = 'python scripts/build.py sign_editor2'.split()
+    opts = []
+
+    opts.append('--platform=%s' % platform)
+
+    if windows_cert:
+        opts.append('--windows-cert="%s"' % windows_cert)
+
+    if windows_cert_pass:
+        opts.append('--windows-cert-pass="%s"' % windows_cert_pass)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
+
+
 def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
     if not notarization_username or not notarization_password:
         print("No notarization username or password")
@@ -234,11 +261,11 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
 
     opts.append('--platform=x86_64-darwin')
 
-    opts.append('--notarization-username=%s' % notarization_username)
-    opts.append('--notarization-password=%s' % notarization_password)
+    opts.append('--notarization-username="%s"' % notarization_username)
+    opts.append('--notarization-password="%s"' % notarization_password)
 
     if notarization_itc_provider:
-        opts.append('--notarization-itc-provider=%s' % notarization_itc_provider)
+        opts.append('--notarization-itc-provider="%s"' % notarization_itc_provider)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -261,9 +288,19 @@ def archive_editor2(channel = None, engine_artifacts = None, platform = None):
     for platform in platforms:
         call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
 
+def distclean():
+    call("python scripts/build.py distclean")
 
-def build_bob(channel = None):
-    args = "python scripts/build.py distclean install_ext sync_archive build_bob archive_bob".split()
+
+def install_ext(platform = None):
+    opts = []
+    if platform:
+        opts.append('--platform=%s' % platform)
+
+    call("python scripts/build.py install_ext %s" % ' '.join(opts))
+
+def build_bob(channel = None, branch = None):
+    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
 
     if channel:
@@ -279,6 +316,22 @@ def release(channel = None):
 
     if channel:
         opts.append("--channel=%s" % channel)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
+
+def release_to_github_markdown(token = None, repo = None, sha1 = None):
+    args = "python scripts/build.py release_to_github_markdown".split()
+    opts = []
+
+    if token:
+        opts.append("--github-token=%s" % token)
+
+    if repo:
+        opts.append("--github-target-repo=%s" % repo)
+
+    if sha1:
+        opts.append("--github-sha1=%s" % sha1)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -320,9 +373,14 @@ def main(argv):
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
+    parser.add_argument("--windows-cert", dest="windows_cert", help="Base 64 encoded Windows certificate (pfx)")
+    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="Password for the Windows certificate")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")
+    parser.add_argument('--github-token', dest='github_token', help='GitHub authentication token when releasing to GitHub')
+    parser.add_argument('--github-target-repo', dest='github_target_repo', help='GitHub target repo when releasing artefacts')
+    parser.add_argument('--github-sha1', dest='github_sha1', help='A specific sha1 to use in github operations')
 
     args = parser.parse_args()
 
@@ -394,21 +452,33 @@ def main(argv):
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
                 notarization_itc_provider = args.notarization_itc_provider)
+        elif command == "sign-editor":
+            if not platform:
+                raise Exception("No --platform specified.")
+            sign_editor2(platform, windows_cert = args.windows_cert, windows_cert_pass = args.windows_cert_pass)
         elif command == "archive-editor":
             archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
-            build_bob(channel = engine_channel)
+            build_bob(channel = engine_channel, branch = branch)
         elif command == "sdk":
             build_sdk(channel = engine_channel)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
             install(args)
+        elif command == "install_ext":
+            install_ext(platform = platform)
+        elif command == "distclean":
+            distclean()
         elif command == "release":
             if make_release:
                 release(channel = release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
+        elif command == "release_to_github_markdown":
+            release_to_github_markdown(token = args.github_token,
+                                repo = args.github_target_repo,
+                                sha1 = args.github_sha1)
         else:
             print("Unknown command {0}".format(command))
 

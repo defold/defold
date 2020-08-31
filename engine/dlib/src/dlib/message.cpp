@@ -18,9 +18,9 @@
 #include "hashtable.h"
 #include "profile.h"
 #include "array.h"
-#include "mutex.h"
 #include "condition_variable.h"
 #include "dstrings.h"
+#include <dlib/mutex.h>
 #include <dlib/static_assert.h>
 #include <dlib/spinlock.h>
 

@@ -38,6 +38,7 @@ namespace dmTime
     /*# sleep thread with low precision (~10 milliseconds).
      *
      * Sleep thread with low precision (~10 milliseconds).
+     * @name dmTime::Sleep
      * @param useconds Time to sleep in microseconds
      */
     void Sleep(uint32_t useconds);

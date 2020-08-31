@@ -483,16 +483,7 @@ public class BundleHelper {
 
             BundleHelper.createAndroidResourceFolders(resDir);
             copyAndroidIcons(resDir);
-
-            // Copy push notification icons
-            copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "drawable/push_icon_small.png");
-            copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "drawable/push_icon_large.png");
-
-            String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
-            for (String dpi : dpis) {
-                copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "push_icon_small.png", dpi);
-                copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "push_icon_large.png", dpi);
-            }
+            copyAndroidPushIcons(resDir);
 
             Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
             ExtenderUtil.storeResources(packagesDir, androidResources);
@@ -642,6 +633,17 @@ public class BundleHelper {
         genIcon(largestIconImage, resDir, "android",   "app_icon_96x96",   "drawable-xhdpi/icon.png",  96);
         genIcon(largestIconImage, resDir, "android", "app_icon_144x144",  "drawable-xxhdpi/icon.png", 144);
         genIcon(largestIconImage, resDir, "android", "app_icon_192x192", "drawable-xxxhdpi/icon.png", 192);
+    }
+
+    public void copyAndroidPushIcons(File resDir) throws IOException {
+        copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "drawable/push_icon_small.png");
+        copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "drawable/push_icon_large.png");
+
+        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
+        for (String dpi : dpis) {
+            copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "push_icon_small.png", dpi);
+            copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "push_icon_large.png", dpi);
+        }
     }
 
     private boolean copyFile(BobProjectProperties projectProperties, String projectRoot, File resDir, String category, String name, String outName)

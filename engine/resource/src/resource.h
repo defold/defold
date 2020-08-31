@@ -49,6 +49,11 @@ namespace dmResource
     #define RESOURCE_FACTORY_FLAGS_HTTP_CACHE     (1 << 2)
 
     /**
+     * Enable Live update
+     */
+    #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE    (1 << 3)
+
+    /**
      * Result
      */
     enum Result
