@@ -345,11 +345,10 @@ namespace dmGameSystem
         }
 
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        dmhash_t current_layout_id = GetLayout(scene);
         dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
-        if(layout_id != GetLayout(scene))
+        if(layout_id != current_layout_id)
         {
-            dmhash_t current_layout_id = GetLayout(scene);
-
             dmRender::DisplayProfileDesc profile_desc;
             GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
             dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
