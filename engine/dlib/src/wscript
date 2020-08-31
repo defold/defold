@@ -265,6 +265,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/sslsocket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
     bld.install_as('${PREFIX}/include/dlib/spinlocktypes.h', _get_native_file(build_util.get_target_os(), 'spinlocktypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')

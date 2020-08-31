@@ -61,12 +61,12 @@ namespace dmURI
             size_t n = dmMath::Min(sizeof(parts->m_Scheme), (size_t) (scheme_end-uri) + 1);
             dmStrlCpy(parts->m_Scheme, uri, n);
 
-            if (strcmp(parts->m_Scheme, "http") == 0)
+            if (strcmp(parts->m_Scheme, "http") == 0 || strcmp(parts->m_Scheme, "ws") == 0)
             {
                 // Default to port 80 for http
                 parts->m_Port = 80;
             }
-            else if (strcmp(parts->m_Scheme, "https") == 0)
+            else if (strcmp(parts->m_Scheme, "https") == 0 || strcmp(parts->m_Scheme, "wss") == 0)
             {
                 // Default to port 443 for https
                 parts->m_Port = 443;
