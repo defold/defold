@@ -54,6 +54,7 @@ namespace dmThread
     /*# create a new thread
      * Create a new named thread
      * @note thread name currently not supported on win32
+     * @name dmThread::New
      * @param thread_start Thread entry function
      * @param stack_size Stack size
      * @param arg Thread argument
@@ -105,26 +106,28 @@ namespace dmThread
     /*# join thread
      *
      * Join thread
+     * @name dmThread::Join
      * @param thread Thread to join
      */
     void Join(Thread thread);
 
     /*# allocate thread local storage key
      * Allocate thread local storage key
+     * @name dmThread::AllocTls
      * @return Key
      */
-
     TlsKey AllocTls();
 
     /*# free thread local storage key
      * Free thread local storage key
+     * @name dmThread::FreeTls
      * @param key Key
      */
-
     void FreeTls(TlsKey key);
 
     /*# set thread specific data
      * Set thread specific data
+     * @name dmThread::SetTlsValue
      * @param key Key
      * @param value Value
      */
@@ -132,18 +135,21 @@ namespace dmThread
 
     /*# get thread specific data
      * Get thread specific data
+     * @name dmThread::GetTlsVAlue
      * @param key Key
      */
     void* GetTlsValue(TlsKey key);
 
     /*# gets the current thread
      * Gets the current thread
+     * @name dmThread::GetCurrentThread
      * @return the current thread
      */
     Thread GetCurrentThread();
 
     /*# sets the current thread name
      * Sets the current thread name
+     * @name dmThread::SetThreadName
      * @param thread the thread
      * @param name the thread name
      * @note The thread argument is unused on Darwin (uses current thread)
