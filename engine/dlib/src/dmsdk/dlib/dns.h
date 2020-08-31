@@ -28,6 +28,8 @@ namespace dmDNS
     /*#
      * A channel roughly translates to a socket on which to put the name lookup requests on.
      * Internal implementation resides in dns.cpp.
+     * @typedef
+     * @name dmDNS::HChannel
      */
     typedef struct Channel* HChannel;
 
