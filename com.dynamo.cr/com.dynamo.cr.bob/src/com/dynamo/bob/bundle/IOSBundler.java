@@ -260,10 +260,32 @@ public class IOSBundler implements IBundler {
                     throw e;
                 }
             }
-
         } else
         {
             logger.log(Level.WARNING, "ios.launch_screen is not set");
+        }
+
+        String icons = projectProperties.getStringValue("ios", "icons");
+        // It might be null if the user uses the "bundle_resources" to copy everything
+        if (icons != null)
+        {
+            final String iconsBaseName = FilenameUtils.getName(icons);
+            IResource source = project.getResource(icons);
+            if (source == null) {
+                throw new IOException(String.format("'ios.icons' = '%s' does not exist", source));
+            }
+
+            File target = new File(appDir, icons);
+
+            try {
+                FileUtils.writeByteArrayToFile(target, source.getContent());
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, String.format("Failed copying %s to %s\n", source.getPath(), target));
+                throw e;
+            }
+        } else
+        {
+            logger.log(Level.WARNING, "ios.icons is not set");
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);

@@ -445,6 +445,11 @@
    :help "iPhone6 plus icon file (.png)",
    :path ["ios" "app_icon_180x180"]}
   {:type :string,
+   :filter "car",
+   :preserve-extension true,
+   :help "the icons asset file (.car)",
+   :path ["ios" "icons"]}
+  {:type :string,
    :default "/builtins/manifests/ios/LaunchScreen.storyboardc",
    :preserve-extension true,
    :help "the launch screen storyboard",

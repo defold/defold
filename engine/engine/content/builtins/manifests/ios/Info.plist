@@ -26,6 +26,8 @@
         <dict>
                 <key>CFBundlePrimaryIcon</key>
                 <dict>
+                        <key>CFBundleIconName</key>
+                        <string>AppIcon</string>
                         <key>CFBundleIconFiles</key>
                         <array>
                                 <string>Icon-167.png</string>
