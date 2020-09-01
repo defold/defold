@@ -15,6 +15,15 @@
 
 #include <stdint.h>
 
+#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
+#include <sys/select.h>
+#elif defined(_WIN32)
+#include <winsock2.h>
+#else
+#error "Unsupported platform"
+#endif
+
+
 /*# SDK Socket API documentation
  * [file:<dmsdk/dlib/socket.h>]
  *
@@ -318,7 +327,76 @@ namespace dmSocket
      */
     const char* ResultToString(Result result);
 
+    /*#
+     * Selector kind
+     * @enum
+     * @name dmSocket::SelectorKind
+     * @member dmSocket::SELECTOR_KIND_READ
+     * @member dmSocket::SELECTOR_KIND_WRITE
+     * @member dmSocket::SELECTOR_KIND_EXCEPT
+     */
+    enum SelectorKind
+    {
+        SELECTOR_KIND_READ   = 0,
+        SELECTOR_KIND_WRITE  = 1,
+        SELECTOR_KIND_EXCEPT = 2,
+    };
 
+    /*#
+     * Selector
+     * @struct
+     * @name dmSocket::Selector
+     */
+    struct Selector
+    {
+        fd_set m_FdSets[3];
+        int    m_Nfds;
+        Selector();
+    };
+
+    /*#
+     * Clear selector for socket. Similar to FD_CLR
+     * @name dmSocket::SelectorClear
+     * @param selector Selector
+     * @param selector_kind Kind to clear
+     * @param socket Socket to clear
+     */
+    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket);
+
+    /*#
+     * Set selector for socket. Similar to FD_SET
+     * @name dmSocket::SelectorSet
+     * @param selector Selector
+     * @param selector_kind Kind to clear
+     * @param socket Socket to set
+     */
+    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket);
+
+    /*#
+     * Check if selector is set. Similar to FD_ISSET
+     * @name dmSocket::SelectorIsSet
+     * @param selector Selector
+     * @param selector_kind Selector kind
+     * @param socket Socket to check for
+     * @return True if set.
+     */
+    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket);
+
+    /*#
+     * Clear selector (all kinds). Similar to FD_ZERO
+     * @name dmSocket::SelectorZero
+     * @param selector Selector
+     */
+    void SelectorZero(Selector* selector);
+
+    /*#
+     * Select for pending data
+     * @name dmSocket::Select
+     * @param selector Selector
+     * @param timeout Timeout. For blocking pass -1. (microseconds)
+     * @return RESULT_OK on success
+     */
+    Result Select(Selector* selector, int32_t timeout);
 }
 
 #endif // DMSDK_SOCKET_H
