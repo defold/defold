@@ -18,15 +18,9 @@
                         <string>AppIcon</string>
                         <key>CFBundleIconFiles</key>
                         <array>
-                                <string>Icon-167.png</string>
-                                <string>Icon-60@3x.png</string>
-                                <string>Icon-60@2x.png</string>
-                                <string>Icon-76@2x.png</string>
-                                <string>Icon-76.png</string>
-                                <string>Icon@2x.png</string>
-                                <string>Icon.png</string>
-                                <string>Icon-72@2x.png</string>
-                                <string>Icon-72.png</string>
+                                <string>Icon-60</string>
+                                <string>Icon-76</string>
+                                <string>Icon-83.5</string>
                         </array>
                         <key>UIPrerenderedIcon</key>
                         <{{ios.pre_renderered_icons}}/>
