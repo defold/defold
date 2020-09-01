@@ -10,18 +10,6 @@
         <string>{{project.title}}</string>
         <key>CFBundleExecutable</key>
         <string>{{exe-name}}</string>
-        <key>CFBundleIconFiles</key>
-        <array>
-                <string>Icon-167.png</string>
-                <string>Icon-60@3x.png</string>
-                <string>Icon-60@2x.png</string>
-                <string>Icon-76@2x.png</string>
-                <string>Icon-76.png</string>
-                <string>Icon@2x.png</string>
-                <string>Icon.png</string>
-                <string>Icon-72@2x.png</string>
-                <string>Icon-72.png</string>
-        </array>
         <key>CFBundleIcons</key>
         <dict>
                 <key>CFBundlePrimaryIcon</key>
