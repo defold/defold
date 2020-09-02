@@ -410,6 +410,11 @@ dmSocket::Result Receive(SSLSocket* socket, void* buffer, int length, int* recei
     return dmSocket::RESULT_OK;
 }
 
+dmSocket::Result SetReceiveTimeout(Socket socket, uint64_t timeout)
+{
+    socket->m_SSLNetContext->m_Timeout = timeout;
+    return dmSocket::RESULT_OK;
+}
 
 #undef SSL_LOGW
 #undef SSL_LOGE
