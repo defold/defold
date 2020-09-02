@@ -425,7 +425,7 @@
    :filter "car",
    :preserve-extension true,
    :help "the icons asset file (.car)",
-   :path ["ios" "icons"]}
+   :path ["ios" "icons_asset"]}
   {:type :string,
    :default "/builtins/manifests/ios/LaunchScreen.storyboardc",
    :preserve-extension true,

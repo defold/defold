@@ -265,17 +265,17 @@ public class IOSBundler implements IBundler {
             logger.log(Level.WARNING, "ios.launch_screen is not set");
         }
 
-        String icons = projectProperties.getStringValue("ios", "icons");
+        String iconsAsset = projectProperties.getStringValue("ios", "icons_asset");
         // It might be null if the user uses the "bundle_resources" to copy everything
-        if (icons != null)
+        if (iconsAsset != null)
         {
-            final String iconsBaseName = FilenameUtils.getName(icons);
-            IResource source = project.getResource(icons);
+            final String iconsBaseName = FilenameUtils.getName(iconsAsset);
+            IResource source = project.getResource(iconsAsset);
             if (source == null) {
-                throw new IOException(String.format("'ios.icons' = '%s' does not exist", source));
+                throw new IOException(String.format("'ios.icons_asset' = '%s' does not exist", source));
             }
 
-            File target = new File(appDir, icons);
+            File target = new File(appDir, iconsAsset);
 
             try {
                 FileUtils.writeByteArrayToFile(target, source.getContent());
@@ -285,7 +285,7 @@ public class IOSBundler implements IBundler {
             }
         } else
         {
-            logger.log(Level.WARNING, "ios.icons is not set");
+            logger.log(Level.WARNING, "ios.icons_asset is not set");
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
