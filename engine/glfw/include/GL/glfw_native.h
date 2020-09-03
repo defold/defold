@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -93,6 +93,8 @@ GLFWAPI android_app* glfwGetAndroidApp(void);
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
 
     // See documentation in engine.h
+    typedef void (*EngineInit)(void* ctx);
+    typedef void (*EngineExit)(void* ctx);
     typedef void* (*EngineCreate)(int argc, char** argv);
     typedef void (*EngineDestroy)(void* engine);
     typedef int (*EngineUpdate)(void* engine);
@@ -108,7 +110,7 @@ GLFWAPI android_app* glfwGetAndroidApp(void);
     // Gets a copy of the argument list, use free(argv[i]) for each afterwards
     typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
-    void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+    void glfwAppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
 #endif
 
 GLFWAPI Window glfwGetX11Window(void);

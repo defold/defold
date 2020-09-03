@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,6 +26,9 @@ UIWindow*           g_ApplicationWindow = 0;
 
 _GLFWwin            g_Savewin;
 
+void*               g_EngineUserCtx = 0;
+EngineInit          g_EngineInitFn = 0;
+EngineExit          g_EngineExitFn = 0;
 EngineCreate        g_EngineCreateFn = 0;
 EngineDestroy       g_EngineDestroyFn = 0;
 EngineUpdate        g_EngineUpdateFn = 0;
@@ -135,6 +138,9 @@ static void ShutdownEngine(bool call_exit)
 
     if (run_action == GLFW_APP_RUN_EXIT)
     {
+        if (g_EngineExitFn)
+            g_EngineExitFn(g_EngineUserCtx);
+
         NSLog(@"Exiting app with code %d", exit_code);
         if (call_exit)
             exit(exit_code);
@@ -195,8 +201,11 @@ static void ShutdownEngine(bool call_exit)
 
 @end
 
-void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+void glfwAppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
 {
+    g_EngineUserCtx = init_ctx;
+    g_EngineInitFn = init_fn;
+    g_EngineExitFn = exit_fn;
     g_EngineCreateFn = create_fn;
     g_EngineDestroyFn = destroy_fn;
     g_EngineUpdateFn = update_fn;
@@ -206,6 +215,9 @@ void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestr
     g_Argc = argc;
     g_Argv = argv;
     g_WasRebooted = 0;
+
+    if (g_EngineInitFn)
+        g_EngineInitFn(g_EngineUserCtx);
 
     int retVal = UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
     (void) retVal;
