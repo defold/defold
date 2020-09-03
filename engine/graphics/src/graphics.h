@@ -60,6 +60,8 @@ namespace dmGraphics
     typedef int32_t (*WindowIsRunning)(void* user_data);
 
     // See documentation in engine.h
+    typedef void (*EngineInit)(void* ctx);
+    typedef void (*EngineExit)(void* ctx);
     typedef void* (*EngineCreate)(int argc, char** argv);
     typedef void (*EngineDestroy)(void* engine);
     typedef int (*EngineUpdate)(void* engine);
@@ -445,9 +447,9 @@ namespace dmGraphics
     void Finalize();
 
     /**
-     * Starts the app that needs to control the update loop (e.g iOS)
+     * Starts the app that needs to control the update loop (iOS only)
      */
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+    void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
 
     /**
      * Get the window refresh rate
