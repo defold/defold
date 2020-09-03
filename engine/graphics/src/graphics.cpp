@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,6 +12,10 @@
 
 #include "graphics.h"
 #include "graphics_adapter.h"
+
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#include <graphics/glfw/glfw_native.h> // for glfwAppBootstrap
+#endif
 #include <string.h>
 #include <assert.h>
 
@@ -23,7 +27,7 @@ namespace dmGraphics
 
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority)
     {
-        adapter->m_Next          = g_adapter_list;  
+        adapter->m_Next          = g_adapter_list;
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
         adapter->m_Priority      = priority;
@@ -559,4 +563,11 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHandle(texture, out_handle);
     }
+
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+    void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
+        glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+    }
+#endif
 }

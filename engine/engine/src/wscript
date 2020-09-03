@@ -151,8 +151,8 @@ def build(bld):
         additional_libs += ['UNWIND']
 
     graphics_lib = 'GRAPHICS_NULL'
-    if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
-        graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
+    if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw. UIApplicationMain is currently in glfw
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
