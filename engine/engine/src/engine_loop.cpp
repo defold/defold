@@ -8,6 +8,25 @@
 
 namespace dmEngine
 {
+
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+
+    int RunLoop(const RunLoopParams* params)
+    {
+        int argc = params->m_Argc;
+        char** argv = params->m_Argv;
+        // Calls UIApplicationMain, which we won't return from
+        dmGraphics::AppBootstrap(argc, argv, params->m_AppCtx,  (dmGraphics::EngineInit)params->m_AppCreate,
+                                                                (dmGraphics::EngineExit)params->m_AppDestroy,
+                                                                (dmGraphics::EngineCreate)params->m_EngineCreate,
+                                                                (dmGraphics::EngineDestroy)params->m_EngineDestroy,
+                                                                (dmGraphics::EngineUpdate)params->m_EngineUpdate,
+                                                                (dmGraphics::EngineGetResult)params->m_EngineGetResult);
+        return 0;
+    }
+
+#else // not iOS
+
 #ifdef __EMSCRIPTEN__
     struct StepContext
     {
@@ -71,6 +90,8 @@ namespace dmEngine
 
         return exit_code;
     }
+
+#endif // iOS
 
 #if defined(__EMSCRIPTEN__)
     static void PreStepEmscripten(void* _ctx)
