@@ -222,10 +222,12 @@ public class AndroidBundler implements IBundler {
         return FilenameUtils.concat(project.getRootDirectory(), "build");
     }
 
-
     private static List<Platform> getArchitectures(Project project) {
-        final Platform platform = Platform.Armv7Android;
-        return Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+        return Platform.getArchitecturesFromString(project.option("architectures", ""), Platform.Armv7Android);
+    }
+
+    private static Platform getFirstPlatform(Project project) {
+        return getArchitectures(project).get(0);
     }
 
     /**
@@ -321,9 +323,7 @@ public class AndroidBundler implements IBundler {
     /**
     * Copy Android resources per package
     */
-    private static File copyResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
-        Platform platform = Platform.Armv7Android;
-
+    private static File copyResources(Project project, Platform platform, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
 
         // Native extension build
@@ -627,8 +627,11 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // STEP 1. copy android resources (icons, extension resources and manifest)
-        File manifestFile = helper.copyOrWriteManifestFile(Platform.Armv7Android, outDir);
-        File androidResDir = copyResources(project, outDir, helper, canceled);
+        // if bundling for both arm64 and armv7 we copy resources from one of the
+        // architectures (it doesn't matter which one)
+        final Platform platform = getFirstPlatform(project);
+        File manifestFile = helper.copyOrWriteManifestFile(platform, outDir);
+        File androidResDir = copyResources(project, platform, outDir, helper, canceled);
 
         // STEP 2. Use aapt2 to compile resources (to *.flat files)
         File compiledResDir = aapt2CompileResources(project, androidResDir, canceled);
