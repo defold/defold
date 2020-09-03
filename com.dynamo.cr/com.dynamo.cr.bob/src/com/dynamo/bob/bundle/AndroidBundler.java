@@ -538,7 +538,7 @@ public class AndroidBundler implements IBundler {
             File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
 
             List<String> args = new ArrayList<String>();
-            args.add("java"); args.add("-jar");
+            args.add(getJavaBinFile("java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
             args.add("build-bundle");
             args.add("--modules"); args.add(baseZip.getAbsolutePath());
@@ -678,7 +678,7 @@ public class AndroidBundler implements IBundler {
             String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
 
             List<String> args = new ArrayList<String>();
-            args.add("java"); args.add("-jar");
+            args.add(getJavaBinFile("java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
             args.add("build-apks");
             args.add("--mode"); args.add("universal");
