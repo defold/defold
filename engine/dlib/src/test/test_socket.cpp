@@ -135,6 +135,9 @@ inline dmSocket::Socket GetSocket(dmSocket::Domain domain)
     result = dmSocket::SetNoDelay(instance, true);
     if (result != dmSocket::RESULT_OK) return -1;
 
+    result = dmSocket::SetQuickAck(instance, true);
+    if (result != dmSocket::RESULT_OK) return -1;
+
     return instance;
 }
 
