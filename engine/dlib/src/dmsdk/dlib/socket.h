@@ -209,6 +209,19 @@ namespace dmSocket
         RESULT_UNKNOWN        = -1000,
     };
 
+    /*# network address
+     * Network addresses were previously represented as an uint32_t, but in
+     * order to support IPv6 the internal representation was changed to a struct.
+     *
+     * @struct
+     * @name dmSocket::Address
+     */
+    struct Address
+    {
+        Address();
+        Domain m_family;
+        uint32_t m_address[4];
+    };
 
     /*# create a socket
      * Create a new socket. Corresponds to BSD socket function socket().
@@ -229,6 +242,25 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result Delete(Socket socket);
+
+    /*# make a connection
+     * Initiate a connection on a socket
+     * @name dmSocket::Connect
+     * @param socket [type:dmSocket::Socket] Socket to initiate connection on
+     * @param address [type:dmSocket::Address] Address to connect to
+     * @param port [type:int] Port to connect to
+     * @return RESULT_OK on success
+     */
+    Result Connect(Socket socket, Address address, int port);
+
+    /*# close socket
+     * Shutdown part of a socket connection
+     * @name dmSocket::Shutdown
+     * @param socket [type:dmSocket::Socket] Socket to shutdown connection ow
+     * @param how [type:dmSocket::ShutdownType] Shutdown type
+     * @return RESULT_OK on success
+     */
+    Result Shutdown(Socket socket, ShutdownType how);
 
     /*# get underlying file descriptor
      * Get underlying file descriptor
@@ -329,6 +361,17 @@ namespace dmSocket
      * on win32 for compatibility with BSD sockets.
      */
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes);
+
+    /*# get host by name
+     * Get host by name
+     * @name dmSocket::GetHostByName
+     * @param name [type:const char*] Hostname to resolve
+     * @param address [type:dmSocket::Address*] Host address result
+     * @param ipv4 [type:bool] Whether or not to search for IPv4 addresses
+     * @param ipv6 [type:bool] Whether or not to search for IPv6 addresses
+     * @return RESULT_OK on success
+     */
+    Result GetHostByName(const char* name, Address* address, bool ipv4 = true, bool ipv6 = true);
 
     /*# Convert result value to string
      * @name dmSocket::ResultToString
