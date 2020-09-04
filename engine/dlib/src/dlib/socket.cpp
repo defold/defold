@@ -821,6 +821,15 @@ namespace dmSocket
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_NODELAY, no_delay);
     }
 
+    Result SetQuickAck(Socket socket, bool use_quick_ack)
+    {
+#if defined(__MACH__) || defined(_WIN32)
+        return RESULT_OK;
+#else
+        return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
+#endif
+    }
+
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
     {
 #ifdef WIN32
