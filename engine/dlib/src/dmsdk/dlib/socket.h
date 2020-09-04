@@ -275,6 +275,16 @@ namespace dmSocket
     Result SetNoDelay(Socket socket, bool no_delay);
 
     /*#
+     * Set TCP_QUICKACK on socket
+     * @note This is a no op on platforms that doesn't support it
+     * @name dmSocket::SetQuickAck
+     * @param socket [type:dmSocket::Socket] Socket to set TCP_QUICKACK on
+     * @param use_quick_ack [type:bool] False to disable quick ack
+     * @return RESULT_OK on success
+     */
+    Result SetQuickAck(Socket socket, bool use_quick_ack);
+
+    /*#
      * Set socket send timeout
      * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
      *       larger than or equal to 1000.
