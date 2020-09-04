@@ -26,24 +26,6 @@
 namespace dmSocket
 {
     /**
-     * Network address
-     * Network addresses were previously represented as an uint32_t, but in
-     * order to support IPv6 the internal representation was changed to a
-     * struct.
-     */
-    struct Address
-    {
-
-        Address() {
-            m_family = dmSocket::DOMAIN_MISSING;
-            memset(m_address, 0x0, sizeof(m_address));
-        }
-
-        Domain m_family;
-        uint32_t m_address[4];
-    };
-
-    /**
      * Comparison operators for dmSocket::Address (network address).
      * These operators are required since network code was initially designed
      * with the assumption that addresses were stored as uint32_t (IPv4), and
@@ -121,29 +103,12 @@ namespace dmSocket
     Result Bind(Socket socket, Address address, int port);
 
     /**
-     * Initiate a connection on a socket
-     * @param socket Socket to initiate connection on
-     * @param address Address to connect to
-     * @param port Port to connect to
-     * @return RESULT_OK on success
-     */
-    Result Connect(Socket socket, Address address, int port);
-
-    /**
      * Listen for connections on a socket
      * @param socket Socket to listen on
      * @param backlog Maximum length for the queue of pending connections
      * @return RESULT_OK on success
      */
     Result Listen(Socket socket, int backlog);
-
-    /**
-     * Shutdown part of a socket connection
-     * @param socket Socket to shutdown connection ow
-     * @param how Shutdown type
-     * @return RESULT_OK on success
-     */
-    Result Shutdown(Socket socket, ShutdownType how);
 
     /**
      * Send a message to a specific address
@@ -212,16 +177,6 @@ namespace dmSocket
      * @return IP string. The caller is responsible to free the string using free()
      */
     char* AddressToIPString(Address address);
-
-    /**
-     * Get host by name.
-     * @param name  Hostname to resolve
-     * @param address Host address result
-     * @param ipv4 Whether or not to search for IPv4 addresses
-     * @param ipv6 Whether or not to search for IPv6 addresses
-     * @return RESULT_OK on success
-     */
-    Result GetHostByName(const char* name, Address* address, bool ipv4 = true, bool ipv6 = true);
 
     /**
      * Get information about network adapters (loopback devices are not included)
