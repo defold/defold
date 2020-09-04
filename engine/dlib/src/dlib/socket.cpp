@@ -113,6 +113,11 @@ namespace dmSocket
         return res;
     }
 
+    Address::Address() {
+        m_family = dmSocket::DOMAIN_MISSING;
+        memset(m_address, 0x0, sizeof(m_address));
+    }
+
     bool Empty(Address address)
     {
         return address.m_address[0] == 0x0 && address.m_address[1] == 0x0
