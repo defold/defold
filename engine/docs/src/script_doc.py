@@ -473,7 +473,6 @@ def parse_document(doc_str):
     if doc_info:
         doc.info.CopyFrom(doc_info)
 
-    #element_list.sort(cmp = lambda x,y: cmp(x.name, y.name))
     for i, e in enumerate(element_list):
         doc.elements.add().MergeFrom(e)
 
