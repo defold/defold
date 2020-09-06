@@ -15,13 +15,13 @@
 
 
 /*# SDK DNS API documentation
- * [file:<dmsdk/dlib/dns.h>]
  *
  * Dns functions.
  *
  * @document
  * @name Dns
  * @namespace dmDNS
+ * @path engine/dlib/src/dmsdk/dlib/dns.h
  */
 namespace dmDNS
 {

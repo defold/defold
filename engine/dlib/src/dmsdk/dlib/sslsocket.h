@@ -19,13 +19,13 @@
 #include <dmsdk/dlib/socket.h>
 
 /*# SDK Secure socket API documentation
- * [file:<dmsdk/dlib/sslsocket.h>]
  *
  * Secure socket functions.
  *
  * @document
  * @name SSLSocket
  * @namespace dmSSLSocket
+ * @path engine/dlib/src/dmsdk/dlib/sslsocket.h
  */
 
 namespace dmSSLSocket
@@ -58,6 +58,10 @@ namespace dmSSLSocket
      */
     typedef struct SSLSocket* Socket;
 
+    /*# SSLSocket socket handle
+     * @variable
+     * @name dmSSLSocket::INVALID_SOCKET_HANDLE
+     */
     const Socket INVALID_SOCKET_HANDLE = 0;
 
     /*# create a secure socket
