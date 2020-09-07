@@ -159,11 +159,7 @@ def _strip_comment_stars(str):
 
 # Converts "<p>text</p>" to "text"
 def _strip_paragraph(text):
-    if text.startswith('<p>'):
-        text = text[3:]
-    if text.endswith('</p>'):
-        text = text[:-4]
-    return text
+    return text.replace('<p>', '').replace('</p>', '')
 
 def _markdownify(t):
     t = md.convert(t)
@@ -310,7 +306,7 @@ def _parse_comment(text):
 
 def extract_type_from_docstr(s):
     # try to extract the type information
-    m = re.search(r'^\s*(?:\s*\[type:(.*)\])+\s*(.*)', s)
+    m = re.search(r'^\s*(?:\s*\[type:\s*(.*)\])+\s*(.*)', s)
     if m and m.group(1):
         type_list = m.group(1).split("|")
         if len(type_list) == 1:
