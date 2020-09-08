@@ -619,6 +619,10 @@
    :help "Firebase Cloud Messaging Application ID",
    :default "",
    :path ["android" "fcm_application_id"]}
+  {:type :string,
+   :help "Android asset packs base directory",
+   :default "",
+   :path ["android" "asset_packs"]}
   {:type :resource,
    :filter "xml",
    :preserve-extension true,
