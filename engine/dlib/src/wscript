@@ -281,7 +281,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/uri.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/utf8.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/vmath.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/webserver.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
 
