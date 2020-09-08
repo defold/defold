@@ -560,7 +560,8 @@ public class AndroidBundler implements IBundler {
         log("Creating asset packs from " + assetPacks);
         try {
             File assetsOutDir = createDir(outDir, "assets");
-            File assetManifestsDir = createDir(assetsOutDir, "manifests");
+            File assetsTmpDir = createDir(assetsOutDir, "build");
+            File assetManifestsDir = createDir(assetsTmpDir, "manifests");
             File assetPacksDir = new File(project.getRootDirectory(), assetPacks);
             for (String deliveryType : Arrays.asList("install-time", "fast-follow", "on-demand")) {
                 // skip if there's no dir for the current delivery type
@@ -578,7 +579,7 @@ public class AndroidBundler implements IBundler {
                     createAssetPackManifest(assetManifestFile, assetPackName, deliveryType, helper);
 
                     // compile assets and manifest into apk
-                    File assetApk = new File(assetsOutDir, assetPackName + ".apk");
+                    File assetApk = new File(assetsTmpDir, assetPackName + ".apk");
                     List<String> args = new ArrayList<String>();
                     args.add(Bob.getExe(Platform.getHostPlatform(), "aapt2"));
                     args.add("link");
@@ -594,17 +595,17 @@ public class AndroidBundler implements IBundler {
                     BundleHelper.throwIfCanceled(canceled);
 
                     // unzip the generated apk
-                    File apkUnzipDir = createDir(assetsOutDir, assetPackName + "-unzip-apk");
+                    File apkUnzipDir = createDir(assetsTmpDir, assetPackName + "-unzip-apk");
                     BundleHelper.unzip(new FileInputStream(assetApk), apkUnzipDir.toPath());
 
                     // copy compiled assets and manifest
-                    File assetsZipDir = createDir(assetsOutDir, assetPackName);
+                    File assetsZipDir = createDir(assetsTmpDir, assetPackName);
                     File manifestDir = createDir(assetsZipDir, "manifest");
                     File assetsDir = createDir(assetsZipDir, "assets");
                     FileUtils.copyDirectory(new File(apkUnzipDir, "assets"), assetsDir);
                     FileUtils.copyFile(new File(apkUnzipDir, "AndroidManifest.xml"), new File(manifestDir, "AndroidManifest.xml"));
 
-                    // zip the compiled assets and manifest to
+                    // zip the compiled assets and manifest
                     File assetsZip = new File(assetsOutDir, assetPackName + ".zip");
                     if (assetsZip.exists()) {
                         assetsZip.delete();
@@ -617,6 +618,9 @@ public class AndroidBundler implements IBundler {
                     BundleHelper.throwIfCanceled(canceled);
                 }
             }
+            // cleanup
+            FileUtils.deleteDirectory(assetsTmpDir);
+
             return assetBundleZips;
         } catch (Exception e) {
             throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
