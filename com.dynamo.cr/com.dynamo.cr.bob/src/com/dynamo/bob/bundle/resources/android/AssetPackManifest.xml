@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:dist="http://schemas.android.com/apk/distribution" package="{{android.package}}" split="{{assetpack.name}}">
+  <dist:module dist:type="asset-pack">
+    <dist:fusing dist:include="true" />
+    <dist:delivery>
+      <dist:{{assetpack.delivery}}/>
+    </dist:delivery>
+  </dist:module>
+</manifest>
