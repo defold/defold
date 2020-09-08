@@ -195,17 +195,21 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
+    public String formatString(Map<String, Object> properties, String s) throws IOException {
+        Template template = Mustache.compiler().compile(s);
+        StringWriter sw = new StringWriter();
+        template.execute(this.propertiesMap, properties, sw);
+        sw.flush();
+        return sw.toString();
+    }
+
     public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
         byte[] data = resource.getContent();
         if (data == null) {
             return "";
         }
         String s = new String(data);
-        Template template = Mustache.compiler().compile(s);
-        StringWriter sw = new StringWriter();
-        template.execute(this.propertiesMap, properties, sw);
-        sw.flush();
-        return sw.toString();
+        return formatString(properties, s);
     }
 
     public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
@@ -250,14 +254,18 @@ public class BundleHelper {
         return manifestsDir;
     }
 
+    public String getExeName() {
+        String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        return BundleHelper.projectNameToBinaryName(title);
+    }
+
     // This is used in the step prior to upload all sources (and manifests) to the extender server
     // Each manifest has to be named like the default name (much easier for the server), even the main manifest file
     // This isn't an issue since there cannot be two manifests in the same folder
     public List<ExtenderResource> writeManifestFiles(Platform platform, File manifestDir) throws CompileExceptionError, IOException {
         List<ExtenderResource> resolvedManifests = new ArrayList<>();
 
-        String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = BundleHelper.projectNameToBinaryName(title);
+        String exeName = getExeName();
 
         IResource mainManifest;
         Map<String, Object> properties = new HashMap<>();
@@ -687,7 +695,7 @@ public class BundleHelper {
             properties.put("orientation-support", "sensor");
         }
 
-        // Since we started to always fill in the default values to the propject properties
+        // Since we started to always fill in the default values to the project properties
         // it is harder to distinguish what is a user defined value.
         // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
         if (projectProperties.isDefault("android", "debuggable")) {
