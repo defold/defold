@@ -19,6 +19,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -129,6 +130,11 @@ public class AndroidBundler implements IBundler {
     * Get keystore. If none is provided a debug keystore will be generated in the project root and used
     * when bundling.
     * https://stackoverflow.com/a/4055893/1266551
+    *
+    * APK Signature scheme v2 supported formats:
+    * https://source.android.com/security/apksigning/v2#apk-signature-scheme-v2-block-format
+    *
+    * apksigner verify -v --print-certs my.apk
     */
     private static String getKeystore(Project project) throws IOException {
         String keystore = project.option("keystore", "");
@@ -147,6 +153,8 @@ public class AndroidBundler implements IBundler {
                     "-storepass", keystorePassword,
                     "-alias", keystoreAlias,
                     "-keyalg", "RSA",
+                    "-keysize", "2048",
+                    "-sigalg", "SHA256withRSA",
                     "-validity", "14000");
 
                 if (r.ret != 0) {
@@ -437,9 +445,7 @@ public class AndroidBundler implements IBundler {
                 }
             }
             File resourceList = new File(aabDir, "compiled_resources.txt");
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(resourceList))) {
-                writer.write(sb.toString());
-            }
+            FileUtils.writeStringToFile(resourceList, sb.toString());
             args.add("-R"); args.add("@" + resourceList.getAbsolutePath());
 
             Result res = exec(args);
@@ -526,22 +532,122 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+
+    private static void createAssetPackManifest(File outFile, String assetPackName, String deliveryType, BundleHelper helper) throws IOException {
+        URL manifestTemplateURL = AndroidBundler.class.getResource("resources/android/AssetPackManifest.xml");
+        final String manifestTemplate = IOUtils.toString(manifestTemplateURL);
+
+        Map<String, Object> properties = helper.createAndroidManifestProperties(helper.getExeName());
+        Map<String, Object> assetPackProperties = new HashMap<>();
+        assetPackProperties.put("delivery", deliveryType);
+        assetPackProperties.put("name", assetPackName);
+        properties.put("assetpack", assetPackProperties);
+
+        String androidManifest = helper.formatString(properties, manifestTemplate);
+        FileUtils.writeStringToFile(outFile, androidManifest);
+    }
+
+
+    private static List<File> createAssetPackZips(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
+        List<File> assetBundleZips = new ArrayList<File>();
+        String assetPacks = project.getProjectProperties().getStringValue("android", "asset_packs");
+
+        if (assetPacks == null || assetPacks.length() == 0) {
+            log("Project contains no asset packs");
+            return assetBundleZips;
+        }
+
+        log("Creating asset packs from " + assetPacks);
+        try {
+            File assetsOutDir = createDir(outDir, "assets");
+            File assetsTmpDir = createDir(assetsOutDir, "build");
+            File assetManifestsDir = createDir(assetsTmpDir, "manifests");
+            File assetPacksDir = new File(project.getRootDirectory(), assetPacks);
+            for (String deliveryType : Arrays.asList("install-time", "fast-follow", "on-demand")) {
+                // skip if there's no dir for the current delivery type
+                File deliveryTypeDir = new File(assetPacksDir, deliveryType);
+                if (!deliveryTypeDir.exists()) continue;
+
+                // get all asset packs (dirs) in the current delivery type folder
+                for (File assetPackDir : deliveryTypeDir.listFiles(File::isDirectory)) {
+                    final String assetPackName = assetPackDir.getName();
+                    log("Creating " + deliveryType + " asset pack " + assetPackName);
+
+                    // create manifest file for the asset pack
+                    File assetManifestDir = createDir(assetManifestsDir, assetPackName);
+                    File assetManifestFile = new File(assetManifestDir, "AndroidManifest.xml");
+                    createAssetPackManifest(assetManifestFile, assetPackName, deliveryType, helper);
+
+                    // compile assets and manifest into apk
+                    File assetApk = new File(assetsTmpDir, assetPackName + ".apk");
+                    List<String> args = new ArrayList<String>();
+                    args.add(Bob.getExe(Platform.getHostPlatform(), "aapt2"));
+                    args.add("link");
+                    args.add("--proto-format");
+                    args.add("-o"); args.add(assetApk.getAbsolutePath());
+                    args.add("-A"); args.add(assetPackDir.getAbsolutePath());
+                    args.add("--manifest"); args.add(assetManifestFile.getAbsolutePath());
+                    Result res = exec(args);
+                    if (res.ret != 0) {
+                        String msg = new String(res.stdOutErr);
+                        throw new IOException(msg);
+                    }
+                    BundleHelper.throwIfCanceled(canceled);
+
+                    // unzip the generated apk
+                    File apkUnzipDir = createDir(assetsTmpDir, assetPackName + "-unzip-apk");
+                    BundleHelper.unzip(new FileInputStream(assetApk), apkUnzipDir.toPath());
+
+                    // copy compiled assets and manifest
+                    File assetsZipDir = createDir(assetsTmpDir, assetPackName);
+                    File manifestDir = createDir(assetsZipDir, "manifest");
+                    File assetsDir = createDir(assetsZipDir, "assets");
+                    FileUtils.copyDirectory(new File(apkUnzipDir, "assets"), assetsDir);
+                    FileUtils.copyFile(new File(apkUnzipDir, "AndroidManifest.xml"), new File(manifestDir, "AndroidManifest.xml"));
+
+                    // zip the compiled assets and manifest
+                    File assetsZip = new File(assetsOutDir, assetPackName + ".zip");
+                    if (assetsZip.exists()) {
+                        assetsZip.delete();
+                    }
+                    ZipUtil.zipDirRecursive(assetsZipDir, assetsZip, canceled);
+
+                    // add zip to list of created asset bundles
+                    assetBundleZips.add(assetsZip);
+
+                    BundleHelper.throwIfCanceled(canceled);
+                }
+            }
+            // cleanup
+            FileUtils.deleteDirectory(assetsTmpDir);
+
+            return assetBundleZips;
+        } catch (Exception e) {
+            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+        }
+    }
+
     /**
     * Build the app bundle using bundletool
     * https://developer.android.com/studio/build/building-cmdline#build_your_app_bundle_using_bundletool
     */
-    private static File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
+    private static File createBundle(Project project, File outDir, File baseZip, List<File> assetZips, ICanceled canceled) throws CompileExceptionError {
         log("Creating Android Application Bundle");
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
 
             File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
 
+            String modules = baseZip.getAbsolutePath();
+            for (File assetZip : assetZips) {
+                modules += "," + assetZip.getAbsolutePath();
+            }
+
             List<String> args = new ArrayList<String>();
             args.add(getJavaBinFile("java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
             args.add("build-bundle");
-            args.add("--modules"); args.add(baseZip.getAbsolutePath());
+            args.add("--modules"); args.add(modules);
             args.add("--output"); args.add(baseAab.getAbsolutePath());
 
             Result res = exec(args);
@@ -642,16 +748,19 @@ public class AndroidBundler implements IBundler {
         // STEP 4. Extract protobuf files from the APK and create base.zip (manifest, assets, dex, res, lib, *.pb etc)
         File baseZip = createAppBundleBaseZip(project, outDir, apk, canceled);
 
-        // STEP 5. Use bundletool to create AAB from base.zip
-        File baseAab = createBundle(project, outDir, baseZip, canceled);
+        // STEP 5. (OPTIONAL) Create asset pack zips
+        List<File> assetZips = createAssetPackZips(project, outDir, helper, canceled);
 
-        //STEP 6. Sign AAB file
+        // STEP 6. Use bundletool to create AAB from base.zip and asset bundle zip files
+        File baseAab = createBundle(project, outDir, baseZip, assetZips, canceled);
+
+        //STEP 7. Sign AAB file
         signFile(project, baseAab, canceled);
 
-        // STEP 7. Copy debug symbols
+        // STEP 8. Copy debug symbols
         copySymbols(project, outDir, canceled);
 
-        // STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
+        // STEP 9. Cleanup bundle folder from intermediate folders and artifacts.
         cleanupBundleFolder(project, outDir, androidResDir, canceled);
 
         return baseAab;
