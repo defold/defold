@@ -635,6 +635,8 @@ public class BundlerTest {
          *          +-s2-raw.txt
          *        +-values/
          *          +-s2-values.xml
+         *        +-assets/
+         *          +-s2-asset.txt
          */
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
@@ -659,12 +661,16 @@ public class BundlerTest {
         sub_platform2_res.mkdir();
         File sub_platform2_res_raw = new File(sub_platform2_res, "raw");
         File sub_platform2_res_values = new File(sub_platform2_res, "values");
+        File sub_platform2_res_assets = new File(sub_platform2_res, "assets");
         sub_platform2_res_raw.mkdir();
         sub_platform2_res_values.mkdir();
+        sub_platform2_res_assets.mkdir();
         // this is a "raw" file and it will be included as-is in the res folder of the APK
         createFile(sub_platform2_res_raw.getAbsolutePath(), "s2-raw.txt", "dummy");
         // this is a resource file and it will get included in the resources.arsc file
         createFile(sub_platform2_res_values.getAbsolutePath(), "s2-values.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><resources></resources>");
+        // this is an asset file and it will be included in the asset folder of the APK
+        createFile(sub_platform2_res_assets.getAbsolutePath(), "s2-asset.txt", "dummy");
 
 
         // first test - no bundle resources
@@ -718,6 +724,7 @@ public class BundlerTest {
         expectedFiles.add(appFolder + "s2-root1.txt");
         expectedFiles.add(appFolder + "s2-root2.txt");
         if (isAndroid) expectedFiles.add("res/raw/s2-raw.txt");
+        if (isAndroid) expectedFiles.add("assets/s2-asset.txt");
         for (String file : expectedFiles) {
             System.out.println("Expected file:" + file);
         }
