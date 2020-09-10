@@ -124,6 +124,15 @@ public class AndroidBundler implements IBundler {
         return exec(Arrays.asList(args));
     }
 
+    private static CompileExceptionError createCompileExceptionError(String message) {
+        return new CompileExceptionError(message, null);
+    }
+    private static CompileExceptionError createCompileExceptionError(String message, Exception e) {
+        return new CompileExceptionError(message, e);
+    }
+    private static CompileExceptionError createCompileExceptionError(Exception e) {
+        return new CompileExceptionError("", e);
+    }
 
     /**
     * Get keystore. If none is provided a debug keystore will be generated in the project root and used
@@ -170,7 +179,7 @@ public class AndroidBundler implements IBundler {
     private static String getKeystorePassword(Project project) throws IOException, CompileExceptionError {
         String keystorePassword = project.option("keystore-pass", "");
         if (keystorePassword.length() == 0) {
-            throw new CompileExceptionError(null, -1, "No keystore password");
+            throw createCompileExceptionError("No keystore password");
         }
         return readFile(keystorePassword).trim();
     }
@@ -199,7 +208,7 @@ public class AndroidBundler implements IBundler {
 
             Matcher m = Pattern.compile("Alias name: (.*)").matcher(new String(res.stdOutErr));
             if (!m.find()) {
-                throw new CompileExceptionError(null, -1, "Unable to find keystore alias");
+                throw createCompileExceptionError("Unable to find keystore alias");
             }
             alias = m.group(1);
         }
@@ -402,7 +411,7 @@ public class AndroidBundler implements IBundler {
 
             return compiledResourcesDir;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed compiling Android resources: " + e.getMessage());
+            throw createCompileExceptionError("Failed compiling Android resources", e);
         }
     }
 
@@ -450,7 +459,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return outApk;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed linking resources", e);
         }
     }
 
@@ -522,7 +531,7 @@ public class AndroidBundler implements IBundler {
             ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
             return baseZip;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating AAB base.zip", e);
         }
     }
 
@@ -552,7 +561,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return baseAab;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating Android Application Bundle", e);
         }
     }
 
@@ -696,7 +705,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return new File(apksPath);
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating universal APK", e);
         }
     }
 
@@ -754,7 +763,7 @@ public class AndroidBundler implements IBundler {
             aab.delete();
         }
         else {
-            throw new CompileExceptionError(null, -1, "Unknown bundle format: " + bundleFormat);
+            throw createCompileExceptionError("Unknown bundle format: " + bundleFormat);
         }
     }
 }
