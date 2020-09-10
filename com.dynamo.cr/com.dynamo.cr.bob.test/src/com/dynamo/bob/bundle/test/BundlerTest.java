@@ -624,12 +624,12 @@ public class BundlerTest {
          *  | EMPTY!
          *  +-sub1/
          *    +-common/
-         *      +-s1-1.txt
-         *      +-s1-2.txt
+         *      +-s1-root1.txt
+         *      +-s1-root2.txt
          *  +-sub2/
          *    +-[current-platform-arch]/
-         *      +-s2-1.txt
-         *      +-s2-2.txt
+         *      +-s2-root1.txt
+         *      +-s2-root2.txt
          *      +-res/
          *        +-raw/
          *          +-s2-raw.txt
@@ -648,10 +648,10 @@ public class BundlerTest {
         sub_platform2.mkdir();
         createDefaultFiles(contentRoot);
         createFile(contentRoot, "m.txt", "dummy");
-        createFile(sub_platform1.getAbsolutePath(), "s1-1.txt", "dummy");
-        createFile(sub_platform1.getAbsolutePath(), "s1-2.txt", "dummy");
-        createFile(sub_platform2.getAbsolutePath(), "s2-1.txt", "dummy");
-        createFile(sub_platform2.getAbsolutePath(), "s2-2.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-root1.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-root2.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-root1.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-root2.txt", "dummy");
 
         // some additional files and folders which will only be included on Android
         // (sub-folders are ignored on all other platforms)
@@ -694,8 +694,8 @@ public class BundlerTest {
             actualFiles.add(file);
         }
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
-        expectedFiles.add(isAndroid ? "assets/s1-1.txt" : appFolder + "s1-1.txt");
-        expectedFiles.add(isAndroid ? "assets/s1-2.txt" : appFolder + "s1-2.txt");
+        expectedFiles.add(appFolder + "s1-root1.txt");
+        expectedFiles.add(appFolder + "s1-root2.txt");
         for (String file : expectedFiles) {
             System.out.println("Expected file:" + file);
         }
@@ -713,10 +713,10 @@ public class BundlerTest {
             actualFiles.add(file);
         }
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
-        expectedFiles.add(isAndroid ? "assets/s1-1.txt" : appFolder + "s1-1.txt");
-        expectedFiles.add(isAndroid ? "assets/s1-2.txt" : appFolder + "s1-2.txt");
-        expectedFiles.add(isAndroid ? "assets/s2-1.txt" : appFolder + "s2-1.txt");
-        expectedFiles.add(isAndroid ? "assets/s2-2.txt" : appFolder + "s2-2.txt");
+        expectedFiles.add(appFolder + "s1-root1.txt");
+        expectedFiles.add(appFolder + "s1-root2.txt");
+        expectedFiles.add(appFolder + "s2-root1.txt");
+        expectedFiles.add(appFolder + "s2-root2.txt");
         if (isAndroid) expectedFiles.add("res/raw/s2-raw.txt");
         for (String file : expectedFiles) {
             System.out.println("Expected file:" + file);
