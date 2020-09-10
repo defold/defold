@@ -499,7 +499,7 @@ public class AndroidBundler implements IBundler {
 
             // copy extension and bundle resoources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
-            final String assets = "assets" + File.separator;
+            final String assetsPath = "assets" + File.separator;
             for (String filename : bundleResources.keySet()) {
                 IResource resource = bundleResources.get(filename);
                 // remove initial file separator if it exists
@@ -509,8 +509,8 @@ public class AndroidBundler implements IBundler {
                 // files starting with "assets/" should be copied to the assets/ dir
                 // other files should be copied to the to the root/ dir
                 File file = null;
-                if (filename.startsWith(assets)) {
-                    file = new File(assetsDir, filename.substring(assets.length()));
+                if (filename.startsWith(assetsPath)) {
+                    file = new File(assetsDir, filename.substring(assetsPath.length()));
                 }
                 else {
                     file = new File(rootDir, filename);
