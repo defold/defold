@@ -482,6 +482,7 @@ public class AndroidBundler implements IBundler {
             File dexDir = createDir(baseDir, "dex");
             File manifestDir = createDir(baseDir, "manifest");
             File assetsDir = createDir(baseDir, "assets");
+            File rootDir = createDir(baseDir, "root");
             File libDir = createDir(baseDir, "lib");
             File resDir = createDir(baseDir, "res");
 
@@ -496,9 +497,28 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
 
-            // copy assets
+            // copy extension and bundle resoources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
-            ExtenderUtil.writeResourcesToDirectory(bundleResources, assetsDir);
+            final String assets = "assets" + File.separator;
+            for (String filename : bundleResources.keySet()) {
+                IResource resource = bundleResources.get(filename);
+                // remove initial file separator if it exists
+                if (filename.startsWith(File.separator)) {
+                    filename = filename.substring(1);
+                }
+                // files starting with "assets/" should be copied to the assets/ dir
+                // other files should be copied to the to the root/ dir
+                File file = null;
+                if (filename.startsWith(assets)) {
+                    file = new File(assetsDir, filename.substring(assets.length()));
+                }
+                else {
+                    file = new File(rootDir, filename);
+                }
+                log("Copying resource to " + file);
+                ExtenderUtil.writeResourceToFile(resource, file);
+            }
+            // copy Defold archive files to the assets/ dir
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 File source = new File(new File(project.getRootDirectory(), project.getBuildDirectory()), name);
                 File dest = new File(assetsDir, name);
