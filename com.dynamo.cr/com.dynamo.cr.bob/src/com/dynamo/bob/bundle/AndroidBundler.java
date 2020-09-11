@@ -82,9 +82,6 @@ public class AndroidBundler implements IBundler {
 
     private static File createDir(File parent, String child) throws IOException {
         File dir = new File(parent, child);
-        if (dir.exists()) {
-            FileUtils.deleteDirectory(dir);
-        }
         dir.mkdirs();
         return dir;
     }
@@ -500,6 +497,7 @@ public class AndroidBundler implements IBundler {
             // copy extension and bundle resoources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
             final String assetsPath = "assets" + File.separator;
+            final String libPath = "lib" + File.separator;
             for (String filename : bundleResources.keySet()) {
                 IResource resource = bundleResources.get(filename);
                 // remove initial file separator if it exists
@@ -507,16 +505,23 @@ public class AndroidBundler implements IBundler {
                     filename = filename.substring(1);
                 }
                 // files starting with "assets/" should be copied to the assets/ dir
+                // files starting with "lib/" should be copied to the lib/ dir
                 // other files should be copied to the to the root/ dir
                 File file = null;
                 if (filename.startsWith(assetsPath)) {
                     file = new File(assetsDir, filename.substring(assetsPath.length()));
                 }
-                else {
+                else if (filename.startsWith(libPath)) {
+                    file = new File(libDir, filename.substring(libPath.length()));
+                }
+                else  {
                     file = new File(rootDir, filename);
                 }
-                log("Copying resource to " + file);
-                ExtenderUtil.writeResourceToFile(resource, file);
+                if (file != null) {
+                    log("Copying resource '" + filename + "' to " + file);
+                    ExtenderUtil.writeResourceToFile(resource, file);
+                    BundleHelper.throwIfCanceled(canceled);
+                }
             }
             // copy Defold archive files to the assets/ dir
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
@@ -530,6 +535,7 @@ public class AndroidBundler implements IBundler {
             // copy resources
             log("Copying resources to " + resDir);
             FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
+            BundleHelper.throwIfCanceled(canceled);
 
             // copy libs
             final String exeName = getBinaryNameFromProject(project);
@@ -549,6 +555,7 @@ public class AndroidBundler implements IBundler {
             }
             baseZip.createNewFile();
             ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
+            BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {
             throw createCompileExceptionError("Failed creating AAB base.zip", e);
@@ -759,7 +766,6 @@ public class AndroidBundler implements IBundler {
 
         // cleanup
         apks.delete();
-
         return apk;
     }
 
@@ -771,7 +777,10 @@ public class AndroidBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
 
-        File outDir = createDir(bundleDir, getProjectTitle(project));
+        File outDir = new File(bundleDir, getProjectTitle(project));
+        FileUtils.deleteDirectory(outDir);
+        outDir.mkdirs();
+
 
         String bundleFormat = project.option("bundle-format", "apk");
         if (bundleFormat.equals("aab")) {

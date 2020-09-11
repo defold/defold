@@ -630,13 +630,19 @@ public class BundlerTest {
          *    +-[current-platform-arch]/
          *      +-s2-root1.txt
          *      +-s2-root2.txt
+         *      |
+         *    The folders below only on Android
+         *      |
+         *      +-assets/
+         *        +-s2-asset.txt
+         *      +-lib/
+         *        +-[current-platform-arch]/
+         *          +-lib.so
          *      +-res/
          *        +-raw/
-         *          +-s2-raw.txt
+         *          +-s2_raw.txt               <-- must contain only [a-z0-9_.]
          *        +-values/
          *          +-s2-values.xml
-         *        +-assets/
-         *          +-s2-asset.txt
          */
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
@@ -656,21 +662,31 @@ public class BundlerTest {
         createFile(sub_platform2.getAbsolutePath(), "s2-root2.txt", "dummy");
 
         // some additional files and folders which will only be included on Android
-        // (sub-folders are ignored on all other platforms)
-        File sub_platform2_res = new File(sub_platform2, "res");
-        sub_platform2_res.mkdir();
-        File sub_platform2_res_raw = new File(sub_platform2_res, "raw");
-        File sub_platform2_res_values = new File(sub_platform2_res, "values");
-        File sub_platform2_res_assets = new File(sub_platform2_res, "assets");
-        sub_platform2_res_raw.mkdir();
-        sub_platform2_res_values.mkdir();
-        sub_platform2_res_assets.mkdir();
-        // this is a "raw" file and it will be included as-is in the res folder of the APK
-        createFile(sub_platform2_res_raw.getAbsolutePath(), "s2-raw.txt", "dummy");
-        // this is a resource file and it will get included in the resources.arsc file
-        createFile(sub_platform2_res_values.getAbsolutePath(), "s2-values.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><resources></resources>");
-        // this is an asset file and it will be included in the asset folder of the APK
-        createFile(sub_platform2_res_assets.getAbsolutePath(), "s2-asset.txt", "dummy");
+        if (isAndroid) {
+            // res and subfolders
+            File sub_platform2_res = new File(sub_platform2, "res");
+            File sub_platform2_res_raw = new File(sub_platform2_res, "raw");
+            File sub_platform2_res_values = new File(sub_platform2_res, "values");
+            sub_platform2_res.mkdir();
+            sub_platform2_res_raw.mkdir();
+            sub_platform2_res_values.mkdir();
+            // this is a "raw" file and it will be included as-is in the res folder of the APK
+            createFile(sub_platform2_res_raw.getAbsolutePath(), "s2_raw.txt", "dummy");
+            // this is a resource file and it will get included in the resources.arsc file
+            createFile(sub_platform2_res_values.getAbsolutePath(), "s2-values.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><resources></resources>");
+
+            // assets will be included in the asset folder of the APK
+            File sub_platform2_assets = new File(sub_platform2, "assets");
+            sub_platform2_assets.mkdir();
+            createFile(sub_platform2_assets.getAbsolutePath(), "s2-asset.txt", "dummy");
+
+            // libs will be included in the lib/architecture folder of the APK
+            File sub_platform2_lib = new File(sub_platform2, "lib");
+            File sub_platform2_lib_arch = new File(sub_platform2_lib, (platform == Platform.Armv7Android) ? "armeabi-v7a" : "arm64-v8a");
+            sub_platform2_lib.mkdir();
+            sub_platform2_lib_arch.mkdir();
+            createFile(sub_platform2_lib_arch.getAbsolutePath(), "s2-lib.so", "dummy");
+        }
 
 
         // first test - no bundle resources
@@ -723,8 +739,9 @@ public class BundlerTest {
         expectedFiles.add(appFolder + "s1-root2.txt");
         expectedFiles.add(appFolder + "s2-root1.txt");
         expectedFiles.add(appFolder + "s2-root2.txt");
-        if (isAndroid) expectedFiles.add("res/raw/s2-raw.txt");
+        if (isAndroid) expectedFiles.add("res/raw/s2_raw.txt");
         if (isAndroid) expectedFiles.add("assets/s2-asset.txt");
+        if (isAndroid) expectedFiles.add("lib/" + ((platform == Platform.Armv7Android) ? "armeabi-v7a" : "arm64-v8a") + "/s2-lib.so");
         for (String file : expectedFiles) {
             System.out.println("Expected file:" + file);
         }
