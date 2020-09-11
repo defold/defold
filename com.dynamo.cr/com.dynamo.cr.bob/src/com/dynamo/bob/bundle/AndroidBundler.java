@@ -475,6 +475,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.unzip(new FileInputStream(apk), apkUnzipDir.toPath());
 
             // create folder structure for the base.zip AAB module
+            // https://developer.android.com/guide/app-bundle#aab_format
             File baseDir = createDir(aabDir, "base");
             File dexDir = createDir(baseDir, "dex");
             File manifestDir = createDir(baseDir, "manifest");
@@ -498,30 +499,29 @@ public class AndroidBundler implements IBundler {
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
             final String assetsPath = "assets" + File.separator;
             final String libPath = "lib" + File.separator;
+            final String resPath = "res" + File.separator;
             for (String filename : bundleResources.keySet()) {
                 IResource resource = bundleResources.get(filename);
                 // remove initial file separator if it exists
                 if (filename.startsWith(File.separator)) {
                     filename = filename.substring(1);
                 }
-                // files starting with "assets/" should be copied to the assets/ dir
-                // files starting with "lib/" should be copied to the lib/ dir
+                // files starting with "res/" should be ignored as they are copied in a separate step below
+                if (filename.startsWith(resPath)) {
+                    continue;
+                }
+                // files starting with "assets/" and "libs/" should be copied as-is to their respective dirs
                 // other files should be copied to the to the root/ dir
                 File file = null;
-                if (filename.startsWith(assetsPath)) {
-                    file = new File(assetsDir, filename.substring(assetsPath.length()));
-                }
-                else if (filename.startsWith(libPath)) {
-                    file = new File(libDir, filename.substring(libPath.length()));
+                if (filename.startsWith(assetsPath) || filename.startsWith(libPath)) {
+                    file = new File(baseDir, filename);
                 }
                 else  {
                     file = new File(rootDir, filename);
                 }
-                if (file != null) {
-                    log("Copying resource '" + filename + "' to " + file);
-                    ExtenderUtil.writeResourceToFile(resource, file);
-                    BundleHelper.throwIfCanceled(canceled);
-                }
+                log("Copying resource '" + filename + "' to " + file);
+                ExtenderUtil.writeResourceToFile(resource, file);
+                BundleHelper.throwIfCanceled(canceled);
             }
             // copy Defold archive files to the assets/ dir
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
