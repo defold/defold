@@ -505,8 +505,6 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
 {
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    uint32_t signature_hash_len = HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-
     dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
     if (r != dmCrypt::RESULT_OK) {
         return RESULT_INVALID_DATA;
