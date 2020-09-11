@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,10 +19,15 @@
 #include "resource_archive.h"
 #include <dlib/path.h>
 
-#define MD5_SIZE (16)
-
 namespace dmResourceArchive
 {
+    // Maximum hash length convention. This size should large enough.
+    // If this length changes the VERSION needs to be bumped.
+    // Equivalent to 512 bits
+    const static uint32_t MAX_HASH = 64;
+
+    const static uint32_t MD5_SIZE = 16;
+
     enum EntryFlag
     {
         ENTRY_FLAG_ENCRYPTED        = 1 << 0,
@@ -89,7 +94,7 @@ namespace dmResourceArchive
         EntryData* m_Entries;
         uint32_t m_Count;
     };
-	
+
 	Result ShiftAndInsert(ArchiveIndexContainer* archive_container, ArchiveIndex* archive, const uint8_t* hash_digest, uint32_t hash_digest_len, int insertion_index, const dmResourceArchive::LiveUpdateResource* resource, const EntryData* entry);
 
 	Result WriteResourceToArchive(ArchiveIndexContainer*& archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset);
@@ -97,7 +102,7 @@ namespace dmResourceArchive
 	void NewArchiveIndexFromCopy(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc);
 
     Result GetInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int* index);
-	
+
     Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* index);
 
     void CacheLiveUpdateEntries(const ArchiveIndexContainer* archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries);
