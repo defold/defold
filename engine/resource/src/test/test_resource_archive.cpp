@@ -98,7 +98,7 @@ static const uint8_t compressed_content_hash[][20] = {
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
 
-static const uint32_t ENTRY_SIZE = sizeof(dmResourceArchive::EntryData) + DMRESOURCE_MAX_HASH;
+static const uint32_t ENTRY_SIZE = sizeof(dmResourceArchive::EntryData) + dmResourceArchive::MAX_HASH;
 
 
 static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
@@ -160,7 +160,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     // Construct "bundled" archive
     uint8_t* cursor = (uint8_t*)arci_data;
     uint8_t* cursor_hash = (uint8_t*)((uintptr_t)arci_data + hash_offset);
-    uint8_t* cursor_entry = (uint8_t*)((uintptr_t)arci_data + entries_offset - num_lu_entries * DMRESOURCE_MAX_HASH);
+    uint8_t* cursor_entry = (uint8_t*)((uintptr_t)arci_data + entries_offset - num_lu_entries * dmResourceArchive::MAX_HASH);
     memcpy(cursor, RESOURCES_ARCI, sizeof(dmResourceArchive::ArchiveIndex)); // Copy header
     int lu_entries_to_copy = num_entries_to_keep;
     for (uint32_t i = 0; i < entry_count; ++i)
@@ -174,16 +174,16 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
                 --lu_entries_to_copy;
             }
 
-            memcpy(cursor_hash, (void*)((uintptr_t)RESOURCES_ARCI + hash_offset + DMRESOURCE_MAX_HASH * i), DMRESOURCE_MAX_HASH);
+            memcpy(cursor_hash, (void*)((uintptr_t)RESOURCES_ARCI + hash_offset + dmResourceArchive::MAX_HASH * i), dmResourceArchive::MAX_HASH);
             memcpy(cursor_entry, &e, sizeof(dmResourceArchive::EntryData));
 
-            cursor_hash = (uint8_t*)((uintptr_t)cursor_hash + DMRESOURCE_MAX_HASH);
+            cursor_hash = (uint8_t*)((uintptr_t)cursor_hash + dmResourceArchive::MAX_HASH);
             cursor_entry = (uint8_t*)((uintptr_t)cursor_entry + sizeof(dmResourceArchive::EntryData));
 
         }
     }
     dmResourceArchive::ArchiveIndex* ai = (dmResourceArchive::ArchiveIndex*)arci_data;
-    ai->m_EntryDataOffset = C_TO_JAVA(entries_offset - num_lu_entries * DMRESOURCE_MAX_HASH);
+    ai->m_EntryDataOffset = C_TO_JAVA(entries_offset - num_lu_entries * dmResourceArchive::MAX_HASH);
     ai->m_EntryDataCount = C_TO_JAVA(entry_count - num_lu_entries);
 
     arci_size = sizeof(dmResourceArchive::ArchiveIndex) + JAVA_TO_C(ai->m_EntryDataCount) * (ENTRY_SIZE);
@@ -275,7 +275,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
 
 TEST(dmResourceArchive, NewArchiveIndexFromCopy)
 {
-    uint32_t single_entry_offset = DMRESOURCE_MAX_HASH;
+    uint32_t single_entry_offset = dmResourceArchive::MAX_HASH;
 
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);

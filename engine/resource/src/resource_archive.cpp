@@ -95,7 +95,7 @@ namespace dmResourceArchive
             if (dmEndian::ToNetwork(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
             {
                 // Calc insertion index into bundled archive to see if entry now resides in bundled archive instead
-                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
+                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + dmResourceArchive::MAX_HASH * i);
                 int insert_index = -1;
                 Result index_result = GetInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, &insert_index);
 
@@ -134,13 +134,13 @@ namespace dmResourceArchive
             EntryData& e = entries[i];
             if (dmEndian::ToNetwork(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
             {
-                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
+                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + dmResourceArchive::MAX_HASH * i);
                 int insert_index = -1;
                 Result index_result = GetInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, &insert_index);
 
                 if (index_result == RESULT_OK)
                 {
-                    memcpy((void*)((uintptr_t)lu_hashes + hash_length * lu_counter), (void*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i), hash_length);
+                    memcpy((void*)((uintptr_t)lu_hashes + hash_length * lu_counter), (void*)((uintptr_t)hashes + dmResourceArchive::MAX_HASH * i), hash_length);
                     memcpy((void*)((uintptr_t)lu_entries + sizeof(EntryData) * lu_counter), (void*)((uintptr_t)entries + sizeof(EntryData) * i), sizeof(EntryData));
                     ++lu_counter;
                 }
@@ -227,7 +227,7 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
         uint32_t entry_count = dmEndian::ToNetwork(reloaded_index->m_EntryDataCount);
-        uint32_t total_size = sizeof(ArchiveIndex) + entry_count * DMRESOURCE_MAX_HASH + entry_count * sizeof(EntryData);
+        uint32_t total_size = sizeof(ArchiveIndex) + entry_count * dmResourceArchive::MAX_HASH + entry_count * sizeof(EntryData);
         uint32_t written_bytes = fwrite((void*)reloaded_index, 1, total_size, f_lu_index);
         if (written_bytes != total_size)
         {
@@ -329,8 +329,8 @@ namespace dmResourceArchive
         uint32_t hash_offset = dmEndian::ToNetwork(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
-        aic->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
-        uint32_t hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
+        aic->m_Hashes = new uint8_t[entry_count * dmResourceArchive::MAX_HASH];
+        uint32_t hash_total_size = entry_count * dmResourceArchive::MAX_HASH;
         if (fread(aic->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
@@ -441,7 +441,7 @@ namespace dmResourceArchive
         while (first <= last && first !=mid)
         {
             mid = first + (last - first) / 2;
-            const uint8_t* h = (hashes + DMRESOURCE_MAX_HASH * mid);
+            const uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * mid);
 
             int cmp = memcmp(hash_digest, h, dmEndian::ToNetwork(archive->m_HashLength));
             if (cmp == 0)
@@ -476,9 +476,9 @@ namespace dmResourceArchive
     void NewArchiveIndexFromCopy(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc)
     {
         ArchiveIndex* ai = src->m_ArchiveIndex;
-        uint32_t hash_digests_size = dmEndian::ToNetwork(ai->m_EntryDataCount) * DMRESOURCE_MAX_HASH;
+        uint32_t hash_digests_size = dmEndian::ToNetwork(ai->m_EntryDataCount) * dmResourceArchive::MAX_HASH;
         uint32_t entry_datas_size = (dmEndian::ToNetwork(ai->m_EntryDataCount) * sizeof(EntryData));
-        uint32_t single_entry_size = DMRESOURCE_MAX_HASH + sizeof(EntryData);
+        uint32_t single_entry_size = dmResourceArchive::MAX_HASH + sizeof(EntryData);
         uint32_t size_to_alloc = sizeof(ArchiveIndex) + hash_digests_size + entry_datas_size;
 
         if (extra_entries_alloc > 0)
@@ -496,7 +496,7 @@ namespace dmResourceArchive
             cursor = (uint8_t*)((uintptr_t)cursor + hash_digests_size); // step cursor to entry data array
             if (extra_entries_alloc > 0)
             {
-                cursor = (uint8_t*)((uintptr_t)cursor + DMRESOURCE_MAX_HASH * extra_entries_alloc);
+                cursor = (uint8_t*)((uintptr_t)cursor + dmResourceArchive::MAX_HASH * extra_entries_alloc);
             }
             memcpy(cursor, src->m_Entries, entry_datas_size);
         }
@@ -508,14 +508,14 @@ namespace dmResourceArchive
             cursor = (uint8_t*)((uintptr_t)cursor + hash_digests_size); // step cursor to entry data array
             if (extra_entries_alloc > 0)
             {
-                cursor = (uint8_t*)((uintptr_t)cursor + DMRESOURCE_MAX_HASH * extra_entries_alloc);
+                cursor = (uint8_t*)((uintptr_t)cursor + dmResourceArchive::MAX_HASH * extra_entries_alloc);
             }
             memcpy(cursor, (void*)(((uintptr_t)ai + dmEndian::ToNetwork(ai->m_EntryDataOffset))), entry_datas_size);
         }
 
         if (extra_entries_alloc > 0)
         {
-            dst->m_EntryDataOffset = dmEndian::ToHost(dmEndian::ToNetwork(dst->m_EntryDataOffset) + DMRESOURCE_MAX_HASH * extra_entries_alloc);
+            dst->m_EntryDataOffset = dmEndian::ToHost(dmEndian::ToNetwork(dst->m_EntryDataOffset) + dmResourceArchive::MAX_HASH * extra_entries_alloc);
         }
     }
 
@@ -562,11 +562,11 @@ namespace dmResourceArchive
 
         uint32_t entry_count = dmEndian::ToNetwork(archive->m_EntryDataCount);
         // Shift hashes after insertion_index down
-        uint8_t* hash_shift_src = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * insertion_index);
-        uint8_t* hash_shift_dst = (uint8_t*)((uintptr_t)hash_shift_src + DMRESOURCE_MAX_HASH);
+        uint8_t* hash_shift_src = (uint8_t*)((uintptr_t)hashes + dmResourceArchive::MAX_HASH * insertion_index);
+        uint8_t* hash_shift_dst = (uint8_t*)((uintptr_t)hash_shift_src + dmResourceArchive::MAX_HASH);
         if ((uint32_t)insertion_index < entry_count) // no need to memmove if inserting at tail
         {
-            uint32_t size_to_shift = (entry_count - insertion_index) * DMRESOURCE_MAX_HASH;
+            uint32_t size_to_shift = (entry_count - insertion_index) * dmResourceArchive::MAX_HASH;
             memmove((void*)hash_shift_dst, (void*)hash_shift_src, size_to_shift);
         }
         memcpy(hash_shift_src, hash_digest, hash_digest_len);
@@ -697,7 +697,7 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
         uint32_t entry_count = dmEndian::ToNetwork(ai_temp->m_EntryDataCount);
-        uint32_t total_size = sizeof(ArchiveIndex) + entry_count * DMRESOURCE_MAX_HASH + entry_count * sizeof(EntryData);
+        uint32_t total_size = sizeof(ArchiveIndex) + entry_count * dmResourceArchive::MAX_HASH + entry_count * sizeof(EntryData);
         if (fwrite((void*)ai_temp, 1, total_size, f_lu_index) != total_size)
         {
             fclose(f_lu_index);
@@ -751,7 +751,7 @@ namespace dmResourceArchive
         while (first <= last)
         {
             int mid = first + (last - first) / 2;
-            uint8_t* h = (hashes + DMRESOURCE_MAX_HASH * mid);
+            uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * mid);
 
             int cmp = memcmp(hash, h, hash_len);
             if (cmp == 0)
