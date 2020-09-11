@@ -32,18 +32,7 @@
 #include <dlib/crypt.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
-
-// TODO: replace with dmEndian
-#if defined(_WIN32)
-#include <winsock2.h>
-#elif defined(__NX__)
-#include <arpa/inet.h>
-#else
-#include <netinet/in.h>
-#endif
-#define C_TO_JAVA ntohl
-#define JAVA_TO_C htonl
-//#include <dlib/endian.h>
+#include <dlib/endian.h>
 
 
 namespace dmResourceArchive
@@ -56,7 +45,7 @@ namespace dmResourceArchive
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = true;
         ArchiveIndex* a = (ArchiveIndex*) index_buffer;
-        uint32_t version = JAVA_TO_C(a->m_Version);
+        uint32_t version = dmEndian::ToNetwork(a->m_Version);
         if (version != VERSION)
         {
             return RESULT_VERSION_MISMATCH;
@@ -89,10 +78,10 @@ namespace dmResourceArchive
     uint32_t CountLiveUpdateEntries(const ArchiveIndexContainer* lu_archive_container, const ArchiveIndexContainer* bundled_archive_container)
     {
         uint32_t count = 0;
-        uint32_t entry_count = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
-        uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint32_t entry_count = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t entries_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t hash_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint32_t bundled_hash_offset = dmEndian::ToNetwork(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
 
         uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
         EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
@@ -103,7 +92,7 @@ namespace dmResourceArchive
         for (uint32_t i = 0; i < entry_count; ++i)
         {
             EntryData& e = entries[i];
-            if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
+            if (dmEndian::ToNetwork(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
             {
                 // Calc insertion index into bundled archive to see if entry now resides in bundled archive instead
                 uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
@@ -123,15 +112,15 @@ namespace dmResourceArchive
     // Looks for and caches liveupdate entries that are in the liveupdate archive index and NOT in the bundled archive
     void CacheLiveUpdateEntries(const ArchiveIndexContainer* lu_archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries)
     {
-        uint32_t entry_count = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t hash_length = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashLength);
-        uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
-        uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t entry_count = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t hash_length = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_HashLength);
+        uint32_t hash_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint32_t entries_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
 
         uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
         EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
 
-        uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint32_t bundled_hash_offset = dmEndian::ToNetwork(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
         uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
 
         uint32_t lu_entry_count = CountLiveUpdateEntries(lu_archive_container, bundled_archive_container);
@@ -143,7 +132,7 @@ namespace dmResourceArchive
         for (uint32_t i = 0; i < entry_count; ++i)
         {
             EntryData& e = entries[i];
-            if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
+            if (dmEndian::ToNetwork(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
             {
                 uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
                 int insert_index = -1;
@@ -192,7 +181,7 @@ namespace dmResourceArchive
         // Construct reloaded index, which is union of bundled index and cached liveupdate entries
         NewArchiveIndexFromCopy(reloaded_index, bundled_archive_container, lu_entries->m_Count);
         uint32_t hash_len = lu_entries->m_HashLen;
-        uint8_t* reloaded_hashes = (uint8_t*)(uintptr_t(reloaded_index) + JAVA_TO_C(reloaded_index->m_HashOffset));
+        uint8_t* reloaded_hashes = (uint8_t*)(uintptr_t(reloaded_index) + dmEndian::ToNetwork(reloaded_index->m_HashOffset));
         for (uint32_t i = 0; i < lu_entries->m_Count; ++i)
         {
             int insert_index = -1;
@@ -237,7 +226,7 @@ namespace dmResourceArchive
             delete lu_entries;
             return RESULT_IO_ERROR;
         }
-        uint32_t entry_count = JAVA_TO_C(reloaded_index->m_EntryDataCount);
+        uint32_t entry_count = dmEndian::ToNetwork(reloaded_index->m_EntryDataCount);
         uint32_t total_size = sizeof(ArchiveIndex) + entry_count * DMRESOURCE_MAX_HASH + entry_count * sizeof(EntryData);
         uint32_t written_bytes = fwrite((void*)reloaded_index, 1, total_size, f_lu_index);
         if (written_bytes != total_size)
@@ -329,15 +318,15 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
 
-        if(JAVA_TO_C(ai->m_Version) != VERSION)
+        if(dmEndian::ToNetwork(ai->m_Version) != VERSION)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
             return RESULT_VERSION_MISMATCH;
         }
 
-        uint32_t entry_count = JAVA_TO_C(ai->m_EntryDataCount);
-        uint32_t entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
-        uint32_t hash_offset = JAVA_TO_C(ai->m_HashOffset);
+        uint32_t entry_count = dmEndian::ToNetwork(ai->m_EntryDataCount);
+        uint32_t entry_offset = dmEndian::ToNetwork(ai->m_EntryDataOffset);
+        uint32_t hash_offset = dmEndian::ToNetwork(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
         aic->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
@@ -447,14 +436,14 @@ namespace dmResourceArchive
     Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* out_index)
     {
         int first = 0;
-        int last = JAVA_TO_C(archive->m_EntryDataCount);
+        int last = dmEndian::ToNetwork(archive->m_EntryDataCount);
         int mid = first + (last - first) / 2;
         while (first <= last && first !=mid)
         {
             mid = first + (last - first) / 2;
             const uint8_t* h = (hashes + DMRESOURCE_MAX_HASH * mid);
 
-            int cmp = memcmp(hash_digest, h, JAVA_TO_C(archive->m_HashLength));
+            int cmp = memcmp(hash_digest, h, dmEndian::ToNetwork(archive->m_HashLength));
             if (cmp == 0)
             {
                 // attemping to insert an already inserted resource
@@ -477,7 +466,7 @@ namespace dmResourceArchive
     Result GetInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int* out_index)
     {
         uint8_t* hashes = 0;
-        uint32_t hashes_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
+        uint32_t hashes_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
 
         hashes = (archive->m_IsMemMapped) ? (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hashes_offset) : archive->m_Hashes;
 
@@ -487,8 +476,8 @@ namespace dmResourceArchive
     void NewArchiveIndexFromCopy(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc)
     {
         ArchiveIndex* ai = src->m_ArchiveIndex;
-        uint32_t hash_digests_size = JAVA_TO_C(ai->m_EntryDataCount) * DMRESOURCE_MAX_HASH;
-        uint32_t entry_datas_size = (JAVA_TO_C(ai->m_EntryDataCount) * sizeof(EntryData));
+        uint32_t hash_digests_size = dmEndian::ToNetwork(ai->m_EntryDataCount) * DMRESOURCE_MAX_HASH;
+        uint32_t entry_datas_size = (dmEndian::ToNetwork(ai->m_EntryDataCount) * sizeof(EntryData));
         uint32_t single_entry_size = DMRESOURCE_MAX_HASH + sizeof(EntryData);
         uint32_t size_to_alloc = sizeof(ArchiveIndex) + hash_digests_size + entry_datas_size;
 
@@ -515,18 +504,18 @@ namespace dmResourceArchive
         {
             memcpy(dst, ai, sizeof(ArchiveIndex)); // copy header data
             uint8_t* cursor =  (uint8_t*)((uintptr_t)dst + sizeof(ArchiveIndex)); // step cursor to hash digests array
-            memcpy(cursor, (void*)((uintptr_t)ai + JAVA_TO_C(ai->m_HashOffset)), hash_digests_size);
+            memcpy(cursor, (void*)((uintptr_t)ai + dmEndian::ToNetwork(ai->m_HashOffset)), hash_digests_size);
             cursor = (uint8_t*)((uintptr_t)cursor + hash_digests_size); // step cursor to entry data array
             if (extra_entries_alloc > 0)
             {
                 cursor = (uint8_t*)((uintptr_t)cursor + DMRESOURCE_MAX_HASH * extra_entries_alloc);
             }
-            memcpy(cursor, (void*)(((uintptr_t)ai + JAVA_TO_C(ai->m_EntryDataOffset))), entry_datas_size);
+            memcpy(cursor, (void*)(((uintptr_t)ai + dmEndian::ToNetwork(ai->m_EntryDataOffset))), entry_datas_size);
         }
 
         if (extra_entries_alloc > 0)
         {
-            dst->m_EntryDataOffset = C_TO_JAVA(JAVA_TO_C(dst->m_EntryDataOffset) + DMRESOURCE_MAX_HASH * extra_entries_alloc);
+            dst->m_EntryDataOffset = dmEndian::ToHost(dmEndian::ToNetwork(dst->m_EntryDataOffset) + DMRESOURCE_MAX_HASH * extra_entries_alloc);
         }
     }
 
@@ -568,10 +557,10 @@ namespace dmResourceArchive
     {
         assert(insertion_index >= 0);
         ArchiveIndex* archive = (ai == 0x0) ? archive_container->m_ArchiveIndex : ai;
-        uint8_t* hashes = (uint8_t*)((uintptr_t)archive + JAVA_TO_C(archive->m_HashOffset));
-        EntryData* entries = (EntryData*)((uintptr_t)archive + JAVA_TO_C(archive->m_EntryDataOffset));
+        uint8_t* hashes = (uint8_t*)((uintptr_t)archive + dmEndian::ToNetwork(archive->m_HashOffset));
+        EntryData* entries = (EntryData*)((uintptr_t)archive + dmEndian::ToNetwork(archive->m_EntryDataOffset));
 
-        uint32_t entry_count = JAVA_TO_C(archive->m_EntryDataCount);
+        uint32_t entry_count = dmEndian::ToNetwork(archive->m_EntryDataCount);
         // Shift hashes after insertion_index down
         uint8_t* hash_shift_src = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * insertion_index);
         uint8_t* hash_shift_dst = (uint8_t*)((uintptr_t)hash_shift_src + DMRESOURCE_MAX_HASH);
@@ -616,15 +605,15 @@ namespace dmResourceArchive
             // Create entrydata instance and insert into index
             bool is_compressed = (resource->m_Header->m_Flags & ENTRY_FLAG_COMPRESSED);
             //EntryData entry;
-            entry.m_ResourceDataOffset = C_TO_JAVA(offs);
-            entry.m_ResourceSize = is_compressed ? resource->m_Header->m_Size : C_TO_JAVA(resource->m_Count);
-            entry.m_ResourceCompressedSize = is_compressed ? C_TO_JAVA(resource->m_Count) : (C_TO_JAVA(0xffffffff));
-            entry.m_Flags = C_TO_JAVA((uint32_t)(resource->m_Header->m_Flags | ENTRY_FLAG_LIVEUPDATE_DATA));
+            entry.m_ResourceDataOffset = dmEndian::ToHost(offs);
+            entry.m_ResourceSize = is_compressed ? resource->m_Header->m_Size : dmEndian::ToHost((uint32_t)resource->m_Count);
+            entry.m_ResourceCompressedSize = is_compressed ? dmEndian::ToHost((uint32_t)resource->m_Count) : (dmEndian::ToHost(0xffffffff));
+            entry.m_Flags = dmEndian::ToHost((uint32_t)(resource->m_Header->m_Flags | ENTRY_FLAG_LIVEUPDATE_DATA));
             /// --- WRITE RESOURCE END
         }
 
         memcpy((void*)entries_shift_src, (void*)&entry, sizeof(EntryData));
-        archive->m_EntryDataCount = C_TO_JAVA(JAVA_TO_C(archive->m_EntryDataCount) + 1);
+        archive->m_EntryDataCount = dmEndian::ToHost(dmEndian::ToNetwork(archive->m_EntryDataCount) + 1);
         return RESULT_OK;
     }
 
@@ -707,7 +696,7 @@ namespace dmResourceArchive
             dmLogError("Failed to create liveupdate index file");
             return RESULT_IO_ERROR;
         }
-        uint32_t entry_count = JAVA_TO_C(ai_temp->m_EntryDataCount);
+        uint32_t entry_count = dmEndian::ToNetwork(ai_temp->m_EntryDataCount);
         uint32_t total_size = sizeof(ArchiveIndex) + entry_count * DMRESOURCE_MAX_HASH + entry_count * sizeof(EntryData);
         if (fwrite((void*)ai_temp, 1, total_size, f_lu_index) != total_size)
         {
@@ -737,10 +726,10 @@ namespace dmResourceArchive
 
     Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry)
     {
-        uint32_t entry_count = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entry_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
-        uint32_t hash_len = JAVA_TO_C(archive->m_ArchiveIndex->m_HashLength);
+        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
+        uint32_t hash_len = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashLength);
         uint8_t* hashes = 0;
         EntryData* entries = 0;
 
@@ -770,10 +759,10 @@ namespace dmResourceArchive
                 if (entry != NULL)
                 {
                     EntryData* e = &entries[mid];
-                    entry->m_ResourceDataOffset = JAVA_TO_C(e->m_ResourceDataOffset);
-                    entry->m_ResourceSize = JAVA_TO_C(e->m_ResourceSize);
-                    entry->m_ResourceCompressedSize = JAVA_TO_C(e->m_ResourceCompressedSize);
-                    entry->m_Flags = JAVA_TO_C(e->m_Flags);
+                    entry->m_ResourceDataOffset = dmEndian::ToNetwork(e->m_ResourceDataOffset);
+                    entry->m_ResourceSize = dmEndian::ToNetwork(e->m_ResourceSize);
+                    entry->m_ResourceCompressedSize = dmEndian::ToNetwork(e->m_ResourceCompressedSize);
+                    entry->m_Flags = dmEndian::ToNetwork(e->m_Flags);
                 }
 
                 return RESULT_OK;
@@ -933,16 +922,16 @@ namespace dmResourceArchive
 
     uint32_t GetEntryCount(HArchiveIndexContainer archive)
     {
-        return JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataCount);
+        return dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
     }
 
     uint32_t GetEntryDataOffset(ArchiveIndexContainer* archive_container)
     {
-        return JAVA_TO_C(archive_container->m_ArchiveIndex->m_EntryDataOffset);
+        return dmEndian::ToNetwork(archive_container->m_ArchiveIndex->m_EntryDataOffset);
     }
 
     uint32_t GetEntryDataOffset(ArchiveIndex* archive)
     {
-        return JAVA_TO_C(archive->m_EntryDataOffset);
+        return dmEndian::ToNetwork(archive->m_EntryDataOffset);
     }
 }  // namespace dmResourceArchive
