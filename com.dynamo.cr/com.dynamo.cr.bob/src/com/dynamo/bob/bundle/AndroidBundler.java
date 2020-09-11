@@ -82,9 +82,6 @@ public class AndroidBundler implements IBundler {
 
     private static File createDir(File parent, String child) throws IOException {
         File dir = new File(parent, child);
-        if (dir.exists()) {
-            FileUtils.deleteDirectory(dir);
-        }
         dir.mkdirs();
         return dir;
     }
@@ -124,6 +121,15 @@ public class AndroidBundler implements IBundler {
         return exec(Arrays.asList(args));
     }
 
+    private static CompileExceptionError createCompileExceptionError(String message) {
+        return new CompileExceptionError(message, null);
+    }
+    private static CompileExceptionError createCompileExceptionError(String message, Exception e) {
+        return new CompileExceptionError(message, e);
+    }
+    private static CompileExceptionError createCompileExceptionError(Exception e) {
+        return new CompileExceptionError("", e);
+    }
 
     /**
     * Get keystore. If none is provided a debug keystore will be generated in the project root and used
@@ -170,7 +176,7 @@ public class AndroidBundler implements IBundler {
     private static String getKeystorePassword(Project project) throws IOException, CompileExceptionError {
         String keystorePassword = project.option("keystore-pass", "");
         if (keystorePassword.length() == 0) {
-            throw new CompileExceptionError(null, -1, "No keystore password");
+            throw createCompileExceptionError("No keystore password");
         }
         return readFile(keystorePassword).trim();
     }
@@ -199,7 +205,7 @@ public class AndroidBundler implements IBundler {
 
             Matcher m = Pattern.compile("Alias name: (.*)").matcher(new String(res.stdOutErr));
             if (!m.find()) {
-                throw new CompileExceptionError(null, -1, "Unable to find keystore alias");
+                throw createCompileExceptionError("Unable to find keystore alias");
             }
             alias = m.group(1);
         }
@@ -402,7 +408,7 @@ public class AndroidBundler implements IBundler {
 
             return compiledResourcesDir;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed compiling Android resources: " + e.getMessage());
+            throw createCompileExceptionError("Failed compiling Android resources", e);
         }
     }
 
@@ -450,7 +456,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return outApk;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed linking resources", e);
         }
     }
 
@@ -469,10 +475,12 @@ public class AndroidBundler implements IBundler {
             BundleHelper.unzip(new FileInputStream(apk), apkUnzipDir.toPath());
 
             // create folder structure for the base.zip AAB module
+            // https://developer.android.com/guide/app-bundle#aab_format
             File baseDir = createDir(aabDir, "base");
             File dexDir = createDir(baseDir, "dex");
             File manifestDir = createDir(baseDir, "manifest");
             File assetsDir = createDir(baseDir, "assets");
+            File rootDir = createDir(baseDir, "root");
             File libDir = createDir(baseDir, "lib");
             File resDir = createDir(baseDir, "res");
 
@@ -487,9 +495,35 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
 
-            // copy assets
+            // copy extension and bundle resoources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
-            ExtenderUtil.writeResourcesToDirectory(bundleResources, assetsDir);
+            final String assetsPath = "assets" + File.separator;
+            final String libPath = "lib" + File.separator;
+            final String resPath = "res" + File.separator;
+            for (String filename : bundleResources.keySet()) {
+                IResource resource = bundleResources.get(filename);
+                // remove initial file separator if it exists
+                if (filename.startsWith(File.separator)) {
+                    filename = filename.substring(1);
+                }
+                // files starting with "res/" should be ignored as they are copied in a separate step below
+                if (filename.startsWith(resPath)) {
+                    continue;
+                }
+                // files starting with "assets/" and "libs/" should be copied as-is to their respective dirs
+                // other files should be copied to the to the root/ dir
+                File file = null;
+                if (filename.startsWith(assetsPath) || filename.startsWith(libPath)) {
+                    file = new File(baseDir, filename);
+                }
+                else  {
+                    file = new File(rootDir, filename);
+                }
+                log("Copying resource '" + filename + "' to " + file);
+                ExtenderUtil.writeResourceToFile(resource, file);
+                BundleHelper.throwIfCanceled(canceled);
+            }
+            // copy Defold archive files to the assets/ dir
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 File source = new File(new File(project.getRootDirectory(), project.getBuildDirectory()), name);
                 File dest = new File(assetsDir, name);
@@ -501,6 +535,7 @@ public class AndroidBundler implements IBundler {
             // copy resources
             log("Copying resources to " + resDir);
             FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
+            BundleHelper.throwIfCanceled(canceled);
 
             // copy libs
             final String exeName = getBinaryNameFromProject(project);
@@ -520,9 +555,10 @@ public class AndroidBundler implements IBundler {
             }
             baseZip.createNewFile();
             ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
+            BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating AAB base.zip", e);
         }
     }
 
@@ -552,7 +588,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return baseAab;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating Android Application Bundle", e);
         }
     }
 
@@ -696,7 +732,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return new File(apksPath);
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating universal APK", e);
         }
     }
 
@@ -730,7 +766,6 @@ public class AndroidBundler implements IBundler {
 
         // cleanup
         apks.delete();
-
         return apk;
     }
 
@@ -742,7 +777,10 @@ public class AndroidBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
 
-        File outDir = createDir(bundleDir, getProjectTitle(project));
+        File outDir = new File(bundleDir, getProjectTitle(project));
+        FileUtils.deleteDirectory(outDir);
+        outDir.mkdirs();
+
 
         String bundleFormat = project.option("bundle-format", "apk");
         if (bundleFormat.equals("aab")) {
@@ -754,7 +792,7 @@ public class AndroidBundler implements IBundler {
             aab.delete();
         }
         else {
-            throw new CompileExceptionError(null, -1, "Unknown bundle format: " + bundleFormat);
+            throw createCompileExceptionError("Unknown bundle format: " + bundleFormat);
         }
     }
 }
