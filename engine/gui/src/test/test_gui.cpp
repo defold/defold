@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,6 +36,11 @@ extern "C"
 extern unsigned char BUG352_LUA[];
 extern uint32_t BUG352_LUA_SIZE;
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
 
 // Basic
 //  - Create scene
@@ -5608,7 +5613,7 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
 bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;

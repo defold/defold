@@ -2,16 +2,21 @@
 
 Defold uses the Python based build system [Waf](https://waf.io/). Most of the interaction is done through the `build.py` script but it is also possible to use Waf directly.
 
+## IMPORTANT PREREQUISITE!
+
+Make sure you have followed the [setup guide](/README_SETUP.md) before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
+
+
 ## Standard workflow
 
-The standard workflow when working on the engine is the following:
+The standard workflow when building the engine is the following:
 
-1. Setup platform specific environment
-2. Install platform specific dependencies
-3. (Re)Build the engine
-4. Develop a feature
-5. Test
-6. Repeat steps 3-5 until done. Start from 1 when switching platform.
+1. Setup environment
+2. Install platform specific libraries and SDKs
+3. Build the engine
+
+When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
+
 
 ### Platforms
 
@@ -31,23 +36,24 @@ The following platforms are supported:
 * `js-web`
 * `wasm-web`
 
-### Setup environment
+### STEP 1 - Setup environment
 
 Start by setting up the build environment:
 
-    $ ./scripts/build.py shell --platform=...
+    $ ./scripts/build.py shell
 
-This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc). This step is required whenever you switch target platform.
+This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc).
 
-### Install packages and SDKs
+### STEP 2 - Install packages and SDKs
 
 Next thing you need to do is to install external packages and download required platform SDKs:
 
     $ ./scripts/build.py install_ext --platform=... --package-path=...
 
-It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). If you do not provide a platform the command will default to the host platform. When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
+It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
 
-IMPORTANT! You need to rerun this command whenever you switch target platform, as different packages and SDKs are installed.
+**IMPORTANT!**
+You need to rerun this command whenever you switch target platform, as different packages and SDKs are installed.
 
 #### Installing packages
 The command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet, Protocol Buffers (a.k.a. protobuf), WebP and c-ares. This step also installs some Python dependencies such as `requests`, `boto` and `Pygments`.
@@ -59,9 +65,9 @@ The second step of the `install_ext` command will install SDKs (build tools etc)
 Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
 
 
-### Build the engine
+### STEP 3 - Build the engine
 
-With these two steps done you're ready to build the engine:
+With the setup and installation done you're ready to build the engine:
 
     $ ./scripts/build.py build_engine --platform=...
 
@@ -71,7 +77,9 @@ This will build the engine and run all unit tests. In order to speed up the proc
 
 Anything after `--` is passed directly as arguments to Waf. The built engine ends up in `./tmp/dynamo_home/bin/%platform%`.
 
-### Rebuilding the engine
+---
+
+## Rebuilding the engine
 
 When you are working on a specific part of the engine there is no need to rebuild the whole thing to test your changes. You can use Waf directly to build and test your changes (see Unit tests below for more information about running tests):
 
@@ -82,6 +90,8 @@ You can also use rebuild a specific part of the engine and create a new executab
 
     # Rebuild dlib and sound modules and create a new executable
     $ ./scripts/submodule.sh x86_64-darwin dlib sound
+
+---
 
 ## Unit tests
 

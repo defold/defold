@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -235,23 +235,23 @@ TEST(dmURI, Escape)
 #define CPY_TO_BUF(s) strcpy(src, s);
 
     CPY_TO_BUF("")
-    dmURI::Encode(src, dst, sizeof(dst));
+    dmURI::Encode(src, dst, sizeof(dst), 0);
     ASSERT_STREQ("", dst);
 
     CPY_TO_BUF(" ")
-    dmURI::Encode(src, dst, sizeof(dst));
+    dmURI::Encode(src, dst, sizeof(dst), 0);
     ASSERT_STREQ("%20", dst);
 
     CPY_TO_BUF("foo")
-    dmURI::Encode(src, dst, sizeof(dst));
+    dmURI::Encode(src, dst, sizeof(dst), 0);
     ASSERT_STREQ("foo", dst);
 
     CPY_TO_BUF("foo bar")
-    dmURI::Encode(src, dst, sizeof(dst));
+    dmURI::Encode(src, dst, sizeof(dst), 0);
     ASSERT_STREQ("foo%20bar", dst);
 
     CPY_TO_BUF("to[0]")
-    dmURI::Encode(src, dst, sizeof(dst));
+    dmURI::Encode(src, dst, sizeof(dst), 0);
     ASSERT_STREQ("to%5B0%5D", dst);
 
 #undef CPY_TO_BUF
@@ -264,27 +264,27 @@ TEST(dmURI, EscapeBufferSize)
 #define CPY_TO_BUF(s) strcpy(src, s);
 
     CPY_TO_BUF("")
-    dmURI::Encode(src, dst, 1);
+    dmURI::Encode(src, dst, 1, 0);
     ASSERT_STREQ("", dst);
 
     dst[1] = '!';
     CPY_TO_BUF(" ")
-    dmURI::Encode(src, dst, 1);
+    dmURI::Encode(src, dst, 1, 0);
     ASSERT_EQ('!', dst[1]);
 
     dst[2] = '!';
     CPY_TO_BUF(" ")
-    dmURI::Encode(src, dst, 2);
+    dmURI::Encode(src, dst, 2, 0);
     ASSERT_EQ('!', dst[2]);
 
     dst[3] = '!';
     CPY_TO_BUF(" ")
-    dmURI::Encode(src, dst, 3);
+    dmURI::Encode(src, dst, 3, 0);
     ASSERT_EQ('!', dst[3]);
 
     dst[4] = '!';
     CPY_TO_BUF(" ")
-    dmURI::Encode(src, dst, 4);
+    dmURI::Encode(src, dst, 4, 0);
     ASSERT_STREQ("%20", dst);
     ASSERT_EQ('!', dst[4]);
 
@@ -324,7 +324,7 @@ TEST(dmURI, TestEncodeDecode)
 {
     const char* uri = "http://my_domain.com/my spaced file.html";
     char enc_uri[DMPATH_MAX_PATH];
-    dmURI::Encode(uri, enc_uri, DMPATH_MAX_PATH);
+    dmURI::Encode(uri, enc_uri, DMPATH_MAX_PATH, 0);
     ASSERT_EQ((void*)0, strchr(enc_uri, ' '));
     ASSERT_STRNE(uri, enc_uri);
     char dec_uri[DMPATH_MAX_PATH];
@@ -332,6 +332,28 @@ TEST(dmURI, TestEncodeDecode)
     ASSERT_NE((void*)0, strchr(dec_uri, ' '));
     ASSERT_STRNE(dec_uri, enc_uri);
     ASSERT_STREQ(uri, dec_uri);
+}
+
+TEST(dmURI, TestEncodeBufferSize)
+{
+    const char* uri = "http://my_domain.com/my spaced file.html";
+    const char* expected = "http%3A//my_domain.com/my%20spaced%20file.html";
+
+    dmURI::Result result;
+    char enc_uri[DMPATH_MAX_PATH];
+    uint32_t bytes_written = 0;
+    result = dmURI::Encode(uri, enc_uri, DMPATH_MAX_PATH, &bytes_written);
+    ASSERT_EQ(dmURI::RESULT_OK, result);
+    ASSERT_EQ((void*)0, strchr(enc_uri, ' '));
+    ASSERT_STRNE(uri, enc_uri);
+    ASSERT_EQ(strlen(expected)+1, bytes_written);
+
+    result = dmURI::Encode(uri, 0, 0, &bytes_written);
+    ASSERT_EQ(dmURI::RESULT_OK, result);
+    ASSERT_EQ(strlen(expected)+1, bytes_written);
+
+    result = dmURI::Encode(uri, enc_uri, 45, &bytes_written);
+    ASSERT_EQ(dmURI::RESULT_TOO_SMALL_BUFFER, result);
 }
 
 int main(int argc, char **argv)

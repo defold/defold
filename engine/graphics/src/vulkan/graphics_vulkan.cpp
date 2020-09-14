@@ -10,9 +10,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <graphics/glfw/glfw.h>
-#include <graphics/glfw/glfw_native.h>
-
 #include <dlib/math.h>
 #include <dlib/hashtable.h>
 #include <dlib/array.h>
@@ -46,100 +43,7 @@ namespace dmGraphics
         } \
     }
 
-    // Validation layers to enable
-    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
-    static const uint8_t g_validation_layer_count     = 1;
-    // Validation layer extensions
-    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
-    static const uint8_t g_validation_layer_ext_count = 1;
-    // In flight frames - number of concurrent frames being processed
-    static const uint8_t g_max_frames_in_flight       = 2;
-
-    typedef dmHashTable64<Pipeline>    PipelineCache;
-    typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
-
-    static struct Context
-    {
-        Context(const ContextParams& params, const VkInstance vk_instance)
-        : m_MainRenderTarget(0)
-        {
-            memset(this, 0, sizeof(*this));
-            m_Instance                = vk_instance;
-            m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-            m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-            m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
-        }
-
-        ~Context()
-        {
-            if (m_Instance != VK_NULL_HANDLE)
-            {
-                vkDestroyInstance(m_Instance, 0);
-                m_Instance = VK_NULL_HANDLE;
-            }
-        }
-
-        Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
-        PipelineCache                   m_PipelineCache;
-        PipelineState                   m_PipelineState;
-        SwapChain*                      m_SwapChain;
-        SwapChainCapabilities           m_SwapChainCapabilities;
-        PhysicalDevice                  m_PhysicalDevice;
-        LogicalDevice                   m_LogicalDevice;
-        FrameResource                   m_FrameResources[g_max_frames_in_flight];
-        VkInstance                      m_Instance;
-        VkSurfaceKHR                    m_WindowSurface;
-        dmArray<TextureSampler>         m_TextureSamplers;
-        uint32_t*                       m_DynamicOffsetBuffer;
-        uint16_t                        m_DynamicOffsetBufferSize;
-        // Window callbacks
-        WindowResizeCallback            m_WindowResizeCallback;
-        void*                           m_WindowResizeCallbackUserData;
-        WindowCloseCallback             m_WindowCloseCallback;
-        void*                           m_WindowCloseCallbackUserData;
-        WindowFocusCallback             m_WindowFocusCallback;
-        void*                           m_WindowFocusCallbackUserData;
-        WindowIconifyCallback           m_WindowIconifyCallback;
-        void*                           m_WindowIconifyCallbackUserData;
-        // Main device rendering constructs
-        dmArray<VkFramebuffer>          m_MainFrameBuffers;
-        dmArray<VkCommandBuffer>        m_MainCommandBuffers;
-        VkCommandBuffer                 m_MainCommandBufferUploadHelper;
-        ResourcesToDestroyList*         m_MainResourcesToDestroy[3];
-        dmArray<ScratchBuffer>          m_MainScratchBuffers;
-        dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
-        VkRenderPass                    m_MainRenderPass;
-        Texture                         m_MainTextureDepthStencil;
-        RenderTarget                    m_MainRenderTarget;
-        Viewport                        m_MainViewport;
-        // Rendering state
-        RenderTarget*                   m_CurrentRenderTarget;
-        DeviceBuffer*                   m_CurrentVertexBuffer;
-        VertexDeclaration*              m_CurrentVertexDeclaration;
-        Program*                        m_CurrentProgram;
-        // Misc state
-        TextureFilter                   m_DefaultTextureMinFilter;
-        TextureFilter                   m_DefaultTextureMagFilter;
-        Texture*                        m_DefaultTexture;
-        uint32_t                        m_TextureFormatSupport;
-        uint32_t                        m_Width;
-        uint32_t                        m_Height;
-        uint32_t                        m_WindowWidth;
-        uint32_t                        m_WindowHeight;
-        uint32_t                        m_FrameBegun           : 1;
-        uint32_t                        m_CurrentFrameInFlight : 1;
-        uint32_t                        m_WindowOpened         : 1;
-        uint32_t                        m_VerifyGraphicsCalls  : 1;
-        uint32_t                        m_ViewportChanged      : 1;
-        uint32_t                        m_CullFaceChanged      : 1;
-        uint32_t                                               : 26;
-    } *g_Context = 0;
+    Context* g_Context = 0;
 
     static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
 
@@ -224,10 +128,6 @@ namespace dmGraphics
     }
     #undef DM_TEXTURE_FORMAT_TO_STR_CASE
 
-    static inline void SynchronizeDevice(VkDevice vk_device)
-    {
-        vkDeviceWaitIdle(vk_device);
-    }
 
     static inline uint32_t GetNextRenderTargetId()
     {
@@ -402,11 +302,6 @@ namespace dmGraphics
         return -1;
     }
 
-    static void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
-    {
-        DestroyPipeline(context->m_LogicalDevice.m_Device, value);
-    }
-
     static bool EndRenderPass(HContext context)
     {
         assert(context->m_CurrentRenderTarget);
@@ -527,7 +422,7 @@ namespace dmGraphics
         return res;
     }
 
-    static VkResult CreateMainRenderTarget(HContext context)
+    VkResult CreateMainFrameBuffers(HContext context)
     {
         assert(context->m_SwapChain);
 
@@ -565,21 +460,37 @@ namespace dmGraphics
                 num_attachments = 2;
             }
 
-            res = CreateFramebuffer(context->m_LogicalDevice.m_Device,context->m_MainRenderPass,
+            res = CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
                 vk_image_attachments, num_attachments, &context->m_MainFrameBuffers[i]);
             CHECK_VK_ERROR(res);
         }
 
+        return res;
+    }
+
+    VkResult DestroyMainFrameBuffers(HContext context)
+    {
+        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
+        {
+            DestroyFrameBuffer(context->m_LogicalDevice.m_Device, context->m_MainFrameBuffers[i]);
+        }
+        context->m_MainFrameBuffers.SetCapacity(0);
+        context->m_MainFrameBuffers.SetSize(0);
+        return VK_SUCCESS;
+    }
+
+    static VkResult SetupMainRenderTarget(HContext context)
+    {
         // Initialize the dummy rendertarget for the main framebuffer
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
         RenderTarget& rt = context->m_MainRenderTarget;
         rt.m_RenderPass  = context->m_MainRenderPass;
         rt.m_Framebuffer = context->m_MainFrameBuffers[0];
-        rt.m_Extent      = swapChain->m_ImageExtent;
+        rt.m_Extent      = context->m_SwapChain->m_ImageExtent;
 
-        return res;
+        return VK_SUCCESS;
     }
 
     static VkResult CreateMainRenderingResources(HContext context)
@@ -618,7 +529,10 @@ namespace dmGraphics
         res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
         CHECK_VK_ERROR(res);
 
-        res = CreateMainRenderTarget(context);
+        res = CreateMainFrameBuffers(context);
+        CHECK_VK_ERROR(res);
+
+        res = SetupMainRenderTarget(context);
         CHECK_VK_ERROR(res);
         context->m_CurrentRenderTarget = &context->m_MainRenderTarget;
 
@@ -717,24 +631,39 @@ namespace dmGraphics
         return res;
     }
 
-    static void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height)
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         // Flush all current commands
         SynchronizeDevice(vk_device);
+
+        DestroyMainFrameBuffers(context);
+
+        // Destroy main Depth/Stencil buffer
+        Texture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
+        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
+
+        DestroySwapChain(vk_device, context->m_SwapChain);
+
+        // At this point, we've destroyed the framebuffers, depth/stencil textures, and the swapchain
+        // and the platform may do extra setup
+        if (cb)
+        {
+            VkResult res = cb(cb_ctx);
+            CHECK_VK_ERROR(res);
+        }
 
         // Update swap chain capabilities
         SwapChainCapabilities swap_chain_capabilities;
         GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
         context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
 
+        // Create the swap chain
         VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, true, context->m_SwapChainCapabilities, context->m_SwapChain);
         CHECK_VK_ERROR(res);
 
-        // Reset & create main Depth/Stencil buffer
-        Texture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
-        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
-        DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
+        // Create the main Depth/Stencil buffer
         VkFormat vk_depth_format;
         VkImageTiling vk_depth_tiling;
         GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_format, &vk_depth_tiling);
@@ -743,29 +672,23 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             context->m_SwapChain->m_SampleCountFlag,
-            depth_stencil_texture);
+            &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
         context->m_WindowWidth  = context->m_SwapChain->m_ImageExtent.width;
         context->m_WindowHeight = context->m_SwapChain->m_ImageExtent.height;
 
-        // Reset main rendertarget (but not the render pass)
-        RenderTarget* mainRenderTarget = &context->m_MainRenderTarget;
-        mainRenderTarget->m_RenderPass = VK_NULL_HANDLE;
-        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
-        {
-            mainRenderTarget->m_Framebuffer = context->m_MainFrameBuffers[i];
-            DestroyRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
-        }
+        res = CreateMainFrameBuffers(context);
+        CHECK_VK_ERROR(res);
 
-        res = CreateMainRenderTarget(context);
+        res = SetupMainRenderTarget(context);
         CHECK_VK_ERROR(res);
 
         // Flush once again to make sure all transitions are complete
         SynchronizeDevice(vk_device);
     }
 
-    static void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list)
+    void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list)
     {
         if (resource_list->Size() > 0)
         {
@@ -821,7 +744,7 @@ namespace dmGraphics
         return false;
     }
 
-    static bool InitializeVulkan(HContext context, const WindowParams* params)
+    bool InitializeVulkan(HContext context, const WindowParams* params)
     {
         VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
         if (res != VK_SUCCESS)
@@ -913,6 +836,9 @@ namespace dmGraphics
         const bool want_vsync   = true;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
+        uint16_t validation_layers_count;
+        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
+
         if (selected_device == NULL)
         {
             dmLogError("Could not select a suitable Vulkan device.");
@@ -947,8 +873,8 @@ namespace dmGraphics
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
-            device_extensions.Begin(), device_extensions.Size(),
-            g_validation_layers, g_validation_layer_count, &logical_device);
+            device_extensions.Begin(), (uint8_t)device_extensions.Size(),
+            validation_layers, (uint8_t)validation_layers_count, &logical_device);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
@@ -1003,7 +929,7 @@ bail:
     #endif
 
         VkInstance inst;
-        VkResult res = CreateInstance(&inst, 0, 0, 0, 0);
+        VkResult res = CreateInstance(&inst, 0, 0, 0, 0, 0, 0);
 
         if (res == VK_SUCCESS)
         {
@@ -1020,30 +946,23 @@ bail:
     {
         if (g_Context == 0x0)
         {
-        #if ANDROID
-            if (!LoadVulkanLibrary())
+            if (!NativeInit(params))
             {
-                dmLogError("Could not load Vulkan functions.");
-                return 0x0;
-            }
-        #endif
-
-            if (glfwInit() == 0)
-            {
-                dmLogError("Could not initialize glfw.");
                 return 0x0;
             }
 
-            uint16_t validation_layer_count = 0;
-
-            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
-            if (env_vulkan_validation != 0x0)
-            {
-                validation_layer_count = strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
-            }
+            uint16_t extension_names_count;
+            const char** extension_names = GetExtensionNames(&extension_names_count);
+            uint16_t validation_layers_count;
+            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers, params.m_RenderDocSupport);
+            uint16_t validation_layers_ext_count;
+            const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 
             VkInstance vk_instance;
-            if (CreateInstance(&vk_instance, g_validation_layers, validation_layer_count, g_validation_layer_ext, g_validation_layer_ext_count) != VK_SUCCESS)
+            if (CreateInstance(&vk_instance,
+                                extension_names, extension_names_count,
+                                validation_layers, validation_layers_count,
+                                validation_layers_ext, validation_layers_ext_count) != VK_SUCCESS)
             {
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
@@ -1071,248 +990,12 @@ bail:
 
     static bool VulkanInitialize()
     {
-        return glfwInit() ? true : false;
+        return true;
     }
 
     static void VulkanFinalize()
     {
-        glfwTerminate();
-    }
-
-    static void OnWindowResize(int width, int height)
-    {
-        assert(g_Context);
-        g_Context->m_WindowWidth  = (uint32_t)width;
-        g_Context->m_WindowHeight = (uint32_t)height;
-
-        SwapChainChanged(g_Context, &g_Context->m_WindowWidth, &g_Context->m_WindowHeight);
-
-        if (g_Context->m_WindowResizeCallback != 0x0)
-        {
-            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
-        }
-    }
-
-    static int OnWindowClose()
-    {
-        assert(g_Context);
-        if (g_Context->m_WindowCloseCallback != 0x0)
-        {
-            return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
-        }
-        return 1;
-    }
-
-    static void OnWindowFocus(int focus)
-    {
-        assert(g_Context);
-        if (g_Context->m_WindowFocusCallback != 0x0)
-        {
-            g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
-        }
-    }
-
-    static uint32_t VulkanGetWindowRefreshRate(HContext context)
-    {
-        if (context->m_WindowOpened)
-        {
-            return glfwGetWindowRefreshRate();
-        }
-        else
-        {
-            return 0;
-        }
-    }
-
-    static WindowResult VulkanOpenWindow(HContext context, WindowParams* params)
-    {
-        assert(context->m_WindowSurface == VK_NULL_HANDLE);
-
-        glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-
-        int mode = params->m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
-
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
-        {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-        }
-
-        if (!InitializeVulkan(context, params))
-        {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-        }
-
-    #if !defined(__EMSCRIPTEN__)
-        glfwSetWindowTitle(params->m_Title);
-    #endif
-
-        glfwSetWindowSizeCallback(OnWindowResize);
-        glfwSetWindowCloseCallback(OnWindowClose);
-        glfwSetWindowFocusCallback(OnWindowFocus);
-
-        context->m_WindowOpened                  = 1;
-        context->m_Width                         = params->m_Width;
-        context->m_Height                        = params->m_Height;
-        context->m_WindowWidth                   = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight                  = context->m_SwapChain->m_ImageExtent.height;
-        context->m_WindowResizeCallback          = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback           = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData   = params->m_CloseCallbackUserData;
-        context->m_WindowFocusCallback           = params->m_FocusCallback;
-        context->m_WindowFocusCallbackUserData   = params->m_FocusCallbackUserData;
-        context->m_WindowIconifyCallback         = params->m_IconifyCallback;
-        context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
-
-        return WINDOW_RESULT_OK;
-    }
-
-    static void VulkanCloseWindow(HContext context)
-    {
-        if (context->m_WindowOpened)
-        {
-            VkDevice vk_device = context->m_LogicalDevice.m_Device;
-
-            SynchronizeDevice(vk_device);
-
-            glfwCloseWindow();
-
-            context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
-
-            DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
-            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
-
-            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
-
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
-
-            for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
-            {
-                vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
-            }
-
-            for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
-            {
-                DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
-            }
-
-            for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
-            {
-                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
-            }
-
-            for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
-            {
-                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
-            }
-
-            for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
-            {
-                FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
-            }
-
-            for (size_t i = 0; i < g_max_frames_in_flight; i++) {
-                FrameResource& frame_resource = context->m_FrameResources[i];
-                vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
-                vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
-                vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
-            }
-
-            DestroySwapChain(vk_device, context->m_SwapChain);
-            DestroyLogicalDevice(&context->m_LogicalDevice);
-            DestroyPhysicalDevice(&context->m_PhysicalDevice);
-
-            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
-
-            DestroyInstance(&context->m_Instance);
-
-            context->m_WindowOpened = 0;
-
-            if (context->m_DynamicOffsetBuffer)
-            {
-                free(context->m_DynamicOffsetBuffer);
-            }
-
-            delete context->m_SwapChain;
-        }
-    }
-
-    static void VulkanIconifyWindow(HContext context)
-    {
-        if (context->m_WindowOpened)
-        {
-            glfwIconifyWindow();
-        }
-    }
-
-    static uint32_t VulkanGetWindowState(HContext context, WindowState state)
-    {
-        if (context->m_WindowOpened)
-        {
-            return glfwGetWindowParam(state);
-        }
-        else
-        {
-            return 0;
-        }
-    }
-
-    static uint32_t VulkanGetDisplayDpi(HContext context)
-    {
-        return 0;
-    }
-
-    static uint32_t VulkanGetWidth(HContext context)
-    {
-        return context->m_Width;
-    }
-
-    static uint32_t VulkanGetHeight(HContext context)
-    {
-        return context->m_Height;
-    }
-
-    static uint32_t VulkanGetWindowWidth(HContext context)
-    {
-        return context->m_WindowWidth;
-    }
-
-    static uint32_t VulkanGetWindowHeight(HContext context)
-    {
-        return context->m_WindowHeight;
-    }
-
-    static void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
-    {
-        if (context->m_WindowOpened)
-        {
-            context->m_Width  = width;
-            context->m_Height = height;
-            glfwSetWindowSize((int)width, (int)height);
-            int window_width, window_height;
-            glfwGetWindowSize(&window_width, &window_height);
-            context->m_WindowWidth  = window_width;
-            context->m_WindowHeight = window_height;
-
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
-
-            // The callback is not called from glfw when the size is set manually
-            if (context->m_WindowResizeCallback)
-            {
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
-            }
-        }
-    }
-
-    static void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
-    {
-        if (context->m_WindowOpened)
-        {
-            glfwSetWindowSize((int)width, (int)height);
-        }
+        NativeExit();
     }
 
     static void VulkanGetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
@@ -1323,6 +1006,8 @@ bail:
 
     static void VulkanBeginFrame(HContext context)
     {
+        NativeBeginFrame(context);
+
         FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
 
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
@@ -1337,13 +1022,13 @@ bail:
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                int width, height;
-                glfwGetWindowSize(&width, &height);
+                uint32_t width, height;
+                VulkanGetNativeWindowSize(&width, &height);
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
-                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
                 res = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
-                assert(res == VK_SUCCESS);
+                CHECK_VK_ERROR(res);
             }
             else if (res == VK_SUBOPTIMAL_KHR)
             {
@@ -1435,9 +1120,7 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % g_max_frames_in_flight;
         context->m_FrameBegun           = 0;
 
-    #if (defined(__arm__) || defined(__arm64__))
-        glfwSwapBuffers();
-    #endif
+        SwapBuffers();
     }
 
     static void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
@@ -2653,7 +2336,7 @@ bail:
         ShaderResourceBinding* res = &module->m_Uniforms[index];
         *type = shaderDataTypeToGraphicsType(res->m_Type);
 
-        return dmStrlCpy(buffer, res->m_Name, buffer_size);
+        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
     }
 
     // In OpenGL, there is a single global resource identifier between
@@ -2928,12 +2611,12 @@ bail:
         // Reference: https://github.com/KhronosGroup/Vulkan-Samples-Deprecated/blob/master/external/include/vulkan/vk_format.h
         assert(format <= TEXTURE_FORMAT_COUNT);
         const VkFormat conversion_table[] = {
-            VK_FORMAT_R8_UNORM,                    // TEXTURE_FORMAT_LUMINANCE
-            VK_FORMAT_R8G8_UNORM,                  // TEXTURE_FORMAT_LUMINANCE_ALPHA
-            VK_FORMAT_R8G8B8_UNORM,                // TEXTURE_FORMAT_RGB
-            VK_FORMAT_R8G8B8A8_UNORM,              // TEXTURE_FORMAT_RGBA
-            VK_FORMAT_R16G16B16_UNORM,             // TEXTURE_FORMAT_RGB_16BPP
-            VK_FORMAT_R16G16B16A16_UNORM,          // TEXTURE_FORMAT_RGBA_16BPP
+            VK_FORMAT_R8_UNORM,                     // TEXTURE_FORMAT_LUMINANCE
+            VK_FORMAT_R8G8_UNORM,                   // TEXTURE_FORMAT_LUMINANCE_ALPHA
+            VK_FORMAT_R8G8B8_UNORM,                 // TEXTURE_FORMAT_RGB
+            VK_FORMAT_R8G8B8A8_UNORM,               // TEXTURE_FORMAT_RGBA
+            VK_FORMAT_R16G16B16_UNORM,              // TEXTURE_FORMAT_RGB_16BPP
+            VK_FORMAT_R16G16B16A16_UNORM,           // TEXTURE_FORMAT_RGBA_16BPP
             VK_FORMAT_BC1_RGB_UNORM_BLOCK,         // TEXTURE_FORMAT_RGB_DXT1
             VK_FORMAT_BC1_RGBA_UNORM_BLOCK,        // TEXTURE_FORMAT_RGBA_DXT1
             VK_FORMAT_BC3_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT3
@@ -3011,7 +2694,7 @@ bail:
         }
 
         res = CreateFramebuffer(vk_device, rtOut->m_RenderPass,
-            fb_width, fb_height, fb_attachments, fb_attachment_count, &rtOut->m_Framebuffer);
+            fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Framebuffer);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -3023,6 +2706,16 @@ bail:
         rtOut->m_Extent.height       = fb_height;
 
         return VK_SUCCESS;
+    }
+
+    static void DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
+    {
+        assert(logicalDevice);
+        assert(renderTarget);
+        DestroyFrameBuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer);
+        DestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass);
+        renderTarget->m_Framebuffer = VK_NULL_HANDLE;
+        renderTarget->m_RenderPass = VK_NULL_HANDLE;
     }
 
     static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
@@ -3582,20 +3275,17 @@ bail:
     static void VulkanReadPixels(HContext context, void* buffer, uint32_t buffer_size)
     {}
 
-    static void VulkanAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-        glfwSetViewType(GLFW_NO_API);
-        glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
-#endif
-    }
-
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
         {
             step_method(user_data);
         }
+    }
+
+    void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
+    {
+        DestroyPipeline(context->m_LogicalDevice.m_Device, value);
     }
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
@@ -3606,7 +3296,6 @@ bail:
         fn_table.m_DeleteContext = VulkanDeleteContext;
         fn_table.m_Initialize = VulkanInitialize;
         fn_table.m_Finalize = VulkanFinalize;
-        fn_table.m_AppBootstrap = VulkanAppBootstrap;
         fn_table.m_GetWindowRefreshRate = VulkanGetWindowRefreshRate;
         fn_table.m_OpenWindow = VulkanOpenWindow;
         fn_table.m_CloseWindow = VulkanCloseWindow;

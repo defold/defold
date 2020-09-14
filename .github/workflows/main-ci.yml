@@ -20,6 +20,8 @@ env:
   NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
   NOTARIZATION_ITC_PROVIDER: ${{ secrets.NOTARIZATION_ITC_PROVIDER }}
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+  WINDOWS_CERTIFICATE_PASS: ${{ secrets.WINDOWS_CERTIFICATE_PASS }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   BUILD_BRANCH: ${{ github.event.client_payload.branch }}
@@ -267,9 +269,54 @@ jobs:
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
+        name: 'Sign editor',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh sign-editor --platform=${{ matrix.platform }}'
+      },
+      {
         name: 'Notarize editor',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
+      },
+      {
+        name: 'Archive editor',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
+      },
+      {
+       name: 'Notify if build status changed',
+       uses: homoluctus/slatify@master,
+       if: always(),
+       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+      }]
+
+
+  sign-editor-windows:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [build-editor]
+    runs-on: windows-2016
+    strategy:
+      matrix:
+        platform: [x86_64-win32]
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      {
+        name: 'Download editor',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
+      },
+      {
+        name: 'Install dependencies',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+      },
+      {
+        name: 'Sign editor',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh sign-editor --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
@@ -288,7 +335,7 @@ jobs:
 
   release:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    needs: [sign-editor-darwin]
+    needs: [sign-editor-darwin, sign-editor-windows]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },

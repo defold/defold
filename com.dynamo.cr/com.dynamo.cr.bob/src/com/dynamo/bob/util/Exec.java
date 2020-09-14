@@ -23,9 +23,24 @@ import java.util.Map;
 
 public class Exec {
 
+    private static String verbosity = System.getenv("DM_BOB_VERBOSE");
     private static Logger logger = Logger.getLogger(Exec.class.getCanonicalName());
 
+    private static int getVerbosity() {
+        if (verbosity == null)
+            return 0;
+        try {
+            return Integer.parseInt(verbosity);
+        } catch (NumberFormatException nfe) {
+            return 0;
+        }
+    }
+
     public static int exec(String... args) throws IOException {
+        if (getVerbosity() >= 2) {
+            logger.log(Level.INFO, "CMD: " + String.join(" ", args));
+        }
+
         Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
         int ret = 127;
         byte[] buf = new byte[16 * 1024];
@@ -59,6 +74,9 @@ public class Exec {
      * @throws IOException
      */
     public static Result execResult(String... args) throws IOException {
+        if (getVerbosity() >= 2) {
+            logger.log(Level.INFO, "CMD: " + String.join(" ", args));
+        }
         Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
         int ret = 127;
         byte[] buf = new byte[16 * 1024];
@@ -79,6 +97,9 @@ public class Exec {
     }
 
     private static ProcessBuilder processBuilderWithArgs(Map<String, String> env, String[] args) {
+        if (getVerbosity() >= 2) {
+            logger.log(Level.INFO, "CMD: " + String.join(" ", args));
+        }
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
 

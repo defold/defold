@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -377,52 +377,52 @@
 (defn- make-android-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [make-file-field (partial make-file-field refresh! owner-window)
-        certificate-file-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
-        private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])
+        keystore-file-field (make-file-field "keystore-text-field" "Choose Keystore" [["Keystore (*.keystore)" "*.keystore"]])
+        keystore-pass-file-field (make-file-field "keystore-pass-text-field" "Choose Keystore password" [["Keystore password" "*.txt"]])
         architecture-controls (doto (VBox.)
                                     (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
                                                    (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
-      (ui/children! [(labeled! "Certificate" certificate-file-field)
-                     (labeled! "Private key" private-key-file-field)
+      (ui/children! [(labeled! "Keystore" keystore-file-field)
+                     (labeled! "Keystore Password" keystore-pass-file-field)
                      (labeled! "Architectures" architecture-controls)
                      (labeled! "Bundle Format" (doto (make-choice-box refresh! [["APK" "apk"] ["AAB" "aab"]])
                                                 (.setId "bundle-format-choice-box")))]))))
 
 (defn- load-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
-    (ui/value! certificate-text-field (get-string-pref prefs "bundle-android-certificate"))
-    (ui/value! private-key-text-field (get-string-pref prefs "bundle-android-private-key"))
+  (ui/with-controls view [keystore-text-field keystore-pass-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
+    (ui/value! keystore-text-field (get-string-pref prefs "bundle-android-keystore"))
+    (ui/value! keystore-pass-text-field (get-string-pref prefs "bundle-android-keystore-pass"))
     (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
     (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))
     (ui/value! bundle-format-choice-box (prefs/get-prefs prefs "bundle-android-bundle-format" "apk"))))
 
 (defn- save-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
-    (set-string-pref! prefs "bundle-android-certificate" (ui/value certificate-text-field))
-    (set-string-pref! prefs "bundle-android-private-key" (ui/value private-key-text-field))
+  (ui/with-controls view [keystore-text-field keystore-pass-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
+    (set-string-pref! prefs "bundle-android-keystore" (ui/value keystore-text-field))
+    (set-string-pref! prefs "bundle-android-keystore-pass" (ui/value keystore-pass-text-field))
     (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
     (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))
     (set-string-pref! prefs "bundle-android-bundle-format" (ui/value bundle-format-choice-box))))
 
 (defn- get-android-options [view]
-  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field bundle-format-choice-box]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field keystore-pass-text-field bundle-format-choice-box]
     {:architecture-32bit? (ui/value architecture-32bit-check-box)
      :architecture-64bit? (ui/value architecture-64bit-check-box)
-     :certificate (get-file certificate-text-field)
-     :private-key (get-file private-key-text-field)
+     :keystore (get-file keystore-text-field)
+     :keystore-pass (get-file keystore-pass-text-field)
      :bundle-format (ui/value bundle-format-choice-box)}))
 
-(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? certificate private-key bundle-format] :as _options} issues]
-  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field bundle-format-choice-box ok-button]
-    (doto certificate-text-field
-      (set-file! certificate)
-      (set-field-status! (:certificate issues)))
-    (doto private-key-text-field
-      (set-file! private-key)
-      (set-field-status! (:private-key issues)))
+(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? keystore keystore-pass bundle-format] :as _options} issues]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field keystore-pass-text-field bundle-format-choice-box ok-button]
+    (doto keystore-text-field
+      (set-file! keystore)
+      (set-field-status! (:keystore issues)))
+    (doto keystore-pass-text-field
+      (set-file! keystore-pass)
+      (set-field-status! (:keystore-pass issues)))
     (doto architecture-32bit-check-box
       (ui/value! architecture-32bit?)
       (set-field-status! (:architecture issues)))
@@ -433,32 +433,32 @@
       (ui/value! bundle-format)
       (set-field-status! (:bundle-format issues)))
     (ui/enable! ok-button (and (nil? (:architecture issues))
-                               (or (and (nil? certificate)
-                                        (nil? private-key))
-                                   (and (existing-file-of-type? "pem" certificate)
-                                        (existing-file-of-type? "pk8" private-key)))))))
+                               (or (and (nil? keystore)
+                                        (nil? keystore-pass))
+                                   (and (existing-file-of-type? "keystore" keystore)
+                                        (fs/existing-file? keystore-pass)))))))
 
-(defn- get-android-issues [{:keys [certificate private-key architecture-32bit? architecture-64bit? bundle-format] :as _options}]
-  {:general (when (and (nil? certificate) (nil? private-key))
-              [:info "Set certificate and private key, or leave blank to sign APK with an auto-generated debug certificate."])
-   :certificate (cond
-                  (and (some? certificate) (not (fs/existing-file? certificate)))
-                  [:fatal "Certificate file not found."]
+(defn- get-android-issues [{:keys [keystore keystore-pass architecture-32bit? architecture-64bit? bundle-format] :as _options}]
+  {:general (when (and (nil? keystore))
+              [:info "Set keystore, or leave blank to sign with an auto-generated debug certificate."])
+   :keystore (cond
+                  (and (some? keystore) (not (fs/existing-file? keystore)))
+                  [:fatal "Keystore file not found."]
 
-                  (and (some? certificate) (not (existing-file-of-type? "pem" certificate)))
-                  [:fatal "Invalid certificate."]
+                  (and (some? keystore) (not (existing-file-of-type? "keystore" keystore)))
+                  [:fatal "Invalid keystore."]
 
-                  (and (nil? certificate) (some? private-key))
-                  [:fatal "Certificate must be set if private key is specified."])
-   :private-key (cond
-                  (and (some? private-key) (not (fs/existing-file? private-key)))
-                  [:fatal "Private key file not found."]
+                  (and (nil? keystore) (some? keystore-pass))
+                  [:fatal "Keystore must be set if keystore password is specified."])
+   :keystore-pass (cond
+                  (and (some? keystore-pass) (not (fs/existing-file? keystore-pass)))
+                  [:fatal "Keystore password file not found."]
 
-                  (and (some? private-key) (not (existing-file-of-type? "pk8" private-key)))
-                  [:fatal "Invalid private key."]
+                  (and (some? keystore-pass) (not (existing-file-of-type? "txt" keystore-pass)))
+                  [:fatal "Invalid keystore password file."]
 
-                  (and (some? certificate) (nil? private-key))
-                  [:fatal "Private key must be set if certificate is specified."])
+                  (and (some? keystore) (nil? keystore-pass))
+                  [:fatal "Keystore password must be set if keystore is specified."])
    :architecture (when-not (or architecture-32bit? architecture-64bit?)
                    [:fatal "At least one architecture must be selected."])
    :bundle-format (when-not bundle-format
@@ -485,7 +485,7 @@
     (let [issues (get-android-issues options)]
       (set-generic-options! view options workspace)
       (set-android-options! view options issues)
-      (set-generic-headers! view issues [:architecture :certificate :private-key :bundle-format]))))
+      (set-generic-headers! view issues [:architecture :keystore :keystore-pass :bundle-format]))))
 
 ;; -----------------------------------------------------------------------------
 ;; iOS

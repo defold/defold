@@ -86,14 +86,13 @@ def build(bld):
 
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '../../../src ../../../proto %s' % (dir),
-                                     uselib = 'DMGLFW GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES',
+                                     uselib = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES',
                                      uselib_local = 'gamesys',
                                      web_libs = ['library_sys.js', 'library_script.js'],
                                      proto_gen_py = True,
                                      content_root='.',
                                      target = 'test_gamesys')
     test_task_gen.find_sources_in_dirs('. ' + ' '.join(dirs), exts)
-    test_task_gen.install_path = None
 
-    if not bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'arm64-android', 'x86_64-ios') and not Options.options.with_vulkan:
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-darwin', 'x86_64-linux')  and not Options.options.with_vulkan:
         bld.add_subdirs('fontview')

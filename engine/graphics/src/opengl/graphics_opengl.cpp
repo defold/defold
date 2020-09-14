@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -322,24 +322,6 @@ static void LogFrameBufferError(GLenum status)
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
-    // Jhonny: I don't think BufferAccess is used for anything
-    static GLenum GetOpenGLBufferAccess(BufferAccess access)
-    {
-        const GLenum buffer_access_lut[] = {
-        #if !defined (GL_ARB_vertex_buffer_object)
-            0x88B8,
-            0x88B9,
-            0x88BA,
-        #else
-            GL_READ_ONLY,
-            GL_WRITE_ONLY,
-            GL_READ_WRITE,
-        #endif
-        };
-
-        return buffer_access_lut[access];
-    }
-
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
     {
         const GLenum primitive_type_lut[] = {
@@ -475,6 +457,9 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLInitialize()
     {
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwSetViewType(GLFW_OPENGL_API);
+#endif
         // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
         return (glfwInit() == GL_TRUE);
     }
@@ -576,7 +561,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             break;
         }
     }
-#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if !defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
     if(func == 0 && core_name)
     {
         // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
@@ -987,14 +972,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    static void OpenGLAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-        glfwSetViewType(GLFW_OPENGL_API);
-        glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
-#endif
-    }
-
     static void OpenGLRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         #ifdef __EMSCRIPTEN__
@@ -1122,7 +1099,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLBeginFrame(HContext context)
     {
-        // NOP
+#if defined(ANDROID)
+        glfwAndroidBeginFrame();
+#endif
     }
 
     static void OpenGLFlip(HContext context)
@@ -2026,17 +2005,44 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return (HTexture) tex;
     }
 
+    static void OpenGLDoDeleteTexture(void* context)
+    {
+        HTexture texture = (HTexture)context;
+        glDeleteTextures(1, &texture->m_Texture);
+        CHECK_GL_ERROR;
+        delete texture;
+    }
+
+    static void OpenGLDeleteTextureAsync(HTexture texture)
+    {
+        JobDesc j;
+        j.m_Context = (void*)texture;
+        j.m_Func = OpenGLDoDeleteTexture;
+        j.m_FuncComplete = 0;
+        JobQueuePush(j);
+    }
+
     static void PostDeleteTextures(bool force_delete)
     {
+        DM_PROFILE(Graphics, "PostDeleteTextures");
+
+        if (force_delete)
+        {
+            uint32_t size = g_PostDeleteTexturesArray.Size();
+            for (uint32_t i = 0; i < size; ++i)
+            {
+                OpenGLDoDeleteTexture(g_PostDeleteTexturesArray[i]);
+            }
+            return;
+        }
+
         uint32_t i = 0;
         while(i < g_PostDeleteTexturesArray.Size())
         {
             HTexture texture = g_PostDeleteTexturesArray[i];
-            if((!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)) || (force_delete))
+            if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
-                glDeleteTextures(1, &texture->m_Texture);
-                CHECK_GL_ERROR;
-                delete texture;
+                OpenGLDeleteTextureAsync(texture);
                 g_PostDeleteTexturesArray.EraseSwap(i);
             }
             else
@@ -2049,6 +2055,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLDeleteTexture(HTexture texture)
     {
         assert(texture);
+        // If they're not uploaded yet, we cannot delete them
         if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
             if (g_PostDeleteTexturesArray.Full())
@@ -2059,10 +2066,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return;
         }
 
-        glDeleteTextures(1, &texture->m_Texture);
-        CHECK_GL_ERROR;
-
-        delete texture;
+        OpenGLDeleteTextureAsync(texture);
     }
 
     static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
@@ -2176,6 +2180,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
+        DM_PROFILE(Graphics, "SetTexture");
+
         // validate write accessibility for format. Some format are not garuanteed to be writeable
         switch (params.m_Format)
         {
@@ -2756,7 +2762,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_DeleteContext = OpenGLDeleteContext;
         fn_table.m_Initialize = OpenGLInitialize;
         fn_table.m_Finalize = OpenGLFinalize;
-        fn_table.m_AppBootstrap = OpenGLAppBootstrap;
         fn_table.m_GetWindowRefreshRate = OpenGLGetWindowRefreshRate;
         fn_table.m_OpenWindow = OpenGLOpenWindow;
         fn_table.m_CloseWindow = OpenGLCloseWindow;

@@ -47,7 +47,7 @@ namespace dmScript
      * @namespace dmScript
      */
 
-    /*#
+    /**
     * LuaStackCheck struct. Internal
     *
     * LuaStackCheck utility to make sure we check the Lua stack state before leaving a function.
@@ -374,6 +374,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a Vectormath::Aos::Vector3*
+     * @name dmScript::IsVector3
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a Vectormath::Aos::Vector3*
@@ -411,6 +412,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a Vectormath::Aos::Vector4*
+     * @name dmScript::IsVector4
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a Vectormath::Aos::Vector4*
@@ -509,6 +511,8 @@ namespace dmScript
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua
+     * @struct
+     * @name dmScript::LuaCallbackInfo
      */
     struct LuaCallbackInfo;
 

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -61,12 +61,12 @@ namespace dmURI
             size_t n = dmMath::Min(sizeof(parts->m_Scheme), (size_t) (scheme_end-uri) + 1);
             dmStrlCpy(parts->m_Scheme, uri, n);
 
-            if (strcmp(parts->m_Scheme, "http") == 0)
+            if (strcmp(parts->m_Scheme, "http") == 0 || strcmp(parts->m_Scheme, "ws") == 0)
             {
                 // Default to port 80 for http
                 parts->m_Port = 80;
             }
-            else if (strcmp(parts->m_Scheme, "https") == 0)
+            else if (strcmp(parts->m_Scheme, "https") == 0 || strcmp(parts->m_Scheme, "wss") == 0)
             {
                 // Default to port 443 for https
                 parts->m_Port = 443;
@@ -125,38 +125,45 @@ namespace dmURI
         return false;
     }
 
-    void Encode(const char* src, char* dst, uint32_t dst_len)
+    Result Encode(const char* src, char* dst, uint32_t dst_len, uint32_t* bytes_written)
     {
         assert(src != (const char*) dst);
-        assert(dst_len > 0);
+        assert(dst == 0 || dst_len > 0);
 
-        uint32_t dst_left = dst_len - 1; // Make room for null termination
+        uint32_t dst_left = dst == 0 ? 0xFFFFFFFF : dst_len - 1; // Make room for null termination
         const char* s = src;
         char* d = dst;
         while (*s) {
             char c = *s;
             if (IsUnreserved(c)) {
                 if (dst_left >= 1) {
-                    *d = c;
+                    if (dst)
+                        *d = c;
                     s++;
                     d++;
                     dst_left--;
                 } else {
-                    break;
+                    *d = '\0';
+                    return RESULT_TOO_SMALL_BUFFER;
                 }
             } else {
                 if (dst_left >= 3) {
-                    dmSnPrintf(d, 4, "%%%02X", c);
+                    if (dst)
+                        dmSnPrintf(d, 4, "%%%02X", c);
                     s++;
                     d += 3;
                     dst_left -= 3;
                 } else {
-                    break;
+                    *d = '\0';
+                    return RESULT_TOO_SMALL_BUFFER;
                 }
             }
         }
-
-        *d = '\0';
+        if (dst)
+            *d = '\0';
+        if (bytes_written)
+            *bytes_written = d - dst + 1;
+        return RESULT_OK;
     }
 
     void Decode(const char* src, char* dst)
