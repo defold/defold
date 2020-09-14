@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import os
-from waf_dynamo import apidoc_extract_task
-from waf_dynamo import dmsdk_add_files
+import Utils
+from waf_dynamo import apidoc_extract_task, dmsdk_add_files, platform_supports_feature
 
 def configure(conf):
     pass
@@ -12,9 +12,14 @@ def build(bld):
                           proto_gen_cc = False,
                           proto_gen_py = True,
                           protoc_includes = '. script',
+                          uselib = 'LUA',
                           target = 'script')
 
     script.find_sources_in_dirs(['script', '.'])
+
+    if not platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
+        script.source.remove(os.path.join('.','script_luasocket.cpp'))
+        script.env.CXXDEFINES.append('DM_DISABLE_LUASOCKET')
 
     if 'web' in bld.env.PLATFORM:
         script.source.remove(os.path.join('.','script_http.cpp'))
@@ -24,24 +29,20 @@ def build(bld):
         script.source.remove(os.path.join('.', 'script_html5_js.cpp'))
 
     # luabitop
-    script.find_sources_in_dirs('bitop')
+    if 'lua' in Utils.to_list(script.env['STATICLIB_LUA']):
+        script.find_sources_in_dirs('bitop')
 
     # luasocket
-    script.find_sources_in_dirs('luasocket')
-    script.source.remove(os.path.join('luasocket', 'mime.c'))
-    script.source.remove(os.path.join('luasocket', 'serial.c'))
-    script.source.remove(os.path.join('luasocket', 'unix.c'))
-    script.cflags = ['-DLUASOCKET_API=']
-    if 'win32' in bld.env.PLATFORM:
-        script.source.remove(os.path.join('luasocket', 'usocket.c'))
-    else:
-        script.source.remove(os.path.join('luasocket', 'wsocket.c'))
-
-    # must not enable bytecode when building with --use-vanilla-lua
-    if bld.env.LUA_BYTECODE_ENABLE_32 == 'yes':
-        script.cxxflags = ['-DLUA_BYTECODE_ENABLE_32']
-    if bld.env.LUA_BYTECODE_ENABLE_64 == 'yes':
-        script.cxxflags = ['-DLUA_BYTECODE_ENABLE_64']
+    if platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
+        script.find_sources_in_dirs('luasocket')
+        script.source.remove(os.path.join('luasocket', 'mime.c'))
+        script.source.remove(os.path.join('luasocket', 'serial.c'))
+        script.source.remove(os.path.join('luasocket', 'unix.c'))
+        script.cflags = ['-DLUASOCKET_API=']
+        if 'win32' in bld.env.PLATFORM:
+            script.source.remove(os.path.join('luasocket', 'usocket.c'))
+        else:
+            script.source.remove(os.path.join('luasocket', 'wsocket.c'))
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 

@@ -78,6 +78,19 @@ public class BundlerTest {
     private String contentRootUnused;
     private Platform platform;
 
+    private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+    	+ "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
+    	+ "  <application android:label=\"Minimal Android Application\">"
+    	+ "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
+    	+ "      <intent-filter>"
+    	+ "        <action android:name=\"android.intent.action.MAIN\" />"
+    	+ "        <category android:name=\"android.intent.category.DEFAULT\" />"
+    	+ "        <category android:name=\"android.intent.category.LAUNCHER\" />"
+    	+ "      </intent-filter>"
+    	+ "    </activity>"
+    	+ "  </application>"
+    	+ "</manifest>";
+
     @Parameters
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
@@ -89,7 +102,7 @@ public class BundlerTest {
         data.add(new Platform[]{Platform.Armv7Android});
         data.add(new Platform[]{Platform.JsWeb});
 
-            // Can only do this on OSX machines currently
+        // Can only do this on OSX machines currently
         if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
             data.add(new Platform[]{Platform.Armv7Darwin});
             data.add(new Platform[]{Platform.Arm64Darwin});
@@ -361,7 +374,7 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
-        createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
+        createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", ANDROID_MANIFEST);
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
         return count;
     }
@@ -493,7 +506,7 @@ public class BundlerTest {
         assertTrue(found);
     }
 
-    static HashSet<String> getExpectedFilesForPlatform(Platform platform)
+    static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)
     {
         HashSet<String> expectedFiles = new HashSet<String>();
         switch (platform)
@@ -532,8 +545,6 @@ public class BundlerTest {
                 expectedFiles.add("assets/game.dmanifest");
                 expectedFiles.add("assets/game.projectc");
                 expectedFiles.add("assets/game.public.der");
-                expectedFiles.add("META-INF/CERT.RSA");
-                expectedFiles.add("META-INF/CERT.SF");
                 expectedFiles.add("META-INF/MANIFEST.MF");
                 expectedFiles.add("res/drawable-hdpi-v4/icon.png");
                 expectedFiles.add("res/drawable-ldpi-v4/icon.png");
@@ -541,7 +552,16 @@ public class BundlerTest {
                 expectedFiles.add("res/drawable-xhdpi-v4/icon.png");
                 expectedFiles.add("res/drawable-xxhdpi-v4/icon.png");
                 expectedFiles.add("res/drawable-xxxhdpi-v4/icon.png");
+                expectedFiles.add("res/xml/splits0.xml");
                 expectedFiles.add("resources.arsc");
+                // the APK may or may not be signed, depending on if bundletool was able
+                // to find a debug keystore on the system or not
+                if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
+                    expectedFiles.add("META-INF/BNDLTOOL.SF");
+                }
+                if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
+                    expectedFiles.add("META-INF/BNDLTOOL.RSA");
+                }
                 break;
             case Armv7Darwin:
             case Arm64Darwin:
@@ -591,7 +611,9 @@ public class BundlerTest {
 
     @Test
     public void testBundleResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-
+        System.out.println("Platform:" + platform.toString());
+        final boolean isAndroid = (platform == Platform.Armv7Android || platform == Platform.Arm64Android);
+        final String appFolder = getBundleAppFolder("unnamed");
         /*
          * Project structure:
          *
@@ -602,12 +624,25 @@ public class BundlerTest {
          *  | EMPTY!
          *  +-sub1/
          *    +-common/
-         *      +-s1-1.txt
-         *      +-s1-2.txt
+         *      +-s1-root1.txt
+         *      +-s1-root2.txt
          *  +-sub2/
          *    +-[current-platform-arch]/
-         *      +-s2-1.txt
-         *      +-s2-2.txt
+         *      +-s2-root1.txt
+         *      +-s2-root2.txt
+         *      |
+         *    The folders below only on Android
+         *      |
+         *      +-assets/
+         *        +-s2-asset.txt
+         *      +-lib/
+         *        +-[current-platform-arch]/
+         *          +-lib.so
+         *      +-res/
+         *        +-raw/
+         *          +-s2_raw.txt               <-- must contain only [a-z0-9_.]
+         *        +-values/
+         *          +-s2-values.xml
          */
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
@@ -621,54 +656,95 @@ public class BundlerTest {
         sub_platform2.mkdir();
         createDefaultFiles(contentRoot);
         createFile(contentRoot, "m.txt", "dummy");
-        createFile(sub_platform1.getAbsolutePath(), "s1-1.txt", "dummy");
-        createFile(sub_platform1.getAbsolutePath(), "s1-2.txt", "dummy");
-        createFile(sub_platform2.getAbsolutePath(), "s2-1.txt", "dummy");
-        createFile(sub_platform2.getAbsolutePath(), "s2-2.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-root1.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-root2.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-root1.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-root2.txt", "dummy");
 
+        // some additional files and folders which will only be included on Android
+        if (isAndroid) {
+            // res and subfolders
+            File sub_platform2_res = new File(sub_platform2, "res");
+            File sub_platform2_res_raw = new File(sub_platform2_res, "raw");
+            File sub_platform2_res_values = new File(sub_platform2_res, "values");
+            sub_platform2_res.mkdir();
+            sub_platform2_res_raw.mkdir();
+            sub_platform2_res_values.mkdir();
+            // this is a "raw" file and it will be included as-is in the res folder of the APK
+            createFile(sub_platform2_res_raw.getAbsolutePath(), "s2_raw.txt", "dummy");
+            // this is a resource file and it will get included in the resources.arsc file
+            createFile(sub_platform2_res_values.getAbsolutePath(), "s2-values.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><resources></resources>");
+
+            // assets will be included in the asset folder of the APK
+            File sub_platform2_assets = new File(sub_platform2, "assets");
+            sub_platform2_assets.mkdir();
+            createFile(sub_platform2_assets.getAbsolutePath(), "s2-asset.txt", "dummy");
+
+            // libs will be included in the lib/architecture folder of the APK
+            File sub_platform2_lib = new File(sub_platform2, "lib");
+            File sub_platform2_lib_arch = new File(sub_platform2_lib, (platform == Platform.Armv7Android) ? "armeabi-v7a" : "arm64-v8a");
+            sub_platform2_lib.mkdir();
+            sub_platform2_lib_arch.mkdir();
+            createFile(sub_platform2_lib_arch.getAbsolutePath(), "s2-lib.so", "dummy");
+        }
+
+
+        // first test - no bundle resources
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
         build();
-        HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform);
         HashSet<String> actualFiles = new HashSet<String>();
         List<String> files = getBundleFiles();
         for (String file : files) {
             System.out.println(file);
             actualFiles.add(file);
         }
+        HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
+        }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
 
-        String appFolder = getBundleAppFolder("unnamed");
 
+        // second test - /sub1
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
         files = getBundleFiles();
-        expectedFiles = getExpectedFilesForPlatform(platform);
         actualFiles = new HashSet<String>();
         for (String file : files) {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add(appFolder + "s1-1.txt");
-        expectedFiles.add(appFolder + "s1-2.txt");
+        expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
+        expectedFiles.add(appFolder + "s1-root1.txt");
+        expectedFiles.add(appFolder + "s1-root2.txt");
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
+        }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
 
 
+        // third test - /sub1 and /sub2
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
         files = getBundleFiles();
-        expectedFiles = getExpectedFilesForPlatform(platform);
         actualFiles = new HashSet<String>();
         for (String file : files) {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add(appFolder + "s1-1.txt");
-        expectedFiles.add(appFolder + "s1-2.txt");
-        expectedFiles.add(appFolder + "s2-1.txt");
-        expectedFiles.add(appFolder + "s2-2.txt");
-
+        expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
+        expectedFiles.add(appFolder + "s1-root1.txt");
+        expectedFiles.add(appFolder + "s1-root2.txt");
+        expectedFiles.add(appFolder + "s2-root1.txt");
+        expectedFiles.add(appFolder + "s2-root2.txt");
+        if (isAndroid) expectedFiles.add("res/raw/s2_raw.txt");
+        if (isAndroid) expectedFiles.add("assets/s2-asset.txt");
+        if (isAndroid) expectedFiles.add("lib/" + ((platform == Platform.Armv7Android) ? "armeabi-v7a" : "arm64-v8a") + "/s2-lib.so");
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
+        }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
     }

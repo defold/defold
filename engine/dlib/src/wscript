@@ -3,7 +3,14 @@
 import os, re, sys
 import Options
 from TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files, remove_flag
+from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature
+from BuildUtility import BuildUtilityException, create_build_utility
+
+def _get_native_file(target_os, name):
+    native_source = 'dlib/%s/dlib/%s' % (target_os, name)
+    if not os.path.exists(os.path.join('src',native_source)):
+        native_source = 'dlib/%s' % name
+    return native_source
 
 def set_options(opt):
     pass
@@ -20,11 +27,13 @@ def configure(conf):
         conf.env.append_unique('CXXDEFINES', 'WEBP_FORCE_ALIGNED')
 
 def build(bld):
+
+    build_util = create_build_utility(bld.env)
+
     if not Options.options.skip_build_tests:
         bld.add_subdirs('test')
 
     source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
-    mbedtls_dirs = 'mbedtls/crypto/library mbedtls/library'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
@@ -37,6 +46,16 @@ def build(bld):
         source_dirs.append('dlib/linux')
     elif 'web' in bld.env.PLATFORM:
         source_dirs.append('dlib/js')
+    elif 'nx64' in bld.env.PLATFORM:
+        source_dirs.append('dlib/nx64')
+
+    private_source_dir = ''
+    private_include_dir = ''
+    if is_platform_private(bld.env.PLATFORM):
+        private_source_dir = 'dlib/%s/dlib' % build_util.get_target_os()
+        private_include_dir = 'dlib/%s' % build_util.get_target_os()
+        if os.path.exists('src/'+private_source_dir):
+            source_dirs.append(private_source_dir)
 
     extra_defines = ['ZLIB_CONST']
 
@@ -75,21 +94,67 @@ def build(bld):
         source_dirs.extend(webp_source_dirs)
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib',
-                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                            includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
                             add_objects = local_objs,
                             target = 'dlib',
                             defines= ['VALGRIND'] + extra_defines)
     dlib.find_sources_in_dirs(source_dirs)
     dlib.source.extend(webp_source_no_neon)
 
+    lib_features = {
+                    'CONDITIONVARIABLE':    os.path.join('dlib', 'condition_variable.cpp'),
+                    'DNS':                  os.path.join('dlib', 'dns.cpp'),
+                    'MUTEX':                os.path.join('dlib', 'mutex.cpp'),
+                    'SYS':                  os.path.join('dlib', 'sys.cpp'),
+                    'TIME':                 os.path.join('dlib', 'time.cpp'),
+                    }
+
+    for feature, source in lib_features.iteritems():
+        dlib.source.remove(source)
+        # remove those files that are replacements, we'll add them back a bit later after the configuration of lib_features is done
+        private_source = os.path.join(private_source_dir, os.path.basename(source))
+        private_source = os.path.normpath(private_source) # slashes
+        if private_source in dlib.source:
+            index = dlib.source.index(private_source)
+            del dlib.source[index]
+
+    # remove all null implementations
+    dlib.source = [x for x in dlib.source if not x.endswith('_null.cpp')]
+
+    if 'darwin' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['osx', 'ios']:
+        # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
+        # Objective-c files are collected as we don't have a proper platform
+        # We patch CC, CXX, etc
+        dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
+
+    # This "null" version uses dmSocket::GetHostByName()
+    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'arm64-nx64']:
+        lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
+
+    if is_platform_private(bld.env.PLATFORM):
+        # Replace with any specialized sources that the private platform uses
+        _dir = 'dlib/%s' % build_util.get_target_os()
+        for feature, source in lib_features.iteritems():
+            private_source = os.path.join(_dir, source)
+            private_source = os.path.normpath(private_source) # slashes
+            if os.path.exists(os.path.join(os.path.join('src',private_source))):
+                lib_features[feature] = private_source
+
+    for feature, source in lib_features.iteritems():
+        dlib.source.append(source)
+
     # Create a separate library, in order to separate it from the ASAN builds
-    dlib_noasan = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan',
-                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                            add_objects = local_objs,
-                            target = 'dlib_noasan',
-                            defines= ['VALGRIND'] + extra_defines)
-    dlib_noasan.find_sources_in_dirs(source_dirs)
-    dlib_noasan.source.extend(webp_source_no_neon)
+    dlib_noasan = bld.new_task_gen( features    = dlib.features + ' skip_asan',
+                                    includes    = dlib.includes,
+                                    add_objects = dlib.add_objects,
+                                    defines     = dlib.defines,
+                                    target      = 'dlib_noasan')
+    dlib_noasan.source = [x for x in dlib.source]
+
+
+    mbedtls_dirs = 'mbedtls/crypto/library mbedtls/library'.split()
+    if is_platform_private(bld.env.PLATFORM) and not platform_supports_feature(bld.env.PLATFORM, 'mbedtls', {}):
+        mbedtls_dirs = 'mbedtls_stub'.split()
 
     # If we have optimizations on, let's minimize this library
     opt_level = getattr(Options.options, 'opt_level', '')
@@ -103,62 +168,44 @@ def build(bld):
     else:
         extra_defines += ['MBEDTLS_ERROR_C']
 
-    mbedtls = bld.new_task_gen(features = 'cc cstaticlib remove_flags',
-                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                            target = 'mbedtls',
-                            remove_flags = remove_flags,
-                            defines= ['VALGRIND'] + extra_defines)
+    mbedtls = bld.new_task_gen( features    = 'cc cxx cstaticlib remove_flags',
+                                includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                target      = 'mbedtls',
+                                remove_flags= remove_flags,
+                                defines     = ['VALGRIND'] + extra_defines)
     mbedtls.find_sources_in_dirs(mbedtls_dirs)
     mbedtls.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
-    mbedtls_noasan = bld.new_task_gen(features = 'cc cstaticlib skip_asan',
-                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                            target = 'mbedtls_noasan',
-                            defines= ['VALGRIND'] + extra_defines)
-    mbedtls_noasan.find_sources_in_dirs(mbedtls_dirs)
-
-    dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-    dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-
-    if 'web' in bld.env['PLATFORM']:
-        dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
-        dlib_noasan.source.remove(os.path.join('dlib', 'dns.cpp'))
-    else:
-        dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
-        dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+    mbedtls_noasan = bld.new_task_gen(  features     = mbedtls.features + ' skip_asan',
+                                        includes     = mbedtls.includes,
+                                        remove_flags = remove_flags,
+                                        defines      = mbedtls.defines,
+                                        target       = 'mbedtls_noasan')
+    mbedtls_noasan.source = [x for x in mbedtls.source]
+    mbedtls_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:
-        uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
+        dlib_shared = bld.new_task_gen( features = 'cc cxx cshlib skip_asan',
+                                        includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                        add_objects = local_objs,
+                                        uselib_local = 'mbedtls_noasan',
+                                        target = 'dlib_shared',
+                                        defines= ['VALGRIND'] + extra_defines,
+                                        uselib = ['PLATFORM_SOCKET', 'CARES'])
 
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
-                                includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                                add_objects = local_objs,
-                                uselib_local = 'mbedtls_noasan',
-                                target = 'dlib_shared',
-                                defines= ['VALGRIND'] + extra_defines,
-                                uselib = uselib)
-
-        dlib.find_sources_in_dirs(source_dirs)
-        dlib.source.extend(webp_source_no_neon)
-
-        dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-
-        if 'web' in bld.env['PLATFORM']:
-            dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
-        else:
-            dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+        dlib_shared.source = [x for x in dlib.source]
 
         if 'win32' not in bld.env['PLATFORM']:
-            dlib = bld.new_task_gen(features = 'cc cxx cshlib',
-                                    source='dlib/memprofile.cpp',
-                                    includes = '.',
-                                    target = 'dlib_memprofile',
-                                    defines= 'DM_LIBMEMPROFILE')
+            dlib_memprofile = bld.new_task_gen( features = 'cc cxx cshlib',
+                                                source='dlib/memprofile.cpp',
+                                                includes = '.',
+                                                target = 'dlib_memprofile',
+                                                defines= 'DM_LIBMEMPROFILE')
 
             if 'linux' in bld.env['PLATFORM']:
-                dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+                dlib_memprofile.env.append_value('LINKFLAGS', [ '-ldl' ])
 
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)
@@ -183,58 +230,60 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
+    bld.install_as('${PREFIX}/include/dlib/endian.h', _get_native_file(build_util.get_target_os(), 'endian.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache_verify.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
+    bld.install_as('${PREFIX}/include/dlib/mutex.h', _get_native_file(build_util.get_target_os(), 'mutex.h'))
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/sslsocket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
+    bld.install_as('${PREFIX}/include/dlib/spinlocktypes.h', _get_native_file(build_util.get_target_os(), 'spinlocktypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/utf8.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/uri.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/utf8.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/vmath.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
 
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
@@ -242,3 +291,9 @@ def build(bld):
 
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
+
+    if is_platform_private(bld.env.PLATFORM):
+        # TODO, make this generic for loop
+        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/endian.h')
+        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/mutex.h')
+        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/spinlocktypes.h')

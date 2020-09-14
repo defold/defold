@@ -1493,6 +1493,51 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
+    #define OLD_VERSION false
+
+    static bool AnimCompare(const Animation& lhs, const float* value)
+    {
+        return lhs.m_Value < value;
+    }
+
+    static inline void RemoveAnimation(dmArray<Animation>& animations, uint32_t i)
+    {
+        Animation* current = &animations[i];
+        Animation* end = animations.End();
+        // Move all one step to the "left"
+        memmove(current, current+1, sizeof(Animation) * (end-current-1));
+        animations.SetSize(animations.Size()-1);
+    }
+
+    static inline uint32_t FindAnimation(dmArray<Animation>& animations, float* value)
+    {
+        Animation* begin = animations.Begin();
+        Animation* end = animations.End();
+        Animation* anim = std::lower_bound(begin, end, value, AnimCompare);
+
+        if (anim != end && anim->m_Value == value)
+        {
+            return (uint32_t)(anim - begin);
+        }
+        return 0xffffffff;
+    }
+
+    // This function assumes the size of the array has already grown 1 element
+    static inline uint32_t InsertAnimation(dmArray<Animation>& animations, Animation* anim)
+    {
+        Animation* begin = animations.Begin();
+        // We use the fact that the actual end pointer is actually valid here (it's just uninitialized)
+        Animation* last = animations.End()-1;
+        Animation* current = std::lower_bound(begin, last, anim->m_Value, AnimCompare);
+        if (current != last && current->m_Value != anim->m_Value) // anim.m_Value >= value
+        {
+            // Move all one step to the "right"
+            memmove(current+1, current, sizeof(Animation) * (last-current));
+        }
+        *current = *anim;
+        return (uint32_t)(current - begin);
+    }
+
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
@@ -1610,7 +1655,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
-                animations->EraseSwap(i);
+                RemoveAnimation(*animations, i);
                 i--;
                 n--;
                 continue;
@@ -2440,7 +2485,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
-                animations->EraseSwap(i);
+                RemoveAnimation(*animations, i);
                 i--;
                 n_anims--;
                 continue;
@@ -3650,26 +3695,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         assert(n->m_Version == version);
 
         Animation animation;
-        uint32_t animation_index = 0xffffffff;
-
-        // Remove old animation for the same property
-        for (uint32_t i = 0; i < scene->m_Animations.Size(); ++i)
-        {
-            const Animation* anim = &scene->m_Animations[i];
-            if (value == anim->m_Value)
-            {
-                // Make sure to invoke the callback when we are re-using the
-                // animation index so that we can clean up dangling ref's in
-                // the gui_script module.
-                if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
-                {
-                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-                }
-
-                animation_index = i;
-                break;
-            }
-        }
+        uint32_t animation_index = FindAnimation(scene->m_Animations, value);
 
         if (animation_index == 0xffffffff)
         {
@@ -3680,6 +3706,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
             animation_index = scene->m_Animations.Size();
             scene->m_Animations.SetSize(animation_index+1);
+        }
+        else
+        {
+            // Make sure to invoke the callback when we are re-using the
+            // animation index so that we can clean up dangling ref's in
+            // the gui_script module.
+            Animation* anim = &scene->m_Animations[animation_index];
+            if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
+            {
+                anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+            }
         }
 
         animation.m_Node = node;
@@ -3699,7 +3736,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Cancelled = 0;
         animation.m_Backwards = 0;
 
-        scene->m_Animations[animation_index] = animation;
+        animation_index = InsertAnimation(scene->m_Animations, &animation);
         return &scene->m_Animations[animation_index];
     }
 

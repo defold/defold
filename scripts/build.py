@@ -11,7 +11,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-
 # add build_tools folder to the import search path
 import sys, os
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
@@ -32,25 +31,54 @@ from threading import Thread, Event
 from Queue import Queue
 from ConfigParser import ConfigParser
 
+BASE_PLATFORMS = [  'x86_64-linux',
+                    'x86_64-darwin',
+                    'win32', 'x86_64-win32',
+                    'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
+                    'armv7-android', 'arm64-android',
+                    'js-web', 'wasm-web']
 
-"""
-    Build utility for installing external packages, building engine, editor and cr
-    Run build.py --help for help
-"""
+try:
+    sys.path.insert(0, os.path.dirname(__file__))
+    sys.dont_write_bytecode = True
+    import build_private
+except Exception, e:
+    class build_private(object):
+        @classmethod
+        def get_target_platforms(cls):
+            return []
+        @classmethod
+        def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
+            return []
+        @classmethod
+        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the host
+            return []
+        @classmethod
+        def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
+            pass
+        @classmethod
+        def is_library_supported(cls, platform, library):
+            return True
+finally:
+    sys.dont_write_bytecode = False
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
+def get_target_platforms():
+    return BASE_PLATFORMS + build_private.get_target_platforms()
+
+
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 c-ares-1.16.1 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1".split()
+PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1".split()
+PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1 MoltenVK-1.0.41".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
-PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 MoltenVK-1.0.41".split()
+PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 c-ares-1.16.1 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.16.1".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.16.1".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -80,7 +108,7 @@ EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 
-ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
+ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
@@ -137,6 +165,9 @@ def format_exes(name, platform):
     elif 'wasm-web' in platform:
         prefix = ''
         suffix = ['.js', '.wasm']
+    elif platform in ['arm64-nx64']:
+        prefix = ''
+        suffix = ['.nss', '.nso']
     else:
         suffix = ['']
 
@@ -199,6 +230,15 @@ class Future(object):
         else:
             return self.result
 
+def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=False, format='z'):
+    if not os.path.exists(targetfolder) or force_extract:
+        if not os.path.exists(os.path.dirname(targetfolder)):
+            os.makedirs(os.path.dirname(targetfolder))
+        path = conf.get_local_or_remote_file(url)
+        conf._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
+    else:
+        print "SDK already installed:", targetfolder
+
 class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
@@ -220,8 +260,12 @@ class Configuration(object):
                  notarization_password = None,
                  notarization_itc_provider = None,
                  github_token = None,
+                 github_target_repo = None,
+                 github_sha1 = None,
                  version = None,
-                 codesigning_identity = None):
+                 codesigning_identity = None,
+                 windows_cert = None,
+                 windows_cert_pass = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -257,8 +301,12 @@ class Configuration(object):
         self.notarization_password = notarization_password
         self.notarization_itc_provider = notarization_itc_provider
         self.github_token = github_token
+        self.github_target_repo = github_target_repo
+        self.github_sha1 = github_sha1
         self.version = version
         self.codesigning_identity = codesigning_identity
+        self.windows_cert = windows_cert
+        self.windows_cert_pass = windows_cert_pass
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -342,6 +390,7 @@ class Configuration(object):
             cmd.extend(['--strip-components', '%d' % strip_components])
         if force_local:
             cmd.append(force_local)
+
         run.env_command(self._form_env(), cmd)
         os.chdir(old_dir)
 
@@ -450,7 +499,7 @@ class Configuration(object):
             installed_packages.update(package_paths)
 
         for base_platform in self.get_base_platforms():
-            packages = list(PACKAGES_HOST)
+            packages = list(PACKAGES_HOST) + build_private.get_install_host_packages(base_platform)
             packages.extend(platform_packages.get(base_platform, []))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
@@ -460,7 +509,7 @@ class Configuration(object):
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
 
-        target_packages = platform_packages.get(self.target_platform, [])
+        target_packages = platform_packages.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
@@ -535,30 +584,23 @@ class Configuration(object):
                 sys.exit(1)
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder, strip_components=1, force_extract=False, format='z'):
-            if not os.path.exists(targetfolder) or force_extract:
-                if not os.path.exists(os.path.dirname(targetfolder)):
-                    os.makedirs(os.path.dirname(targetfolder))
-                path = self.get_local_or_remote_file(url)
-                self._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
-
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
@@ -569,17 +611,18 @@ class Configuration(object):
             elif 'linux' in host:
                 host = 'linux'
             # Android NDK
-            download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
-            download_sdk('%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
+            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
 
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
             if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
-                download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
+                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
 
+        build_private.install_sdk(self, target_platform)
 
     def get_ems_dir(self):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
@@ -828,6 +871,7 @@ class Configuration(object):
         share_archive_path = join(sha1, 'engine', 'share').replace('\\', '/')
         java_archive_path = join(sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
+        self.full_archive_path = full_archive_path
 
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
@@ -906,7 +950,7 @@ class Configuration(object):
     def _get_build_flags(self):
         supported_tests = {}
         supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64']
 
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
@@ -981,12 +1025,15 @@ class Configuration(object):
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
         # Target libs to build
+
         engine_libs = list(ENGINE_LIBS)
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
                 engine_libs.insert(1, 'texc')
         for lib in engine_libs:
+            if not build_private.is_library_supported(target_platform, lib):
+                continue
             self._build_engine_lib(args, lib, target_platform)
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         if not self.skip_docs:
@@ -1069,6 +1116,7 @@ class Configuration(object):
         android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
+        switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
@@ -1080,14 +1128,16 @@ class Configuration(object):
                      'js-bundling': js_files,
                      'ios-bundling': {},
                      'osx-bundling': osx_files,
-                     'linux-bundling': linux_files}
+                     'linux-bundling': linux_files,
+                     'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
-                           'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
+                           'linux-bundling': [['x86_64-linux', 'x86_64-linux']],
+                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
             for plf in plfs:
                 exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
@@ -1143,7 +1193,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
+        platforms = get_target_platforms()
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
             entry = bucket.get_key(prefix)
@@ -1221,24 +1271,47 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
-               '--codesigning-identity=%s' % self.codesigning_identity,
                'bundle']
+        self.run_editor_script(cmd)
+
+    def sign_editor2(self):
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
+        cmd = ['./scripts/bundle.py',
+               '--platform=%s' % self.target_platform,
+               '--bundle-dir=%s' % editor_bundle_dir,
+               'sign']
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.windows_cert:
+                cmd.append('--windows-cert="%s"' % self.windows_cert)
+            if self.windows_cert_pass:
+                cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
         if self.target_platform != "x86_64-darwin":
             return
 
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
         # create dmg installer
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
-               '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
+               '--bundle-dir=%s' % editor_bundle_dir,
                'installer']
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
         # notarize dmg
+        editor_dmg = join(editor_bundle_dir, 'Defold-x86_64-darwin.dmg')
         cmd = ['./scripts/notarize.py',
-               join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg'),
+               editor_dmg,
                self.notarization_username,
                self.notarization_password,
                self.notarization_itc_provider]
@@ -1488,6 +1561,8 @@ class Configuration(object):
     def release_to_github(self):
         release_to_github.release(self)
 
+    def release_to_github_markdown(self):
+        release_to_github.release_markdown(self)
 
     def sync_archive(self):
         u = urlparse.urlparse(self.get_archive_path())
@@ -1822,9 +1897,10 @@ class Configuration(object):
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
-        env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
-                                                  '%s/build_tools' % self.defold,
-                                                  '%s/ext/lib/python' % self.dynamo_home])
+        pythonpaths = ['%s/lib/python' % self.dynamo_home,
+                      '%s/build_tools' % self.defold,
+                      '%s/ext/lib/python' % self.dynamo_home]
+        env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
@@ -1888,6 +1964,7 @@ install_go       - Install go dev tools
 build_go         - Build go code
 archive_go       - Archive go binaries
 build_editor2    - Build editor
+sign_editor2     - Sign editor
 bundle_editor2   - Bundle editor (zip)
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
@@ -1910,7 +1987,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web'],
+                      choices = get_target_platforms(),
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
@@ -1921,7 +1998,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'skip code signing. Default is false')
+                      help = 'skip code signing (engine and editor). Default is false')
 
     parser.add_option('--skip-docs', dest='skip_docs',
                       action = 'store_true',
@@ -1990,6 +2067,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'GitHub authentication token when releasing to GitHub')
 
+    parser.add_option('--github-target-repo', dest='github_target_repo',
+                      default = release_to_github.get_default_repo(),
+                      help = 'GitHub target repo when releasing artefacts')
+
+    parser.add_option('--github-sha1', dest='github_sha1',
+                      default = None,
+                      help = 'A specific sha1 to use in github operations')
+
     parser.add_option('--version', dest='version',
                       default = None,
                       help = 'Version to use instead of from VERSION file')
@@ -1997,6 +2082,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default = None,
                       help = 'Codesigning identity for macOS version of the editor')
+
+    parser.add_option('--windows-cert', dest='windows_cert',
+                      default = None,
+                      help = 'Path to codesigning certificate for Windows version of the editor')
+
+    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+                      default = None,
+                      help = 'Password to codesigning certificate for Windows version of the editor')
 
     options, all_args = parser.parse_args()
 
@@ -2032,8 +2125,12 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       notarization_password = options.notarization_password,
                       notarization_itc_provider = options.notarization_itc_provider,
                       github_token = options.github_token,
+                      github_target_repo = options.github_target_repo,
+                      github_sha1 = options.github_sha1,
                       version = options.version,
-                      codesigning_identity = options.codesigning_identity)
+                      codesigning_identity = options.codesigning_identity,
+                      windows_cert = options.windows_cert,
+                      windows_cert_pass = options.windows_cert_pass)
 
     for cmd in args:
         f = getattr(c, cmd, None)

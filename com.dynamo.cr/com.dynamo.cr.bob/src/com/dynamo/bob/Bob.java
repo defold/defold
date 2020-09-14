@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,6 +49,7 @@ import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
@@ -372,8 +373,12 @@ public class Bob {
         options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
         options.addOption(null, "identity", true, "Sign identity (iOS)");
 
-        options.addOption("ce", "certificate", true, "Certificate (Android)");
-        options.addOption("pk", "private-key", true, "Private key (Android)");
+        options.addOption("ce", "certificate", true, "DEPRECATED! Certificate (Android)");
+        options.addOption("pk", "private-key", true, "DEPRECATED! Private key (Android)");
+
+        options.addOption("ks", "keystore", true, "Deployment keystore used to sign APKs (Android)");
+        options.addOption("ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)");
+        options.addOption("ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)");
 
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
         options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
@@ -418,6 +423,13 @@ public class Bob {
             helpFormatter.printHelp("bob [options] [commands]", options);
             System.exit(0);
         }
+        if (cmd.hasOption("ce") || cmd.hasOption("pk")) {
+            System.out.println("Android signing using certificate and private key is no longer supported. You must use keystore signing.");
+            HelpFormatter helpFormatter = new HelpFormatter( );
+            helpFormatter.printHelp("bob [options] [commands]", options);
+            System.exit(1);
+        }
+
         return cmd;
     }
 
@@ -427,6 +439,20 @@ public class Bob {
         project.setOption("auth", auth);
 
         return project;
+    }
+
+    public static String logExceptionToString(int severity, IResource res, int line, String message)
+    {
+        String resourceString = "unspecified";
+        if (res != null) {
+            resourceString = res.toString();
+        }
+        String strSeverity = "ERROR";
+        if (severity == MultipleCompileException.Info.SEVERITY_INFO)
+            strSeverity = "INFO";
+        else if (severity == MultipleCompileException.Info.SEVERITY_WARNING)
+            strSeverity = "WARNING";
+        return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
@@ -448,7 +474,7 @@ public class Bob {
         project.findSources(sourceDirectory, skipDirs);
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileException, URISyntaxException, LibraryException {
+    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
         String cwd = new File(".").getAbsolutePath();
@@ -587,9 +613,21 @@ public class Bob {
             project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
         }
 
-        List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;
         StringBuilder errors = new StringBuilder();
+
+        List<TaskResult> result = new ArrayList<>();
+        try {
+            result = project.build(new ConsoleProgress(), commands);
+        } catch(MultipleCompileException e) {
+            ret = false;
+            errors.append("\n");
+            for (MultipleCompileException.Info info : e.issues)
+            {
+                errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
+            }
+            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        }
         for (TaskResult taskResult : result) {
             if (!taskResult.isOk()) {
                 ret = false;
@@ -620,7 +658,7 @@ public class Bob {
             }
         }
         if (!ret) {
-            System.out.println("The build failed for the following reasons:");
+            System.out.println("\nThe build failed for the following reasons:");
             System.out.println(errors.toString());
         }
         project.dispose();

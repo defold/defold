@@ -17,28 +17,54 @@ env:
   NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
   NOTARIZATION_ITC_PROVIDER: ${{ secrets.NOTARIZATION_ITC_PROVIDER }}
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+  WINDOWS_CERTIFICATE_PASS: ${{ secrets.WINDOWS_CERTIFICATE_PASS }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
 
 
 jobs:
-  build-and-notarize-editor:
+  build-editor:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    runs-on: macOS-latest
+    runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2 },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
       {
+        name: 'Build editor',
+        run: 'ci/ci.sh build-editor'
+      },
+      {
+        name: 'Archive editor',
+        run: 'ci/ci.sh archive-editor'
+      }]
+
+  sign-editor-darwin:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [build-editor]
+    runs-on: macOS-latest
+    strategy:
+      matrix:
+        platform: [x86_64-darwin]
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      {
+        name: 'Download editor',
+        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
+      },
+      {
         name: 'Install dependencies',
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
-        name: 'Build editor',
-        run: 'ci/ci.sh build-editor'
+        name: 'Sign editor',
+        run: 'ci/ci.sh sign-editor --platform=${{ matrix.platform }}'
       },
       {
         name: 'Notarize editor',
@@ -46,9 +72,48 @@ jobs:
       },
       {
         name: 'Archive editor',
-        run: 'ci/ci.sh archive-editor'
+        run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
+      }]
+
+
+  sign-editor-windows:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [build-editor]
+    runs-on: windows-2016
+    strategy:
+      matrix:
+        platform: [x86_64-win32]
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      {
+        name: 'Download editor',
+        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
       },
       {
-        name: 'Release editor',
+        name: 'Install dependencies',
+        run: 'ci/ci.sh --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+      },
+      {
+        name: 'Sign editor',
+        run: 'ci/ci.sh sign-editor --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
+      },
+      {
+        name: 'Archive editor',
+        run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
+      }]
+
+# ---- RELEASE ------------------
+
+  release:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [sign-editor-darwin, sign-editor-windows]
+    runs-on: ubuntu-18.04
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      {
+        name: 'Release',
         run: 'ci/ci.sh release'
       }]
