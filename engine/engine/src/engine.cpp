@@ -801,7 +801,7 @@ namespace dmEngine
 #endif
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
-            dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
+            dmLogInfo("Initialised sound device '%s'", sound_params.m_OutputDevice);
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));

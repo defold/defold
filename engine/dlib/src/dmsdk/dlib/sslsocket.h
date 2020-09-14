@@ -117,6 +117,16 @@ namespace dmSSLSocket
      */
     dmSocket::Result Receive(Socket socket, void* buffer, int length, int* received_bytes);
 
+    /*#
+     * Set socket receive timeout
+     * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
+     *       larger than or equal to 1000
+     * @name dmSocket::SetReceiveTimeout
+     * @param socket [type:dmSocket::Socket] socket
+     * @param timeout [type:uint64_t] timeout in microseconds
+     * @return RESULT_OK on success
+     */
+    dmSocket::Result SetReceiveTimeout(Socket socket, uint64_t timeout);
 }
 
 #endif // DMSDK_SSLSOCKET_H
