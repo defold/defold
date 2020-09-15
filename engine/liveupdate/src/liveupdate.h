@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,39 +36,6 @@ namespace dmLiveUpdate
         RESULT_FORMAT_ERROR              = -9,
     };
 
-    /**
-     * Callback data from store resource function
-     */
-    struct StoreResourceCallbackData
-    {
-        StoreResourceCallbackData()
-        {
-            memset(this, 0x0, sizeof(StoreResourceCallbackData));
-        }
-        void*       m_L;
-        int         m_Self;
-        int         m_Callback;
-        int         m_ResourceRef;
-        int         m_HexDigestRef;
-        const char* m_HexDigest;
-        bool        m_Status;
-    };
-
-    /**
-     * Callback data from store manifest function
-     */
-    struct StoreManifestCallbackData
-    {
-        StoreManifestCallbackData()
-        {
-            memset(this, 0x0, sizeof(StoreManifestCallbackData));
-        }
-        void*       m_L;
-        int         m_Self;
-        int         m_Callback;
-        int         m_Status;
-    };
-
     const int MAX_MANIFEST_COUNT = 8;
     const int CURRENT_MANIFEST = 0x0ac83fcc;
     const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
@@ -89,7 +56,7 @@ namespace dmLiveUpdate
      */
     Result VerifyManifest(dmResource::Manifest* manifest);
 
-    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(StoreResourceCallbackData*), StoreResourceCallbackData& callback_data);
+    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
     Result StoreManifest(dmResource::Manifest* manifest);
 

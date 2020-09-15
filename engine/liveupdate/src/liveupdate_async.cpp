@@ -46,6 +46,7 @@ namespace dmLiveUpdate
     {
         m_JobCompleteData.m_CallbackData = request.m_CallbackData;
         m_JobCompleteData.m_Callback = request.m_Callback;
+        m_JobCompleteData.m_Status = false;
         Result res = dmLiveUpdate::RESULT_OK;
         if (request.m_Resource.m_Header != 0x0)
         {
@@ -56,17 +57,17 @@ namespace dmLiveUpdate
         {
             res = dmLiveUpdate::RESULT_INVALID_HEADER;
         }
-        m_JobCompleteData.m_CallbackData.m_Status = res == dmLiveUpdate::RESULT_OK ? true : false;
+        m_JobCompleteData.m_Status = res == dmLiveUpdate::RESULT_OK ? true : false;
     }
 
     // Must be called on the Lua main thread
     static void ProcessRequestComplete()
     {
-        if(m_JobCompleteData.m_CallbackData.m_Status)
+        if(m_JobCompleteData.m_Status)
         {
             dmLiveUpdate::SetNewArchiveIndex(m_JobCompleteData.m_ArchiveIndexContainer, m_JobCompleteData.m_NewArchiveIndex, true);
         }
-        m_JobCompleteData.m_Callback(&m_JobCompleteData.m_CallbackData);
+        m_JobCompleteData.m_Callback(m_JobCompleteData.m_Status, m_JobCompleteData.m_CallbackData);
     }
 
 
