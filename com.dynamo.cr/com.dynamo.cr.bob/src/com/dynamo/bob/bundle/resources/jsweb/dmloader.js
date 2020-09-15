@@ -1,3 +1,45 @@
+var EngineLoader = {
+    load_script_async: function(src, from_progress, to_progress) {
+        var xhr = new XMLHttpRequest();
+        var tag = document.createElement("script");
+        xhr.open("GET", src, true);
+        xhr.onload = function (e) {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    tag.text = xhr.response;
+                    document.head.appendChild(tag);
+                }
+                else {
+                    throw "Async engine load error " + src + " " + xhr.response;
+                }
+            }
+        };
+        xhr.onprogress = function (e) {
+            if (e.total > 0) {
+                var progress = from_progress + (e.loaded / e.total) * (to_progress - from_progress);
+                Progress.updateProgress(progress);
+            }
+        };
+        xhr.onerror = function (evt) {
+            throw "Async engine load error " + src;
+        };
+        xhr.send();
+    },
+
+    // load engine (asm.js or wasm.js + wasm)
+    // engine load progress goes from 1-50% for ams.js
+    // engine load progress gors from 1-10% for wasm.js and 10-50% for .wasm
+    load: function(app_canvas_id, exe_name) {
+        Progress.addProgress(Module.setupCanvas(app_canvas_id));
+        if (Module['isWASMSupported']) {
+            EngineLoader.load_script_async(exe_name + '_wasm.js', 0, 10);
+        } else {
+            EngineLoader.load_script_async(exe_name + '_asmjs.js', 0, 50);
+        }
+    }
+}
+
+
 /* ********************************************************************* */
 /* Load and combine data that is split into archives                     */
 /* ********************************************************************* */
@@ -19,9 +61,9 @@ var Combine = {
 
     isCompleted: false,       // status of process
 
-    _onCombineCompleted: [],    // signature: name, data.
-    _onAllTargetsBuilt:[],      // signature: void
-    _onDownloadProgress: [],    // signature: downloaded, total
+    _onCombineCompletedListeners: [],    // signature: name, data.
+    _onAllTargetsBuiltListeners:[],      // signature: void
+    _onDownloadProgressListeners: [],    // signature: downloaded, total
 
     _currentDownloadBytes: 0,
     _totalDownloadBytes: 0,
@@ -42,21 +84,21 @@ var Combine = {
         if (typeof callback !== 'function') {
             throw "Invalid callback registration";
         }
-        this._onDownloadProgress.push(callback);
+        this._onDownloadProgressListeners.push(callback);
     },
 
     addCombineCompletedListener: function(callback) {
         if (typeof callback !== 'function') {
             throw "Invalid callback registration";
         }
-        this._onCombineCompleted.push(callback);
+        this._onCombineCompletedListeners.push(callback);
     },
 
     addAllTargetsBuiltListener: function(callback) {
         if (typeof callback !== 'function') {
             throw "Invalid callback registration";
         }
-        this._onAllTargetsBuilt.push(callback);
+        this._onAllTargetsBuiltListeners.push(callback);
     },
 
     // descriptUrl: location of text file describing files to be preloaded
@@ -77,8 +119,8 @@ var Combine = {
                 setTimeout(function() {
                     Combine.process(descriptUrl, attempt_count);
                 }, Combine._retry_time * 1000);
-             } else {
-                    Combine.can_not_download_file(descriptUrl);
+            } else {
+                Combine.can_not_download_file(descriptUrl);
             }
         };
         xhr.send(null);
@@ -88,9 +130,9 @@ var Combine = {
         this._targets =  [];
         this._targetIndex = 0;
         this.isCompleted = false;
-        this._onCombineCompleted = [];
-        this._onAllTargetsBuilt = [];
-        this._onDownloadProgress = [];
+        this._onCombineCompletedListeners = [];
+        this._onAllTargetsBuiltListeners = [];
+        this._onDownloadProgressListeners = [];
 
         this._currentDownloadBytes = 0;
         this._totalDownloadBytes = 0;
@@ -182,8 +224,8 @@ var Combine = {
     },
 
     updateProgress: function(target) {
-        for(i = 0; i<this._onDownloadProgress.length; ++i) {
-            this._onDownloadProgress[i](this._currentDownloadBytes, this._totalDownloadBytes);
+        for(i = 0; i<this._onDownloadProgressListeners.length; ++i) {
+            this._onDownloadProgressListeners[i](this._currentDownloadBytes, this._totalDownloadBytes);
         }
     },
 
@@ -211,15 +253,15 @@ var Combine = {
         if (target.totalLoadedPieces == target.pieces.length) {
             this.finalizeTarget(target);
             ++this._targetIndex;
-            for (var i=0; i<this._onCombineCompleted.length; ++i) {
-                this._onCombineCompleted[i](target.name, target.data);
+            for (var i=0; i<this._onCombineCompletedListeners.length; ++i) {
+                this._onCombineCompletedListeners[i](target.name, target.data);
             }
             if (this._targetIndex < this._targets.length) {
                 this.requestContent();
             } else {
                 this.isCompleted = true;
-                for (i=0; i<this._onAllTargetsBuilt.length; ++i) {
-                    this._onAllTargetsBuilt[i]();
+                for (i=0; i<this._onAllTargetsBuiltListeners.length; ++i) {
+                    this._onAllTargetsBuiltListeners[i]();
                 }
             }
         } else {
@@ -351,10 +393,10 @@ var Module = {
     isWASMSupported: (function() {
         try {
             if (typeof WebAssembly === "object"
-                && typeof WebAssembly.instantiate === "function") {
+            && typeof WebAssembly.instantiate === "function") {
                 const module = new WebAssembly.Module(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
                 if (module instanceof WebAssembly.Module)
-                    return new WebAssembly.Instance(module) instanceof WebAssembly.Instance;
+                return new WebAssembly.Instance(module) instanceof WebAssembly.Instance;
             }
         } catch (e) {
         }
@@ -423,7 +465,7 @@ var Module = {
         var prefixes = ['webkit','moz','ms','o'];
         for (var i = 0; i < prefixes.length; i++) {
             if ((prefixes[i] + 'Hidden') in document)
-                return prefixes[i] + 'Hidden';
+            return prefixes[i] + 'Hidden';
         }
         return null;
     },
@@ -436,6 +478,12 @@ var Module = {
         } else {
             console.log("No document.hidden property found. The focus events won't be enabled.")
         }
+    },
+
+    setupCanvas: function(app_canvas_id) {
+        app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
+        Module.canvas = document.getElementById(app_canvas_id);
+        return Module.canvas;
     },
 
     /**
@@ -471,7 +519,7 @@ var Module = {
     *         Function that is called if you can't download file after 'retry_count' attempts.
     **/
     runApp: function(app_canvas_id, extra_params) {
-        app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
+        Module.setupCanvas(app_canvas_id);
 
         var params = {
             archive_location_filter: function(path) { return 'split' + path; },
@@ -491,7 +539,6 @@ var Module = {
             }
         }
 
-        Module.canvas = document.getElementById(app_canvas_id);
         Module.arguments = params["engine_arguments"];
         Module.persistentStorage = params["persistent_storage"];
         Module["TOTAL_MEMORY"] = params["custom_heap_size"];
@@ -501,9 +548,6 @@ var Module = {
             CanvasInput.addToCanvas(Module.canvas);
 
             Module.setupVisibilityChangeListener();
-
-            // Add progress visuals
-            Progress.addProgress(Module.canvas);
 
             // Add context menu hide-handler if requested
             if (params["disable_context_menu"])
@@ -525,7 +569,6 @@ var Module = {
             Combine._archiveLocationFilter = params["archive_location_filter"];
             Combine.process(Combine._archiveLocationFilter('/archive_files.json'));
         } else {
-            Progress.addProgress(Module.canvas);
             Progress.updateProgress(100, "Unable to start game, WebGL not supported");
             Module.setStatus = function(text) {
                 if (text) Module.printErr('[missing WebGL] ' + text);
@@ -537,8 +580,10 @@ var Module = {
         }
     },
 
+    // game archive progress goes from 50-100%
+    // the first 50% is for loading the engine (see EngineLoader above)
     onArchiveLoadProgress: function(downloaded, total) {
-        Progress.updateProgress(downloaded / total * 100);
+        Progress.updateProgress(50 + (downloaded / total) * 50);
     },
 
     onArchiveFileLoaded: function(name, data) {
