@@ -148,15 +148,12 @@ namespace dmLiveUpdate
         size_t manifest_len = 0;
         const char* manifest_data = luaL_checklstring(L, 1, &manifest_len);
 
-        luaL_checktype(L, 2, LUA_TFUNCTION);
-        lua_pushvalue(L, 2);
-
         dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 2);
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
 
         // Create
-        Result result = ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
+        Result result = dmLiveUpdate::ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
         if (result == RESULT_OK)
         {
             // Verify
