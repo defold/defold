@@ -102,7 +102,7 @@ namespace dmResourceArchive
 
     /**
      * Load archive from filename. Only the index data is loaded into memory.
-     * Resources are loaded on-demand using Read2() function.
+     * Resources are loaded on-demand using Read() function.
      * @param file_name archive index to load
      * @param archive archive index container handle
      * @return RESULT_OK on success
@@ -133,12 +133,6 @@ namespace dmResourceArchive
      */
     void Delete(HArchiveIndexContainer &archive);
 
-    /**
-     * Get total entries, i.e. files/resources in archive
-     * @param archive archive index handle
-     * @return entry count
-     */
-    uint32_t GetEntryCount(HArchiveIndexContainer archive);
 
     /**
      * Make a deep-copy of the existing archive index within archive container and return copy on successful insertion of LiveUpdate resource in the archive
@@ -174,6 +168,8 @@ namespace dmResourceArchive
      */
     int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len);
 
+    // For debugging purposes only
+    void DebugArchiveIndex(HArchiveIndexContainer archive);
 }  // namespace dmResourceArchive
 
 #endif
