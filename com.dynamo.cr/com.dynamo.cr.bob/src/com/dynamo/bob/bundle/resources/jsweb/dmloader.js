@@ -1,83 +1,141 @@
-var EngineLoader = {
-    load_script_async: function(src, from_progress, to_progress) {
+// file downloader
+// wraps XMLHttpRequest and adds retry support and progress updates when the
+// content is gzipped (gzipped content doesn't report a computable content length
+// on Google Chrome)
+var FileLoader = {
+    load: function(url, onprogress, onload, onerror, options, currentAttempt) {
+        if (options == null) options = {};
+        if (options.responseType == null) options.responseType = "";
+        if (options.retryCount == null) options.retryCount = 1;
+        if (options.retryInterval == null) options.retryInterval = 1000;
+        if (currentAttempt == null) currentAttempt = 0;
+
         var xhr = new XMLHttpRequest();
-        var tag = document.createElement("script");
-        xhr.open("GET", src, true);
-        xhr.onload = function (e) {
+        xhr.open('GET', url, true);
+        xhr.responseType = options.responseType;
+        xhr.onprogress = function(e) {
+            if (e.lengthComputable) {
+                onprogress(xhr, e.loaded, e.total);
+                return;
+            }
+            var total = xhr.getResponseHeader('content-length')
+            var encoding = xhr.getResponseHeader('content-encoding')
+            if (total && encoding && (encoding.indexOf('gzip') > -1)) {
+                total /= 0.4; // assuming 40% compression rate
+                onprogress(xhr, e.loaded, total);
+            } else {
+                onprogress(xhr, 1, 1);
+            }
+        };
+        xhr.onload = function(e) {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
-                    tag.text = xhr.response;
-                    document.head.appendChild(tag);
-                }
-                else {
-                    throw "Async engine load error " + src + " " + xhr.response;
+                    onload(xhr, e);
+                } else {
+                    onerror(xhr, e);
                 }
             }
         };
-        xhr.onprogress = function (e) {
-            if (e.total > 0) {
-                var progress = from_progress + (e.loaded / e.total) * (to_progress - from_progress);
+        xhr.onerror = function(e) {
+            if (currentAttempt < options.retryCount) {
+                setTimeout(function() {
+                    FileLoader.load(url, onprogress, onloaded, onerror, options, currentAttempt + 1);
+                }, options.retryInterval);
+            } else {
+                onerror(xhr, e);
+            }
+        };
+        xhr.send(null);
+    }
+};
+
+
+var EngineLoader = {
+    loadScriptAsync: function(src, fromProgress, toProgress) {
+        FileLoader.load(
+            src,
+            function (xhr, loaded, total) {
+                var progress = fromProgress + (loaded / total) * (toProgress - fromProgress);
                 Progress.updateProgress(progress);
+            },
+            function (xhr, e) {
+                var tag = document.createElement("script");
+                tag.text = xhr.response;
+                document.head.appendChild(tag);
+            },
+            function (xhr, e) {
+                throw "Async engine load error " + src;
             }
-        };
-        xhr.onerror = function (evt) {
-            throw "Async engine load error " + src;
-        };
-        xhr.send();
+        );
     },
 
     // load engine (asm.js or wasm.js + wasm)
     // engine load progress goes from 1-50% for ams.js
     // engine load progress gors from 1-10% for wasm.js and 10-50% for .wasm
-    load: function(app_canvas_id, exe_name) {
-        Progress.addProgress(Module.setupCanvas(app_canvas_id));
+    load: function(appCanvasId, exeName) {
+        Progress.addProgress(Module.setupCanvas(appCanvasId));
         if (Module['isWASMSupported']) {
-            EngineLoader.load_script_async(exe_name + '_wasm.js', 0, 10);
+            EngineLoader.loadScriptAsync(exeName + '_wasm.js', 0, 10);
         } else {
-            EngineLoader.load_script_async(exe_name + '_asmjs.js', 0, 50);
+            EngineLoader.loadScriptAsync(exeName + '_asmjs.js', 0, 50);
         }
     }
 }
 
 
 /* ********************************************************************* */
-/* Load and combine data that is split into archives                     */
+/* Load and combine game archive data that is split into archives        */
 /* ********************************************************************* */
 
-var Combine = {
-    _targets: [],
-    _targetIndex: 0,
-    // target: build target
+var GameArchiveLoader = {
+    // which files to load
+    _files: [],
+    _fileIndex: 0,
+    // file
     //  name: intended filepath of built object
     //  size: expected size of built object.
-    //  data: combined data
-    //  downloaded: total amount of data downloaded
+    //  data: combined pieces
+    //  downloaded: total bytes downloaded
     //  pieces: array of name, offset and data objects
     //  numExpectedFiles: total number of files expected in description
     //  lastRequestedPiece: index of last data file requested (strictly ascending)
-    //  totalLoadedPieces: counts the number of data files received
+    //  totalLoadedPieces: counts the number pieces received
 
     //MAX_CONCURRENT_XHR: 6,    // remove comment if throttling of XHR is desired.
 
     isCompleted: false,       // status of process
 
-    _onCombineCompletedListeners: [],    // signature: name, data.
-    _onAllTargetsBuiltListeners:[],      // signature: void
+    _onFileLoadedListeners: [],          // signature: name, data.
+    _onArchiveLoadedListeners:[],        // signature: void
     _onDownloadProgressListeners: [],    // signature: downloaded, total
+    _onFileDownloadErrorListeners: [],   // signature: name
 
     _currentDownloadBytes: 0,
     _totalDownloadBytes: 0,
 
-    _retry_time: 0,             // pause before retry file loading after error
-    _max_retry_count: 0,        // how many attempts we do when trying to download a file.
-    _can_not_download_file_callback: undefined, //Function that is called if you can't download file after 'retry_count' attempts.
+    _retryTime: 0,             // pause before retry file loading after error
+    _maxRetryCount: 0,        // how many attempts we do when trying to download a file.
 
     _archiveLocationFilter: function(path) { return "split" + path; },
 
-    can_not_download_file: function(file) {
-        if (typeof Combine._can_not_download_file_callback === 'function') {
-            Combine._can_not_download_file_callback(file);
+    cleanUp: function() {
+        this._files =  [];
+        this._fileIndex = 0;
+        this.isCompleted = false;
+        this._onGameArchiveLoaderCompletedListeners = [];
+        this._onAllTargetsBuiltListeners = [];
+        this._onDownloadProgressListeners = [];
+        this._onFileDownloadErrorListeners = [];
+
+        this._currentDownloadBytes = 0;
+        this._totalDownloadBytes = 0;
+    },
+
+    addFileDownloadErrorListener: function(callback) {
+        if (typeof callback !== 'function') {
+            throw "Invalid callback registration";
         }
+        this._onFileDownloadErrorListeners.push(callback);
     },
 
     addProgressListener: function(callback) {
@@ -87,203 +145,189 @@ var Combine = {
         this._onDownloadProgressListeners.push(callback);
     },
 
-    addCombineCompletedListener: function(callback) {
+    addProgressListener: function(callback) {
         if (typeof callback !== 'function') {
             throw "Invalid callback registration";
         }
-        this._onCombineCompletedListeners.push(callback);
+        this._onDownloadProgressListeners.push(callback);
     },
 
-    addAllTargetsBuiltListener: function(callback) {
+    addFileLoadedListener: function(callback) {
         if (typeof callback !== 'function') {
             throw "Invalid callback registration";
         }
-        this._onAllTargetsBuiltListeners.push(callback);
+        this._onFileLoadedListeners.push(callback);
     },
 
-    // descriptUrl: location of text file describing files to be preloaded
-    process: function(descriptUrl, attempt_count) {
-        if (!attempt_count) {
-            attempt_count = 0;
+    addArchiveLoadedListener: function(callback) {
+        if (typeof callback !== 'function') {
+            throw "Invalid callback registration";
         }
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', descriptUrl);
-        xhr.responseType = 'text';
-        xhr.onload = function(evt) {
-            Combine.onReceiveDescription(xhr);
-        };
-        xhr.onerror = function(evt) {
-            attempt_count += 1;
-            if (attempt_count < Combine._max_retry_count) {
-                console.warn("Can't download file '" + descriptUrl + "' . Next try in " + Combine._retry_time + " sec.");
-                setTimeout(function() {
-                    Combine.process(descriptUrl, attempt_count);
-                }, Combine._retry_time * 1000);
-            } else {
-                Combine.can_not_download_file(descriptUrl);
+        this._onArchiveLoadedListeners.push(callback);
+    },
+
+    // load the archive_files.json with the list of files and their individual
+    // pieces
+    // descriptionUrl: location of text file describing files to be preloaded
+    loadArchiveDescription: function(descriptionUrl) {
+        FileLoader.load(
+            descriptionUrl,
+            function (xhr, loaded, total) { },
+            function (xhr, e) { GameArchiveLoader.onReceiveDescription(xhr); },
+            function (xhr, e) { GameArchiveLoader.onFileDownloadError(descriptionUrl); },
+            {
+                responseType: 'text',
+                retryCount: GameArchiveLoader._maxRetryCount,
+                retryInterval: GameArchiveLoader._retryTime * 1000
             }
-        };
-        xhr.send(null);
+        );
     },
 
-    cleanUp: function() {
-        this._targets =  [];
-        this._targetIndex = 0;
-        this.isCompleted = false;
-        this._onCombineCompletedListeners = [];
-        this._onAllTargetsBuiltListeners = [];
-        this._onDownloadProgressListeners = [];
-
-        this._currentDownloadBytes = 0;
-        this._totalDownloadBytes = 0;
+    onFileDownloadError: function(url) {
+        for (i=0; i<this._onFileDownloadErrorListeners.length; ++i) {
+            this._onFileDownloadErrorListeners[i](url);
+        }
     },
 
     onReceiveDescription: function(xhr) {
         var json = JSON.parse(xhr.responseText);
-        this._targets = json.content;
+        this._files = json.content;
         this._totalDownloadBytes = 0;
         this._currentDownloadBytes = 0;
 
-        var targets = this._targets;
-        for(var i=0; i<targets.length; ++i) {
-            this._totalDownloadBytes += targets[i].size;
+        // calculate total download size of all files
+        for(var i=0; i<this._files.length; ++i) {
+            this._totalDownloadBytes += this._files[i].size;
         }
-        this.requestContent();
+        this.downloadContent();
     },
 
-    requestContent: function() {
-        var target = this._targets[this._targetIndex];
-        if (1 < target.pieces.length) {
-            target.data = new Uint8Array(target.size);
+    downloadContent: function() {
+        var file = this._files[this._fileIndex];
+        // if the file consists of more than one piece we prepare an array to store the pieces in
+        if (file.pieces.length > 1) {
+            file.data = new Uint8Array(file.size);
         }
-        var limit = target.pieces.length;
+        // how many pieces to download at a time
+        var limit = file.pieces.length;
         if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
             limit = Math.min(limit, this.MAX_CONCURRENT_XHR);
         }
+        // download pieces
         for (var i=0; i<limit; ++i) {
-            this.requestPiece(target, i);
+            this.downloadPiece(file, i);
         }
     },
 
-    requestPiece: function(target, index, attempt_count) {
-        if (!attempt_count) {
-            attempt_count = 0;
+    downloadPiece: function(file, index, attemptCount) {
+        if (!attemptCount) {
+            attemptCount = 0;
         }
 
-        if (index <  target.lastRequestedPiece) {
+        if (index < file.lastRequestedPiece) {
             throw "Request out of order";
         }
 
-        var item = target.pieces[index];
-        target.lastRequestedPiece = index;
+        var piece = file.pieces[index];
+        file.lastRequestedPiece = index;
 
         var total = 0;
         var downloaded = 0;
-        var xhr = new XMLHttpRequest();
-        var url = this._archiveLocationFilter('/' + item.name);
-        xhr.open('GET', url, true);
-        xhr.responseType = 'arraybuffer';
-        // called periodically with information about the transaction
-        xhr.onprogress = function(evt) {
-            if (evt.total && evt.lengthComputable) {
-                total = evt.total;
+        var url = this._archiveLocationFilter('/' + piece.name);
+
+        FileLoader.load(
+            url,
+            function (xhr, loaded, total) {
+                var delta = loaded - downloaded;
+                downloaded = loaded;
+                GameArchiveLoader._currentDownloadBytes += delta;
+                GameArchiveLoader.updateProgress();
+            },
+            function (xhr, e) {
+                piece.data = new Uint8Array(xhr.response);
+                piece.dataLength = piece.data.length;
+                total = piece.dataLength;
+                downloaded = piece.dataLength;
+                GameArchiveLoader.copyPieceData(file, piece);
+                GameArchiveLoader.onPieceLoaded(file, piece);
+                GameArchiveLoader.updateProgress();
+                piece.data = undefined;
+            },
+            function (xhr, e) {
+                GameArchiveLoader.onFileDownloadError(descriptionUrl);
+            },
+            {
+                responseType: 'arraybuffer',
+                retryCount: GameArchiveLoader._maxRetryCount,
+                retryInterval: GameArchiveLoader._retryTime * 1000
             }
-            if (evt.loaded && evt.lengthComputable) {
-                var delta = evt.loaded - downloaded;
-                downloaded = evt.loaded;
-                Combine._currentDownloadBytes += delta;
-                Combine.updateProgress(target);
-            }
-        };
-        // called when the transaction completes successfully
-        xhr.onload = function(evt) {
-            item.data = new Uint8Array(xhr.response);
-            item.dataLength = item.data.length;
-            total = item.dataLength;
-            downloaded = item.dataLength;
-            Combine.copyData(target, item);
-            Combine.onPieceLoaded(target, item);
-            Combine.updateProgress(target);
-            item.data = undefined;
-        };
-        // called when the transaction fails
-        xhr.onerror = function(evt) {
-            downloaded = 0;
-            Combine.updateProgress(target);
-            attempt_count += 1;
-            if (attempt_count < Combine._max_retry_count) {
-                console.warn("Can't download file '" + item.name + "' . Next try in " + Combine._retry_time + " sec.");
-                setTimeout(function() {
-                    Combine.requestPiece(target, index, attempt_count);
-                }, Combine._retry_time * 1000);
-            } else {
-                Combine.can_not_download_file(item.name);
-            }
-        };
-        xhr.send(null);
+        );
     },
 
-    updateProgress: function(target) {
+    updateProgress: function() {
         for(i = 0; i<this._onDownloadProgressListeners.length; ++i) {
             this._onDownloadProgressListeners[i](this._currentDownloadBytes, this._totalDownloadBytes);
         }
     },
 
-    copyData: function(target, item) {
-        if (1 == target.pieces.length) {
-            target.data = item.data;
+    copyPieceData: function(file, piece) {
+        if (1 == file.pieces.length) {
+            file.data = piece.data;
         } else {
-            var start = item.offset;
-            var end = start + item.data.length;
+            var start = piece.offset;
+            var end = start + piece.data.length;
             if (0 > start) {
                 throw "Buffer underflow";
             }
-            if (end > target.data.length) {
+            if (end > file.data.length) {
                 throw "Buffer overflow";
             }
-            target.data.set(item.data, item.offset);
+            file.data.set(piece.data, piece.offset);
         }
     },
 
-    onPieceLoaded: function(target, item) {
-        if (typeof target.totalLoadedPieces === 'undefined') {
-            target.totalLoadedPieces = 0;
+    onPieceLoaded: function(file, item) {
+        if (typeof file.totalLoadedPieces === 'undefined') {
+            file.totalLoadedPieces = 0;
         }
-        ++target.totalLoadedPieces;
-        if (target.totalLoadedPieces == target.pieces.length) {
-            this.finalizeTarget(target);
-            ++this._targetIndex;
-            for (var i=0; i<this._onCombineCompletedListeners.length; ++i) {
-                this._onCombineCompletedListeners[i](target.name, target.data);
+        ++file.totalLoadedPieces;
+        // is piece loaded?
+        if (file.totalLoadedPieces == file.pieces.length) {
+            this.finalizeFile(file);
+            ++this._fileIndex;
+            for (var i=0; i<this._onFileLoadedListeners.length; ++i) {
+                this._onFileLoadedListeners[i](file.name, file.data);
             }
-            if (this._targetIndex < this._targets.length) {
-                this.requestContent();
+            if (this._fileIndex < this._files.length) {
+                this.downloadContent();
             } else {
                 this.isCompleted = true;
-                for (i=0; i<this._onAllTargetsBuiltListeners.length; ++i) {
-                    this._onAllTargetsBuiltListeners[i]();
+                for (i=0; i<this._onArchiveLoadedListeners.length; ++i) {
+                    this._onArchiveLoadedListeners[i]();
                 }
             }
-        } else {
-            var next = target.lastRequestedPiece + 1;
-            if (next < target.pieces.length) {
-                this.requestPiece(target, next);
+        }
+        // continue loading the piece
+        else {
+            var next = file.lastRequestedPiece + 1;
+            if (next < file.pieces.length) {
+                this.downloadPiece(file, next);
             }
         }
     },
 
-    finalizeTarget: function(target) {
+    finalizeFile: function(file) {
         var actualSize = 0;
-        for (var i=0;i<target.pieces.length; ++i) {
-            actualSize += target.pieces[i].dataLength;
+        for (var i=0;i<file.pieces.length; ++i) {
+            actualSize += file.pieces[i].dataLength;
         }
-        if (actualSize != target.size) {
+        if (actualSize != file.size) {
             throw "Unexpected data size";
         }
 
-        if (1 < target.pieces.length) {
-            var output = target.data;
-            var pieces = target.pieces;
+        if (file.pieces.length > 1) {
+            var output = file.data;
+            var pieces = file.pieces;
             for (i=0; i<pieces.length; ++i) {
                 var item = pieces[i];
                 // Bounds check
@@ -479,9 +523,9 @@ var Module = {
         }
     },
 
-    setupCanvas: function(app_canvas_id) {
-        app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
-        Module.canvas = document.getElementById(app_canvas_id);
+    setupCanvas: function(appCanvasId) {
+        appCanvasId = (typeof appCanvasId === 'undefined') ?  'canvas' : appCanvasId;
+        Module.canvas = document.getElementById(appCanvasId);
         return Module.canvas;
     },
 
@@ -517,8 +561,8 @@ var Module = {
     *     'can_not_download_file_callback':
     *         Function that is called if you can't download file after 'retry_count' attempts.
     **/
-    runApp: function(app_canvas_id, extra_params) {
-        Module.setupCanvas(app_canvas_id);
+    runApp: function(appCanvasId, extra_params) {
+        Module.setupCanvas(appCanvasId);
 
         var params = {
             archive_location_filter: function(path) { return 'split' + path; },
@@ -556,17 +600,17 @@ var Module = {
                 };
             }
 
-            Combine._retry_time = params["retry_time"];
-            Combine._max_retry_count = params["retry_count"];
+            GameArchiveLoader._retryTime = params["retry_time"];
+            GameArchiveLoader._maxRetryCount = params["retry_count"];
             if (typeof params["can_not_download_file_callback"] === "function") {
-                Combine._can_not_download_file_callback = params["can_not_download_file_callback"];
+                GameArchiveLoader.addFileDownloadErrorListener(params["can_not_download_file_callback"]);
             }
             // Load and assemble archive
-            Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
-            Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);
-            Combine.addProgressListener(Module.onArchiveLoadProgress);
-            Combine._archiveLocationFilter = params["archive_location_filter"];
-            Combine.process(Combine._archiveLocationFilter('/archive_files.json'));
+            GameArchiveLoader.addFileLoadedListener(Module.onArchiveFileLoaded);
+            GameArchiveLoader.addArchiveLoadedListener(Module.onArchiveLoaded);
+            GameArchiveLoader.addProgressListener(Module.onArchiveLoadProgress);
+            GameArchiveLoader._archiveLocationFilter = params["archive_location_filter"];
+            GameArchiveLoader.loadArchiveDescription(GameArchiveLoader._archiveLocationFilter('/archive_files.json'));
         } else {
             Progress.updateProgress(100, "Unable to start game, WebGL not supported");
             Module.setStatus = function(text) {
@@ -590,7 +634,7 @@ var Module = {
     },
 
     onArchiveLoaded: function() {
-        Combine.cleanUp();
+        GameArchiveLoader.cleanUp();
         Module._archiveLoaded = true;
         Progress.updateProgress(100, "Starting...");
 
