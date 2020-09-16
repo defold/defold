@@ -604,7 +604,7 @@ public class AndroidBundler implements IBundler {
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
 
-        Result r = exec("jarsigner",
+        Result r = exec(getJavaBinFile("jarsigner"),
             "-verbose",
             "-keystore", keystore,
             "-storepass", keystorePassword,
