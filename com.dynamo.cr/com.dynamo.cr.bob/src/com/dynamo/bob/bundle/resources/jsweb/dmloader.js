@@ -506,7 +506,7 @@ var Module = {
         var prefixes = ['webkit','moz','ms','o'];
         for (var i = 0; i < prefixes.length; i++) {
             if ((prefixes[i] + 'Hidden') in document)
-            return prefixes[i] + 'Hidden';
+                return prefixes[i] + 'Hidden';
         }
         return null;
     },
@@ -522,7 +522,7 @@ var Module = {
     },
 
     setupCanvas: function(appCanvasId) {
-        appCanvasId = (typeof appCanvasId === 'undefined') ?  'canvas' : appCanvasId;
+        appCanvasId = (typeof appCanvasId === 'undefined') ? 'canvas' : appCanvasId;
         Module.canvas = document.getElementById(appCanvasId);
         return Module.canvas;
     },
