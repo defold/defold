@@ -120,9 +120,9 @@ namespace dmLiveUpdate
         return uniqueCount;
     }
 
-    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
+    static bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length)
     {
-        if (manifest == 0x0 || resource->m_Data == 0x0)
+        if (manifest == 0x0 || data == 0x0)
         {
             return false;
         }
@@ -132,14 +132,14 @@ namespace dmLiveUpdate
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) alloca(digestLength * sizeof(uint8_t));
 
-        CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
+        CreateResourceHash(algorithm, data, data_length, digest);
 
         uint32_t hexDigestLength = digestLength * 2 + 1;
         char* hexDigest = (char*) alloca(hexDigestLength * sizeof(char));
 
         dmResource::BytesToHexString(digest, dmResource::HashLength(algorithm), hexDigest, hexDigestLength);
 
-        result = dmResource::HashCompare((const uint8_t*)hexDigest, hexDigestLength-1, (const uint8_t*)expected, expectedLength) == dmResource::RESULT_OK;
+        result = dmResource::HashCompare((const uint8_t*)hexDigest, hexDigestLength-1, (const uint8_t*)expected, expected_length) == dmResource::RESULT_OK;
 
         return result;
     }
@@ -246,7 +246,7 @@ namespace dmLiveUpdate
     Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
         out_new_index = 0x0;
-        if(!VerifyResource(manifest, expected_digest, expected_digest_length, resource))
+        if(!VerifyResource(manifest, expected_digest, expected_digest_length, (const char*)resource->m_Data, resource->m_Count))
         {
             dmLogError("Verification failure for Liveupdate archive for resource: %s", expected_digest);
             return RESULT_INVALID_RESOURCE;
