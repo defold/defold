@@ -335,14 +335,24 @@ def create_bundle(options):
         extract(jdk, tmp_dir, is_mac)
 
         if is_mac:
-            platform_jdk = 'tmp/jdk-%s.jdk/Contents/Home' % java_version
+            platform_jdk = '%s/jdk-%s.jdk/Contents/Home' % (tmp_dir, java_version)
         else:
-            platform_jdk = 'tmp/jdk-%s' % java_version
+            platform_jdk = '%s/jdk-%s' % (tmp_dir, java_version)
 
+        # use jlink to generate a custom Java runtime to bundle with the editor
+        packages_jdk = '%s/jdk%s' % (packages_dir, java_version)
         exec_command(['%s/bin/jlink' % build_jdk,
                       '@jlink-options',
                       '--module-path=%s/jmods' % platform_jdk,
-                      '--output=%s/jdk%s' % (packages_dir, java_version)])
+                      '--output=%s' % packages_jdk])
+
+        # copy additional files from the JDK to the slimmed down version we bundle
+        # with the editor
+        # jarsigner - used by the AndroidBundler in bob
+        for java_bin_file in [ "jarsigner" ]:
+            src = os.path.join(platform_jdk, "bin", java_bin_file)
+            dst = os.path.join(packages_jdk, "bin", java_bin_file)
+            shutil.copy(src, dst)
 
         # create final zip file
         zipfile = 'target/editor/Defold-%s.zip' % platform
