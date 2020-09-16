@@ -4,11 +4,11 @@
 // on Google Chrome)
 var FileLoader = {
     load: function(url, onprogress, onload, onerror, options, currentAttempt) {
-        if (options == null) options = {};
-        if (options.responseType == null) options.responseType = "";
-        if (options.retryCount == null) options.retryCount = 1;
-        if (options.retryInterval == null) options.retryInterval = 1000;
-        if (currentAttempt == null) currentAttempt = 0;
+        if (typeof options === 'undefined') options = {};
+        if (typeof options.responseType === 'undefined') options.responseType = "";
+        if (typeof options.retryCount === 'undefined') options.retryCount = 1;
+        if (typeof options.retryInterval === 'undefined') options.retryInterval = 1000;
+        if (typeof currentAttempt === 'undefined') currentAttempt = 0;
 
         var xhr = new XMLHttpRequest();
         xhr.open('GET', url, true);
@@ -37,6 +37,7 @@ var FileLoader = {
             }
         };
         xhr.onerror = function(e) {
+            console.log("onerror " + url);
             if (currentAttempt < options.retryCount) {
                 setTimeout(function() {
                     FileLoader.load(url, onprogress, onloaded, onerror, options, currentAttempt + 1);
@@ -65,6 +66,10 @@ var EngineLoader = {
             },
             function (xhr, e) {
                 throw "Async engine load error " + src;
+            },
+            {
+                retryCount: 4,
+                retryInterval: 1000,
             }
         );
     },
@@ -131,39 +136,42 @@ var GameArchiveLoader = {
         this._totalDownloadBytes = 0;
     },
 
+    addListener: function(list, callback) {
+        if (typeof callback !== 'function') throw "Invalid callback registration";
+        list.push(callback);
+    },
+    notifyListeners: function(list, ...args) {
+        for (i=0; i<list.length; ++i) {
+            list[i](...args);
+        }
+    },
+
     addFileDownloadErrorListener: function(callback) {
-        if (typeof callback !== 'function') {
-            throw "Invalid callback registration";
-        }
-        this._onFileDownloadErrorListeners.push(callback);
+        this.addListener(this._onFileDownloadErrorListeners, callback);
+    },
+    notifyFileDownloadError: function(url) {
+        this.notifyListeners(this._onFileDownloadErrorListeners, url);
     },
 
-    addProgressListener: function(callback) {
-        if (typeof callback !== 'function') {
-            throw "Invalid callback registration";
-        }
-        this._onDownloadProgressListeners.push(callback);
+    addDownloadProgressListener: function(callback) {
+        this.addListener(this._onDownloadProgressListeners, callback);
     },
-
-    addProgressListener: function(callback) {
-        if (typeof callback !== 'function') {
-            throw "Invalid callback registration";
-        }
-        this._onDownloadProgressListeners.push(callback);
+    notifyDownloadProgress: function() {
+        this.notifyListeners(this._onDownloadProgressListeners, this._currentDownloadBytes, this._totalDownloadBytes);
     },
 
     addFileLoadedListener: function(callback) {
-        if (typeof callback !== 'function') {
-            throw "Invalid callback registration";
-        }
-        this._onFileLoadedListeners.push(callback);
+        this.addListener(this._onFileLoadedListeners, callback);
+    },
+    notifyFileLoaded: function(file) {
+        this.notifyListeners(this._onFileLoadedListeners, file.name, file.data);
     },
 
     addArchiveLoadedListener: function(callback) {
-        if (typeof callback !== 'function') {
-            throw "Invalid callback registration";
-        }
-        this._onArchiveLoadedListeners.push(callback);
+        this.addListener(this._onArchiveLoadedListeners, callback);
+    },
+    notifyArchiveLoaded: function() {
+        this.notifyListeners(this._onArchiveLoadedListeners);
     },
 
     // load the archive_files.json with the list of files and their individual
@@ -174,19 +182,13 @@ var GameArchiveLoader = {
             descriptionUrl,
             function (xhr, loaded, total) { },
             function (xhr, e) { GameArchiveLoader.onReceiveDescription(xhr); },
-            function (xhr, e) { GameArchiveLoader.onFileDownloadError(descriptionUrl); },
+            function (xhr, e) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
             {
                 responseType: 'text',
                 retryCount: GameArchiveLoader._maxRetryCount,
                 retryInterval: GameArchiveLoader._retryTime * 1000
             }
         );
-    },
-
-    onFileDownloadError: function(url) {
-        for (i=0; i<this._onFileDownloadErrorListeners.length; ++i) {
-            this._onFileDownloadErrorListeners[i](url);
-        }
     },
 
     onReceiveDescription: function(xhr) {
@@ -219,17 +221,14 @@ var GameArchiveLoader = {
         }
     },
 
-    downloadPiece: function(file, index, attemptCount) {
-        if (!attemptCount) {
-            attemptCount = 0;
-        }
-
+    downloadPiece: function(file, index) {
         if (index < file.lastRequestedPiece) {
             throw "Request out of order";
         }
 
         var piece = file.pieces[index];
         file.lastRequestedPiece = index;
+        file.totalLoadedPieces = 0;
 
         var total = 0;
         var downloaded = 0;
@@ -241,20 +240,19 @@ var GameArchiveLoader = {
                 var delta = loaded - downloaded;
                 downloaded = loaded;
                 GameArchiveLoader._currentDownloadBytes += delta;
-                GameArchiveLoader.updateProgress();
+                GameArchiveLoader.notifyDownloadProgress();
             },
             function (xhr, e) {
                 piece.data = new Uint8Array(xhr.response);
                 piece.dataLength = piece.data.length;
                 total = piece.dataLength;
                 downloaded = piece.dataLength;
-                GameArchiveLoader.copyPieceData(file, piece);
                 GameArchiveLoader.onPieceLoaded(file, piece);
-                GameArchiveLoader.updateProgress();
+                GameArchiveLoader.notifyDownloadProgress();
                 piece.data = undefined;
             },
             function (xhr, e) {
-                GameArchiveLoader.onFileDownloadError(descriptionUrl);
+                GameArchiveLoader.notifyFileDownloadError(url);
             },
             {
                 responseType: 'arraybuffer',
@@ -264,13 +262,7 @@ var GameArchiveLoader = {
         );
     },
 
-    updateProgress: function() {
-        for(i = 0; i<this._onDownloadProgressListeners.length; ++i) {
-            this._onDownloadProgressListeners[i](this._currentDownloadBytes, this._totalDownloadBytes);
-        }
-    },
-
-    copyPieceData: function(file, piece) {
+    addPieceToFile: function(file, piece) {
         if (1 == file.pieces.length) {
             file.data = piece.data;
         } else {
@@ -286,28 +278,16 @@ var GameArchiveLoader = {
         }
     },
 
-    onPieceLoaded: function(file, item) {
-        if (typeof file.totalLoadedPieces === 'undefined') {
-            file.totalLoadedPieces = 0;
-        }
+    onPieceLoaded: function(file, piece) {
+        this.addPieceToFile(file, piece);
+
         ++file.totalLoadedPieces;
-        // is piece loaded?
+        // is all pieces of the file loaded?
         if (file.totalLoadedPieces == file.pieces.length) {
-            this.finalizeFile(file);
-            ++this._fileIndex;
-            for (var i=0; i<this._onFileLoadedListeners.length; ++i) {
-                this._onFileLoadedListeners[i](file.name, file.data);
-            }
-            if (this._fileIndex < this._files.length) {
-                this.downloadContent();
-            } else {
-                this.isCompleted = true;
-                for (i=0; i<this._onArchiveLoadedListeners.length; ++i) {
-                    this._onArchiveLoadedListeners[i]();
-                }
-            }
+            this.onFileLoaded(file);
         }
-        // continue loading the piece
+        // continue loading more pieces of the file
+        // if not all pieces are already in progress
         else {
             var next = file.lastRequestedPiece + 1;
             if (next < file.pieces.length) {
@@ -316,7 +296,8 @@ var GameArchiveLoader = {
         }
     },
 
-    finalizeFile: function(file) {
+    verifyFile: function(file) {
+        // verify that we downloaded as much as we were supposed to
         var actualSize = 0;
         for (var i=0;i<file.pieces.length; ++i) {
             actualSize += file.pieces[i].dataLength;
@@ -325,6 +306,7 @@ var GameArchiveLoader = {
             throw "Unexpected data size";
         }
 
+        // verify the pieces
         if (file.pieces.length > 1) {
             var output = file.data;
             var pieces = file.pieces;
@@ -347,6 +329,22 @@ var GameArchiveLoader = {
                 }
             }
         }
+    },
+
+    onFileLoaded: function(file) {
+        this.verifyFile(file);
+        this.notifyFileLoaded(file);
+        ++this._fileIndex;
+        if (this._fileIndex == this._files.length) {
+            this.onArchiveLoaded();
+        } else {
+            this.downloadContent();
+        }
+    },
+
+    onArchiveLoaded: function() {
+        this.isCompleted = true;
+        this.notifyArchiveLoaded();
     }
 };
 
@@ -508,7 +506,7 @@ var Module = {
         var prefixes = ['webkit','moz','ms','o'];
         for (var i = 0; i < prefixes.length; i++) {
             if ((prefixes[i] + 'Hidden') in document)
-                return prefixes[i] + 'Hidden';
+            return prefixes[i] + 'Hidden';
         }
         return null;
     },
@@ -608,7 +606,7 @@ var Module = {
             // Load and assemble archive
             GameArchiveLoader.addFileLoadedListener(Module.onArchiveFileLoaded);
             GameArchiveLoader.addArchiveLoadedListener(Module.onArchiveLoaded);
-            GameArchiveLoader.addProgressListener(Module.onArchiveLoadProgress);
+            GameArchiveLoader.addDownloadProgressListener(Module.onArchiveLoadProgress);
             GameArchiveLoader._archiveLocationFilter = params["archive_location_filter"];
             GameArchiveLoader.loadArchiveDescription(GameArchiveLoader._archiveLocationFilter('/archive_files.json'));
         } else {
@@ -781,8 +779,10 @@ var Module = {
 };
 
 window.onerror = function(err, url, line, column, errObj) {
-    var errorObject = Module.prepareErrorObject(err, url, line, column, errObj);
-    Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
+    if (typeof Module.ccall !== 'undefined') {
+        var errorObject = Module.prepareErrorObject(err, url, line, column, errObj);
+        Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
+    }
     Module.setStatus('Exception thrown, see JavaScript console');
     Module.setStatus = function(text) {
         if (text) Module.printErr('[post-exception status] ' + text);
