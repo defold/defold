@@ -508,7 +508,7 @@ var Module = {
         var prefixes = ['webkit','moz','ms','o'];
         for (var i = 0; i < prefixes.length; i++) {
             if ((prefixes[i] + 'Hidden') in document)
-            return prefixes[i] + 'Hidden';
+                return prefixes[i] + 'Hidden';
         }
         return null;
     },
