@@ -43,7 +43,7 @@ namespace dmResourceArchive
         }
 
         uint32_t m_Version;
-        uint32_t m_Pad;
+        uint32_t :32;
         uint64_t m_Userdata;
         uint32_t m_EntryDataCount;
         uint32_t m_EntryDataOffset;
@@ -60,13 +60,10 @@ namespace dmResourceArchive
         }
 
         ArchiveIndex* m_ArchiveIndex; // this could be mem-mapped or loaded into memory from file
-        bool m_IsMemMapped;
-        bool m_ResourcesMemMapped;
-        bool m_LiveUpdateResourcesMemMapped;
 
         /// Used if the archive is loaded from file (bundled archive)
-        uint8_t* m_Hashes;
-        EntryData* m_Entries;
+        uint8_t* m_Hashes; // Sorted list of filenames (i.e. hashes)
+        EntryData* m_Entries; // Indices of this list matches indices of m_Hashes
         uint8_t* m_ResourceData; // mem-mapped game.arcd
         FILE* m_FileResourceData; // game.arcd file handle
 
@@ -75,6 +72,12 @@ namespace dmResourceArchive
         uint8_t* m_LiveUpdateResourceData; // mem-mapped liveupdate.arcd
         uint32_t m_LiveUpdateResourceSize;
         FILE* m_LiveUpdateFileResourceData; // liveupdate.arcd file handle
+
+        uint8_t m_IsMemMapped:1;
+        uint8_t m_ResourcesMemMapped:1;
+        uint8_t m_LiveUpdateResourcesMemMapped:1;
+        uint8_t m_IsZipArchive:1;
+        uint8_t :4;
     };
 
 	struct LiveUpdateEntries {
@@ -95,19 +98,26 @@ namespace dmResourceArchive
         uint32_t m_Count;
     };
 
-	Result ShiftAndInsert(ArchiveIndexContainer* archive_container, ArchiveIndex* archive, const uint8_t* hash_digest, uint32_t hash_digest_len, int insertion_index, const dmResourceArchive::LiveUpdateResource* resource, const EntryData* entry);
+	Result ShiftAndInsert(HArchiveIndexContainer archive_container, ArchiveIndex* archive, const uint8_t* hash_digest, uint32_t hash_digest_len, int insertion_index, const dmResourceArchive::LiveUpdateResource* resource, const EntryData* entry);
 
-	Result WriteResourceToArchive(ArchiveIndexContainer*& archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset);
+	Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset);
 
-	void NewArchiveIndexFromCopy(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc);
+	void NewArchiveIndexFromCopy(ArchiveIndex*& dst, HArchiveIndexContainer src, uint32_t extra_entries_alloc);
 
     Result GetInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int* index);
 
     Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* index);
 
-    void CacheLiveUpdateEntries(const ArchiveIndexContainer* archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries);
+    void CacheLiveUpdateEntries(const HArchiveIndexContainer archive_container, const HArchiveIndexContainer bundled_archive_container, LiveUpdateEntries* lu_hashes_entries);
 
-    uint32_t GetEntryDataOffset(ArchiveIndexContainer* archive_container);
+    /**
+     * Get total entries, i.e. files/resources in archive
+     * @param archive archive index handle
+     * @return entry count
+     */
+    uint32_t GetEntryCount(HArchiveIndexContainer archive);
+
+    uint32_t GetEntryDataOffset(HArchiveIndexContainer archive_container);
 
     uint32_t GetEntryDataOffset(ArchiveIndex* archive);
 

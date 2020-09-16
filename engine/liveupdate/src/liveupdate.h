@@ -47,11 +47,6 @@ namespace dmLiveUpdate
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer);
 
     /*
-     * Hashes the actual resource data with the same hashing algorithm as spec. by manifest, and compares to the expected resource hash
-     */
-    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource);
-
-    /*
      * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
      */
     Result VerifyManifest(dmResource::Manifest* manifest);
