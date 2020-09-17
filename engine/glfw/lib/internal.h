@@ -289,5 +289,7 @@ void _glfwPlatformUnacquireAuxContext(void* context);
 void _glfwPlatformUnacquireAuxContextVulkan(void* context);
 void _glfwPlatformUnacquireAuxContextOpenGL(void* context);
 void _glfwPlatformSetViewType(int view_type);
+int _glfwInitJoysticks( void );
+void _glfwTerminateJoysticks( void );
 
 #endif // _internal_h_
