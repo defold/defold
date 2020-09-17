@@ -100,7 +100,7 @@ PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
 PACKAGES_LINUX_CLANG="clang-9.0.0"
 PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
-PACKAGES_CCTOOLS_PORT="cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux"
+PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.39.16"
