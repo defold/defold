@@ -350,6 +350,7 @@ def create_bundle(options):
         # with the editor
         # jarsigner - used by the AndroidBundler in bob
         for java_bin_file in [ "jarsigner" ]:
+            java_bin_file = java_bin_file + get_exe_suffix(platform)
             src = os.path.join(platform_jdk, "bin", java_bin_file)
             dst = os.path.join(packages_jdk, "bin", java_bin_file)
             shutil.copy(src, dst)
