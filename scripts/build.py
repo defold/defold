@@ -622,7 +622,7 @@ class Configuration(object):
             if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
                 download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
 
-        build_private.install_sdk(self, target_platform)
+        #build_private.install_sdk(self, target_platform)
 
     def get_ems_dir(self):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
@@ -860,7 +860,7 @@ class Configuration(object):
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
         if self.target_platform in ('x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin14-strip')
+            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))
         return True
