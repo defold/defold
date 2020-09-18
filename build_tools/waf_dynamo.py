@@ -354,7 +354,7 @@ def default_flags(self):
         if 'linux' in self.env['BUILD_PLATFORM']:
             target_triplet='arm-apple-darwin19'
             extra_ccflags += ['-target', target_triplet, '-fclang-abi-compat=6']
-            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/11.0.3/lib/darwin'),
+            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/12.0.0/lib/darwin'),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
             extra_linkflags += ['-fobjc-link-runtime']
