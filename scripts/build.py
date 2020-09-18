@@ -91,6 +91,7 @@ PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.0.xctoolchain"
+PACKAGES_TAPI_VERSION="tapi1.6"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
@@ -1893,7 +1894,7 @@ class Configuration(object):
         ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                             '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
         if self.host == 'x86_64-linux':
-            ld_library_paths.append('%s/ext/SDKs/linux/%s/tapi1.4/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG))
+            ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
