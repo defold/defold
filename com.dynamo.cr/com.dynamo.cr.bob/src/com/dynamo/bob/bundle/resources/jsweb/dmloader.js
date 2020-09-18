@@ -24,7 +24,7 @@ var FileLoader = {
                 total /= 0.4; // assuming 40% compression rate
                 onprogress(xhr, e.loaded, total);
             } else {
-                onprogress(xhr, 1, 1);
+                onprogress(xhr, e.loaded, e.loaded);
             }
         };
         xhr.onload = function(e) {
