@@ -73,7 +73,7 @@ platforms:
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
         MACOS_VERSION:          "{{env.MACOS_10_15_VERSION}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
     context:
         frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate", "cares"]
@@ -115,7 +115,7 @@ platforms:
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
         IOS_VERSION:            "{{env.IOS_14_VERSION}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "Security"]
         weakFrameworks: ["Foundation"]
@@ -152,7 +152,7 @@ platforms:
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
         IOS_VERSION:            "{{env.IOS_14_VERSION}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "Security"]
         weakFrameworks: ["Foundation"]
@@ -189,7 +189,7 @@ platforms:
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
         IOS_VERSION:            "{{env.IOS_14_VERSION}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "Security"]
         weakFrameworks: ["Foundation"]
