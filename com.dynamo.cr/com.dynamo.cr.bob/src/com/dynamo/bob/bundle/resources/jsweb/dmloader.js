@@ -5,7 +5,7 @@
 var FileLoader = {
     progressHandler: function(fromProgress, toProgress) {
         return function(loaded, total) {
-            Progress.updateProgress(fromProgress, toProgress, loaded, total);
+            Progress.calculateProgress(fromProgress, toProgress, loaded, total);
         };
     },
     errorHandler: function(context) {
@@ -253,7 +253,7 @@ var GameArchiveLoader = {
     },
 
     notifyDownloadProgress: function() {
-        Progress.updateProgress(50, 100, this._currentDownloadBytes, this._totalDownloadBytes);
+        Progress.calculateProgress(50, 100, this._currentDownloadBytes, this._totalDownloadBytes);
     },
 
     downloadPiece: function(file, index) {
@@ -411,15 +411,15 @@ var Progress = {
         Progress.progress = document.getElementById(Progress.progress_id);
     },
 
-    set: function(percentage) {
+    updateProgress: function(percentage) {
         if (Progress.bar) {
             Progress.bar.style.width = percentage + "%";
         }
         Progress.notifyListeners(percentage);
     },
 
-    updateProgress: function (from, to, current, total) {
-        this.set(from + (current / total) * (to - from));
+    calculateProgress: function (from, to, current, total) {
+        this.updateProgress(from + (current / total) * (to - from));
     },
 
     removeProgress: function () {
@@ -664,7 +664,7 @@ var Module = {
             GameArchiveLoader.setFileLocationFilter(params["archive_location_filter"]);
             GameArchiveLoader.loadArchiveDescription('/archive_files.json');
         } else {
-            Progress.set(100, "Unable to start game, WebGL not supported");
+            Progress.updateProgress(100, "Unable to start game, WebGL not supported");
             Module.setStatus = function(text) {
                 if (text) Module.printErr('[missing WebGL] ' + text);
             };
@@ -682,7 +682,7 @@ var Module = {
     onArchiveLoaded: function() {
         GameArchiveLoader.cleanUp();
         Module._archiveLoaded = true;
-        Progress.set(100, "Starting...");
+        Progress.updateProgress(100, "Starting...");
 
         if (Module._waitingForArchive) {
             Module._preloadAndCallMain();
