@@ -3,78 +3,122 @@
 // content is gzipped (gzipped content doesn't report a computable content length
 // on Google Chrome)
 var FileLoader = {
-    progressHandler: function(fromProgress, toProgress) {
-        return function(loaded, total) {
-            Progress.calculateProgress(fromProgress, toProgress, loaded, total);
-        };
+    options: {
+        retryCount: 4,
+        retryInterval: 1000,
+        head: true,
     },
-    errorHandler: function(context) {
-        return function(error) {
-            throw context + ": " + error;
-        };
-    },
-    load: function(url, onprogress, onerror, onload, options, currentAttempt) {
-        if (typeof options === 'undefined') options = {};
-        if (typeof options.responseType === 'undefined') options.responseType = "";
-        if (typeof options.retryCount === 'undefined') options.retryCount = 1;
-        if (typeof options.retryInterval === 'undefined') options.retryInterval = 1000;
+    // do xhr request with retries
+    request: function(url, method, responseType, currentAttempt) {
+        if (typeof method === 'undefined') throw "No method specified";
+        if (typeof method === 'responseType') throw "No responseType specified";
         if (typeof currentAttempt === 'undefined') currentAttempt = 0;
+        var obj = {
+            send: function() {
+                var onprogress = this.onprogress;
+                var onload = this.onload;
+                var onerror = this.onerror;
 
-        var unknown_total = 0;
-        var unknown_multiplier = 10;
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = options.responseType;
-        xhr.onprogress = function(e) {
-            if (e.lengthComputable) {
-                onprogress(e.loaded, e.total);
-                return;
-            }
-            var total = xhr.getResponseHeader('content-length')
-            var encoding = xhr.getResponseHeader('content-encoding')
-            if (total && encoding && (encoding.indexOf('gzip') > -1)) {
-                total /= 0.4; // assuming 40% compression rate
-                onprogress(e.loaded, total);
-            } else {
-                if (e.loaded > unknown_total) {
-                    unknown_total = e.loaded * unknown_multiplier;
-                    unknown_multiplier = 1 + unknown_multiplier * 0.2;
-                }
-                onprogress(e.loaded, unknown_total);
+                var xhr = new XMLHttpRequest();
+                xhr.open(method, url, true);
+                xhr.responseType = responseType;
+                xhr.onprogress = function(e) {
+                    if (onprogress) onprogress(xhr, e);
+                };
+                xhr.onerror = function(e) {
+                    if (currentAttempt == FileLoader.retryCount) {
+                        if (onerror) onerror(xhr, e);
+                        return;
+                    }
+                    currentAttempt = currentAttempt + 1;
+                    setTimeout(obj.send, FileLoader.retryInterval);
+                };
+                xhr.onload = function(e) {
+                    if (onload) onload(xhr, e);
+                };
+                xhr.send(null);
             }
         };
-        xhr.onload = function(e) {
+        return obj;
+    },
+    // Do HTTP HEAD request to get size of resource
+    // callback will receive size or undefined in case of an error
+    size: function(url, callback) {
+        var request = FileLoader.request(url, "HEAD", "text");
+        request.onerror = function(xhr, e) {
+            callback(undefined);
+        };
+        request.onload = function(xhr, e) {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
-                    onload(xhr.response);
+                    var total = xhr.getResponseHeader('content-length');
+                    callback(total);
                 } else {
-                    onerror("Error loading '" + url + "' (" + e + ")");
+                    callback(undefined);
                 }
             }
         };
-        xhr.onerror = function(e) {
-            if (currentAttempt < options.retryCount) {
-                setTimeout(function() {
-                    FileLoader.load(url, onprogress, onloaded, onerror, options, currentAttempt + 1);
-                }, options.retryInterval);
-            } else {
+        request.send();
+    },
+    // Do HTTP GET request
+    // onprogress(loaded, total)
+    // onerror(error)
+    // onload(response)
+    load: function(url, responseType, onprogress, onerror, onload) {
+        var doRequest = function(size) {
+            var request = FileLoader.request(url, "GET", responseType);
+            request.onprogress = function(xhr, e) {
+                if (e.lengthComputable) {
+                    onprogress(e.loaded, e.total);
+                    return;
+                }
+                if (size && size > 0) {
+                    onprogress(e.loaded, size);
+                    return;
+                }
+                var total = xhr.getResponseHeader('content-length');
+                var encoding = xhr.getResponseHeader('content-encoding');
+                if (total && encoding && (encoding.indexOf('gzip') > -1)) {
+                    total /= 0.4; // assuming 40% compression rate
+                    onprogress(e.loaded, total);
+                } else {
+                    onprogress(e.loaded, e.loaded);
+                }
+            };
+            request.onerror = function(xhr, e) {
                 onerror("Error loading '" + url + "' (" + e + ")");
-            }
+            };
+            request.onload = function(xhr, e) {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        onload(xhr.response);
+                    } else {
+                        onerror("Error loading '" + url + "' (" + e + ")");
+                    }
+                }
+            };
+            request.send();
         };
-        xhr.send(null);
+
+        // should we get file size from a HEAD request?
+        if (FileLoader.options.head) {
+            FileLoader.size(url, doRequest);
+        }
+        else {
+            doRequest();
+        }
     }
 };
 
 
 var EngineLoader = {
+    // load .wasm and set Module.instantiateWasm to use the loaded .wasm file
     // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
     loadWasmAsync: function(src, fromProgress, toProgress, callback) {
-        FileLoader.load(
-            src,
-            FileLoader.progressHandler(fromProgress, toProgress),
-            FileLoader.errorHandler("WASM"),
+        FileLoader.load(src, "arraybuffer",
+            function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
+            function(error) { throw error; },
             function (wasm) {
-                console.log("wasm " + wasm);
                 Module.instantiateWasm = function(imports, successCallback) {
                     var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                         successCallback(output.instance);
@@ -85,26 +129,18 @@ var EngineLoader = {
                     return {}; // Compiling asynchronously, no exports.
                 }
                 callback();
-            },
-            {
-                retryCount: 4,
-                retryInterval: 1000,
-                responseType: 'arraybuffer'
             });
     },
+
+    // load and start engine script (asm.js or wasm.js)
     loadScriptAsync: function(src, fromProgress, toProgress) {
-        FileLoader.load(
-            src,
-            FileLoader.progressHandler(fromProgress, toProgress),
-            FileLoader.errorHandler("ENGINE.JS"),
+        FileLoader.load(src, "text",
+            function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
+            function(error) { throw error; },
             function (response) {
                 var tag = document.createElement("script");
                 tag.text = response;
                 document.head.appendChild(tag);
-            },
-            {
-                retryCount: 4,
-                retryInterval: 1000,
             });
     },
 
@@ -152,9 +188,6 @@ var GameArchiveLoader = {
 
     _currentDownloadBytes: 0,
     _totalDownloadBytes: 0,
-
-    _retryTime: 0,             // pause before retry file loading after error
-    _maxRetryCount: 0,        // how many attempts we do when trying to download a file.
 
     _archiveLocationFilter: function(path) { return "split" + path; },
 
@@ -206,30 +239,19 @@ var GameArchiveLoader = {
         this._archiveLocationFilter = filter;
     },
 
-    configureRetries: function(count, time) {
-        this._retryTime = time;
-        this._maxRetryCount = count;
-    },
-
     // load the archive_files.json with the list of files and their individual
     // pieces
     // descriptionUrl: location of text file describing files to be preloaded
     loadArchiveDescription: function(descriptionUrl) {
         FileLoader.load(
             this._archiveLocationFilter(descriptionUrl),
+            "json",
             function (loaded, total) { },
             function (error) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
-            function (response) { GameArchiveLoader.onReceiveDescription(response); },
-            {
-                responseType: 'text',
-                retryCount: GameArchiveLoader._maxRetryCount,
-                retryInterval: GameArchiveLoader._retryTime * 1000
-            }
-        );
+            function (json) { GameArchiveLoader.onReceiveDescription(json); });
     },
 
-    onReceiveDescription: function(description) {
-        var json = JSON.parse(description);
+    onReceiveDescription: function(json) {
         this._files = json.content;
         this._totalDownloadBytes = 0;
         this._currentDownloadBytes = 0;
@@ -276,7 +298,7 @@ var GameArchiveLoader = {
         var url = this._archiveLocationFilter('/' + piece.name);
 
         FileLoader.load(
-            url,
+            url, "arraybuffer",
             function (loaded, total) {
                 var delta = loaded - downloaded;
                 downloaded = loaded;
@@ -294,13 +316,7 @@ var GameArchiveLoader = {
                 GameArchiveLoader.onPieceLoaded(file, piece);
                 GameArchiveLoader.notifyDownloadProgress();
                 piece.data = undefined;
-            },
-            {
-                responseType: 'arraybuffer',
-                retryCount: GameArchiveLoader._maxRetryCount,
-                retryInterval: GameArchiveLoader._retryTime * 1000
-            }
-        );
+            });
     },
 
     addPieceToFile: function(file, piece) {
@@ -660,7 +676,8 @@ var Module = {
                 };
             }
 
-            GameArchiveLoader.configureRetries(params["retry_count"], params["retry_time"]);
+            FileLoader.options.retryCount = params["retry_count"];
+            FileLoader.options.retryInterval = params["retry_time"] * 1000;
             if (typeof params["can_not_download_file_callback"] === "function") {
                 GameArchiveLoader.addFileDownloadErrorListener(params["can_not_download_file_callback"]);
             }
