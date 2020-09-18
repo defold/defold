@@ -346,15 +346,6 @@ def create_bundle(options):
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s' % packages_jdk])
 
-        # copy additional files from the JDK to the slimmed down version we bundle
-        # with the editor
-        # jarsigner - used by the AndroidBundler in bob
-        for java_bin_file in [ "jarsigner" ]:
-            java_bin_file = java_bin_file + get_exe_suffix(platform)
-            src = os.path.join(platform_jdk, "bin", java_bin_file)
-            dst = os.path.join(packages_jdk, "bin", java_bin_file)
-            shutil.copy(src, dst)
-
         # create final zip file
         zipfile = 'target/editor/Defold-%s.zip' % platform
         if os.path.exists(zipfile):
