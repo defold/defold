@@ -174,9 +174,9 @@ var GameArchiveLoader = {
         if (typeof callback !== 'function') throw "Invalid callback registration";
         list.push(callback);
     },
-    notifyListeners: function(list, ...args) {
+    notifyListeners: function(list, data) {
         for (i=0; i<list.length; ++i) {
-            list[i](...args);
+            list[i](data);
         }
     },
 
@@ -191,7 +191,7 @@ var GameArchiveLoader = {
         this.addListener(this._onFileLoadedListeners, callback);
     },
     notifyFileLoaded: function(file) {
-        this.notifyListeners(this._onFileLoadedListeners, file.name, file.data);
+        this.notifyListeners(this._onFileLoadedListeners, { name: file.name, data: file.data });
     },
 
     addArchiveLoadedListener: function(callback) {
@@ -681,8 +681,8 @@ var Module = {
         }
     },
 
-    onArchiveFileLoaded: function(name, data) {
-        Module._filesToPreload.push({path: name, data: data});
+    onArchiveFileLoaded: function(file) {
+        Module._filesToPreload.push({path: file.name, data: file.data});
     },
 
     onArchiveLoaded: function() {
