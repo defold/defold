@@ -338,21 +338,21 @@ def default_flags(self):
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
                 if 'linux' in self.env['BUILD_PLATFORM']:
-                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin14'])
+                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
             if 'linux' in self.env['BUILD_PLATFORM']:
-                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin14'])
+                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
 
         extra_ccflags = []
         extra_linkflags = []
         if 'linux' in self.env['BUILD_PLATFORM']:
-            target_triplet='arm-apple-darwin14'
+            target_triplet='arm-apple-darwin19'
             extra_ccflags += ['-target', target_triplet, '-fclang-abi-compat=6']
             extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/11.0.3/lib/darwin'),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a')]
