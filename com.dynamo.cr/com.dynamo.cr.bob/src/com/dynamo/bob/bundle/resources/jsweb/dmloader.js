@@ -3,7 +3,17 @@
 // content is gzipped (gzipped content doesn't report a computable content length
 // on Google Chrome)
 var FileLoader = {
-    load: function(url, onprogress, onload, onerror, options, currentAttempt) {
+    progressHandler: function(fromProgress, toProgress) {
+        return function(loaded, total) {
+            Progress.updateProgress(fromProgress, toProgress, loaded, total);
+        };
+    },
+    errorHandler: function(context) {
+        return function(error) {
+            throw context + ": " + error;
+        };
+    },
+    load: function(url, onprogress, onerror, onload, options, currentAttempt) {
         if (typeof options === 'undefined') options = {};
         if (typeof options.responseType === 'undefined') options.responseType = "";
         if (typeof options.retryCount === 'undefined') options.retryCount = 1;
@@ -15,35 +25,34 @@ var FileLoader = {
         xhr.responseType = options.responseType;
         xhr.onprogress = function(e) {
             if (e.lengthComputable) {
-                onprogress(xhr, e.loaded, e.total);
+                onprogress(e.loaded, e.total);
                 return;
             }
             var total = xhr.getResponseHeader('content-length')
             var encoding = xhr.getResponseHeader('content-encoding')
             if (total && encoding && (encoding.indexOf('gzip') > -1)) {
                 total /= 0.4; // assuming 40% compression rate
-                onprogress(xhr, e.loaded, total);
+                onprogress(e.loaded, total);
             } else {
-                onprogress(xhr, e.loaded, e.loaded);
+                onprogress(e.loaded, e.loaded);
             }
         };
         xhr.onload = function(e) {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
-                    onload(xhr, e);
+                    onload(xhr.response);
                 } else {
-                    onerror(xhr, e);
+                    onerror("Error loading '" + url + "' (" + e + ")");
                 }
             }
         };
         xhr.onerror = function(e) {
-            console.log("onerror " + url);
             if (currentAttempt < options.retryCount) {
                 setTimeout(function() {
                     FileLoader.load(url, onprogress, onloaded, onerror, options, currentAttempt + 1);
                 }, options.retryInterval);
             } else {
-                onerror(xhr, e);
+                onerror("Error loading '" + url + "' (" + e + ")");
             }
         };
         xhr.send(null);
@@ -52,35 +61,56 @@ var FileLoader = {
 
 
 var EngineLoader = {
-    loadScriptAsync: function(src, fromProgress, toProgress) {
+    // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
+    loadWasmAsync: function(src, fromProgress, toProgress, callback) {
         FileLoader.load(
             src,
-            function (xhr, loaded, total) {
-                var progress = fromProgress + (loaded / total) * (toProgress - fromProgress);
-                Progress.updateProgress(progress);
-            },
-            function (xhr, e) {
-                var tag = document.createElement("script");
-                tag.text = xhr.response;
-                document.head.appendChild(tag);
-            },
-            function (xhr, e) {
-                throw "Async engine load error " + src;
+            FileLoader.progressHandler(fromProgress, toProgress),
+            FileLoader.errorHandler("WASM"),
+            function (wasm) {
+                console.log("wasm " + wasm);
+                Module.instantiateWasm = function(imports, successCallback) {
+                    var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
+                        successCallback(output.instance);
+                    }).catch(function(e) {
+                        console.log('wasm instantiation failed! ' + e);
+                        throw e;
+                    });
+                    return {}; // Compiling asynchronously, no exports.
+                }
+                callback();
             },
             {
                 retryCount: 4,
                 retryInterval: 1000,
-            }
-        );
+                responseType: 'arraybuffer'
+            });
+    },
+    loadScriptAsync: function(src, fromProgress, toProgress) {
+        FileLoader.load(
+            src,
+            FileLoader.progressHandler(fromProgress, toProgress),
+            FileLoader.errorHandler("ENGINE.JS"),
+            function (response) {
+                var tag = document.createElement("script");
+                tag.text = response;
+                document.head.appendChild(tag);
+            },
+            {
+                retryCount: 4,
+                retryInterval: 1000,
+            });
     },
 
     // load engine (asm.js or wasm.js + wasm)
     // engine load progress goes from 1-50% for ams.js
-    // engine load progress gors from 1-10% for wasm.js and 10-50% for .wasm
+    // engine load progress goes from 0-40% for .wasm and 40-50% for wasm.js
     load: function(appCanvasId, exeName) {
         Progress.addProgress(Module.setupCanvas(appCanvasId));
         if (Module['isWASMSupported']) {
-            EngineLoader.loadScriptAsync(exeName + '_wasm.js', 0, 10);
+            EngineLoader.loadWasmAsync(exeName + ".wasm", 0, 40, function(wasm) {
+                EngineLoader.loadScriptAsync(exeName + '_wasm.js', 40, 50);
+            });
         } else {
             EngineLoader.loadScriptAsync(exeName + '_asmjs.js', 0, 50);
         }
@@ -112,7 +142,6 @@ var GameArchiveLoader = {
 
     _onFileLoadedListeners: [],          // signature: name, data.
     _onArchiveLoadedListeners:[],        // signature: void
-    _onDownloadProgressListeners: [],    // signature: downloaded, total
     _onFileDownloadErrorListeners: [],   // signature: name
 
     _currentDownloadBytes: 0,
@@ -129,7 +158,6 @@ var GameArchiveLoader = {
         this.isCompleted = false;
         this._onGameArchiveLoaderCompletedListeners = [];
         this._onAllTargetsBuiltListeners = [];
-        this._onDownloadProgressListeners = [];
         this._onFileDownloadErrorListeners = [];
 
         this._currentDownloadBytes = 0;
@@ -153,13 +181,6 @@ var GameArchiveLoader = {
         this.notifyListeners(this._onFileDownloadErrorListeners, url);
     },
 
-    addDownloadProgressListener: function(callback) {
-        this.addListener(this._onDownloadProgressListeners, callback);
-    },
-    notifyDownloadProgress: function() {
-        this.notifyListeners(this._onDownloadProgressListeners, this._currentDownloadBytes, this._totalDownloadBytes);
-    },
-
     addFileLoadedListener: function(callback) {
         this.addListener(this._onFileLoadedListeners, callback);
     },
@@ -174,15 +195,25 @@ var GameArchiveLoader = {
         this.notifyListeners(this._onArchiveLoadedListeners);
     },
 
+    setFileLocationFilter: function(filter) {
+        if (typeof filter !== 'function') throw "Invalid filter";
+        this._archiveLocationFilter = filter;
+    },
+
+    configureRetries: function(count, time) {
+        this._retryTime = time;
+        this._maxRetryCount = count;
+    },
+
     // load the archive_files.json with the list of files and their individual
     // pieces
     // descriptionUrl: location of text file describing files to be preloaded
     loadArchiveDescription: function(descriptionUrl) {
         FileLoader.load(
-            descriptionUrl,
-            function (xhr, loaded, total) { },
-            function (xhr, e) { GameArchiveLoader.onReceiveDescription(xhr); },
-            function (xhr, e) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
+            this._archiveLocationFilter(descriptionUrl),
+            function (loaded, total) { },
+            function (error) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
+            function (response) { GameArchiveLoader.onReceiveDescription(response); },
             {
                 responseType: 'text',
                 retryCount: GameArchiveLoader._maxRetryCount,
@@ -191,8 +222,8 @@ var GameArchiveLoader = {
         );
     },
 
-    onReceiveDescription: function(xhr) {
-        var json = JSON.parse(xhr.responseText);
+    onReceiveDescription: function(description) {
+        var json = JSON.parse(description);
         this._files = json.content;
         this._totalDownloadBytes = 0;
         this._currentDownloadBytes = 0;
@@ -221,6 +252,10 @@ var GameArchiveLoader = {
         }
     },
 
+    notifyDownloadProgress: function() {
+        Progress.updateProgress(50, 100, this._currentDownloadBytes, this._totalDownloadBytes);
+    },
+
     downloadPiece: function(file, index) {
         if (index < file.lastRequestedPiece) {
             throw "Request out of order";
@@ -236,23 +271,23 @@ var GameArchiveLoader = {
 
         FileLoader.load(
             url,
-            function (xhr, loaded, total) {
+            function (loaded, total) {
                 var delta = loaded - downloaded;
                 downloaded = loaded;
                 GameArchiveLoader._currentDownloadBytes += delta;
                 GameArchiveLoader.notifyDownloadProgress();
             },
-            function (xhr, e) {
-                piece.data = new Uint8Array(xhr.response);
+            function (error) {
+                GameArchiveLoader.notifyFileDownloadError(error);
+            },
+            function (response) {
+                piece.data = new Uint8Array(response);
                 piece.dataLength = piece.data.length;
                 total = piece.dataLength;
                 downloaded = piece.dataLength;
                 GameArchiveLoader.onPieceLoaded(file, piece);
                 GameArchiveLoader.notifyDownloadProgress();
                 piece.data = undefined;
-            },
-            function (xhr, e) {
-                GameArchiveLoader.notifyFileDownloadError(url);
             },
             {
                 responseType: 'arraybuffer',
@@ -356,6 +391,19 @@ var Progress = {
     progress_id: "defold-progress",
     bar_id: "defold-progress-bar",
 
+    listeners: [],
+
+    addListener: function(callback) {
+        if (typeof callback !== 'function') throw "Invalid callback registration";
+        this.listeners.push(callback);
+    },
+
+    notifyListeners: function(percentage) {
+        for (i=0; i<this.listeners.length; ++i) {
+            this.listeners[i](percentage);
+        }
+    },
+
     addProgress : function (canvas) {
         /* Insert default progress bar below canvas */
         canvas.insertAdjacentHTML('afterend', '<div id="' + Progress.progress_id + '" class="canvas-app-progress"><div id="' + Progress.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;"></div></div>');
@@ -363,8 +411,15 @@ var Progress = {
         Progress.progress = document.getElementById(Progress.progress_id);
     },
 
-    updateProgress: function (percentage, text) {
-        Progress.bar.style.width = percentage + "%";
+    set: function(percentage) {
+        if (Progress.bar) {
+            Progress.bar.style.width = percentage + "%";
+        }
+        Progress.notifyListeners(percentage);
+    },
+
+    updateProgress: function (from, to, current, total) {
+        this.set(from + (current / total) * (to - from));
     },
 
     removeProgress: function () {
@@ -527,6 +582,7 @@ var Module = {
         return Module.canvas;
     },
 
+
     /**
     * Module.runApp - Starts the application given a canvas element id
     *
@@ -598,19 +654,17 @@ var Module = {
                 };
             }
 
-            GameArchiveLoader._retryTime = params["retry_time"];
-            GameArchiveLoader._maxRetryCount = params["retry_count"];
+            GameArchiveLoader.configureRetries(params["retry_count"], params["retry_time"]);
             if (typeof params["can_not_download_file_callback"] === "function") {
                 GameArchiveLoader.addFileDownloadErrorListener(params["can_not_download_file_callback"]);
             }
             // Load and assemble archive
             GameArchiveLoader.addFileLoadedListener(Module.onArchiveFileLoaded);
             GameArchiveLoader.addArchiveLoadedListener(Module.onArchiveLoaded);
-            GameArchiveLoader.addDownloadProgressListener(Module.onArchiveLoadProgress);
-            GameArchiveLoader._archiveLocationFilter = params["archive_location_filter"];
-            GameArchiveLoader.loadArchiveDescription(GameArchiveLoader._archiveLocationFilter('/archive_files.json'));
+            GameArchiveLoader.setFileLocationFilter(params["archive_location_filter"]);
+            GameArchiveLoader.loadArchiveDescription('/archive_files.json');
         } else {
-            Progress.updateProgress(100, "Unable to start game, WebGL not supported");
+            Progress.set(100, "Unable to start game, WebGL not supported");
             Module.setStatus = function(text) {
                 if (text) Module.printErr('[missing WebGL] ' + text);
             };
@@ -621,12 +675,6 @@ var Module = {
         }
     },
 
-    // game archive progress goes from 50-100%
-    // the first 50% is for loading the engine (see EngineLoader above)
-    onArchiveLoadProgress: function(downloaded, total) {
-        Progress.updateProgress(50 + (downloaded / total) * 50);
-    },
-
     onArchiveFileLoaded: function(name, data) {
         Module._filesToPreload.push({path: name, data: data});
     },
@@ -634,7 +682,7 @@ var Module = {
     onArchiveLoaded: function() {
         GameArchiveLoader.cleanUp();
         Module._archiveLoaded = true;
-        Progress.updateProgress(100, "Starting...");
+        Progress.set(100, "Starting...");
 
         if (Module._waitingForArchive) {
             Module._preloadAndCallMain();
