@@ -20,6 +20,8 @@ var FileLoader = {
         if (typeof options.retryInterval === 'undefined') options.retryInterval = 1000;
         if (typeof currentAttempt === 'undefined') currentAttempt = 0;
 
+        var unknown_total = 0;
+        var unknown_multiplier = 10;
         var xhr = new XMLHttpRequest();
         xhr.open('GET', url, true);
         xhr.responseType = options.responseType;
@@ -34,7 +36,11 @@ var FileLoader = {
                 total /= 0.4; // assuming 40% compression rate
                 onprogress(e.loaded, total);
             } else {
-                onprogress(e.loaded, e.loaded);
+                if (e.loaded > unknown_total) {
+                    unknown_total = e.loaded * unknown_multiplier;
+                    unknown_multiplier = 1 + unknown_multiplier * 0.2;
+                }
+                onprogress(e.loaded, unknown_total);
             }
         };
         xhr.onload = function(e) {
