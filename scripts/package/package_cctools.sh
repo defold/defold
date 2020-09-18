@@ -4,14 +4,16 @@ set -e
 
 PWD=`pwd`
 
+VERSION_TAPI=1.6
+VERSION_TAPI_SHA1=a66284251b46d591ee4a0cb4cf561b92a0c138d8
+VERSION_CCTOOLS_SHA1=6c438753d2252274678d3e0839270045698c159b
+
 TARGET_PATH=${PWD}/local_sdks
 TMP=${TARGET_PATH}/_tmpdir
-TAPITMP=${TMP}/tapi1.4
+TAPITMP=${TMP}/tapi${VERSION_TAPI}
 
-VERSION_TAPI=3efb201881e7a76a21e0554906cf306432539cef
-VERSION_CCTOOLS=3f979bbcd7ee29d79fb93f829edf3d1d16441147
-
-TARGET_CCTOOLS=$TARGET_PATH/cctools-port-darwin14-${VERSION_CCTOOLS}-linux.tar.gz
+DARWIN_VERSION=darwin19
+TARGET_CCTOOLS=$TARGET_PATH/cctools-port-${DARWIN_VERSION}-${VERSION_CCTOOLS_SHA1}-linux.tar.gz
 
 # check for cmake
 
@@ -29,7 +31,7 @@ pushd $TMP
 
 
 if [ ! -e ${TARGET_CCTOOLS} ]; then
-    # ******************************************************
+    # # ******************************************************
     echo Compiling apple-libtapi
 
     mkdir -p $TAPITMP
@@ -37,7 +39,7 @@ if [ ! -e ${TARGET_CCTOOLS} ]; then
     git clone https://github.com/tpoechtrager/apple-libtapi.git
     pushd apple-libtapi
 
-    git checkout ${VERSION_TAPI}
+    git checkout ${VERSION_TAPI_SHA1}
     INSTALLPREFIX=$TAPITMP ./build.sh
     ./install.sh
 
@@ -53,17 +55,17 @@ if [ ! -e ${TARGET_CCTOOLS} ]; then
     git clone https://github.com/tpoechtrager/cctools-port.git
 
     cp -v -r $TAPITMP ${CCTOOLSTMP}
-    TAPITMP=${CCTOOLSTMP}/tapi1.4
+    TAPITMP=${CCTOOLSTMP}/tapi${VERSION_TAPI}
 
     pushd cctools-port/cctools
 
-    git checkout ${VERSION_CCTOOLS}
+    git checkout ${VERSION_CCTOOLS_SHA1}
 
-    ./configure --prefix=${CCTOOLSTMP} --target=arm-apple-darwin14 --with-libtapi=$TAPITMP
+    TMPDIR=$TMP ./configure --prefix=${CCTOOLSTMP} --target=arm-apple-${DARWIN_VERSION} --with-libtapi=$TAPITMP
     make -j8
     make install
     make distclean
-    ./configure --prefix=${CCTOOLSTMP} --target=x86_64-apple-darwin14 --with-libtapi=$TAPITMP
+    TMPDIR=$TMP ./configure --prefix=${CCTOOLSTMP} --target=x86_64-apple-${DARWIN_VERSION} --with-libtapi=$TAPITMP
     make -j8
     make install
     make distclean
@@ -77,6 +79,6 @@ else
     echo Found ${TARGET_CCTOOLS}
 fi
 
-rm -rf ${TMP}
+#rm -rf ${TMP}
 
 
