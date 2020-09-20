@@ -6,7 +6,6 @@ var FileLoader = {
     options: {
         retryCount: 4,
         retryInterval: 1000,
-        head: true,
     },
     // do xhr request with retries
     request: function(url, method, responseType, currentAttempt) {
@@ -64,49 +63,34 @@ var FileLoader = {
     // onprogress(loaded, total)
     // onerror(error)
     // onload(response)
-    load: function(url, responseType, onprogress, onerror, onload) {
-        var doRequest = function(size) {
-            var request = FileLoader.request(url, "GET", responseType);
-            request.onprogress = function(xhr, e) {
-                if (e.lengthComputable) {
-                    onprogress(e.loaded, e.total);
-                    return;
-                }
-                if (size && size > 0) {
-                    onprogress(e.loaded, size);
-                    return;
-                }
-                var total = xhr.getResponseHeader('content-length');
-                var encoding = xhr.getResponseHeader('content-encoding');
-                if (total && encoding && (encoding.indexOf('gzip') > -1)) {
-                    total /= 0.4; // assuming 40% compression rate
-                    onprogress(e.loaded, total);
-                } else {
-                    onprogress(e.loaded, e.loaded);
-                }
-            };
-            request.onerror = function(xhr, e) {
-                onerror("Error loading '" + url + "' (" + e + ")");
-            };
-            request.onload = function(xhr, e) {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        onload(xhr.response);
-                    } else {
-                        onerror("Error loading '" + url + "' (" + e + ")");
-                    }
-                }
-            };
-            request.send();
+    load: function(url, responseType, estimatedSize, onprogress, onerror, onload) {
+        var request = FileLoader.request(url, "GET", responseType);
+        request.onprogress = function(xhr, e) {
+            if (e.lengthComputable) {
+                onprogress(e.loaded, e.total);
+                return;
+            }
+            var contentLength = xhr.getResponseHeader('content-length');
+            var size = contentLength != undefined ? contentLength : estimatedSize;
+            if (size) {
+                onprogress(e.loaded, size);
+            } else {
+                onprogress(e.loaded, e.loaded);
+            }
         };
-
-        // should we get file size from a HEAD request?
-        if (FileLoader.options.head) {
-            FileLoader.size(url, doRequest);
-        }
-        else {
-            doRequest();
-        }
+        request.onerror = function(xhr, e) {
+            onerror("Error loading '" + url + "' (" + e + ")");
+        };
+        request.onload = function(xhr, e) {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    onload(xhr.response);
+                } else {
+                    onerror("Error loading '" + url + "' (" + e + ")");
+                }
+            }
+        };
+        request.send();
     }
 };
 
@@ -115,10 +99,10 @@ var EngineLoader = {
     // load .wasm and set Module.instantiateWasm to use the loaded .wasm file
     // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
     loadWasmAsync: function(src, fromProgress, toProgress, callback) {
-        FileLoader.load(src, "arraybuffer",
+        FileLoader.load(src, "arraybuffer", 2000000,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
-            function (wasm) {
+            function(wasm) {
                 Module.instantiateWasm = function(imports, successCallback) {
                     var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                         successCallback(output.instance);
@@ -133,11 +117,11 @@ var EngineLoader = {
     },
 
     // load and start engine script (asm.js or wasm.js)
-    loadScriptAsync: function(src, fromProgress, toProgress) {
-        FileLoader.load(src, "text",
+    loadScriptAsync: function(src, estimatedSize, fromProgress, toProgress) {
+        FileLoader.load(src, "text", estimatedSize,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
-            function (response) {
+            function(response) {
                 var tag = document.createElement("script");
                 tag.text = response;
                 document.head.appendChild(tag);
@@ -151,10 +135,10 @@ var EngineLoader = {
         Progress.addProgress(Module.setupCanvas(appCanvasId));
         if (Module['isWASMSupported']) {
             EngineLoader.loadWasmAsync(exeName + ".wasm", 0, 40, function(wasm) {
-                EngineLoader.loadScriptAsync(exeName + '_wasm.js', 40, 50);
+                EngineLoader.loadScriptAsync(exeName + '_wasm.js', 250000, 40, 50);
             });
         } else {
-            EngineLoader.loadScriptAsync(exeName + '_asmjs.js', 0, 50);
+            EngineLoader.loadScriptAsync(exeName + '_asmjs.js', 4000000, 0, 50);
         }
     }
 }
@@ -246,6 +230,7 @@ var GameArchiveLoader = {
         FileLoader.load(
             this._archiveLocationFilter(descriptionUrl),
             "json",
+            undefined,
             function (loaded, total) { },
             function (error) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
             function (json) { GameArchiveLoader.onReceiveDescription(json); });
@@ -298,7 +283,7 @@ var GameArchiveLoader = {
         var url = this._archiveLocationFilter('/' + piece.name);
 
         FileLoader.load(
-            url, "arraybuffer",
+            url, "arraybuffer", undefined,
             function (loaded, total) {
                 var delta = loaded - downloaded;
                 downloaded = loaded;
