@@ -300,8 +300,5 @@ void _glfwSetVideoModeMODE( int screen, int mode, int rate );
 void _glfwSetVideoMode( int screen, int *width, int *height, int *rate );
 void _glfwRestoreVideoMode( void );
 
-// Joystick input
-void _glfwInitJoysticks( void );
-void _glfwTerminateJoysticks( void );
 
 #endif // _platform_h_
