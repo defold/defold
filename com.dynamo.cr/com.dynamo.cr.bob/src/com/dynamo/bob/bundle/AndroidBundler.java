@@ -498,13 +498,13 @@ public class AndroidBundler implements IBundler {
 
             // copy extension and bundle resoources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
-            final String assetsPath = "assets" + File.separator;
-            final String libPath = "lib" + File.separator;
-            final String resPath = "res" + File.separator;
+            final String assetsPath = "assets/";
+            final String libPath = "lib/";
+            final String resPath = "res/";
             for (String filename : bundleResources.keySet()) {
                 IResource resource = bundleResources.get(filename);
                 // remove initial file separator if it exists
-                if (filename.startsWith(File.separator)) {
+                if (filename.startsWith("/")) {
                     filename = filename.substring(1);
                 }
                 // files starting with "res/" should be ignored as they are copied in a separate step below
