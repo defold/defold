@@ -34,9 +34,11 @@ import com.dynamo.bob.fs.IResource;
 public class ZipPublisher extends Publisher {
 
     private File resourcePackZip = null;
+    private String projectRoot = null;
 
-    public ZipPublisher(PublisherSettings settings) {
+    public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
+        this.projectRoot = projectRoot;
     }
 
     @Override
@@ -73,11 +75,19 @@ public class ZipPublisher extends Publisher {
             File exportFilehandle = new File(this.getPublisherSettings().getZipFilepath(), this.resourcePackZip.getName());
             if (!exportFilehandle.isAbsolute())
             {
-                File cwd = new File(System.getProperty("user.dir"));
+                File cwd = new File(this.projectRoot);
                 exportFilehandle = new File(cwd, exportFilehandle.getPath());
             }
 
+            File parentDir = exportFilehandle.getParentFile();
+            if (!parentDir.exists()) {
+                parentDir.mkdirs();
+            } else if (!parentDir.isDirectory()) {
+                throw new IOException(String.format("'%s' exists, and is not a directory", parentDir));
+            }
+
             Files.move(this.resourcePackZip.toPath(), exportFilehandle.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            System.out.printf("\nZipPublisher: Wrote '%s'\n", exportFilehandle);
         } catch (IOException exception) {
             throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
         }

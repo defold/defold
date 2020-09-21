@@ -139,11 +139,12 @@ public class AndroidBundler implements IBundler {
     private static String getKeystore(Project project) throws IOException {
         String keystore = project.option("keystore", "");
         if (keystore.length() == 0) {
-            keystore = "debug.keystore";
+            File keystoreFile = new File(project.getRootDirectory(), "debug.keystore");
+            keystore = keystoreFile.getAbsolutePath();
             String keystoreAlias = "androiddebugkey";
             String keystorePassword = "android";
-            String keystorePasswordFile = "debug.keystore.pass.txt";
-            if (!new File(keystore).exists()) {
+            String keystorePasswordFile = new File(project.getRootDirectory(), "debug.keystore.pass.txt").getAbsolutePath();
+            if (!keystoreFile.exists()) {
                 Result r = exec(getJavaBinFile("keytool"),
                     "-genkey",
                     "-v",
@@ -603,7 +604,7 @@ public class AndroidBundler implements IBundler {
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
 
-        Result r = exec("jarsigner",
+        Result r = exec(getJavaBinFile("jarsigner"),
             "-verbose",
             "-keystore", keystore,
             "-storepass", keystorePassword,

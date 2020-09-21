@@ -93,7 +93,7 @@ namespace dmSocket
         }
 
         // TODO: Add log-domain support
-        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
         return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE

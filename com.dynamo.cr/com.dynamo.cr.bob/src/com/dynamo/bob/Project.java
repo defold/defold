@@ -359,7 +359,7 @@ public class Project {
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
                         this.publisher = new DefoldPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(settings);
+                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
