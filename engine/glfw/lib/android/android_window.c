@@ -168,7 +168,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
             return GL_FALSE;
         }
         make_current(&_glfwWinAndroid);
-        update_width_height_info(&_glfwWin, &_glfwWinAndroid);
+        update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
     }
 
     return GL_TRUE;
@@ -281,7 +281,7 @@ static void _glfwPlatformSwapBuffersNoLock( void )
      the wrong previous orientation is reported (Tested on Samsung S2 GTI9100 4.1.2).
      This might very well be a bug..
      */
-    update_width_height_info(&_glfwWin, &_glfwWinAndroid);
+    update_width_height_info(&_glfwWin, &_glfwWinAndroid, 0);
 }
 
 void _glfwPlatformSwapBuffers( void )
@@ -342,7 +342,7 @@ void glfwAndroidFlushEvents()
             {
                 create_gl_surface(&_glfwWinAndroid);
                 make_current(&_glfwWinAndroid);
-                update_width_height_info(&_glfwWin, &_glfwWinAndroid);
+                update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
                 computeIconifiedState();
             }
             break;
