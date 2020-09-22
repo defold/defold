@@ -377,7 +377,7 @@
 (defn- make-android-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [make-file-field (partial make-file-field refresh! owner-window)
-        keystore-file-field (make-file-field "keystore-text-field" "Choose Keystore" [["Keystore (*.keystore)" "*.keystore"]])
+        keystore-file-field (make-file-field "keystore-text-field" "Choose Keystore" [["Keystore (*.keystore, *.jks)" "*.keystore" "*.jks"]])
         keystore-pass-file-field (make-file-field "keystore-pass-text-field" "Choose Keystore password" [["Keystore password" "*.txt"]])
         architecture-controls (doto (VBox.)
                                     (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
