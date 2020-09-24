@@ -89,7 +89,6 @@ CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
-PACKAGES_MACOS_SDK_PACKAGE="MacOSX10.15.xcode12.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.0.xctoolchain"
 PACKAGES_TAPI_VERSION="tapi1.6"
@@ -591,7 +590,7 @@ class Configuration(object):
         target_platform = self.target_platform
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK_PACKAGE), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
