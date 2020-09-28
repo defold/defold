@@ -351,3 +351,18 @@
   (ordered-occurrences
     (map (comp second key)
          (is/system-cache @g/*the-system*))))
+
+(defn graph-node-type-frequencies
+  "Returns a sorted map of node type keys to the number of nodes of that type.
+  You can optionally supply a graph-id to limit the results to a single graph."
+  ([]
+   (graph-node-type-frequencies nil))
+  ([graph-id]
+   (let [graphs (is/graphs @g/*the-system*)]
+     (into (sorted-map)
+           (frequencies
+             (sequence (comp (mapcat (comp ig/node-values val))
+                             (map (comp :k g/node-type)))
+                       (if (some? graph-id)
+                         (select-keys graphs [graph-id])
+                         graphs)))))))

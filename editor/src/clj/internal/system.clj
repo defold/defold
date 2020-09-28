@@ -101,9 +101,13 @@
 (defn id-generators         [system]          (-> system :id-generators))
 (defn override-id-generator [system]          (-> system :override-id-generator))
 
-(defn- bump-invalidate-counters
-  [invalidate-map entries]
-  (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
+(defn- bump-invalidate-counters [invalidate-map entries]
+  (persistent!
+    (reduce (fn [transient-invalidate-map entry]
+              (let [invalidate-counter (unchecked-inc (get transient-invalidate-map entry -1))]
+                (assoc! transient-invalidate-map entry invalidate-counter)))
+            (transient invalidate-map)
+            entries)))
 
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be

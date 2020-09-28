@@ -11,8 +11,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph
-  (:require [clojure.set :as set]
-            [clojure.core.reducers :as r]
+  (:require [clojure.core.reducers :as r]
             [internal.graph.types :as gt]
             [internal.util :as util]
             [internal.node :as in])
@@ -798,46 +797,76 @@
                result')
         (persistent! result')))))
 
-(def ^:private set-or-union (fn [s1 s2] (if s1 (set/union s1 s2) s2)))
-(def ^:private merge-with-union (let [red-f (fn [m [k v]] (update m k set-or-union v))]
-                                  (completing (fn [m1 m2] (reduce red-f m1 m2)))))
+(defn- fast-set-difference [s1 s2]
+  (let [s2-count (count s2)]
+    (if (zero? s2-count)
+      s1
+      (persistent!
+        (if (< (count s1) s2-count)
+          (reduce (fn [result item]
+                    (if (contains? s2 item)
+                      (disj! result item)
+                      result))
+                  (transient s1)
+                  s1)
+          (reduce disj!
+                  (transient s1)
+                  s2))))))
 
-(defn- basis-dependencies [basis outputs-by-node-ids]
-  (let [graph-id->node-successor-map (into {} (map (fn [[graph-id graph]] [graph-id (:successors graph)])) (:graphs basis))
+(defn- fast-set-union [s1 s2]
+  (if s1 (into s1 s2) s2))
+
+(defn- merge-one-entry-with-union [transient-map [node-id output-labels-set]]
+  (util/update! transient-map node-id fast-set-union output-labels-set))
+
+(defn- merge-with-union
+  ([transient-map]
+   transient-map)
+  ([transient-map node-id->output-labels-set]
+   (reduce merge-one-entry-with-union transient-map node-id->output-labels-set)))
+
+(defn- basis-dependencies [basis node-id->output-labels-set]
+  (let [graph-id->node-successor-map (into {}
+                                           (map (fn [[graph-id graph]]
+                                                  [graph-id (:successors graph)]))
+                                           (:graphs basis))
         node-id->successor-map (fn [node-id]
                                  (some-> node-id
                                          gt/node-id->graph-id
                                          graph-id->node-successor-map
                                          (get node-id)))]
-    (loop [;; 'todo' is the running stack (actually a map) of entries to traverse
-           ;; it's expensive to iterate a map, so start by turning it into a seq
-           todo (seq outputs-by-node-ids)
-           ;; collect next batch of entries in a map, to coalesce common node ids
-           next-todo {}
-           ;; final transitive closure of entries found, as a map
-           result {}]
-      (if-let [[node-id outputs] (first todo)]
-        (let [seen? (get result node-id)]
-          ;; termination condition is when we have seen *every* output already
-          (if (and seen? (every? seen? outputs))
-            ;; completely remove the node-id from todo as we have seen *every* output
-            (recur (next todo) next-todo result)
-            ;; does the node-id have any successors at all?
-            (if-let [label->succ (node-id->successor-map node-id)]
-              ;; ignore the outputs we have already seen
-              (let [outputs (if seen? (set/difference outputs seen?) outputs)
-                    ;; Add every successor to the stack for later processing
-                    next-todo (transduce (map #(label->succ %)) merge-with-union next-todo outputs)
-                    ;; And include the unseen output labels to the result
-                    result (update result node-id set-or-union outputs)]
-                (recur (next todo) next-todo result))
-              ;; There were no successors, recur without that node-id
-              (recur (next todo) next-todo result))))
-        ;; check if there is a next batch of entries to process
-        (if-let [todo (seq next-todo)]
-          (recur todo {} result)
-          result)))))
+    (loop [;; Keep a running stack of entries to traverse.
+           ;; It's expensive to iterate a map, so start by turning it into a seq.
+           todo (seq node-id->output-labels-set)
+           ;; Collect next batch of entries in a map, to coalesce common node ids.
+           next-todo (transient {})
+           ;; Resulting map of node-id->output-labels-set with all successors.
+           result (transient {})]
+      (if-some [[node-id outputs] (first todo)]
+        ;; Does the node-id have any successors at all?
+        (if-some [label->succ (node-id->successor-map node-id)]
+          (let [unseen-outputs (fast-set-difference outputs (get result node-id))]
+            ;; Termination condition is when we have seen *every* output already.
+            (if (empty? unseen-outputs)
+              ;; We have seen every output. Move on to the next node.
+              (recur (next todo) next-todo result)
+              ;; We have unseen outputs.
+              (let [;; Add every successor to the stack for later processing.
+                    next-todo (transduce (map label->succ)
+                                         merge-with-union
+                                         next-todo
+                                         unseen-outputs)
+                    ;; And include the unseen output labels in the result.
+                    result' (util/update! result node-id fast-set-union unseen-outputs)]
+                (recur (next todo) next-todo result'))))
 
+          ;; There were no successors, recur without this node-id.
+          (recur (next todo) next-todo result))
+
+        ;; Check if there is a next batch of entries to process.
+        (if-some [todo (seq (persistent! next-todo))]
+          (recur todo (transient {}) result)
+          (persistent! result))))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
