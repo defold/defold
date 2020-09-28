@@ -328,52 +328,21 @@ public class AndroidBundler implements IBundler {
     }
 
     /**
-    * Copy Android resources per package
+    * Copy local Android resources such as icons and bundle resources
     */
-    private static File copyResources(Project project, Platform platform, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
+        androidResDir.deleteOnExit();
 
-        // Native extension build
-        // Include all Android resources received from extender server
-        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-        File packagesList = new File(packagesDir, "packages.txt");
-        if(packagesList.exists()) {
-            // create a list of resource directories, per package
-            List<File> directories = new ArrayList<>();
-            List<String> allLines = Files.readAllLines(packagesList.toPath());
-            for (String line : allLines) {
-                File resDir = new File(packagesDir, line);
-                if (resDir.isDirectory()) {
-                    directories.add(resDir);
-                }
-            }
+        File resDir = new File(androidResDir, "com.defold.android");
+        resDir.mkdirs();
+        BundleHelper.createAndroidResourceFolders(resDir);
+        helper.copyAndroidIcons(resDir);
+        helper.copyAndroidPushIcons(resDir);
 
-            // copy all resources per package
-            // packages/com.foo.bar/res/* -> res/com.foo.bar/*
-            for (File src : directories) {
-                Path srcPath = Path.of(src.getAbsolutePath());
-                String packageName = srcPath.getName(srcPath.getNameCount() - 2).toString();
-                File dest = createDir(androidResDir, packageName);
-                for(File f : src.listFiles(File::isDirectory)) {
-                    FileUtils.copyDirectoryToDirectory(f, dest);
-                    BundleHelper.throwIfCanceled(canceled);
-                }
-            }
-        }
-        // Non-native extension build
-        // Include local Android resources (icons and bundle resources)
-        else {
-            File resDir = new File(androidResDir, "com.defold.android");
-            resDir.mkdirs();
-            BundleHelper.createAndroidResourceFolders(resDir);
-            helper.copyAndroidIcons(resDir);
-            helper.copyAndroidPushIcons(resDir);
-
-            File bundleResourceDestDir = new File(androidResDir, project.getProjectProperties().getStringValue("android", "package"));
-            bundleResourceDestDir.mkdirs();
-            copyBundleResources(project, bundleResourceDestDir);
-        }
-
+        File bundleResourceDestDir = new File(androidResDir, project.getProjectProperties().getStringValue("android", "package"));
+        bundleResourceDestDir.mkdirs();
+        copyBundleResources(project, bundleResourceDestDir);
 
         return androidResDir;
     }
@@ -382,7 +351,7 @@ public class AndroidBundler implements IBundler {
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File aapt2CompileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
+    private static File compileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
         log("Compiling resources from " + androidResDir.getAbsolutePath());
         try {
             // compile the resources using aapt2 to flat format files
@@ -418,7 +387,7 @@ public class AndroidBundler implements IBundler {
     * Create apk from compiled resources and manifest file.
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File aapt2LinkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
+    private static File linkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
         log("Linking resources from " + compiledResourcesDir.getAbsolutePath());
         try {
             File aabDir = new File(outDir, "aab");
@@ -498,13 +467,13 @@ public class AndroidBundler implements IBundler {
 
             // copy extension and bundle resoources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
-            final String assetsPath = "assets/";
-            final String libPath = "lib/";
-            final String resPath = "res/";
+            final String assetsPath = "assets" + File.separator;
+            final String libPath = "lib" + File.separator;
+            final String resPath = "res" + File.separator;
             for (String filename : bundleResources.keySet()) {
                 IResource resource = bundleResources.get(filename);
                 // remove initial file separator if it exists
-                if (filename.startsWith("/")) {
+                if (filename.startsWith(File.separator)) {
                     filename = filename.substring(1);
                 }
                 // files starting with "res/" should be ignored as they are copied in a separate step below
@@ -653,28 +622,35 @@ public class AndroidBundler implements IBundler {
     /**
     * Cleanup bundle folder from intermediate folders and artifacts.
     */
-    private static void cleanupBundleFolder(Project project, File outDir, File androidResDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static void cleanupBundleFolder(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         log("Cleanup bundle folder");
         BundleHelper.throwIfCanceled(canceled);
-        FileUtils.deleteDirectory(androidResDir);
+
         FileUtils.deleteDirectory(new File(outDir, "aab"));
     }
 
     private static File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         BundleHelper.throwIfCanceled(canceled);
 
-        // STEP 1. copy android resources (icons, extension resources and manifest)
-        // if bundling for both arm64 and armv7 we copy resources from one of the
-        // architectures (it doesn't matter which one)
         final Platform platform = getFirstPlatform(project);
-        File manifestFile = helper.copyOrWriteManifestFile(platform, outDir);
-        File androidResDir = copyResources(project, platform, outDir, helper, canceled);
 
-        // STEP 2. Use aapt2 to compile resources (to *.flat files)
-        File compiledResDir = aapt2CompileResources(project, androidResDir, canceled);
+        File apk;
+        if (ExtenderUtil.hasNativeExtensions(project)) {
+            apk = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/compiledresources.apk");
+        }
+        else {
+            // STEP 1. copy android resources (icons, extension resources and manifest)
+            // if bundling for both arm64 and armv7 we copy resources from one of the
+            // architectures (it doesn't matter which one)
+            File manifestFile = helper.copyOrWriteManifestFile(platform, outDir);
+            File androidResDir = copyLocalResources(project, outDir, helper, canceled);
 
-        // STEP 3. Use aapt2 to create an APK containing resource files in protobuf format
-        File apk = aapt2LinkResources(project, outDir, compiledResDir, manifestFile, canceled);
+            // STEP 2. Use aapt2 to compile resources (to *.flat files)
+            File compiledResDir = compileResources(project, androidResDir, canceled);
+
+            // STEP 3. Use aapt2 to create an APK containing resource files in protobuf format
+            apk = linkResources(project, outDir, compiledResDir, manifestFile, canceled);
+        }
 
         // STEP 4. Extract protobuf files from the APK and create base.zip (manifest, assets, dex, res, lib, *.pb etc)
         File baseZip = createAppBundleBaseZip(project, outDir, apk, canceled);
@@ -689,7 +665,7 @@ public class AndroidBundler implements IBundler {
         copySymbols(project, outDir, canceled);
 
         // STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
-        cleanupBundleFolder(project, outDir, androidResDir, canceled);
+        cleanupBundleFolder(project, outDir, canceled);
 
         return baseAab;
     }
