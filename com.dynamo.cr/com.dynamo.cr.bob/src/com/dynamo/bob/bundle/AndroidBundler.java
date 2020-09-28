@@ -328,19 +328,12 @@ public class AndroidBundler implements IBundler {
     }
 
     /**
-    * Copy Android resources per package
+    * Copy local Android resources such as icons and bundle resources
     */
     private static File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
         androidResDir.deleteOnExit();
 
-        if (ExtenderUtil.hasNativeExtensions(project)) {
-            log("Trying to copy resources during an extension build - ignoring!");
-            return androidResDir;
-        }
-
-        // Non-native extension build
-        // Include local Android resources (icons and bundle resources)
         File resDir = new File(androidResDir, "com.defold.android");
         resDir.mkdirs();
         BundleHelper.createAndroidResourceFolders(resDir);
