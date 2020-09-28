@@ -435,7 +435,8 @@
     (ui/enable! ok-button (and (nil? (:architecture issues))
                                (or (and (nil? keystore)
                                         (nil? keystore-pass))
-                                   (and (existing-file-of-type? "keystore" keystore)
+                                   (and (or (existing-file-of-type? "keystore" keystore)
+                                            (existing-file-of-type? "jks" keystore))
                                         (fs/existing-file? keystore-pass)))))))
 
 (defn- get-android-issues [{:keys [keystore keystore-pass architecture-32bit? architecture-64bit? bundle-format] :as _options}]
@@ -445,7 +446,7 @@
                   (and (some? keystore) (not (fs/existing-file? keystore)))
                   [:fatal "Keystore file not found."]
 
-                  (and (some? keystore) (not (existing-file-of-type? "keystore" keystore)))
+                  (and (some? keystore) (not (or (existing-file-of-type? "keystore" keystore) (existing-file-of-type? "jks" keystore))))
                   [:fatal "Invalid keystore."]
 
                   (and (nil? keystore) (some? keystore-pass))
