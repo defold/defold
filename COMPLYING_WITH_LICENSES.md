@@ -78,7 +78,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 
 #### mbedTLS
 
-Used when doing HTTPS requests. Included in all builds of Defold.
+Used when doing HTTPS requests or creating SSL sockets. Included in all builds of Defold.
 
 ```
 Copyright 2013-2019 ARM
