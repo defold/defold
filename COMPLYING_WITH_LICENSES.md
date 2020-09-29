@@ -21,24 +21,24 @@ Some ways in which you can include required licenses in your work:
 The following software has licenses which require inclusion of their respective license in derivative work:
 
   * Defold License 1.0
-    * Defold - The Defold Foundation
+    * Defold
   * Apache 2.0
-    * mbedTLS - ARM
+    * mbedTLS
   * MIT
-    * jsmn - Serge A. Zaitsev
-    * xxtea-c - Ma Bingyao
-    * Lua - Lua.org, PUC-Rio
-    * LuaJIT - Mike Pall
-    * LuaSocket - Diego Nehab
-    * jctest - Mathias Westerdahl
-    * XHR2 - Victor Costan
+    * jsmn
+    * xxtea-c
+    * Lua
+    * LuaJIT
+    * LuaSocket
+    * jctest
+    * XHR2
   * Simplified BSD license (2-clause license)
-    * LZ4 - Yann Collet
+    * LZ4
   * BSD 2.0 license (3-clause license)
-    * WebP - Google
-    * vpx/vp8 - Google
-    * Tremolo - Xiph.org Foundation and Robin Watts for Pinknoise Productions Ltd
-    * Sony Vector Math library - Sony Computer Entertainment Inc
+    * WebP
+    * vpx/vp8
+    * Tremolo
+    * Sony Vector Math library
   * LGPL 2.0
     * OpenAL
 
