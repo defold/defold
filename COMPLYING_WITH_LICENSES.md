@@ -1,13 +1,13 @@
 # Complying with licenses
 
-## The Defold license
+Defold is created and distributed under the developer-friendly Defold License. The Defold License is derived from the popular Apache 2.0 license. The license in its entirety can be [read here](/license.txt) with additional information to help you understand the [difference from the standard Apache 2.0 license here](https://defold.com/license/).
 
-Defold is created and distributed under the developer-friendly Defold License. The Defold License is derived from the popular Apache 2.0 license. The license in its entirety can be [read here](/license.txt). The license including additional information about how to include the license in your finished product can be found on the [official Defold website](https://defold.com/license/).
+Defold itself contains software written by third parties. Some of the software also requires the inclusion of their respective license in derivative work.
 
 
-## Third Party licenses
+## How to include required licenses in your work
 
-Defold itself contains software written by third parties. Some of the software requires the inclusion of their respective license. Some ways in which you can include the licenses in your work:
+Some ways in which you can include required licenses in your work:
 
 * Show the license and notice at the end of a credits screen if your application has one
 * Show the license and notice from a dedicated license screen or popup in your application
@@ -16,10 +16,12 @@ Defold itself contains software written by third parties. Some of the software r
 * Put the license and notice in a printed manual included with your application
 
 
-### Required license inclusion
+## Required license inclusion
 
-The following third party software has licenses which require inclusion of their respective license in derivative work:
+The following software has licenses which require inclusion of their respective license in derivative work:
 
+  * Defold License 1.0
+    * Defold - The Defold Foundation
   * Apache 2.0
     * mbedTLS - ARM
   * MIT
@@ -41,7 +43,7 @@ The following third party software has licenses which require inclusion of their
     * OpenAL
 
 
-### Optional license inclusion
+## Optional license inclusion
 
 The following third party software has licenses which does not require inclusion of their respective license in derivative work:
 
@@ -55,6 +57,23 @@ The following third party software has licenses which does not require inclusion
     * GLFW - Marcus Geelnard, Camilla Löwy
 
 NOTE: The Zlib license encourages attribution but does not require inclusion of the license.
+
+
+### Defold
+
+The license for the game engine itself.
+
+```
+Copyright 2020 The Defold Foundation
+
+Licensed under the Defold License version 1.0 (the "License"); you may not use this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+
+https://www.defold.com/opensource
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+```
 
 
 #### mbedTLS
