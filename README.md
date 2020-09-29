@@ -52,7 +52,6 @@ An overview of the engine architecture and additional engine information can be 
 
 The release process is documented [here](RELEASE.md).
 
+## Complying with licenses
 
-## Third party licenses
-
-See [licenses.md](engine/engine/content/builtins/docs/licenses.md) from `builtins.zip` for licenses of libraries and source code used in this project.
+A full list of third party software licenses along with information on how to give attribution and include the licenses in your game can be found in the [COMPLYING WITH LICENSES](/COMPLYING_WITH_LICENSES.md) document in the Defold repository on GitHub.
