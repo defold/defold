@@ -72,6 +72,10 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 * Build builtins:
 
     `scripts/build.py build_builtins`
+    
+* Build reference documentation:
+
+    `scripts/build.py build_docs`
 
 * Build Bob:
 
