@@ -33,6 +33,8 @@ import fnmatch
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
 java_version = '11.0.1'
+java_version_patch = 'p1'
+
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86_64-darwin': 'osx-x64',
@@ -339,10 +341,12 @@ def create_bundle(options):
         else:
             platform_jdk = 'tmp/jdk-%s' % java_version
 
+        # use jlink to generate a custom Java runtime to bundle with the editor
+        packages_jdk = '%s/jdk%s-%s' % (packages_dir, java_version, java_version_patch)
         exec_command(['%s/bin/jlink' % build_jdk,
                       '@jlink-options',
                       '--module-path=%s/jmods' % platform_jdk,
-                      '--output=%s/jdk%s' % (packages_dir, java_version)])
+                      '--output=%s' % packages_jdk])
 
         # create final zip file
         zipfile = 'target/editor/Defold-%s.zip' % platform
