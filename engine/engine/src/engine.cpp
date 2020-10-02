@@ -797,7 +797,7 @@ namespace dmEngine
 #if defined(__EMSCRIPTEN__)
         sound_params.m_UseThread = false;
 #else
-        sound_params.m_UseThread = true;
+        sound_params.m_UseThread = dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) != 0;
 #endif
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
