@@ -385,7 +385,8 @@ def sign(options):
         if 'darwin' in platform:
             # we need to sign the binaries in Resources folder manually as codesign of
             # the *.app will not process files in Resources
-            jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", "jdk11.0.1")
+            jdk_dir = "jdk%s-%s" % (java_version, java_version_patch)
+            jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
                 sign_files('darwin', options, exe)
             for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
