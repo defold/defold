@@ -31,8 +31,15 @@ namespace dmEngine
 	};
 };
 
-// For better granularity
+// called once per process: init -> (create -> update -> destroy -> if reboot: goto create) -> finalize
+bool                dmEngineInitialize();
+void                dmEngineFinalize();
+
+// Creates an instance of the engine.
+// May be called multiple times due to the reboot mechanic
+// Always matched by a call to dmEngineDestroy
 dmEngine::HEngine   dmEngineCreate(int argc, char *argv[]);
+
 void                dmEngineDestroy(dmEngine::HEngine engine);
 
 /*
