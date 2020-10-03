@@ -12,7 +12,7 @@ engine_sha1 =
 time =
 channel =
 [launcher]
-jdk = ${bootstrap.resourcespath}/packages/jdk11.0.1
+jdk = ${bootstrap.resourcespath}/packages/jdk11.0.1-p1
 java = ${launcher.jdk}/bin/java
 jar = ${bootstrap.resourcespath}/packages/defold-${build.editor_sha1}.jar
 main = com.defold.editor.Main
