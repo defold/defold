@@ -14,6 +14,7 @@
 #include <android_native_app_glue.h>
 
 #include <dlib/time.h>
+#include <dlib/thread.h>
 #include <graphics/glfw/glfw.h>
 #endif
 
