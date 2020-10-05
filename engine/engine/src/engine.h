@@ -32,7 +32,7 @@ namespace dmEngine
 };
 
 // called once per process: init -> (create -> update -> destroy -> if reboot: goto create) -> finalize
-bool                dmEngineInitialize();
+void                dmEngineInitialize();
 void                dmEngineFinalize();
 
 // Creates an instance of the engine.

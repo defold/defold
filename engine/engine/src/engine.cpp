@@ -1790,7 +1790,7 @@ bail:
     }
 }
 
-bool dmEngineInitialize()
+void dmEngineInitialize()
 {
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
