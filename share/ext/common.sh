@@ -12,12 +12,11 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-# config
-
 set -e
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+# config
 IOS_SDK_VERSION=13.1
 IOS_SIMULATOR_SDK_VERSION=13.1
 IOS_MIN_SDK_VERSION=8.0
