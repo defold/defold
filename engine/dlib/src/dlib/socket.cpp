@@ -245,7 +245,7 @@ namespace dmSocket
     {
         switch(protocol)
         {
-            case PROTOCOL_TCP:  return PROTOCOL_TCP;
+            case PROTOCOL_TCP:  return IPPROTO_TCP;
             case PROTOCOL_UDP:  return IPPROTO_UDP;
         }
     }
