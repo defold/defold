@@ -36,6 +36,16 @@ PreRun g_PreRun = 0;
 PostRun g_PostRun = 0;
 void* g_TextCtx = 0;
 
+static void TestEngineInitialize(void* _ctx)
+{
+    dmEngineInitialize();
+}
+
+static void TestEngienFinalize(void* _ctx)
+{
+    dmEngineFinalize();
+}
+
 static dmEngine::HEngine TestEngineCreate(int argc, char** argv)
 {
     dmEngine::HEngine engine = dmEngineCreate(argc, argv);
@@ -75,8 +85,8 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     params.m_Argc = argc;
     params.m_Argv = argv;
     params.m_AppCtx = 0;
-    params.m_AppCreate = 0;
-    params.m_AppDestroy = 0;
+    params.m_AppCreate = TestEngineInitialize;
+    params.m_AppDestroy = TestEngienFinalize;
     params.m_EngineCreate = (dmEngine::EngineCreate)TestEngineCreate;
     params.m_EngineDestroy = (dmEngine::EngineDestroy)TestEngineDestroy;
     params.m_EngineUpdate = (dmEngine::EngineUpdate)TestEngineUpdate;
