@@ -27,6 +27,12 @@ namespace dmLiveUpdate
         const char*                 m_HexDigest;
     };
 
+    struct StoreArchiveCallbackData
+    {
+        dmScript::LuaCallbackInfo*  m_Callback;
+        const char*                 m_Path;
+    };
+
     int Resource_GetCurrentManifest(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -186,6 +192,50 @@ namespace dmLiveUpdate
 
         return 0;
     }
+
+    static void Callback_StoreArchive(bool status, void* _data)
+    {
+        StoreArchiveCallbackData* callback_data = (StoreArchiveCallbackData*)_data;
+
+        if (!dmScript::IsCallbackValid(callback_data->m_Callback))
+            return;
+
+        lua_State* L = dmScript::GetCallbackLuaContext(callback_data->m_Callback);
+        DM_LUA_STACK_CHECK(L, 0)
+
+        if (!dmScript::SetupCallback(callback_data->m_Callback))
+        {
+            dmLogError("Failed to setup callback");
+            return;
+        }
+
+        lua_pushstring(L, callback_data->m_Path);
+        lua_pushboolean(L, status);
+
+        dmScript::PCall(L, 3, 0); // instance + 2
+
+        dmScript::TeardownCallback(callback_data->m_Callback);
+        dmScript::DestroyCallback(callback_data->m_Callback);
+        delete callback_data;
+    }
+
+    int Resource_StoreArchive(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        const char* path = luaL_checkstring(L, 1);
+
+        StoreArchiveCallbackData* cb = new StoreArchiveCallbackData;
+        cb->m_Callback = dmScript::CreateCallback(L, 2);
+        cb->m_Path = strdup(path);
+
+        dmLiveUpdate::Result res = dmLiveUpdate::StoreArchiveAsync(path, Callback_StoreArchive, cb);
+
+        if (dmLiveUpdate::RESULT_OK != res)
+        {
+            dmLogError("Failed to store archive: %d", res);
+            Callback_StoreArchive(false, (void*)cb);
+        }
 
         return 0;
     }

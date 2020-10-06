@@ -14,6 +14,7 @@
 #include "liveupdate_private.h"
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include <ddf/ddf.h>
 
@@ -239,6 +240,26 @@ namespace dmLiveUpdate
         request.m_Resource.Set(*resource);
         request.m_CallbackData = callback_data;
         request.m_Callback = callback;
+        bool res = AddAsyncResourceRequest(request);
+        return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
+    }
+
+    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data)
+    {
+        struct stat file_stat;
+        bool exists = stat(path, &file_stat) == 0;
+        if (!exists) {
+            dmLogError("File does not exist: '%s'", path);
+            return RESULT_INVALID_RESOURCE;
+        }
+
+        AsyncResourceRequest request;
+        memset(&request, 0, sizeof(request));
+        request.m_CallbackData = callback_data;
+        request.m_Callback = callback;
+        request.m_Path = path;
+        request.m_IsArchive = 1;
+        request.m_Manifest = dmResource::GetManifest(m_ResourceFactory);
         bool res = AddAsyncResourceRequest(request);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }

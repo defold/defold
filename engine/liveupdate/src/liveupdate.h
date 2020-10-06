@@ -53,6 +53,10 @@ namespace dmLiveUpdate
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
+    /*# Registers an archive (.zip) on disc
+     */
+    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data);
+
     Result StoreManifest(dmResource::Manifest* manifest);
 
     Result ParseManifestBin(uint8_t* manifest_data, size_t manifest_len, dmResource::Manifest* manifest);

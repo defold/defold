@@ -33,7 +33,9 @@ namespace dmLiveUpdate
         uint32_t                m_ExpectedResourceDigestLength;
         const char*             m_ExpectedResourceDigest;
         dmResourceArchive::LiveUpdateResource m_Resource;
+        const char*             m_Path;
         void*                   m_CallbackData;
+        uint8_t                 m_IsArchive:1;
         void (*m_Callback)(bool,void*);
     };
 
