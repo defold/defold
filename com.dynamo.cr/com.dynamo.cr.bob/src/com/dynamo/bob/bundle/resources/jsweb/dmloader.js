@@ -96,10 +96,22 @@ var FileLoader = {
 
 
 var EngineLoader = {
+    wasm_size: 2000000,
+    wasm_from: 0,
+    wasm_to: 40,
+
+    wasmjs_size: 250000,
+    wasmjs_from: 40,
+    wasmjs_to: 50,
+
+    asmjs_size: 4000000,
+    asmjs_from: 0,
+    asmjs_to: 50,
+
     // load .wasm and set Module.instantiateWasm to use the loaded .wasm file
     // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
     loadWasmAsync: function(src, fromProgress, toProgress, callback) {
-        FileLoader.load(src, "arraybuffer", 2000000,
+        FileLoader.load(src, "arraybuffer", EngineLoader.wasm_size,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
             function(wasm) {
@@ -134,11 +146,11 @@ var EngineLoader = {
     load: function(appCanvasId, exeName) {
         Progress.addProgress(Module.setupCanvas(appCanvasId));
         if (Module['isWASMSupported']) {
-            EngineLoader.loadWasmAsync(exeName + ".wasm", 0, 40, function(wasm) {
-                EngineLoader.loadScriptAsync(exeName + '_wasm.js', 250000, 40, 50);
+            EngineLoader.loadWasmAsync(exeName + ".wasm", EngineLoader.wasm_from, EngineLoader.wasm_to, function(wasm) {
+                EngineLoader.loadScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, EngineLoader.wasmjs_from, EngineLoader.wasmjs_to);
             });
         } else {
-            EngineLoader.loadScriptAsync(exeName + '_asmjs.js', 4000000, 0, 50);
+            EngineLoader.loadScriptAsync(exeName + '_asmjs.js', EngineLoader.asmjs_size, EngineLoader.asmjs_from, EngineLoader.asmjs_to);
         }
     }
 }
