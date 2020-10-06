@@ -154,7 +154,7 @@ def install(args):
             setup_windows_cert(args)
 
 
-def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False, channel = None):
+def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False, archive_channel = None):
     args = 'python scripts/build.py distclean install_ext'.split()
     opts = []
     waf_opts = []
@@ -166,11 +166,9 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
 
     args.append('build_engine')
 
-    if channel:
-        opts.append('--channel=%s' % channel)
-
     if archive:
         args.append('archive_engine')
+        args.append('--archive-channel=%s' % archive_channel)
 
     if skip_codesign:
         opts.append('--skip-codesign')
@@ -198,7 +196,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     call(cmd)
 
 
-def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
+def build_editor2(editor_update_channel = None, engine_artifacts = None, skip_tests = False):
     host_platform = platform_from_host()
     if not host_platform in PLATFORMS_DESKTOP:
         return
@@ -208,8 +206,8 @@ def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
 
-    if channel:
-        opts.append('--channel=%s' % channel)
+    if editor_update_channel:
+        opts.append('--editor-update-channel=%s' % editor_update_channel)
 
     if skip_tests:
         opts.append('--skip-tests')
@@ -220,15 +218,14 @@ def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
     for platform in PLATFORMS_DESKTOP:
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
 
-def download_editor2(channel = None, platform = None):
+def download_editor2(archive_channel, platform = None):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
         platforms = [platform]
 
     opts = []
-    if channel:
-        opts.append('--channel=%s' % channel)
+    opts.append('--archive-channel=%s' % archive_channel)
 
     for platform in platforms:
         call('python scripts/build.py download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
@@ -271,7 +268,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     call(cmd)
 
 
-def archive_editor2(channel = None, engine_artifacts = None, platform = None):
+def archive_editor2(archive_channel, engine_artifacts = None, platform = None):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
@@ -281,8 +278,7 @@ def archive_editor2(channel = None, engine_artifacts = None, platform = None):
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
 
-    if channel:
-        opts.append("--channel=%s" % channel)
+    opts.append("--archive-channel=%s" % archive_channel)
 
     opts_string = ' '.join(opts)
     for platform in platforms:
@@ -299,23 +295,21 @@ def install_ext(platform = None):
 
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
-def build_bob(channel = None, branch = None):
+def build_bob(archive_channel, branch = None):
     args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
 
-    if channel:
-        opts.append("--channel=%s" % channel)
+    opts.append("--archive-channel=%s" % archive_channel)
 
     cmd = ' '.join(args + opts)
     call(cmd)
 
 
-def release(channel = None):
+def release(release_channel):
     args = "python scripts/build.py release".split()
     opts = []
 
-    if channel:
-        opts.append("--channel=%s" % channel)
+    opts.append("--release-channel=%s" % release_channel)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -388,45 +382,49 @@ def main(argv):
     branch = get_branch()
 
     # configure build flags based on the branch
+    archive_channel = None
+    editor_update_channel = None
     release_channel = None
     skip_editor_tests = False
     if branch == "master":
-        engine_channel = "stable"
-        editor_channel = "editor-alpha"
-        release_channel = "editor-stable"
+        archive_channel = "stable"
+        editor_update_channel = "editor-alpha"
+        release_channel = "stable"
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
-        engine_channel = "beta"
-        editor_channel = "beta"
-        release_channel = engine_channel
+        archive_channel = "beta"
+        editor_update_channel = "beta"
+        release_channel = "beta"
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "dev":
-        engine_channel = "alpha"
-        editor_channel = "alpha"
-        release_channel = engine_channel
+        archive_channel = "alpha"
+        editor_update_channel = "alpha"
+        release_channel = "alpha"
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "editor-dev":
-        engine_channel = None
-        editor_channel = "editor-alpha"
-        release_channel = editor_channel
+        archive_channel = "editor-alpha"
+        editor_update_channel = "editor-alpha"
+        release_channel = "editor-alpha"
         make_release = True
         engine_artifacts = args.engine_artifacts
     elif branch and branch.startswith("DEFEDIT-"):
-        engine_channel = None
-        editor_channel = None
+        archive_channel = "editor-dev"
+        editor_update_channel = "editor-dev"
+        release_channel = None
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
-        engine_channel = "dev"
-        editor_channel = None
+        archive_channel = "dev"
+        editor_update_channel = "dev"
+        release_channel = None
         make_release = False
         skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
 
-    print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
+    print("Using branch={} archive_channel={} editor_update_channel={} release_channel={}".format(branch, archive_channel, editor_update_channel, release_channel))
 
     # execute commands
     for command in args.commands:
@@ -439,14 +437,14 @@ def main(argv):
                 with_asan = args.with_asan,
                 with_vanilla_lua = args.with_vanilla_lua,
                 archive = args.archive,
+                archive_channel = archive_channel,
                 skip_tests = args.skip_tests,
                 skip_builtins = args.skip_builtins,
-                skip_docs = args.skip_docs,
-                channel = engine_channel)
+                skip_docs = args.skip_docs)
         elif command == "build-editor":
-            build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
+            build_editor2(editor_update_channel = editor_update_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
         elif command == "download-editor":
-            download_editor2(channel = editor_channel, platform = platform)
+            download_editor2(archive_channel, platform = platform)
         elif command == "notarize-editor":
             notarize_editor2(
                 notarization_username = args.notarization_username,
@@ -457,11 +455,11 @@ def main(argv):
                 raise Exception("No --platform specified.")
             sign_editor2(platform, windows_cert = args.windows_cert, windows_cert_pass = args.windows_cert_pass)
         elif command == "archive-editor":
-            archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, platform = platform)
+            archive_editor2(archive_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
-            build_bob(channel = engine_channel, branch = branch)
+            build_bob(archive_channel, branch = branch)
         elif command == "sdk":
-            build_sdk(channel = engine_channel)
+            build_sdk(archive_channel)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
@@ -471,8 +469,8 @@ def main(argv):
         elif command == "distclean":
             distclean()
         elif command == "release":
-            if make_release:
-                release(channel = release_channel)
+            if make_release and release_channel:
+                release(release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         elif command == "release_to_github_markdown":

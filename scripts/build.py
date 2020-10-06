@@ -253,7 +253,9 @@ class Configuration(object):
                  archive_path = None,
                  package_path = None,
                  set_version = None,
-                 channel = None,
+                 release_channel = None,
+                 archive_channel = None,
+                 editor_update_channel = None,
                  engine_artifacts = None,
                  waf_options = [],
                  save_env_path = None,
@@ -294,7 +296,9 @@ class Configuration(object):
         self.archive_path = archive_path
         self.package_path = package_path
         self.set_version = set_version
-        self.channel = channel
+        self.release_channel = release_channel
+        self.archive_channel = archive_channel
+        self.editor_update_channel = editor_update_channel
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
         self.save_env_path = save_env_path
@@ -1234,15 +1238,21 @@ class Configuration(object):
 # BEGIN: EDITOR 2
 #
     def download_editor2(self):
+        if self.archive_channel is None:
+            raise Exception('You must provide an archive channel when downloading the editor')
+
         editor_filename = "Defold-%s.zip" % self.target_platform
         editor_path = join(self.defold_root, 'editor', 'target', 'editor', editor_filename)
 
-        s3_path = join(self._git_sha1(), self.channel, 'editor2', editor_filename)
+        s3_path = join(self._git_sha1(), self.archive_channel, 'editor2', editor_filename)
         self.download_from_archive(s3_path, editor_path)
 
     def archive_editor2(self):
+        if self.archive_channel is None:
+            raise Exception('You must provide an archive channel when archiving the editor')
+
         sha1 = self._git_sha1()
-        full_archive_path = join(sha1, self.channel, 'editor2')
+        full_archive_path = join(sha1, self.archive_channel, 'editor2')
 
         zip_file = "Defold-%s.zip" % self.target_platform
         dmg_file = "Defold-%s.dmg" % self.target_platform
@@ -1267,10 +1277,13 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
     def bundle_editor2(self):
+        if self.editor_update_channel is None:
+            raise Exception('You must provide an editor update channel when bundling the editor')
+
         cmd = ['./scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
-               '--channel=%s' % self.channel,
+               '--update-channel=%s' % self.editor_update_channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
                'bundle']
         self.run_editor_script(cmd)
@@ -1374,6 +1387,9 @@ class Configuration(object):
 
 
     def release(self):
+        if self.release_channel is None:
+            raise Exception('You must provide a channel when creating a release')
+
         page = """
 <!DOCTYPE html>
 <html>
@@ -1476,7 +1492,7 @@ class Configuration(object):
         model = {'releases': [],
                  'has_releases': False}
 
-        if self.channel == 'stable':
+        if self.release_channel == 'stable':
             # Move artifacts to a separate page?
             model['releases'] = s3.get_tagged_releases(self.get_archive_path())
             model['has_releases'] = True
@@ -1491,28 +1507,28 @@ class Configuration(object):
         # - The stable channel is based on the latest tag
         # - The beta and alpha channels are based on the latest
         #   commit in their branches, i.e. origin/dev for alpha
-        if self.channel == 'stable':
+        if self.release_channel == 'stable':
             release_sha1 = model['releases'][0]['sha1']
         else:
             release_sha1 = self._git_sha1()
 
         if sys.stdin.isatty():
-            sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+            sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.release_channel))
             response = sys.stdin.readline()
             if response[0] != 'y':
                 return
 
         model['release'] = { 'channel': "Unknown", 'version': self.version }
-        if self.channel:
-            model['release']['channel'] = self.channel.capitalize()
+        if self.release_channel:
+            model['release']['channel'] = self.release_channel.capitalize()
 
         # We handle the stable channel seperately, since we want it to point
-        # to the editor-dev release (which uses the latest stable engine).
+        # to the editor-alpha release (which uses the latest stable engine).
         editor_channel = None
-        if self.channel == "stable":
+        if self.release_channel == "stable":
             editor_channel = "editor-alpha"
         else:
-            editor_channel = self.channel or "stable"
+            editor_channel = self.release_channel or "stable"
 
         editor_archive_path = urlparse.urlparse(self.get_archive_path(editor_channel)).path
 
@@ -1524,23 +1540,23 @@ class Configuration(object):
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
-        self._log('Uploading %s/index.html' % self.channel)
+        self._log('Uploading %s/index.html' % self.release_channel)
         html = page % {'model': json.dumps(model)}
 
-        key = bucket.new_key('%s/index.html' % self.channel)
+        key = bucket.new_key('%s/index.html' % self.release_channel)
         key.content_type = 'text/html'
         key.set_contents_from_string(html)
 
-        self._log('Uploading %s/info.json' % self.channel)
-        key = bucket.new_key('%s/info.json' % self.channel)
+        self._log('Uploading %s/info.json' % self.release_channel)
+        key = bucket.new_key('%s/info.json' % self.release_channel)
         key.content_type = 'application/json'
         key.set_contents_from_string(json.dumps({'version': self.version,
                                                  'sha1' : release_sha1}))
 
         # Editor update-v3.json
-        key_v3 = bucket.new_key('editor2/channels/%s/update-v3.json' % self.channel)
+        key_v3 = bucket.new_key('editor2/channels/%s/update-v3.json' % self.release_channel)
         key_v3.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
+        self._log("Updating channel '%s' for update-v3.json: %s" % (self.release_channel, key_v3))
         key_v3.set_contents_from_string(json.dumps({'sha1': release_sha1}))
 
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
@@ -1675,7 +1691,7 @@ class Configuration(object):
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        path = self._download_editor2(self.channel, sha1)
+        path = self._download_editor2(self.archive_channel, sha1)
         info = self._install_editor2(path)
         config = ConfigParser()
         config.read(info['config'])
@@ -1715,7 +1731,7 @@ class Configuration(object):
             ed_proc.wait()
         self._uninstall_editor2(info)
 
-        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, self.channel, 'editor2', 'smoke_test'])
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, self.archive_channel, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
@@ -1762,7 +1778,7 @@ class Configuration(object):
 # END: SMOKE TEST
 # ------------------------------------------------------------
     def get_archive_path(self, channel=None):
-        return join(self.archive_path, channel or self.channel)
+        return join(self.archive_path, channel or self.archive_channel)
 
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
@@ -2040,9 +2056,17 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Set version explicitily when bumping version')
 
-    parser.add_option('--channel', dest='channel',
-                      default = 'stable',
-                      help = 'Editor release channel (stable, beta, ...)')
+    parser.add_option('--release-channel', dest='release_channel',
+                      default = None,
+                      help = 'The channel to create a new release for (stable, beta, ...)')
+
+    parser.add_option('--editor-update-channel', dest='editor_update_channel',
+                      default = None,
+                      help = 'The channel where the editor will be looking for updates (editor-alpha, stable, beta, ...)')
+
+    parser.add_option('--archive-channel', dest='archive_channel',
+                      default = None,
+                      help = 'The channel where artifacts will be archived and/or downloaded (stable, beta, ...)')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
@@ -2118,7 +2142,9 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       archive_path = options.archive_path,
                       package_path = options.package_path,
                       set_version = options.set_version,
-                      channel = options.channel,
+                      release_channel = options.release_channel,
+                      archive_channel = options.archive_channel,
+                      editor_update_channel = options.editor_update_channel,
                       engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options,
                       save_env_path = options.save_env_path,

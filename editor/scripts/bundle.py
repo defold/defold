@@ -319,8 +319,8 @@ def create_bundle(options):
         config.set('build', 'version', options.version)
         config.set('build', 'time', datetime.datetime.now().isoformat())
 
-        if options.channel:
-            config.set('build', 'channel', options.channel)
+        if options.update_channel:
+            config.set('build', 'channel', options.update_channel)
 
         with open('%s/config' % resources_dir, 'wb') as f:
             config.write(f)
@@ -482,9 +482,9 @@ Commands:
                       default = None,
                       help = 'Version to set in editor config when creating the bundle')
 
-    parser.add_option('--channel', dest='channel',
+    parser.add_option('--update-channel', dest='update_channel',
                       default = None,
-                      help = 'Channel to set in editor config when creating the bundle')
+                      help = 'Channel to set in editor config when creating the bundle. Used when editor is checking for updates.')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
