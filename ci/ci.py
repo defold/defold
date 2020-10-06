@@ -335,7 +335,7 @@ def build_sdk(archive_channel):
     args = "python scripts/build.py build_sdk".split()
     opts = []
 
-    if channel:
+    if archive_channel:
         opts.append("--archive-channel=%s" % archive_channel)
 
     cmd = ' '.join(args + opts)
