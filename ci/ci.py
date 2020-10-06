@@ -331,12 +331,12 @@ def release_to_github_markdown(token = None, repo = None, sha1 = None):
     call(cmd)
 
 
-def build_sdk(channel = None):
+def build_sdk(archive_channel):
     args = "python scripts/build.py build_sdk".split()
     opts = []
 
     if channel:
-        opts.append("--channel=%s" % channel)
+        opts.append("--archive-channel=%s" % archive_channel)
 
     cmd = ' '.join(args + opts)
     call(cmd)
