@@ -420,7 +420,7 @@ def main(argv):
         engine_channel = None
         editor_channel = None
         make_release = False
-        engine_artifacts = args.engine_artifacts or "archived-stable"x
+        engine_artifacts = args.engine_artifacts or "archived-stable"
     elif branch and branch.startswith("platform-switch-"):
         branch_tokens = branch.split('-')
         if len(branch_tokens) == 3:
