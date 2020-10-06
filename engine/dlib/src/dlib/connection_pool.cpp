@@ -20,10 +20,10 @@
 #include "math.h"
 #include "hash.h"
 
-#include "dns.h"
-#include "mutex.h"
-#include "socket.h"
-#include "sslsocket.h"
+#include <dlib/dns.h>
+#include <dlib/mutex.h>
+#include <dlib/socket.h>
+#include <dlib/sslsocket.h>
 
 namespace dmConnectionPool
 {

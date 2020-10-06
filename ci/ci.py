@@ -389,6 +389,8 @@ def main(argv):
 
     # configure build flags based on the branch
     release_channel = None
+    engine_channel = None
+    editor_channel = None
     skip_editor_tests = False
     if branch == "master":
         engine_channel = "stable"
@@ -419,7 +421,23 @@ def main(argv):
         editor_channel = None
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
-    else: # engine dev branch
+    elif branch and branch.startswith("platform-switch-"):
+        branch_tokens = branch.split('-')
+        if len(branch_tokens) == 3:
+            branch_type = branch_tokens[2]
+            name_to_enginechannel = {'dev': 'alpha', 'beta': 'beta', 'master': 'stable', 'main': 'stable'}
+            engine_channel = name_to_enginechannel.get(branch_type, "dev")
+
+            name_to_editorchannel = {'dev': 'alpha', 'beta': 'beta', 'master': 'editor-alpha', 'main': 'editor-alpha'}
+            editor_channel = name_to_editorchannel.get(branch_type, "dev")
+
+        if editor_channel is None or engine_channel is None:
+            print("Unsupported engine branch name {0}".format(branch))
+            sys.exit(1)
+
+        make_release = False
+        engine_artifacts = args.engine_artifacts
+    else:
         engine_channel = "dev"
         editor_channel = None
         make_release = False
