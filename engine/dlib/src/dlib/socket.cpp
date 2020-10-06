@@ -93,7 +93,7 @@ namespace dmSocket
         }
 
         // TODO: Add log-domain support
-        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
         return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
@@ -245,7 +245,7 @@ namespace dmSocket
     {
         switch(protocol)
         {
-            case PROTOCOL_TCP:  return PROTOCOL_TCP;
+            case PROTOCOL_TCP:  return IPPROTO_TCP;
             case PROTOCOL_UDP:  return IPPROTO_UDP;
         }
     }
