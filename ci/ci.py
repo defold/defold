@@ -437,14 +437,12 @@ def main(argv):
 
         make_release = False
         engine_artifacts = args.engine_artifacts
-
-    elif branch and branch.startswith("DEFEDIT-"):
-        else:
-            engine_channel = "dev"
-            editor_channel = None
-            make_release = False
-            skip_editor_tests = True
-            engine_artifacts = args.engine_artifacts or "archived"
+    else:
+        engine_channel = "dev"
+        editor_channel = None
+        make_release = False
+        skip_editor_tests = True
+        engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
 
