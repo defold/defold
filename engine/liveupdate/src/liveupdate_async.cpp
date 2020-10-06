@@ -20,6 +20,7 @@
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 #include <dlib/array.h>
+#include <dlib/zip.h>
 
 
 namespace dmLiveUpdate
@@ -42,13 +43,106 @@ namespace dmLiveUpdate
     static AsyncResourceRequest m_TreadJob;
     static ResourceRequestCallbackData m_JobCompleteData;
 
+    static Result VerifyArchive(const char* path)
+    {
+        dmLogInfo("Verifying archive '%s'", path);
+
+        dmZip::HZip zip;
+        dmZip::Result zr = dmZip::Open(path, &zip);
+        if (dmZip::RESULT_OK != zr)
+        {
+            dmLogError("Could not open zip file '%s'", path);
+            return RESULT_INVALID_RESOURCE;
+        }
+
+        uint32_t manifest_len = 0;
+        const char* entryname = "liveupdate.game.dmanifest";
+        zr = dmZip::OpenEntry(zip, entryname);
+        if (dmZip::RESULT_OK != zr)
+        {
+            dmLogError("Could not find entry name '%s'", entryname);
+            return RESULT_INVALID_RESOURCE;
+        }
+
+        zr = dmZip::GetEntrySize(zip, &manifest_len);
+        if (dmZip::RESULT_OK != zr)
+        {
+            dmLogError("Could not get entry size '%s'", entryname);
+            dmZip::Close(zip);
+            return RESULT_INVALID_RESOURCE;
+        }
+
+        uint8_t* manifest_data = (uint8_t*)malloc(manifest_len);
+        zr = dmZip::GetEntryData(zip, manifest_data, manifest_len);
+        if (dmZip::RESULT_OK != zr)
+        {
+            dmLogError("Could not read entry '%s'", entryname);
+            dmZip::Close(zip);
+            return RESULT_INVALID_RESOURCE;
+        }
+        dmZip::CloseEntry(zip);
+
+        dmResource::Manifest* manifest = new dmResource::Manifest();
+
+        // Create
+        Result result = dmLiveUpdate::ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
+        if (RESULT_OK == result)
+        {
+            // Verify
+            result = dmLiveUpdate::VerifyManifest(manifest);
+            if (RESULT_SCHEME_MISMATCH == result)
+            {
+                dmLogWarning("Scheme mismatch, manifest storage is only supported for bundled package. Manifest was not stored.");
+            }
+            else if (RESULT_OK != result)
+            {
+                dmLogError("Manifest verification failed. Manifest was not stored.");
+            }
+
+            // no longer needed
+            dmDDF::FreeMessage(manifest->m_DDFData);
+            dmDDF::FreeMessage(manifest->m_DDF);
+        }
+        // else { resources are already free'd here }
+
+        free(manifest_data);
+        delete manifest;
+
+        dmZip::Close(zip);
+
+        dmLogInfo("Archive verification %s", RESULT_OK == result ? "OK":"FAILED");
+
+        return result;
+    }
+
+    static Result StoreArchive(const char* path)
+    {
+
+        // Move zip file to "liveupdate.zip"
+        // remove "liveupdate.dmanif" (LIVEUPDATE_MANIFEST_FILENAME)
+
+        // also make sure the opposite code path does the same
+
+
+        dmLogInfo("Archive Stored OK");
+
+        return RESULT_OK;
+    }
+
     static void ProcessRequest(AsyncResourceRequest &request)
     {
         m_JobCompleteData.m_CallbackData = request.m_CallbackData;
         m_JobCompleteData.m_Callback = request.m_Callback;
         m_JobCompleteData.m_Status = false;
         Result res = dmLiveUpdate::RESULT_OK;
-        if (request.m_Resource.m_Header != 0x0)
+        if (request.m_IsArchive)
+        {
+            res = VerifyArchive(request.m_Path);
+            if (RESULT_OK == res)
+                res = StoreArchive(request.m_Path);
+            m_JobCompleteData.m_ArchiveIndexContainer = 0;
+        }
+        else if (request.m_Resource.m_Header != 0x0)
         {
             res = dmLiveUpdate::NewArchiveIndexWithResource(request.m_Manifest, request.m_ExpectedResourceDigest, request.m_ExpectedResourceDigestLength, &request.m_Resource, m_JobCompleteData.m_NewArchiveIndex);
             m_JobCompleteData.m_ArchiveIndexContainer = request.m_Manifest->m_ArchiveIndex;
@@ -63,7 +157,7 @@ namespace dmLiveUpdate
     // Must be called on the Lua main thread
     static void ProcessRequestComplete()
     {
-        if(m_JobCompleteData.m_Status)
+        if(m_JobCompleteData.m_ArchiveIndexContainer && m_JobCompleteData.m_Status)
         {
             dmLiveUpdate::SetNewArchiveIndex(m_JobCompleteData.m_ArchiveIndexContainer, m_JobCompleteData.m_NewArchiveIndex, true);
         }
