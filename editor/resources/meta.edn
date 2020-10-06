@@ -336,6 +336,10 @@
    :help "max number of sound comonents in a collection, 32 by default",
    :default 32,
    :path ["sound" "max_component_count"]}
+  {:type :boolean,
+   :help "Enables sound threading",
+   :default true,
+   :path ["sound" "use_thread"]}
   {:type :integer,
    :help "max number of sprites, 128 by default",
    :default 128,
