@@ -709,7 +709,6 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
         out->m_DownTime = AKeyEvent_getDownTime(event);
         out->m_EventTime = AKeyEvent_getEventTime(event);
         (*out_count)++;
-        out++;
 
         int glfw_action = -1;
         if (out->m_Action == AKEY_EVENT_ACTION_DOWN)
