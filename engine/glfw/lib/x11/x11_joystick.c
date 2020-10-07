@@ -159,7 +159,7 @@ int _glfwInitJoystick(int deviceIndex, int deviceId, int deviceFd, int isLegacy)
     return 1;
 }
 
-void _glfwInitJoysticks( void )
+int _glfwInitJoysticks( void )
 {
 #ifdef _GLFW_USE_LINUX_JOYSTICKS
     int  k, fd, joy_count;
@@ -223,6 +223,7 @@ void _glfwInitJoysticks( void )
 
 #endif // _GLFW_USE_LINUX_JOYSTICKS
 
+    return GL_TRUE;
 }
 
 
