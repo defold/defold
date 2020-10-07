@@ -39,7 +39,7 @@ TEST(dmZip, NotExist)
     ASSERT_NE(dmZip::RESULT_OK, zr);
 }
 
-TEST(dmZip, Open)
+TEST(dmZip, Read)
 {
     char path[64];
     dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, "foo.zip");
@@ -70,6 +70,54 @@ TEST(dmZip, Open)
     manifest_data[manifest_len] = 0;
 
     ASSERT_STREQ("Hello World", (const char*)manifest_data);
+
+    dmZip::Close(zip);
+}
+
+TEST(dmZip, Iterate)
+{
+    char path[64];
+    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, "foo.zip");
+
+    dmZip::HZip zip;
+    dmZip::Result zr = dmZip::Open(path, &zip);
+    ASSERT_EQ(dmZip::RESULT_OK, zr);
+
+    uint32_t num_entries = dmZip::GetNumEntries(zip);
+    ASSERT_EQ(3u, num_entries);
+
+    uint32_t num_files = 0;
+    uint32_t num_dirs = 0;
+    uint32_t num_matches = 0;
+
+    const char* names[] = {
+            "dir/",
+            "dir/data.bin",
+            "hello.txt",
+        };
+
+    for( uint32_t i = 0; i < num_entries; ++i)
+    {
+        zr = dmZip::OpenEntry(zip, i);
+        ASSERT_EQ(dmZip::RESULT_OK, zr);
+
+        if (dmZip::IsEntryDir(zip))
+            num_dirs++;
+        else
+            num_files++;
+
+        const char* name = dmZip::GetEntryName(zip);
+        ASSERT_NE((const char*)0, name);
+
+        if (strcmp(names[i], name) == 0)
+            num_matches++;
+
+        dmZip::CloseEntry(zip);
+    }
+
+    ASSERT_EQ(2u, num_files);
+    ASSERT_EQ(1u, num_dirs);
+    ASSERT_EQ(3u, num_matches);
 
     dmZip::Close(zip);
 }
