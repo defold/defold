@@ -42,14 +42,31 @@ namespace dmZip
      */
     void Close(HZip zip);
 
+    /*# Get number of entries in archive
+     */
+    uint32_t GetNumEntries(HZip zip);
+
     /*# Open an entry
      * Must be paired with a call to CloseEntry()
      */
     Result OpenEntry(HZip zip, const char* name);
 
+    /*# Open an entry by index
+     * Must be paired with a call to CloseEntry()
+     */
+    Result OpenEntry(HZip zip, uint32_t index);
+
     /*# Close an entry
      */
     Result CloseEntry(HZip zip);
+
+    /*# Returns true if the entry is a directory
+     */
+    bool IsEntryDir(HZip zip);
+
+    /*# Gets the name of the current zip entry
+     */
+    const char* GetEntryName(HZip zip);
 
     /*# get uncompressed size
      *

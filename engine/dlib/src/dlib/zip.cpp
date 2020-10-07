@@ -36,9 +36,20 @@ void Close(HZip zip)
         zip_close(zip);
 }
 
+uint32_t GetNumEntries(HZip zip)
+{
+    return (uint32_t)zip_total_entries(zip);
+}
+
 Result OpenEntry(HZip zip, const char* name)
 {
     int r = zip_entry_open(zip, name);
+    return r == 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
+}
+
+Result OpenEntry(HZip zip, uint32_t index)
+{
+    int r = zip_entry_openbyindex(zip, (int)index);
     return r == 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
 }
 
@@ -47,6 +58,17 @@ Result CloseEntry(HZip zip)
     zip_entry_close(zip);
     return RESULT_OK;
 }
+
+bool IsEntryDir(HZip zip)
+{
+    return zip_entry_isdir(zip) != 0;
+}
+
+const char* GetEntryName(HZip zip)
+{
+    return zip_entry_name(zip);
+}
+
 
 Result GetEntrySize(HZip zip, uint32_t* size)
 {
