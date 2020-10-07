@@ -53,7 +53,7 @@ namespace dmConfigFile
      * ```cpp
      * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
      * {
-     *     int displayWidth = dmConfigFile::GetString(params->m_ConfigFile, "display.width", 640);
+     *     int32_t displayWidth = dmConfigFile::GetInt(params->m_ConfigFile, "display.width", 640);
      * }
      * ```
      */
@@ -74,7 +74,7 @@ namespace dmConfigFile
      * ```cpp
      * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
      * {
-     *     char* projectTitle = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "Untitled");
+     *     const char* projectTitle = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "Untitled");
      * }
      * ```
      */
