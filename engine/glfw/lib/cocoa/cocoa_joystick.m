@@ -579,10 +579,6 @@ int _glfwInitJoysticks( void )
         _glfwJoysticks[ i ].present = GL_FALSE;
     }
 
-    mach_port_t masterPort = 0;
-    CFMutableDictionaryRef hidMatchDictionary = NULL;
-    io_object_t ioHIDDeviceObject = 0;
-
     gHidManager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
 
     NSMutableArray *criterionArray = [NSMutableArray arrayWithCapacity:3];
@@ -751,7 +747,7 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
 
 int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
 {
-    int i, value;
+    int i;
 
     if( joy < GLFW_JOYSTICK_1 || joy > GLFW_JOYSTICK_LAST )
     {

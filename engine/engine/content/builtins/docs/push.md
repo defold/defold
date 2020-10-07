@@ -71,7 +71,7 @@ https://github.com/defold/extension-firebase-core/archive/master.zip
 It has the same API and functionality as before.
 
 The documentation is now available on GitHub:
-[https://defold.github.io/extension-push/](https://defold.github.io/extension-push/)
+[https://defold.com/extension-push/](https://defold.com/extension-push/)
 
 The source code can be viewed on the public GitHub repository:
 [https://github.com/defold/extension-push](https://github.com/defold/extension-push)
