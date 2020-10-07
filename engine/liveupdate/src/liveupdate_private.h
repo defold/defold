@@ -68,6 +68,11 @@ namespace dmLiveUpdate
     void AsyncUpdate();
 
     bool AddAsyncResourceRequest(AsyncResourceRequest& request);
+
+    // Verifies a zip archive
+    Result VerifyArchive(const char* path);
+    // Stages a zip archive for loading after a reboot
+    Result StoreArchive(const char* path);
 };
 
 #endif // H_LIVEUPDATE_PRIVATE
