@@ -121,11 +121,11 @@ namespace dmLiveUpdate
         return uniqueCount;
     }
 
-    static bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length)
+    Result VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length)
     {
         if (manifest == 0x0 || data == 0x0)
         {
-            return false;
+            return RESULT_INVALID_RESOURCE;
         }
 
         bool result = true;
@@ -267,10 +267,11 @@ namespace dmLiveUpdate
     Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
         out_new_index = 0x0;
-        if(!VerifyResource(manifest, expected_digest, expected_digest_length, (const char*)resource->m_Data, resource->m_Count))
+        Result result = VerifyResource(manifest, expected_digest, expected_digest_length, (const char*)resource->m_Data, resource->m_Count);
+        if(RESULT_OK != result)
         {
             dmLogError("Verification failure for Liveupdate archive for resource: %s", expected_digest);
-            return RESULT_INVALID_RESOURCE;
+            return result;
         }
 
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;

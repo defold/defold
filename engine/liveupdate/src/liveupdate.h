@@ -51,6 +51,8 @@ namespace dmLiveUpdate
      */
     Result VerifyManifest(dmResource::Manifest* manifest);
 
+    Result VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length);
+
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
     /*# Registers an archive (.zip) on disc
