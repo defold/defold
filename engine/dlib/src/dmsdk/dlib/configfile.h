@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -44,10 +44,18 @@ namespace dmConfigFile
      * Get config value as string, returns default if the key isn't found
      *
      * @name dmConfigFile::GetString
-     * @param config [type:dmBuffer::HConfig] Config file handle
+     * @param config [type:dmConfigFile::HConfig] Config file handle
      * @param key [type:const char*] Key in format section.key (.key for no section)
      * @param default_value [type:const char*] Default value to return if key isn't found
      * @return value [type:const char*] found value or default value
+     * @examples
+     *
+     * ```cpp
+     * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
+     * {
+     *     int displayWidth = dmConfigFile::GetString(params->m_ConfigFile, "display.width", 640);
+     * }
+     * ```
      */
     const char* GetString(HConfig config, const char* key, const char* default_value);
 
@@ -57,10 +65,18 @@ namespace dmConfigFile
      * Note: default_value is returned for invalid integer values
      *
      * @name dmConfigFile::GetInt
-     * @param config [type:dmBuffer::HConfig] Config file handle
+     * @param config [type:dmConfigFile::HConfig] Config file handle
      * @param key [type:const char*] Key in format section.key (.key for no section)
      * @param default_value [type:int32_t] Default value to return if key isn't found
      * @return value [type:int32_t] found value or default value
+     * @examples
+     *
+     * ```cpp
+     * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
+     * {
+     *     char* projectTitle = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "Untitled");
+     * }
+     * ```
      */
     int32_t GetInt(HConfig config, const char* key, int32_t default_value);
 
@@ -70,13 +86,20 @@ namespace dmConfigFile
      * Note: default_value is returned for invalid float values
      *
      * @name dmConfigFile::GetFloat
-     * @param config [type:dmBuffer::HConfig] Config file handle
+     * @param config [type:dmConfigFile::HConfig] Config file handle
      * @param key [type:const char*] Key in format section.key (.key for no section)
      * @param default_value [type:float] Default value to return if key isn't found
      * @return value [type:float] found value or default value
+     * @examples
+     *
+     * ```cpp
+     * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
+     * {
+     *     float gravity = dmConfigFile::GetString(params->m_ConfigFile, "physics.gravity_y", -9.8f);
+     * }
+     * ```
      */
     float GetFloat(HConfig config, const char* key, float default_value);
 }
 
 #endif // DMSDK_CONFIGFILE_H
-
