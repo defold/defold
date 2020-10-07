@@ -95,7 +95,7 @@ namespace dmConfigFile
      * ```cpp
      * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
      * {
-     *     float gravity = dmConfigFile::GetString(params->m_ConfigFile, "physics.gravity_y", -9.8f);
+     *     float gravity = dmConfigFile::GetFloat(params->m_ConfigFile, "physics.gravity_y", -9.8f);
      * }
      * ```
      */
