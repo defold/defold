@@ -13,12 +13,15 @@
 #include "liveupdate.h"
 #include "liveupdate_private.h"
 
+#include <dlib/dstrings.h>
+#include <dlib/path.h>
 #include <dlib/log.h>
+#include <dlib/sys.h>
 #include <dlib/zip.h>
 
 namespace dmLiveUpdate
 {
-    Result VerifyArchive(const char* path)
+    static Result VerifyArchive(const char* path, char* application_support_path, uint32_t application_support_path_len)
     {
         dmLogInfo("Verifying archive '%s'", path);
 
@@ -63,6 +66,9 @@ namespace dmLiveUpdate
         Result result = dmLiveUpdate::ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
         if (RESULT_OK == result)
         {
+            // store the live update folder for later
+            dmResource::GetApplicationSupportPath(manifest, application_support_path, application_support_path_len);
+
             // Verify
             result = dmLiveUpdate::VerifyManifest(manifest);
             if (RESULT_SCHEME_MISMATCH == result)
@@ -142,12 +148,27 @@ namespace dmLiveUpdate
 
     Result StoreArchive(const char* path)
     {
+        char application_support_path[DMPATH_MAX_PATH];
 
-        // Move zip file to "liveupdate.zip"
-        // remove "liveupdate.dmanif" (LIVEUPDATE_MANIFEST_FILENAME)
+        Result result = VerifyArchive(path, application_support_path, sizeof(application_support_path));
+        if (RESULT_OK != result)
+        {
+            return result;
+        }
 
-        // also make sure the opposite code path does the same
+        // Move zip file to "<support path>/liveupdate.zip.tmp"
 
+        char archive_path[DMPATH_MAX_PATH];
+        dmSnPrintf(archive_path, sizeof(archive_path), "%s/%s", application_support_path, dmResource::LIVEUPDATE_ARCHIVE_TMP_FILENAME);
+
+        dmSys::Result sys_result = dmSys::RenameFile(archive_path, path);
+        if (dmSys::RESULT_OK != sys_result)
+        {
+            dmLogError("Failed to rename '%s' to '%s': %d", path, archive_path, sys_result);
+            return RESULT_IO_ERROR;
+        }
+
+        dmLogInfo("Renamed '%s' to '%s'", path, archive_path);
 
         dmLogInfo("Archive Stored OK");
 

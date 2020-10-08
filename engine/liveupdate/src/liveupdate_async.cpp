@@ -50,9 +50,7 @@ namespace dmLiveUpdate
         Result res = dmLiveUpdate::RESULT_OK;
         if (request.m_IsArchive)
         {
-            res = VerifyArchive(request.m_Path);
-            if (RESULT_OK == res)
-                res = StoreArchive(request.m_Path);
+            res = StoreArchive(request.m_Path);
             m_JobCompleteData.m_ArchiveIndexContainer = 0;
         }
         else if (request.m_Resource.m_Header != 0x0)
