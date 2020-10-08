@@ -1105,7 +1105,7 @@ TEST(RecreateTest, RecreateTestHttp)
 
     FILE* f;
 
-    f = fopen(host_name, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "123");
     fclose(f);
@@ -1115,7 +1115,7 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_EQ(dmResource::RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    f = fopen(host_name, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "456");
     fclose(f);
