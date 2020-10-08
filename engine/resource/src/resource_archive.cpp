@@ -50,7 +50,9 @@ namespace dmResourceArchive
         {
             return RESULT_VERSION_MISMATCH;
         }
-        (*archive)->m_ResourceData = (uint8_t*)resource_data;
+
+        (*archive)->m_ArchiveFileIndex = new ArchiveFileIndex;
+        (*archive)->m_ArchiveFileIndex->m_ResourceData = (uint8_t*)resource_data;
         (*archive)->m_ResourcesMemMapped = true;
         (*archive)->m_LiveUpdateResourceData = (uint8_t*)lu_resource_data;
         (*archive)->m_LiveUpdateFileResourceData = f_lu_resource_data;
@@ -75,7 +77,7 @@ namespace dmResourceArchive
         return memcmp(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, archive_id, len);
     }
 
-    uint32_t CountLiveUpdateEntries(const HArchiveIndexContainer lu_archive_container, const HArchiveIndexContainer bundled_archive_container)
+    static uint32_t CountLiveUpdateEntries(const HArchiveIndexContainer lu_archive_container, const HArchiveIndexContainer bundled_archive_container)
     {
         uint32_t count = 0;
         uint32_t entry_count = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
@@ -83,10 +85,10 @@ namespace dmResourceArchive
         uint32_t hash_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_HashOffset);
         uint32_t bundled_hash_offset = dmEndian::ToNetwork(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
 
-        uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
-        EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
+        uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_ArchiveFileIndex->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
+        EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_ArchiveFileIndex->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
 
-        uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
+        uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_ArchiveFileIndex->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
 
         // Count number of liveupdate entries to cache
         for (uint32_t i = 0; i < entry_count; ++i)
@@ -117,11 +119,11 @@ namespace dmResourceArchive
         uint32_t hash_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_HashOffset);
         uint32_t entries_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
 
-        uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
-        EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
+        uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_ArchiveFileIndex->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
+        EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_ArchiveFileIndex->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
 
         uint32_t bundled_hash_offset = dmEndian::ToNetwork(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
-        uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
+        uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_ArchiveFileIndex->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
 
         uint32_t lu_entry_count = CountLiveUpdateEntries(lu_archive_container, bundled_archive_container);
 
@@ -331,18 +333,21 @@ namespace dmResourceArchive
         uint32_t hash_offset = dmEndian::ToNetwork(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
-        aic->m_Hashes = new uint8_t[entry_count * dmResourceArchive::MAX_HASH];
+
+        ArchiveFileIndex* file_index = new ArchiveFileIndex;
+        aic->m_ArchiveFileIndex = file_index;
+        file_index->m_Hashes = new uint8_t[entry_count * dmResourceArchive::MAX_HASH];
         uint32_t hash_total_size = entry_count * dmResourceArchive::MAX_HASH;
-        if (fread(aic->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
+        if (fread(file_index->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
             return RESULT_IO_ERROR;
         }
 
         fseek(f_index, entry_offset, SEEK_SET);
-        aic->m_Entries = new EntryData[entry_count];
+        file_index->m_Entries = new EntryData[entry_count];
         uint32_t entries_total_size = entry_count * sizeof(EntryData);
-        if (fread(aic->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
+        if (fread(file_index->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
             return RESULT_IO_ERROR;
@@ -375,7 +380,7 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
 
-        aic->m_FileResourceData = f_data; // game.arcd file handle
+        file_index->m_FileResourceData = f_data; // game.arcd file handle
         aic->m_LiveUpdateFileResourceData = f_lu_data; // liveupdate.arcd file
         aic->m_LiveUpdateResourceData = 0x0; // mem-mapped liveupdate.arcd
         aic->m_LiveUpdateResourcesMemMapped = false;
@@ -387,21 +392,20 @@ namespace dmResourceArchive
         return r;
     }
 
+        return r;
+    }
+
     void Delete(HArchiveIndexContainer &archive)
     {
-        if (archive->m_Entries)
+        if (archive->m_ArchiveFileIndex)
         {
-            delete[] archive->m_Entries;
-        }
+            delete[] archive->m_ArchiveFileIndex->m_Entries;
+            delete[] archive->m_ArchiveFileIndex->m_Hashes;
 
-        if (archive->m_Hashes)
-        {
-            delete[] archive->m_Hashes;
-        }
-
-        if (archive->m_FileResourceData)
-        {
-            fclose(archive->m_FileResourceData);
+            if (archive->m_ArchiveFileIndex->m_FileResourceData)
+            {
+                fclose(archive->m_ArchiveFileIndex->m_FileResourceData);
+            }
         }
 
         if (archive->m_LiveUpdateFileResourceData)
@@ -423,6 +427,7 @@ namespace dmResourceArchive
             delete archive->m_ArchiveIndex;
         }
 
+        delete archive->m_ArchiveFileIndex;
         delete archive;
         archive = 0;
     }
@@ -471,7 +476,7 @@ namespace dmResourceArchive
         uint8_t* hashes = 0;
         uint32_t hashes_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
 
-        hashes = (archive->m_IsMemMapped) ? (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hashes_offset) : archive->m_Hashes;
+        hashes = (archive->m_IsMemMapped) ? (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hashes_offset) : archive->m_ArchiveFileIndex->m_Hashes;
 
         return GetInsertionIndex(archive->m_ArchiveIndex, hash_digest, hashes, out_index);
     }
@@ -484,8 +489,8 @@ namespace dmResourceArchive
         // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
         if (!archive->m_IsMemMapped)
         {
-            hashes = archive->m_Hashes;
-            entries = archive->m_Entries;
+            hashes = archive->m_ArchiveFileIndex->m_Hashes;
+            entries = archive->m_ArchiveFileIndex->m_Entries;
         }
         else
         {
@@ -527,13 +532,13 @@ namespace dmResourceArchive
         {
             memcpy((void*)dst, (void*)ai, sizeof(ArchiveIndex)); // copy header data
             uint8_t* cursor =  (uint8_t*)((uintptr_t)dst + sizeof(ArchiveIndex)); // step cursor to hash digests array
-            memcpy(cursor, src->m_Hashes, hash_digests_size);
+            memcpy(cursor, src->m_ArchiveFileIndex->m_Hashes, hash_digests_size);
             cursor = (uint8_t*)((uintptr_t)cursor + hash_digests_size); // step cursor to entry data array
             if (extra_entries_alloc > 0)
             {
                 cursor = (uint8_t*)((uintptr_t)cursor + dmResourceArchive::MAX_HASH * extra_entries_alloc);
             }
-            memcpy(cursor, src->m_Entries, entry_datas_size);
+            memcpy(cursor, src->m_ArchiveFileIndex->m_Entries, entry_datas_size);
         }
         else
         {
@@ -771,8 +776,8 @@ namespace dmResourceArchive
         // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
         if (!archive->m_IsMemMapped)
         {
-            hashes = archive->m_Hashes;
-            entries = archive->m_Entries;
+            hashes = archive->m_ArchiveFileIndex->m_Hashes;
+            entries = archive->m_ArchiveFileIndex->m_Entries;
         }
         else
         {
@@ -865,7 +870,7 @@ namespace dmResourceArchive
             }
             else
             {
-                resource_file = archive->m_FileResourceData;
+                resource_file = archive->m_ArchiveFileIndex->m_FileResourceData;
             }
 
             assert(temp_buffer || compressed_buf == buffer);
@@ -885,7 +890,7 @@ namespace dmResourceArchive
             }
             else
             {
-                r = (void*) (((uintptr_t)archive->m_ResourceData + entry_data->m_ResourceDataOffset));
+                r = (void*) (((uintptr_t)archive->m_ArchiveFileIndex->m_ResourceData + entry_data->m_ResourceDataOffset));
             }
 
             if (compressed && !encrypted)
