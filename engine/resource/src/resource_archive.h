@@ -65,10 +65,10 @@ namespace dmResourceArchive
         uint32_t m_LiveUpdateResourceSize;
         FILE* m_LiveUpdateFileResourceData; // liveupdate.arcd file handle
 
-        uint8_t m_IsMemMapped:1;
-        uint8_t m_ResourcesMemMapped:1;
+        uint32_t m_ArchiveIndexSize;
+        uint8_t m_IsMemMapped:1; // if the m_ArchiveIndex is memory mapped
         uint8_t m_LiveUpdateResourcesMemMapped:1;
-        uint8_t :5;
+        uint8_t :6;
     };
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
@@ -85,20 +85,6 @@ namespace dmResourceArchive
         RESULT_OUTBUFFER_TOO_SMALL = -4,
         RESULT_ALREADY_STORED = -5,
         RESULT_UNKNOWN = -1000,
-    };
-
-    struct DM_ALIGNED(16) EntryData
-    {
-        EntryData() :
-            m_ResourceDataOffset(0),
-            m_ResourceSize(0),
-            m_ResourceCompressedSize(0),
-            m_Flags(0) {}
-
-        uint32_t m_ResourceDataOffset;
-        uint32_t m_ResourceSize;
-        uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
-        uint32_t m_Flags;
     };
 
     struct DM_ALIGNED(16) LiveUpdateResourceHeader {
@@ -141,7 +127,11 @@ namespace dmResourceArchive
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result WrapArchiveBuffer(const void* index_buffer, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size,
+                             const void* resource_data, uint32_t resource_data_size,
+                             const char* lu_resource_filename,
+                             const void* lu_resource_data, uint32_t lu_resourcedata_size,
+                             FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
 
     /**
      * Load archive from filename. Only the index data is loaded into memory.

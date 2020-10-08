@@ -861,7 +861,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         else
         {
             res = dmDDF::LoadMessage(factory->m_BuiltinsManifest->m_DDF->m_Data.m_Data, factory->m_BuiltinsManifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest->m_DDFData);
-            dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveData.m_Data, 0x0, 0x0, 0x0, &factory->m_BuiltinsManifest->m_ArchiveIndex);
+            dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size,
+                                                 params->m_ArchiveData.m_Data, params->m_ArchiveData.m_Size,
+                                                 0x0,
+                                                 0x0, 0,
+                                                 0x0, &factory->m_BuiltinsManifest->m_ArchiveIndex);
         }
     }
 
