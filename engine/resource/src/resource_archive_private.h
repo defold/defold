@@ -51,14 +51,13 @@ namespace dmResourceArchive
         {
             memset(this, 0, sizeof(ArchiveFileIndex));
         }
-        /// Used if the archive is loaded from file (bundled archive)
         char        m_Path[DMPATH_MAX_PATH];
         uint8_t*    m_Hashes;           // Sorted list of filenames (i.e. hashes)
         EntryData*  m_Entries;          // Indices of this list matches indices of m_Hashes
         FILE*       m_FileResourceData; // game.arcd file handle
         uint8_t*    m_ResourceData;     // mem-mapped game.arcd
-        uint32_t    m_ResourceSize;
-        bool        m_IsMemMapped;
+        uint32_t    m_ResourceSize;     // the size of the memory mapped region
+        bool        m_IsMemMapped;      // Is the data memory mapped?
     };
 
     enum EntryFlag
