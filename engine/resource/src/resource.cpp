@@ -609,6 +609,13 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
     return result;
 }
 
+void GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len)
+{
+    char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
+    BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
+    dmSys::GetApplicationSupportPath(id_buf, buffer, buffer_len);
+}
+
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
     dmMessage::HSocket socket = 0;

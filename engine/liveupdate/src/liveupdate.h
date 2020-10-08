@@ -34,6 +34,7 @@ namespace dmLiveUpdate
         RESULT_SCHEME_MISMATCH           = -7,
         RESULT_BUNDLED_RESOURCE_MISMATCH = -8,
         RESULT_FORMAT_ERROR              = -9,
+        RESULT_IO_ERROR                  = -10,
     };
 
     const int MAX_MANIFEST_COUNT = 8;
