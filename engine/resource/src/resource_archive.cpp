@@ -40,7 +40,11 @@ namespace dmResourceArchive
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
-    Result WrapArchiveBuffer(const void* index_buffer, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size,
+                             const void* resource_data, uint32_t resource_data_size,
+                             const char* lu_resource_filename,
+                             const void* lu_resource_data, uint32_t lu_resource_data_size,
+                             FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = true;
@@ -53,7 +57,8 @@ namespace dmResourceArchive
 
         (*archive)->m_ArchiveFileIndex = new ArchiveFileIndex;
         (*archive)->m_ArchiveFileIndex->m_ResourceData = (uint8_t*)resource_data;
-        (*archive)->m_ResourcesMemMapped = true;
+        (*archive)->m_ArchiveFileIndex->m_ResourceSize = resource_data_size;
+        (*archive)->m_ArchiveFileIndex->m_IsMemMapped = true;
         (*archive)->m_LiveUpdateResourceData = (uint8_t*)lu_resource_data;
         (*archive)->m_LiveUpdateFileResourceData = f_lu_resource_data;
 
@@ -68,6 +73,7 @@ namespace dmResourceArchive
         }
 
         (*archive)->m_ArchiveIndex = a;
+        (*archive)->m_ArchiveIndexSize = index_buffer_size;
 
         return RESULT_OK;
     }
@@ -313,7 +319,6 @@ namespace dmResourceArchive
 
         aic = new ArchiveIndexContainer;
         aic->m_IsMemMapped = false;
-        aic->m_ResourcesMemMapped = false;
 
         ai = new ArchiveIndex;
         if (fread(ai, 1, sizeof(ArchiveIndex), f_index) != sizeof(ArchiveIndex))
@@ -406,6 +411,12 @@ namespace dmResourceArchive
             {
                 fclose(archive->m_ArchiveFileIndex->m_FileResourceData);
             }
+
+            if (archive->m_ArchiveFileIndex->m_IsMemMapped)
+            {
+                void* tmp_ptr = (void*)archive->m_ArchiveFileIndex->m_ResourceData;
+                dmResource::UnmapFile(tmp_ptr, archive->m_ArchiveFileIndex->m_ResourceSize);
+            }
         }
 
         if (archive->m_LiveUpdateFileResourceData)
@@ -425,6 +436,11 @@ namespace dmResourceArchive
         if (!archive->m_IsMemMapped)
         {
             delete archive->m_ArchiveIndex;
+        }
+        else
+        {
+            void* tmp_ptr = (void*)archive->m_ArchiveIndex;
+            dmResource::UnmapFile(tmp_ptr, archive->m_ArchiveIndexSize);
         }
 
         delete archive->m_ArchiveFileIndex;
@@ -829,7 +845,7 @@ namespace dmResourceArchive
         bool loaded_with_liveupdate = (entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA);
         bool encrypted = (entry_data->m_Flags & ENTRY_FLAG_ENCRYPTED);
         bool compressed = compressed_size != 0xFFFFFFFF;
-        bool resource_memmapped = loaded_with_liveupdate ? archive->m_LiveUpdateResourcesMemMapped : archive->m_ResourcesMemMapped;
+        bool resource_memmapped = loaded_with_liveupdate ? archive->m_LiveUpdateResourcesMemMapped : archive->m_ArchiveFileIndex->m_IsMemMapped;
 
         // We have multiple combinations for regular archives:
         // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)

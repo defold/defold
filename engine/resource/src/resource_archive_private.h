@@ -26,7 +26,7 @@ namespace dmResourceArchive
     // Equivalent to 512 bits
     const static uint32_t MAX_HASH = 64;
 
-    // For memory mapped files
+    // For memory mapped files (or files read directly into memory)
     struct DM_ALIGNED(16) ArchiveIndex
     {
         ArchiveIndex()
@@ -53,10 +53,12 @@ namespace dmResourceArchive
         }
         /// Used if the archive is loaded from file (bundled archive)
         char        m_Path[DMPATH_MAX_PATH];
-        uint8_t*    m_Hashes; // Sorted list of filenames (i.e. hashes)
-        EntryData*  m_Entries; // Indices of this list matches indices of m_Hashes
-        uint8_t*    m_ResourceData; // mem-mapped game.arcd
+        uint8_t*    m_Hashes;           // Sorted list of filenames (i.e. hashes)
+        EntryData*  m_Entries;          // Indices of this list matches indices of m_Hashes
         FILE*       m_FileResourceData; // game.arcd file handle
+        uint8_t*    m_ResourceData;     // mem-mapped game.arcd
+        uint32_t    m_ResourceSize;
+        bool        m_IsMemMapped;
     };
 
     enum EntryFlag

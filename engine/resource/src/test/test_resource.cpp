@@ -1391,7 +1391,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerification)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
 
     result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
@@ -1410,7 +1410,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
 
     // Deep-copy current manifest resource entries with space for an extra resource entry

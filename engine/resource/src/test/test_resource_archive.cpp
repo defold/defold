@@ -134,11 +134,12 @@ void FreeLiveUpdateEntries(dmResourceArchive::LiveUpdateEntries*& liveupdate_ent
 }
 
 // Call to this should be free'd with FreeMutableIndexData(...)
-void GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
+uint32_t GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
 {
     uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + ENTRY_SIZE * num_entries_to_be_added;
     arci_data = malloc(index_alloc_size);
     memcpy(arci_data, RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
+    return index_alloc_size;
 }
 
 // Call to this should be free'd with FreeMutableIndexData(...)
@@ -149,7 +150,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     arci_data = malloc(RESOURCES_ARCI_SIZE - ENTRY_SIZE * num_lu_entries);
     // Init archive container including LU resources
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
     uint32_t entry_count = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataCount);
@@ -214,7 +215,7 @@ void CreateBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_arc
     bundled_archive_index = 0;
     uint32_t bundled_archive_size = 0;
     GetMutableBundledIndexData((void*&)bundled_archive_index, bundled_archive_size, num_entries_to_keep);
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*&) bundled_archive_index, RESOURCES_ARCD, 0x0, 0x0, 0x0, &bundled_archive_container);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*&) bundled_archive_index, bundled_archive_size, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &bundled_archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U + num_entries_to_keep, dmResourceArchive::GetEntryCount(bundled_archive_container));
 }
@@ -242,11 +243,11 @@ TEST(dmResourceArchive, ShiftInsertResource)
 
     // Use copy since we will shift/insert data
     uint8_t* arci_copy;
-    GetMutableIndexData((void*&)arci_copy, 1);
+    uint32_t arci_size = GetMutableIndexData((void*&)arci_copy, 1);
 
     // Init archive container
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCD, resource_filename, 0x0, resource_file, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, arci_size, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, resource_filename, 0x0, 0, resource_file, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
     ASSERT_EQ(7U, entry_count_before);
@@ -278,7 +279,7 @@ TEST(dmResourceArchive, NewArchiveIndexFromCopy)
     uint32_t single_entry_offset = dmResourceArchive::MAX_HASH;
 
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(496U, dmResourceArchive::GetEntryDataOffset(archive_container));
 
@@ -303,7 +304,7 @@ TEST(dmResourceArchive, CacheLiveUpdateEntries)
     dmResourceArchive::ArchiveIndex* bundled_archive_index;
 
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive_container));
 
@@ -329,7 +330,7 @@ TEST(dmResourceArchive, CacheLiveUpdateEntries)
 TEST(dmResourceArchive, GetInsertionIndex)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
@@ -614,7 +615,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 TEST(dmResourceArchive, Wrap)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
@@ -644,7 +645,7 @@ TEST(dmResourceArchive, Wrap)
 TEST(dmResourceArchive, Wrap_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, (void*) RESOURCES_COMPRESSED_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, RESOURCES_COMPRESSED_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 

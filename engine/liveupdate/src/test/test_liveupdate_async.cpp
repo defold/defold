@@ -54,6 +54,11 @@ struct StoreResourceCallbackData
 
 namespace dmLiveUpdate
 {
+    dmLiveUpdate::Result StoreArchive(const char* path)
+    {
+        return dmLiveUpdate::RESULT_OK;
+    }
+
     dmLiveUpdate::Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
         out_new_index = (dmResourceArchive::HArchiveIndex) 0x5678;
