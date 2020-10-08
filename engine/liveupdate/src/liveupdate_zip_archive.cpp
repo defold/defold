@@ -21,7 +21,7 @@
 
 namespace dmLiveUpdate
 {
-    static Result VerifyArchive(const char* path, char* application_support_path, uint32_t application_support_path_len)
+    static Result VerifyZipArchive(const char* path, char* application_support_path, uint32_t application_support_path_len)
     {
         dmLogInfo("Verifying archive '%s'", path);
 
@@ -146,11 +146,11 @@ namespace dmLiveUpdate
         return result;
     }
 
-    Result StoreArchive(const char* path)
+    Result StoreZipArchive(const char* path)
     {
         char application_support_path[DMPATH_MAX_PATH];
 
-        Result result = VerifyArchive(path, application_support_path, sizeof(application_support_path));
+        Result result = VerifyZipArchive(path, application_support_path, sizeof(application_support_path));
         if (RESULT_OK != result)
         {
             return result;

@@ -70,7 +70,7 @@ namespace dmLiveUpdate
     bool AddAsyncResourceRequest(AsyncResourceRequest& request);
 
     // Verifies a zip archive
-    Result StoreArchive(const char* path);
+    Result StoreZipArchive(const char* path);
 };
 
 #endif // H_LIVEUPDATE_PRIVATE
