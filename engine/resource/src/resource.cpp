@@ -71,8 +71,17 @@ namespace dmResource
 const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 #define RESOURCE_SOCKET_NAME "@resource"
-#define LIVEUPDATE_MANIFEST_FILENAME "liveupdate.dmanifest"
 #define LIVEUPDATE_BUNDLE_VER_FILENAME "bundle.ver"
+
+const char* LIVEUPDATE_MANIFEST_FILENAME        = "liveupdate.dmanifest";
+const char* LIVEUPDATE_MANIFEST_TMP_FILENAME    = "liveupdate.dmanifest.tmp";
+const char* LIVEUPDATE_INDEX_FILENAME           = "liveupdate.arci";
+const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
+const char* LIVEUPDATE_DATA_FILENAME            = "liveupdate.arcd";
+const char* LIVEUPDATE_DATA_TMP_FILENAME        = "liveupdate.arcd.tmp";
+const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.zip";
+const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.zip.tmp";
+
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
@@ -289,8 +298,8 @@ Result StoreManifest(Manifest* manifest)
     }
 
     dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
-    dmStrlCpy(manifest_tmp_file_path, manifest_file_path, DMPATH_MAX_PATH);
-    dmSnPrintf(manifest_tmp_file_path, sizeof(manifest_tmp_file_path), "%s.tmp", manifest_file_path);
+    dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_TMP_FILENAME, manifest_tmp_file_path, DMPATH_MAX_PATH);
+
     // write to tempfile, if successful move/rename and then delete tmpfile
     dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
     if (ddf_result != dmDDF::RESULT_OK)

@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <dlib/align.h>
+#include <dlib/path.h>
 
 namespace dmResourceArchive
 {
@@ -27,6 +28,48 @@ namespace dmResourceArchive
      * version of the archive format.
      */
     const static uint32_t VERSION = 4;
+
+    struct DM_ALIGNED(16) EntryData
+    {
+        EntryData() :
+            m_ResourceDataOffset(0),
+            m_ResourceSize(0),
+            m_ResourceCompressedSize(0),
+            m_Flags(0) {}
+
+        uint32_t m_ResourceDataOffset;
+        uint32_t m_ResourceSize;
+        uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
+        uint32_t m_Flags;
+    };
+
+    struct DM_ALIGNED(16) ArchiveIndex;
+    struct ArchiveFileIndex;
+    struct ArchiveLoader;
+
+    struct ArchiveIndexContainer
+    {
+        ArchiveIndexContainer()
+        {
+            memset(this, 0, sizeof(ArchiveIndexContainer));
+        }
+
+        ArchiveIndexContainer* m_Next;
+
+        ArchiveIndex*       m_ArchiveIndex;     // this could be mem-mapped or loaded into memory from file
+        ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
+
+        /// Resources acquired with LiveUpdate
+        char m_LiveUpdateResourcePath[DMPATH_MAX_PATH];
+        uint8_t* m_LiveUpdateResourceData; // mem-mapped liveupdate.arcd
+        uint32_t m_LiveUpdateResourceSize;
+        FILE* m_LiveUpdateFileResourceData; // liveupdate.arcd file handle
+
+        uint8_t m_IsMemMapped:1;
+        uint8_t m_ResourcesMemMapped:1;
+        uint8_t m_LiveUpdateResourcesMemMapped:1;
+        uint8_t :5;
+    };
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
 

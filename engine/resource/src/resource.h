@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,6 +32,15 @@ namespace dmResource
      * Configuration key used to tweak the max number of resources allowed.
      */
     extern const char* MAX_RESOURCES_KEY;
+
+    extern const char* LIVEUPDATE_MANIFEST_FILENAME;
+    extern const char* LIVEUPDATE_MANIFEST_TMP_FILENAME;
+    extern const char* LIVEUPDATE_INDEX_FILENAME;
+    extern const char* LIVEUPDATE_INDEX_TMP_FILENAME;
+    extern const char* LIVEUPDATE_DATA_FILENAME;
+    extern const char* LIVEUPDATE_DATA_TMP_FILENAME;
+    extern const char* LIVEUPDATE_ARCHIVE_FILENAME;
+    extern const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME;
 
     /**
      * Empty flags
@@ -705,6 +714,11 @@ namespace dmResource
     /**
      */
     const char* ResultToString(Result result);
+
+
+    /*# Get the support path for the project, with the hashed project name at the end
+     */
+    void GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
 }
 
 #endif // RESOURCE_H

@@ -26,15 +26,7 @@ namespace dmResourceArchive
     // Equivalent to 512 bits
     const static uint32_t MAX_HASH = 64;
 
-    const static uint32_t MD5_SIZE = 16;
-
-    enum EntryFlag
-    {
-        ENTRY_FLAG_ENCRYPTED        = 1 << 0,
-        ENTRY_FLAG_COMPRESSED       = 1 << 1,
-        ENTRY_FLAG_LIVEUPDATE_DATA  = 1 << 2,
-    };
-
+    // For memory mapped files
     struct DM_ALIGNED(16) ArchiveIndex
     {
         ArchiveIndex()
@@ -49,35 +41,29 @@ namespace dmResourceArchive
         uint32_t m_EntryDataOffset;
         uint32_t m_HashOffset;
         uint32_t m_HashLength;
-        uint8_t  m_ArchiveIndexMD5[MD5_SIZE];
+        uint8_t  m_ArchiveIndexMD5[16]; // 16 bytes is the size of md5
     };
 
-    struct ArchiveIndexContainer
+    // Used if the archive is loaded from file (bundled archive)
+    struct ArchiveFileIndex
     {
-        ArchiveIndexContainer()
+        ArchiveFileIndex()
         {
-            memset(this, 0, sizeof(ArchiveIndexContainer));
+            memset(this, 0, sizeof(ArchiveFileIndex));
         }
-
-        ArchiveIndex* m_ArchiveIndex; // this could be mem-mapped or loaded into memory from file
-
         /// Used if the archive is loaded from file (bundled archive)
-        uint8_t* m_Hashes; // Sorted list of filenames (i.e. hashes)
-        EntryData* m_Entries; // Indices of this list matches indices of m_Hashes
-        uint8_t* m_ResourceData; // mem-mapped game.arcd
-        FILE* m_FileResourceData; // game.arcd file handle
+        char        m_Path[DMPATH_MAX_PATH];
+        uint8_t*    m_Hashes; // Sorted list of filenames (i.e. hashes)
+        EntryData*  m_Entries; // Indices of this list matches indices of m_Hashes
+        uint8_t*    m_ResourceData; // mem-mapped game.arcd
+        FILE*       m_FileResourceData; // game.arcd file handle
+    };
 
-        /// Resources acquired with LiveUpdate
-        char m_LiveUpdateResourcePath[DMPATH_MAX_PATH];
-        uint8_t* m_LiveUpdateResourceData; // mem-mapped liveupdate.arcd
-        uint32_t m_LiveUpdateResourceSize;
-        FILE* m_LiveUpdateFileResourceData; // liveupdate.arcd file handle
-
-        uint8_t m_IsMemMapped:1;
-        uint8_t m_ResourcesMemMapped:1;
-        uint8_t m_LiveUpdateResourcesMemMapped:1;
-        uint8_t m_IsZipArchive:1;
-        uint8_t :4;
+    enum EntryFlag
+    {
+        ENTRY_FLAG_ENCRYPTED        = 1 << 0,
+        ENTRY_FLAG_COMPRESSED       = 1 << 1,
+        ENTRY_FLAG_LIVEUPDATE_DATA  = 1 << 2,
     };
 
 	struct LiveUpdateEntries {
