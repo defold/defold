@@ -59,17 +59,17 @@ namespace dmResourceArchive
         (*archive)->m_ArchiveFileIndex->m_ResourceData = (uint8_t*)resource_data;
         (*archive)->m_ArchiveFileIndex->m_ResourceSize = resource_data_size;
         (*archive)->m_ArchiveFileIndex->m_IsMemMapped = true;
-        (*archive)->m_LiveUpdateResourceData = (uint8_t*)lu_resource_data;
-        (*archive)->m_LiveUpdateFileResourceData = f_lu_resource_data;
 
-        if (lu_resource_data)
+        if (lu_resource_data != 0 || lu_resource_filename != 0)
         {
-            (*archive)->m_LiveUpdateResourcesMemMapped = true;
-        }
-        if (lu_resource_filename != 0x0)
-        {
-            dmStrlCpy((*archive)->m_LiveUpdateResourcePath, lu_resource_filename, DMPATH_MAX_PATH);
-            dmLogInfo("Live Update archive: %s", (*archive)->m_LiveUpdateResourcePath);
+            (*archive)->m_LUArchiveFileIndex = new ArchiveFileIndex;
+            (*archive)->m_LUArchiveFileIndex->m_IsMemMapped = lu_resource_data != 0 ? 1 : 0;
+
+            (*archive)->m_LUArchiveFileIndex->m_ResourceData = (uint8_t*)lu_resource_data;
+            (*archive)->m_LUArchiveFileIndex->m_FileResourceData = f_lu_resource_data;
+
+            dmStrlCpy((*archive)->m_LUArchiveFileIndex->m_Path, lu_resource_filename != 0 ? lu_resource_filename : "", DMPATH_MAX_PATH);
+            dmLogInfo("Live Update archive: '%s'", (*archive)->m_LUArchiveFileIndex->m_Path);
         }
 
         (*archive)->m_ArchiveIndex = a;
@@ -365,6 +365,8 @@ namespace dmResourceArchive
         // Assumes file already exists if a path to it is supplied
         if (lu_data_file_path != 0x0)
         {
+            aic->m_LUArchiveFileIndex = new ArchiveFileIndex;
+
             f_lu_data = fopen(lu_data_file_path, "rb+");
 
             if (!f_lu_data)
@@ -372,9 +374,10 @@ namespace dmResourceArchive
                 CleanupResources(f_index, f_data, f_lu_data, aic);
                 return RESULT_IO_ERROR;
             }
-            dmStrlCpy(aic->m_LiveUpdateResourcePath, lu_data_file_path, DMPATH_MAX_PATH);
-            dmLogInfo("Live Update archive: %s", aic->m_LiveUpdateResourcePath);
-            aic->m_LiveUpdateResourcesMemMapped = false;
+            dmStrlCpy(aic->m_LUArchiveFileIndex->m_Path, lu_data_file_path, DMPATH_MAX_PATH);
+            dmLogInfo("Live Update archive: %s", aic->m_LUArchiveFileIndex->m_Path);
+
+            aic->m_LUArchiveFileIndex->m_FileResourceData = f_lu_data; // liveupdate.arcd file
         }
 
         f_data = fopen(data_file_path, "rb");
@@ -386,9 +389,6 @@ namespace dmResourceArchive
         }
 
         file_index->m_FileResourceData = f_data; // game.arcd file handle
-        aic->m_LiveUpdateFileResourceData = f_lu_data; // liveupdate.arcd file
-        aic->m_LiveUpdateResourceData = 0x0; // mem-mapped liveupdate.arcd
-        aic->m_LiveUpdateResourcesMemMapped = false;
         aic->m_ArchiveIndex = ai;
         *archive = aic;
 
@@ -400,38 +400,32 @@ namespace dmResourceArchive
         return r;
     }
 
+    static void DeleteArchiveFileIndex(ArchiveFileIndex* afi)
+    {
+        if (afi != 0)
+        {
+            delete[] afi->m_Entries;
+            delete[] afi->m_Hashes;
+
+            if (afi->m_FileResourceData)
+            {
+                fclose(afi->m_FileResourceData);
+            }
+
+            if (afi->m_IsMemMapped)
+            {
+                void* tmp_ptr = (void*)afi->m_ResourceData;
+                dmResource::UnmapFile(tmp_ptr, afi->m_ResourceSize);
+            }
+        }
+
+        delete afi;
+    }
+
     void Delete(HArchiveIndexContainer &archive)
     {
-        if (archive->m_ArchiveFileIndex)
-        {
-            delete[] archive->m_ArchiveFileIndex->m_Entries;
-            delete[] archive->m_ArchiveFileIndex->m_Hashes;
-
-            if (archive->m_ArchiveFileIndex->m_FileResourceData)
-            {
-                fclose(archive->m_ArchiveFileIndex->m_FileResourceData);
-            }
-
-            if (archive->m_ArchiveFileIndex->m_IsMemMapped)
-            {
-                void* tmp_ptr = (void*)archive->m_ArchiveFileIndex->m_ResourceData;
-                dmResource::UnmapFile(tmp_ptr, archive->m_ArchiveFileIndex->m_ResourceSize);
-            }
-        }
-
-        if (archive->m_LiveUpdateFileResourceData)
-        {
-            fclose(archive->m_LiveUpdateFileResourceData);
-        }
-
-        if (archive->m_LiveUpdateResourcesMemMapped)
-        {
-            void* tmp_ptr = (void*)archive->m_LiveUpdateResourceData;
-            dmResource::UnmapFile(tmp_ptr, archive->m_LiveUpdateResourceSize);
-            archive->m_LiveUpdateResourceData = 0x0;
-            archive->m_LiveUpdateResourceSize = 0;
-            archive->m_LiveUpdateResourcesMemMapped = false;
-        }
+        DeleteArchiveFileIndex(archive->m_ArchiveFileIndex);
+        DeleteArchiveFileIndex(archive->m_LUArchiveFileIndex);
 
         if (!archive->m_IsMemMapped)
         {
@@ -443,7 +437,6 @@ namespace dmResourceArchive
             dmResource::UnmapFile(tmp_ptr, archive->m_ArchiveIndexSize);
         }
 
-        delete archive->m_ArchiveFileIndex;
         delete archive;
         archive = 0;
     }
@@ -577,9 +570,12 @@ namespace dmResourceArchive
 
     Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, size_t buf_len, uint32_t& bytes_written, uint32_t& offset)
     {
-        fseek(archive->m_LiveUpdateFileResourceData, 0, SEEK_END);
-        uint32_t offs = (uint32_t)ftell(archive->m_LiveUpdateFileResourceData);
-        size_t bytes = fwrite(buf, 1, buf_len, archive->m_LiveUpdateFileResourceData);
+        ArchiveFileIndex* afi = archive->m_LUArchiveFileIndex;
+        FILE* res_file = afi->m_FileResourceData;
+
+        fseek(res_file, 0, SEEK_END);
+        uint32_t offs = (uint32_t)ftell(res_file);
+        size_t bytes = fwrite(buf, 1, buf_len, res_file);
         if(bytes != buf_len)
         {
             return RESULT_IO_ERROR;
@@ -587,23 +583,26 @@ namespace dmResourceArchive
         bytes_written = bytes;
         offset = offs;
 
-        fflush(archive->m_LiveUpdateFileResourceData); // make sure all writes flushed before mem-mapping below
+        fflush(res_file); // make sure all writes flushed before mem-mapping below
 
         // We have written to the resource file, need to update mapping
-        if (archive->m_LiveUpdateResourcesMemMapped)
+        if (afi->m_IsMemMapped)
         {
-            void* temp_map = (void*)archive->m_LiveUpdateResourceData;
+            void* temp_map = (void*)afi->m_ResourceData;
+            assert(afi->m_ResourceSize == offset); // I want to use the m_ResourceSize
             dmResource::UnmapFile(temp_map, offset);
+
             temp_map = 0x0;
             uint32_t map_size = 0;
-            dmResource::Result res = dmResource::MapFile(archive->m_LiveUpdateResourcePath, temp_map, map_size);
+            dmResource::Result res = dmResource::MapFile(afi->m_Path, temp_map, map_size);
             if (res != dmResource::RESULT_OK)
             {
                 dmLogError("Failed to map liveupdate respource file, result = %i", res);
                 return RESULT_IO_ERROR;
             }
-            archive->m_LiveUpdateResourceData = (uint8_t*)temp_map;
-            archive->m_LiveUpdateResourceSize = offset + bytes_written;
+            afi->m_ResourceData = (uint8_t*)temp_map;
+            afi->m_ResourceSize = offset + bytes_written;
+            assert((offset + bytes_written) == map_size); // I want to use the map_size
         }
 
         return RESULT_OK;
@@ -673,7 +672,7 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    void CreateFilesIfNotExists(ArchiveIndexContainer* archive_container, const char* lu_index_path)
+    static void CreateFilesIfNotExists(ArchiveIndexContainer* archive_container, const char* lu_index_path)
     {
         struct stat file_stat;
         bool resource_exists = stat(lu_index_path, &file_stat) == 0;
@@ -695,12 +694,19 @@ namespace dmResourceArchive
                 dmLogError("Failed to create liveupdate resource file");
             }
 
-            dmStrlCpy(archive_container->m_LiveUpdateResourcePath, lu_data_path, DMPATH_MAX_PATH);
-            dmLogInfo("Live Update archive: %s", archive_container->m_LiveUpdateResourcePath);
-            archive_container->m_LiveUpdateResourceData = 0x0;
-            archive_container->m_LiveUpdateResourceSize = 0;
-            archive_container->m_LiveUpdateFileResourceData = f_lu_data;
-            archive_container->m_LiveUpdateResourcesMemMapped = false;
+            if (!archive_container->m_LUArchiveFileIndex)
+            {
+                archive_container->m_LUArchiveFileIndex = new ArchiveFileIndex;
+            }
+
+            ArchiveFileIndex* afi = archive_container->m_LUArchiveFileIndex;
+
+            dmStrlCpy(afi->m_Path, lu_data_path, DMPATH_MAX_PATH);
+            dmLogInfo("Live Update archive: %s", afi->m_Path);
+            afi->m_FileResourceData = f_lu_data;
+            afi->m_ResourceData = 0x0;
+            afi->m_ResourceSize = 0;
+            afi->m_IsMemMapped = false;
         }
     }
 
@@ -845,7 +851,9 @@ namespace dmResourceArchive
         bool loaded_with_liveupdate = (entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA);
         bool encrypted = (entry_data->m_Flags & ENTRY_FLAG_ENCRYPTED);
         bool compressed = compressed_size != 0xFFFFFFFF;
-        bool resource_memmapped = loaded_with_liveupdate ? archive->m_LiveUpdateResourcesMemMapped : archive->m_ArchiveFileIndex->m_IsMemMapped;
+
+        const ArchiveFileIndex* afi = loaded_with_liveupdate ? archive->m_LUArchiveFileIndex : archive->m_ArchiveFileIndex;
+        bool resource_memmapped = afi->m_IsMemMapped;
 
         // We have multiple combinations for regular archives:
         // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)
@@ -879,15 +887,7 @@ namespace dmResourceArchive
 
         if (!resource_memmapped)
         {
-            FILE* resource_file;
-            if (loaded_with_liveupdate)
-            {
-                resource_file = archive->m_LiveUpdateFileResourceData;
-            }
-            else
-            {
-                resource_file = archive->m_ArchiveFileIndex->m_FileResourceData;
-            }
+            FILE* resource_file = afi->m_FileResourceData;
 
             assert(temp_buffer || compressed_buf == buffer);
 
@@ -899,15 +899,7 @@ namespace dmResourceArchive
                 return RESULT_IO_ERROR;
             }
         } else {
-            void* r = 0;
-            if (loaded_with_liveupdate)
-            {
-                r = (void*) (((uintptr_t)archive->m_LiveUpdateResourceData + entry_data->m_ResourceDataOffset));
-            }
-            else
-            {
-                r = (void*) (((uintptr_t)archive->m_ArchiveFileIndex->m_ResourceData + entry_data->m_ResourceDataOffset));
-            }
+            void* r = (void*) (((uintptr_t)afi->m_ResourceData + entry_data->m_ResourceDataOffset));
 
             if (compressed && !encrypted)
             {

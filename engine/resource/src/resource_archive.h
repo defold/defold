@@ -58,17 +58,11 @@ namespace dmResourceArchive
 
         ArchiveIndex*       m_ArchiveIndex;     // this could be mem-mapped or loaded into memory from file
         ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
+        ArchiveFileIndex*   m_LUArchiveFileIndex; // Used if the archive is loaded from live update
 
-        /// Resources acquired with LiveUpdate
-        char m_LiveUpdateResourcePath[DMPATH_MAX_PATH];
-        uint8_t* m_LiveUpdateResourceData; // mem-mapped liveupdate.arcd
-        uint32_t m_LiveUpdateResourceSize;
-        FILE* m_LiveUpdateFileResourceData; // liveupdate.arcd file handle
-
-        uint32_t m_ArchiveIndexSize;
-        uint8_t m_IsMemMapped:1; // if the m_ArchiveIndex is memory mapped
-        uint8_t m_LiveUpdateResourcesMemMapped:1;
-        uint8_t :6;
+        uint32_t m_ArchiveIndexSize;            // kept for unmapping
+        uint8_t  m_IsMemMapped:1; // if the m_ArchiveIndex is memory mapped
+        uint8_t  :7;
     };
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
