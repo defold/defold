@@ -58,7 +58,7 @@ void destroy_gl_surface(_GLFWwin_android* win);
 
 void make_current(_GLFWwin_android* win);
 
-void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android);
+void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force);
 
 int query_gl_aux_context(_GLFWwin_android* win);
 

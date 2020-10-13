@@ -29,6 +29,7 @@ namespace dmURI
 {
     /*#
      * URI parsing result
+     * @name dmURI::Result
      */
     enum Result
     {
@@ -44,8 +45,10 @@ namespace dmURI
     const uint32_t MAX_URI_LEN = MAX_SCHEME_LEN + 3 + MAX_LOCATION_LEN + 1 + MAX_PATH_LEN;
 
 
-    /**
+    /*#
      * URI parsing result parts
+     * @struct
+     * @name dmURI::Parts
      */
     struct Parts
     {

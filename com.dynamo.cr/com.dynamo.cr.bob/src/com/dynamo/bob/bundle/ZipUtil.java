@@ -65,6 +65,7 @@ public class ZipUtil {
 						crc.update(entryData, 0, count);
 					}
 				}
+				stream.close();
 			}
 		} finally {
 			if(null != byteOut) {

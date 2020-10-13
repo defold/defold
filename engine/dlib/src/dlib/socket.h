@@ -16,14 +16,6 @@
 #include <stdint.h>
 #include <string.h> // memset, memcmp
 
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
-#include <sys/select.h>
-#elif defined(_WIN32)
-#include <winsock2.h>
-#else
-#error "Unsupported platform"
-#endif
-
 #include <dmsdk/dlib/socket.h>
 
 /**
@@ -33,38 +25,6 @@
  */
 namespace dmSocket
 {
-    struct Selector
-    {
-        fd_set m_FdSets[3];
-        int    m_Nfds;
-        Selector();
-    };
-
-    enum SelectorKind
-    {
-        SELECTOR_KIND_READ   = 0,
-        SELECTOR_KIND_WRITE  = 1,
-        SELECTOR_KIND_EXCEPT = 2,
-    };
-
-    /**
-     * Network address
-     * Network addresses were previously represented as an uint32_t, but in
-     * order to support IPv6 the internal representation was changed to a
-     * struct.
-     */
-    struct Address
-    {
-
-        Address() {
-            m_family = dmSocket::DOMAIN_MISSING;
-            memset(m_address, 0x0, sizeof(m_address));
-        }
-
-        Domain m_family;
-        uint32_t m_address[4];
-    };
-
     /**
      * Comparison operators for dmSocket::Address (network address).
      * These operators are required since network code was initially designed
@@ -143,29 +103,12 @@ namespace dmSocket
     Result Bind(Socket socket, Address address, int port);
 
     /**
-     * Initiate a connection on a socket
-     * @param socket Socket to initiate connection on
-     * @param address Address to connect to
-     * @param port Port to connect to
-     * @return RESULT_OK on success
-     */
-    Result Connect(Socket socket, Address address, int port);
-
-    /**
      * Listen for connections on a socket
      * @param socket Socket to listen on
      * @param backlog Maximum length for the queue of pending connections
      * @return RESULT_OK on success
      */
     Result Listen(Socket socket, int backlog);
-
-    /**
-     * Shutdown part of a socket connection
-     * @param socket Socket to shutdown connection ow
-     * @param how Shutdown type
-     * @return RESULT_OK on success
-     */
-    Result Shutdown(Socket socket, ShutdownType how);
 
     /**
      * Send a message to a specific address
@@ -236,16 +179,6 @@ namespace dmSocket
     char* AddressToIPString(Address address);
 
     /**
-     * Get host by name.
-     * @param name  Hostname to resolve
-     * @param address Host address result
-     * @param ipv4 Whether or not to search for IPv4 addresses
-     * @param ipv6 Whether or not to search for IPv6 addresses
-     * @return RESULT_OK on success
-     */
-    Result GetHostByName(const char* name, Address* address, bool ipv4 = true, bool ipv6 = true);
-
-    /**
      * Get information about network adapters (loopback devices are not included)
      * @note Make sure that addresses is large enough. If too small
      * the result is capped.
@@ -312,47 +245,6 @@ namespace dmSocket
      * @return Number of bits that differs between a and b
      */
     uint32_t BitDifference(Address a, Address b);
-
-    struct Selector;
-
-        /**
-     * Clear selector for socket. Similar to FD_CLR
-     * @param selector Selector
-     * @param selector_kind Kind to clear
-     * @param socket Socket to clear
-     */
-    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket);
-
-    /**
-     * Set selector for socket. Similar to FD_SET
-     * @param selector Selector
-     * @param selector_kind Kind to clear
-     * @param socket Socket to set
-     */
-    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket);
-
-    /**
-     * Check if selector is set. Similar to FD_ISSET
-     * @param selector Selector
-     * @param selector_kind Selector kind
-     * @param socket Socket to check for
-     * @return True if set.
-     */
-    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket);
-
-    /**
-     * Clear selector (all kinds). Similar to FD_ZERO
-     * @param selector Selector
-     */
-    void SelectorZero(Selector* selector);
-
-    /**
-     * Select for pending data
-     * @param selector Selector
-     * @param timeout Timeout. For blocking pass -1
-     * @return RESULT_OK on success
-     */
-    Result Select(Selector* selector, int32_t timeout);
 }
 
 #endif // DM_SOCKET_H

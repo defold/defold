@@ -28,6 +28,7 @@
 namespace dmCrypt
 {
     /*# Hash buffer using SHA1
+     * @name dmCrypt::HashSha1
      * @param buf       The source data to hash
      * @param buflen    The length of source data in bytes
      * @param digest    The destination buffer (20 bytes)
@@ -35,6 +36,7 @@ namespace dmCrypt
     void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest);      // output is 20 bytes
 
     /*# Hash buffer using SHA256
+     * @name dmCrypt::HashSha256
      * @param buf       The source data to hash
      * @param buflen    The length of source data in bytes
      * @param digest    The destination buffer (32 bytes)
@@ -42,6 +44,7 @@ namespace dmCrypt
     void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest);    // output is 32 bytes
 
     /*# Hash buffer using SHA512
+     * @name dmCrypt::HashSha512
      * @param buf       The source data to hash
      * @param buflen    The length of source data in bytes
      * @param digest    The destination buffer (64 bytes)
@@ -49,13 +52,15 @@ namespace dmCrypt
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest);    // output is 64 bytes
 
     /*# Hash buffer using MD5
+     * @name dmCrypt::HashMd5
      * @param buf       The source data to hash
      * @param buflen    The length of source data in bytes
      * @param digest    The destination buffer (16 bytes)
      */
     void HashMd5(const uint8_t* buf, uint32_t buflen, uint8_t* digest);       // output is 16 bytes
 
-    /*#
+    /*# Base64 encode a buffer
+     * @name dmCrypt::Base64Encode
      * @param src               The source data to encode
      * @param src_len           The length of source data in bytes
      * @param dst               The destination buffer
@@ -66,7 +71,8 @@ namespace dmCrypt
     bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
 
 
-    /*#
+    /*# Base64 decode a buffer
+     * @name dmCrypt::Base64Decode
      * @param src               The source data to encode
      * @param src_len           The length of source data in bytes
      * @param dst               The destination buffer

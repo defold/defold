@@ -46,7 +46,7 @@ function make_archive() {
 	if [ ! -e "$archive" ]; then
 		echo Packaging ${src} to ${archive}
 
-		local tarflags=-czf
+		local tarflags=-cz
 		if [ "${VERBOSE}" != "" ]; then
 			tarflags=${tarflags}v
 		fi
@@ -65,8 +65,14 @@ function package_platform() {
 	PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l)
 	PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 
+	EXTRA_ARGS=""
+	for f in ${PLATFORM_FOLDER}/usr/lib/swift*
+	do
+		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
+	done
+
 	echo FOUND $PLATFORM_SYMLINK "->" $PLATFORM_FOLDER
-	make_archive $PLATFORM_FOLDER $PLATFORM_SYMLINK
+	make_archive $PLATFORM_FOLDER $PLATFORM_SYMLINK ${EXTRA_ARGS}
 	popd
 }
 
@@ -84,7 +90,12 @@ function package_xcode() {
 
 	pushd ${XCODE}
 
-	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework"
+	EXTRA_ARGS="--exclude=${_name}/usr/bin --exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework --exclude=${_name}/usr/metal"
+	for f in ${_name}/usr/lib/*.dylib
+	do
+		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
+	done
+
 	for f in ${_name}/usr/lib/swift*
 	do
 		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"

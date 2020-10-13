@@ -98,6 +98,7 @@ static void EngineMainThread(void* ctx)
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
     EngineMainThreadArgs* args = (EngineMainThreadArgs*)ctx;
     args->m_ExitCode = EngineMain(args->m_Argc, args->m_Argv);
+    args->m_Finished = 1;
 }
 
 int engine_main(int argc, char *argv[])

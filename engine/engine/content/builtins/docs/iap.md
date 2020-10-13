@@ -70,7 +70,7 @@ https://github.com/defold/extension-iap/archive/master.zip
 It has the same API and functionality as before.
 
 The documentation is now available on GitHub:
-[https://defold.github.io/extension-iap/](https://defold.github.io/extension-iap/)
+[https://defold.com/extension-iap/](https://defold.com/extension-iap/)
 
 The source code can be viewed on the public GitHub repository:
 [https://github.com/defold/extension-iap](https://github.com/defold/extension-iap)
