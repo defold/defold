@@ -20,6 +20,11 @@
 #include <dlib/align.h>
 #include <dlib/path.h>
 
+namespace dmResource
+{
+    struct Manifest;
+}
+
 namespace dmResourceArchive
 {
     /**
@@ -43,9 +48,37 @@ namespace dmResourceArchive
         uint32_t m_Flags;
     };
 
+    enum Result
+    {
+        RESULT_OK = 0,
+        RESULT_NOT_FOUND = 1,
+        RESULT_VERSION_MISMATCH = -1,
+        RESULT_IO_ERROR = -2,
+        RESULT_MEM_ERROR = -3,
+        RESULT_OUTBUFFER_TOO_SMALL = -4,
+        RESULT_ALREADY_STORED = -5,
+        RESULT_UNKNOWN = -1000,
+    };
+
+    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+
+    typedef Result (*FManifestLoad)(const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** manifest);
+    typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* application_path, const char* application_support_path, HArchiveIndexContainer* out);
+    typedef Result (*FArchiveUnload)(HArchiveIndexContainer);
+    typedef Result (*FArchiveFindEntry)(HArchiveIndexContainer, const uint8_t*, EntryData*);
+    typedef Result (*FArchiveRead)(HArchiveIndexContainer, const EntryData*, void*);
+
+    struct ArchiveLoader
+    {
+        FManifestLoad       m_LoadManifest;
+        FArchiveLoad        m_Load;         // tests for existance of an appropriate archive
+        FArchiveUnload      m_Unload;
+        FArchiveFindEntry   m_FindEntry;
+        FArchiveRead        m_Read;
+    };
+
     struct DM_ALIGNED(16) ArchiveIndex;
     struct ArchiveFileIndex;
-    struct ArchiveLoader;
 
     struct ArchiveIndexContainer
     {
@@ -60,6 +93,9 @@ namespace dmResourceArchive
         ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
         ArchiveFileIndex*   m_LUArchiveFileIndex; // Used if the archive is loaded from live update
 
+        ArchiveLoader       m_Loader;
+        void*               m_UserData;         // private to the loader
+
         uint32_t m_ArchiveIndexSize;            // kept for unmapping
         uint8_t  m_IsMemMapped:1; // if the m_ArchiveIndex is memory mapped
         uint8_t  :7;
@@ -69,17 +105,6 @@ namespace dmResourceArchive
 
     typedef struct ArchiveIndex* HArchiveIndex;
 
-    enum Result
-    {
-        RESULT_OK = 0,
-        RESULT_NOT_FOUND = 1,
-        RESULT_VERSION_MISMATCH = -1,
-        RESULT_IO_ERROR = -2,
-        RESULT_MEM_ERROR = -3,
-        RESULT_OUTBUFFER_TOO_SMALL = -4,
-        RESULT_ALREADY_STORED = -5,
-        RESULT_UNKNOWN = -1000,
-    };
 
     struct DM_ALIGNED(16) LiveUpdateResourceHeader {
         uint32_t m_Size;
@@ -111,6 +136,36 @@ namespace dmResourceArchive
         LiveUpdateResourceHeader* m_Header;
     };
 
+    // Clears all registered archive loaders
+    void ClearArchiveLoaders();
+
+    /*#
+     * Registers an archive loader
+     */
+    void RegisterArchiveLoader(ArchiveLoader loader);
+
+    /*#
+     * Registers the default archive loader
+     */
+    void RegisterDefaultArchiveLoader();
+
+    // Sets the default format finder/reader for an archive (currently used for the builtins manifest/archive)
+    void SetDefaultReader(HArchiveIndexContainer archive);
+
+    /*# Loads the manifest, calling each registered loader in sequence (i.e. base bundle first)
+     * Keeps the latest manifest that has the same signature as the base bundle
+     */
+    Result LoadManifest(const char* app_path, const char* app_support_path, dmResource::Manifest** manifest);
+
+    /*# Loads the archives, calling each registered loader in sequence
+     * Skipping the ones where the signature differs from the base bundle
+     */
+    Result LoadArchives(const dmResource::Manifest* manifest, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out);
+
+    /*# Unloads the archives, calling each registered loader in sequence
+     */
+    Result UnloadArchives(HArchiveIndexContainer archive);
+
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
      * archive is not needed.
@@ -137,16 +192,17 @@ namespace dmResourceArchive
     Result LoadArchive(const char* index_file_name, const char* data_file_name, const char* lu_data_file_path, HArchiveIndexContainer* archive);
 
     /**
-     * Find resource entry within archive
+     * Find resource entry within the loaded archives
      * @param archive archive index handle
      * @param hash resource hash digest to find
+     * @param out_archive the archive in which the resource was first found
      * @param entry entry data
      * @return RESULT_OK on success
      */
-    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry);
+    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, HArchiveIndexContainer* out_archive, EntryData* entry);
 
     /**
-     * Read resource
+     * Read resource from the given archive
      * @param archive archive index handle
      * @param entry_data entry data
      * @param buffer buffer to load to

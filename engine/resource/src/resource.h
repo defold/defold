@@ -33,6 +33,9 @@ namespace dmResource
      */
     extern const char* MAX_RESOURCES_KEY;
 
+    extern const char* BUNDLE_MANIFEST_FILENAME;
+    extern const char* BUNDLE_INDEX_FILENAME;
+    extern const char* BUNDLE_DATA_FILENAME;
     extern const char* LIVEUPDATE_MANIFEST_FILENAME;
     extern const char* LIVEUPDATE_MANIFEST_TMP_FILENAME;
     extern const char* LIVEUPDATE_INDEX_FILENAME;
@@ -689,6 +692,8 @@ namespace dmResource
     Result MapFile(const char* filename, void*& map, uint32_t& size);
     Result UnmapFile(void*& map, uint32_t size);
 
+    void DeleteManifest(Manifest* manifest);
+
     /**
      * Struct returned from the resource iterator api
      */
@@ -718,7 +723,9 @@ namespace dmResource
 
     /*# Get the support path for the project, with the hashed project name at the end
      */
-    void GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
+    Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
+
+    void RegisterArchiveLoader();
 }
 
 #endif // RESOURCE_H

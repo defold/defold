@@ -45,6 +45,8 @@ namespace dmLiveUpdate
     void Finalize();
     void Update();
 
+    void RegisterArchiveLoaders();
+
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer);
 
     /*

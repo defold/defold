@@ -315,4 +315,11 @@ namespace dmLiveUpdate
         AsyncUpdate();
     }
 
+    void RegisterArchiveLoaders()
+    {
+        // dmResourceArchive::ArchiveLoader lu_archive_loader;
+        // lu_archive_loader.m_Load =
+        // dmResourceArchive::RegisterArchiveLoader(ArchiveLoader loader);
+    }
+
 };
