@@ -18,7 +18,6 @@
 namespace dmConfigFile
 {
     /*# SDK ConfigFile API documentation
-     * [file:<dmsdk/dlib/configfile.h>]
      *
      * Configuration file access functions.
      * The configuration file is compiled version of the [file:game.project] file.
@@ -26,6 +25,7 @@ namespace dmConfigFile
      * @document
      * @name ConfigFile
      * @namespace dmConfigFile
+     * @path engine/dlib/src/dmsdk/dlib/configfile.h
      */
 
     /*# HConfig type definition

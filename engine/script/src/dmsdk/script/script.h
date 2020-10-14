@@ -38,13 +38,13 @@ namespace dmJson {
 namespace dmScript
 {
     /*# SDK Script API documentation
-     * [file:<dmsdk/script/script.h>]
      *
      * Built-in scripting functions.
      *
      * @document
      * @name Script
      * @namespace dmScript
+     * @path engine/dlib/src/dmsdk/script/script.h
      */
 
     /**
