@@ -16,13 +16,13 @@
 #include <stdint.h>
 
 /*# SDK URI API documentation
- * [file:<dmsdk/dlib/uri.h>]
  *
  * URI functions.
  *
  * @document
  * @name URI
  * @namespace dmURI
+ * @path engine/dlib/src/dmsdk/dlib/uri.h
  */
 
 namespace dmURI

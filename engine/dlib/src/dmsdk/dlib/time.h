@@ -16,13 +16,13 @@
 #include <stdint.h>
 
 /*# SDK Time API documentation
- * [file:<dmsdk/dlib/time.h>]
  *
  * Time functions.
  *
  * @document
  * @name Time
  * @namespace dmTime
+ * @path engine/dlib/src/dmsdk/dlib/time.h
  */
 
 namespace dmTime
