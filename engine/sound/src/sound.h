@@ -95,6 +95,8 @@ namespace dmSound
     Result Finalize();
     // Updates the sound system one tick (if not threaded)
     Result Update();
+    // Pauses the (threaded) sound system
+    Result Pause(bool pause);
 
     // Thread safe
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name);

@@ -364,6 +364,10 @@
    :default 128,
    :path ["model" "max_count"]}
   {:type :integer,
+   :help "max number of mesh components, 128 by default",
+   :default 128,
+   :path ["mesh" "max_count"]}
+  {:type :integer,
    :help "max number of gui components per collection, 64 by default",
    :default 64,
    :path ["gui" "max_count"]},
@@ -877,7 +881,6 @@
   "particle_fx" {:help "Particle FX related settings"
                  :title "Particle FX"},
   "android" {:help "Android related settings"},
-  "switch" {:help "Switch related settings"}
   "liveupdate" {:help "Liveupdate settings"},
   "native_extension" {:help "Settings for native extensions"},
   "profiler" {:help "Settings related to the runtime profiler"}}}

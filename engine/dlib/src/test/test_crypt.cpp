@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -118,6 +118,47 @@ TEST(dmCrypt, SHA512)
     dmCrypt::HashSha512((const uint8_t*)s, strlen(s), digest);
     ASSERT_ARRAY_EQ(expected, digest);
 }
+
+
+TEST(dmCrypt, Base64Encode)
+{
+    const char* source = "Lorem Ipsum";
+    const char* expected = "TG9yZW0gSXBzdW0=";
+
+    uint8_t dst[64];
+    uint32_t dst_len = 0;
+    bool result;
+    result = dmCrypt::Base64Encode((const uint8_t*)source, strlen(source), dst, &dst_len);
+    ASSERT_EQ(false, result);
+    ASSERT_EQ(strlen(expected)+1, dst_len);
+
+    dst_len = sizeof(dst);
+    result = dmCrypt::Base64Encode((const uint8_t*)source, strlen(source), dst, &dst_len);
+    ASSERT_EQ(true, result);
+    ASSERT_EQ(strlen(expected), dst_len);
+    ASSERT_ARRAY_EQ_LEN(expected, (const char*)dst, dst_len);
+}
+
+
+TEST(dmCrypt, Base64Decode)
+{
+    const char* source = "TG9yZW0gSXBzdW0=";
+    const char* expected = "Lorem Ipsum";
+
+    uint8_t dst[64];
+    uint32_t dst_len = 0;
+    bool result;
+    result = dmCrypt::Base64Decode((const uint8_t*)source, strlen(source), dst, &dst_len);
+    ASSERT_EQ(false, result);
+    ASSERT_EQ(strlen(expected), dst_len);
+
+    dst_len = sizeof(dst);
+    result = dmCrypt::Base64Decode((const uint8_t*)source, strlen(source), dst, &dst_len);
+    ASSERT_EQ(true, result);
+    ASSERT_EQ(strlen(expected), dst_len);
+    ASSERT_ARRAY_EQ_LEN(expected, (const char*)dst, dst_len);
+}
+
 
 int main(int argc, char **argv)
 {

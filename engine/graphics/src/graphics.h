@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -60,6 +60,8 @@ namespace dmGraphics
     typedef int32_t (*WindowIsRunning)(void* user_data);
 
     // See documentation in engine.h
+    typedef void (*EngineInit)(void* ctx);
+    typedef void (*EngineExit)(void* ctx);
     typedef void* (*EngineCreate)(int argc, char** argv);
     typedef void (*EngineDestroy)(void* engine);
     typedef int (*EngineUpdate)(void* engine);
@@ -305,8 +307,8 @@ namespace dmGraphics
 
     enum TextureStatusFlags
     {
-        TEXTURE_STATUS_OK           = 0,
-        TEXTURE_STATUS_DATA_PENDING = (1 << 0),
+        TEXTURE_STATUS_OK               = 0,
+        TEXTURE_STATUS_DATA_PENDING     = (1 << 0), // Currently waiting for the upload to be done
     };
 
     struct VertexElement
@@ -445,9 +447,9 @@ namespace dmGraphics
     void Finalize();
 
     /**
-     * Starts the app that needs to control the update loop (e.g iOS)
+     * Starts the app that needs to control the update loop (iOS only)
      */
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+    void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
 
     /**
      * Get the window refresh rate

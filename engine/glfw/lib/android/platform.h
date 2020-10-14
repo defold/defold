@@ -125,10 +125,15 @@ struct _GLFWwin_struct {
     int       clientAPI;
 
     PFNGLGETSTRINGIPROC GetStringi;
+};
 
+GLFWGLOBAL _GLFWwin _glfwWin;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 
+typedef struct _GLFWwin_android_struct _GLFWwin_android;
+
+struct _GLFWwin_android_struct {
     EGLDisplay display;
     EGLContext context;
     EGLContext aux_context;
@@ -138,11 +143,13 @@ struct _GLFWwin_struct {
     struct android_app* app;
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];
-    int paused;
-    int hasSurface;
+    int paused:1;
+    int has_window:1;
+    int :30;
+    uint32_t m_RenderLock; // Set if we are between "frame begin" and "swap buffers"
 };
 
-GLFWGLOBAL _GLFWwin _glfwWin;
+GLFWGLOBAL _GLFWwin_android _glfwWinAndroid;
 
 
 //------------------------------------------------------------------------
@@ -293,8 +300,5 @@ void _glfwSetVideoModeMODE( int screen, int mode, int rate );
 void _glfwSetVideoMode( int screen, int *width, int *height, int *rate );
 void _glfwRestoreVideoMode( void );
 
-// Joystick input
-void _glfwInitJoysticks( void );
-void _glfwTerminateJoysticks( void );
 
 #endif // _platform_h_

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,7 +23,7 @@
 #include <linux/if.h>
 #endif
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
 #include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
@@ -41,7 +41,6 @@ typedef int socklen_t;
 
 #include "log.h"
 #include "socket_private.h"
-#include <dlib/sockettypes.h>
 
 // Helper and utility functions
 namespace dmSocket
@@ -94,7 +93,7 @@ namespace dmSocket
         }
 
         // TODO: Add log-domain support
-        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
         return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
@@ -112,6 +111,11 @@ namespace dmSocket
             res = RESULT_WOULDBLOCK;
         }
         return res;
+    }
+
+    Address::Address() {
+        m_family = dmSocket::DOMAIN_MISSING;
+        memset(m_address, 0x0, sizeof(m_address));
     }
 
     bool Empty(Address address)
@@ -207,7 +211,9 @@ namespace dmSocket
 
     Result Initialize()
     {
-#ifdef _WIN32
+#if defined(__NX__)
+        return PlatformInitialize();
+#elif defined(_WIN32)
         WORD version_requested = MAKEWORD(2, 2);
         WSADATA wsa_data;
         int result = WSAStartup(version_requested, &wsa_data);
@@ -219,7 +225,9 @@ namespace dmSocket
 
     Result Finalize()
     {
-#ifdef _WIN32
+#if defined(__NX__)
+        return PlatformFinalize();
+#elif defined(_WIN32)
         WSACleanup();
 #endif
         return RESULT_OK;
@@ -331,12 +339,14 @@ namespace dmSocket
             inaddr.s_addr = *IPv4(&address);
             result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct in6_addr inaddr;
             memcpy(&inaddr, IPv6(&address), sizeof(struct in6_addr));
             result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to enable multicast interface, unsupported address family!");
@@ -348,7 +358,7 @@ namespace dmSocket
 
     Result Delete(Socket socket)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
         int result = close(socket);
 #else
         int result = closesocket(socket);
@@ -372,6 +382,7 @@ namespace dmSocket
             address->m_family = DOMAIN_IPV4;
             *IPv4(address) = sock_addr.sin_addr.s_addr;
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
@@ -380,6 +391,7 @@ namespace dmSocket
             address->m_family = DOMAIN_IPV6;
             memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to accept connections, unsupported address family!");
@@ -403,6 +415,7 @@ namespace dmSocket
             sock_addr.sin_port = htons(port);
             result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             assert(address.m_family == DOMAIN_IPV6);
@@ -413,6 +426,7 @@ namespace dmSocket
             sock_addr.sin6_port = htons(port);
             result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to bind socket, unsupported address family!");
@@ -435,6 +449,7 @@ namespace dmSocket
             sock_addr.sin_port = htons(port);
             result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             assert(address.m_family == DOMAIN_IPV6);
@@ -445,6 +460,7 @@ namespace dmSocket
             sock_addr.sin6_port = htons(port);
             result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to connect to remote host, unsupported address family!");
@@ -469,7 +485,7 @@ namespace dmSocket
     {
         switch(type)
         {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
             case SHUTDOWNTYPE_READ:         return SHUT_RD;
             case SHUTDOWNTYPE_WRITE:        return SHUT_WR;
             case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
@@ -533,6 +549,7 @@ namespace dmSocket
             result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #endif
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             assert(to_addr.m_family == DOMAIN_IPV6);
@@ -548,6 +565,7 @@ namespace dmSocket
             result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #endif
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to send to remote host, unsupported address family!");
@@ -602,6 +620,7 @@ namespace dmSocket
                 *received_bytes = result;
             }
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
@@ -620,6 +639,7 @@ namespace dmSocket
                 *received_bytes = result;
             }
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to receive from remote host, unsupported address family!");
@@ -644,6 +664,7 @@ namespace dmSocket
                 *port = ntohs(sock_addr.sin_port);
             }
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
@@ -656,6 +677,7 @@ namespace dmSocket
                 *port = ntohs(sock_addr.sin6_port);
             }
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to retrieve socket information, unsupported address family!");
@@ -751,7 +773,7 @@ namespace dmSocket
 
     Result SetBlocking(Socket socket, bool blocking)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
         int flags = fcntl(socket, F_GETFL, 0);
         if (flags < 0)
         {
@@ -802,6 +824,15 @@ namespace dmSocket
     Result SetNoDelay(Socket socket, bool no_delay)
     {
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_NODELAY, no_delay);
+    }
+
+    Result SetQuickAck(Socket socket, bool use_quick_ack)
+    {
+#if defined(__MACH__) || defined(_WIN32) || defined(__NX__)
+        return RESULT_OK;
+#else
+        return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
+#endif
     }
 
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
@@ -870,6 +901,9 @@ namespace dmSocket
         }
     }
 
+#if defined(__NX__)
+    // socket_nx.cpp
+#else
     Result GetHostByName(const char* name, Address* address, bool ipv4, bool ipv6)
     {
         Result result = RESULT_HOST_NOT_FOUND;
@@ -904,6 +938,7 @@ namespace dmSocket
                     *IPv4(address) = saddr->sin_addr.s_addr;
                     result = RESULT_OK;
                 }
+#if !defined(DM_IPV6_UNSUPPORTED)
                 else if (ipv6 && iterator->ai_family == AF_INET6)
                 {
                     sockaddr_in6* saddr = (struct sockaddr_in6 *) iterator->ai_addr;
@@ -911,6 +946,7 @@ namespace dmSocket
                     memcpy(IPv6(address), &saddr->sin6_addr, sizeof(struct in6_addr));
                     result = RESULT_OK;
                 }
+#endif // no ipv6
 
                 iterator = iterator->ai_next;
             }
@@ -920,6 +956,7 @@ namespace dmSocket
 
         return result;
     }
+#endif
 
     #define DM_SOCKET_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
     const char* ResultToString(Result r)

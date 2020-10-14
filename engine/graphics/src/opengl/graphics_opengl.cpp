@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1099,7 +1099,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLBeginFrame(HContext context)
     {
-        // NOP
+#if defined(ANDROID)
+        glfwAndroidBeginFrame();
+#endif
     }
 
     static void OpenGLFlip(HContext context)
@@ -2003,17 +2005,44 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return (HTexture) tex;
     }
 
+    static void OpenGLDoDeleteTexture(void* context)
+    {
+        HTexture texture = (HTexture)context;
+        glDeleteTextures(1, &texture->m_Texture);
+        CHECK_GL_ERROR;
+        delete texture;
+    }
+
+    static void OpenGLDeleteTextureAsync(HTexture texture)
+    {
+        JobDesc j;
+        j.m_Context = (void*)texture;
+        j.m_Func = OpenGLDoDeleteTexture;
+        j.m_FuncComplete = 0;
+        JobQueuePush(j);
+    }
+
     static void PostDeleteTextures(bool force_delete)
     {
+        DM_PROFILE(Graphics, "PostDeleteTextures");
+
+        if (force_delete)
+        {
+            uint32_t size = g_PostDeleteTexturesArray.Size();
+            for (uint32_t i = 0; i < size; ++i)
+            {
+                OpenGLDoDeleteTexture(g_PostDeleteTexturesArray[i]);
+            }
+            return;
+        }
+
         uint32_t i = 0;
         while(i < g_PostDeleteTexturesArray.Size())
         {
             HTexture texture = g_PostDeleteTexturesArray[i];
-            if((!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)) || (force_delete))
+            if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
-                glDeleteTextures(1, &texture->m_Texture);
-                CHECK_GL_ERROR;
-                delete texture;
+                OpenGLDeleteTextureAsync(texture);
                 g_PostDeleteTexturesArray.EraseSwap(i);
             }
             else
@@ -2026,6 +2055,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLDeleteTexture(HTexture texture)
     {
         assert(texture);
+        // If they're not uploaded yet, we cannot delete them
         if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
             if (g_PostDeleteTexturesArray.Full())
@@ -2036,10 +2066,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return;
         }
 
-        glDeleteTextures(1, &texture->m_Texture);
-        CHECK_GL_ERROR;
-
-        delete texture;
+        OpenGLDeleteTextureAsync(texture);
     }
 
     static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
@@ -2153,6 +2180,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
+        DM_PROFILE(Graphics, "SetTexture");
+
         // validate write accessibility for format. Some format are not garuanteed to be writeable
         switch (params.m_Format)
         {

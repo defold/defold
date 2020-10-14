@@ -17,7 +17,7 @@ def get_default_repo():
     if not 'github.com' in url:
         return None
     # git@github.com:defold/defold.git
-    return url.replace('git@github.com:', '').replace('.git', '')
+    return url.replace('git@github.com:', '').replace('.git', '').strip()
 
 def get_git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
