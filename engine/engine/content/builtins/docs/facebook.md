@@ -70,7 +70,7 @@ https://github.com/defold/extension-facebook/archive/master.zip
 It has the same API and functionality as before.
 
 The documentation is now available on GitHub:
-[https://defold.github.io/extension-facebook/](https://defold.github.io/extension-facebook/)
+[https://defold.com/extension-facebook/](https://defold.com/extension-facebook/)
 
 The source code can be viewed on the public GitHub repository:
 [https://github.com/defold/extension-facebook](https://github.com/defold/extension-facebook)

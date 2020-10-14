@@ -369,11 +369,6 @@ namespace dmExtension
     void UnregisteriOSUIApplicationDelegate(void* delegate);
 }
 
-/*# Platform defines
- *
- * The platform defines are specified automatically by the build server
- */
-
 /*# Set if the platform is iPhoneOS [icon:ios]
  *
  * Set if the platform is iPhoneOS [icon:ios]

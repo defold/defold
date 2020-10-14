@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -180,6 +180,7 @@ public class Bob {
                 if (!entry.isDirectory()) {
 
                     File dstFile = new File(toFolder, entry.getName());
+                    dstFile.deleteOnExit();
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
@@ -381,8 +382,12 @@ public class Bob {
         options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
         options.addOption(null, "identity", true, "Sign identity (iOS)");
 
-        options.addOption("ce", "certificate", true, "Certificate (Android)");
-        options.addOption("pk", "private-key", true, "Private key (Android)");
+        options.addOption("ce", "certificate", true, "DEPRECATED! Certificate (Android)");
+        options.addOption("pk", "private-key", true, "DEPRECATED! Private key (Android)");
+
+        options.addOption("ks", "keystore", true, "Deployment keystore used to sign APKs (Android)");
+        options.addOption("ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)");
+        options.addOption("ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)");
 
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
         options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
@@ -427,6 +432,13 @@ public class Bob {
             helpFormatter.printHelp("bob [options] [commands]", options);
             System.exit(0);
         }
+        if (cmd.hasOption("ce") || cmd.hasOption("pk")) {
+            System.out.println("Android signing using certificate and private key is no longer supported. You must use keystore signing.");
+            HelpFormatter helpFormatter = new HelpFormatter( );
+            helpFormatter.printHelp("bob [options] [commands]", options);
+            System.exit(1);
+        }
+
         return cmd;
     }
 

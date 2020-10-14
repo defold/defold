@@ -212,6 +212,7 @@ namespace dmSound
         bool                    m_IsPhoneCallActive;
         bool                    m_HasWindowFocus;
         bool                    m_IsRunning;
+        bool                    m_IsPaused;
     };
 
     struct OptionalScopedMutexLock
@@ -381,6 +382,10 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[master_index];
         master->m_Gain.Reset(master_gain);
 
+        sound->m_IsRunning = true;
+        sound->m_IsPaused = false;
+        sound->m_Status = RESULT_NOTHING_TO_PLAY;
+
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
         if (params->m_UseThread)
@@ -389,8 +394,6 @@ namespace dmSound
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
         }
 
-        sound->m_IsRunning = true;
-        sound->m_Status = RESULT_NOTHING_TO_PLAY;
         return RESULT_OK;
     }
 
@@ -1419,7 +1422,9 @@ namespace dmSound
     {
         while (sound->m_IsRunning)
         {
-            sound->m_Status = UpdateInternal(sound);
+            sound->m_Status = RESULT_OK;
+            if (!sound->m_IsPaused)
+                sound->m_Status = UpdateInternal(sound);
             dmTime::Sleep(8000);
         }
     }
@@ -1431,6 +1436,17 @@ namespace dmSound
             return UpdateInternal(sound);
         return sound->m_Status;
     }
+
+    Result Pause(bool pause)
+    {
+        SoundSystem* sound = g_SoundSystem;
+        if (sound->m_Thread)
+        {
+            sound->m_IsPaused = pause;
+        }
+        return RESULT_OK;
+    }
+
 
     bool IsMusicPlaying()
     {

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -345,11 +345,10 @@ namespace dmGameSystem
         }
 
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        dmhash_t current_layout_id = GetLayout(scene);
         dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
-        if(layout_id != GetLayout(scene))
+        if(layout_id != current_layout_id)
         {
-            dmhash_t current_layout_id = GetLayout(scene);
-
             dmRender::DisplayProfileDesc profile_desc;
             GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
             dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
@@ -1570,6 +1569,8 @@ namespace dmGameSystem
                     uint32_t node_count,
                     void* context)
     {
+        DM_PROFILE(Gui, "RenderNodes");
+
         if (node_count == 0)
             return;
 
@@ -1805,6 +1806,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
+        DM_PROFILE(Gui, "Update");
+
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
         dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);

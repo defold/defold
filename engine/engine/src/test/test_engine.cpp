@@ -49,10 +49,10 @@ static dmEngine::HEngine TestEngineCreate(int argc, char** argv)
 // Destroys the engine instance after finalizing each system
 static void TestEngineDestroy(dmEngine::HEngine engine)
 {
-    dmEngineDestroy(engine);
-
     if (g_PostRun)
         g_PostRun(engine, g_TextCtx);
+
+    dmEngineDestroy(engine);
 }
 
 static dmEngine::UpdateResult TestEngineUpdate(dmEngine::HEngine engine)

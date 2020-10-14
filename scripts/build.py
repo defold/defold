@@ -87,10 +87,11 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
-PACKAGES_IOS_SDK="iPhoneOS13.5.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.5.sdk"
+PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.5.xctoolchain"
+PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.0.xctoolchain"
+PACKAGES_TAPI_VERSION="tapi1.6"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
@@ -100,7 +101,7 @@ PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
 PACKAGES_LINUX_CLANG="clang-9.0.0"
 PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
-PACKAGES_CCTOOLS_PORT="cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux"
+PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.39.16"
@@ -263,7 +264,9 @@ class Configuration(object):
                  github_target_repo = None,
                  github_sha1 = None,
                  version = None,
-                 codesigning_identity = None):
+                 codesigning_identity = None,
+                 windows_cert = None,
+                 windows_cert_pass = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -303,6 +306,8 @@ class Configuration(object):
         self.github_sha1 = github_sha1
         self.version = version
         self.codesigning_identity = codesigning_identity
+        self.windows_cert = windows_cert
+        self.windows_cert_pass = windows_cert_pass
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -856,7 +861,7 @@ class Configuration(object):
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
         if self.target_platform in ('x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin14-strip')
+            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))
         return True
@@ -1267,24 +1272,47 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
-               '--codesigning-identity=%s' % self.codesigning_identity,
                'bundle']
+        self.run_editor_script(cmd)
+
+    def sign_editor2(self):
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
+        cmd = ['./scripts/bundle.py',
+               '--platform=%s' % self.target_platform,
+               '--bundle-dir=%s' % editor_bundle_dir,
+               'sign']
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.windows_cert:
+                cmd.append('--windows-cert="%s"' % self.windows_cert)
+            if self.windows_cert_pass:
+                cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
         if self.target_platform != "x86_64-darwin":
             return
 
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
         # create dmg installer
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
-               '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
+               '--bundle-dir=%s' % editor_bundle_dir,
                'installer']
+        if self.skip_codesign:
+            cmd.append('--skip-codesign')
+        else:
+            if self.codesigning_identity:
+                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
         # notarize dmg
+        editor_dmg = join(editor_bundle_dir, 'Defold-x86_64-darwin.dmg')
         cmd = ['./scripts/notarize.py',
-               join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg'),
+               editor_dmg,
                self.notarization_username,
                self.notarization_password,
                self.notarization_itc_provider]
@@ -1652,7 +1680,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk11.0.1'
+        jdk = 'jdk11.0.1-p1'
         host2 = get_host_platform2()
         if 'win32' in host2:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
@@ -1866,7 +1894,7 @@ class Configuration(object):
         ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                             '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
         if self.host == 'x86_64-linux':
-            ld_library_paths.append('%s/ext/SDKs/linux/%s/tapi1.4/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG))
+            ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
@@ -1937,6 +1965,7 @@ install_go       - Install go dev tools
 build_go         - Build go code
 archive_go       - Archive go binaries
 build_editor2    - Build editor
+sign_editor2     - Sign editor
 bundle_editor2   - Bundle editor (zip)
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
@@ -1970,7 +1999,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'skip code signing. Default is false')
+                      help = 'skip code signing (engine and editor). Default is false')
 
     parser.add_option('--skip-docs', dest='skip_docs',
                       action = 'store_true',
@@ -2055,6 +2084,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Codesigning identity for macOS version of the editor')
 
+    parser.add_option('--windows-cert', dest='windows_cert',
+                      default = None,
+                      help = 'Path to codesigning certificate for Windows version of the editor')
+
+    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+                      default = None,
+                      help = 'Password to codesigning certificate for Windows version of the editor')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2092,7 +2129,9 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       github_target_repo = options.github_target_repo,
                       github_sha1 = options.github_sha1,
                       version = options.version,
-                      codesigning_identity = options.codesigning_identity)
+                      codesigning_identity = options.codesigning_identity,
+                      windows_cert = options.windows_cert,
+                      windows_cert_pass = options.windows_cert_pass)
 
     for cmd in args:
         f = getattr(c, cmd, None)

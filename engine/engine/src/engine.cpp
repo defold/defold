@@ -801,7 +801,7 @@ namespace dmEngine
 #endif
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
-            dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
+            dmLogInfo("Initialised sound device '%s'", sound_params.m_OutputDevice);
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
@@ -1293,6 +1293,11 @@ bail:
                 if (!engine->m_WasIconified)
                 {
                     engine->m_WasIconified = true;
+
+                    if (!engine->m_RunWhileIconified)
+                    {
+                        dmSound::Pause(true);
+                    }
                 }
 
                 if (!engine->m_RunWhileIconified) {
@@ -1318,6 +1323,8 @@ bail:
                 if (engine->m_WasIconified)
                 {
                     engine->m_WasIconified = false;
+
+                    dmSound::Pause(false);
                 }
             }
 
@@ -1538,65 +1545,6 @@ bail:
         return engine->m_Alive;
     }
 
-// #if defined(__EMSCRIPTEN__)
-//     static void PreStepEmscripten(HEngine engine)
-//     {
-//         dmEngine::RunResult run_result = engine->m_RunResult;
-//         if (run_result.m_Action == dmEngine::RunResult::REBOOT)
-//         {
-//             dmEngineService::HEngineService engine_service = engine->m_EngineService;
-//             PreRun pre_run = engine->m_PreRun;
-//             PostRun post_run = engine->m_PostRun;
-//             void* context = engine->m_PrePostRunContext;
-
-//             dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
-
-//             emscripten_pause_main_loop(); // stop further callbacks
-//             emscripten_cancel_main_loop(); // Causes an exception
-
-//             if (engine->m_PostRun)
-//             {
-//                 engine->m_PostRun(engine, context);
-//             }
-
-//             dmEngine::Delete(engine);
-
-//             // enters the main loop again (i.e. calls emscripten_set_main_loop_arg(PerformStep, engine))
-//             dmEngine::InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
-//             return;
-//         }
-//         else if (run_result.m_Action == dmEngine::RunResult::EXIT)
-//         {
-//             dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
-
-//             emscripten_pause_main_loop();
-//             emscripten_cancel_main_loop();
-
-//             if (engine->m_PostRun)
-//             {
-//                 engine->m_PostRun(engine, engine->m_PrePostRunContext);
-//             }
-
-//             dmEngine::Delete(engine);
-//         }
-
-//         if (!dmCrash::IsEnabled()) {
-//             dmCrash::SetEnabled(true);
-//         }
-//     }
-// #endif // __EMSCRIPTEN__
-
-    static void PerformStep(void* context)
-    {
-        HEngine engine = (HEngine)context;
-
-// #if defined(__EMSCRIPTEN__)
-//         PreStepEmscripten(engine);
-// #endif
-
-        Step(engine);
-    }
-
     static void Exit(HEngine engine, int32_t code)
     {
         engine->m_Alive = false;
@@ -1659,18 +1607,18 @@ bail:
                 dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*) message->m_Data;
                 dmEngine::Reboot(self, reboot);
             }
-            else if (descriptor == dmSystemDDF::ToggleProfile::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::ToggleProfile::m_DDFDescriptor) // "toogle_profile"
             {
                 dmProfiler::ToggleProfiler();
             }
-            else if (descriptor == dmSystemDDF::TogglePhysicsDebug::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::TogglePhysicsDebug::m_DDFDescriptor) // "toggle_physics"
             {
                 if(dLib::IsDebugMode())
                 {
                     self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
                 }
             }
-            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor) // "start_record"
             {
                 dmSystemDDF::StartRecord* start_record = (dmSystemDDF::StartRecord*) message->m_Data;
                 RecordData* record_data = &self->m_RecordData;
@@ -1697,7 +1645,7 @@ bail:
                     record_data->m_Recorder = 0;
                 }
             }
-            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor) // "stop_record"
             {
                 RecordData* record_data = &self->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1712,21 +1660,21 @@ bail:
                     dmLogError("No recording in progress");
                 }
             }
-            else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"
             {
                 dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
             }
-            else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
+            else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor) // "hide_app"
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
             }
-            else if (descriptor == dmSystemDDF::SetVsync::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetVsync::m_DDFDescriptor) // "set_vsync"
             {
                 dmSystemDDF::SetVsync* m = (dmSystemDDF::SetVsync*) message->m_Data;
                 SetSwapInterval(self, m->m_SwapInterval);
             }
-            else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor)
+            else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor) // "run_script"
             {
                 dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
 
@@ -1891,7 +1839,11 @@ dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine)
 {
     if (dmEngine::IsRunning(engine))
     {
-        dmEngine::PerformStep(engine);
+        dmEngine::Step(engine);
+    }
+    else {
+        if (engine->m_RunResult.m_Action == dmEngine::RunResult::NONE)
+            return dmEngine::RESULT_EXIT;
     }
 
     return GetAppResultFromAction(engine->m_RunResult.m_Action);
