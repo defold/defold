@@ -184,20 +184,10 @@
 	resize_game_canvas();
 	window.addEventListener('resize', resize_game_canvas, false);
 	window.addEventListener('orientationchange', resize_game_canvas, false);
-
-	function load_engine() {
-		var engineJS = document.createElement('script');
-		engineJS.type = 'text/javascript';
-		if (Module['isWASMSupported']) {
-			engineJS.src = '{{exe-name}}_wasm.js';
-		} else {
-			engineJS.src = '{{exe-name}}_asmjs.js';
-		}
-		document.head.appendChild(engineJS);
-	}
 	</script>
+
 	<script id='engine-start' type='text/javascript'>
-		load_engine();
+		EngineLoader.load("canvas", "{{exe-name}}");
 	</script>
 </body>
 </html>
