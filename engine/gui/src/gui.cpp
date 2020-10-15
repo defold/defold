@@ -63,6 +63,7 @@ namespace dmGui
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
+    static void RemoveFromNodeList(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -2111,7 +2112,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         }
 
                         ResetInternalNode(scene, n);
-                        n->m_ParentIndex = INVALID_INDEX;
                     }
                 }
 
@@ -2494,6 +2494,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         if (!delete_headless_pfx && n->m_Node.m_HasHeadlessPfx)
         {
+            RemoveFromNodeList(scene, n);
+            n->m_ParentIndex = INVALID_INDEX;
+            n->m_PrevIndex = INVALID_INDEX;
+            n->m_NextIndex = INVALID_INDEX;
             return;
         }
 
