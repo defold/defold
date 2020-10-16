@@ -409,7 +409,7 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "icon for ome screen on iPad Pro (.png)",
+   :help "icon for home screen on iPad Pro (.png)",
    :path ["ios" "app_icon_167x167"]}
   {:type :resource,
    :filter "png",
