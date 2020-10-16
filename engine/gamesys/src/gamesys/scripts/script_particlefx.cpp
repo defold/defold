@@ -80,12 +80,6 @@ namespace dmGameSystem
 
         EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
 
-        if (!data.m_CallbackInfo)
-        {
-            dmLogError("No callback set for particlefx.");
-            return;
-        }
-
         if (!dmScript::IsCallbackValid(data.m_CallbackInfo))
         {
             return;
