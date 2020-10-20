@@ -30,6 +30,9 @@
 
 namespace dmLiveUpdate
 {
+
+    static const char* LIVEUPDATE_BUNDLE_VER_FILENAME = "bundle.ver";
+
     static void CreateFilesIfNotExists(dmResourceArchive::HArchiveIndexContainer archive_container, const char* app_support_path, const char* arci, const char* arcd);
 
     Result ResourceResultToLiveupdateResult(dmResource::Result r)
@@ -142,9 +145,8 @@ namespace dmLiveUpdate
 
         dmResource::BytesToHexString(digest, dmResource::HashLength(algorithm), hexDigest, hexDigestLength);
 
-        result = dmResource::HashCompare((const uint8_t*)hexDigest, hexDigestLength-1, (const uint8_t*)expected, expected_length) == dmResource::RESULT_OK;
-
-        return result;
+        bool comp = dmResource::HashCompare((const uint8_t*)hexDigest, hexDigestLength-1, (const uint8_t*)expected, expected_length) == dmResource::RESULT_OK;
+        return comp ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
     static bool VerifyManifestSupportedEngineVersion(dmResource::Manifest* manifest)
@@ -261,8 +263,7 @@ namespace dmLiveUpdate
         }
 
         // Store the manifest file to disc
-        Result res = StoreManifestInternal(manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
-        return res;
+        return StoreManifestInternal(manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)

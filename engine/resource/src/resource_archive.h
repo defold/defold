@@ -270,20 +270,6 @@ namespace dmResourceArchive
      */
     void SetNewArchiveIndex(HArchiveIndexContainer archive_container, HArchiveIndex new_index, bool mem_mapped);
 
-    /**
-     * Reload the liveupdate archive index using the bundled archive as starting point
-     * Find all liveupdate entries in current archive index and cache them
-     * Make a copy of the (new) bundled archive index with space allocated for the cached liveupdate entries
-     * Sorted insertion of liveupdate entries into the bundled archive copy
-     * The archive now has the entries from the bundled index, as well as the liveupdate entries
-     */
-    Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resource_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info);
-
-    /**
-     * Compare the archive container id, to decide if a reload is needed.
-     */
-    int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len);
-
     // For debugging purposes only
     void DebugArchiveIndex(HArchiveIndexContainer archive);
 

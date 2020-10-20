@@ -598,8 +598,6 @@ namespace dmResource
 
     Manifest* GetManifest(HFactory factory);
 
-    Result LoadArchiveIndex(const char* bundle_dir, HFactory factory);
-
     Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
 
     /**
