@@ -181,8 +181,8 @@ namespace dmResource
             }
         }
 
-        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length,
-                                                          data_map, data_length,
+        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, true,
+                                                          data_map, data_length, true,
                                                           lu_data_path,
                                                           lu_data_map, lu_data_length,
                                                           lu_data_file, archive);

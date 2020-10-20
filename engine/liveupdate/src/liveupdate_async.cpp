@@ -50,11 +50,13 @@ namespace dmLiveUpdate
         Result res = dmLiveUpdate::RESULT_OK;
         if (request.m_IsArchive)
         {
-            res = StoreZipArchive(request.m_Path);
+            // Stores/stages a zip archive for loading after next reboot
+            res = dmLiveUpdate::StoreZipArchive(request.m_Path);
             m_JobCompleteData.m_ArchiveIndexContainer = 0;
         }
         else if (request.m_Resource.m_Header != 0x0)
         {
+            // Add a resource to the currently created live update archive
             res = dmLiveUpdate::NewArchiveIndexWithResource(request.m_Manifest, request.m_ExpectedResourceDigest, request.m_ExpectedResourceDigestLength, &request.m_Resource, m_JobCompleteData.m_NewArchiveIndex);
             m_JobCompleteData.m_ArchiveIndexContainer = request.m_Manifest->m_ArchiveIndex;
         }

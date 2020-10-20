@@ -80,6 +80,9 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+        dmResourceArchive::ClearArchiveLoaders();
+        dmResourceArchive::RegisterDefaultArchiveLoader();
         factory = dmResource::NewFactory(&params, ".");
         ASSERT_NE((void*) 0, factory);
     }
@@ -223,6 +226,9 @@ protected:
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
+
+        dmResourceArchive::ClearArchiveLoaders();
+        dmResourceArchive::RegisterDefaultArchiveLoader();
         m_Factory = dmResource::NewFactory(&params, GetParam());
         ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "/test.cont";
@@ -1391,8 +1397,10 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerification)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    dmResourceArchive::SetDefaultReader(archive);
 
     result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
     ASSERT_EQ(dmResource::RESULT_OK, result);
@@ -1410,8 +1418,10 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, 0x0, 0x0, 0, 0x0, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, 0x0, 0x0, 0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    dmResourceArchive::SetDefaultReader(archive);
 
     // Deep-copy current manifest resource entries with space for an extra resource entry
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
