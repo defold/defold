@@ -34,6 +34,7 @@ namespace dmResourceArchive
      */
     const static uint32_t VERSION = 4;
 
+    // part of the .arci file format
     struct DM_ALIGNED(16) EntryData
     {
         EntryData() :
@@ -62,8 +63,8 @@ namespace dmResourceArchive
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
 
-    typedef Result (*FManifestLoad)(const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** manifest);
-    typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* application_path, const char* application_support_path, HArchiveIndexContainer* out);
+    typedef Result (*FManifestLoad)(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** manifest);
+    typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* archive_name, const char* application_path, const char* application_support_path, HArchiveIndexContainer* out);
     typedef Result (*FArchiveUnload)(HArchiveIndexContainer);
     typedef Result (*FArchiveFindEntry)(HArchiveIndexContainer, const uint8_t*, EntryData*);
     typedef Result (*FArchiveRead)(HArchiveIndexContainer, const EntryData*, void*);
@@ -77,8 +78,36 @@ namespace dmResourceArchive
         FArchiveRead        m_Read;
     };
 
-    struct DM_ALIGNED(16) ArchiveIndex;
-    struct ArchiveFileIndex;
+    // For memory mapped files (or files read directly into memory)
+    struct DM_ALIGNED(16) ArchiveIndex
+    {
+        ArchiveIndex();
+
+        uint32_t m_Version;
+        uint32_t :32;
+        uint64_t m_Userdata;
+        uint32_t m_EntryDataCount;
+        uint32_t m_EntryDataOffset;
+        uint32_t m_HashOffset;
+        uint32_t m_HashLength;
+        uint8_t  m_ArchiveIndexMD5[16]; // 16 bytes is the size of md5
+    };
+
+    // Used if the archive is loaded from file (i.e a bundled archive of live update archive)
+    struct ArchiveFileIndex
+    {
+        ArchiveFileIndex()
+        {
+            memset(this, 0, sizeof(ArchiveFileIndex));
+        }
+        char        m_Path[DMPATH_MAX_PATH];
+        uint8_t*    m_Hashes;           // Sorted list of filenames (i.e. hashes)
+        EntryData*  m_Entries;          // Indices of this list matches indices of m_Hashes
+        FILE*       m_FileResourceData; // game.arcd file handle
+        uint8_t*    m_ResourceData;     // mem-mapped game.arcd
+        uint32_t    m_ResourceSize;     // the size of the memory mapped region
+        bool        m_IsMemMapped;      // Is the data memory mapped?
+    };
 
     struct ArchiveIndexContainer
     {
@@ -91,7 +120,6 @@ namespace dmResourceArchive
 
         ArchiveIndex*       m_ArchiveIndex;     // this could be mem-mapped or loaded into memory from file
         ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
-        ArchiveFileIndex*   m_LUArchiveFileIndex; // Used if the archive is loaded from live update
 
         ArchiveLoader       m_Loader;
         void*               m_UserData;         // private to the loader
@@ -152,15 +180,29 @@ namespace dmResourceArchive
     // Sets the default format finder/reader for an archive (currently used for the builtins manifest/archive)
     void SetDefaultReader(HArchiveIndexContainer archive);
 
+    // Reused by other loaders
+    // Loads a .dmanifest
+    Result LoadManifest(const char* path, dmResource::Manifest** out);
+    // Loads a .arci and a .arcd into an HArchiveContainer
+    Result LoadArchive(const char* index_path, const char* data_path, HArchiveIndexContainer* out);
+
+    // Finds an entry in a single archive
+    Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry);
+
+    // Reads an entry from a single archive
+    Result ReadEntryFromArchive(HArchiveIndexContainer archive, const EntryData* entry, void* buffer);
+
+    // Calls each loader in sequence
+
     /*# Loads the manifest, calling each registered loader in sequence (i.e. base bundle first)
      * Keeps the latest manifest that has the same signature as the base bundle
      */
-    Result LoadManifest(const char* app_path, const char* app_support_path, dmResource::Manifest** manifest);
+    Result LoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** manifest);
 
     /*# Loads the archives, calling each registered loader in sequence
      * Skipping the ones where the signature differs from the base bundle
      */
-    Result LoadArchives(const dmResource::Manifest* manifest, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out);
+    Result LoadArchives(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out);
 
     /*# Unloads the archives, calling each registered loader in sequence
      */
@@ -176,20 +218,11 @@ namespace dmResourceArchive
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size,
-                             const void* resource_data, uint32_t resource_data_size,
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
+                             const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
                              const char* lu_resource_filename,
                              const void* lu_resource_data, uint32_t lu_resourcedata_size,
                              FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
-
-    /**
-     * Load archive from filename. Only the index data is loaded into memory.
-     * Resources are loaded on-demand using Read() function.
-     * @param file_name archive index to load
-     * @param archive archive index container handle
-     * @return RESULT_OK on success
-     */
-    Result LoadArchive(const char* index_file_name, const char* data_file_name, const char* lu_data_file_path, HArchiveIndexContainer* archive);
 
     /**
      * Find resource entry within the loaded archives
@@ -253,6 +286,9 @@ namespace dmResourceArchive
 
     // For debugging purposes only
     void DebugArchiveIndex(HArchiveIndexContainer archive);
+
+    // for testing ascending order
+    int VerifyArchiveIndex(HArchiveIndexContainer archive);
 }  // namespace dmResourceArchive
 
 #endif

@@ -44,6 +44,13 @@ namespace dmResourceArchive
     int             g_NumArchiveLoaders = 0;
     ArchiveLoader   g_ArchiveLoader[4];
 
+    ArchiveIndex::ArchiveIndex()
+    {
+        memset(this, 0, sizeof(ArchiveIndex));
+        m_EntryDataOffset = dmEndian::ToHost((uint32_t)sizeof(ArchiveIndex));
+        m_HashOffset = dmEndian::ToHost((uint32_t)sizeof(ArchiveIndex));
+    }
+
     void ClearArchiveLoaders()
     {
         g_NumArchiveLoaders = 0;
@@ -57,7 +64,7 @@ namespace dmResourceArchive
 
     /*# Loads the archives, calling each registered loader in sequence
      */
-    Result LoadManifest(const char* app_path, const char* app_support_path, dmResource::Manifest** out)
+    Result LoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** out)
     {
         dmResource::Manifest* previous = 0;
         for (int i = 0; i < g_NumArchiveLoaders; ++i)
@@ -65,7 +72,7 @@ namespace dmResourceArchive
             ArchiveLoader* loader = &g_ArchiveLoader[i];
 
             dmResource::Manifest* manifest = 0;
-            Result result = loader->m_LoadManifest(app_path, app_support_path, previous, &manifest);
+            Result result = loader->m_LoadManifest(archive_name, app_path, app_support_path, previous, &manifest);
             if (RESULT_OK != result) {
                 return result;
             }
@@ -90,14 +97,14 @@ namespace dmResourceArchive
 
     /*# Loads the archives, calling each registered loader in sequence
      */
-    Result LoadArchives(const dmResource::Manifest* manifest, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out)
+    Result LoadArchives(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out)
     {
         HArchiveIndexContainer top = 0;
         for (int i = 0; i < g_NumArchiveLoaders; ++i)
         {
             ArchiveLoader* loader = &g_ArchiveLoader[i];
             HArchiveIndexContainer archive;
-            Result result = loader->m_Load(manifest, app_path, app_support_path, &archive);
+            Result result = loader->m_Load(manifest, archive_name, app_path, app_support_path, &archive);
 
             printf("%s %d: %d\n", __FUNCTION__,  __LINE__, result);
             if (RESULT_OK != result)
@@ -107,8 +114,11 @@ namespace dmResourceArchive
             if (archive)
             {
                 archive->m_Loader = *loader;
-                archive->m_Next = top;
-                top = archive;
+                if (top != archive)
+                {
+                    archive->m_Next = top;
+                    top = archive;
+                }
             }
         }
 
@@ -131,8 +141,7 @@ namespace dmResourceArchive
         while (archive)
         {
             HArchiveIndexContainer next = archive->m_Next;
-            ArchiveLoader* loader = &archive->m_Loader;
-            Result result = loader->m_Unload(archive);
+            Result result = archive->m_Loader.m_Unload(archive);
             if (RESULT_OK != result) {
                 return result;
             }
@@ -162,40 +171,23 @@ namespace dmResourceArchive
 
     Result Read(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer)
     {
-        while (archive)
-        {
-            ArchiveLoader* loader = &archive->m_Loader;
-            Result result = loader->m_Read(archive, entry_data, buffer);
-            if (RESULT_OK == result) {
-                return result;
-            }
-
-            archive = archive->m_Next;
-        }
-
-        return RESULT_NOT_FOUND;
+        return archive->m_Loader.m_Read(archive, entry_data, buffer);
     }
 
-    static dmResourceArchive::Result ResourceArchiveDefaultLoadManifest(const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** out)
+    dmResourceArchive::Result LoadManifest(const char* path, dmResource::Manifest** out)
     {
-        // This function should be called first, so there should be no prior manifest
-        assert(previous == 0);
-
-        char manifest_path[DMPATH_MAX_PATH];
-        dmSnPrintf(manifest_path, sizeof(manifest_path), "%s/%s", app_path, dmResource::BUNDLE_MANIFEST_FILENAME);
-
         uint32_t manifest_length = 0;
         uint8_t* manifest_buffer = 0x0;
 
         uint32_t dummy_file_size = 0;
-        dmSys::ResourceSize(manifest_path, &manifest_length);
+        dmSys::ResourceSize(path, &manifest_length);
         dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
         assert(manifest_buffer);
-        dmSys::Result sys_result = dmSys::LoadResource(manifest_path, manifest_buffer, manifest_length, &dummy_file_size);
+        dmSys::Result sys_result = dmSys::LoadResource(path, manifest_buffer, manifest_length, &dummy_file_size);
 
         if (sys_result != dmSys::RESULT_OK)
         {
-            dmLogError("Failed to read Manifest %s (%i)", manifest_path, sys_result);
+            dmLogError("Failed to read Manifest %s (%i)", path, sys_result);
             dmMemory::AlignedFree(manifest_buffer);
             return RESULT_IO_ERROR;
         }
@@ -214,34 +206,45 @@ namespace dmResourceArchive
         return dmResource::RESULT_OK == result ? dmResourceArchive::RESULT_OK : dmResourceArchive::RESULT_IO_ERROR;
     }
 
-    static dmResourceArchive::Result ResourceArchiveDefaultLoad(const dmResource::Manifest* manifest, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer* out)
+    Result LoadArchive(const char* index_path, const char* data_path, HArchiveIndexContainer* out)
     {
-        char archive_index_path[DMPATH_MAX_PATH];
-        char archive_resource_path[DMPATH_MAX_PATH];
-        dmSnPrintf(archive_index_path, sizeof(archive_index_path), "%s/%s", app_path, dmResource::BUNDLE_INDEX_FILENAME);
-        dmSnPrintf(archive_resource_path, sizeof(archive_resource_path), "%s/%s", app_path, dmResource::BUNDLE_DATA_FILENAME);
-
-        printf("%s %d: %s\n", __FUNCTION__, __LINE__, archive_index_path);
-        printf("%s %d: %s\n", __FUNCTION__, __LINE__, archive_resource_path);
-
-
         void* mount_info = 0;
-        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_resource_path, 0x0, out, &mount_info);
-        printf("%s %d: %p\n", __FUNCTION__, __LINE__, *out);
+        dmResource::Result result = dmResource::MountArchiveInternal(index_path, data_path, 0x0, out, &mount_info);
         if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
         {
             (*out)->m_UserData = mount_info;
         }
-        return dmResourceArchive::RESULT_OK;
+        return RESULT_OK;
     }
 
-    static dmResourceArchive::Result ResourceArchiveDefaultUnload(dmResourceArchive::HArchiveIndexContainer archive)
+    static Result ResourceArchiveDefaultLoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** out)
+    {
+        // This function should be called first, so there should be no prior manifest
+        assert(previous == 0);
+
+        char manifest_path[DMPATH_MAX_PATH];
+        dmSnPrintf(manifest_path, sizeof(manifest_path), "%s/%s.dmanifest", app_path, archive_name);
+
+        return LoadManifest(manifest_path, out);
+    }
+
+    static Result ResourceArchiveDefaultLoad(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out)
+    {
+        char archive_index_path[DMPATH_MAX_PATH];
+        char archive_data_path[DMPATH_MAX_PATH];
+        dmSnPrintf(archive_index_path, sizeof(archive_index_path), "%s/%s.arci", app_path, archive_name);
+        dmSnPrintf(archive_data_path, sizeof(archive_data_path), "%s/%s.arcd", app_path, archive_name);
+
+        return LoadArchive(archive_index_path, archive_data_path, out);
+    }
+
+    static Result ResourceArchiveDefaultUnload(HArchiveIndexContainer archive)
     {
         dmResource::UnmountArchiveInternal(archive, archive->m_UserData);
-        return dmResourceArchive::RESULT_OK;
+        return RESULT_OK;
     }
 
-    dmResourceArchive::Result ResourceArchiveDefaultFindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, dmResourceArchive::EntryData* entry)
+    Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry)
     {
         uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
         uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
@@ -273,7 +276,7 @@ namespace dmResourceArchive
             int cmp = memcmp(hash, h, hash_len);
             if (cmp == 0)
             {
-                if (entry != NULL)
+                if (entry != 0)
                 {
                     EntryData* e = &entries[mid];
                     entry->m_ResourceDataOffset = dmEndian::ToNetwork(e->m_ResourceDataOffset);
@@ -297,7 +300,7 @@ namespace dmResourceArchive
         return RESULT_NOT_FOUND;
     }
 
-    dmResourceArchive::Result ResourceArchiveDefaultReadEntry(dmResourceArchive::HArchiveIndexContainer archive, const dmResourceArchive::EntryData* entry, void* buffer)
+    Result ReadEntryFromArchive(HArchiveIndexContainer archive, const EntryData* entry, void* buffer)
     {
         uint32_t size = entry->m_ResourceSize;
         uint32_t compressed_size = entry->m_ResourceCompressedSize;
@@ -306,7 +309,7 @@ namespace dmResourceArchive
         bool encrypted = (entry->m_Flags & ENTRY_FLAG_ENCRYPTED);
         bool compressed = compressed_size != 0xFFFFFFFF;
 
-        const ArchiveFileIndex* afi = loaded_with_liveupdate ? archive->m_LUArchiveFileIndex : archive->m_ArchiveFileIndex;
+        const ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
         bool resource_memmapped = afi->m_IsMemMapped;
 
         // We have multiple combinations for regular archives:
@@ -404,26 +407,26 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         loader.m_LoadManifest = ResourceArchiveDefaultLoadManifest;
         loader.m_Load = ResourceArchiveDefaultLoad;
         loader.m_Unload = ResourceArchiveDefaultUnload;
-        loader.m_FindEntry = ResourceArchiveDefaultFindEntry;
-        loader.m_Read = ResourceArchiveDefaultReadEntry;
+        loader.m_FindEntry = FindEntryInArchive;
+        loader.m_Read = ReadEntryFromArchive;
         dmResourceArchive::RegisterArchiveLoader(loader);
     }
 
     void SetDefaultReader(HArchiveIndexContainer archive)
     {
         memset(&archive->m_Loader, 0, sizeof(archive->m_Loader));
-        archive->m_Loader.m_FindEntry = ResourceArchiveDefaultFindEntry;
-        archive->m_Loader.m_Read = ResourceArchiveDefaultReadEntry;
+        archive->m_Loader.m_FindEntry = FindEntryInArchive;
+        archive->m_Loader.m_Read = ReadEntryFromArchive;
     }
 
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size,
-                             const void* resource_data, uint32_t resource_data_size,
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
+                             const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
                              const char* lu_resource_filename,
                              const void* lu_resource_data, uint32_t lu_resource_data_size,
                              FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
-        (*archive)->m_IsMemMapped = true;
+        (*archive)->m_IsMemMapped = mem_mapped_index;
         ArchiveIndex* a = (ArchiveIndex*) index_buffer;
         uint32_t version = dmEndian::ToNetwork(a->m_Version);
         if (version != VERSION)
@@ -434,20 +437,18 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         (*archive)->m_ArchiveFileIndex = new ArchiveFileIndex;
         (*archive)->m_ArchiveFileIndex->m_ResourceData = (uint8_t*)resource_data;
         (*archive)->m_ArchiveFileIndex->m_ResourceSize = resource_data_size;
-        (*archive)->m_ArchiveFileIndex->m_IsMemMapped = true;
+        (*archive)->m_ArchiveFileIndex->m_IsMemMapped = mem_mapped_data;
 
-        if (lu_resource_data != 0 || lu_resource_filename != 0)
+        assert(lu_resource_data == 0);
+        assert(lu_resource_data_size == 0);
+
+        if (lu_resource_filename)
         {
-            (*archive)->m_LUArchiveFileIndex = new ArchiveFileIndex;
-            (*archive)->m_LUArchiveFileIndex->m_IsMemMapped = lu_resource_data != 0 ? 1 : 0;
-
-            (*archive)->m_LUArchiveFileIndex->m_ResourceData = (uint8_t*)lu_resource_data;
-            (*archive)->m_LUArchiveFileIndex->m_FileResourceData = f_lu_resource_data;
-
-            dmStrlCpy((*archive)->m_LUArchiveFileIndex->m_Path, lu_resource_filename != 0 ? lu_resource_filename : "", DMPATH_MAX_PATH);
-            dmLogInfo("Live Update archive: '%s'", (*archive)->m_LUArchiveFileIndex->m_Path);
+            dmStrlCpy((*archive)->m_ArchiveFileIndex->m_Path, lu_resource_filename != 0 ? lu_resource_filename : "", DMPATH_MAX_PATH);
+            dmLogInfo("Live Update archive: '%s'", (*archive)->m_ArchiveFileIndex->m_Path);
         }
 
+        (*archive)->m_ArchiveFileIndex->m_FileResourceData = f_lu_resource_data;
         (*archive)->m_ArchiveIndex = a;
         (*archive)->m_ArchiveIndexSize = index_buffer_size;
 
@@ -664,123 +665,6 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         }
     }
 
-    // index_file_path: ".arci"
-    // data_file_path: ".arcd"
-    Result LoadArchive(const char* index_file_path, const char* data_file_path, const char* lu_data_file_path, HArchiveIndexContainer* archive)
-    {
-        uint32_t filename_count = 0;
-        while (true)
-        {
-            if (index_file_path[filename_count] == '\0')
-                break;
-            if (filename_count >= DMPATH_MAX_PATH)
-            {
-                return RESULT_IO_ERROR;
-            }
-
-            ++filename_count;
-        }
-
-        FILE* f_index = fopen(index_file_path, "rb");
-        FILE* f_data = 0;
-        FILE* f_lu_data = 0;
-
-        HArchiveIndexContainer aic = 0;
-        ArchiveIndex* ai = 0;
-        *archive = 0;
-
-        Result r = RESULT_OK;
-
-        if (!f_index)
-        {
-            CleanupResources(f_index, f_data, f_lu_data, aic);
-            return RESULT_IO_ERROR;
-        }
-
-        aic = new ArchiveIndexContainer;
-        aic->m_IsMemMapped = false;
-
-        ai = new ArchiveIndex;
-        if (fread(ai, 1, sizeof(ArchiveIndex), f_index) != sizeof(ArchiveIndex))
-        {
-            CleanupResources(f_index, f_data, f_lu_data, aic);
-            return RESULT_IO_ERROR;
-        }
-
-        if(dmEndian::ToNetwork(ai->m_Version) != VERSION)
-        {
-            CleanupResources(f_index, f_data, f_lu_data, aic);
-            return RESULT_VERSION_MISMATCH;
-        }
-
-        uint32_t entry_count = dmEndian::ToNetwork(ai->m_EntryDataCount);
-        uint32_t entry_offset = dmEndian::ToNetwork(ai->m_EntryDataOffset);
-        uint32_t hash_offset = dmEndian::ToNetwork(ai->m_HashOffset);
-
-        fseek(f_index, hash_offset, SEEK_SET);
-
-        ArchiveFileIndex* file_index = new ArchiveFileIndex;
-        aic->m_ArchiveFileIndex = file_index;
-        file_index->m_Hashes = new uint8_t[entry_count * dmResourceArchive::MAX_HASH];
-        uint32_t hash_total_size = entry_count * dmResourceArchive::MAX_HASH;
-        if (fread(file_index->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
-        {
-            CleanupResources(f_index, f_data, f_lu_data, aic);
-            return RESULT_IO_ERROR;
-        }
-
-        fseek(f_index, entry_offset, SEEK_SET);
-        file_index->m_Entries = new EntryData[entry_count];
-        uint32_t entries_total_size = entry_count * sizeof(EntryData);
-        if (fread(file_index->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
-        {
-            CleanupResources(f_index, f_data, f_lu_data, aic);
-            return RESULT_IO_ERROR;
-        }
-
-        // Mark that this archive was loaded from file, and not memory-mapped
-        ai->m_Userdata = FILE_LOADED_INDICATOR;
-
-        // Open file for resource acquired through liveupdate
-        // Assumes file already exists if a path to it is supplied
-        if (lu_data_file_path != 0x0)
-        {
-            aic->m_LUArchiveFileIndex = new ArchiveFileIndex;
-
-            f_lu_data = fopen(lu_data_file_path, "rb+");
-
-            if (!f_lu_data)
-            {
-                CleanupResources(f_index, f_data, f_lu_data, aic);
-                return RESULT_IO_ERROR;
-            }
-            dmStrlCpy(aic->m_LUArchiveFileIndex->m_Path, lu_data_file_path, DMPATH_MAX_PATH);
-            dmLogInfo("Live Update archive: %s", aic->m_LUArchiveFileIndex->m_Path);
-
-            aic->m_LUArchiveFileIndex->m_FileResourceData = f_lu_data; // liveupdate.arcd file
-        }
-
-        f_data = fopen(data_file_path, "rb");
-
-        if (!f_data)
-        {
-            CleanupResources(f_index, f_data, f_lu_data, aic);
-            return RESULT_IO_ERROR;
-        }
-
-        file_index->m_FileResourceData = f_data; // game.arcd file handle
-        aic->m_ArchiveIndex = ai;
-        *archive = aic;
-
-        fclose(f_index);
-
-        dmLogWarning("LoadArchive:");
-        DebugArchiveIndex(aic);
-        dmLogWarning("");
-
-        return r;
-    }
-
     static void DeleteArchiveFileIndex(ArchiveFileIndex* afi)
     {
         if (afi != 0)
@@ -806,7 +690,6 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
     void Delete(HArchiveIndexContainer &archive)
     {
         DeleteArchiveFileIndex(archive->m_ArchiveFileIndex);
-        DeleteArchiveFileIndex(archive->m_LUArchiveFileIndex);
 
         if (!archive->m_IsMemMapped)
         {
@@ -830,34 +713,43 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         }
     }
 
-    Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* out_index)
+    static const uint8_t* LowerBound(const uint8_t* first, size_t size, const uint8_t* hash_digest, uint32_t hash_length)
     {
-        int first = 0;
-        int last = dmEndian::ToNetwork(archive->m_EntryDataCount);
-        size_t hash_length = dmEndian::ToNetwork(archive->m_HashLength);
-        int mid = first + (last - first) / 2;
-        while (first <= last && first !=mid)
-        {
-            mid = first + (last - first) / 2;
-            const uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * mid);
+        while (size > 0) {
+            size_t half = size >> 1;
+            const uint8_t* middle = first + half * dmResourceArchive::MAX_HASH;
 
-            int cmp = memcmp(hash_digest, h, hash_length);
-            if (cmp == 0)
+            int cmp = memcmp(hash_digest, middle, hash_length);
+            if (cmp >= 0)
             {
-                // attemping to insert an already inserted resource
-                return RESULT_ALREADY_STORED;
+                first = middle + dmResourceArchive::MAX_HASH;
+                size = size - half - 1;
             }
-            else if (cmp > 0)
+            else
             {
-                first = mid+1;
-            }
-            else if (cmp < 0)
-            {
-                last = mid; // last index should be included
+                size = half;
             }
         }
+        return first;
+    }
 
-        *out_index = mid;
+    Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* out_index)
+    {
+        int count = dmEndian::ToNetwork(archive->m_EntryDataCount);
+        size_t hash_length = dmEndian::ToNetwork(archive->m_HashLength);
+        const uint8_t* end = hashes + count * hash_length;
+        const uint8_t* insert = LowerBound(hashes, (size_t)count, hash_digest, hash_length);
+        if (insert == end)
+        {
+            *out_index = count;
+            return RESULT_OK;
+        }
+        if (memcmp(insert, hash_digest, hash_length) == 0)
+        {
+            return RESULT_ALREADY_STORED;
+        }
+
+        *out_index = (insert - hashes) / dmResourceArchive::MAX_HASH;
         return RESULT_OK;
     }
 
@@ -912,6 +804,53 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         }
     }
 
+    int VerifyArchiveIndex(HArchiveIndexContainer archive)
+    {
+        dmLogInfo("VerifyArchiveIndex: %p", archive);
+
+        uint8_t* hashes = 0;
+        EntryData* entries = 0;
+
+        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
+        if (!archive->m_IsMemMapped)
+        {
+            hashes = archive->m_ArchiveFileIndex->m_Hashes;
+            entries = archive->m_ArchiveFileIndex->m_Entries;
+        }
+        else
+        {
+            uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
+            uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
+            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
+            entries = (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
+        }
+
+        uint32_t hash_len = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashLength);
+        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+
+        const uint8_t* prevh = hashes;
+
+        for (uint32_t i = 0; i < entry_count; ++i)
+        {
+            const uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
+
+            int cmp = memcmp(prevh, h, dmResourceArchive::MAX_HASH);
+            if (cmp > 0)
+            {
+                char hash_buffer1[dmResourceArchive::MAX_HASH*2+1];
+                dmResource::BytesToHexString(prevh, hash_len, hash_buffer1, sizeof(hash_buffer1));
+                char hash_buffer2[dmResourceArchive::MAX_HASH*2+1];
+                dmResource::BytesToHexString(h, hash_len, hash_buffer2, sizeof(hash_buffer2));
+                dmLogError("Entry %3d: '%s' is not smaller than", i == 0 ? -1 : i-1, hash_buffer1);
+                dmLogError("Entry %3d: '%s'", i, hash_buffer2);
+                return cmp;
+            }
+
+            prevh = h;
+        }
+        return 0;
+    }
+
     void NewArchiveIndexFromCopy(ArchiveIndex*& dst, HArchiveIndexContainer src, uint32_t extra_entries_alloc)
     {
         ArchiveIndex* ai = src->m_ArchiveIndex;
@@ -960,7 +899,7 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
 
     Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, size_t buf_len, uint32_t& bytes_written, uint32_t& offset)
     {
-        ArchiveFileIndex* afi = archive->m_LUArchiveFileIndex;
+        ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
         FILE* res_file = afi->m_FileResourceData;
 
         fseek(res_file, 0, SEEK_END);
@@ -998,7 +937,9 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         return RESULT_OK;
     }
 
-    Result ShiftAndInsert(ArchiveIndexContainer* archive_container, ArchiveIndex* ai, const uint8_t* hash_digest, uint32_t hash_digest_len, int insertion_index, const dmResourceArchive::LiveUpdateResource* resource, const EntryData* lu_entry_data)
+    // only used for live update archives
+    Result ShiftAndInsert(ArchiveIndexContainer* archive_container, ArchiveIndex* ai, const uint8_t* hash_digest, uint32_t hash_digest_len, int insertion_index,
+                            const dmResourceArchive::LiveUpdateResource* resource, const EntryData* entry_data)
     {
         assert(insertion_index >= 0);
         ArchiveIndex* archive = (ai == 0x0) ? archive_container->m_ArchiveIndex : ai;
@@ -1031,7 +972,7 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
 
         if (!write_resources)
         {
-            memcpy(&entry, lu_entry_data, sizeof(EntryData));
+            memcpy(&entry, entry_data, sizeof(EntryData));
         }
         else
         {
@@ -1062,45 +1003,7 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         return RESULT_OK;
     }
 
-    static void CreateFilesIfNotExists(ArchiveIndexContainer* archive_container, const char* lu_index_path)
-    {
-        struct stat file_stat;
-        bool resource_exists = stat(lu_index_path, &file_stat) == 0;
-
-        // If liveupdate.arci does not exists, create it and liveupdate.arcd
-        if (!resource_exists)
-        {
-            FILE* f_lu_index = fopen(lu_index_path, "wb");
-            fclose(f_lu_index);
-
-            // Data file has same path and filename as index file, but extension .arcd instead of .arci.
-            char lu_data_path[DMPATH_MAX_PATH];
-            dmStrlCpy(lu_data_path, lu_index_path, DMPATH_MAX_PATH);
-            lu_data_path[strlen(lu_index_path)-1] = 'd';
-
-            FILE* f_lu_data = fopen(lu_data_path, "wb+");
-            if (!f_lu_data)
-            {
-                dmLogError("Failed to create liveupdate resource file");
-            }
-
-            if (!archive_container->m_LUArchiveFileIndex)
-            {
-                archive_container->m_LUArchiveFileIndex = new ArchiveFileIndex;
-            }
-
-            ArchiveFileIndex* afi = archive_container->m_LUArchiveFileIndex;
-
-            dmStrlCpy(afi->m_Path, lu_data_path, DMPATH_MAX_PATH);
-            dmLogInfo("Live Update archive: %s", afi->m_Path);
-            afi->m_FileResourceData = f_lu_data;
-            afi->m_ResourceData = 0x0;
-            afi->m_ResourceSize = 0;
-            afi->m_IsMemMapped = false;
-        }
-    }
-
-    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive_container, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index)
+    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive_container, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* app_support_path, HArchiveIndex& out_new_index)
     {
         out_new_index = 0x0;
 
@@ -1108,22 +1011,11 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
         if (index_result != RESULT_OK)
         {
-            dmLogError("Could not calculate valid resource insertion index, resource probably already stored in index.");
+            dmLogError("Could not calculate valid resource insertion index, resource probably already stored in index. Result: %d", index_result);
             return index_result;
         }
 
-        char app_support_path[DMPATH_MAX_PATH];
-        char lu_index_path[DMPATH_MAX_PATH];
         char lu_index_tmp_path[DMPATH_MAX_PATH];
-
-        dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
-        if (support_path_result != dmSys::RESULT_OK)
-        {
-            dmLogError("Failed get application support path for \"%s\", result = %i", proj_id, support_path_result);
-            return RESULT_NOT_FOUND;
-        }
-        dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
-        CreateFilesIfNotExists(archive_container, lu_index_path);
 
         // Make deep-copy. Operate on this and only overwrite when done inserting
         ArchiveIndex* ai_temp = 0x0;
@@ -1140,12 +1032,12 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         }
 
         // Write to temporary index file, filename liveupdate.arci.tmp
-        dmStrlCpy(lu_index_tmp_path, lu_index_path, DMPATH_MAX_PATH);
-        dmStrlCat(lu_index_tmp_path, ".tmp", DMPATH_MAX_PATH);
+        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_INDEX_TMP_FILENAME, lu_index_tmp_path, DMPATH_MAX_PATH);
+
         FILE* f_lu_index = fopen(lu_index_tmp_path, "wb");
         if (!f_lu_index)
         {
-            dmLogError("Failed to create liveupdate index file");
+            dmLogError("Failed to create liveupdate index file: %s", lu_index_tmp_path);
             return RESULT_IO_ERROR;
         }
         uint32_t entry_count = dmEndian::ToNetwork(ai_temp->m_EntryDataCount);
@@ -1153,7 +1045,7 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         if (fwrite((void*)ai_temp, 1, total_size, f_lu_index) != total_size)
         {
             fclose(f_lu_index);
-            dmLogError("Failed to write liveupdate index file");
+            dmLogError("Failed to write %u bytes to liveupdate index file: %s", (uint32_t)total_size, lu_index_tmp_path);
             return RESULT_IO_ERROR;
         }
         fflush(f_lu_index);
@@ -1161,11 +1053,6 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
 
         // set result
         out_new_index = ai_temp;
-
-        dmLogWarning("NewArchiveIndexWithResource:");
-        DebugArchiveIndex(archive_container);
-        dmLogWarning("0");
-
         return RESULT_OK;
     }
 
@@ -1179,165 +1066,8 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         archive_container->m_ArchiveIndex = new_index;
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
         archive_container->m_IsMemMapped = mem_mapped;
+
     }
-
-    // Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry)
-    // {
-    //     uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-    //     uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-    //     uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-    //     uint32_t hash_len = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashLength);
-    //     uint8_t* hashes = 0;
-    //     EntryData* entries = 0;
-
-    //     // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-    //     if (!archive->m_IsMemMapped)
-    //     {
-    //         hashes = archive->m_ArchiveFileIndex->m_Hashes;
-    //         entries = archive->m_ArchiveFileIndex->m_Entries;
-    //     }
-    //     else
-    //     {
-    //         hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-    //         entries = (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-    //     }
-
-    //     // Search for hash with binary search (entries are sorted on hash)
-    //     int first = 0;
-    //     int last = (int)entry_count-1;
-    //     while (first <= last)
-    //     {
-    //         int mid = first + (last - first) / 2;
-    //         uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * mid);
-
-    //         int cmp = memcmp(hash, h, hash_len);
-    //         if (cmp == 0)
-    //         {
-    //             if (entry != NULL)
-    //             {
-    //                 EntryData* e = &entries[mid];
-    //                 entry->m_ResourceDataOffset = dmEndian::ToNetwork(e->m_ResourceDataOffset);
-    //                 entry->m_ResourceSize = dmEndian::ToNetwork(e->m_ResourceSize);
-    //                 entry->m_ResourceCompressedSize = dmEndian::ToNetwork(e->m_ResourceCompressedSize);
-    //                 entry->m_Flags = dmEndian::ToNetwork(e->m_Flags);
-    //             }
-
-    //             return RESULT_OK;
-    //         }
-    //         else if (cmp > 0)
-    //         {
-    //             first = mid+1;
-    //         }
-    //         else if (cmp < 0)
-    //         {
-    //             last = mid-1;
-    //         }
-    //     }
-
-    //     return RESULT_NOT_FOUND;
-    // }
-
-
-//     Result Read(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer)
-//     {
-//         uint32_t size = entry_data->m_ResourceSize;
-//         uint32_t compressed_size = entry_data->m_ResourceCompressedSize;
-
-//         bool loaded_with_liveupdate = (entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA);
-//         bool encrypted = (entry_data->m_Flags & ENTRY_FLAG_ENCRYPTED);
-//         bool compressed = compressed_size != 0xFFFFFFFF;
-
-//         const ArchiveFileIndex* afi = loaded_with_liveupdate ? archive->m_LUArchiveFileIndex : archive->m_ArchiveFileIndex;
-//         bool resource_memmapped = afi->m_IsMemMapped;
-
-//         // We have multiple combinations for regular archives:
-//         // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)
-//         // Decryption can be done into a buffer of the same size, although not into a read only array
-//         // We do this is to avoid unnecessary memory allocations
-
-//         //  compressed +  encrypted +  memmapped = need malloc (encrypt cannot modify memmapped file, decompress cannot use same src/dst)
-//         //  compressed +  encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-//         //  compressed + !encrypted +  memmapped = doesn't need malloc (can decompress because src != dst)
-//         //  compressed + !encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-//         // !compressed +  encrypted +  memmapped = doesn't need malloc
-//         // !compressed +  encrypted + !memmapped = doesn't need malloc
-//         // !compressed + !encrypted +  memmapped = doesn't need malloc
-//         // !compressed + !encrypted + !memmapped = doesn't need malloc
-
-//         void* compressed_buf = 0;
-//         bool temp_buffer = false;
-
-//         if (compressed && !( !encrypted && resource_memmapped))
-//         {
-//             compressed_buf = malloc(compressed_size);
-//             temp_buffer = true;
-//         } else {
-//             // For uncompressed data, use the destination buffer
-//             compressed_buf = buffer;
-//             memset(buffer, 0, size);
-//             compressed_size = compressed ? compressed_size : size;
-//         }
-
-//         assert(compressed_buf);
-
-// dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped: %d  temp_buffer: %d  loaded_with_liveupdate: %d", compressed_size, size, compressed?1:0, encrypted?1:0, resource_memmapped?1:0, temp_buffer?1:0, loaded_with_liveupdate?1:0);
-
-//         if (!resource_memmapped)
-//         {
-//             FILE* resource_file = afi->m_FileResourceData;
-
-//             assert(temp_buffer || compressed_buf == buffer);
-
-//             fseek(resource_file, entry_data->m_ResourceDataOffset, SEEK_SET);
-//             if (fread(compressed_buf, 1, compressed_size, resource_file) != compressed_size)
-//             {
-//                 if (temp_buffer)
-//                     free(compressed_buf);
-//                 return RESULT_IO_ERROR;
-//             }
-//         } else {
-//             void* r = (void*) (((uintptr_t)afi->m_ResourceData + entry_data->m_ResourceDataOffset));
-
-//             if (compressed && !encrypted)
-//             {
-//                 compressed_buf = r;
-//             } else {
-//                 memcpy(compressed_buf, r, compressed_size);
-//             }
-//         }
-
-//         if(encrypted)
-//         {
-//             assert(temp_buffer || compressed_buf == buffer);
-//             dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) compressed_buf, compressed_size, (const uint8_t*) KEY, strlen(KEY));
-//             if (cr != dmCrypt::RESULT_OK)
-//             {
-//                 if (temp_buffer)
-//                     free(compressed_buf);
-//                 return RESULT_UNKNOWN;
-//             }
-//         }
-
-//         if (compressed)
-//         {
-//             assert(compressed_buf != buffer);
-//             dmLZ4::Result r = dmLZ4::DecompressBufferFast(compressed_buf, compressed_size, buffer, size);
-//             if (dmLZ4::RESULT_OK != r)
-//             {
-//                 if (temp_buffer)
-//                     free(compressed_buf);
-//                 return RESULT_OUTBUFFER_TOO_SMALL;
-//             }
-//         } else {
-//             if (buffer != compressed_buf)
-//                 memcpy(buffer, compressed_buf, size);
-//         }
-
-//         if (temp_buffer)
-//             free(compressed_buf);
-
-//         return RESULT_OK;
-//     }
 
     uint32_t GetEntryCount(HArchiveIndexContainer archive)
     {

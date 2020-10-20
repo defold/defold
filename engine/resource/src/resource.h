@@ -602,8 +602,6 @@ namespace dmResource
 
     Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
 
-    Result StoreManifest(Manifest* manifest);
-
     /**
      * Verify that all resources the manifest expects to be bundled actually are bundled.
      */
@@ -617,17 +615,6 @@ namespace dmResource
      * Inspect asn1 key content; http://lapo.it/asn1js/#
      */
     Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
-
-    /**
-     * Create new archive index with resource.
-     * @param manifest Manifest to use
-     * @param hash_digest Hash digest length buffer
-     * @param hash_digest_length Hash digest length
-     * @param resource LiveUpdate resource to create with
-     * @param out_new_index New archive index
-     * @return RESULT_OK on success
-     */
-    Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hash_digest, uint32_t hash_digest_length, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, dmResourceArchive::HArchiveIndex& out_new_index);
 
     /**
      * Determines if the resource could be unique
