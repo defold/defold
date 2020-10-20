@@ -455,40 +455,6 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
         return RESULT_OK;
     }
 
-    static uint32_t CountLiveUpdateEntries(const HArchiveIndexContainer lu_archive_container, const HArchiveIndexContainer bundled_archive_container)
-    {
-        uint32_t count = 0;
-        uint32_t entry_count = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entries_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = dmEndian::ToNetwork(lu_archive_container->m_ArchiveIndex->m_HashOffset);
-        uint32_t bundled_hash_offset = dmEndian::ToNetwork(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
-
-        uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_ArchiveFileIndex->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
-        EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_ArchiveFileIndex->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
-
-        uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_ArchiveFileIndex->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
-
-        // Count number of liveupdate entries to cache
-        for (uint32_t i = 0; i < entry_count; ++i)
-        {
-            EntryData& e = entries[i];
-            if (dmEndian::ToNetwork(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
-            {
-                // Calc insertion index into bundled archive to see if entry now resides in bundled archive instead
-                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + dmResourceArchive::MAX_HASH * i);
-                int insert_index = -1;
-                Result index_result = GetInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, &insert_index);
-
-                if (index_result == RESULT_OK)
-                {
-                    ++count;
-                }
-            }
-        }
-
-        return count;
-    }
-
     static void DeleteArchiveFileIndex(ArchiveFileIndex* afi)
     {
         if (afi != 0)
@@ -618,7 +584,18 @@ dmLogWarning("Entry: csz: %u sz: %u   compressed: %d   encrypted: %d   memmapped
 
             char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
             dmResource::BytesToHexString(h, hash_len, hash_buffer, sizeof(hash_buffer));
-            dmLogInfo("Entry: %3d: '%s'  sz: %u", i, hash_buffer, dmEndian::ToNetwork(entry->m_ResourceSize));
+            uint32_t flags = dmEndian::ToNetwork(entry->m_Flags);
+
+            uint32_t compressed_size = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
+            bool compressed = compressed_size != 0xFFFFFFFF;
+            bool encrypted = flags & ENTRY_FLAG_ENCRYPTED;
+            bool liveupdate = flags & ENTRY_FLAG_LIVEUPDATE_DATA;
+
+            dmLogInfo("Entry: %3d: '%s'  csz: %6u sz: %8u  offs: %8u  encr: %d lz4: %d lu: %d", i, hash_buffer,
+                                    compressed ? compressed_size : 0,
+                                    dmEndian::ToNetwork(entry->m_ResourceSize),
+                                    dmEndian::ToNetwork(entry->m_ResourceDataOffset),
+                                    encrypted, compressed, liveupdate);
         }
 
         if (archive->m_Next)

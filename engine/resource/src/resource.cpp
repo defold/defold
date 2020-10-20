@@ -1215,7 +1215,7 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
         }
         else
         {
-            dmLogWarning("Unable to create resource: %s", canonical_path);
+            dmLogWarning("Unable to create resource: %s: %s", canonical_path, ResultToString(create_error));
             return create_error;
         }
     }
