@@ -22,7 +22,6 @@ namespace dmLiveUpdate
 {
     uint32_t HexDigestLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
     {
-
         return dmResource::HashLength(algorithm) * 2U;
     }
 
@@ -67,13 +66,13 @@ namespace dmLiveUpdate
         {
             for (uint32_t i = 0; i < entry->m_Dependants.m_Count; ++i)
             {
-                uint8_t* resourceHash = entry->m_Dependants.m_Data[i].m_Data.m_Data;
-                dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resourceHash, 0, 0);
+                uint8_t* resource_hash = entry->m_Dependants.m_Data[i].m_Data.m_Data;
+                dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, 0, 0);
                 if (result != dmResourceArchive::RESULT_OK)
                 {
                     if (entries != NULL && resources < entries_size)
                     {
-                        entries[resources] = resourceHash;
+                        entries[resources] = resource_hash;
                     }
 
                     resources += 1;

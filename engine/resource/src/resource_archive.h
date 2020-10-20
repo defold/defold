@@ -34,6 +34,13 @@ namespace dmResourceArchive
      */
     const static uint32_t VERSION = 4;
 
+    enum EntryFlag
+    {
+        ENTRY_FLAG_ENCRYPTED        = 1 << 0,
+        ENTRY_FLAG_COMPRESSED       = 1 << 1,
+        ENTRY_FLAG_LIVEUPDATE_DATA  = 1 << 2,
+    };
+
     // part of the .arci file format
     struct DM_ALIGNED(16) EntryData
     {

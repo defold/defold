@@ -19,6 +19,7 @@
 #include <ddf/ddf.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/endian.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
@@ -91,15 +92,17 @@ namespace dmLiveUpdate
 
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
-        uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, urlHash, NULL, 0);
+        dmResource::Manifest* manifest = g_LiveUpdate.m_LUManifest;
+
+        uint32_t resourceCount = MissingResources(manifest, urlHash, NULL, 0);
         uint32_t uniqueCount = 0;
         if (resourceCount > 0)
         {
             uint8_t** resources = (uint8_t**) malloc(resourceCount * sizeof(uint8_t*));
             *buffer = (char**) malloc(resourceCount * sizeof(char**));
-            MissingResources(g_LiveUpdate.m_Manifest, urlHash, resources, resourceCount);
+            MissingResources(manifest, urlHash, resources, resourceCount);
 
-            dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+            dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
             bool isUnique;
             char* scratch = (char*) alloca(hexDigestLength * sizeof(char*));
@@ -379,20 +382,19 @@ namespace dmLiveUpdate
         {
             FILE* f_lu_index = fopen(lu_index_path, "wb");
             fclose(f_lu_index);
+        }
 
+        dmResourceArchive::ArchiveFileIndex* afi = archive_container->m_ArchiveFileIndex;
+        if (afi->m_FileResourceData == 0)
+        {
             // Data file has same path and filename as index file, but extension .arcd instead of .arci.
             char lu_data_path[DMPATH_MAX_PATH];
             dmPath::Concat(app_support_path, arcd, lu_data_path, DMPATH_MAX_PATH);
 
-            FILE* f_lu_data = fopen(lu_data_path, "wb+");
+            FILE* f_lu_data = fopen(lu_data_path, "ab+");
             if (!f_lu_data)
             {
                 dmLogError("Failed to create liveupdate resource file");
-            }
-
-            if (!archive_container->m_ArchiveFileIndex)
-            {
-                archive_container->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
             }
 
             dmResourceArchive::ArchiveFileIndex* afi = archive_container->m_ArchiveFileIndex;
@@ -581,13 +583,33 @@ namespace dmLiveUpdate
         return dmResourceArchive::RESULT_OK;
     }
 
+    static dmResourceArchive::Result LiveUpdateArchive_FindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, dmResourceArchive::EntryData* entry)
+    {
+        dmResourceArchive::EntryData tmpentry;
+        dmResourceArchive::Result result = dmResourceArchive::FindEntryInArchive(archive, hash, &tmpentry);
+        if (dmResourceArchive::RESULT_OK == result)
+        {
+            // Make sure it's from live update
+            // If not, the offset data will not be correct (i.e.: it's an older format .arci where the entries were copied over from the original manifest)
+            uint32_t flags = tmpentry.m_Flags;
+            if (flags & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA)
+            {
+                if (entry != 0)
+                    *entry = tmpentry;
+                return result;
+            }
+        }
+
+        return dmResourceArchive::RESULT_NOT_FOUND;
+    }
+
     void RegisterArchiveLoaders()
     {
         dmResourceArchive::ArchiveLoader loader;
         loader.m_LoadManifest = LiveUpdateArchive_LoadManifest;
         loader.m_Load = LiveUpdateArchive_Load;
         loader.m_Unload = LiveUpdateArchive_Unload;
-        loader.m_FindEntry = dmResourceArchive::FindEntryInArchive;
+        loader.m_FindEntry = LiveUpdateArchive_FindEntry;
         loader.m_Read = dmResourceArchive::ReadEntryFromArchive;
         dmResourceArchive::RegisterArchiveLoader(loader);
     }

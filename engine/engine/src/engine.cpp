@@ -1013,7 +1013,7 @@ namespace dmEngine
 
         if (!LoadBootstrapContent(engine, engine->m_Config))
         {
-            dmLogWarning("Unable to load bootstrap data.");
+            dmLogError("Unable to load bootstrap data.");
             goto bail;
         }
 

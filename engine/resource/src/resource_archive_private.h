@@ -26,13 +26,6 @@ namespace dmResourceArchive
     // Equivalent to 512 bits
     const static uint32_t MAX_HASH = 64;
 
-    enum EntryFlag
-    {
-        ENTRY_FLAG_ENCRYPTED        = 1 << 0,
-        ENTRY_FLAG_COMPRESSED       = 1 << 1,
-        ENTRY_FLAG_LIVEUPDATE_DATA  = 1 << 2,
-    };
-
 	struct LiveUpdateEntries {
         LiveUpdateEntries(const uint8_t* hashes, uint32_t hash_len, EntryData* entry_datas, uint32_t num_entries) {
             m_Hashes = hashes;
