@@ -26,6 +26,7 @@ message HttpRequest
     required uint32 request_length = 6;
 
     optional uint64 timeout        = 7;
+    optional string path           = 8;
 }
 
 message HttpResponse
@@ -46,4 +47,6 @@ message HttpResponse
     // the memory
     required uint64 response        = 4;
     required uint32 response_length = 5;
+
+    required string path            = 6;
 }
