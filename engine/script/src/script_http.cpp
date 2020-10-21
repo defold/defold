@@ -72,7 +72,7 @@ namespace dmScript
      * : [type:table] The response data. Contains the fields:
      *
      * - [type:number] `status`: the status of the response
-     * - [type:string] `response`: the response data (of not saved on disc)
+     * - [type:string] `response`: the response data (if not saved on disc)
      * - [type:table] `headers`: all the returned headers
      * - [type:string] `path`: the stored path (if saved to disc)
      * - [type:string] `error`: if any unforeseen errors occurred (e.g. file I/O)
