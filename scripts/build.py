@@ -623,7 +623,7 @@ class Configuration(object):
             if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
                 download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
 
-        #build_private.install_sdk(self, target_platform)
+        build_private.install_sdk(self, target_platform)
 
     def get_ems_dir(self):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
