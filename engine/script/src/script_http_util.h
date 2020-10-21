@@ -66,7 +66,7 @@ namespace dmScript
             }
 
             lua_pushstring(L, resp->m_Path);
-            lua_setfield(L, -2, "response");
+            lua_setfield(L, -2, "path");
         } else {
             lua_pushlstring(L, response, resp->m_ResponseLength);
             lua_setfield(L, -2, "response");
