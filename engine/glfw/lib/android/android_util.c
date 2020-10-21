@@ -246,7 +246,7 @@ void make_current(_GLFWwin_android* win)
     CHECK_EGL_ERROR
 }
 
-void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android)
+void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force)
 {
     EGLint w, h;
     eglQuerySurface(win_android->display, win_android->surface, EGL_WIDTH, &w);
@@ -254,13 +254,16 @@ void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android)
     eglQuerySurface(win_android->display, win_android->surface, EGL_HEIGHT, &h);
     CHECK_EGL_ERROR
 
-    if (win->windowSizeCallback)
+    if (force || (win->width != w || win->height != h))
     {
-        win->windowSizeCallback(w, h);
+        LOGV("window size changed from %dx%d to %dx%d", _glfwWin.width, _glfwWin.height, w, h);
+        if (win->windowSizeCallback)
+        {
+            win->windowSizeCallback(w, h);
+        }
+        win->width = w;
+        win->height = h;
     }
-
-    win->width = w;
-    win->height = h;
 }
 
 void destroy_gl_surface(_GLFWwin_android* win)
