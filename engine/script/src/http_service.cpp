@@ -235,7 +235,6 @@ namespace dmHttpService
         worker->m_Response.SetCapacity(DEFAULT_RESPONSE_BUFFER_SIZE);
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
-        free((void*)worker->m_Filepath);
         worker->m_Filepath = request->m_Path;
 
         if (worker->m_Client) {
