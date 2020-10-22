@@ -788,7 +788,7 @@ namespace dmSound
 
     bool IsPlaying(HSoundInstance sound_instance)
     {
-        return sound_instance->m_Playing; // && !sound_instance->m_EndOfStream;
+        return sound_instance->m_Playing && !sound_instance->m_EndOfStream;
     }
 
     Result SetLooping(HSoundInstance sound_instance, bool looping)
