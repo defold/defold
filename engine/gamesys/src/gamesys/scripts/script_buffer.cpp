@@ -333,6 +333,8 @@ namespace dmGameSystem
      * - [type:constant] `type`: The data type of the stream
      * - [type:number] `count`: The number of values each element should hold
      *
+     * @return buffer [type:buffer] the new buffer
+     * 
      * @examples
      * How to create and initialize a buffer
      *
