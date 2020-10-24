@@ -1113,7 +1113,7 @@ run:
             int count = this.libUrls.size();
             IProgress subProgress = progress.subProgress(count);
             subProgress.beginTask("Download archive(s)", count);
-            logInfo("Downloading %d archives", count);
+            logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
                 BundleHelper.throwIfCanceled(progress);
                 File f = libFiles.get(i);
