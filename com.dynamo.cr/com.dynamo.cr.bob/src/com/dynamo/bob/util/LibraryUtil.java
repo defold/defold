@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,11 +25,16 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -38,12 +43,12 @@ import com.dynamo.bob.LibraryException;
 
 public class LibraryUtil {
 
-    /** Convert the supplied URL into the corresponding filename on disk.
+    /** Convert the supplied URL into a short string representation
      *
      * @param url Url of the library
      * @return the corresponding filename of the library on disk
      */
-    public static String libUrlToFilename(URL url) {
+    public static String getHashedUrl(URL url) {
         // We hash the library URL and use it as a filename.
         // Previously we just replaced special characters with '_' and named it <URL>.zip,
         // this poses a problem on systems that couldn't handle arbitrarily large filenames.
@@ -56,23 +61,54 @@ public class LibraryUtil {
             throw new RuntimeException(e);
         }
         sha1.update(url.toString().getBytes());
-        String hashedUrl = new String(Hex.encodeHex(sha1.digest()));
-
-        return hashedUrl + ".zip";
+        return new String(Hex.encodeHex(sha1.digest()));
     }
 
-    /** Convert a list of library URLs into a list of corresponding files on disk.
+    public static String getETagFromName(String hashedUrl, String name)
+    {
+        Pattern libraryFileRe = Pattern.compile(hashedUrl + "-(.*)\\.zip");
+        Matcher m = libraryFileRe.matcher(name);
+        if (m.matches())
+            return m.group(1);
+        return null;
+    }
+
+    private static boolean matchUri(String hashedUrl, String name)
+    {
+        return getETagFromName(hashedUrl, name) != null;
+    }
+
+    public static String getFileName(URL url, String etag)
+    {
+        String etagB64 = new String(new Base64().encode(etag.getBytes()));
+        return String.format("%s-%s.zip", getHashedUrl(url), etagB64);
+    }
+
+    /** Convert a list of library URLs into a map of corresponding files on disk.
      *
      * @param libPath base path of the library files
      * @param libUrls list of library URLs to convert
-     * @return a list of corresponding files on disk
+     * @return a map of corresponding files on disk
      */
-    public static List<File> convertLibraryUrlsToFiles(String libPath, List<URL> libUrls) {
-        List<File> files = new ArrayList<File>();
+    public static Map<String, File> collectLibraryFiles(String libPath, List<URL> libUrls) {
+        File currentFiles[] = new File(libPath).listFiles(File::isFile);
+
+        Map<String, File> libraries = new HashMap<String, File>();
         for (URL url : libUrls) {
-            files.add(new File(FilenameUtils.concat(libPath, libUrlToFilename(url))));
+            String hashedUrl = getHashedUrl(url);
+
+            boolean matched = false;
+            for (File f : currentFiles) {
+                if (matchUri(hashedUrl, f.getName())) {
+                    libraries.put(url.toString(), f);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched)
+                libraries.put(url.toString(), null);
         }
-        return files;
+        return libraries;
     }
 
     /** Find base directory path inside a zip archive from where all include dirs should be based.
