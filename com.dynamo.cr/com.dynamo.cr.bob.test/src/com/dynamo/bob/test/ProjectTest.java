@@ -129,15 +129,18 @@ public class ProjectTest {
 
     @Test
     public void testResolve() throws Exception {
+        System.out.printf("testResolve begin");
+
         assertEquals(0, _304Count.get());
-        File lib = new File(project.getLibPath());
-        if (lib.exists()) {
-            FileUtils.cleanDirectory(new File(project.getLibPath()));
+        File libDir = new File(project.getLibPath());
+        if (libDir.exists()) {
+            FileUtils.cleanDirectory(libDir);
         }
 
         this.project.resolveLibUrls(new NullProgress());
 
-        File currentFiles[] = new File(project.getLibPath()).listFiles(File::isFile);
+        File currentFiles[] = libDir.listFiles(File::isFile);
+
         for (URL url : libraryUrls) {
             String hashedUrl = LibraryUtil.getHashedUrl(url);
             boolean found = false;
@@ -154,7 +157,7 @@ public class ProjectTest {
 
         this.project.resolveLibUrls(new NullProgress());
 
-        currentFiles = new File(project.getLibPath()).listFiles(File::isFile);
+        currentFiles = libDir.listFiles(File::isFile);
         List<File> filenames = new ArrayList<>();
         for (URL url : libraryUrls) {
             String hashedUrl = LibraryUtil.getHashedUrl(url);
@@ -168,9 +171,6 @@ public class ProjectTest {
             }
             assertTrue(found);
         }
-        // for (String filename : filenames) {
-        //     assertTrue(libExists(filename));
-        // }
         assertEquals(filenames.size(), _304Count.get());
 
         System.out.printf("testResolve end");
@@ -286,16 +286,25 @@ public class ProjectTest {
                     zip.close();
                 }
 
-                String etag = request.getHeader("If-None-Match");
-                if (sha1 != null) {
-                    response.setHeader("ETag", sha1);
-                }
-                if (etag != null && etag.equals(sha1)) {
-                    _304Count.incrementAndGet();
-                    response.setStatus(304);
-                    baseRequest.setHandled(true);
-                } else {
-                    super.handle(target, baseRequest, request, response);
+                try {
+
+                    String etag = request.getHeader("If-None-Match");
+                    if (sha1 != null) {
+                        response.setHeader("ETag", String.format("\"%s\"", sha1));
+                    } else {
+                        sha1 = "";
+                    }
+
+                    if (etag != null && etag.equals(String.format("\"%s\"", sha1))) {
+                        _304Count.incrementAndGet();
+                        response.setStatus(304);
+                        baseRequest.setHandled(true);
+                    } else {
+                        super.handle(target, baseRequest, request, response);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    throw e;
                 }
 
             } else {
