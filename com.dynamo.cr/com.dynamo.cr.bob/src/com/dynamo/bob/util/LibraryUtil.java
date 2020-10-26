@@ -73,7 +73,7 @@ public class LibraryUtil {
         return null;
     }
 
-    private static boolean matchUri(String hashedUrl, String name)
+    public static boolean matchUri(String hashedUrl, String name)
     {
         return getETagFromName(hashedUrl, name) != null;
     }
