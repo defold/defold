@@ -32,13 +32,13 @@ namespace dmWebServer
 namespace dmExtension
 {
     /*# SDK Extension API documentation
-     * [file:<dmsdk/extension/extension.h>]
      *
      * Functions for creating and controlling engine native extension libraries.
      *
      * @document
      * @name Extension
      * @namespace dmExtension
+     * @path engine/dlib/src/dmsdk/extension/extension.h
      */
 
     /*# result enumeration

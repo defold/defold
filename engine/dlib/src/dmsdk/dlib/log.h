@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,98 +15,105 @@
 
 #include <stdint.h>
 
-/*# SDK Log API documentation
- * [file:<dmsdk/dlib/log.h>]
+/*# logging functions
  *
  * Logging functions.
+ * @note Log functions will be omitted (NOP) for release builds
+ * @note Prefer these functions over `printf` since these can print to the platform specific logs
+ *
+ * @document
+ * @name Log
+ * @namespace dmLog
+ * @path engine/dlib/src/dmsdk/dlib/log.h
+*/
+
+/*# macro for debug category logging
+ *
  * If DLIB_LOG_DOMAIN is defined the value of the defined is printed after severity.
  * Otherwise DEFAULT will be printed.
- * <br/>Log functions will be omitted (NOP) for release builds.<br/>
+ *
+ * @note Extensions do not need to set this since they get their own logging domain automatically
+ *
+ * @macro
+ * @name DLIB_LOG_DOMAIN
+ * @examples
  *
  * ```cpp
  * #define DLIB_LOG_DOMAIN "MyOwnDomain"
  * #include <dmsdk/dlib/log.h>
  * ```
- *
- * @document
- * @name Log
- * @namespace dmLog
-*/
+ */
 
-/*# macro for debug category logging
+/*# log with "debug" severity
  *
  * Debug messages are temporary log instances used when debugging a certain behavior
  * Use dmLogOnceDebug for one-shot logging
  *
- * @macro
  * @name dmLogDebug
  * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
- *
+ * @return [type:void]
  */
 
-/*# macro for debug category logging
+/*# log with "user" severity
  *
  * Debug messages are temporary log instances used when debugging a certain behavior
  * Use dmLogOnceUserDebug for one-shot logging
  *
- * @macro
  * @name dmLogUserDebug
  * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
- *
+ * @return [type:void]
  */
 
-/*# macro for info category logging
+/*# log with "info" severity
  *
  * Info messages are used to inform the developers of relevant information
  * Use dmLogOnceInfo for one-shot logging
  *
- * @macro
  * @name dmLogInfo
  * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
- *
+ * @return [type:void]
  */
 
-/*# macro for warning category logging
+/*# log with "warning" severity
  *
  * Warning messages are used to inform the developers about potential problems which can cause errors.
  * Use dmLogOnceWarning for one-shot logging
  *
- * @macro
  * @name dmLogWarning
  * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
- *
+ * @return [type:void]
  */
 
-/*# macro for error category logging
+/*#log with "error" severity
  *
  * Error messages are used in cases where an recoverable error has occurred.
  * Use dmLogOnceError for one-shot logging
  *
- * @macro
  * @name dmLogError
  * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
- *
+ * @return [type:void]
  */
 
-/*# macro for fatal category logging
+/*# log with "fatal" severity
  *
  * Fatal messages are used in cases where an unrecoverable error has occurred.
  * Use dmLogOnceFatal for one-shot logging
  *
- * @macro
  * @name dmLogFatal
  * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
- *
+ * @return [type:void]
  */
 
-/**
+/** Log severity
  * Log severity
+ * @enum
+ * @name dmLogSeverity
  */
 enum dmLogSeverity
 {
