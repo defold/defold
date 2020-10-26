@@ -40,6 +40,14 @@ namespace dmLiveUpdate
         return 1;
     }
 
+    int Resource_IsUsingLiveUpdateData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        int type = dmLiveUpdate::GetLiveupdateType();
+        lua_pushboolean(L, type != -1);
+        return 1;
+    }
+
     static void Callback_StoreResource(bool status, void* _data)
     {
         StoreResourceCallbackData* callback_data = (StoreResourceCallbackData*)_data;
@@ -74,7 +82,7 @@ namespace dmLiveUpdate
         DM_LUA_STACK_CHECK(L, 0);
 
         // manifest index in first arg [luaL_checkint(L, 1)] deprecated
-        dmResource::Manifest* manifest = dmLiveUpdate::GetCurrentManifest();
+        const dmResource::Manifest* manifest = dmLiveUpdate::GetCurrentManifest();
         if (manifest == 0x0)
         {
             return DM_LUA_ERROR("The manifest identifier does not exist");
@@ -159,7 +167,7 @@ namespace dmLiveUpdate
         dmResource::Manifest* manifest = new dmResource::Manifest();
 
         // Create
-        Result result = dmLiveUpdate::ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
+        Result result = dmLiveUpdate::ParseManifestBin((uint8_t*) manifest_data, (uint32_t)manifest_len, manifest);
         if (result == RESULT_OK)
         {
             // Verify
@@ -171,6 +179,12 @@ namespace dmLiveUpdate
             else if (result != RESULT_OK)
             {
                 dmLogError("Manifest verification failed. Manifest was not stored.");
+            }
+
+            result = dmLiveUpdate::VerifyManifestReferences(manifest);
+            if (result != RESULT_OK)
+            {
+                dmLogError("Manifest references non existing resources. Manifest was not stored.");
             }
         }
         else
@@ -214,6 +228,7 @@ namespace dmLiveUpdate
 
         dmScript::TeardownCallback(callback_data->m_Callback);
         dmScript::DestroyCallback(callback_data->m_Callback);
+        free((void*)callback_data->m_Path);
         delete callback_data;
     }
 

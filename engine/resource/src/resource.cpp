@@ -75,14 +75,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
 const char* BUNDLE_INDEX_FILENAME               = "game.arci";
 const char* BUNDLE_DATA_FILENAME                = "game.arcd";
-const char* LIVEUPDATE_MANIFEST_FILENAME        = "liveupdate.dmanifest";
-const char* LIVEUPDATE_MANIFEST_TMP_FILENAME    = "liveupdate.dmanifest.tmp";
-const char* LIVEUPDATE_INDEX_FILENAME           = "liveupdate.arci";
-const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
-const char* LIVEUPDATE_DATA_FILENAME            = "liveupdate.arcd";
-const char* LIVEUPDATE_DATA_TMP_FILENAME        = "liveupdate.arcd.tmp";
-const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.zip";
-const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.zip.tmp";
 
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
@@ -284,7 +276,7 @@ void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_
     }
 }
 
-Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
+Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
 {
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
@@ -337,7 +329,6 @@ static Result LoadManifest(const char* manifest_path, Manifest* manifest)
     assert(manifest_buffer);
     dmSys::Result sys_result = dmSys::LoadResource(manifest_path, manifest_buffer, manifest_length, &dummy_file_size);
 
-printf("MAWE: %s\n", manifest_path);
     if (sys_result != dmSys::RESULT_OK)
     {
         dmLogError("Failed to read Manifest %s (%i)", manifest_path, sys_result);
@@ -395,9 +386,9 @@ Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_
     return RESULT_OK;
 }
 
-Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
+Result DecryptSignatureHash(const Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
 {
-    uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+    const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
     dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
     if (r != dmCrypt::RESULT_OK) {
@@ -406,24 +397,16 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     return RESULT_OK;
 }
 
-Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
+Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
 {
-    if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") != 0)
-    {
-        dmLogWarning("Skipping manifest verification, resources are loaded with scheme: '%s' and not from manifest.", factory->m_UriParts.m_Scheme);
-        return RESULT_NOT_SUPPORTED;
-    }
-
     Result res = RESULT_OK;
     char public_key_path[DMPATH_MAX_PATH];
-    char game_dir[DMPATH_MAX_PATH];
     uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
     uint8_t* pub_key_buf = 0x0;
     uint8_t* hash_decrypted = 0x0;
 
     // Load public key
-    dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
-    dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
+    dmPath::Concat(app_path, "game.public.der", public_key_path, DMPATH_MAX_PATH);
     dmSys::Result sys_res = dmSys::ResourceSize(public_key_path, &pub_key_size);
     if (sys_res != dmSys::RESULT_OK)
     {
@@ -867,17 +850,21 @@ static int FindEntryIndex(const Manifest* manifest, dmhash_t path_hash)
     return -1;
 }
 
-Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, dmResourceArchive::HArchiveIndexContainer archive_index)
+Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
 {
     for(uint32_t i = 0; i < num_entries; ++i)
     {
         if (entries[i].m_Flags == dmLiveUpdateDDF::BUNDLED)
         {
-            dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive_index, entries[i].m_Hash.m_Data.m_Data, 0x0, 0x0);
+            uint8_t* hash = entries[i].m_Hash.m_Data.m_Data;
+            dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive, hash, hash_len, 0x0, 0x0);
             if (res == dmResourceArchive::RESULT_NOT_FOUND)
             {
+                char hash_buffer[64*2+1]; // String repr. of project id SHA1 hash
+                BytesToHexString(hash, hash_len, hash_buffer, sizeof(hash_buffer));
+
                 // Manifest expect the resource to be bundled, but it is not in the archive index.
-                dmLogError("Resource '%s' is expected to be in the bundle was not found. Resource was modified between publishing the bundle and publishing the manifest?", entries[i].m_Url);
+                dmLogError("Resource '%s' (%s) is expected to be in the bundle was not found.\nResource was modified between publishing the bundle and publishing the manifest?", entries[i].m_Url, hash_buffer);
                 return RESULT_INVALID_DATA;
             }
         }
@@ -886,12 +873,15 @@ Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t 
     return RESULT_OK;
 }
 
-Result VerifyResourcesBundled(HFactory factory, Manifest* manifest)
+Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest)
 {
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
 
-    return VerifyResourcesBundled(entries, entry_count, factory->m_Manifest->m_ArchiveIndex);
+    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+    uint32_t hash_len = dmResource::HashLength(algorithm);
+
+    return VerifyResourcesBundled(entries, entry_count, hash_len, base_archive);
 }
 
 static Result LoadFromManifest(const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
@@ -903,10 +893,13 @@ static Result LoadFromManifest(const Manifest* manifest, const char* path, uint3
         return RESULT_RESOURCE_NOT_FOUND; // Path not in manifest
     }
 
+    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
     dmResourceArchive::EntryData ed;
     dmResourceArchive::HArchiveIndexContainer archive;
-    dmResourceArchive::Result res = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, entries[index].m_Hash.m_Data.m_Data, &archive, &ed);
+    uint8_t* hash = entries[index].m_Hash.m_Data.m_Data;
+    uint32_t hash_len = dmResource::HashLength(algorithm);
+    dmResourceArchive::Result res = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, hash, hash_len, &archive, &ed);
     if (res == dmResourceArchive::RESULT_OK)
     {
         uint32_t file_size = ed.m_ResourceSize;
@@ -916,7 +909,7 @@ static Result LoadFromManifest(const Manifest* manifest, const char* path, uint3
         }
 
         buffer->SetSize(0);
-        dmResourceArchive::Result read_result = dmResourceArchive::Read(archive, &ed, buffer->Begin());
+        dmResourceArchive::Result read_result = dmResourceArchive::Read(archive, hash, hash_len, &ed, buffer->Begin());
         if (read_result != dmResourceArchive::RESULT_OK)
         {
             return RESULT_IO_ERROR;

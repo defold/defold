@@ -34,6 +34,11 @@ namespace dmResourceArchive
      */
     const static uint32_t VERSION = 4;
 
+    // Maximum hash length convention. This size should large enough.
+    // If this length changes the VERSION needs to be bumped.
+    // Equivalent to 512 bits
+    const static uint32_t MAX_HASH = 64;
+
     enum EntryFlag
     {
         ENTRY_FLAG_ENCRYPTED        = 1 << 0,
@@ -71,15 +76,15 @@ namespace dmResourceArchive
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
 
     typedef Result (*FManifestLoad)(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** manifest);
-    typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* archive_name, const char* application_path, const char* application_support_path, HArchiveIndexContainer* out);
+    typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* archive_name, const char* application_path, const char* application_support_path, HArchiveIndexContainer previous, HArchiveIndexContainer* out);
     typedef Result (*FArchiveUnload)(HArchiveIndexContainer);
-    typedef Result (*FArchiveFindEntry)(HArchiveIndexContainer, const uint8_t*, EntryData*);
-    typedef Result (*FArchiveRead)(HArchiveIndexContainer, const EntryData*, void*);
+    typedef Result (*FArchiveFindEntry)(HArchiveIndexContainer, const uint8_t*, uint32_t, EntryData*);
+    typedef Result (*FArchiveRead)(HArchiveIndexContainer, const uint8_t*, uint32_t, const EntryData*, void*);
 
     struct ArchiveLoader
     {
         FManifestLoad       m_LoadManifest;
-        FArchiveLoad        m_Load;         // tests for existance of an appropriate archive
+        FArchiveLoad        m_Load;
         FArchiveUnload      m_Unload;
         FArchiveFindEntry   m_FindEntry;
         FArchiveRead        m_Read;
@@ -188,16 +193,25 @@ namespace dmResourceArchive
     void SetDefaultReader(HArchiveIndexContainer archive);
 
     // Reused by other loaders
+    // Loads a .dmanifest from memory
+    Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out);
     // Loads a .dmanifest
     Result LoadManifest(const char* path, dmResource::Manifest** out);
+
     // Loads a .arci and a .arcd into an HArchiveContainer
     Result LoadArchive(const char* index_path, const char* data_path, HArchiveIndexContainer* out);
 
     // Finds an entry in a single archive
-    Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry);
+    Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry);
+
+    // Decrypts a buffer
+    Result DecryptBuffer(void* buffer, uint32_t buffer_len);
+
+    // Decompressed a buffer
+    Result DecompressBuffer(const void* compressed_buf, uint32_t compressed_size, void* buffer, uint32_t buffer_len);
 
     // Reads an entry from a single archive
-    Result ReadEntryFromArchive(HArchiveIndexContainer archive, const EntryData* entry, void* buffer);
+    Result ReadEntryFromArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const EntryData* entry, void* buffer);
 
     // Calls each loader in sequence
 
@@ -239,7 +253,7 @@ namespace dmResourceArchive
      * @param entry entry data
      * @return RESULT_OK on success
      */
-    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, HArchiveIndexContainer* out_archive, EntryData* entry);
+    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, HArchiveIndexContainer* out_archive, EntryData* entry);
 
     /**
      * Read resource from the given archive
@@ -248,7 +262,7 @@ namespace dmResourceArchive
      * @param buffer buffer to load to
      * @return RESULT_OK on success
      */
-    Result Read(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer);
+    Result Read(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry_data, void* buffer);
 
     /**
      * Delete archive index. Only required for archives created with LoadArchive function
@@ -267,7 +281,7 @@ namespace dmResourceArchive
      * @param out_new_index reference to HArchiveIndex that will cointain the new archive index (on success)
      * @return RESULT_OK on success
      */
-    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index);
+    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const char* tmp_index_path, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index);
 
     /**
      * Set new archive index in archive container. Replace existing archive index if set

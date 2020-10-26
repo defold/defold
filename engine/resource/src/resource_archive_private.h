@@ -21,11 +21,6 @@
 
 namespace dmResourceArchive
 {
-    // Maximum hash length convention. This size should large enough.
-    // If this length changes the VERSION needs to be bumped.
-    // Equivalent to 512 bits
-    const static uint32_t MAX_HASH = 64;
-
 	struct LiveUpdateEntries {
         LiveUpdateEntries(const uint8_t* hashes, uint32_t hash_len, EntryData* entry_datas, uint32_t num_entries) {
             m_Hashes = hashes;
