@@ -36,6 +36,22 @@
 #endif // __BORLANDC__
 
 
+// DEFOLD Change: Added from GLFW 3
+// https://github.com/glfw/glfw/blob/05dd2fa2986c37e7aee3cba917b1d02a3a189390/src/win32_init.c#L42
+
+// Executables (but not DLLs) exporting this symbol with this value will be
+// automatically directed to the high-performance GPU on Nvidia Optimus systems
+// with up-to-date drivers
+//
+__declspec(dllexport) DWORD NvOptimusEnablement = 1;
+
+// Executables (but not DLLs) exporting this symbol with this value will be
+// automatically directed to the high-performance GPU on AMD PowerXpress systems
+// with up-to-date drivers
+//
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+// END DEFOLD
+
 
 //************************************************************************
 //****                  GLFW internal functions                       ****
