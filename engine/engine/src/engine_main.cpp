@@ -10,22 +10,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dlib/dlib.h>
-#include <dlib/socket.h>
-#include <dlib/dns.h>
-#include <dlib/memprofile.h>
-#include <dlib/log.h>
-#include <dlib/profile.h>
-#include <dlib/thread.h>
-#include <dlib/socket.h>
-#include <dlib/sslsocket.h>
-#include <graphics/graphics.h>
-#include <crash/crash.h>
-
 #if defined(ANDROID)
 #include <android_native_app_glue.h>
 
 #include <dlib/time.h>
+#include <dlib/thread.h>
 #include <graphics/glfw/glfw.h>
 #endif
 
@@ -36,34 +25,13 @@
 static void AppCreate(void* _ctx)
 {
     (void)_ctx;
-    dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
-
-#if DM_RELEASE
-    dLib::SetDebugMode(false);
-#endif
-    dmHashEnableReverseHash(dLib::IsDebugMode());
-
-    dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
-    dmDDF::RegisterAllTypes();
-    dmSocket::Initialize();
-    dmSSLSocket::Initialize();
-    dmDNS::Initialize();
-    dmMemProfile::Initialize();
-    dmProfile::Initialize(256, 1024 * 16, 128);
-    dmLogParams params;
-    dmLogInitialize(&params);
+    dmEngineInitialize();
 }
 
 static void AppDestroy(void* _ctx)
 {
     (void)_ctx;
-    dmGraphics::Finalize();
-    dmLogFinalize();
-    dmProfile::Finalize();
-    dmMemProfile::Finalize();
-    dmDNS::Finalize();
-    dmSSLSocket::Finalize();
-    dmSocket::Finalize();
+    dmEngineFinalize();
 }
 
 static int EngineMain(int argc, char *argv[])
@@ -98,6 +66,7 @@ static void EngineMainThread(void* ctx)
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
     EngineMainThreadArgs* args = (EngineMainThreadArgs*)ctx;
     args->m_ExitCode = EngineMain(args->m_Argc, args->m_Argv);
+    args->m_Finished = 1;
 }
 
 int engine_main(int argc, char *argv[])

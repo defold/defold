@@ -7,18 +7,21 @@ message Parameter
 {
     required string name = 1;
     required string doc = 2;
+    repeated string types = 3;
 }
 
 message Member
 {
     required string name = 1;
     required string doc = 2;
+    required string type = 3;
 }
 
 message ReturnValue
 {
     required string name = 1;
     required string doc = 2;
+    repeated string types = 3;
 }
 
 enum Type
@@ -33,6 +36,7 @@ enum Type
     MACRO = 7;
     ENUM = 8;
     TYPEDEF = 9;
+    CLASS = 10;
 }
 
 message Element
@@ -46,7 +50,9 @@ message Element
     optional string examples = 7 [default=""];
     optional string replaces = 8 [default=""];
     optional string error = 9 [default=""];
-    repeated Member members = 10;
+    repeated Member tparams = 10;
+    repeated Member members = 11;
+    repeated string notes = 12;
 }
 
 message Info
@@ -55,6 +61,8 @@ message Info
     required string name = 2;
     required string brief = 3;
     required string description = 4;
+    required string path = 5;
+    required string file = 6;
 }
 
 message Document

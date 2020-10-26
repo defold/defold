@@ -38,6 +38,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.security.KeyStore;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -82,9 +83,6 @@ public class AndroidBundler implements IBundler {
 
     private static File createDir(File parent, String child) throws IOException {
         File dir = new File(parent, child);
-        if (dir.exists()) {
-            FileUtils.deleteDirectory(dir);
-        }
         dir.mkdirs();
         return dir;
     }
@@ -124,6 +122,15 @@ public class AndroidBundler implements IBundler {
         return exec(Arrays.asList(args));
     }
 
+    private static CompileExceptionError createCompileExceptionError(String message) {
+        return new CompileExceptionError(message, null);
+    }
+    private static CompileExceptionError createCompileExceptionError(String message, Exception e) {
+        return new CompileExceptionError(message, e);
+    }
+    private static CompileExceptionError createCompileExceptionError(Exception e) {
+        return new CompileExceptionError("", e);
+    }
 
     /**
     * Get keystore. If none is provided a debug keystore will be generated in the project root and used
@@ -133,11 +140,12 @@ public class AndroidBundler implements IBundler {
     private static String getKeystore(Project project) throws IOException {
         String keystore = project.option("keystore", "");
         if (keystore.length() == 0) {
-            keystore = "debug.keystore";
+            File keystoreFile = new File(project.getRootDirectory(), "debug.keystore");
+            keystore = keystoreFile.getAbsolutePath();
             String keystoreAlias = "androiddebugkey";
             String keystorePassword = "android";
-            String keystorePasswordFile = "debug.keystore.pass.txt";
-            if (!new File(keystore).exists()) {
+            String keystorePasswordFile = new File(project.getRootDirectory(), "debug.keystore.pass.txt").getAbsolutePath();
+            if (!keystoreFile.exists()) {
                 Result r = exec(getJavaBinFile("keytool"),
                     "-genkey",
                     "-v",
@@ -170,7 +178,7 @@ public class AndroidBundler implements IBundler {
     private static String getKeystorePassword(Project project) throws IOException, CompileExceptionError {
         String keystorePassword = project.option("keystore-pass", "");
         if (keystorePassword.length() == 0) {
-            throw new CompileExceptionError(null, -1, "No keystore password");
+            throw createCompileExceptionError("No keystore password");
         }
         return readFile(keystorePassword).trim();
     }
@@ -180,28 +188,19 @@ public class AndroidBundler implements IBundler {
      * provided as a project option or the first alias in the keystore.
      */
     private static String getKeystoreAlias(Project project) throws IOException, CompileExceptionError {
-        String keystore = getKeystore(project);
+        String keystorePath = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
         if (alias.length() == 0) {
-
-            List<String> args = new ArrayList<String>();
-            args.add(getJavaBinFile("keytool"));
-            args.add("-list");
-            args.add("-keystore"); args.add(keystore);
-            args.add("-storepass"); args.add(keystorePassword);
-            args.add("-rfc");
-            Result res = exec(args);
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new IOException(msg);
+            try (FileInputStream is = new FileInputStream(new File(keystorePath))) {
+                KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+                keystore.load(is, keystorePassword.toCharArray());
+                Enumeration<String> enumeration = keystore.aliases();
+                alias = enumeration.nextElement();
             }
-
-            Matcher m = Pattern.compile("Alias name: (.*)").matcher(new String(res.stdOutErr));
-            if (!m.find()) {
-                throw new CompileExceptionError(null, -1, "Unable to find keystore alias");
+            catch(Exception e) {
+                throw createCompileExceptionError("Unable to find keystore alias", e);
             }
-            alias = m.group(1);
         }
         return alias;
     }
@@ -321,52 +320,21 @@ public class AndroidBundler implements IBundler {
     }
 
     /**
-    * Copy Android resources per package
+    * Copy local Android resources such as icons and bundle resources
     */
-    private static File copyResources(Project project, Platform platform, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
+        androidResDir.deleteOnExit();
 
-        // Native extension build
-        // Include all Android resources received from extender server
-        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-        File packagesList = new File(packagesDir, "packages.txt");
-        if(packagesList.exists()) {
-            // create a list of resource directories, per package
-            List<File> directories = new ArrayList<>();
-            List<String> allLines = Files.readAllLines(packagesList.toPath());
-            for (String line : allLines) {
-                File resDir = new File(packagesDir, line);
-                if (resDir.isDirectory()) {
-                    directories.add(resDir);
-                }
-            }
+        File resDir = new File(androidResDir, "com.defold.android");
+        resDir.mkdirs();
+        BundleHelper.createAndroidResourceFolders(resDir);
+        helper.copyAndroidIcons(resDir);
+        helper.copyAndroidPushIcons(resDir);
 
-            // copy all resources per package
-            // packages/com.foo.bar/res/* -> res/com.foo.bar/*
-            for (File src : directories) {
-                Path srcPath = Path.of(src.getAbsolutePath());
-                String packageName = srcPath.getName(srcPath.getNameCount() - 2).toString();
-                File dest = createDir(androidResDir, packageName);
-                for(File f : src.listFiles(File::isDirectory)) {
-                    FileUtils.copyDirectoryToDirectory(f, dest);
-                    BundleHelper.throwIfCanceled(canceled);
-                }
-            }
-        }
-        // Non-native extension build
-        // Include local Android resources (icons and bundle resources)
-        else {
-            File resDir = new File(androidResDir, "com.defold.android");
-            resDir.mkdirs();
-            BundleHelper.createAndroidResourceFolders(resDir);
-            helper.copyAndroidIcons(resDir);
-            helper.copyAndroidPushIcons(resDir);
-
-            File bundleResourceDestDir = new File(androidResDir, project.getProjectProperties().getStringValue("android", "package"));
-            bundleResourceDestDir.mkdirs();
-            copyBundleResources(project, bundleResourceDestDir);
-        }
-
+        File bundleResourceDestDir = new File(androidResDir, project.getProjectProperties().getStringValue("android", "package"));
+        bundleResourceDestDir.mkdirs();
+        copyBundleResources(project, bundleResourceDestDir);
 
         return androidResDir;
     }
@@ -375,7 +343,7 @@ public class AndroidBundler implements IBundler {
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File aapt2CompileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
+    private static File compileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
         log("Compiling resources from " + androidResDir.getAbsolutePath());
         try {
             // compile the resources using aapt2 to flat format files
@@ -402,7 +370,7 @@ public class AndroidBundler implements IBundler {
 
             return compiledResourcesDir;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed compiling Android resources: " + e.getMessage());
+            throw createCompileExceptionError("Failed compiling Android resources", e);
         }
     }
 
@@ -411,7 +379,7 @@ public class AndroidBundler implements IBundler {
     * Create apk from compiled resources and manifest file.
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File aapt2LinkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
+    private static File linkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
         log("Linking resources from " + compiledResourcesDir.getAbsolutePath());
         try {
             File aabDir = new File(outDir, "aab");
@@ -450,7 +418,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return outApk;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed linking resources", e);
         }
     }
 
@@ -469,10 +437,12 @@ public class AndroidBundler implements IBundler {
             BundleHelper.unzip(new FileInputStream(apk), apkUnzipDir.toPath());
 
             // create folder structure for the base.zip AAB module
+            // https://developer.android.com/guide/app-bundle#aab_format
             File baseDir = createDir(aabDir, "base");
             File dexDir = createDir(baseDir, "dex");
             File manifestDir = createDir(baseDir, "manifest");
             File assetsDir = createDir(baseDir, "assets");
+            File rootDir = createDir(baseDir, "root");
             File libDir = createDir(baseDir, "lib");
             File resDir = createDir(baseDir, "res");
 
@@ -487,9 +457,35 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
 
-            // copy assets
+            // copy extension and bundle resoources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
-            ExtenderUtil.writeResourcesToDirectory(bundleResources, assetsDir);
+            final String assetsPath = "assets/";
+            final String libPath = "lib/";
+            final String resPath = "res/";
+            for (String filename : bundleResources.keySet()) {
+                IResource resource = bundleResources.get(filename);
+                // remove initial file separator if it exists
+                if (filename.startsWith("/")) {
+                    filename = filename.substring(1);
+                }
+                // files starting with "res/" should be ignored as they are copied in a separate step below
+                if (filename.startsWith(resPath)) {
+                    continue;
+                }
+                // files starting with "assets/" and "lib/" should be copied as-is to their respective dirs
+                // other files should be copied to the to the root/ dir
+                File file = null;
+                if (filename.startsWith(assetsPath) || filename.startsWith(libPath)) {
+                    file = new File(baseDir, filename);
+                }
+                else  {
+                    file = new File(rootDir, filename);
+                }
+                log("Copying resource '" + filename + "' to " + file);
+                ExtenderUtil.writeResourceToFile(resource, file);
+                BundleHelper.throwIfCanceled(canceled);
+            }
+            // copy Defold archive files to the assets/ dir
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 File source = new File(new File(project.getRootDirectory(), project.getBuildDirectory()), name);
                 File dest = new File(assetsDir, name);
@@ -501,6 +497,7 @@ public class AndroidBundler implements IBundler {
             // copy resources
             log("Copying resources to " + resDir);
             FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
+            BundleHelper.throwIfCanceled(canceled);
 
             // copy libs
             final String exeName = getBinaryNameFromProject(project);
@@ -520,9 +517,10 @@ public class AndroidBundler implements IBundler {
             }
             baseZip.createNewFile();
             ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
+            BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating AAB base.zip", e);
         }
     }
 
@@ -552,7 +550,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return baseAab;
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating Android Application Bundle", e);
         }
     }
 
@@ -567,7 +565,7 @@ public class AndroidBundler implements IBundler {
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
 
-        Result r = exec("jarsigner",
+        Result r = exec(getJavaBinFile("jarsigner"),
             "-verbose",
             "-keystore", keystore,
             "-storepass", keystorePassword,
@@ -616,28 +614,35 @@ public class AndroidBundler implements IBundler {
     /**
     * Cleanup bundle folder from intermediate folders and artifacts.
     */
-    private static void cleanupBundleFolder(Project project, File outDir, File androidResDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static void cleanupBundleFolder(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         log("Cleanup bundle folder");
         BundleHelper.throwIfCanceled(canceled);
-        FileUtils.deleteDirectory(androidResDir);
+
         FileUtils.deleteDirectory(new File(outDir, "aab"));
     }
 
     private static File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         BundleHelper.throwIfCanceled(canceled);
 
-        // STEP 1. copy android resources (icons, extension resources and manifest)
-        // if bundling for both arm64 and armv7 we copy resources from one of the
-        // architectures (it doesn't matter which one)
         final Platform platform = getFirstPlatform(project);
-        File manifestFile = helper.copyOrWriteManifestFile(platform, outDir);
-        File androidResDir = copyResources(project, platform, outDir, helper, canceled);
 
-        // STEP 2. Use aapt2 to compile resources (to *.flat files)
-        File compiledResDir = aapt2CompileResources(project, androidResDir, canceled);
+        File apk;
+        if (ExtenderUtil.hasNativeExtensions(project)) {
+            apk = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/compiledresources.apk");
+        }
+        else {
+            // STEP 1. copy android resources (icons, extension resources and manifest)
+            // if bundling for both arm64 and armv7 we copy resources from one of the
+            // architectures (it doesn't matter which one)
+            File manifestFile = helper.copyOrWriteManifestFile(platform, outDir);
+            File androidResDir = copyLocalResources(project, outDir, helper, canceled);
 
-        // STEP 3. Use aapt2 to create an APK containing resource files in protobuf format
-        File apk = aapt2LinkResources(project, outDir, compiledResDir, manifestFile, canceled);
+            // STEP 2. Use aapt2 to compile resources (to *.flat files)
+            File compiledResDir = compileResources(project, androidResDir, canceled);
+
+            // STEP 3. Use aapt2 to create an APK containing resource files in protobuf format
+            apk = linkResources(project, outDir, compiledResDir, manifestFile, canceled);
+        }
 
         // STEP 4. Extract protobuf files from the APK and create base.zip (manifest, assets, dex, res, lib, *.pb etc)
         File baseZip = createAppBundleBaseZip(project, outDir, apk, canceled);
@@ -652,7 +657,7 @@ public class AndroidBundler implements IBundler {
         copySymbols(project, outDir, canceled);
 
         // STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
-        cleanupBundleFolder(project, outDir, androidResDir, canceled);
+        cleanupBundleFolder(project, outDir, canceled);
 
         return baseAab;
     }
@@ -696,7 +701,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return new File(apksPath);
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
+            throw createCompileExceptionError("Failed creating universal APK", e);
         }
     }
 
@@ -730,7 +735,6 @@ public class AndroidBundler implements IBundler {
 
         // cleanup
         apks.delete();
-
         return apk;
     }
 
@@ -742,7 +746,10 @@ public class AndroidBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
 
-        File outDir = createDir(bundleDir, getProjectTitle(project));
+        File outDir = new File(bundleDir, getProjectTitle(project));
+        FileUtils.deleteDirectory(outDir);
+        outDir.mkdirs();
+
 
         String bundleFormat = project.option("bundle-format", "apk");
         if (bundleFormat.equals("aab")) {
@@ -754,7 +761,7 @@ public class AndroidBundler implements IBundler {
             aab.delete();
         }
         else {
-            throw new CompileExceptionError(null, -1, "Unknown bundle format: " + bundleFormat);
+            throw createCompileExceptionError("Unknown bundle format: " + bundleFormat);
         }
     }
 }

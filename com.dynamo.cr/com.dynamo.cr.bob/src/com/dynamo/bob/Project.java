@@ -338,6 +338,9 @@ public class Project {
     private void logWarning(String fmt, Object... args) {
         System.err.println(String.format(fmt, args));
     }
+    private void logInfo(String fmt, Object... args) {
+        System.out.println(String.format(fmt, args));
+    }
 
     public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
         try {
@@ -359,7 +362,7 @@ public class Project {
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
                         this.publisher = new DefoldPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(settings);
+                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
@@ -1109,7 +1112,8 @@ run:
             List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
             int count = this.libUrls.size();
             IProgress subProgress = progress.subProgress(count);
-            subProgress.beginTask("Download archives", count);
+            subProgress.beginTask("Download archive(s)", count);
+            logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
                 BundleHelper.throwIfCanceled(progress);
                 File f = libFiles.get(i);
@@ -1129,6 +1133,8 @@ run:
                 }
 
                 URL url = libUrls.get(i);
+                logInfo("%2d: Downloading %s to %s", i, url, f);
+
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 if (sha1 != null) {
                     connection.addRequestProperty("If-None-Match", sha1);
@@ -1156,7 +1162,9 @@ run:
                 try {
                     connection.connect();
                     int code = connection.getResponseCode();
+
                     if (code == 304) {
+                        logInfo("%2d: Status 304: Already cached", i);
                         // Reusing cached library
                     } else {
                         boolean serverSha1Match = false;
@@ -1172,6 +1180,7 @@ run:
                                 }
                             }
                         }
+
                         if(!serverSha1Match) {
                             input = new BufferedInputStream(connection.getInputStream());
                             FileUtils.copyInputStreamToFile(input, f);
@@ -1183,6 +1192,10 @@ run:
                                 f.delete();
                                 throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
                             }
+                            logInfo("%2d: Status 200: Stored", i);
+                        }
+                        else {
+                            logInfo("%2d: Status 200: Already cached", i);
                         }
                     }
                     connection.disconnect();

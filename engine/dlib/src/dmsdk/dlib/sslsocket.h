@@ -19,13 +19,13 @@
 #include <dmsdk/dlib/socket.h>
 
 /*# SDK Secure socket API documentation
- * [file:<dmsdk/dlib/sslsocket.h>]
  *
  * Secure socket functions.
  *
  * @document
  * @name SSLSocket
  * @namespace dmSSLSocket
+ * @path engine/dlib/src/dmsdk/dlib/sslsocket.h
  */
 
 namespace dmSSLSocket
@@ -58,6 +58,10 @@ namespace dmSSLSocket
      */
     typedef struct SSLSocket* Socket;
 
+    /*# SSLSocket socket handle
+     * @variable
+     * @name dmSSLSocket::INVALID_SOCKET_HANDLE
+     */
     const Socket INVALID_SOCKET_HANDLE = 0;
 
     /*# create a secure socket
@@ -117,6 +121,16 @@ namespace dmSSLSocket
      */
     dmSocket::Result Receive(Socket socket, void* buffer, int length, int* received_bytes);
 
+    /*#
+     * Set socket receive timeout
+     * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
+     *       larger than or equal to 1000
+     * @name dmSocket::SetReceiveTimeout
+     * @param socket [type:dmSocket::Socket] socket
+     * @param timeout [type:uint64_t] timeout in microseconds
+     * @return RESULT_OK on success
+     */
+    dmSocket::Result SetReceiveTimeout(Socket socket, uint64_t timeout);
 }
 
 #endif // DMSDK_SSLSOCKET_H
