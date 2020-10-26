@@ -1234,6 +1234,9 @@ class Configuration(object):
 # BEGIN: EDITOR 2
 #
     def download_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when downloading the editor')
+
         editor_filename = "Defold-%s.zip" % self.target_platform
         editor_path = join(self.defold_root, 'editor', 'target', 'editor', editor_filename)
 
@@ -1241,6 +1244,9 @@ class Configuration(object):
         self.download_from_archive(s3_path, editor_path)
 
     def archive_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when archiving the editor')
+
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, self.channel, 'editor2')
 
@@ -1267,6 +1273,9 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
     def bundle_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when bundling the editor')
+
         cmd = ['./scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
@@ -2041,7 +2050,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       help = 'Set version explicitily when bumping version')
 
     parser.add_option('--channel', dest='channel',
-                      default = 'stable',
+                      default = None,
                       help = 'Editor release channel (stable, beta, ...)')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
