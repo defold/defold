@@ -36,14 +36,6 @@ namespace dmResource
     extern const char* BUNDLE_MANIFEST_FILENAME;
     extern const char* BUNDLE_INDEX_FILENAME;
     extern const char* BUNDLE_DATA_FILENAME;
-    extern const char* LIVEUPDATE_MANIFEST_FILENAME;
-    extern const char* LIVEUPDATE_MANIFEST_TMP_FILENAME;
-    extern const char* LIVEUPDATE_INDEX_FILENAME;
-    extern const char* LIVEUPDATE_INDEX_TMP_FILENAME;
-    extern const char* LIVEUPDATE_DATA_FILENAME;
-    extern const char* LIVEUPDATE_DATA_TMP_FILENAME;
-    extern const char* LIVEUPDATE_ARCHIVE_FILENAME;
-    extern const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME;
 
     /**
      * Empty flags
@@ -598,12 +590,14 @@ namespace dmResource
 
     Manifest* GetManifest(HFactory factory);
 
-    Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
+// Uses LiveUpdateDDF
+    Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
 
+// Called from liveupdate after storing a manifest
     /**
      * Verify that all resources the manifest expects to be bundled actually are bundled.
      */
-    Result VerifyResourcesBundled(HFactory factory, Manifest* manifest);
+    Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest);
 
     /**
      * Loads the public RSA key from the bundle.
@@ -612,7 +606,7 @@ namespace dmResource
      * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
      * Inspect asn1 key content; http://lapo.it/asn1js/#
      */
-    Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
+    Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
      * Determines if the resource could be unique

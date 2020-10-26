@@ -151,9 +151,60 @@ namespace dmLiveUpdate
 
     /*# register and store a live update zip file
      *
+     * Stores a zip file and uses it for live update content.
+     * The path is renamed and stored in the (internal) live update location
+     *
+     * @name resource.store_archive
+     * @param path [type:string] the path to the original file on disc
+     * @param callback [type:function(self, status)] the callback function
+     * executed after the storage has completed
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `status`
+     * : [type:constant] the status of the store operation (See resource.store_manifest)
+     *
+     * @examples
+     *
+     * How to download an archive with HTTP and store it on device.
+     *
+     * ```lua
+     * local function store_archive_cb(self, status, path)
+     *   if status == resource.LIVEUPATE_OK then
+     *     pprint("Successfully stored archive.")
+     *   else
+     *     pprint("Failed to store archive")
+     *   end
+     * end
+     *
+     * local function download_and_store_manifest(self)
+     *   local path = sys.get_save_file("test", "/save.html")
+     *   http.request(ARCHIVE_URL, "GET", function(self, id, response)
+     *       if response.status == 200 then
+     *         if response.error == nil then
+     *             -- register the path to the live update system
+     *             resource.store_archive(response.path, store_archive_cb)
+     *         else
+     *             print("Error when downloading", path, ":", response.error)
+     *         end
+     *       end
+     *     end, nil, nil, {path = path})
+     * end
+     * ```
+     *
      */
     int Resource_StoreArchive(lua_State* L);
 
+
+    /*# is any liveupdate data mounted and currently in use
+     *
+     * Is any liveupdate data mounted and currently in use?
+     * This can be used to determine if a new manifest or zip file should be downloaded.
+     *
+     * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
+     */
+    int Resource_IsUsingLiveUpdateData(lua_State* L);
 };
 
 #endif // H_SCRIPT_RESOURCE_LIVEUPDATE

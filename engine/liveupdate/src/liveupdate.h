@@ -13,9 +13,18 @@
 #ifndef DM_LIVEUPDATE_H
 #define DM_LIVEUPDATE_H
 
-#include <resource/resource.h>
-#include <resource/liveupdate_ddf.h>
-#include <resource/resource_archive.h>
+#include <dlib/hash.h>
+
+namespace dmResource
+{
+    typedef struct SResourceFactory* HFactory;
+    struct Manifest;
+}
+
+namespace dmResourceArchive
+{
+    struct LiveUpdateResource;
+}
 
 namespace dmLiveUpdate
 {
@@ -52,11 +61,13 @@ namespace dmLiveUpdate
     /*
      * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
      */
-    Result VerifyManifest(dmResource::Manifest* manifest);
+    Result VerifyManifest(const dmResource::Manifest* manifest);
 
-    Result VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length);
+    Result VerifyManifestReferences(const dmResource::Manifest* manifest);
 
-    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
+    Result VerifyResource(const dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length);
+
+    Result StoreResourceAsync(const dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
     /*# Registers an archive (.zip) on disc
      */
@@ -64,9 +75,14 @@ namespace dmLiveUpdate
 
     Result StoreManifest(dmResource::Manifest* manifest);
 
-    Result ParseManifestBin(uint8_t* manifest_data, size_t manifest_len, dmResource::Manifest* manifest);
+    Result ParseManifestBin(uint8_t* manifest_data, uint32_t manifest_len, dmResource::Manifest* manifest);
 
-    dmResource::Manifest* GetCurrentManifest();
+    const dmResource::Manifest* GetCurrentManifest();
+
+    // -1: not using liveupdate
+    // 0: single files
+    // 1: zip file
+    int GetLiveupdateType();
 
     char* DecryptSignatureHash(const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t* signature, uint32_t signature_len, uint32_t* out_digest_len);
 };

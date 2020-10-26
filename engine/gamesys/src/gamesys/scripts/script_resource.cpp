@@ -666,6 +666,7 @@ static const luaL_reg Module_methods[] =
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
+    {"is_using_liveupdate_data", dmLiveUpdate::Resource_IsUsingLiveUpdateData},
     {"store_resource", dmLiveUpdate::Resource_StoreResource},
     {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
     {"store_archive", dmLiveUpdate::Resource_StoreArchive},

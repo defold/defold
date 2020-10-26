@@ -24,6 +24,9 @@
 #include <dlib/time.h>
 #include <dlib/sys.h>
 
+#include <resource/resource.h>
+#include <resource/resource_archive.h>
+
 #if defined(_WIN32)
 #include <malloc.h>
 #define alloca(_SIZE) _alloca(_SIZE)
@@ -31,8 +34,15 @@
 
 namespace dmLiveUpdate
 {
-
-    static const char* LIVEUPDATE_BUNDLE_VER_FILENAME = "bundle.ver";
+    const char* LIVEUPDATE_MANIFEST_FILENAME        = "liveupdate.dmanifest";
+    const char* LIVEUPDATE_MANIFEST_TMP_FILENAME    = "liveupdate.dmanifest.tmp";
+    const char* LIVEUPDATE_INDEX_FILENAME           = "liveupdate.arci";
+    const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
+    const char* LIVEUPDATE_DATA_FILENAME            = "liveupdate.arcd";
+    const char* LIVEUPDATE_DATA_TMP_FILENAME        = "liveupdate.arcd.tmp";
+    const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.zip";
+    const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.zip.tmp";
+    const char* LIVEUPDATE_BUNDLE_VER_FILENAME      = "bundle.ver";
 
     static void CreateFilesIfNotExists(dmResourceArchive::HArchiveIndexContainer archive_container, const char* app_support_path, const char* arci, const char* arcd);
 
@@ -78,13 +88,13 @@ namespace dmLiveUpdate
             memset(this, 0x0, sizeof(*this));
         }
 
-        dmResource::Manifest* m_Manifest;      // the manifest from the resource system
-        dmResource::Manifest* m_LUManifest;    // the new manifest from StoreManifest
+        char                        m_AppPath[DMPATH_MAX_PATH];
+        dmResource::Manifest*       m_LUManifest;         // the new manifest from StoreManifest
+        dmResource::HFactory        m_ResourceFactory;    // Resource system factory
+        int                         m_ArchiveType;        // 0: original format, 1: .zip archive, -1: no format used
     };
 
     LiveUpdate g_LiveUpdate;
-    /// Resource system factory
-    static dmResource::HFactory m_ResourceFactory = 0x0;
 
     /** ***********************************************************************
      ** LiveUpdate utility functions
@@ -92,7 +102,7 @@ namespace dmLiveUpdate
 
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
-        dmResource::Manifest* manifest = g_LiveUpdate.m_LUManifest;
+        dmResource::Manifest* manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
 
         uint32_t resourceCount = MissingResources(manifest, urlHash, NULL, 0);
         uint32_t uniqueCount = 0;
@@ -130,7 +140,7 @@ namespace dmLiveUpdate
         return uniqueCount;
     }
 
-    Result VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length)
+    Result VerifyResource(const dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length)
     {
         if (manifest == 0x0 || data == 0x0)
         {
@@ -152,7 +162,7 @@ namespace dmLiveUpdate
         return comp ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
-    static bool VerifyManifestSupportedEngineVersion(dmResource::Manifest* manifest)
+    static bool VerifyManifestSupportedEngineVersion(const dmResource::Manifest* manifest)
     {
         // Calculate running dmengine version SHA1 hash
         dmSys::EngineInfo engine_info;
@@ -182,7 +192,7 @@ namespace dmLiveUpdate
         return engine_version_supported;
     }
 
-    static Result VerifyManifestSignature(dmResource::Manifest* manifest)
+    static Result VerifyManifestSignature(const char* app_path, const dmResource::Manifest* manifest)
     {
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
         uint32_t digest_len = dmResource::HashLength(algorithm);
@@ -190,40 +200,50 @@ namespace dmLiveUpdate
 
         dmLiveUpdate::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
 
-        Result result = ResourceResultToLiveupdateResult(dmResource::VerifyManifestHash(m_ResourceFactory, manifest, digest, digest_len));
-
-        return result;
+        return ResourceResultToLiveupdateResult(dmResource::VerifyManifestHash(app_path, manifest, digest, digest_len));
     }
 
-    static Result VerifyManifestBundledResources(dmResource::Manifest* manifest)
+    static Result VerifyManifestBundledResources(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::Manifest* manifest)
     {
+        assert(archive);
         dmResource::Result res;
-        dmMutex::HMutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
-        while(!dmMutex::TryLock(mutex))
+        if (g_LiveUpdate.m_ResourceFactory) // if the app has already started and is running
         {
-            dmTime::Sleep(100);
+            dmMutex::HMutex mutex = dmResource::GetLoadMutex(g_LiveUpdate.m_ResourceFactory);
+            while(!dmMutex::TryLock(mutex))
+            {
+                dmTime::Sleep(100);
+            }
+            res = dmResource::VerifyResourcesBundled(archive, manifest);
+            dmMutex::Unlock(mutex);
         }
-        res = dmResource::VerifyResourcesBundled(m_ResourceFactory, manifest);
-        dmMutex::Unlock(mutex);
+        else
+        {
+            // If we're being called during factory startup,
+            // we don't need to protect the archive for new downloaded content at the same time
+            res = dmResource::VerifyResourcesBundled(archive, manifest);
+        }
 
         return ResourceResultToLiveupdateResult(res);
     }
 
-    Result VerifyManifest(dmResource::Manifest* manifest)
+    Result VerifyManifest(const dmResource::Manifest* manifest)
     {
         if (!VerifyManifestSupportedEngineVersion(manifest))
             return RESULT_ENGINE_VERSION_MISMATCH;
 
-        Result res = VerifyManifestSignature(manifest);
-
-        if (res != RESULT_OK)
-            return res;
-
-        return VerifyManifestBundledResources(manifest);
+        return VerifyManifestSignature(g_LiveUpdate.m_AppPath, manifest);
     }
 
-    Result ParseManifestBin(uint8_t* manifest_data, size_t manifest_len, dmResource::Manifest* manifest)
+    Result VerifyManifestReferences(const dmResource::Manifest* manifest)
     {
+        assert(g_LiveUpdate.m_ResourceFactory != 0);
+        return VerifyManifestBundledResources(dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory)->m_ArchiveIndex, manifest);
+    }
+
+    Result ParseManifestBin(uint8_t* manifest_data, uint32_t manifest_len, dmResource::Manifest* manifest)
+    {
+        printf("MAWE: ParseManifestBin: %p\n", manifest);
         return ResourceResultToLiveupdateResult(dmResource::ManifestLoadMessage(manifest_data, manifest_len, manifest));
     }
 
@@ -238,8 +258,8 @@ namespace dmLiveUpdate
             return RESULT_IO_ERROR;
         }
 
-        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
-        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_MANIFEST_TMP_FILENAME, manifest_tmp_file_path, DMPATH_MAX_PATH);
+        dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
+        dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_TMP_FILENAME, manifest_tmp_file_path, DMPATH_MAX_PATH);
 
         // write to tempfile, if successful move/rename and then delete tmpfile
         dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
@@ -265,12 +285,17 @@ namespace dmLiveUpdate
             return RESULT_IO_ERROR;
         }
 
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
+
         // Store the manifest file to disc
         return StoreManifestInternal(manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
-    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
+    Result StoreResourceAsync(const dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
     {
+        printf("MAWE: StoreResourceAsync: manifest: %p\n", manifest);
+
         if (manifest == 0x0 || resource->m_Data == 0x0)
         {
             return RESULT_MEM_ERROR;
@@ -302,7 +327,7 @@ namespace dmLiveUpdate
         request.m_Callback = callback;
         request.m_Path = path;
         request.m_IsArchive = 1;
-        request.m_Manifest = dmResource::GetManifest(m_ResourceFactory);
+        request.m_Manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
         bool res = AddAsyncResourceRequest(request);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
@@ -329,7 +354,7 @@ namespace dmLiveUpdate
         return copy;
     }
 
-    static dmResource::Manifest* CreateLUManifest(dmResource::Manifest* base_manifest)
+    static dmResource::Manifest* CreateLUManifest(const dmResource::Manifest* base_manifest)
     {
         // Create the actual copy
         dmResource::Manifest* manifest = new dmResource::Manifest;
@@ -354,7 +379,7 @@ namespace dmLiveUpdate
 
         // Data file has same path and filename as index file, but extension .arcd instead of .arci.
         char lu_data_path[DMPATH_MAX_PATH];
-        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_DATA_FILENAME, lu_data_path, DMPATH_MAX_PATH);
+        dmPath::Concat(app_support_path, LIVEUPDATE_DATA_FILENAME, lu_data_path, DMPATH_MAX_PATH);
 
         FILE* f_lu_data = fopen(lu_data_path, "wb+");
         if (!f_lu_data)
@@ -366,6 +391,8 @@ namespace dmLiveUpdate
         dmLogInfo("Live Update archive: %s", manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path);
 
         manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_FileResourceData = f_lu_data;
+
+        printf("MAWE: CreateLUManifest: %p\n", manifest);
         return manifest;
     }
 
@@ -408,7 +435,7 @@ namespace dmLiveUpdate
         }
     }
 
-    Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
+    Result NewArchiveIndexWithResource(const dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
         out_new_index = 0x0;
         Result result = VerifyResource(manifest, expected_digest, expected_digest_length, (const char*)resource->m_Data, resource->m_Count);
@@ -426,7 +453,7 @@ namespace dmLiveUpdate
 
         // Create empty files if they don't already exist
         // this call might occur before StoreManifest
-        CreateFilesIfNotExists(manifest->m_ArchiveIndex, app_support_path, dmResource::LIVEUPDATE_INDEX_FILENAME, dmResource::LIVEUPDATE_DATA_FILENAME);
+        CreateFilesIfNotExists(manifest->m_ArchiveIndex, app_support_path, LIVEUPDATE_INDEX_FILENAME, LIVEUPDATE_DATA_FILENAME);
 
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
@@ -434,7 +461,10 @@ namespace dmLiveUpdate
 
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
-        dmResourceArchive::Result res = dmResourceArchive::NewArchiveIndexWithResource(manifest->m_ArchiveIndex, digest, digestLength, resource, app_support_path, out_new_index);
+        char index_tmp_path[DMPATH_MAX_PATH];
+        dmPath::Concat(app_support_path, LIVEUPDATE_INDEX_TMP_FILENAME, index_tmp_path, DMPATH_MAX_PATH);
+
+        dmResourceArchive::Result res = dmResourceArchive::NewArchiveIndexWithResource(manifest->m_ArchiveIndex, index_tmp_path, digest, digestLength, resource, app_support_path, out_new_index);
 
         return (res == dmResourceArchive::RESULT_OK) ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
@@ -444,29 +474,28 @@ namespace dmLiveUpdate
         dmResourceArchive::SetNewArchiveIndex(archive_container, new_index, mem_mapped);
     }
 
-    dmResource::Manifest* GetCurrentManifest()
+    const dmResource::Manifest* GetCurrentManifest()
     {
         // A bit lazy, but we don't want to make a copy before we know we'll need it
         if (!g_LiveUpdate.m_LUManifest)
-            g_LiveUpdate.m_LUManifest = CreateLUManifest(g_LiveUpdate.m_Manifest);
+            g_LiveUpdate.m_LUManifest = CreateLUManifest(dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory));
 
-        return g_LiveUpdate.m_LUManifest ? g_LiveUpdate.m_LUManifest : g_LiveUpdate.m_Manifest;
+        return g_LiveUpdate.m_LUManifest ? g_LiveUpdate.m_LUManifest : dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
     }
 
     void Initialize(const dmResource::HFactory factory)
     {
-        m_ResourceFactory = factory;
-        g_LiveUpdate.m_Manifest = dmResource::GetManifest(factory);
+        g_LiveUpdate.m_LUManifest = 0;
+        g_LiveUpdate.m_ResourceFactory = factory;
         dmLiveUpdate::AsyncInitialize(factory);
     }
 
     void Finalize()
     {
         // if this is is not the base manifest
-        if (g_LiveUpdate.m_Manifest != g_LiveUpdate.m_LUManifest)
+        if (dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory) != g_LiveUpdate.m_LUManifest)
             dmResource::DeleteManifest(g_LiveUpdate.m_LUManifest);
         g_LiveUpdate.m_LUManifest = 0;
-        g_LiveUpdate.m_Manifest = 0;
         dmLiveUpdate::AsyncFinalize();
     }
 
@@ -475,142 +504,124 @@ namespace dmLiveUpdate
         AsyncUpdate();
     }
 
-    static Result BundleVersionValid(const dmResource::Manifest* manifest, const char* bundle_ver_path)
+    // .zip archives take precedence over .arci/.arcd
+    // .tmp takes precedence over non .tmp
+    //  0: .arci/.arci format
+    //  1: .zip format
+    // -1: No LU archive file format found
+    static int DetermineLUType(const char* app_support_path)
     {
-        Result result = RESULT_OK;
-        struct stat file_stat;
-        bool bundle_ver_exists = stat(bundle_ver_path, &file_stat) == 0;
-
-        uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-        uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-        if (bundle_ver_exists)
+        const char* names[4] = {LIVEUPDATE_ARCHIVE_TMP_FILENAME, LIVEUPDATE_INDEX_TMP_FILENAME, LIVEUPDATE_ARCHIVE_FILENAME, LIVEUPDATE_INDEX_FILENAME};
+        int types[4] = {1,0,1,0};
+        for (int i = 0; i < 4; ++i)
         {
-            FILE* bundle_ver = fopen(bundle_ver_path, "rb");
-            uint8_t* buf = (uint8_t*)alloca(signature_len);
-            fread(buf, 1, signature_len, bundle_ver);
-            fclose(bundle_ver);
-            if (memcmp(buf, signature, signature_len) != 0)
+            char path[DMPATH_MAX_PATH];
+            dmPath::Concat(app_support_path, names[i], path, DMPATH_MAX_PATH);
+            if (FileExists(path))
             {
-                // Bundle has changed, local liveupdate manifest no longer valid.
-                result = RESULT_VERSION_MISMATCH;
+                dmLogInfo("Found %s", path);
+                return types[i];
             }
         }
-        else
-        {
-            // Take bundled manifest signature and write to 'bundle_ver' file
-            FILE* bundle_ver = fopen(bundle_ver_path, "wb");
-            size_t bytes_written = fwrite(signature, 1, signature_len, bundle_ver);
-            if (bytes_written != signature_len)
-            {
-                dmLogWarning("Failed to write bundle version to file, wrote %u bytes out of %u bytes.", (uint32_t)bytes_written, signature_len);
-            }
-            fclose(bundle_ver);
-            result = RESULT_OK;
-        }
-
-        return result;
+        return -1;
     }
 
-    static dmResourceArchive::Result LiveUpdateArchive_LoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** out)
+    int GetLiveupdateType()
     {
-        char manifest_path[DMPATH_MAX_PATH];
-        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_MANIFEST_FILENAME, manifest_path, DMPATH_MAX_PATH);
+        return g_LiveUpdate.m_ArchiveType;
+    }
 
-        struct stat file_stat;
-        bool file_exists = stat(manifest_path, &file_stat) == 0;
-        if (!file_exists)
-            return dmResourceArchive::RESULT_OK;
+    static dmResourceArchive::Result LULoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* base_manifest, dmResource::Manifest** out)
+    {
+        dmStrlCpy(g_LiveUpdate.m_AppPath, app_path, DMPATH_MAX_PATH);
 
-        // Check if bundle has changed (e.g. app upgraded)
-        char bundle_ver_path[DMPATH_MAX_PATH];
-        dmPath::Concat(app_support_path, LIVEUPDATE_BUNDLE_VER_FILENAME, bundle_ver_path, DMPATH_MAX_PATH);
-        Result bundle_ver_valid = BundleVersionValid(previous, bundle_ver_path);
-        if (bundle_ver_valid != RESULT_OK)
+        g_LiveUpdate.m_ArchiveType = DetermineLUType(app_support_path);
+        if (g_LiveUpdate.m_ArchiveType == -1)
+            return dmResourceArchive::RESULT_NOT_FOUND;
+
+        dmResourceArchive::Result result = dmResourceArchive::RESULT_OK;
+        if (g_LiveUpdate.m_ArchiveType == 1)
         {
-            // Bundle version file exists from previous run, but signature does not match currently loaded bundled manifest.
-            // Unlink liveupdate.manifest and bundle_ver_path from filesystem and load bundled manifest instead.
-            dmSys::Unlink(bundle_ver_path);
-            dmSys::Unlink(manifest_path);
-
-            return dmResourceArchive::RESULT_OK;
+            result = LULoadManifest_Zip(archive_name, app_path, app_support_path, base_manifest, out);
+            if (dmResourceArchive::RESULT_OK != result)
+            {
+                LUCleanup_Zip(archive_name, app_path, app_support_path);
+                g_LiveUpdate.m_ArchiveType = 0;
+            }
+            else
+            {
+                LUCleanup_Regular(archive_name, app_path, app_support_path);
+            }
         }
 
-        dmResourceArchive::Result result = dmResourceArchive::LoadManifest(manifest_path, out);
+        if (g_LiveUpdate.m_ArchiveType == 0)
+        {
+            result = LULoadManifest_Regular(archive_name, app_path, app_support_path, base_manifest, out);
+            if (dmResourceArchive::RESULT_OK != result)
+            {
+                LUCleanup_Regular(archive_name, app_path, app_support_path);
+                g_LiveUpdate.m_ArchiveType = -1;
+            }
+            else
+            {
+                LUCleanup_Zip(archive_name, app_path, app_support_path);
+            }
+        }
+
         if (dmResourceArchive::RESULT_OK == result)
         {
             assert(g_LiveUpdate.m_LUManifest == 0);
             g_LiveUpdate.m_LUManifest = *out;
         }
-        dmLogWarning("Loaded LiveUpdate manifest: %s", manifest_path);
         return result;
     }
 
-    static dmResourceArchive::Result LiveUpdateArchive_Load(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer* out)
+    static dmResourceArchive::Result LULoadArchive(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out)
     {
-        char archive_index_tmp_path[DMPATH_MAX_PATH];
-        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_INDEX_TMP_FILENAME, archive_index_tmp_path, DMPATH_MAX_PATH);
+        if (g_LiveUpdate.m_ArchiveType == -1)
+            return dmResourceArchive::RESULT_NOT_FOUND;
 
-        char archive_index_path[DMPATH_MAX_PATH];
-        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_INDEX_FILENAME, archive_index_path, DMPATH_MAX_PATH);
-
-        struct stat file_stat;
-        bool luTempIndexExists = stat(archive_index_tmp_path, &file_stat) == 0;
-        if (luTempIndexExists)
-        {
-            dmSys::Result sys_result = dmSys::RenameFile(archive_index_path, archive_index_tmp_path);
-            if (sys_result != dmSys::RESULT_OK)
-            {
-                // The recently added resources will not be available if we proceed after this point
-                dmLogError("Fail to rename '%s' to '%s' (%i).", archive_index_tmp_path, archive_index_path, sys_result);
-                return dmResourceArchive::RESULT_IO_ERROR;
-            }
-            dmSys::Unlink(archive_index_tmp_path);
-        }
-
-        bool file_exists = stat(archive_index_path, &file_stat) == 0;
-        if (!file_exists)
-            return dmResourceArchive::RESULT_OK;
-
-        char archive_data_path[DMPATH_MAX_PATH];
-        dmPath::Concat(app_support_path, dmResource::LIVEUPDATE_DATA_FILENAME, archive_data_path, DMPATH_MAX_PATH);
-
-        return dmResourceArchive::LoadArchive(archive_index_path, archive_data_path, out);
+        if (g_LiveUpdate.m_ArchiveType == 1)
+            return LULoadArchive_Zip(manifest, archive_name, app_path, app_support_path, previous, out);
+        else
+            return LULoadArchive_Regular(manifest, archive_name, app_path, app_support_path, previous, out);
     }
 
-    static dmResourceArchive::Result LiveUpdateArchive_Unload(dmResourceArchive::HArchiveIndexContainer archive)
+    static dmResourceArchive::Result LUUnloadArchive(dmResourceArchive::HArchiveIndexContainer archive)
     {
-        dmResource::UnmountArchiveInternal(archive, archive->m_UserData);
-        return dmResourceArchive::RESULT_OK;
+        assert(g_LiveUpdate.m_ArchiveType != -1);
+        if (g_LiveUpdate.m_ArchiveType == 1)
+            return LUUnloadArchive_Zip(archive);
+        else
+            return LUUnloadArchive_Regular(archive);
     }
 
-    static dmResourceArchive::Result LiveUpdateArchive_FindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, dmResourceArchive::EntryData* entry)
+    static dmResourceArchive::Result LUFindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry)
     {
-        dmResourceArchive::EntryData tmpentry;
-        dmResourceArchive::Result result = dmResourceArchive::FindEntryInArchive(archive, hash, &tmpentry);
-        if (dmResourceArchive::RESULT_OK == result)
-        {
-            // Make sure it's from live update
-            // If not, the offset data will not be correct (i.e.: it's an older format .arci where the entries were copied over from the original manifest)
-            uint32_t flags = tmpentry.m_Flags;
-            if (flags & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA)
-            {
-                if (entry != 0)
-                    *entry = tmpentry;
-                return result;
-            }
-        }
+        assert(g_LiveUpdate.m_ArchiveType != -1);
+        if (g_LiveUpdate.m_ArchiveType == 1)
+            return LUFindEntryInArchive_Zip(archive, hash, hash_len, entry);
+        else
+            return LUFindEntryInArchive_Regular(archive, hash, hash_len, entry);
+    }
 
-        return dmResourceArchive::RESULT_NOT_FOUND;
+    static dmResourceArchive::Result LUReadEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const dmResourceArchive::EntryData* entry, void* buffer)
+    {
+        assert(g_LiveUpdate.m_ArchiveType != -1);
+        if (g_LiveUpdate.m_ArchiveType == 1)
+            return LUReadEntryFromArchive_Zip(archive, hash, hash_len, entry, buffer);
+        else
+            return LUReadEntryFromArchive_Regular(archive, hash, hash_len, entry, buffer);
     }
 
     void RegisterArchiveLoaders()
     {
         dmResourceArchive::ArchiveLoader loader;
-        loader.m_LoadManifest = LiveUpdateArchive_LoadManifest;
-        loader.m_Load = LiveUpdateArchive_Load;
-        loader.m_Unload = LiveUpdateArchive_Unload;
-        loader.m_FindEntry = LiveUpdateArchive_FindEntry;
-        loader.m_Read = dmResourceArchive::ReadEntryFromArchive;
+        loader.m_LoadManifest = LULoadManifest;
+        loader.m_Load = LULoadArchive;
+        loader.m_Unload = LUUnloadArchive;
+        loader.m_FindEntry = LUFindEntryInArchive;
+        loader.m_Read = LUReadEntryInArchive;
         dmResourceArchive::RegisterArchiveLoader(loader);
     }
 
