@@ -26,10 +26,10 @@ namespace dmScript
         if (!f) {
             return false;
         }
-        size_t nwritten = fwrite(data, data_len, 1, f);
+        size_t nwritten = fwrite(data, 1, data_len, f);
         fflush(f);
         fclose(f);
-        if (nwritten != 1)
+        if (nwritten != data_len)
         {
             dmLogError("Failed to write '%u' bytes to '%s'", data_len, path);
             return false;
