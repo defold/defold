@@ -209,14 +209,98 @@ namespace dmResourceArchive
         return result;
     }
 
-    Result LoadArchive(const char* index_path, const char* data_path, HArchiveIndexContainer* out)
+    static void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndexContainer* archive)
     {
-        void* mount_info = 0;
-        dmResource::Result result = dmResource::MountArchiveInternal(index_path, data_path, 0x0, out, &mount_info);
-        if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
+        if (index_file)
         {
-            (*out)->m_UserData = mount_info;
+            fclose(index_file);
         }
+
+        if (data_file)
+        {
+            fclose(data_file);
+        }
+
+        if (archive)
+        {
+            if (archive->m_ArchiveIndex)
+            {
+                delete archive->m_ArchiveIndex;
+            }
+
+            delete archive;
+        }
+    }
+
+    Result LoadArchiveFromFile(const char* index_file_path, const char* data_file_path, HArchiveIndexContainer* archive)
+    {
+        FILE* f_index = fopen(index_file_path, "rb");
+        if (!f_index)
+        {
+            return RESULT_IO_ERROR;
+        }
+
+        FILE* f_data = 0;
+        ArchiveIndexContainer* aic = new ArchiveIndexContainer;
+        aic->m_IsMemMapped = false;
+
+        ArchiveIndex* ai = new ArchiveIndex;
+        aic->m_ArchiveIndex = ai;
+
+        aic->m_ArchiveFileIndex = new ArchiveFileIndex;
+        dmStrlCpy(aic->m_ArchiveFileIndex->m_Path, index_file_path, DMPATH_MAX_PATH);
+
+        if (fread(ai, 1, sizeof(ArchiveIndex), f_index) != sizeof(ArchiveIndex))
+        {
+            CleanupResources(f_index, f_data, aic);
+            return RESULT_IO_ERROR;
+        }
+
+        if(dmEndian::ToNetwork(ai->m_Version) != VERSION)
+        {
+            CleanupResources(f_index, f_data, aic);
+            return RESULT_VERSION_MISMATCH;
+        }
+
+        uint32_t entry_count = dmEndian::ToNetwork(ai->m_EntryDataCount);
+        uint32_t entry_offset = dmEndian::ToNetwork(ai->m_EntryDataOffset);
+        uint32_t hash_offset = dmEndian::ToNetwork(ai->m_HashOffset);
+
+        fseek(f_index, hash_offset, SEEK_SET);
+        aic->m_ArchiveFileIndex->m_Hashes = new uint8_t[entry_count * dmResourceArchive::MAX_HASH];
+
+        uint32_t hash_total_size = entry_count * dmResourceArchive::MAX_HASH;
+        if (fread(aic->m_ArchiveFileIndex->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
+        {
+            CleanupResources(f_index, f_data, aic);
+            return RESULT_IO_ERROR;
+        }
+
+        fseek(f_index, entry_offset, SEEK_SET);
+        aic->m_ArchiveFileIndex->m_Entries = new EntryData[entry_count];
+        uint32_t entries_total_size = entry_count * sizeof(EntryData);
+        if (fread(aic->m_ArchiveFileIndex->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
+        {
+            CleanupResources(f_index, f_data, aic);
+            return RESULT_IO_ERROR;
+        }
+
+        // Mark that this archive was loaded from file, and not memory-mapped
+        ai->m_Userdata = FILE_LOADED_INDICATOR;
+
+        f_data = fopen(data_file_path, "rb");
+
+        if (!f_data)
+        {
+            CleanupResources(f_index, f_data, aic);
+            return RESULT_IO_ERROR;
+        }
+
+        aic->m_ArchiveFileIndex->m_FileResourceData = f_data; // game.arcd file handle
+        *archive = aic;
+
+        fclose(f_index);
+
         return RESULT_OK;
     }
 
@@ -238,7 +322,13 @@ namespace dmResourceArchive
         dmSnPrintf(archive_index_path, sizeof(archive_index_path), "%s/%s.arci", app_path, archive_name);
         dmSnPrintf(archive_data_path, sizeof(archive_data_path), "%s/%s.arcd", app_path, archive_name);
 
-        return LoadArchive(archive_index_path, archive_data_path, out);
+        void* mount_info = 0;
+        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, 0x0, out, &mount_info);
+        if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
+        {
+            (*out)->m_UserData = mount_info;
+        }
+        return RESULT_OK;
     }
 
     static Result ResourceArchiveDefaultUnload(HArchiveIndexContainer archive)

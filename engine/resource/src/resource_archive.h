@@ -199,7 +199,7 @@ namespace dmResourceArchive
     Result LoadManifest(const char* path, dmResource::Manifest** out);
 
     // Loads a .arci and a .arcd into an HArchiveContainer
-    Result LoadArchive(const char* index_path, const char* data_path, HArchiveIndexContainer* out);
+    Result LoadArchiveFromFile(const char* index_path, const char* data_path, HArchiveIndexContainer* out);
 
     // Finds an entry in a single archive
     Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry);
