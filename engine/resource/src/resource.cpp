@@ -615,27 +615,14 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         if (basename)
             *basename = 0;
 
-        // Iterate through the loaders, and let them decide on which manifest to load
-        dmResourceArchive::Result ra_result = dmResourceArchive::LoadManifest(archive_name, app_path, app_support_path, &factory->m_Manifest);
-        if (dmResourceArchive::RESULT_OK != ra_result)
-        {
-            dmLogError("Unable to load manifest: %d", ra_result);
-            dmMessage::DeleteSocket(socket);
-            delete factory;
-            return 0;
-        }
-
-        assert(factory->m_Manifest != 0);
-        assert(factory->m_Manifest->m_ArchiveIndex == 0);
-
-        ra_result = dmResourceArchive::LoadArchives(factory->m_Manifest, archive_name, app_path, app_support_path, &factory->m_Manifest->m_ArchiveIndex);
+        dmResourceArchive::HArchiveIndexContainer archive = 0;
+        dmResourceArchive::Result ra_result = dmResourceArchive::LoadArchives(archive_name, app_path, app_support_path, &factory->m_Manifest, &archive);
         if (dmResourceArchive::RESULT_OK == ra_result)
         {
+            factory->m_Manifest->m_ArchiveIndex = archive;
             // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             factory->m_Manifest->m_DDF = 0x0;
-
-printf("MAWE LoadArchivs: manifest: %p   archive: %p\n", factory->m_Manifest, factory->m_Manifest->m_ArchiveIndex);
         }
         else
         {

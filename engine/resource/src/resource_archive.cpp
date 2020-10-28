@@ -62,76 +62,73 @@ namespace dmResourceArchive
         g_ArchiveLoader[g_NumArchiveLoaders++] = loader;
     }
 
-    /*# Loads the archives, calling each registered loader in sequence
-     */
-    Result LoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** out)
+    Result LoadArchives(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** out_manifest, HArchiveIndexContainer* out_archive)
     {
-        dmResource::Manifest* previous = 0;
+        dmResource::Manifest* head_manifest = 0;
+        HArchiveIndexContainer head_archive = 0;
         for (int i = 0; i < g_NumArchiveLoaders; ++i)
         {
             ArchiveLoader* loader = &g_ArchiveLoader[i];
 
             dmResource::Manifest* manifest = 0;
-            Result result = loader->m_LoadManifest(archive_name, app_path, app_support_path, previous, &manifest);
-            if (RESULT_NOT_FOUND == result)
+            Result result = loader->m_LoadManifest(archive_name, app_path, app_support_path, head_manifest, &manifest);
+            if (RESULT_NOT_FOUND == result || RESULT_VERSION_MISMATCH == result)
                 continue;
             if (RESULT_OK != result) {
                 return result;
             }
 
             // The loader could opt for not loading an archive
-            if (manifest)
-            {
-                if (previous)
-                    dmResource::DeleteManifest(previous);
-                previous = manifest;
-            }
-        }
-
-        if (!previous)
-            return RESULT_NOT_FOUND;
-
-        *out = previous;
-        return RESULT_OK;
-    }
-
-    /*# Loads the archives, calling each registered loader in sequence
-     */
-    Result LoadArchives(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out)
-    {
-        HArchiveIndexContainer top = 0;
-        for (int i = 0; i < g_NumArchiveLoaders; ++i)
-        {
-            ArchiveLoader* loader = &g_ArchiveLoader[i];
-            HArchiveIndexContainer archive = 0;
-            Result result = loader->m_Load(manifest, archive_name, app_path, app_support_path, top, &archive);
-            if (RESULT_NOT_FOUND == result)
+            if (!manifest)
                 continue;
-            if (RESULT_OK != result)
-                return result;
 
-            // The loader could opt for not loading an archive
+            HArchiveIndexContainer archive = 0;
+            result = loader->m_Load(manifest, archive_name, app_path, app_support_path, head_archive, &archive);
+            if (RESULT_NOT_FOUND == result || RESULT_VERSION_MISMATCH == result)
+            {
+                dmResource::DeleteManifest(manifest);
+                continue;
+            }
+            if (RESULT_OK != result)
+            {
+                dmResource::DeleteManifest(manifest);
+                return result;
+            }
+
             if (archive)
             {
+                if (head_manifest)
+                    dmResource::DeleteManifest(head_manifest);
+                head_manifest = manifest;
+
                 archive->m_Loader = *loader;
-                if (top != archive)
+                if (head_archive != archive)
                 {
-                    archive->m_Next = top;
-                    top = archive;
+                    archive->m_Next = head_archive;
+                    head_archive = archive;
                 }
+            } else {
+                // The loader could opt for not loading an archive
+                dmResource::DeleteManifest(manifest);
             }
         }
 
-        if (!top) {
+        if (!head_manifest) {
+            dmLogError("No manifest found");
+            return RESULT_NOT_FOUND;
+        }
+
+        if (!head_archive) {
             dmLogError("No archives found");
             return RESULT_NOT_FOUND;
         }
 
         dmLogWarning("dmResourceArchive::LoadArchives:");
-        dmResourceArchive::DebugArchiveIndex(top);
+        dmResourceArchive::DebugArchiveIndex(head_archive);
         dmLogWarning("");
 
-        *out = top;
+        *out_manifest = head_manifest;
+        *out_archive = head_archive;
         return RESULT_OK;
     }
 

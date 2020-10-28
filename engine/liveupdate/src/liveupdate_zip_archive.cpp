@@ -287,7 +287,7 @@ dmLogWarning("MAWE: LULoadManifest_Zip: manifest: %p   result: %d", *out, result
         dmResource::Result result = dmResource::VerifyResourcesBundled(previous, manifest);
         if (dmResource::RESULT_OK != result)
         {
-            dmLogError("Manifest references non existing resources. Manifest was not stored.");
+            dmLogError("Manifest references non existing resources.");
             return dmResourceArchive::RESULT_VERSION_MISMATCH;
         }
 
