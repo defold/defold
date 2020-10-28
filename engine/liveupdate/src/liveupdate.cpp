@@ -493,7 +493,7 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
     void Finalize()
     {
         // if this is is not the base manifest
-        if (dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory) != g_LiveUpdate.m_LUManifest)
+        if (g_LiveUpdate.m_ResourceFactory && dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory) != g_LiveUpdate.m_LUManifest)
             dmResource::DeleteManifest(g_LiveUpdate.m_LUManifest);
         g_LiveUpdate.m_LUManifest = 0;
         dmLiveUpdate::AsyncFinalize();
