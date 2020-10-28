@@ -576,15 +576,34 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
         return result;
     }
 
+    static dmResourceArchive::Result LUCleanupArchive(const char* archive_name, const char* app_path, const char* app_support_path)
+    {
+        if (g_LiveUpdate.m_ArchiveType == -1)
+            return dmResourceArchive::RESULT_OK;
+        else if (g_LiveUpdate.m_ArchiveType == 1)
+            return LUCleanup_Zip(archive_name, app_path, app_support_path);
+        else
+            return LUCleanup_Regular(archive_name, app_path, app_support_path);
+    }
+
     static dmResourceArchive::Result LULoadArchive(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out)
     {
         if (g_LiveUpdate.m_ArchiveType == -1)
             return dmResourceArchive::RESULT_NOT_FOUND;
 
+        dmResourceArchive::Result result;
         if (g_LiveUpdate.m_ArchiveType == 1)
-            return LULoadArchive_Zip(manifest, archive_name, app_path, app_support_path, previous, out);
+            result = LULoadArchive_Zip(manifest, archive_name, app_path, app_support_path, previous, out);
         else
-            return LULoadArchive_Regular(manifest, archive_name, app_path, app_support_path, previous, out);
+            result = LULoadArchive_Regular(manifest, archive_name, app_path, app_support_path, previous, out);
+
+        if (dmResourceArchive::RESULT_OK != result)
+        {
+            LUCleanupArchive(archive_name, app_path, app_support_path);
+            g_LiveUpdate.m_ArchiveType = -1;
+        }
+
+        return result;
     }
 
     static dmResourceArchive::Result LUUnloadArchive(dmResourceArchive::HArchiveIndexContainer archive)
