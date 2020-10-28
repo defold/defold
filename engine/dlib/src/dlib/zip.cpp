@@ -13,14 +13,6 @@
 #include "zip.h"
 #include "zip/zip.h"
 
-#if defined(_WIN32)
-  #if defined(_WIN64)
-    typedef int64_t ssize_t;
-  #else
-    typedef int32_t ssize_t;
-  #endif
-#endif
-
 namespace dmZip
 {
 
