@@ -215,15 +215,10 @@ namespace dmResourceArchive
 
     // Calls each loader in sequence
 
-    /*# Loads the manifest, calling each registered loader in sequence (i.e. base bundle first)
-     * Keeps the latest manifest that has the same signature as the base bundle
-     */
-    Result LoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** manifest);
-
     /*# Loads the archives, calling each registered loader in sequence
      * Skipping the ones where the signature differs from the base bundle
      */
-    Result LoadArchives(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, HArchiveIndexContainer* out);
+    Result LoadArchives(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** manifest, HArchiveIndexContainer* out);
 
     /*# Unloads the archives, calling each registered loader in sequence
      */
