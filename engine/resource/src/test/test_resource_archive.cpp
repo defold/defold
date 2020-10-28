@@ -268,7 +268,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
     // Find inserted entry in archive after insertion
     dmResourceArchive::EntryData entry;
     dmResourceArchive::HArchiveIndexContainer entryarchive = 0;
-    result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, sizeof(sorted_middle_hash), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
 
@@ -367,13 +367,13 @@ TEST(dmResourceArchive, ShiftInsertResource_InsertIssue)
     dmResourceArchive::Result result;
     dmResourceArchive::EntryData entry;
     dmResourceArchive::HArchiveIndexContainer entryarchive = 0;
-    result = dmResourceArchive::FindEntry(archive, hash1, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, hash1, sizeof(hash1), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
-    result = dmResourceArchive::FindEntry(archive, hash2, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, hash2, sizeof(hash2), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
-    result = dmResourceArchive::FindEntry(archive, hash3, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, hash3, sizeof(hash3), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
 
@@ -709,10 +709,10 @@ TEST(dmResourceArchive, Wrap)
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, content_hash[i], &entryarchive, &entry);
+        result = dmResourceArchive::FindEntry(archive, content_hash[i], sizeof(content_hash[i]), &entryarchive, &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, &entry, buffer);
+        result = dmResourceArchive::Read(entryarchive, content_hash[i], sizeof(content_hash[i]), &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -720,7 +720,7 @@ TEST(dmResourceArchive, Wrap)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
@@ -743,10 +743,10 @@ TEST(dmResourceArchive, Wrap_Compressed)
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], &entryarchive, &entry);
+        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entryarchive, &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, &entry, buffer);
+        result = dmResourceArchive::Read(entryarchive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -754,7 +754,7 @@ TEST(dmResourceArchive, Wrap_Compressed)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
@@ -778,10 +778,10 @@ TEST(dmResourceArchive, LoadFromDisk)
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, content_hash[i], &entryarchive, &entry);
+        result = dmResourceArchive::FindEntry(archive, content_hash[i], sizeof(content_hash[i]), &entryarchive, &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, &entry, buffer);
+        result = dmResourceArchive::Read(entryarchive, content_hash[i], sizeof(content_hash[i]), &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -789,7 +789,7 @@ TEST(dmResourceArchive, LoadFromDisk)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
@@ -822,10 +822,10 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], &entryarchive, &entry);
+        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entryarchive, &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, &entry, buffer);
+        result = dmResourceArchive::Read(entryarchive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -833,7 +833,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);

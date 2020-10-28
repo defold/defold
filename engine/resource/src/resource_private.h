@@ -82,7 +82,7 @@ namespace dmResource
     /**
      * Exposed for unit tests
      */
-     Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, dmResourceArchive::HArchiveIndexContainer archive_index);
+     Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive_index);
 
     struct PreloadRequest;
     struct PreloadHintInfo
