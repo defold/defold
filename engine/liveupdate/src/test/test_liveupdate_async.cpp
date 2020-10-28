@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <resource/resource.h>
 #include "../liveupdate.h"
 #include "../liveupdate_private.h"
 
@@ -59,7 +60,7 @@ namespace dmLiveUpdate
         return dmLiveUpdate::RESULT_OK;
     }
 
-    dmLiveUpdate::Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
+    dmLiveUpdate::Result NewArchiveIndexWithResource(const dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
         out_new_index = (dmResourceArchive::HArchiveIndex) 0x5678;
         assert(manifest->m_ArchiveIndex == (dmResourceArchive::HArchiveIndexContainer) 0x1234);
