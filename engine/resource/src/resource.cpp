@@ -519,18 +519,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         factory->m_ArchiveMountInfo = 0x0;
 
-
-        size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
-        char* app_path = (char*)alloca(manifest_path_len+1);
-        dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
-
-        char* app_path_end = strrchr(app_path, '/');
-        if (app_path_end)
-            *app_path_end = 0;
-        else
-            app_path[0] = 0; // it onöy contained a filename
-
-        char* manifest_path = factory->m_UriParts.m_Path;
+        const char* manifest_path = factory->m_UriParts.m_Path;
 
         Manifest* manifest = 0;
         dmResourceArchive::Result r = dmResourceArchive::LoadManifest(manifest_path, &manifest);
@@ -559,16 +548,26 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         DeleteManifest(manifest);
 
         char archive_name[64];
-        char* basename = strrchr(manifest_path, '/');
+        const char* basename = strrchr(manifest_path, '/');
         if (!basename)
             basename = strrchr(manifest_path, '\\');
         if (!basename)
             basename = manifest_path;
         assert(basename);
         dmStrlCpy(archive_name, basename, sizeof(archive_name));
-        basename = strchr(archive_name, '.');
-        if (basename)
-            *basename = 0;
+        char* archive_name_end = strchr(archive_name, '.');
+        if (archive_name_end)
+            *archive_name_end = 0;
+
+        size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
+        char* app_path = (char*)alloca(manifest_path_len+1);
+        dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
+
+        char* app_path_end = strrchr(app_path, '/');
+        if (app_path_end)
+            *app_path_end = 0;
+        else
+            app_path[0] = 0; // it only contained a filename
 
         dmResourceArchive::HArchiveIndexContainer archive = 0;
         dmResourceArchive::Result ra_result = dmResourceArchive::LoadArchives(archive_name, app_path, app_support_path, &factory->m_Manifest, &archive);
