@@ -99,7 +99,7 @@ namespace dmResource
         if (r != RESULT_OK)
         {
             munmap(index_map, index_size);
-            dmLogError("Error when mapping data file, result: %i", r);
+            dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
             return r;
         }
 
