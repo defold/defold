@@ -310,7 +310,8 @@ namespace dmResourceArchive
         assert(previous == 0);
 
         char manifest_path[DMPATH_MAX_PATH];
-        dmSnPrintf(manifest_path, sizeof(manifest_path), "%s/%s.dmanifest", app_path, archive_name);
+        dmPath::Concat(app_path, archive_name, manifest_path, sizeof(manifest_path));
+        dmStrlCat(manifest_path, ".dmanifest", sizeof(manifest_path));
 
         return LoadManifest(manifest_path, out);
     }
