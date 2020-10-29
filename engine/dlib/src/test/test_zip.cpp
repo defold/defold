@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string>
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
