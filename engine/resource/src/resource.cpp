@@ -318,56 +318,6 @@ Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmRes
     return RESULT_OK;
 }
 
-static Result LoadManifest(const char* manifest_path, Manifest* manifest)
-{
-    uint32_t manifest_length = 0;
-    uint8_t* manifest_buffer = 0x0;
-
-    uint32_t dummy_file_size = 0;
-    dmSys::ResourceSize(manifest_path, &manifest_length);
-    dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
-    assert(manifest_buffer);
-    dmSys::Result sys_result = dmSys::LoadResource(manifest_path, manifest_buffer, manifest_length, &dummy_file_size);
-
-    if (sys_result != dmSys::RESULT_OK)
-    {
-        dmLogError("Failed to read Manifest %s (%i)", manifest_path, sys_result);
-        dmMemory::AlignedFree(manifest_buffer);
-        return RESULT_IO_ERROR;
-    }
-
-    Result result = ManifestLoadMessage(manifest_buffer, manifest_length, manifest);
-    dmMemory::AlignedFree(manifest_buffer);
-
-
-    return result;
-}
-
-// Load manifest at specified manifest_path instead of from bundle
-Result LoadExternalManifest(const char* manifest_path, HFactory factory)
-{
-// Android differs in storage for resources in local storage compared to bundled resources
-#if !defined(__ANDROID__)
-        return LoadManifest(manifest_path, factory->m_Manifest);
-#else
-    uint32_t manifest_len = 0;
-    uint8_t* manifest_buf = 0x0;
-
-    Result map_res = MountManifest(manifest_path, (void*&)manifest_buf, manifest_len);
-    assert(manifest_buf);
-    if (map_res != RESULT_OK)
-    {
-        UnmountManifest((void*&)manifest_buf, manifest_len);
-        return RESULT_IO_ERROR;
-    }
-
-    Result result = ManifestLoadMessage(manifest_buf, manifest_len, factory->m_Manifest);
-    UnmountManifest((void*&)manifest_buf, manifest_len);
-
-    return result;
-#endif
-}
-
 Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len)
 {
     if (expected_len != len)
@@ -569,19 +519,24 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         factory->m_ArchiveMountInfo = 0x0;
 
-        char* app_path = (char*)alloca(strlen(factory->m_UriParts.m_Path));
-        dmStrlCpy(app_path, factory->m_UriParts.m_Path, strlen(factory->m_UriParts.m_Path));
+
+        size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
+        char* app_path = (char*)alloca(manifest_path_len+1);
+        dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
 
         char* app_path_end = strrchr(app_path, '/');
         if (app_path_end)
             *app_path_end = 0;
-        Manifest* manifest = new Manifest();
+        else
+            app_path[0] = 0; // it onöy contained a filename
+
         char* manifest_path = factory->m_UriParts.m_Path;
 
-        Result r = LoadManifest(manifest_path, manifest);
+        Manifest* manifest = 0;
+        dmResourceArchive::Result r = dmResourceArchive::LoadManifest(manifest_path, &manifest);
 
         // Nothing to do to recover here
-        if (r != RESULT_OK)
+        if (r != dmResourceArchive::RESULT_OK)
         {
             dmLogError("Unable to load bundled manifest: %s with result: %i.", factory->m_UriParts.m_Path, r);
             dmMessage::DeleteSocket(socket);

@@ -127,7 +127,7 @@ namespace dmResource
         Result r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
         if (r != RESULT_OK)
         {
-            dmLogError("Error when mapping data file, result = %i", r);
+            dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
             return RESULT_IO_ERROR;
         }
 

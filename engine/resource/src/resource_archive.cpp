@@ -199,7 +199,7 @@ namespace dmResourceArchive
 
         if (sys_result != dmSys::RESULT_OK)
         {
-            dmLogError("Failed to read Manifest %s (%i)", path, sys_result);
+            dmLogError("Failed to read manifest %s (%i)", path, sys_result);
             dmMemory::AlignedFree(manifest_buffer);
             return RESULT_IO_ERROR;
         }
@@ -319,8 +319,10 @@ namespace dmResourceArchive
     {
         char archive_index_path[DMPATH_MAX_PATH];
         char archive_data_path[DMPATH_MAX_PATH];
-        dmSnPrintf(archive_index_path, sizeof(archive_index_path), "%s/%s.arci", app_path, archive_name);
-        dmSnPrintf(archive_data_path, sizeof(archive_data_path), "%s/%s.arcd", app_path, archive_name);
+        dmPath::Concat(app_path, archive_name, archive_index_path, sizeof(archive_index_path));
+        dmPath::Concat(app_path, archive_name, archive_data_path, sizeof(archive_index_path));
+        dmStrlCat(archive_index_path, ".arci", sizeof(archive_index_path));
+        dmStrlCat(archive_data_path, ".arcd", sizeof(archive_data_path));
 
         void* mount_info = 0;
         dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, 0x0, out, &mount_info);
