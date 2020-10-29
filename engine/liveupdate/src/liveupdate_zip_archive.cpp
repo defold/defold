@@ -238,11 +238,8 @@ namespace dmLiveUpdate
         char archive_path[DMPATH_MAX_PATH];
         dmPath::Concat(app_support_path, LIVEUPDATE_ARCHIVE_FILENAME, archive_path, DMPATH_MAX_PATH);
 
-dmLogWarning("MAWE: LULoadManifest_Zip: %s", archive_path);
-
         if (!FileExists(archive_path))
         {
-dmLogWarning("MAWE: %s not found, skipping Zip implementation", archive_path);
             return dmResourceArchive::RESULT_NOT_FOUND;
         }
 
@@ -274,8 +271,6 @@ dmLogWarning("MAWE: %s not found, skipping Zip implementation", archive_path);
             *out = 0;
             result = dmResourceArchive::RESULT_VERSION_MISMATCH;
         }
-
-dmLogWarning("MAWE: LULoadManifest_Zip: manifest: %p   result: %d", *out, result);
 
         return result;
     }
@@ -309,7 +304,6 @@ dmLogWarning("MAWE: LULoadManifest_Zip: manifest: %p   result: %d", *out, result
 
         archive->m_UserData = (void*)zip;
 
-        dmLogWarning("MAWE: LULoadArchive_Zip: %s  %p", archive_path, archive);
         *out = archive;
 
         return dmResourceArchive::RESULT_OK;
@@ -317,7 +311,6 @@ dmLogWarning("MAWE: LULoadManifest_Zip: manifest: %p   result: %d", *out, result
 
     dmResourceArchive::Result LUUnloadArchive_Zip(dmResourceArchive::HArchiveIndexContainer archive)
     {
-        dmLogWarning("MAWE: LUUnloadArchive_Zip");
         dmZip::HZip zip = (dmZip::HZip)archive->m_UserData;
         if (zip)
             dmZip::Close(zip);
@@ -330,8 +323,6 @@ dmLogWarning("MAWE: LULoadManifest_Zip: manifest: %p   result: %d", *out, result
 
         char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
         dmResource::BytesToHexString(hash, hash_len, hash_buffer, sizeof(hash_buffer));
-
-        //dmLogWarning("MAWE: LUFindEntryInArchive_Zip: %s", hash_buffer);
 
         dmZip::Result zr = dmZip::OpenEntry(zip, hash_buffer);
         if (dmZip::RESULT_OK != zr)
@@ -371,8 +362,6 @@ dmLogWarning("MAWE: LULoadManifest_Zip: manifest: %p   result: %d", *out, result
         char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
         dmResource::BytesToHexString(hash, hash_len, hash_buffer, sizeof(hash_buffer));
 
-        //dmLogWarning("MAWE: LUReadEntryFromArchive_Zip: %s", hash_buffer);
-
         uint32_t raw_resource_size;
         uint8_t* raw_resource = GetZipResource(zip, hash_buffer, &raw_resource_size);
         if (raw_resource == 0)
@@ -385,8 +374,6 @@ dmLogWarning("MAWE: LULoadManifest_Zip: manifest: %p   result: %d", *out, result
         bool compressed = flags & dmResourceArchive::ENTRY_FLAG_COMPRESSED;
         uint32_t compressed_size = entry->m_ResourceCompressedSize;
         uint32_t resource_size = entry->m_ResourceSize;
-
-        //dmLogWarning("MAWE:   flags: enc: %d  lz4: %d   csz: %u  sz: %u  zsz: %u", encrypted, compressed, compressed_size, resource_size, raw_resource_size);
 
         dmResourceArchive::Result result = dmResourceArchive::RESULT_OK;
         if (encrypted)

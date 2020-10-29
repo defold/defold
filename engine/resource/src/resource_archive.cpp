@@ -123,10 +123,6 @@ namespace dmResourceArchive
             return RESULT_NOT_FOUND;
         }
 
-        dmLogWarning("dmResourceArchive::LoadArchives:");
-        dmResourceArchive::DebugArchiveIndex(head_archive);
-        dmLogWarning("");
-
         *out_manifest = head_manifest;
         *out_archive = head_archive;
         return RESULT_OK;
@@ -457,9 +453,6 @@ namespace dmResourceArchive
         }
 
         assert(compressed_buf);
-
-        bool loaded_with_liveupdate = (entry->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA);
-dmLogWarning("Read Entry: csz: %6u sz: %10u   lz4: %d   encr: %d   mmap: %d  tmp: %d  LU: %d  archive: %p", compressed_size, size, compressed?1:0, encrypted?1:0, resource_memmapped?1:0, temp_buffer?1:0, loaded_with_liveupdate?1:0, archive);
 
         if (!resource_memmapped)
         {
