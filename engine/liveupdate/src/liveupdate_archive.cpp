@@ -20,6 +20,11 @@
 #include <dlib/sys.h>
 #include <sys/stat.h>
 
+#if defined(_WIN32)
+#include <malloc.h>
+#define alloca(_SIZE) _alloca(_SIZE)
+#endif
+
 namespace dmLiveUpdate
 {
     Result BundleVersionValid(const dmResource::Manifest* manifest, const char* bundle_ver_path)
