@@ -745,8 +745,8 @@ bail:
 
         if (client->m_HttpCache == 0)
         {
-            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no cache present. Server error?");
-            return RESULT_IO_ERROR;
+            dmLogWarning("Got HTTP response NOT MODIFIED (304) but no cache present");
+            return RESULT_OK;
         }
         dmHttpCache::Result cache_result;
 
