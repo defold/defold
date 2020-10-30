@@ -30,7 +30,7 @@ namespace dmGraphics
     static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
 
-    extern Context* g_Context;
+    extern Context* g_VulkanContext;
 
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
@@ -83,34 +83,34 @@ namespace dmGraphics
 
     void OnWindowResize(int width, int height)
     {
-        assert(g_Context);
-        g_Context->m_WindowWidth  = (uint32_t)width;
-        g_Context->m_WindowHeight = (uint32_t)height;
+        assert(g_VulkanContext);
+        g_VulkanContext->m_WindowWidth  = (uint32_t)width;
+        g_VulkanContext->m_WindowHeight = (uint32_t)height;
 
-        SwapChainChanged(g_Context, &g_Context->m_WindowWidth, &g_Context->m_WindowHeight, 0, 0);
+        SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, 0, 0);
 
-        if (g_Context->m_WindowResizeCallback != 0x0)
+        if (g_VulkanContext->m_WindowResizeCallback != 0x0)
         {
-            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+            g_VulkanContext->m_WindowResizeCallback(g_VulkanContext->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
         }
     }
 
     int OnWindowClose()
     {
-        assert(g_Context);
-        if (g_Context->m_WindowCloseCallback != 0x0)
+        assert(g_VulkanContext);
+        if (g_VulkanContext->m_WindowCloseCallback != 0x0)
         {
-            return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
+            return g_VulkanContext->m_WindowCloseCallback(g_VulkanContext->m_WindowCloseCallbackUserData);
         }
         return 1;
     }
 
     void OnWindowFocus(int focus)
     {
-        assert(g_Context);
-        if (g_Context->m_WindowFocusCallback != 0x0)
+        assert(g_VulkanContext);
+        if (g_VulkanContext->m_WindowFocusCallback != 0x0)
         {
-            g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
+            g_VulkanContext->m_WindowFocusCallback(g_VulkanContext->m_WindowFocusCallbackUserData, focus);
         }
     }
 
