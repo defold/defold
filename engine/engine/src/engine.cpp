@@ -715,6 +715,9 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
 
+        dmResourceArchive::ClearArchiveLoaders(); // in case we've rebooted
+        dmResourceArchive::RegisterDefaultArchiveLoader();
+
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -726,7 +729,11 @@ namespace dmEngine
 
         int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
         if (liveupdate_enable)
+        {
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
+
+            dmLiveUpdate::RegisterArchiveLoaders();
+        }
 
 #if defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
@@ -1006,7 +1013,7 @@ namespace dmEngine
 
         if (!LoadBootstrapContent(engine, engine->m_Config))
         {
-            dmLogWarning("Unable to load bootstrap data.");
+            dmLogError("Unable to load bootstrap data.");
             goto bail;
         }
 
