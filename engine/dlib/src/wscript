@@ -185,12 +185,26 @@ def build(bld):
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
+    libzip_dirs = ['zip']
+    libzip = bld.new_task_gen( features    = 'cc cxx cstaticlib',
+                                includes    = '. ./zip',
+                                target      = 'zip',
+                                defines     = ['VALGRIND'] + extra_defines)
+    libzip.find_sources_in_dirs(libzip_dirs)
+
+    libzip_noasan = bld.new_task_gen( features  = libzip.features + ' skip_asan',
+                                      includes  = libzip.includes,
+                                      defines   = libzip.defines,
+                                      target    = 'zip_noasan')
+    libzip_noasan.source = [x for x in libzip.source]
+    libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:
         dlib_shared = bld.new_task_gen( features = 'cc cxx cshlib skip_asan',
                                         includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                         add_objects = local_objs,
-                                        uselib_local = 'mbedtls_noasan',
+                                        uselib_local = 'mbedtls_noasan zip_noasan',
                                         target = 'dlib_shared',
                                         defines= ['VALGRIND'] + extra_defines,
                                         uselib = ['PLATFORM_SOCKET', 'CARES'])
@@ -284,6 +298,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
 
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
