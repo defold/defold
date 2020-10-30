@@ -306,7 +306,7 @@ def _parse_comment(text):
 
 def extract_type_from_docstr(s):
     # try to extract the type information
-    m = re.search(r'^\s*(?:\s*\[type:\s*(.*)\])+\s*(.*)', s)
+    m = re.search(r'^\s*(?:\s*\[type:\s*(.*)\])+\s*([\w\W]*)', s)
     if m and m.group(1):
         type_list = m.group(1).split("|")
         if len(type_list) == 1:
