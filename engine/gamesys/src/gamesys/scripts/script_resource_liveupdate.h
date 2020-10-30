@@ -272,6 +272,8 @@ namespace dmLiveUpdate
      * Is any liveupdate data mounted and currently in use?
      * This can be used to determine if a new manifest or zip file should be downloaded.
      *
+     * @name resource.is_using_liveupdate_data
+     * @return bool [type:bool] true if a liveupdate archive (any format) has been loaded
      * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
      */
     int Resource_IsUsingLiveUpdateData(lua_State* L);
