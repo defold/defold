@@ -496,6 +496,7 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
         if (g_LiveUpdate.m_ResourceFactory && dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory) != g_LiveUpdate.m_LUManifest)
             dmResource::DeleteManifest(g_LiveUpdate.m_LUManifest);
         g_LiveUpdate.m_LUManifest = 0;
+        g_LiveUpdate.m_ResourceFactory = 0;
         dmLiveUpdate::AsyncFinalize();
     }
 
