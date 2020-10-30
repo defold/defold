@@ -256,9 +256,6 @@ namespace dmLiveUpdate
      *             -- If we got a 200, we would call store_archive_cb() then reboot
      *             -- Second time, if we get here, it should be after a 304, and then
      *             -- we can load the missing resources from the liveupdate archive
-     *
-     *             print("304: is_using_liveupdate_data:", resource.is_using_liveupdate_data())
-     *
      *             if resource.is_using_liveupdate_data() then
      *                 msg.post(self.proxy, "load")
      *             end
