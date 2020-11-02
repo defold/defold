@@ -322,8 +322,14 @@
 #endif
 #endif
 
+#if !defined(MINIZ_NO_STDIO)
+  #include <stdio.h>
+  #include <sys/stat.h>
+#endif
+
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
+namespace miniz {
 #endif
 
 // ------------------- zlib-style API Definitions.
@@ -1323,7 +1329,7 @@ mz_uint tdefl_create_comp_flags_from_zip_params(int level, int window_bits,
 #define MZ_UINT32_MAX (0xFFFFFFFFU)
 
 #ifdef __cplusplus
-}
+} // namespace
 #endif
 
 #endif // MINIZ_HEADER_INCLUDED
@@ -1333,9 +1339,9 @@ mz_uint tdefl_create_comp_flags_from_zip_params(int level, int window_bits,
 
 #ifndef MINIZ_HEADER_FILE_ONLY
 
-typedef unsigned char mz_validate_uint16[sizeof(mz_uint16) == 2 ? 1 : -1];
-typedef unsigned char mz_validate_uint32[sizeof(mz_uint32) == 4 ? 1 : -1];
-typedef unsigned char mz_validate_uint64[sizeof(mz_uint64) == 8 ? 1 : -1];
+typedef unsigned char mz_validate_uint16[sizeof(miniz::mz_uint16) == 2 ? 1 : -1];
+typedef unsigned char mz_validate_uint32[sizeof(miniz::mz_uint32) == 4 ? 1 : -1];
+typedef unsigned char mz_validate_uint64[sizeof(miniz::mz_uint64) == 8 ? 1 : -1];
 
 #include <assert.h>
 #include <string.h>
@@ -1357,17 +1363,17 @@ typedef unsigned char mz_validate_uint64[sizeof(mz_uint64) == 8 ? 1 : -1];
 #define MZ_CLEAR_OBJ(obj) memset(&(obj), 0, sizeof(obj))
 
 #if MINIZ_USE_UNALIGNED_LOADS_AND_STORES && MINIZ_LITTLE_ENDIAN
-#define MZ_READ_LE16(p) *((const mz_uint16 *)(p))
-#define MZ_READ_LE32(p) *((const mz_uint32 *)(p))
+#define MZ_READ_LE16(p) *((const miniz::mz_uint16 *)(p))
+#define MZ_READ_LE32(p) *((const miniz::mz_uint32 *)(p))
 #else
 #define MZ_READ_LE16(p)                                                        \
-  ((mz_uint32)(((const mz_uint8 *)(p))[0]) |                                   \
-   ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U))
+  ((miniz::mz_uint32)(((const miniz::mz_uint8 *)(p))[0]) |                                   \
+   ((miniz::mz_uint32)(((const miniz::mz_uint8 *)(p))[1]) << 8U))
 #define MZ_READ_LE32(p)                                                        \
-  ((mz_uint32)(((const mz_uint8 *)(p))[0]) |                                   \
-   ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U) |                           \
-   ((mz_uint32)(((const mz_uint8 *)(p))[2]) << 16U) |                          \
-   ((mz_uint32)(((const mz_uint8 *)(p))[3]) << 24U))
+  ((miniz::mz_uint32)(((const miniz::mz_uint8 *)(p))[0]) |                                   \
+   ((miniz::mz_uint32)(((const miniz::mz_uint8 *)(p))[1]) << 8U) |                           \
+   ((miniz::mz_uint32)(((const miniz::mz_uint8 *)(p))[2]) << 16U) |                          \
+   ((miniz::mz_uint32)(((const miniz::mz_uint8 *)(p))[3]) << 24U))
 #endif
 
 #define MZ_READ_LE64(p)                                                        \
@@ -1384,7 +1390,8 @@ typedef unsigned char mz_validate_uint64[sizeof(mz_uint64) == 8 ? 1 : -1];
 #endif
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
+namespace miniz {
 #endif
 
 // ------------------- zlib-style API's
@@ -4110,8 +4117,8 @@ void *tdefl_write_image_to_png_file_in_memory(const void *pImage, int w, int h,
 #ifdef MINIZ_NO_STDIO
 #define MZ_FILE void *
 #else
-#include <stdio.h>
-#include <sys/stat.h>
+// #include <stdio.h>
+// #include <sys/stat.h>
 
 #if defined(_MSC_VER)
 static FILE *mz_fopen(const char *pFilename, const char *pMode) {
@@ -5908,7 +5915,7 @@ mz_bool mz_zip_writer_init_from_reader(mz_zip_archive *pZip,
 
   if (pState->m_pFile) {
 #ifdef MINIZ_NO_STDIO
-    pFilename;
+    (void)pFilename;
     return MZ_FALSE;
 #else
     // Archive is being read from stdio - try to reopen as writable.
@@ -6822,7 +6829,7 @@ void *mz_zip_extract_archive_file_to_heap(const char *pZip_filename,
 #endif // #ifndef MINIZ_NO_ARCHIVE_APIS
 
 #ifdef __cplusplus
-}
+} // namespace
 #endif
 
 #endif // MINIZ_HEADER_FILE_ONLY
