@@ -221,7 +221,7 @@ namespace dmHttpService
             params.m_HttpWrite = &HttpWrite;
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
-            params.m_HttpCache = worker->m_Service->m_HttpCache;
+            params.m_HttpCache = request->m_IgnoreCache ? 0 : worker->m_Service->m_HttpCache;
             params.m_DNSChannel = worker->m_DNSChannel;
 
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
