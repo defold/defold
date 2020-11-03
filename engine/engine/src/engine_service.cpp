@@ -573,7 +573,7 @@ namespace dmEngineService
 
     dmWebServer::HServer GetWebServer(HEngineService engine_service)
     {
-        return engine_service->m_WebServer;
+        return engine_service ? engine_service->m_WebServer : 0;
     }
 
     #define CHECK_RESULT_BOOL(_RESULT) \
