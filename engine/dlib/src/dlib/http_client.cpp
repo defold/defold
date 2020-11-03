@@ -745,8 +745,8 @@ bail:
 
         if (client->m_HttpCache == 0)
         {
-            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no cache present. Server error?");
-            return RESULT_IO_ERROR;
+            dmLogWarning("Got HTTP response NOT MODIFIED (304) but no cache present");
+            return RESULT_OK;
         }
         dmHttpCache::Result cache_result;
 
@@ -756,8 +756,8 @@ bail:
 
         if (cache_result != dmHttpCache::RESULT_OK)
         {
-            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no ETag present. Server error?");
-            return RESULT_IO_ERROR;
+            dmLogWarning("Got HTTP response NOT MODIFIED (304) but no ETag present. Returning no cached data.");
+            return RESULT_OK;
         }
 
         if (response->m_ETag[0] != '\0')

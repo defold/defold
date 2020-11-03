@@ -27,6 +27,10 @@ message HttpRequest
 
     optional uint64 timeout        = 7;
     optional string path           = 8;
+
+    // Explicitly ignore the http cache.
+    // It's for 304 requests where we just want to confirm the 304 (e.g. for liveupdate).
+    optional bool   ignore_cache   = 9;
 }
 
 message HttpResponse

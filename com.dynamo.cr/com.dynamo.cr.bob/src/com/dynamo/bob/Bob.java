@@ -474,7 +474,7 @@ public class Bob {
         project.findSources(sourceDirectory, skipDirs);
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
+    private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
         String cwd = new File(".").getAbsolutePath();
@@ -663,6 +663,15 @@ public class Bob {
         }
         project.dispose();
         System.exit(ret ? 0 : 1);
+    }
+
+    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
+        try {
+            mainInternal(args);
+        } catch (LibraryException e) {
+            System.err.println(e.getMessage());
+            System.exit(1);
+        }
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {
