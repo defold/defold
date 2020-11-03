@@ -352,6 +352,7 @@ namespace dmEngine
 
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
+        app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
         dmExtension::AppFinalize(&app_params);
 
         dmBuffer::DeleteContext();
@@ -581,6 +582,7 @@ namespace dmEngine
 
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
+        app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
         dmExtension::Result er = dmExtension::AppInitialize(&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
