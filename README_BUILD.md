@@ -40,7 +40,9 @@ The following platforms are supported:
 
 Start by setting up the build environment:
 
-    $ ./scripts/build.py shell
+```sh
+$ ./scripts/build.py shell
+```
 
 This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc).
 
@@ -48,7 +50,9 @@ This will start a new shell with all of the required environment variables set (
 
 Next thing you need to do is to install external packages and download required platform SDKs:
 
-    $ ./scripts/build.py install_ext --platform=... --package-path=...
+```sh
+$ ./scripts/build.py install_ext --platform=... --package-path=...
+```
 
 It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
 
@@ -69,11 +73,15 @@ Due to licensing restrictions the SDKs are not distributed with Defold. You need
 
 With the setup and installation done you're ready to build the engine:
 
-    $ ./scripts/build.py build_engine --platform=...
+```sh
+$ ./scripts/build.py build_engine --platform=...
+```
 
 This will build the engine and run all unit tests. In order to speed up the process you can skip running the tests:
 
-    $ ./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests
+```sh
+$ ./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests
+```
 
 Anything after `--` is passed directly as arguments to Waf. The built engine ends up in `./tmp/dynamo_home/bin/%platform%`.
 
@@ -83,13 +91,17 @@ Anything after `--` is passed directly as arguments to Waf. The built engine end
 
 When you are working on a specific part of the engine there is no need to rebuild the whole thing to test your changes. You can use Waf directly to build and test your changes (see Unit tests below for more information about running tests):
 
-    $ cd engine/dlib
-    $ waf
+```sh
+$ cd engine/dlib
+$ waf
+```
 
 You can also use rebuild a specific part of the engine and create a new executable:
 
-    # Rebuild dlib and sound modules and create a new executable
-    $ ./scripts/submodule.sh x86_64-darwin dlib sound
+```sh
+# Rebuild dlib and sound modules and create a new executable
+$ ./scripts/submodule.sh x86_64-darwin dlib sound
+```
 
 ---
 
@@ -97,6 +109,8 @@ You can also use rebuild a specific part of the engine and create a new executab
 
 Unit tests are run automatically when invoking waf if not `--skip-tests` is specified. A typically workflow when working on a single test is to run:
 
-    $ waf --skip-tests && ./build/default/.../test_xxx
+```sh
+$ waf --skip-tests && ./build/default/.../test_xxx
+```
 
 With the flag `--test-filter=` it's possible to run a single test in the suite, see [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)
