@@ -21,12 +21,12 @@
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
-            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
+           [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [javafx.stage Window]))
@@ -251,39 +251,35 @@
            (pair override-node-id label))
          (get-in graph [:node->overrides node-id]))))
 
-(defn direct-connected-successors [basis node-id label]
-  (map (fn [arc]
-         (pair (:target-id arc)
-               (:target-label arc)))
-       (gt/arcs-by-source basis node-id label)))
+(defn direct-successors* [direct-connected-successors-fn basis node-id-and-label-pairs]
+  (into #{}
+        (mapcat (fn [[node-id label]]
+                  (concat
+                    (direct-internal-successors basis node-id label)
+                    (direct-override-successors basis node-id label)
+                    (direct-connected-successors-fn node-id label))))
+        node-id-and-label-pairs))
 
-(defn direct-successors [basis node-id label]
-  (sequence
-    (mapcat (fn call-successors-fn [successors-fn]
-              (successors-fn basis node-id label)))
-    [direct-internal-successors
-     direct-override-successors
-     direct-connected-successors]))
+(defn recursive-successors* [direct-connected-successors-fn basis node-id-and-label-pairs]
+  (let [direct-successors (direct-successors* direct-connected-successors-fn basis node-id-and-label-pairs)]
+    (if (empty? direct-successors)
+      direct-successors
+      (into direct-successors
+            (recursive-successors* direct-connected-successors-fn basis direct-successors)))))
 
-(defn direct-successors* [basis node-id-and-label-pairs]
-  (sequence
-    (comp (mapcat (fn [[node-id label]]
-                    (direct-successors basis node-id label)))
-          (distinct))
-    node-id-and-label-pairs))
+(defn direct-connected-successors-by-label [basis node-id]
+  (util/group-into {} []
+                   (fn key-fn [^Arc arc]
+                     (.source-label arc))
+                   (fn value-fn [^Arc arc]
+                     (pair (.target-id arc)
+                           (.target-label arc)))
+                   (gt/arcs-by-source basis node-id)))
 
-(defn recursive-successors* [basis node-id-and-label-pairs]
-  (sequence
-    (comp (mapcat (fn [[node-id label]]
-                    (let [direct-successors (direct-successors basis node-id label)]
-                      (concat
-                        direct-successors
-                        (recursive-successors* basis direct-successors)))))
-          (distinct))
-    node-id-and-label-pairs))
-
-(defn recursive-successors [basis node-id label]
-  (recursive-successors* basis [(pair node-id label)]))
+(defn make-direct-connected-successors-fn [basis]
+  (let [direct-connected-successors-by-label-fn (memoize (partial direct-connected-successors-by-label basis))]
+    (fn direct-connected-successors [node-id label]
+      (-> node-id direct-connected-successors-by-label-fn label))))
 
 (defn successor-tree
   "Returns a tree of all downstream inputs and outputs affected by a change to
@@ -294,28 +290,30 @@
   ([node-id label]
    (successor-tree (g/now) node-id label))
   ([basis node-id label]
-   (util/group-into
-     (sorted-map)
-     (sorted-map)
-     (fn key-fn [[successor-node-id]]
-       (pair (node-type-key basis successor-node-id)
-             successor-node-id))
-     (fn value-fn [[successor-node-id successor-label]]
-       (pair successor-label
-             (not-empty
-               (successor-tree basis successor-node-id successor-label))))
-     (direct-successors basis node-id label))))
+   (let [direct-connected-successors-fn (make-direct-connected-successors-fn basis)]
+     (util/group-into
+       (sorted-map)
+       (sorted-map)
+       (fn key-fn [[successor-node-id]]
+         (pair (node-type-key basis successor-node-id)
+               successor-node-id))
+       (fn value-fn [[successor-node-id successor-label]]
+         (pair successor-label
+               (not-empty
+                 (successor-tree basis successor-node-id successor-label))))
+       (direct-successors* direct-connected-successors-fn basis [(pair node-id label)])))))
 
 (defn- successor-types-impl [successors-fn basis node-id-and-label-pairs]
-  (into (sorted-map)
-        (map (fn [[node-type-key successor-labels]]
-               (pair node-type-key
-                     (into (sorted-map)
-                           (frequencies successor-labels)))))
-        (util/group-into {} []
-                         (comp (partial node-type-key basis) first)
-                         second
-                         (successors-fn basis node-id-and-label-pairs))))
+  (let [direct-connected-successors-fn (make-direct-connected-successors-fn basis)]
+    (into (sorted-map)
+          (map (fn [[node-type-key successor-labels]]
+                 (pair node-type-key
+                       (into (sorted-map)
+                             (frequencies successor-labels)))))
+          (util/group-into {} []
+                           (comp (partial node-type-key basis) first)
+                           second
+                           (successors-fn direct-connected-successors-fn basis node-id-and-label-pairs)))))
 
 (defn successor-types*
   "Like successor-types, but you can query multiple inputs at once by providing
