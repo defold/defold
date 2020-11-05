@@ -44,6 +44,7 @@ namespace dmLiveUpdate
     const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.zip.tmp";
     const char* LIVEUPDATE_BUNDLE_VER_FILENAME      = "bundle.ver";
 
+    static dmResource::Manifest* CreateLUManifest(const dmResource::Manifest* base_manifest);
     static void CreateFilesIfNotExists(dmResourceArchive::HArchiveIndexContainer archive_container, const char* app_support_path, const char* arci, const char* arcd);
 
     Result ResourceResultToLiveupdateResult(dmResource::Result r)
@@ -292,7 +293,7 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
         return StoreManifestInternal(manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
-    Result StoreResourceAsync(const dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
+    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
     {
         printf("MAWE: StoreResourceAsync: manifest: %p\n", manifest);
 
@@ -352,48 +353,6 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
         }
 
         return copy;
-    }
-
-    static dmResource::Manifest* CreateLUManifest(const dmResource::Manifest* base_manifest)
-    {
-        // Create the actual copy
-        dmResource::Manifest* manifest = new dmResource::Manifest;
-        manifest->m_DDF = (dmLiveUpdateDDF::ManifestFile*)CopyDDFMessage(base_manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor);
-        manifest->m_DDFData = (dmLiveUpdateDDF::ManifestData*)CopyDDFMessage(base_manifest->m_DDFData, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor);
-
-        manifest->m_ArchiveIndex = new dmResourceArchive::ArchiveIndexContainer;
-        manifest->m_ArchiveIndex->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
-        manifest->m_ArchiveIndex->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
-        // Even though it isn't technically true, it will allow us to use the correct ArchiveIndex struct
-        manifest->m_ArchiveIndex->m_IsMemMapped = 1;
-
-        manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version;
-        manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength;
-        memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
-
-        char app_support_path[DMPATH_MAX_PATH];
-        if (dmResource::RESULT_OK != dmResource::GetApplicationSupportPath(base_manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
-        {
-            return 0;
-        }
-
-        // Data file has same path and filename as index file, but extension .arcd instead of .arci.
-        char lu_data_path[DMPATH_MAX_PATH];
-        dmPath::Concat(app_support_path, LIVEUPDATE_DATA_FILENAME, lu_data_path, DMPATH_MAX_PATH);
-
-        FILE* f_lu_data = fopen(lu_data_path, "wb+");
-        if (!f_lu_data)
-        {
-            dmLogError("Failed to create/load liveupdate resource file");
-        }
-
-        dmStrlCpy(manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path, lu_data_path, DMPATH_MAX_PATH);
-        dmLogInfo("Live Update archive: %s", manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path);
-
-        manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_FileResourceData = f_lu_data;
-
-        printf("MAWE: CreateLUManifest: %p\n", manifest);
-        return manifest;
     }
 
     static void CreateFilesIfNotExists(dmResourceArchive::HArchiveIndexContainer archive_container, const char* app_support_path, const char* arci, const char* arcd)
@@ -474,13 +433,18 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
         dmResourceArchive::SetNewArchiveIndex(archive_container, new_index, mem_mapped);
     }
 
-    const dmResource::Manifest* GetCurrentManifest()
+    void SetNewManifest(dmResource::Manifest* manifest)
+    {
+        dmResource::SetManifest(g_LiveUpdate.m_ResourceFactory, manifest);
+    }
+
+    dmResource::Manifest* GetCurrentManifest()
     {
         // A bit lazy, but we don't want to make a copy before we know we'll need it
         if (!g_LiveUpdate.m_LUManifest)
             g_LiveUpdate.m_LUManifest = CreateLUManifest(dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory));
 
-        return g_LiveUpdate.m_LUManifest ? g_LiveUpdate.m_LUManifest : dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
+        return g_LiveUpdate.m_LUManifest;
     }
 
     void Initialize(const dmResource::HFactory factory)
@@ -560,8 +524,17 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
             result = LULoadManifest_Regular(archive_name, app_path, app_support_path, base_manifest, out);
             if (dmResourceArchive::RESULT_OK != result)
             {
-                LUCleanup_Regular(archive_name, app_path, app_support_path);
-                g_LiveUpdate.m_ArchiveType = -1;
+                if (dmResourceArchive::RESULT_NOT_FOUND != result)
+                {
+                    LUCleanup_Regular(archive_name, app_path, app_support_path);
+                    g_LiveUpdate.m_ArchiveType = -1;
+                }
+                else
+                {
+                    // We might download a manifest later, so we shouldn't clean the currently downloaded archive.
+                    // This is the behavior from 1.2.174 and before.
+                    result = dmResourceArchive::RESULT_OK;
+                }
             }
             else
             {
@@ -632,6 +605,51 @@ printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
             return LUReadEntryFromArchive_Zip(archive, hash, hash_len, entry, buffer);
         else
             return LUReadEntryFromArchive_Regular(archive, hash, hash_len, entry, buffer);
+    }
+
+    static dmResource::Manifest* CreateLUManifest(const dmResource::Manifest* base_manifest)
+    {
+        // Create the actual copy
+        dmResource::Manifest* manifest = new dmResource::Manifest;
+        manifest->m_DDF = (dmLiveUpdateDDF::ManifestFile*)CopyDDFMessage(base_manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor);
+        manifest->m_DDFData = (dmLiveUpdateDDF::ManifestData*)CopyDDFMessage(base_manifest->m_DDFData, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor);
+
+        manifest->m_ArchiveIndex = new dmResourceArchive::ArchiveIndexContainer;
+        manifest->m_ArchiveIndex->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
+        manifest->m_ArchiveIndex->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
+        // Even though it isn't technically true, it will allow us to use the correct ArchiveIndex struct
+        manifest->m_ArchiveIndex->m_IsMemMapped = 1;
+
+        manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version;
+        manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength;
+        memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
+
+        char app_support_path[DMPATH_MAX_PATH];
+        if (dmResource::RESULT_OK != dmResource::GetApplicationSupportPath(base_manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
+        {
+            return 0;
+        }
+
+        // Data file has same path and filename as index file, but extension .arcd instead of .arci.
+        char lu_data_path[DMPATH_MAX_PATH];
+        dmPath::Concat(app_support_path, LIVEUPDATE_DATA_FILENAME, lu_data_path, DMPATH_MAX_PATH);
+
+        FILE* f_lu_data = fopen(lu_data_path, "wb+");
+        if (!f_lu_data)
+        {
+            dmLogError("Failed to create/load liveupdate resource file");
+        }
+
+        dmStrlCpy(manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path, lu_data_path, DMPATH_MAX_PATH);
+        dmLogInfo("Live Update archive: %s", manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path);
+
+        manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_FileResourceData = f_lu_data;
+
+        manifest->m_ArchiveIndex->m_Loader.m_Unload = LUUnloadArchive_Regular;
+        manifest->m_ArchiveIndex->m_Loader.m_FindEntry = LUFindEntryInArchive_Regular;
+        manifest->m_ArchiveIndex->m_Loader.m_Read = LUReadEntryFromArchive_Regular;
+
+        return manifest;
     }
 
     void RegisterArchiveLoaders()
