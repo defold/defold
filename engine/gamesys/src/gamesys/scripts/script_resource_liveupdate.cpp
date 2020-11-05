@@ -82,7 +82,7 @@ namespace dmLiveUpdate
         DM_LUA_STACK_CHECK(L, 0);
 
         // manifest index in first arg [luaL_checkint(L, 1)] deprecated
-        const dmResource::Manifest* manifest = dmLiveUpdate::GetCurrentManifest();
+        dmResource::Manifest* manifest = dmLiveUpdate::GetCurrentManifest();
         if (manifest == 0x0)
         {
             return DM_LUA_ERROR("The manifest identifier does not exist");

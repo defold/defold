@@ -40,7 +40,7 @@ namespace dmLiveUpdate
     struct AsyncResourceRequest
     {
         dmResourceArchive::LiveUpdateResource m_Resource;
-        const dmResource::Manifest* m_Manifest;
+        dmResource::Manifest* m_Manifest;
         uint32_t                    m_ExpectedResourceDigestLength;
         const char*                 m_ExpectedResourceDigest;
         const char*                 m_Path;
@@ -54,7 +54,8 @@ namespace dmLiveUpdate
         void* m_CallbackData;
         void (*m_Callback)(bool, void*);
         dmResourceArchive::HArchiveIndexContainer m_ArchiveIndexContainer;
-        dmResourceArchive::HArchiveIndex m_NewArchiveIndex;
+        dmResourceArchive::HArchiveIndex          m_NewArchiveIndex;
+        dmResource::Manifest*                     m_Manifest;
         bool m_Status;
     };
 
@@ -72,6 +73,7 @@ namespace dmLiveUpdate
 
     Result NewArchiveIndexWithResource(const dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index);
     void SetNewArchiveIndex(dmResourceArchive::HArchiveIndexContainer archive_container, dmResourceArchive::HArchiveIndex new_index, bool mem_mapped);
+    void SetNewManifest(dmResource::Manifest* manifest);
 
     void AsyncInitialize(const dmResource::HFactory factory);
     void AsyncFinalize();
