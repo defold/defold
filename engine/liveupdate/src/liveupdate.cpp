@@ -244,7 +244,6 @@ namespace dmLiveUpdate
 
     Result ParseManifestBin(uint8_t* manifest_data, uint32_t manifest_len, dmResource::Manifest* manifest)
     {
-        printf("MAWE: ParseManifestBin: %p\n", manifest);
         return ResourceResultToLiveupdateResult(dmResource::ManifestLoadMessage(manifest_data, manifest_len, manifest));
     }
 
@@ -286,17 +285,12 @@ namespace dmLiveUpdate
             return RESULT_IO_ERROR;
         }
 
-        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
-printf("MAWE: StoreManifest: %p  algorithm: %d\n", manifest, (int)algorithm);
-
         // Store the manifest file to disc
         return StoreManifestInternal(manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
     {
-        printf("MAWE: StoreResourceAsync: manifest: %p\n", manifest);
-
         if (manifest == 0x0 || resource->m_Data == 0x0)
         {
             return RESULT_MEM_ERROR;
