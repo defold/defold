@@ -64,6 +64,7 @@ int g_AppCommands[MAX_APP_COMMANDS];
 int g_NumAppCommands = 0;
 struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
 int g_NumAppInputEvents = 0;
+pthread_t g_MainThread = 0;
 
 static void initThreads( void )
 {
@@ -708,7 +709,6 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
         out->m_DownTime = AKeyEvent_getDownTime(event);
         out->m_EventTime = AKeyEvent_getEventTime(event);
         (*out_count)++;
-        out++;
 
         int glfw_action = -1;
         if (out->m_Action == AKEY_EVENT_ACTION_DOWN)
@@ -900,6 +900,8 @@ int _glfwPlatformInit( void )
         return GL_FALSE;
     }
 
+    g_MainThread = pthread_self();
+
     _glfwWin.iconified = 1;
 
     memset(&_glfwWinAndroid, 0, sizeof(_glfwWinAndroid));
@@ -953,6 +955,12 @@ int _glfwPlatformTerminate( void )
         return GL_FALSE;
     }
 #endif // _GLFW_HAS_PTHREAD
+
+    if (pthread_self() != g_MainThread)
+    {
+        LOGV("Not on main thread, skipping.");
+        return GL_FALSE;
+    }
 
     // Close OpenGL window
     glfwCloseWindow();

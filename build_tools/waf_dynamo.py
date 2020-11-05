@@ -69,8 +69,8 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="13.5"
-IOS_SIMULATOR_SDK_VERSION="13.5"
+IOS_SDK_VERSION="14.0"
+IOS_SIMULATOR_SDK_VERSION="14.0"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
@@ -78,7 +78,7 @@ MIN_IOS_SDK_VERSION="8.0"
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
 
-XCODE_VERSION="11.5"
+XCODE_VERSION="12.0"
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
@@ -338,23 +338,23 @@ def default_flags(self):
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
                 if 'linux' in self.env['BUILD_PLATFORM']:
-                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin14'])
+                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
             if 'linux' in self.env['BUILD_PLATFORM']:
-                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin14'])
+                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
 
         extra_ccflags = []
         extra_linkflags = []
         if 'linux' in self.env['BUILD_PLATFORM']:
-            target_triplet='arm-apple-darwin14'
-            extra_ccflags += ['-target', target_triplet, '-fclang-abi-compat=6']
-            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/11.0.3/lib/darwin'),
+            target_triplet='arm-apple-darwin19'
+            extra_ccflags += ['-target', target_triplet]
+            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/12.0.0/lib/darwin'),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
             extra_linkflags += ['-fobjc-link-runtime']
@@ -1726,7 +1726,7 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STATICLIB_DDF'] = 'ddf'
 
     conf.env['STATICLIB_CARES'] = []

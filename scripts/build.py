@@ -87,10 +87,11 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
-PACKAGES_IOS_SDK="iPhoneOS13.5.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.5.sdk"
+PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.5.xctoolchain"
+PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.0.xctoolchain"
+PACKAGES_TAPI_VERSION="tapi1.6"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
@@ -100,7 +101,7 @@ PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
 PACKAGES_LINUX_CLANG="clang-9.0.0"
 PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
-PACKAGES_CCTOOLS_PORT="cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux"
+PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.39.16"
@@ -860,7 +861,7 @@ class Configuration(object):
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
         if self.target_platform in ('x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin14-strip')
+            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))
         return True
@@ -1233,6 +1234,9 @@ class Configuration(object):
 # BEGIN: EDITOR 2
 #
     def download_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when downloading the editor')
+
         editor_filename = "Defold-%s.zip" % self.target_platform
         editor_path = join(self.defold_root, 'editor', 'target', 'editor', editor_filename)
 
@@ -1240,6 +1244,9 @@ class Configuration(object):
         self.download_from_archive(s3_path, editor_path)
 
     def archive_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when archiving the editor')
+
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, self.channel, 'editor2')
 
@@ -1266,6 +1273,9 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
     def bundle_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when bundling the editor')
+
         cmd = ['./scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
@@ -1679,7 +1689,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk11.0.1'
+        jdk = 'jdk11.0.1-p1'
         host2 = get_host_platform2()
         if 'win32' in host2:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
@@ -1893,7 +1903,7 @@ class Configuration(object):
         ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                             '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
         if self.host == 'x86_64-linux':
-            ld_library_paths.append('%s/ext/SDKs/linux/%s/tapi1.4/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG))
+            ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
@@ -2040,7 +2050,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       help = 'Set version explicitily when bumping version')
 
     parser.add_option('--channel', dest='channel',
-                      default = 'stable',
+                      default = None,
                       help = 'Editor release channel (stable, beta, ...)')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',

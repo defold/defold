@@ -338,6 +338,9 @@ public class Project {
     private void logWarning(String fmt, Object... args) {
         System.err.println(String.format(fmt, args));
     }
+    private void logInfo(String fmt, Object... args) {
+        System.out.println(String.format(fmt, args));
+    }
 
     public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
         try {
@@ -359,7 +362,7 @@ public class Project {
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
                         this.publisher = new DefoldPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(settings);
+                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
@@ -462,10 +465,13 @@ public class Project {
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
-        List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(getLibPath(), this.libUrls);
+        Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(getLibPath(), this.libUrls);
         boolean missingFiles = false;
-        for (File file : libFiles) {
-            if (file.exists()) {
+
+        for (String url : libFiles.keySet() ) {
+            File file = libFiles.get(url);
+
+            if (file != null && file.exists()) {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, file.getAbsolutePath()));
             } else {
                 missingFiles = true;
@@ -1106,32 +1112,28 @@ run:
             //FileUtils.deleteQuietly(libDir);
             FileUtils.forceMkdir(libDir);
             // Download libs
-            List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
+            Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(libPath, libUrls);
             int count = this.libUrls.size();
             IProgress subProgress = progress.subProgress(count);
-            subProgress.beginTask("Download archives", count);
+            subProgress.beginTask("Download archive(s)", count);
+            logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
                 BundleHelper.throwIfCanceled(progress);
-                File f = libFiles.get(i);
-                String sha1 = null;
-
-                if (f.exists()) {
-                    ZipFile zipFile = null;
-
-                    try {
-                        zipFile = new ZipFile(f);
-                        sha1 = zipFile.getComment();
-                    } finally {
-                        if (zipFile != null) {
-                            zipFile.close();
-                        }
-                    }
-                }
-
                 URL url = libUrls.get(i);
+                File f = libFiles.get(url.toString());
+
+                logInfo("%2d: Downloading %s", i, url);
+
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                if (sha1 != null) {
-                    connection.addRequestProperty("If-None-Match", sha1);
+
+                String etag = null;
+                if (f != null) {
+                    String etagB64 = LibraryUtil.getETagFromName(LibraryUtil.getHashedUrl(url), f.getName());
+                    if (etagB64 != null) {
+                        etag = new String(new Base64().decode(etagB64.getBytes())).replace("\"", ""); // actually includes the quotation marks
+                        etag = String.format("\"%s\"", etag); // fixing broken etag
+                        connection.addRequestProperty("If-None-Match", etag);
+                    }
                 }
 
                 // Check if URL contains basic auth credentials
@@ -1156,34 +1158,45 @@ run:
                 try {
                     connection.connect();
                     int code = connection.getResponseCode();
-                    if (code == 304) {
-                        // Reusing cached library
-                    } else {
-                        boolean serverSha1Match = false;
-                        if(code == 200) {
-                            // GitHub uses eTags and we can check we have the up to date version by comparing SHA1 and server eTag if we get a 200 OK response
-                            if (sha1 != null) {
-                                String serverETag = connection.getHeaderField("ETag");
-                                if (serverETag != null) {
-                                    if (sha1.equals(serverETag.replace("\"", ""))) {
-                                        // Reusing cached library
-                                        serverSha1Match = true;
-                                    }
-                                }
-                            }
-                        }
-                        if(!serverSha1Match) {
-                            input = new BufferedInputStream(connection.getInputStream());
-                            FileUtils.copyInputStreamToFile(input, f);
 
-                            try {
-                                ZipFile zip = new ZipFile(f);
-                                zip.close();
-                            } catch (ZipException e) {
-                                f.delete();
-                                throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
-                            }
+                    if (code == 304) {
+                        logInfo("%2d: Status %d: Already cached", i, code);
+                    } else if (code >= 400) {
+                        logWarning("%2d: Status %d: Failed to download %s", i, code, url);
+                        throw new LibraryException(String.format("Status %d: Failed to download %s", code, url), new Exception());
+                    } else {
+
+                        String serverETag = connection.getHeaderField("ETag");
+                        if (serverETag == null) {
+                            serverETag = connection.getHeaderField("Etag");
                         }
+
+                        if (serverETag == null) {
+                            throw new ConnectException(String.format("The URL %s didn't provide an ETag", url));
+                        }
+
+                        if (etag != null && !etag.equals(serverETag)) {
+                            logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", i, code, etag!=null?etag:"", serverETag!=null?serverETag:"", f);
+                            f.delete();
+                            f = null;
+                        }
+
+                        // if(!serverETagMatch) {
+                        input = new BufferedInputStream(connection.getInputStream());
+
+                        if (f == null) {
+                            f = new File(libPath, LibraryUtil.getFileName(url, serverETag));
+                        }
+                        FileUtils.copyInputStreamToFile(input, f);
+
+                        try {
+                            ZipFile zip = new ZipFile(f);
+                            zip.close();
+                        } catch (ZipException e) {
+                            f.delete();
+                            throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                        }
+                        logInfo("%2d: Status %d: Stored %s", i, code, f);
                     }
                     connection.disconnect();
                 } catch (ConnectException e) {
@@ -1196,6 +1209,8 @@ run:
                     }
                     subProgress.worked(1);
                 }
+
+                BundleHelper.throwIfCanceled(subProgress);
             }
         }
         catch(IOException ioe) {

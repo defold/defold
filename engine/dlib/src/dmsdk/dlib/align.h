@@ -14,13 +14,12 @@
 #define DMSDK_ALIGN_H
 
 /*# SDK Align API documentation
- * [file:<dmsdk/dlib/align.h>]
- *
  * Alignment macros. Use for compiler compatibility
  *
  * @document
  * @name Align
  * @namespace dmAlign
+ * @path engine/dlib/src/dmsdk/dlib/align.h
  */
 
 /*# data structure alignment macro

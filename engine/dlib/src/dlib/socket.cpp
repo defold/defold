@@ -93,7 +93,7 @@ namespace dmSocket
         }
 
         // TODO: Add log-domain support
-        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
         return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
@@ -111,6 +111,11 @@ namespace dmSocket
             res = RESULT_WOULDBLOCK;
         }
         return res;
+    }
+
+    Address::Address() {
+        m_family = dmSocket::DOMAIN_MISSING;
+        memset(m_address, 0x0, sizeof(m_address));
     }
 
     bool Empty(Address address)
@@ -240,7 +245,7 @@ namespace dmSocket
     {
         switch(protocol)
         {
-            case PROTOCOL_TCP:  return PROTOCOL_TCP;
+            case PROTOCOL_TCP:  return IPPROTO_TCP;
             case PROTOCOL_UDP:  return IPPROTO_UDP;
         }
     }
@@ -819,6 +824,15 @@ namespace dmSocket
     Result SetNoDelay(Socket socket, bool no_delay)
     {
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_NODELAY, no_delay);
+    }
+
+    Result SetQuickAck(Socket socket, bool use_quick_ack)
+    {
+#if defined(__MACH__) || defined(_WIN32)
+        return RESULT_OK;
+#else
+        return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
+#endif
     }
 
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
