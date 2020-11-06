@@ -249,6 +249,26 @@ Manifest* GetManifest(HFactory factory)
     return factory->m_Manifest;
 }
 
+void SetManifest(HFactory factory, Manifest* manifest)
+{
+    assert(factory->m_Manifest);
+
+    // Unlink the old archive container
+    dmResourceArchive::HArchiveIndexContainer old_archive = factory->m_Manifest->m_ArchiveIndex;
+    dmResourceArchive::HArchiveIndexContainer new_archive = manifest->m_ArchiveIndex;
+    if (new_archive != old_archive)
+    {
+        new_archive->m_Next = old_archive;
+        factory->m_Manifest->m_ArchiveIndex = 0;
+    }
+
+    if (manifest != factory->m_Manifest)
+        DeleteManifest(factory->m_Manifest);
+
+    factory->m_Manifest = manifest;
+    factory->m_Manifest->m_ArchiveIndex = new_archive;
+}
+
 uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
 {
     const uint32_t bitlen[5] = { 0U, 128U, 160U, 256U, 512U };
