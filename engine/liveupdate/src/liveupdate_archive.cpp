@@ -81,6 +81,7 @@ namespace dmLiveUpdate
         {
             // Bundle version file exists from previous run, but signature does not match currently loaded bundled manifest.
             // Unlink liveupdate.manifest and bundle_ver_path from filesystem and load bundled manifest instead.
+            dmLogError("Found old '%s' (%d), removing old liveupdate data", bundle_ver_path, bundle_ver_valid);
             dmSys::Unlink(bundle_ver_path);
             dmSys::Unlink(manifest_path);
 
@@ -111,6 +112,7 @@ namespace dmLiveUpdate
                 dmLogError("Failed to rename '%s' to '%s' (%i).", archive_index_tmp_path, archive_index_path, sys_result);
                 return dmResourceArchive::RESULT_IO_ERROR;
             }
+            dmLogInfo("Renamed '%s' to '%s'", archive_index_tmp_path, archive_index_path);
             dmSys::Unlink(archive_index_tmp_path);
         }
 
