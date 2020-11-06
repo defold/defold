@@ -78,28 +78,35 @@ namespace dmResourceArchive
                 return result;
             }
 
-            // The loader could opt for not loading an archive
+            // The loader could opt for not loading a manifest
             if (!manifest)
-                continue;
+            {
+                manifest = head_manifest;
+            }
 
             HArchiveIndexContainer archive = 0;
             result = loader->m_Load(manifest, archive_name, app_path, app_support_path, head_archive, &archive);
             if (RESULT_NOT_FOUND == result || RESULT_VERSION_MISMATCH == result)
             {
-                dmResource::DeleteManifest(manifest);
+                if (manifest != head_manifest)
+                    dmResource::DeleteManifest(manifest);
                 continue;
             }
             if (RESULT_OK != result)
             {
-                dmResource::DeleteManifest(manifest);
+                if (manifest != head_manifest)
+                    dmResource::DeleteManifest(manifest);
                 return result;
             }
 
             if (archive)
             {
-                if (head_manifest)
-                    dmResource::DeleteManifest(head_manifest);
-                head_manifest = manifest;
+                if (manifest != head_manifest)
+                {
+                    if (head_manifest)
+                        dmResource::DeleteManifest(head_manifest);
+                    head_manifest = manifest;
+                }
 
                 archive->m_Loader = *loader;
                 if (head_archive != archive)
@@ -109,7 +116,8 @@ namespace dmResourceArchive
                 }
             } else {
                 // The loader could opt for not loading an archive
-                dmResource::DeleteManifest(manifest);
+                if (manifest != head_manifest)
+                    dmResource::DeleteManifest(manifest);
             }
         }
 

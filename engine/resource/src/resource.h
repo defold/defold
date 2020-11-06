@@ -590,6 +590,17 @@ namespace dmResource
 
     Manifest* GetManifest(HFactory factory);
 
+    /**
+     * Set a new manifest to the factory
+     */
+    void SetManifest(HFactory factory, Manifest* manifest);
+
+    /**
+     * Delete the manifest and all its resources
+     */
+    void DeleteManifest(Manifest* manifest);
+
+
 // Uses LiveUpdateDDF
     Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
 
@@ -670,8 +681,6 @@ namespace dmResource
     // Files mapped with this function should be unmapped with UnmapFile(...)
     Result MapFile(const char* filename, void*& map, uint32_t& size);
     Result UnmapFile(void*& map, uint32_t size);
-
-    void DeleteManifest(Manifest* manifest);
 
     /**
      * Struct returned from the resource iterator api
