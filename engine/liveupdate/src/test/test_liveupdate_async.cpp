@@ -77,6 +77,11 @@ namespace dmLiveUpdate
         ASSERT_TRUE(mem_mapped);
     }
 
+    void SetNewManifest(dmResource::Manifest* manifest)
+    {
+        ASSERT_TRUE(0 != manifest);
+    }
+
 
     Result VerifyManifest(dmResource::Manifest* manifest)
     {
