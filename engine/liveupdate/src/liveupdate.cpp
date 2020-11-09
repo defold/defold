@@ -40,8 +40,8 @@ namespace dmLiveUpdate
     const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
     const char* LIVEUPDATE_DATA_FILENAME            = "liveupdate.arcd";
     const char* LIVEUPDATE_DATA_TMP_FILENAME        = "liveupdate.arcd.tmp";
-    const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.zip";
-    const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.zip.tmp";
+    const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.ref";
+    const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.ref.tmp";
     const char* LIVEUPDATE_BUNDLE_VER_FILENAME      = "bundle.ver";
 
     static dmResource::Manifest* CreateLUManifest(const dmResource::Manifest* base_manifest);
@@ -92,7 +92,7 @@ namespace dmLiveUpdate
         char                        m_AppPath[DMPATH_MAX_PATH];
         dmResource::Manifest*       m_LUManifest;         // the new manifest from StoreManifest
         dmResource::HFactory        m_ResourceFactory;    // Resource system factory
-        int                         m_ArchiveType;        // 0: original format, 1: .zip archive, -1: no format used
+        int                         m_ArchiveType;        // 0: original format, 1: .ref archive, -1: no format used
     };
 
     LiveUpdate g_LiveUpdate;
@@ -463,10 +463,10 @@ namespace dmLiveUpdate
         AsyncUpdate();
     }
 
-    // .zip archives take precedence over .arci/.arcd
+    // .ref archives take precedence over .arci/.arcd
     // .tmp takes precedence over non .tmp
     //  0: .arci/.arci format
-    //  1: .zip format
+    //  1: .ref format
     // -1: No LU archive file format found
     static int DetermineLUType(const char* app_support_path)
     {
@@ -518,17 +518,8 @@ namespace dmLiveUpdate
             result = LULoadManifest_Regular(archive_name, app_path, app_support_path, base_manifest, out);
             if (dmResourceArchive::RESULT_OK != result)
             {
-                if (dmResourceArchive::RESULT_NOT_FOUND != result)
-                {
-                    LUCleanup_Regular(archive_name, app_path, app_support_path);
-                    g_LiveUpdate.m_ArchiveType = -1;
-                }
-                else
-                {
-                    // We might download a manifest later, so we shouldn't clean the currently downloaded archive.
-                    // This is the behavior from 1.2.174 and before.
-                    result = dmResourceArchive::RESULT_OK;
-                }
+                LUCleanup_Regular(archive_name, app_path, app_support_path);
+                g_LiveUpdate.m_ArchiveType = -1;
             }
             else
             {

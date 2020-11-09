@@ -120,7 +120,6 @@ namespace dmLiveUpdate
                     zr = dmZip::OpenEntry(zip, i);
 
                     const char* entry_name = dmZip::GetEntryName(zip);
-                    printf("  ENTRY: '%s'\n", entry_name);
                     if (!dmZip::IsEntryDir(zip) && !(strcmp(LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, entry_name) == 0))
                     {
                         // verify resource
@@ -177,6 +176,7 @@ namespace dmLiveUpdate
         return result;
     }
 
+    // Store the path to the file into the liveupdate.ref.tmp
     Result StoreZipArchive(const char* path)
     {
         char application_support_path[DMPATH_MAX_PATH];
@@ -187,26 +187,31 @@ namespace dmLiveUpdate
             return result;
         }
 
-        // Move zip file to "<support path>/liveupdate.zip.tmp"
-
+        // Store zip file ref in "<support path>/liveupdate.ref.tmp"
         char archive_path[DMPATH_MAX_PATH];
         dmSnPrintf(archive_path, sizeof(archive_path), "%s/%s", application_support_path, LIVEUPDATE_ARCHIVE_TMP_FILENAME);
 
-        dmSys::Result sys_result = dmSys::RenameFile(archive_path, path);
-        if (dmSys::RESULT_OK != sys_result)
-        {
-            dmLogError("Failed to rename '%s' to '%s': %d", path, archive_path, sys_result);
+        FILE* f = fopen(archive_path, "wb");
+        if (!f) {
+            dmLogError("Couldn't open %s for writing", archive_path);
             return RESULT_IO_ERROR;
         }
 
-        dmLogInfo("Renamed '%s' to '%s'", path, archive_path);
+        size_t len = (size_t)strlen(path);
+        size_t nwritten = fwrite(path, 1, len, f);
+        fclose(f);
 
-        dmLogInfo("Archive Stored OK");
+        if (nwritten != len) {
+            dmLogError("Couldn't write liveupdate path reference to %s", archive_path);
+            return RESULT_IO_ERROR;
+        }
+
+        dmLogInfo("Stored reference to '%s' in '%s'", path, archive_path);
 
         return RESULT_OK;
     }
 
-    // rename liveupdate.zip.tmp -> liveupdate.zip
+    // rename liveupdate.ref.tmp -> liveupdate.ref
     static dmResourceArchive::Result RenameTempZip(const char* app_support_path)
     {
         char archive_tmp_path[DMPATH_MAX_PATH];
@@ -243,12 +248,28 @@ namespace dmLiveUpdate
             return dmResourceArchive::RESULT_NOT_FOUND;
         }
 
+        // Get the file path to the actual zip archive
+        char zip_path[DMPATH_MAX_PATH] = {0};
+        FILE* f = fopen(archive_path, "rb");
+        fread(zip_path, 1, sizeof(zip_path), f);
+        fclose(0);
+
+        zip_path[sizeof(zip_path)-1] = 0;
+
+        if (!FileExists(zip_path))
+        {
+            dmLogError("Could not find live update archive '%s'", zip_path);
+            return dmResourceArchive::RESULT_NOT_FOUND;
+        }
+
+        dmLogInfo("Found zip archive reference to %s", zip_path);
+
         dmZip::HZip zip;
-        dmZip::Result zr = dmZip::Open(archive_path, &zip);
+        dmZip::Result zr = dmZip::Open(zip_path, &zip);
         if (dmZip::RESULT_OK != zr)
         {
-            dmLogError("Could not open zip file '%s'", archive_path);
-            return dmResourceArchive::RESULT_IO_ERROR;
+            dmLogError("Could not open zip file '%s'", zip_path);
+            return dmResourceArchive::RESULT_NOT_FOUND;
         }
 
         uint32_t manifest_len = 0;
@@ -289,18 +310,25 @@ namespace dmLiveUpdate
         char archive_path[DMPATH_MAX_PATH];
         dmPath::Concat(app_support_path, LIVEUPDATE_ARCHIVE_FILENAME, archive_path, DMPATH_MAX_PATH);
 
+        // Get the file path to the actual zip archive
+        char zip_path[DMPATH_MAX_PATH] = {0};
+        FILE* f = fopen(archive_path, "rb");
+        fread(zip_path, 1, sizeof(zip_path), f);
+        fclose(0);
+
+        zip_path[sizeof(zip_path)-1] = 0;
+
         dmZip::HZip zip;
-        dmZip::Result zr = dmZip::Open(archive_path, &zip);
+        dmZip::Result zr = dmZip::Open(zip_path, &zip);
         if (dmZip::RESULT_OK != zr)
         {
-            dmLogError("Could not open zip file '%s'", archive_path);
+            dmLogError("Could not open zip file '%s'", zip_path);
             return dmResourceArchive::RESULT_IO_ERROR;
         }
 
         dmResourceArchive::HArchiveIndexContainer archive = new dmResourceArchive::ArchiveIndexContainer;
-        //archive->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
         archive->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
-        dmStrlCpy(archive->m_ArchiveFileIndex->m_Path, archive_path, DMPATH_MAX_PATH);
+        dmStrlCpy(archive->m_ArchiveFileIndex->m_Path, zip_path, DMPATH_MAX_PATH);
 
         archive->m_UserData = (void*)zip;
 
