@@ -44,7 +44,7 @@ namespace dmDNS
      * @param ipv6 Whether or not to search for IPv6 addresses
      * @return RESULT_OK on success
      */
-    Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4 = true, bool ipv6 = true);
+    Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, int timeout, bool ipv4 = true, bool ipv6 = true);
 
     // Used for unit testing
     const char* ResultToString(Result r);

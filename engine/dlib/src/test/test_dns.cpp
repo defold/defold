@@ -66,7 +66,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv4_Localhost)
 {
     dmSocket::Address address;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, true, false);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, true, false);
     ASSERT_EQ(dmDNS::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
     ASSERT_EQ(0x0100007f, *dmSocket::IPv4(&address));
@@ -76,7 +76,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_Localhost)
 {
     dmSocket::Address address;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, true);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, true);
     ASSERT_EQ(dmDNS::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV6, address.m_family);
     ASSERT_EQ(0x00000000, address.m_address[0]);
@@ -90,7 +90,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv4_External)
 #if !defined(_WIN32)
     dmSocket::Address address;
     const char* hostname = "defold.com";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, true, false);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, true, false);
     ASSERT_EQ(dmDNS::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
 #else
@@ -106,7 +106,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_External)
 #if !defined(_WIN32)
     dmSocket::Address address;
     const char* hostname = "ipv6-test.com";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, true);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, true);
     ASSERT_EQ(dmDNS::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV6, address.m_family);
 #else
@@ -120,7 +120,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv4_Unavailable)
 {
     dmSocket::Address address;
     const char* hostname = "localhost.invalid";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, true, false);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, true, false);
     ASSERT_EQ(dmDNS::RESULT_HOST_NOT_FOUND, result);
 }
 
@@ -128,7 +128,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_Unavailable)
 {
     dmSocket::Address address;
     const char* hostname = "localhost.invalid";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, true);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, true);
     ASSERT_EQ(dmDNS::RESULT_HOST_NOT_FOUND, result);
 }
 
@@ -136,7 +136,7 @@ TEST_F(dmDNSTest, GetHostByName_NoValidAddressFamily)
 {
     dmSocket::Address address;
     const char* hostname = "localhost";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, false);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, false);
     ASSERT_EQ(dmDNS::RESULT_HOST_NOT_FOUND, result);
 }
 
@@ -171,7 +171,7 @@ static void ThreadRunner(void* arg)
             ASSERT_TRUE(false);
         }
 
-        ctx->request.result = dmDNS::GetHostByName(ctx->request.hostname, &address, ctx->channel, true, true);
+        ctx->request.result = dmDNS::GetHostByName(ctx->request.hostname, &address, ctx->channel, 0, true, true);
     }
 }
 
