@@ -160,7 +160,6 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 
     _glfwWin.clientAPI = wndconfig__->clientAPI;
 
-    _glfwWinAndroid.has_window = 1;
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
         if (init_gl(&_glfwWinAndroid) == 0)
@@ -169,6 +168,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         }
         make_current(&_glfwWinAndroid);
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
+        computeIconifiedState();
     }
 
     return GL_TRUE;
@@ -186,7 +186,6 @@ void _glfwPlatformCloseWindow( void )
         destroy_gl_surface(&_glfwWinAndroid);
         _glfwWin.opened = 0;
     }
-    _glfwWinAndroid.has_window = 0;
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -337,14 +336,15 @@ void glfwAndroidFlushEvents()
         switch(cmd)
         {
         case APP_CMD_INIT_WINDOW:
-            _glfwWinAndroid.has_window = 1;
+            // We don't get here the first time around, but from the second and onwards
+            // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
             if (_glfwWin.opened && _glfwWinAndroid.display != EGL_NO_DISPLAY && _glfwWinAndroid.surface == EGL_NO_SURFACE)
             {
                 create_gl_surface(&_glfwWinAndroid);
                 make_current(&_glfwWinAndroid);
                 update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
-                computeIconifiedState();
             }
+            computeIconifiedState();
             break;
         }
     }
