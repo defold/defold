@@ -248,14 +248,12 @@ namespace dmHttpClient
 
         if (params->m_DNSChannel)
         {
-            dmLogError("http_client NEW request dmDNS::GetHostByName timeout: %i", params->m_RequestTimeout);
             if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
             {
                 // If the DNS request failed, we refresh the DNS configuration and try again.
                 // This is needed if we first perform an HTTP request when there's no network available,
                 // and then later on do more requests once we have gained connectivity.
                 dmDNS::RefreshChannel(params->m_DNSChannel);
-                dmLogError("http_client NEW request dmDNS::GetHostByName REFRESH timeout: %i", params->m_RequestTimeout);
                 if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
                 {
                     return 0;
@@ -266,7 +264,6 @@ namespace dmHttpClient
         {
             // Fallback to socket implementation of GetHostByNamea
             // in case we couldn't create a proper channel
-            dmLogError("http_client NEW request dmSocket::GetHostByName timeout: %i", params->m_RequestTimeout);
             if (dmSocket::GetHostByName(hostname, &address) != dmSocket::RESULT_OK)
             {
                 return 0;
