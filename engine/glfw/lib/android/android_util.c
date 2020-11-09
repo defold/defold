@@ -275,8 +275,8 @@ void destroy_gl_surface(_GLFWwin_android* win)
         if (win->surface != EGL_NO_SURFACE)
         {
             eglDestroySurface(win->display, win->surface);
-            win->surface = EGL_NO_SURFACE;
             CHECK_EGL_ERROR
+            win->surface = EGL_NO_SURFACE;
         }
     }
 }
