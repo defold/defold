@@ -82,7 +82,7 @@ namespace dmScript
      * @param [options] [type:table] optional table with request parameters. Supported entries:
      *
      * - [type:number] `timeout`: timeout in seconds
-     * - [type:string] `path`: path on disc where to download the file
+     * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200
      * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304
      *
      *

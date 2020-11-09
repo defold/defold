@@ -68,10 +68,20 @@ namespace dmLiveUpdate
         char manifest_path[DMPATH_MAX_PATH];
         dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_path, DMPATH_MAX_PATH);
 
-        struct stat file_stat;
-        bool file_exists = stat(manifest_path, &file_stat) == 0;
-        if (!file_exists)
-            return dmResourceArchive::RESULT_NOT_FOUND;
+        if (!FileExists(manifest_path))
+        {
+            char archive_index_path[DMPATH_MAX_PATH];
+            dmPath::Concat(app_support_path, LIVEUPDATE_INDEX_FILENAME, archive_index_path, DMPATH_MAX_PATH);
+
+            // We might download a manifest later, so we shouldn't clean the currently downloaded archive.
+            // This is the behavior from 1.2.174 and before.
+            if (!FileExists(archive_index_path))
+            {
+                return dmResourceArchive::RESULT_NOT_FOUND; // we have neither manifest nor archive
+            }
+            *out = 0;
+            return dmResourceArchive::RESULT_OK; // we at least have archive
+        }
 
         // Check if bundle has changed (e.g. app upgraded)
         char bundle_ver_path[DMPATH_MAX_PATH];
