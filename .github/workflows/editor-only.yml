@@ -5,7 +5,7 @@ on:
     branches:
       - 'DEFEDIT-*'
       - 'editor-dev'
-  pull_request:
+  pull_request_target:
     branches:
       - 'DEFEDIT-*'
       - 'editor-dev'
