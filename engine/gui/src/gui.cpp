@@ -4409,7 +4409,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        ret = dmScript::PCall(L, 0, LUA_MULTRET);
+        ret = dmScript::PCall(L, 0, 0);
 
         lua_pushnil(L);
         dmScript::SetInstance(L);
