@@ -249,7 +249,7 @@ static void _glfwPlatformSwapBuffersNoLock( void )
     if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
     {
         // Error checking inspired by Android implementation of GLSurfaceView:
-        // http://grepcode.com/file/repository.grepcode.com/java/ext/com.google.android/android/5.1.0_r1/android/opengl/GLSurfaceView.java?av=f
+        // https://android.googlesource.com/platform/frameworks/base/+/master/opengl/java/android/opengl/GLSurfaceView.java
         EGLint error = eglGetError();
         if (error != EGL_SUCCESS) {
 
@@ -343,8 +343,9 @@ void glfwAndroidFlushEvents()
                 create_gl_surface(&_glfwWinAndroid);
                 make_current(&_glfwWinAndroid);
                 update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
+
+                computeIconifiedState();
             }
-            computeIconifiedState();
             break;
         }
     }
