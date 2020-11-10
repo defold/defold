@@ -59,10 +59,12 @@ namespace dmScript
 
         if (resp->m_Path)
         {
-            if (!WriteResponseToFile(resp->m_Path, response, resp->m_ResponseLength))
-            {
-                lua_pushstring(L, "Failed to write to temp file");
-                lua_setfield(L, -2, "error");
+            if (resp->m_Status == 200) {
+                if (!WriteResponseToFile(resp->m_Path, response, resp->m_ResponseLength))
+                {
+                    lua_pushstring(L, "Failed to write to temp file");
+                    lua_setfield(L, -2, "error");
+                }
             }
 
             lua_pushstring(L, resp->m_Path);
