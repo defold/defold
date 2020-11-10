@@ -203,6 +203,41 @@ GLFWAPI int32_t glfwAndroidWindowOpened()
     return _glfwWin.opened;
 }
 
+GLFWAPI int32_t glfwAndroidVerifySurface()
+{
+    // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
+    // Verifying the state of the surface is worth it.
+    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
+    {
+        // Error checking inspired by Android implementation of GLSurfaceView:
+        // https://android.googlesource.com/platform/frameworks/base/+/master/opengl/java/android/opengl/GLSurfaceView.java
+        EGLint error = eglGetError();
+        if (error != EGL_SUCCESS) {
+
+            if (error == EGL_CONTEXT_LOST) {
+                LOGE("eglSwapBuffers failed due to EGL_CONTEXT_LOST!");
+                return 0;
+            } else if (error == EGL_BAD_SURFACE) {
+                // Recreate surface
+                LOGE("eglSwapBuffers failed due to EGL_BAD_SURFACE, destroy surface and wait for recreation.");
+                destroy_gl_surface(&_glfwWinAndroid);
+                _glfwWin.iconified = 1;
+                return 0;
+            } else {
+                // Other errors typically mean that the current surface is bad,
+                // probably because the SurfaceView surface has been destroyed,
+                // but we haven't been notified yet.
+                // Ignore error, but log for debugging purpose.
+                LOGW("eglSwapBuffers failed, eglGetError: %X", error);
+                return 0;
+            }
+        }
+    }
+
+    // Surface is ok
+    return 1;
+}
+
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
 
@@ -230,7 +265,6 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
             spinlock_lock(&_glfwWinAndroid.m_RenderLock);
 
             destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.surface = EGL_NO_SURFACE;
 
             spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
         }

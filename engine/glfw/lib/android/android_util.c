@@ -276,9 +276,9 @@ void destroy_gl_surface(_GLFWwin_android* win)
         {
             eglDestroySurface(win->display, win->surface);
             CHECK_EGL_ERROR
-            win->surface = EGL_NO_SURFACE;
         }
     }
+    win->surface = EGL_NO_SURFACE;
 }
 
 int query_gl_aux_context(_GLFWwin_android* win)
