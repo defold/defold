@@ -46,6 +46,14 @@
                              :duration "Short"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-basic-3d/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Platformer game"
+                             :description "This template contains a basic setup if you want to start building a platformer game."
+                             :image "platformer.svg"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/template-platformer/archive/master.zip"
                              :skip-root? true}]}
 
                {:label "From Tutorial"

@@ -38,6 +38,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.security.KeyStore;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -187,28 +188,19 @@ public class AndroidBundler implements IBundler {
      * provided as a project option or the first alias in the keystore.
      */
     private static String getKeystoreAlias(Project project) throws IOException, CompileExceptionError {
-        String keystore = getKeystore(project);
+        String keystorePath = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
         if (alias.length() == 0) {
-
-            List<String> args = new ArrayList<String>();
-            args.add(getJavaBinFile("keytool"));
-            args.add("-list");
-            args.add("-keystore"); args.add(keystore);
-            args.add("-storepass"); args.add(keystorePassword);
-            args.add("-rfc");
-            Result res = exec(args);
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new IOException(msg);
+            try (FileInputStream is = new FileInputStream(new File(keystorePath))) {
+                KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+                keystore.load(is, keystorePassword.toCharArray());
+                Enumeration<String> enumeration = keystore.aliases();
+                alias = enumeration.nextElement();
             }
-
-            Matcher m = Pattern.compile("Alias name: (.*)").matcher(new String(res.stdOutErr));
-            if (!m.find()) {
-                throw createCompileExceptionError("Unable to find keystore alias");
+            catch(Exception e) {
+                throw createCompileExceptionError("Unable to find keystore alias", e);
             }
-            alias = m.group(1);
         }
         return alias;
     }

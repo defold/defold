@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -129,27 +129,47 @@ public class ProjectTest {
 
     @Test
     public void testResolve() throws Exception {
-System.out.printf("testResolve start");
+        System.out.printf("testResolve begin");
+
         assertEquals(0, _304Count.get());
-        File lib = new File(project.getLibPath());
-        if (lib.exists()) {
-            FileUtils.cleanDirectory(new File(project.getLibPath()));
+        File libDir = new File(project.getLibPath());
+        if (libDir.exists()) {
+            FileUtils.cleanDirectory(libDir);
         }
 
-        ArrayList<String> filenames = new ArrayList<String>();
+        this.project.resolveLibUrls(new NullProgress());
+
+        File currentFiles[] = libDir.listFiles(File::isFile);
+
         for (URL url : libraryUrls) {
-            filenames.add(LibraryUtil.libUrlToFilename(url));
+            String hashedUrl = LibraryUtil.getHashedUrl(url);
+            boolean found = false;
+            for (File f : currentFiles) {
+                if (LibraryUtil.matchUri(hashedUrl, f.getName())) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found);
         }
 
-        this.project.resolveLibUrls(new NullProgress());
-        for (String filename : filenames) {
-            assertTrue(libExists(filename));
-        }
         assertEquals(0, _304Count.get());
 
         this.project.resolveLibUrls(new NullProgress());
-        for (String filename : filenames) {
-            assertTrue(libExists(filename));
+
+        currentFiles = libDir.listFiles(File::isFile);
+        List<File> filenames = new ArrayList<>();
+        for (URL url : libraryUrls) {
+            String hashedUrl = LibraryUtil.getHashedUrl(url);
+            boolean found = false;
+            for (File f : currentFiles) {
+                if (LibraryUtil.matchUri(hashedUrl, f.getName())) {
+                    found = true;
+                    filenames.add(f);
+                    break;
+                }
+            }
+            assertTrue(found);
         }
         assertEquals(filenames.size(), _304Count.get());
 
@@ -266,16 +286,25 @@ System.out.printf("testResolve start");
                     zip.close();
                 }
 
-                String etag = request.getHeader("If-None-Match");
-                if (sha1 != null) {
-                    response.setHeader("ETag", sha1);
-                }
-                if (etag != null && etag.equals(sha1)) {
-                    _304Count.incrementAndGet();
-                    response.setStatus(304);
-                    baseRequest.setHandled(true);
-                } else {
-                    super.handle(target, baseRequest, request, response);
+                try {
+
+                    String etag = request.getHeader("If-None-Match");
+                    if (sha1 != null) {
+                        response.setHeader("ETag", String.format("\"%s\"", sha1));
+                    } else {
+                        sha1 = "";
+                    }
+
+                    if (etag != null && etag.equals(String.format("\"%s\"", sha1))) {
+                        _304Count.incrementAndGet();
+                        response.setStatus(304);
+                        baseRequest.setHandled(true);
+                    } else {
+                        super.handle(target, baseRequest, request, response);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    throw e;
                 }
 
             } else {

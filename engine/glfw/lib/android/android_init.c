@@ -65,6 +65,8 @@ int g_NumAppCommands = 0;
 struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
 int g_NumAppInputEvents = 0;
 pthread_t g_MainThread = 0;
+bool g_AppResumed = false;
+bool g_AppFocused = false;
 
 static void initThreads( void )
 {
@@ -190,12 +192,33 @@ void computeIconifiedState()
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
     // Iconified unless opened, resumed (not paused)
-    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWinAndroid.paused && _glfwWinAndroid.has_window != 0);
+
+    // A good detailed overview over the recommended app flow is found here:
+    //   https://developer.nvidia.com/fixing-common-android-lifecycle-issues-games
+    _glfwWin.iconified = !(g_AppResumed && g_AppFocused && _glfwWinAndroid.surface != EGL_NO_SURFACE);
 }
 
 GLFWAPI int32_t glfwAndroidWindowOpened()
 {
     return _glfwWin.opened;
+}
+
+GLFWAPI int32_t glfwAndroidVerifySurface()
+{
+    // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
+    // Verifying the state of the surface is worth it.
+    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
+    {
+        EGLint error = eglGetError();
+        int32_t result = _glfwAndroidVerifySurfaceError(error);
+        if (!result)
+        {
+            destroy_gl_surface(&_glfwWinAndroid);
+            _glfwWin.iconified = 1;
+            return result;
+        }
+    }
+    return 1; // surface is ok
 }
 
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
@@ -207,7 +230,6 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_INIT_WINDOW:
         _glfwWin.opened = 1;
-        computeIconifiedState();
         break;
     case APP_CMD_TERM_WINDOW:
         if (!_glfwInitialized) {
@@ -228,16 +250,17 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
 
             spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
         }
-        _glfwWinAndroid.has_window = 0;
         computeIconifiedState();
         break;
     case APP_CMD_GAINED_FOCUS:
+        g_AppFocused = true;
         computeIconifiedState();
         break;
     case APP_CMD_LOST_FOCUS:
         if (g_KeyboardActive) {
             _glfwShowKeyboard(0, 0, 0);
         }
+        g_AppFocused = false;
         computeIconifiedState();
         break;
     case APP_CMD_START:
@@ -246,7 +269,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_RESUME:
         _glfwWin.active = 1;
-        _glfwWinAndroid.paused = 0;
+        g_AppResumed = true;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
@@ -259,7 +282,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         // See _glfwPlatformSwapBuffers for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
-        _glfwWinAndroid.paused = 1;
+        g_AppResumed = false;
         _glfwWin.active = 0;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);

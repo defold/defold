@@ -21,16 +21,23 @@
 #include <algorithm>
 
 #include <crash/crash.h>
+#include <dlib/buffer.h>
 #include <dlib/dlib.h>
+#include <dlib/dns.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/profile.h>
-#include <dlib/time.h>
-#include <dlib/math.h>
-#include <dlib/path.h>
-#include <dlib/sys.h>
 #include <dlib/http_client.h>
-#include <dlib/buffer.h>
+#include <dlib/log.h>
+#include <dlib/math.h>
+#include <dlib/memprofile.h>
+#include <dlib/path.h>
+#include <dlib/profile.h>
+#include <dlib/socket.h>
+#include <dlib/sslsocket.h>
+#include <dlib/sys.h>
+#include <dlib/thread.h>
+#include <dlib/time.h>
+#include <graphics/graphics.h>
 #include <extension/extension.h>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
@@ -97,6 +104,8 @@ extern "C" {
 namespace dmEngine
 {
 #define SYSTEM_SOCKET_NAME "@system"
+
+    dmEngineService::HEngineService g_EngineService = 0;
 
     void GetWorldTransform(void* user_data, Point3& position, Quat& rotation)
     {
@@ -706,6 +715,9 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
 
+        dmResourceArchive::ClearArchiveLoaders(); // in case we've rebooted
+        dmResourceArchive::RegisterDefaultArchiveLoader();
+
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -717,7 +729,11 @@ namespace dmEngine
 
         int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
         if (liveupdate_enable)
+        {
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
+
+            dmLiveUpdate::RegisterArchiveLoaders();
+        }
 
 #if defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
@@ -797,7 +813,7 @@ namespace dmEngine
 #if defined(__EMSCRIPTEN__)
         sound_params.m_UseThread = false;
 #else
-        sound_params.m_UseThread = true;
+        sound_params.m_UseThread = dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) != 0;
 #endif
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
@@ -997,7 +1013,7 @@ namespace dmEngine
 
         if (!LoadBootstrapContent(engine, engine->m_Config))
         {
-            dmLogWarning("Unable to load bootstrap data.");
+            dmLogError("Unable to load bootstrap data.");
             goto bail;
         }
 
@@ -1781,33 +1797,61 @@ bail:
     }
 }
 
-
-dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
+void dmEngineInitialize()
 {
-    dmEngineService::HEngineService engine_service = 0;
+    dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
+
+#if DM_RELEASE
+    dLib::SetDebugMode(false);
+#endif
+    dmHashEnableReverseHash(dLib::IsDebugMode());
+
+    dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+    dmDDF::RegisterAllTypes();
+    dmSocket::Initialize();
+    dmSSLSocket::Initialize();
+    dmDNS::Initialize();
+    dmMemProfile::Initialize();
+    dmProfile::Initialize(256, 1024 * 16, 128);
+    dmLogParams params;
+    dmLogInitialize(&params);
 
     if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
     {
         uint16_t engine_port = dmEngineService::GetServicePort(8001);
-        engine_service = dmEngineService::New(engine_port);
+        dmEngine::g_EngineService = dmEngineService::New(engine_port);
     }
+}
 
+void dmEngineFinalize()
+{
+    if (dmEngine::g_EngineService)
+    {
+        dmEngineService::Delete(dmEngine::g_EngineService);
+    }
+    dmGraphics::Finalize();
+    dmLogFinalize();
+    dmProfile::Finalize();
+    dmMemProfile::Finalize();
+    dmDNS::Finalize();
+    dmSSLSocket::Finalize();
+    dmSocket::Finalize();
+}
+
+dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
+{
     if (!dmGraphics::Initialize())
     {
         dmLogError("Could not initialize graphics.");
         return 0;
     }
 
-    dmEngine::HEngine engine = dmEngine::New(engine_service);
+    dmEngine::HEngine engine = dmEngine::New(dmEngine::g_EngineService);
     bool initialized = dmEngine::Init(engine, argc, argv);
 
     if (!initialized)
     {
-        if (engine_service)
-        {
-            dmEngineService::Delete(engine_service);
-        }
-
+        // Leave cleaning up of engine service to the finalize call
         Delete(engine);
         return 0;
     }
@@ -1817,11 +1861,6 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
-
-    if (engine->m_EngineService)
-    {
-        dmEngineService::Delete(engine->m_EngineService);
-    }
 
     Delete(engine);
 }

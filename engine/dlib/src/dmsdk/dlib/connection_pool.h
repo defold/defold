@@ -30,13 +30,13 @@ namespace dmDNS
 }
 
 /*# SDK Connection pool API documentation
- * [file:<dmsdk/dlib/connection_pool.h>]
  *
  * Connection pool
  *
  * @document
  * @name Connection Pool
  * @namespace dmConnectionPool
+ * @path engine/dlib/src/dmsdk/dlib/connection_pool.h
  */
 
 namespace dmConnectionPool
