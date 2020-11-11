@@ -203,6 +203,24 @@ GLFWAPI int32_t glfwAndroidWindowOpened()
     return _glfwWin.opened;
 }
 
+GLFWAPI int32_t glfwAndroidVerifySurface()
+{
+    // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
+    // Verifying the state of the surface is worth it.
+    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
+    {
+        EGLint error = eglGetError();
+        int32_t result = _glfwAndroidVerifySurfaceError(error);
+        if (!result)
+        {
+            destroy_gl_surface(&_glfwWinAndroid);
+            _glfwWin.iconified = 1;
+            return result;
+        }
+    }
+    return 1; // surface is ok
+}
+
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
 
@@ -212,7 +230,6 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_INIT_WINDOW:
         _glfwWin.opened = 1;
-        computeIconifiedState();
         break;
     case APP_CMD_TERM_WINDOW:
         if (!_glfwInitialized) {
