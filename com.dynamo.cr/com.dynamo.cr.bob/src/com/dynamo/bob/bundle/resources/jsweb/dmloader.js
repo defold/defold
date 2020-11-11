@@ -659,6 +659,12 @@ var Module = {
         Module.persistentStorage = params["persistent_storage"];
         Module["TOTAL_MEMORY"] = params["custom_heap_size"];
 
+        var fullScreenContainer = params["full_screen_container"];
+        if (typeof fullScreenContainer === "string") {
+            fullScreenContainer = document.querySelector(fullScreenContainer);
+        }
+        Module.fullScreenContainer = fullScreenContainer || Module.canvas;
+
         if (Module.hasWebGLSupport()) {
             // Override game keys
             CanvasInput.addToCanvas(Module.canvas);
