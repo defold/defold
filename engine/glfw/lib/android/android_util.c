@@ -233,6 +233,13 @@ void create_gl_surface(_GLFWwin_android* win)
         if (surface == EGL_NO_SURFACE)
         {
             surface = eglCreateWindowSurface(win->display, win->config, win->app->window, NULL);
+            EGLint error = eglGetError();
+            if (!_glfwAndroidVerifySurfaceError(error))
+            {
+                LOGE("Failed to create window surface due to bad window. Trying again later.");
+                win->surface = EGL_NO_SURFACE;
+                return;
+            }
             CHECK_EGL_ERROR
         }
         win->surface = surface;
@@ -311,3 +318,28 @@ void unacquire_gl_aux_context(_GLFWwin_android* win)
 }
 
 
+int32_t _glfwAndroidVerifySurfaceError(EGLint error)
+{
+    // Error checking inspired by Android implementation of GLSurfaceView:
+    // https://android.googlesource.com/platform/frameworks/base/+/master/opengl/java/android/opengl/GLSurfaceView.java
+    if (error != EGL_SUCCESS) {
+
+        if (error == EGL_CONTEXT_LOST) {
+            LOGE("egl* function failed due to EGL_CONTEXT_LOST!");
+            return 0;
+        } else if (error == EGL_BAD_SURFACE) {
+            LOGE("egl* function failed due to EGL_BAD_SURFACE, destroy surface and wait for recreation.");
+            return 0;
+        } else {
+            // Other errors typically mean that the current surface is bad,
+            // probably because the SurfaceView surface has been destroyed,
+            // but we haven't been notified yet.
+            // Ignore error, but log for debugging purpose.
+            LOGW("egl* function failed, eglGetError: %X", error);
+            return 0;
+        }
+    }
+
+    // Surface is ok
+    return 1;
+}
