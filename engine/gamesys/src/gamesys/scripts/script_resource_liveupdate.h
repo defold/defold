@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -97,7 +97,7 @@ namespace dmLiveUpdate
     /*# create, verify, and store a manifest to device
      *
      * Create a new manifest from a buffer. The created manifest is verified
-     * by ensuring that the manifest was signed using the bundled public/private 
+     * by ensuring that the manifest was signed using the bundled public/private
      * key-pair during the bundle process and that the manifest supports the current
      * running engine version. Once the manifest is verified it is stored on device.
      * The next time the engine starts (or is rebooted) it will look for the stored
@@ -125,7 +125,7 @@ namespace dmLiveUpdate
      * - `resource.LIVEUPDATE_FORMAT_ERROR`
      *
      * @examples
-     * 
+     *
      * How to download a manifest with HTTP and store it on device.
      *
      * ```lua
@@ -148,6 +148,135 @@ namespace dmLiveUpdate
      */
     int Resource_StoreManifest(lua_State* L);
 
+
+    /*# register and store a live update zip file
+     *
+     * Stores a zip file and uses it for live update content.
+     * The path is renamed and stored in the (internal) live update location
+     *
+     * @name resource.store_archive
+     * @param path [type:string] the path to the original file on disc
+     * @param callback [type:function(self, status)] the callback function
+     * executed after the storage has completed
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `status`
+     * : [type:constant] the status of the store operation (See resource.store_manifest)
+     *
+     * @examples
+     *
+     * How to download an archive with HTTP and store it on device.
+     *
+     * ```lua
+     * local LIVEUPDATE_URL = <a file server url>
+     *
+     * -- This can be anything, but you should keep the platform bundles apart
+     * local ZIP_FILENAME = 'defold.resourcepack.zip'
+     *
+     * local APP_SAVE_DIR = "LiveUpdateDemo"
+     *
+     * function init(self)
+     *     self.proxy = "levels#level1"
+     *
+     *     print("INIT: is_using_liveupdate_data:", resource.is_using_liveupdate_data())
+     *     -- let's download the archive
+     *     msg.post("#", "attempt_download_archive")
+     * end
+     *
+     * -- helper function to store headers from the http request (e.g. the ETag)
+     * local function store_http_response_headers(name, data)
+     *     local path = sys.get_save_file(APP_SAVE_DIR, name)
+     *     sys.save(path, data)
+     * end
+     *
+     * local function load_http_response_headers(name)
+     *     local path = sys.get_save_file(APP_SAVE_DIR, name)
+     *     return sys.load(path)
+     * end
+     *
+     * -- returns headers that can potentially generate a 304
+     * -- without redownloading the file again
+     * local function get_http_request_headers(name)
+     *     local data = load_http_response_headers(name)
+     *     local headers = {}
+     *     for k, v in pairs(data) do
+     *         if string.lower(k) == 'etag' then
+     *             headers['If-None-Match'] = v
+     *         elseif string.lower(k) == 'last-modified' then
+     *             headers['If-Modified-Since'] = v
+     *         end
+     *     end
+     *     return headers
+     * end
+     *
+     * local function store_archive_cb(self, path, status)
+     *     if status == true then
+     *         print("Successfully stored live update archive!", path)
+     *         sys.reboot()
+     *     else
+     *         print("Failed to store live update archive, ", path)
+     *         -- remove the path
+     *     end
+     * end
+     *
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("attempt_download_archive") then
+     *
+     *         -- by supplying the ETag, we don't have to redownload the file again
+     *         -- if we already have downloaded it.
+     *         local headers = get_http_request_headers(ZIP_FILENAME .. '.json')
+     *         if not resource.is_using_liveupdate_data() then
+     *             headers = {} -- live update data has been purged, and we need do a fresh download
+     *         end
+     *
+     *         local path = sys.get_save_file(APP_SAVE_DIR, ZIP_FILENAME)
+     *         local options = {
+     *             path = path,        -- a temporary file on disc. will be removed upon successful liveupdate storage
+     *             ignore_cache = true -- we don't want to store a (potentially large) duplicate in our http cache
+     *         }
+     *
+     *         local url = LIVEUPDATE_URL .. ZIP_FILENAME
+     *         print("Downloading", url)
+     *         http.request(url, "GET", function(self, id, response)
+     *             if response.status == 304 then
+     *                 print(string.format("%d: Archive zip file up-to-date", response.status))
+     *             elseif response.status == 200 and response.error == nil then
+     *                 -- register the path to the live update system
+     *                 resource.store_archive(response.path, store_archive_cb)
+     *                 -- at this point, the "path" has been moved internally to a different location
+     *
+     *                 -- save the ETag for the next run
+     *                 store_http_response_headers(ZIP_FILENAME .. '.json', response.headers)
+     *             else
+     *                 print("Error when downloading", url, "to", path, ":", response.status, response.error)
+     *             end
+     *
+     *             -- If we got a 200, we would call store_archive_cb() then reboot
+     *             -- Second time, if we get here, it should be after a 304, and then
+     *             -- we can load the missing resources from the liveupdate archive
+     *             if resource.is_using_liveupdate_data() then
+     *                 msg.post(self.proxy, "load")
+     *             end
+     *         end,
+     *         headers, nil, options)
+     * ```
+     *
+     */
+    int Resource_StoreArchive(lua_State* L);
+
+
+    /*# is any liveupdate data mounted and currently in use
+     *
+     * Is any liveupdate data mounted and currently in use?
+     * This can be used to determine if a new manifest or zip file should be downloaded.
+     *
+     * @name resource.is_using_liveupdate_data
+     * @return bool [type:bool] true if a liveupdate archive (any format) has been loaded
+     * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
+     */
+    int Resource_IsUsingLiveUpdateData(lua_State* L);
 };
 
 #endif // H_SCRIPT_RESOURCE_LIVEUPDATE

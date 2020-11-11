@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -51,6 +51,7 @@ namespace dmHttpService
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
         dmHttpDDF::HttpRequest*   m_Request;
+        const char*           m_Filepath;
         int                   m_Status;
         dmArray<char>         m_Response;
         dmArray<char>         m_Headers;
@@ -167,19 +168,19 @@ namespace dmHttpService
 
     static void SendResponse(const dmMessage::URL* requester, int status,
                              const char* headers, uint32_t headers_length,
-                             const char* response, uint32_t response_length)
+                             const char* response, uint32_t response_length,
+                             const char* filepath)
     {
         dmHttpDDF::HttpResponse resp;
         resp.m_Status = status;
-        resp.m_Headers = (uint64_t) headers;
         resp.m_HeadersLength = headers_length;
-        resp.m_Response = (uint64_t) response;
         resp.m_ResponseLength = response_length;
 
         resp.m_Headers = (uint64_t) malloc(headers_length);
         memcpy((void*) resp.m_Headers, headers, headers_length);
         resp.m_Response = (uint64_t) malloc(response_length);
         memcpy((void*) resp.m_Response, response, response_length);
+        resp.m_Path = filepath;
 
         if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
         {
@@ -197,7 +198,7 @@ namespace dmHttpService
         dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
-            SendResponse(requester, 0, 0, 0, 0, 0);
+            SendResponse(requester, 0, 0, 0, 0, 0, 0);
             return;
         }
         if (url.m_Path[0] == '\0') {
@@ -220,7 +221,7 @@ namespace dmHttpService
             params.m_HttpWrite = &HttpWrite;
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
-            params.m_HttpCache = worker->m_Service->m_HttpCache;
+            params.m_HttpCache = request->m_IgnoreCache ? 0 : worker->m_Service->m_HttpCache;
             params.m_DNSChannel = worker->m_DNSChannel;
 
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
@@ -234,21 +235,23 @@ namespace dmHttpService
         worker->m_Response.SetCapacity(DEFAULT_RESPONSE_BUFFER_SIZE);
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
+        worker->m_Filepath = request->m_Path;
+
         if (worker->m_Client) {
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
 
             worker->m_Request = request;
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
-                SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size());
+                SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             } else {
                 // TODO: Error codes to lua?
                 dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
-                SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size());
+                SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             }
         } else {
             // TODO: Error codes to lua?
-            SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size());
+            SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             dmLogError("Unable to create HTTP connection to '%s'. No route to host?", request->m_Url);
         }
     }

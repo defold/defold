@@ -49,7 +49,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp' + platform_source,
         'uselib': ' '.join(req_libs),
-        'uselib_local': 'dlib mbedtls',
+        'uselib_local': 'dlib mbedtls zip',
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,
@@ -137,6 +137,7 @@ def build(bld):
                 embed_source = ['data/flickr.json'], extra_includes = ['.'])
     create_test(bld, 'test_utf8', extra_libs = ['THREAD'])
 
+    create_test(bld, 'test_zip', extra_features = ['embed'], extra_libs = ['THREAD'], embed_source = ['data/foo.zip'])
     create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/foo.gz', 'data/foo.deflate'])
 

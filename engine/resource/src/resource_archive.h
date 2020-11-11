@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,10 +18,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <dlib/align.h>
+#include <dlib/path.h>
 
-// Maximum hash length convention. This size should large enough.
-// If this length changes the VERSION needs to be bumped.
-#define DMRESOURCE_MAX_HASH (64) // Equivalent to 512 bits
+namespace dmResource
+{
+    struct Manifest;
+}
 
 namespace dmResourceArchive
 {
@@ -32,22 +34,19 @@ namespace dmResourceArchive
      */
     const static uint32_t VERSION = 4;
 
-    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+    // Maximum hash length convention. This size should large enough.
+    // If this length changes the VERSION needs to be bumped.
+    // Equivalent to 512 bits
+    const static uint32_t MAX_HASH = 64;
 
-    typedef struct ArchiveIndex* HArchiveIndex;
-
-    enum Result
+    enum EntryFlag
     {
-        RESULT_OK = 0,
-        RESULT_NOT_FOUND = 1,
-        RESULT_VERSION_MISMATCH = -1,
-        RESULT_IO_ERROR = -2,
-        RESULT_MEM_ERROR = -3,
-        RESULT_OUTBUFFER_TOO_SMALL = -4,
-        RESULT_ALREADY_STORED = -5,
-        RESULT_UNKNOWN = -1000,
+        ENTRY_FLAG_ENCRYPTED        = 1 << 0,
+        ENTRY_FLAG_COMPRESSED       = 1 << 1,
+        ENTRY_FLAG_LIVEUPDATE_DATA  = 1 << 2,
     };
 
+    // part of the .arci file format
     struct DM_ALIGNED(16) EntryData
     {
         EntryData() :
@@ -61,6 +60,91 @@ namespace dmResourceArchive
         uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
         uint32_t m_Flags;
     };
+
+    enum Result
+    {
+        RESULT_OK = 0,
+        RESULT_NOT_FOUND = 1,
+        RESULT_VERSION_MISMATCH = -1,
+        RESULT_IO_ERROR = -2,
+        RESULT_MEM_ERROR = -3,
+        RESULT_OUTBUFFER_TOO_SMALL = -4,
+        RESULT_ALREADY_STORED = -5,
+        RESULT_UNKNOWN = -1000,
+    };
+
+    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+
+    typedef Result (*FManifestLoad)(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** manifest);
+    typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* archive_name, const char* application_path, const char* application_support_path, HArchiveIndexContainer previous, HArchiveIndexContainer* out);
+    typedef Result (*FArchiveUnload)(HArchiveIndexContainer);
+    typedef Result (*FArchiveFindEntry)(HArchiveIndexContainer, const uint8_t*, uint32_t, EntryData*);
+    typedef Result (*FArchiveRead)(HArchiveIndexContainer, const uint8_t*, uint32_t, const EntryData*, void*);
+
+    struct ArchiveLoader
+    {
+        FManifestLoad       m_LoadManifest;
+        FArchiveLoad        m_Load;
+        FArchiveUnload      m_Unload;
+        FArchiveFindEntry   m_FindEntry;
+        FArchiveRead        m_Read;
+    };
+
+    // For memory mapped files (or files read directly into memory)
+    struct DM_ALIGNED(16) ArchiveIndex
+    {
+        ArchiveIndex();
+
+        uint32_t m_Version;
+        uint32_t :32;
+        uint64_t m_Userdata;
+        uint32_t m_EntryDataCount;
+        uint32_t m_EntryDataOffset;
+        uint32_t m_HashOffset;
+        uint32_t m_HashLength;
+        uint8_t  m_ArchiveIndexMD5[16]; // 16 bytes is the size of md5
+    };
+
+    // Used if the archive is loaded from file (i.e a bundled archive of live update archive)
+    struct ArchiveFileIndex
+    {
+        ArchiveFileIndex()
+        {
+            memset(this, 0, sizeof(ArchiveFileIndex));
+        }
+        char        m_Path[DMPATH_MAX_PATH];
+        uint8_t*    m_Hashes;           // Sorted list of filenames (i.e. hashes)
+        EntryData*  m_Entries;          // Indices of this list matches indices of m_Hashes
+        FILE*       m_FileResourceData; // game.arcd file handle
+        uint8_t*    m_ResourceData;     // mem-mapped game.arcd
+        uint32_t    m_ResourceSize;     // the size of the memory mapped region
+        bool        m_IsMemMapped;      // Is the data memory mapped?
+    };
+
+    struct ArchiveIndexContainer
+    {
+        ArchiveIndexContainer()
+        {
+            memset(this, 0, sizeof(ArchiveIndexContainer));
+        }
+
+        ArchiveIndexContainer* m_Next;
+
+        ArchiveIndex*       m_ArchiveIndex;     // this could be mem-mapped or loaded into memory from file
+        ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
+
+        ArchiveLoader       m_Loader;
+        void*               m_UserData;         // private to the loader
+
+        uint32_t m_ArchiveIndexSize;            // kept for unmapping
+        uint8_t  m_IsMemMapped:1; // if the m_ArchiveIndex is memory mapped
+        uint8_t  :7;
+    };
+
+    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+
+    typedef struct ArchiveIndex* HArchiveIndex;
+
 
     struct DM_ALIGNED(16) LiveUpdateResourceHeader {
         uint32_t m_Size;
@@ -92,6 +176,54 @@ namespace dmResourceArchive
         LiveUpdateResourceHeader* m_Header;
     };
 
+    // Clears all registered archive loaders
+    void ClearArchiveLoaders();
+
+    /*#
+     * Registers an archive loader
+     */
+    void RegisterArchiveLoader(ArchiveLoader loader);
+
+    /*#
+     * Registers the default archive loader
+     */
+    void RegisterDefaultArchiveLoader();
+
+    // Sets the default format finder/reader for an archive (currently used for the builtins manifest/archive)
+    void SetDefaultReader(HArchiveIndexContainer archive);
+
+    // Reused by other loaders
+    // Loads a .dmanifest from memory
+    Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out);
+    // Loads a .dmanifest
+    Result LoadManifest(const char* path, dmResource::Manifest** out);
+
+    // Loads a .arci and a .arcd into an HArchiveContainer
+    Result LoadArchiveFromFile(const char* index_path, const char* data_path, HArchiveIndexContainer* out);
+
+    // Finds an entry in a single archive
+    Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry);
+
+    // Decrypts a buffer
+    Result DecryptBuffer(void* buffer, uint32_t buffer_len);
+
+    // Decompressed a buffer
+    Result DecompressBuffer(const void* compressed_buf, uint32_t compressed_size, void* buffer, uint32_t buffer_len);
+
+    // Reads an entry from a single archive
+    Result ReadEntryFromArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const EntryData* entry, void* buffer);
+
+    // Calls each loader in sequence
+
+    /*# Loads the archives, calling each registered loader in sequence
+     * Skipping the ones where the signature differs from the base bundle
+     */
+    Result LoadArchives(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** manifest, HArchiveIndexContainer* out);
+
+    /*# Unloads the archives, calling each registered loader in sequence
+     */
+    Result UnloadArchives(HArchiveIndexContainer archive);
+
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
      * archive is not needed.
@@ -102,34 +234,30 @@ namespace dmResourceArchive
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result WrapArchiveBuffer(const void* index_buffer, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
+                             const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
+                             const char* lu_resource_filename,
+                             const void* lu_resource_data, uint32_t lu_resourcedata_size,
+                             FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
 
     /**
-     * Load archive from filename. Only the index data is loaded into memory.
-     * Resources are loaded on-demand using Read2() function.
-     * @param file_name archive index to load
-     * @param archive archive index container handle
-     * @return RESULT_OK on success
-     */
-    Result LoadArchive(const char* index_file_name, const char* data_file_name, const char* lu_data_file_path, HArchiveIndexContainer* archive);
-
-    /**
-     * Find resource entry within archive
+     * Find resource entry within the loaded archives
      * @param archive archive index handle
      * @param hash resource hash digest to find
+     * @param out_archive the archive in which the resource was first found
      * @param entry entry data
      * @return RESULT_OK on success
      */
-    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry);
+    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, HArchiveIndexContainer* out_archive, EntryData* entry);
 
     /**
-     * Read resource
+     * Read resource from the given archive
      * @param archive archive index handle
      * @param entry_data entry data
      * @param buffer buffer to load to
      * @return RESULT_OK on success
      */
-    Result Read(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer);
+    Result Read(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry_data, void* buffer);
 
     /**
      * Delete archive index. Only required for archives created with LoadArchive function
@@ -137,12 +265,6 @@ namespace dmResourceArchive
      */
     void Delete(HArchiveIndexContainer &archive);
 
-    /**
-     * Get total entries, i.e. files/resources in archive
-     * @param archive archive index handle
-     * @return entry count
-     */
-    uint32_t GetEntryCount(HArchiveIndexContainer archive);
 
     /**
      * Make a deep-copy of the existing archive index within archive container and return copy on successful insertion of LiveUpdate resource in the archive
@@ -154,7 +276,7 @@ namespace dmResourceArchive
      * @param out_new_index reference to HArchiveIndex that will cointain the new archive index (on success)
      * @return RESULT_OK on success
      */
-    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index);
+    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const char* tmp_index_path, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index);
 
     /**
      * Set new archive index in archive container. Replace existing archive index if set
@@ -164,20 +286,11 @@ namespace dmResourceArchive
      */
     void SetNewArchiveIndex(HArchiveIndexContainer archive_container, HArchiveIndex new_index, bool mem_mapped);
 
-    /**
-     * Reload the liveupdate archive index using the bundled archive as starting point
-     * Find all liveupdate entries in current archive index and cache them
-     * Make a copy of the (new) bundled archive index with space allocated for the cached liveupdate entries
-     * Sorted insertion of liveupdate entries into the bundled archive copy
-     * The archive now has the entries from the bundled index, as well as the liveupdate entries
-     */
-    Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resource_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info);
+    // For debugging purposes only
+    void DebugArchiveIndex(HArchiveIndexContainer archive);
 
-    /**
-     * Compare the archive container id, to decide if a reload is needed.
-     */
-    int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len);
-
+    // for testing ascending order
+    int VerifyArchiveIndex(HArchiveIndexContainer archive);
 }  // namespace dmResourceArchive
 
 #endif

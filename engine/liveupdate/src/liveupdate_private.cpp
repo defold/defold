@@ -1,14 +1,16 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+#include <sys/stat.h>
 
 #include "liveupdate.h"
 #include "liveupdate_private.h"
@@ -22,7 +24,6 @@ namespace dmLiveUpdate
 {
     uint32_t HexDigestLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
     {
-
         return dmResource::HashLength(algorithm) * 2U;
     }
 
@@ -62,18 +63,21 @@ namespace dmLiveUpdate
             return 0;
         }
 
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+        uint32_t hash_len = dmResource::HashLength(algorithm);
+
         HResourceEntry entry = FindResourceEntry(manifest, urlHash);
         if (entry != NULL)
         {
             for (uint32_t i = 0; i < entry->m_Dependants.m_Count; ++i)
             {
-                uint8_t* resourceHash = entry->m_Dependants.m_Data[i].m_Data.m_Data;
-                dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resourceHash, NULL);
+                uint8_t* resource_hash = entry->m_Dependants.m_Data[i].m_Data.m_Data;
+                dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
                 if (result != dmResourceArchive::RESULT_OK)
                 {
                     if (entries != NULL && resources < entries_size)
                     {
-                        entries[resources] = resourceHash;
+                        entries[resources] = resource_hash;
                     }
 
                     resources += 1;
@@ -118,5 +122,11 @@ namespace dmLiveUpdate
         {
             dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
         }
+    }
+
+    bool FileExists(const char* path)
+    {
+        struct stat file_stat;
+        return stat(path, &file_stat) == 0;
     }
 };
