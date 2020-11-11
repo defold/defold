@@ -709,11 +709,11 @@ var Module = {
         }
     },
 
-    toggleFullscreen: function() {
+    toggleFullscreen: function(element) {
         if (GLFW.isFullscreen) {
             GLFW.cancelFullScreen();
         } else {
-            GLFW.requestFullScreen();
+            GLFW.requestFullScreen(element);
         }
     },
 
