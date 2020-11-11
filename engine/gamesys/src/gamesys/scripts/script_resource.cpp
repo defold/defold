@@ -46,6 +46,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.material
+ * @param path [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -69,6 +70,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.font
+ * @param path [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -92,6 +94,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.texture
+ * @param path [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -115,6 +118,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.atlas
+ * @param path [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -138,6 +142,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.buffer
+ * @param path [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -161,6 +166,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.tile_source
+ * @param path [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -666,8 +672,10 @@ static const luaL_reg Module_methods[] =
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
+    {"is_using_liveupdate_data", dmLiveUpdate::Resource_IsUsingLiveUpdateData},
     {"store_resource", dmLiveUpdate::Resource_StoreResource},
     {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
+    {"store_archive", dmLiveUpdate::Resource_StoreArchive},
 
     {0, 0}
 };

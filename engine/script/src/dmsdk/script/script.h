@@ -38,13 +38,13 @@ namespace dmJson {
 namespace dmScript
 {
     /*# SDK Script API documentation
-     * [file:<dmsdk/script/script.h>]
      *
      * Built-in scripting functions.
      *
      * @document
      * @name Script
      * @namespace dmScript
+     * @path engine/dlib/src/dmsdk/script/script.h
      */
 
     /**
@@ -187,79 +187,35 @@ namespace dmScript
      * How to create a Lua callback
      *
      * ```cpp
-     * struct LuaCallbackInfo
-     * {
-     *     LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
-     *     lua_State* m_L;
-     *     int        m_Callback;
-     *     int        m_Self;
-     * };
+     * dmScript::LuaCallbackInfo* g_MyCallbackInfo = 0;
      *
-     * static void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+     * static void InvokeCallback(dmScript::LuaCallbackInfo* cbk)
      * {
-     *     if(cbk->m_Callback != LUA_NOREF)
+     *     if (!dmScript::IsCallbackValid(cbk))
+     *         return;
+     *
+     *     lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+     *     DM_LUA_STACK_CHECK(L, 0)
+     *
+     *     if (!dmScript::SetupCallback(cbk))
      *     {
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
-     *     }
-     *
-     *     cbk->m_L = dmScript::GetMainThread(L);
-     *
-     *     luaL_checktype(L, index, LUA_TFUNCTION);
-     *     lua_pushvalue(L, index);
-     *     cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
-     *
-     *     dmScript::GetInstance(L);
-     *     cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-     * }
-     *
-     * static void UnregisterCallback(LuaCallbackInfo* cbk)
-     * {
-     *     if(cbk->m_Callback != LUA_NOREF)
-     *     {
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
-     *         cbk->m_Callback = LUA_NOREF;
-     *     }
-     * }
-     *
-     * LuaCallbackInfo g_MyCallbackInfo;
-     *
-     * static void InvokeCallback(LuaCallbackInfo* cbk)
-     * {
-     *     if(cbk->m_Callback == LUA_NOREF)
-     *     {
+     *         dmLogError("Failed to setup callback");
      *         return;
      *     }
-     *
-     *     lua_State* L = cbk->m_L;
-     *     int top = lua_gettop(L);
-     *
-     *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
-     *
-     *     // Setup self (the script instance)
-     *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self);
-     *     lua_pushvalue(L, -1);
-     *
-     *     dmScript::SetInstance(L);
      *
      *     lua_pushstring(L, "Hello from extension!");
      *     lua_pushnumber(L, 76);
      *
-     *     int number_of_arguments = 3; // instance + 2
-     *     int ret = lua_pcall(L, number_of_arguments, 0, 0);
-     *     if(ret != 0) {
-     *         dmLogError("Error running callback: %s", lua_tostring(L, -1));
-     *         lua_pop(L, 1);
-     *     }
-     *     assert(top == lua_gettop(L));
+     *     dmScript::PCall(L, 3, 0); // instance + 2
+     *
+     *     dmScript::TeardownCallback(cbk);
      * }
      *
      * static int Start(lua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 0);
      *
-     *     RegisterCallback(L, 1, &g_MyCallbackInfo);
+     *     g_MyCallbackInfo = dmScript::CreateCallback(L, 1);
      *
      *     return 0;
      * }
@@ -271,8 +227,10 @@ namespace dmScript
      *     static int count = 0;
      *     if( count++ == 5 )
      *     {
-     *         InvokeCallback(&g_MyCallbackInfo);
-     *         UnregisterCallback(&g_MyCallbackInfo);
+     *         InvokeCallback(g_MyCallbackInfo);
+     *         if (g_MyCallbackInfo)
+     *             dmScript::DestroyCallback(g_MyCallbackInfo);
+     *         g_MyCallbackInfo = 0;
      *     }
      *     return 0;
      * }

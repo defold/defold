@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -127,7 +127,7 @@ namespace dmResource
         Result r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
         if (r != RESULT_OK)
         {
-            dmLogError("Error when mapping data file, result = %i", r);
+            dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
             return RESULT_IO_ERROR;
         }
 
@@ -181,7 +181,11 @@ namespace dmResource
             }
         }
 
-        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, data_map, lu_data_path, lu_data_map, lu_data_file, archive);
+        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, true,
+                                                          data_map, data_length, true,
+                                                          lu_data_path,
+                                                          lu_data_map, lu_data_length,
+                                                          lu_data_file, archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
             UnmapAsset(index_asset);

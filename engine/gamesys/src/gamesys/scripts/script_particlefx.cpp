@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -75,52 +75,39 @@ namespace dmGameSystem
      * @variable
      */
 
-    struct EmitterStateChangedCallbackArgs
-    {
-        EmitterStateChangedCallbackArgs(dmhash_t component_id, dmhash_t emitter_id, dmParticle::EmitterState emitter_state)
-            : m_ComponentId(component_id), m_EmitterId(emitter_id), m_EmitterState(emitter_state)
-        {}
-        dmhash_t m_ComponentId;
-        dmhash_t m_EmitterId;
-        dmParticle::EmitterState m_EmitterState;
-    };
-
-    static void EmitterStateChangedCallbackArgsCB(lua_State* L, void* user_args)
-    {
-        EmitterStateChangedCallbackArgs* args = (EmitterStateChangedCallbackArgs*)user_args;
-        dmScript::PushHash(L, args->m_ComponentId);
-        dmScript::PushHash(L, args->m_EmitterId);
-        lua_pushnumber(L, args->m_EmitterState);
-    }
-
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
     {
+
         EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
 
-        if (data.m_CallbackInfo)
+        if (!dmScript::IsCallbackValid(data.m_CallbackInfo))
         {
-            if (!dmScript::IsCallbackValid(data.m_CallbackInfo))
-            {
-                return;
-            }
-
-            EmitterStateChangedCallbackArgs args(data.m_ComponentId, emitter_id, emitter_state);
-
-            if (!dmScript::InvokeCallback(data.m_CallbackInfo, EmitterStateChangedCallbackArgsCB, &args))
-            {
-                dmLogError("Could not run particlefx callback because the instance has been deleted.");
-            }
-
-            // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
-            if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
-            {
-                dmScript::DestroyCallback(data.m_CallbackInfo);
-                data.m_CallbackInfo = 0x0;
-            }
+            return;
         }
-        else
+
+        lua_State* L = dmScript::GetCallbackLuaContext(data.m_CallbackInfo);
+
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (!dmScript::SetupCallback(data.m_CallbackInfo))
         {
-            dmLogError("No callback set for particlefx.");
+            dmScript::DestroyCallback(data.m_CallbackInfo);
+            data.m_CallbackInfo = 0x0;
+            return;
+        }
+
+        dmScript::PushHash(L, data.m_ComponentId);
+        dmScript::PushHash(L, emitter_id);
+        lua_pushnumber(L, emitter_state);
+        dmScript::PCall(L, 4, 0);
+
+        dmScript::TeardownCallback(data.m_CallbackInfo);
+
+        // Release the lua ref if the last emitter belonging to this particlefx har gone to sleep.
+        if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
+        {
+            dmScript::DestroyCallback(data.m_CallbackInfo);
+            data.m_CallbackInfo = 0x0;
         }
     }
 

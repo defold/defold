@@ -17,13 +17,12 @@
 #include "shared_library.h"
 
 /*# SDK Hash API documentation
- * [file:<dmsdk/dlib/hash.h>]
- *
  * Hash functions.
  *
  * @document
  * @name Hash
  * @namespace dmHash
+ * @path engine/dlib/src/dmsdk/dlib/hash.h
  */
 
 /*# dmhash_t type definition

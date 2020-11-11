@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -157,14 +157,22 @@ def _strip_comment_stars(str):
         ret.append(line)
     return '\n'.join(ret)
 
-def _parse_comment(str):
-    str = _strip_comment_stars(str)
+# Converts "<p>text</p>" to "text"
+def _strip_paragraph(text):
+    return text.replace('<p>', '').replace('</p>', '')
+
+def _markdownify(t):
+    t = md.convert(t)
+    return _strip_paragraph(t)
+
+def _parse_comment(text):
+    text = _strip_comment_stars(text)
     # The regexp means match all strings that:
     # * begins with line start, possible whitespace and an @
     # * followed by non-white-space (the tag)
     # * followed by possible spaces
     # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
+    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', text, re.MULTILINE)
 
     name_found = False
     document_comment = False
@@ -182,6 +190,8 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.PROPERTY
         elif tag == 'struct':
             element_type = script_doc_ddf_pb2.STRUCT
+        elif tag == 'class':
+            element_type = script_doc_ddf_pb2.CLASS
         elif tag == 'macro':
             element_type = script_doc_ddf_pb2.MACRO
         elif tag == 'enum':
@@ -192,25 +202,33 @@ def _parse_comment(str):
             document_comment = True
 
     if not name_found:
-        logging.warn('Missing tag @name in "%s"' % str)
+        logging.warn('Missing tag @name in "%s"' % text)
         return None
 
-    desc_start = min(len(str), str.find('\n'))
-    brief = str[0:desc_start]
-    desc_end = min(len(str), str.find('\n@'))
-    description = str[desc_start:desc_end].strip()
+    desc_start = min(len(text), text.find('\n'))
+    brief = text[0:desc_start]
+    desc_end = min(len(text), text.find('\n@'))
+    description = text[desc_start:desc_end].strip()
+    if not brief and description:
+        brief = description.split('.\n')[0]
+        if len(brief) > 50: # trial and error of what fits into a single line
+            brief = brief[:50] + '...'
+    elif not description and brief:
+        description = brief
 
     element = None
 
     if document_comment:
         element = script_doc_ddf_pb2.Info()
-        element.brief = md.convert(brief)
-        element.description = md.convert(description)
+        element.brief = _markdownify(brief)
+        element.description = _markdownify(description)
+        element.file = ''
+        element.path = ''
     else:
         element = script_doc_ddf_pb2.Element()
         element.type = element_type
-        element.brief = md.convert(brief)
-        element.description = md.convert(description)
+        element.brief = _markdownify(brief)
+        element.description = _markdownify(description)
 
     namespace_found = False
     for (tag, value) in lst:
@@ -219,30 +237,62 @@ def _parse_comment(str):
         if tag == 'name':
             element.name = value
         elif tag == 'return':
+            """ Some of the possible variations:
+            @return name
+            @return [type:type]
+            @return [type:type] doc
+            @return name [type:type] doc
+            """
             tmp = value.split(' ', 1)
             if len(tmp) < 2:
                 tmp = [tmp[0], '']
+            if '[type:' in tmp[0]:
+                tmp = ['', value]
             ret = element.returnvalues.add()
             ret.name = tmp[0]
-            ret.doc = md.convert(tmp[1])
+            types, ret.doc = extract_type_from_docstr(tmp[1])
+            if isinstance(types, str):
+                types = [types]
+            ret.types.extend(types)
+            ret.doc = _markdownify(ret.doc)
         elif tag == 'param':
             tmp = value.split(' ', 1)
             if len(tmp) < 2:
                 tmp = [tmp[0], '']
             param = element.parameters.add()
             param.name = tmp[0]
-            param.doc = md.convert(tmp[1])
+            types, param.doc = extract_type_from_docstr(tmp[1])
+            if isinstance(types, str):
+                types = [types]
+            param.types.extend(types)
+            param.doc = _markdownify(param.doc)
+
         elif tag == 'member':
             tmp = value.split(' ', 1)
             if len(tmp) < 2:
                 tmp = [tmp[0], '']
             mem = element.members.add()
             mem.name = tmp[0]
-            mem.doc = md.convert(tmp[1])
+            mem.type, mem.doc = extract_type_from_docstr(tmp[1])
+            mem.doc = _markdownify(mem.doc)
+        elif tag == 'tparam':
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            mem = element.tparams.add()
+            mem.name = tmp[0]
+            mem.type, mem.doc = extract_type_from_docstr(tmp[1])
+            mem.doc = _markdownify(mem.doc)
+
         elif tag == 'examples':
-            element.examples = md.convert(value)
+            element.examples = _markdownify(value)
+        elif tag == 'path':
+            element.path = value
+            index = value.find('dmsdk')
+            if index != -1:
+                element.file = value[index:]
         elif tag == 'replaces':
-            element.replaces = md.convert(value)
+            element.replaces = _markdownify(value)
         elif tag == 'namespace' and document_comment:
             # only care for @namespace in @document comments.
             element.namespace = value
@@ -254,16 +304,18 @@ def _parse_comment(str):
 
     return element
 
-def extract_type_from_docstr(str):
+def extract_type_from_docstr(s):
     # try to extract the type information
-    m = re.search('^\[type:(.*)\] (.*)', str)
-    if m and m.group(1) and m.group(2):
+    m = re.search(r'^\s*(?:\s*\[type:\s*(.*)\])+\s*([\w\W]*)', s)
+    if m and m.group(1):
         type_list = m.group(1).split("|")
         if len(type_list) == 1:
             type_list = type_list[0]
-        return type_list, m.group(2)
+        if m.group(2):
+            return type_list, m.group(2)
+        return type_list, ""
 
-    return "", str
+    return "", s
 
 def is_optional(str):
     m = re.search('^\[(.*)\]', str)
@@ -296,6 +348,8 @@ def _parse_comment_yaml(str):
             element_type = "property"
         elif tag == 'struct':
             element_type = "struct"
+        elif tag == 'class':
+            element_type = "class"
         elif tag == 'macro':
             element_type = "macro"
         elif tag == 'enum':
@@ -320,6 +374,7 @@ def _parse_comment_yaml(str):
     element["description"] = description
     element["returns"] = []
     element["members"] = []
+    element["tparams"] = []
     element["params"] = []
 
     namespace_found = False
@@ -355,6 +410,15 @@ def _parse_comment_yaml(str):
             mem["name"] = tmp[0]
             mem["type"], mem["doc"] = extract_type_from_docstr(tmp[1])
             element["members"].append(mem)
+
+        elif tag == 'tparam':
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            mem = {}
+            mem["name"] = tmp[0]
+            mem["type"], mem["doc"] = extract_type_from_docstr(tmp[1])
+            element["tparams"].append(mem)
 
         elif tag == 'examples':
             element["examples"] = value
@@ -405,7 +469,6 @@ def parse_document(doc_str):
     if doc_info:
         doc.info.CopyFrom(doc_info)
 
-    element_list.sort(cmp = lambda x,y: cmp(x.name, y.name))
     for i, e in enumerate(element_list):
         doc.elements.add().MergeFrom(e)
 
@@ -435,18 +498,17 @@ def add_group_to_doc_dict(doc_dict):
                 "namespaces": ["buffer", "builtins", "html5", "http", "image", "json", "msg", "timer", "vmath", "zlib"]
             },
             {
-                "group": "EXTENSIONS",
-                "namespaces": ["facebook", "iap", "iac", "push", "webview"]
-            },
-            {
-                "group": "DEFOLD SDK",
-                "namespaces": ["dmAlign", "dmArray", "dmBuffer", "dmConditionVariable", "dmConfigFile", "dmExtension", "dmGraphics", "dmHash", "dmJson", "dmLog", "dmMutex", "dmScript", "sharedlibrary"]
-            },
-            {
                 "group": "LUA STANDARD LIBS",
                 "namespaces": ["base", "bit", "coroutine", "debug", "io", "socket", "math", "os", "package", "string", "table"]
             },
         ]
+
+        # Should we get this from the actual @document segment instead, instead of trying to do it dynamically?
+
+        path = info.get('path', '')
+        if 'engine' in path:
+            info["group"] = "DEFOLD SDK"
+            return
 
         for refdocgroup in refdocgroups:
             if namespace in refdocgroup.get("namespaces"):
