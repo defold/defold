@@ -12,6 +12,7 @@
 
 (ns editor.app-view
   (:require [clojure.java.io :as io]
+            [clojure.edn :as edn]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build :as build]
@@ -228,6 +229,7 @@
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
   (property manip-space g/Keyword)
+  (property keymap-config g/Any)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -275,8 +277,8 @@
                                                             is-dirty (contains? open-dirty-views view)
                                                             title (tab-title resource is-dirty)]]
                                                 (ui/text! tab title)))))
-  (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
+  (output keymap g/Any :cached (g/fnk [keymap-config]
+                                 (keymap/make-keymap keymap-config {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
@@ -1425,12 +1427,31 @@ If you do not specifically require different script states, consider changing th
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene resource-node view-type)))))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
+(defn open-custom-keymap
+  [path]
+  (try (and (not= path "")
+            (some-> path
+                    slurp
+                    edn/read-string))
+       (catch IOException e
+         (dialogs/make-info-dialog
+          {:title "Couldn't load custom keymap config"
+           :icon :icon/triangle-error
+           :header {:fx/type :v-box
+                    :children [{:fx/type fxui/label
+                                :text (str "The keymap path " path " couldn't be opened.")}]}
+           :content (.getMessage e)})
+         (log/error :exception e)
+         nil)))
+
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
+          keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" ""))
+                     keymap/default-host-key-bindings)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
                                                                      :stage stage
                                                                      :scene app-scene
@@ -1438,7 +1459,8 @@ If you do not specifically require different script states, consider changing th
                                                                      :active-tab-pane editor-tab-pane
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
-                                                                     :manip-space :world))))]
+                                                                     :manip-space :world
+                                                                     :keymap-config keymap))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
