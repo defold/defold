@@ -53,7 +53,7 @@
                              :image "platformer.svg"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-platformer/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-platformer/archive/main.zip"
                              :skip-root? true}]}
 
                {:label "From Tutorial"
