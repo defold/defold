@@ -1,21 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-
 <dict>
-	<key>CFBundleExecutable</key><string>Defold</string>
-	<key>CFBundleGetInfoString</key><string>Defold, Copyright Defold Foundation. 2009-2020. All rights reserved.</string>
-	<key>CFBundleIconFile</key><string>logo.icns</string>
-	<key>CFBundleIdentifier</key><string>com.defold.editor</string>
-	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-	<key>CFBundleName</key><string>Defold</string>
-	<key>CFBundlePackageType</key><string>APPL</string>
-	<key>CFBundleShortVersionString</key><string>2.0</string>
-	<key>CFBundleVersion</key><string>2.0</string>
-	<key>CFBundleSignature</key><string>????</string>
-	<key>NSHighResolutionCapable</key><true/>
-	<key>CFBundleDevelopmentRegion</key><string>English</string>
-
+	<key>CFBundleExecutable</key>
+	<string>Defold</string>
+	<key>CFBundleGetInfoString</key>
+	<string>Defold, Copyright Defold Foundation. 2009-2020. All rights reserved.</string>
+	<key>CFBundleIconFile</key>
+	<string>logo.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.defold.editor</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Defold</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.0</string>
+	<key>CFBundleVersion</key>
+	<string>2.0</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -23,12 +33,52 @@
 			<array>
 				<string>project</string>
 			</array>
-			<key>CFBundleTypeIconFile</key><string>logo.icns</string>
-			<key>CFBundleTypeName</key><string>Defold Project File</string>
-			<key>CFBundleTypeRole</key><string>Editor</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>logo.icns</string>
+			<key>CFBundleTypeIconSystemGenerated</key>
+			<integer>1</integer>
+			<key>CFBundleTypeName</key>
+			<string>Defold Project File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Default</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.defold.defold.defold-project</string>
+			</array>
 		</dict>
 	</array>
-
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Defold Project File</string>
+			<key>UTTypeIconFile</key>
+			<string>logo.icns</string>
+			<key>UTTypeIcons</key>
+			<dict>
+				<key>UTTypeIconBackgroundName</key>
+				<string></string>
+				<key>UTTypeIconBadgeName</key>
+				<string>DocumentIcon</string>
+				<key>UTTypeIconText</key>
+				<string>DEFOLD</string>
+			</dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.defold.defold.defold-project</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>project</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
-
 </plist>
