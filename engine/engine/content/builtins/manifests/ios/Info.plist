@@ -117,5 +117,8 @@
 
         <key>UILaunchStoryboardName</key>
         <string>{{launch-screen}}</string>
+
+        <key>UIRequiresFullScreen</key>
+        <true/>
 </dict>
 </plist>
