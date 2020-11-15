@@ -34,7 +34,7 @@
 				<string>project</string>
 			</array>
 			<key>CFBundleTypeIconFile</key>
-			<string>logo.icns</string>
+			<string>document_legacy.icns</string>
 			<key>CFBundleTypeIconSystemGenerated</key>
 			<integer>1</integer>
 			<key>CFBundleTypeName</key>
@@ -59,7 +59,7 @@
 			<key>UTTypeDescription</key>
 			<string>Defold Project File</string>
 			<key>UTTypeIconFile</key>
-			<string>logo.icns</string>
+			<string>document_legacy.icns</string>
 			<key>UTTypeIcons</key>
 			<dict>
 				<key>UTTypeIconBackgroundName</key>
