@@ -269,13 +269,13 @@ public class IOSBundler implements IBundler {
         // It might be null if the user uses the "bundle_resources" to copy everything
         if (iconsAsset != null)
         {
-            final String iconsBaseName = FilenameUtils.getName(iconsAsset);
+            final String iconsName = FilenameUtils.getName(iconsAsset);
             IResource source = project.getResource(iconsAsset);
             if (source == null) {
                 throw new IOException(String.format("'ios.icons_asset' = '%s' does not exist", source));
             }
 
-            File target = new File(appDir, iconsAsset);
+            File target = new File(appDir, iconsName);
 
             try {
                 FileUtils.writeByteArrayToFile(target, source.getContent());
