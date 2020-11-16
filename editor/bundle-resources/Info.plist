@@ -45,7 +45,7 @@
 			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.defold.defold.defold-project</string>
+				<string>com.defold.defold-project</string>
 			</array>
 		</dict>
 	</array>
@@ -70,7 +70,7 @@
 				<string>DEFOLD</string>
 			</dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.defold.defold.defold-project</string>
+			<string>com.defold.defold-project</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
