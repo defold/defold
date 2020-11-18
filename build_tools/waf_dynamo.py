@@ -1515,10 +1515,12 @@ def detect(conf):
         if not Options.options.skip_codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
 
-    if  build_util.get_target_os() in ('osx', 'ios'):
+    if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
             path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')]
+        else:
+            path_list=[os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
         conf.find_program('zip', var='ZIP', mandatory = True)
 
