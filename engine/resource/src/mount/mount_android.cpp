@@ -130,6 +130,7 @@ namespace dmResource
         }
 
         // Map index asset (if bundled) or file (if in local storage)
+        bool mem_mapped_index = false;
         if (strcmp(index_path, "game.arci") == 0)
         {
             r = MapAsset(am, index_path, (void*&)index_asset, index_length, index_map);
