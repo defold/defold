@@ -652,9 +652,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             res = dmDDF::LoadMessage(factory->m_BuiltinsManifest->m_DDF->m_Data.m_Data, factory->m_BuiltinsManifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest->m_DDFData);
             dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, true,
                                                  params->m_ArchiveData.m_Data, params->m_ArchiveData.m_Size, true,
-                                                 0x0,
-                                                 0x0, 0,
-                                                 0x0, &factory->m_BuiltinsManifest->m_ArchiveIndex);
+                                                 &factory->m_BuiltinsManifest->m_ArchiveIndex);
 
             dmResourceArchive::SetDefaultReader(factory->m_BuiltinsManifest->m_ArchiveIndex);
         }
