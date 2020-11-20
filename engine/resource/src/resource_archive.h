@@ -229,16 +229,16 @@ namespace dmResourceArchive
      * archive is not needed.
      * @param index_buffer archive index memory to wrap
      * @param index_buffer_size archive index size
-     * @param resource_data resource data
-     * @param lu_resource_data resource data acquired through liveupdate
+     * @param mem_mapped_index is the data memory mapped
+     * @param resource_buffer archive index memory to wrap
+     * @param resource_buffer_size archive index size
+     * @param mem_mapped_data is the data memory mapped
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
                              const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
-                             const char* lu_resource_filename,
-                             const void* lu_resource_data, uint32_t lu_resourcedata_size,
-                             FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
+                             HArchiveIndexContainer* archive);
 
     /**
      * Find resource entry within the loaded archives

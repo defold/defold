@@ -43,7 +43,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         *mount_info = 0;
         dmResourceArchive::Result r = LoadArchiveFromFile(index_path, data_path, archive);
@@ -54,8 +54,14 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info)
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer& archive, void* mount_info)
     {
+        dmResourceArchive::ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
+        if (afi && afi->m_FileResourceData)
+        {
+            fclose(afi->m_FileResourceData);
+        }
+
         dmResourceArchive::Delete(archive);
     }
 }
