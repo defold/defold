@@ -104,19 +104,27 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 (
     cd "${BUILD}"
 
+    EXENAME=
     if [ -d "lib/armeabi-v7a" ]; then
         EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
     fi
+
+    EXENAME_64=
     if [ -d "lib/arm64-v8a" ]; then
         EXENAME_64=`(cd lib/arm64-v8a && ls lib*.so)`
     fi
 
     rm -rf "META-INF"
+
     if [ -e "${ENGINE_LIB}" ]; then
-        cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
+        if [ "" != "$EXENAME" ]; then
+            cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
+        fi
     fi
     if [ -e "${ENGINE_64_LIB}" ]; then
-        cp -v "${ENGINE_64_LIB}" "lib/arm64-v8a/${EXENAME_64}"
+        if [ "" != "$EXENAME_64" ]; then
+            cp -v "${ENGINE_64_LIB}" "lib/arm64-v8a/${EXENAME_64}"
+        fi
     fi
     cp -v "${ENGINE_DEX}" "classes.dex"
 
