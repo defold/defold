@@ -322,7 +322,6 @@ namespace dmLiveUpdate
         }
 
         AsyncResourceRequest request;
-        memset(&request, 0, sizeof(request));
         request.m_CallbackData = callback_data;
         request.m_Callback = callback;
         request.m_Path = path;
