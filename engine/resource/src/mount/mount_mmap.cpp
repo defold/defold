@@ -31,8 +31,6 @@ namespace dmResource
         uint64_t index_length;
         void *data_map;
         uint64_t data_length;
-        void *lu_data_map;
-        uint64_t lu_data_length;
     };
 
     Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
@@ -82,7 +80,7 @@ namespace dmResource
         return UnmapFile(map, size);
     }
 
-    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         void* index_map = 0x0;
         uint32_t index_size = 0;
@@ -103,46 +101,13 @@ namespace dmResource
             return r;
         }
 
-        void* lu_data_map = 0x0;
-        uint32_t lu_data_size = 0;
-        FILE* lu_data_file = 0x0;
-        if (lu_data_path != 0x0)
-        {
-            r = MapFile(lu_data_path, lu_data_map, lu_data_size);
-            if (r != RESULT_OK)
-            {
-                munmap(index_map, index_size);
-                munmap(data_map, data_size);
-                dmLogError("Error mapping liveupdate data file");
-                return RESULT_IO_ERROR;
-            }
-
-            lu_data_file = fopen(lu_data_path, "rb+");
-            if (!lu_data_file)
-            {
-                munmap(index_map, index_size);
-                munmap(data_map, data_size);
-                munmap(lu_data_map, lu_data_size);
-                dmLogError("Error opening liveupdate data file");
-                return RESULT_IO_ERROR;
-            }
-        }
-
         dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_size, true,
                                                           data_map, data_size, true,
-                                                          lu_data_path,
-                                                          lu_data_map, lu_data_size,
-                                                          lu_data_file, archive);
+                                                          archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
             munmap(index_map, index_size);
             munmap(data_map, data_size);
-            munmap(lu_data_map, lu_data_size);
-            if (lu_data_file)
-            {
-                fclose(lu_data_file);
-            }
-
             return RESULT_IO_ERROR;
         }
 
@@ -151,8 +116,6 @@ namespace dmResource
         info->index_length = index_size;
         info->data_map = data_map;
         info->data_length = data_size;
-        info->lu_data_map = lu_data_map;
-        info->lu_data_length = lu_data_size;
         *mount_info = (void*)info;
 
         return RESULT_OK;
@@ -175,11 +138,6 @@ namespace dmResource
         if (info->data_map)
         {
             munmap(info->data_map, info->data_length);
-        }
-
-        if (info->lu_data_map)
-        {
-            munmap(info->lu_data_map, info->lu_data_length);
         }
 
         delete info;
