@@ -107,33 +107,7 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
-    void GetWorldTransform(void* user_data, Point3& position, Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        position = dmGameObject::GetWorldPosition(instance);
-        rotation = dmGameObject::GetWorldRotation(instance);
-    }
-
-    void SetWorldTransform(void* user_data, const Point3& position, const Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        dmGameObject::SetPosition(instance, position);
-        dmGameObject::SetRotation(instance, rotation);
-    }
-
-    void SetObjectModel(void* visual_object, Quat* rotation, Point3* position)
-    {
-        if (!visual_object) return;
-        dmGameObject::HInstance go = (dmGameObject::HInstance) visual_object;
-        *position = dmGameObject::GetWorldPosition(go);
-        *rotation = dmGameObject::GetWorldRotation(go);
-    }
-
-    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
@@ -168,7 +142,7 @@ namespace dmEngine
         dmGameSystem::OnWindowResized(width, height);
     }
 
-    bool OnWindowClose(void* user_data)
+    static bool OnWindowClose(void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         engine->m_Alive = false;
@@ -176,7 +150,7 @@ namespace dmEngine
         return false;
     }
 
-    void Dispatch(dmMessage::Message *message_object, void* user_ptr);
+    static void Dispatch(dmMessage::Message *message_object, void* user_ptr);
 
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
@@ -1605,7 +1579,7 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    void Dispatch(dmMessage::Message* message, void* user_ptr)
+    static void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
         Engine* self = (Engine*) user_ptr;
 
