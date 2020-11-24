@@ -308,6 +308,8 @@ def create_bundle(options):
 
         if is_mac:
             shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
+            shutil.copy('bundle-resources/Assets.car', resources_dir)
+            shutil.copy('bundle-resources/document_legacy.icns', resources_dir)
         if icon:
             shutil.copy('bundle-resources/%s' % icon, resources_dir)
 
