@@ -557,6 +557,7 @@ namespace dmEngine
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
+        app_params.m_GameObjectRegister = engine->m_Register;
         dmExtension::Result er = dmExtension::AppInitialize(&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
