@@ -838,11 +838,6 @@ namespace dmGui
      */
     Result UpdateScene(HScene scene, float dt);
 
-    // typedef void (*GuiSceneTraverseCallback)(HScene scene, HNode parent, HNode node, void* user_ctx);
-
-    // For inspection only
-    //uint32_t GetRootNodes(HNode** nodes);
-
     /** Get first child node
      * @param node Gets the first child node. If 0, gets the first top level node.
      * @return child The first child node

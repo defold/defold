@@ -295,7 +295,7 @@ uint64_t dmHashBufferNoReverse64(const void * key, uint32_t len)
     return h;
 }
 
-dmhash_t dmHashBuffer64(const void * key, uint32_t len)
+uint64_t dmHashBuffer64(const void * key, uint32_t len)
 {
     uint64_t h = dmHashBufferNoReverse64(key, len);
 
@@ -324,7 +324,7 @@ uint32_t DM_DLLEXPORT dmHashString32(const char* string)
     return dmHashBuffer32(string, strlen(string));
 }
 
-dmhash_t DM_DLLEXPORT dmHashString64(const char* string)
+uint64_t DM_DLLEXPORT dmHashString64(const char* string)
 {
     return dmHashBuffer64(string, strlen(string));
 }

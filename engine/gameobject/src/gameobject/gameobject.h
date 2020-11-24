@@ -493,23 +493,6 @@ namespace dmGameObject
      */
     typedef PropertyResult (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
 
-
-    /**
-     * Parameters to ComponentSetProperties callback.
-     */
-    struct ComponentGetPropertiesParams
-    {
-        /// Instance handle
-        HInstance m_Instance;
-        /// User data storage pointer
-        uintptr_t* m_UserData;
-    };
-
-    /**
-     * Set a property set for the component.
-     */
-    typedef PropertyResult (*ComponentGetProperties)(const ComponentGetPropertiesParams& params, PropertySet& property_set);
-
     /**
      * Parameters to ComponentGetProperty callback.
      */
