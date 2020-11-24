@@ -16,6 +16,7 @@
 #include <string.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/align.h>
+#include <dmsdk/gameobject/gameobject.h>
 
 extern "C"
 {
@@ -71,8 +72,9 @@ namespace dmExtension
     struct AppParams
     {
         AppParams();
-        dmConfigFile::HConfig m_ConfigFile;
-        dmWebServer::HServer m_WebServer;
+        dmConfigFile::HConfig   m_ConfigFile;
+        dmWebServer::HServer    m_WebServer;
+        dmGameObject::HRegister m_GameObjectRegister;
     };
 
     /*# extension level callback data
@@ -89,8 +91,8 @@ namespace dmExtension
     struct Params
     {
         Params();
-        dmConfigFile::HConfig m_ConfigFile;
-        lua_State*            m_L;
+        dmConfigFile::HConfig   m_ConfigFile;
+        lua_State*              m_L;
     };
 
     /*# event id enumeration
