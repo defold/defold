@@ -358,12 +358,22 @@ void glfwAndroidFlushEvents()
             }
             break;
 
-
         case APP_CMD_GAINED_FOCUS:
             // If we failed to create the window in APP_CMD_INIT_WINDOW, let's try again
             if (_glfwWinAndroid.surface == EGL_NO_SURFACE) {
                 CreateGLSurface();
             }
+            break;
+
+        case APP_CMD_PAUSE:
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(0); // invokes Lua callbacks
+            break;
+        case APP_CMD_RESUME:
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(1); // invokes Lua callbacks
+            break;
+
         }
     }
     g_NumAppCommands = 0;
