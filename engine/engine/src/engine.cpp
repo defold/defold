@@ -53,6 +53,7 @@
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
+#include "extension.h"
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
@@ -324,10 +325,11 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
-        dmExtension::AppParams app_params;
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
-        dmExtension::AppFinalize(&app_params);
+        app_params.m_GameObjectRegister = engine->m_Register;
+        dmExtension::AppFinalize((dmExtension::AppParams*)&app_params);
 
         dmBuffer::DeleteContext();
 
@@ -554,11 +556,11 @@ namespace dmEngine
 
         dmBuffer::NewContext();
 
-        dmExtension::AppParams app_params;
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
         app_params.m_GameObjectRegister = engine->m_Register;
-        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        dmExtension::Result er = dmExtension::AppInitialize((dmExtension::AppParams*)&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;

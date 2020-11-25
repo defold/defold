@@ -16,7 +16,6 @@
 #include <string.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/align.h>
-#include <dmsdk/gameobject/gameobject.h>
 
 extern "C"
 {
@@ -63,6 +62,8 @@ namespace dmExtension
      * Extension application entry callback data.
      * This is the data structure passed as parameter by extension Application entry callbacks (AppInit and AppFinalize) functions
      *
+     * @note This struct is kept as-is for backwards compatibility. In practice, the struct passed to the callbacks is of the type dmEngine::ExtensionAppParams
+     *
      * @struct
      * @name dmExtension::AppParams
      * @member m_ConfigFile [type:dmConfigFile::HConfig]
@@ -72,9 +73,7 @@ namespace dmExtension
     struct AppParams
     {
         AppParams();
-        dmConfigFile::HConfig   m_ConfigFile;
-        dmWebServer::HServer    m_WebServer;
-        dmGameObject::HRegister m_GameObjectRegister;
+        dmConfigFile::HConfig   m_ConfigFile; // here for backwards compatibility
     };
 
     /*# extension level callback data
