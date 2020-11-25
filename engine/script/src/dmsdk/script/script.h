@@ -56,7 +56,7 @@ namespace dmScript
     */
     struct LuaStackCheck
     {
-        LuaStackCheck(lua_State* L, int diff);
+        LuaStackCheck(lua_State* L, int diff, const char* filename, int linenumber);
         ~LuaStackCheck();
         void Verify(int diff);
         #if defined(__GNUC__)
@@ -67,6 +67,11 @@ namespace dmScript
 
         /// The Lua state to check
         lua_State* m_L;
+
+        /// Debug info in case of an assert
+        const char* m_Filename;
+        int m_Linenumber;
+
         /// The current top of the Lua stack (from lua_gettop())
         int m_Top;
         /// The expected difference in stack size when this sctruct goes out of scope
@@ -93,7 +98,7 @@ namespace dmScript
      * lua_pushnumber(L, 42);
      * ```
      */
-    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_);
+    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_, __FILE__, __LINE__);
 
 
     /*# helper macro to validate the Lua stack state and throw a lua error.
