@@ -39,8 +39,11 @@ namespace dmLiveUpdate
 
     struct AsyncResourceRequest
     {
+        AsyncResourceRequest() {
+            memset(this, 0, sizeof(*this));
+        }
         dmResourceArchive::LiveUpdateResource m_Resource;
-        dmResource::Manifest* m_Manifest;
+        dmResource::Manifest*       m_Manifest;
         uint32_t                    m_ExpectedResourceDigestLength;
         const char*                 m_ExpectedResourceDigest;
         const char*                 m_Path;
