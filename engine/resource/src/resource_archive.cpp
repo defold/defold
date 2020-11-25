@@ -330,7 +330,7 @@ namespace dmResourceArchive
         dmStrlCat(archive_data_path, ".arcd", sizeof(archive_data_path));
 
         void* mount_info = 0;
-        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, 0x0, out, &mount_info);
+        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
         if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
         {
             (*out)->m_UserData = mount_info;
@@ -548,9 +548,7 @@ namespace dmResourceArchive
 
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
                              const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
-                             const char* lu_resource_filename,
-                             const void* lu_resource_data, uint32_t lu_resource_data_size,
-                             FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
+                             HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = mem_mapped_index;
@@ -566,16 +564,6 @@ namespace dmResourceArchive
         (*archive)->m_ArchiveFileIndex->m_ResourceSize = resource_data_size;
         (*archive)->m_ArchiveFileIndex->m_IsMemMapped = mem_mapped_data;
 
-        assert(lu_resource_data == 0);
-        assert(lu_resource_data_size == 0);
-
-        if (lu_resource_filename)
-        {
-            dmStrlCpy((*archive)->m_ArchiveFileIndex->m_Path, lu_resource_filename != 0 ? lu_resource_filename : "", DMPATH_MAX_PATH);
-            dmLogInfo("Live Update archive: '%s'", (*archive)->m_ArchiveFileIndex->m_Path);
-        }
-
-        (*archive)->m_ArchiveFileIndex->m_FileResourceData = f_lu_resource_data;
         (*archive)->m_ArchiveIndex = a;
         (*archive)->m_ArchiveIndexSize = index_buffer_size;
 
@@ -593,12 +581,6 @@ namespace dmResourceArchive
             {
                 fclose(afi->m_FileResourceData);
             }
-
-            if (afi->m_IsMemMapped)
-            {
-                void* tmp_ptr = (void*)afi->m_ResourceData;
-                dmResource::UnmapFile(tmp_ptr, afi->m_ResourceSize);
-            }
         }
 
         delete afi;
@@ -611,11 +593,6 @@ namespace dmResourceArchive
         if (!archive->m_IsMemMapped)
         {
             delete archive->m_ArchiveIndex;
-        }
-        else
-        {
-            void* tmp_ptr = (void*)archive->m_ArchiveIndex;
-            dmResource::UnmapFile(tmp_ptr, archive->m_ArchiveIndexSize);
         }
 
         delete archive;
