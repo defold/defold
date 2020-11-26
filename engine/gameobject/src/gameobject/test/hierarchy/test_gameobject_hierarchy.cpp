@@ -920,7 +920,7 @@ static void PrintProperty(dmGameObject::SceneNodeProperty* property, int indent)
             if (rev_hash)
                 printf("%s", (const char*)rev_hash);
             else
-                printf("%016llX", property->m_Value.m_Hash);
+                printf("%016llX", (unsigned long long)property->m_Value.m_Hash);
         }
         break;
     case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: printf("%f", property->m_Value.m_Number); break;
