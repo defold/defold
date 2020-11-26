@@ -1391,6 +1391,8 @@ namespace dmSound
             sound->m_IsDeviceStarted = true;
         }
 
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
         if (free_slots > 0) {
             StepGroupValues();
