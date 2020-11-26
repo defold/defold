@@ -742,7 +742,7 @@ namespace dmEngineService
                 if (rev_hash)
                     dmSnPrintf(buffer, sizeof(buffer), "\"%s\"", rev_hash);
                 else
-                    dmSnPrintf(buffer, sizeof(buffer), "\"0x%016llX\"", property->m_Value.m_Hash);
+                    dmSnPrintf(buffer, sizeof(buffer), "\"0x%016llX\"", (unsigned long long)property->m_Value.m_Hash);
             }
             break;
         case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: dmSnPrintf(buffer, sizeof(buffer), "%f", property->m_Value.m_Number); break;
