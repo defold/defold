@@ -1174,7 +1174,8 @@ run:
                         }
 
                         if (serverETag == null) {
-                            throw new ConnectException(String.format("The URL %s didn't provide an ETag", url));
+                            logWarning(String.format("The URL %s didn't provide an ETag", url));
+                            serverETag = "null";
                         }
 
                         if (etag != null && !etag.equals(serverETag)) {
@@ -1183,7 +1184,6 @@ run:
                             f = null;
                         }
 
-                        // if(!serverETagMatch) {
                         input = new BufferedInputStream(connection.getInputStream());
 
                         if (f == null) {
