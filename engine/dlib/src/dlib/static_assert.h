@@ -27,11 +27,11 @@
  * ```
  */
 
-#if __cplusplus <= 201103L
-    // For backwards compatibility, we need to keep the old input format
-    #define DM_STATIC_ASSERT(X, ERROR) static_assert(X, #ERROR)
+#if __cplusplus >= 201103L
+    // For backwards compatibility, we need to keep the old error format
+    #define DM_STATIC_ASSERT(x, error) static_assert(x, #error)
 #else
-    #define DM_STATIC_ASSERT(X, ERROR) \
+    #define DM_STATIC_ASSERT(x, error) \
         do { \
             static const char error[(x)?1:-1] = {0};\
             (void) error;\
