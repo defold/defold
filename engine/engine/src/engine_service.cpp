@@ -688,7 +688,6 @@ namespace dmEngineService
 
         SendGameObjectData(request, id, resource_id, type, index, parent);
 
-        bool first_object = true;
         dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(node);
         while(dmGameObject::TraverseIterateNext(&it))
         {
