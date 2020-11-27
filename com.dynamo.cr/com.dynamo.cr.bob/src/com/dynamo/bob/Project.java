@@ -1175,7 +1175,7 @@ run:
 
                         if (serverETag == null) {
                             logWarning(String.format("The URL %s didn't provide an ETag", url));
-                            serverETag = "null";
+                            serverETag = "";
                         }
 
                         if (etag != null && !etag.equals(serverETag)) {
