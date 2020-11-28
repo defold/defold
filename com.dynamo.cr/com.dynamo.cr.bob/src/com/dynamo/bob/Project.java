@@ -1146,12 +1146,14 @@ run:
                 }
 
                 // Pass correct headers along to server depending on auth alternative.
+                final String email = this.options.get("email");
+                final String auth = this.options.get("auth");
                 if (basicAuthData != null) {
                     String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
                     connection.setRequestProperty("Authorization", basicAuth);
-                } else {
-                    connection.addRequestProperty("X-Email", this.options.get("email"));
-                    connection.addRequestProperty("X-Auth", this.options.get("auth"));
+                } else if (email != null && auth != null) {
+                    connection.addRequestProperty("X-Email", email);
+                    connection.addRequestProperty("X-Auth", auth);
                 }
 
                 InputStream input = null;
@@ -1172,7 +1174,8 @@ run:
                         }
 
                         if (serverETag == null) {
-                            throw new ConnectException(String.format("The URL %s didn't provide an ETag", url));
+                            logWarning(String.format("The URL %s didn't provide an ETag", url));
+                            serverETag = "";
                         }
 
                         if (etag != null && !etag.equals(serverETag)) {
@@ -1181,7 +1184,6 @@ run:
                             f = null;
                         }
 
-                        // if(!serverETagMatch) {
                         input = new BufferedInputStream(connection.getInputStream());
 
                         if (f == null) {
