@@ -197,7 +197,6 @@ namespace dmDNS
 
     static void ConfigureChannel(Channel* channel)
     {
-        // workaround: always use fallback dns server
         ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
     }
 
