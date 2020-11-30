@@ -1,3 +1,5 @@
+from waf_dynamo import dmsdk_add_files
+
 def set_options(opt):
     pass
 
@@ -6,3 +8,4 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('gameobject')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

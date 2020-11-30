@@ -94,6 +94,8 @@ namespace dmGameObject
 
     PropertyVar::PropertyVar()
     {
+        DM_STATIC_ASSERT(sizeof(PropertyVar::m_URL) == sizeof(dmMessage::URL), Invalid_Struct_Alias_Size);
+
         m_Type = PROPERTY_TYPE_NUMBER;
         memset(this, 0, sizeof(*this));
     }

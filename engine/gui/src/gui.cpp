@@ -2134,6 +2134,51 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return result;
     }
 
+    HNode GetFirstChildNode(HScene scene, HNode node)
+    {
+        assert(scene != 0);
+        if (!node)
+        {
+            uint32_t node_count = scene->m_Nodes.Size();
+            InternalNode* nodes = scene->m_Nodes.Begin();
+            for (uint32_t i = 0; i < node_count; ++i)
+            {
+                InternalNode* node = &nodes[i];
+                if (!node->m_Deleted && node->m_Index != INVALID_INDEX && node->m_ParentIndex == INVALID_INDEX)
+                {
+                    return GetNodeHandle(node);
+                }
+            }
+            return 0;
+        }
+
+        InternalNode* n = GetNode(scene, node);
+        uint16_t child_index = n->m_ChildHead;
+        while (child_index != INVALID_INDEX)
+        {
+            InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
+            child_index = child->m_NextIndex;
+            if (!child->m_Deleted && child->m_Index != INVALID_INDEX)
+                return GetNodeHandle(child);
+        }
+        return 0;
+    }
+
+    HNode GetNextNode(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        uint16_t next_index = n->m_NextIndex;
+        while (next_index != INVALID_INDEX)
+        {
+            InternalNode* next = &scene->m_Nodes[next_index & 0xffff];
+            next_index = next->m_NextIndex;
+
+            if (!next->m_Deleted && next->m_Index != INVALID_INDEX)
+                return GetNodeHandle(next);
+        }
+        return 0;
+    }
+
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
     {
         int custom_ref = LUA_NOREF;
@@ -2213,7 +2258,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             // We can't use zero in order to avoid a handle == 0
             ++version;
         }
-        HNode hnode = ((uint32_t) version) << 16 | index;
+
         InternalNode* node = &scene->m_Nodes[index];
         memset(node, 0, sizeof(InternalNode));
         node->m_Node.m_Properties[PROPERTY_POSITION] = Vector4(Vector3(position), 1);
@@ -2272,6 +2317,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_SceneTraversalCacheVersion = INVALID_INDEX;
         node->m_ClipperIndex = INVALID_INDEX;
         scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
+
+        HNode hnode = GetNodeHandle(node);
         MoveNodeAbove(scene, hnode, INVALID_HANDLE);
         return hnode;
     }
@@ -2285,6 +2332,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     void SetNodeId(HScene scene, HNode node, const char* id)
     {
         SetNodeId(scene, node, dmHashString64(id));
+    }
+
+    dmhash_t GetNodeId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_NameHash;
     }
 
     HNode GetNodeById(HScene scene, const char* id)
@@ -2302,7 +2355,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             InternalNode* node = &nodes[i];
             if (node->m_NameHash == id)
             {
-                return ((uint32_t) node->m_Version) << 16 | node->m_Index;
+                return GetNodeHandle(node);
             }
         }
         return 0;

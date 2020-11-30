@@ -601,6 +601,12 @@ namespace dmEngineService
         return r;
     }
 
+    static dmWebServer::Result SendText(dmWebServer::Request* request, const char* str)
+    {
+        return dmWebServer::Send(request, str, strlen(str));
+    }
+
+
     //
     // Resource profiler
     //
@@ -625,6 +631,9 @@ namespace dmEngineService
 
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
     {
+        dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
+
         dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
@@ -632,8 +641,6 @@ namespace dmEngineService
             return;
         }
 
-        dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
-        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
         dmResource::HFactory factory = (dmResource::HFactory)context;
         dmResource::IterateResources(factory, ResourceIteratorFunction, (void*)request);
     }
@@ -642,101 +649,176 @@ namespace dmEngineService
     // GameObject profiler
     //
 
-    struct GameObjectProfilerCtx
-    {
-        dmWebServer::Request*   m_Request;
-        // we need these variables to recreate the tree structure
-        dmArray<uint32_t>       m_Stack; // A stack of indices to keep track of the traversal tree (i.e. parents)
-        uint32_t                m_Index;
-    };
-
-    static bool SendGameObjectData(GameObjectProfilerCtx* ctx, dmhash_t id, dmhash_t resource_id, uint32_t index, uint32_t parent, const char* type)
+    static bool SendGameObjectData(dmWebServer::Request* request, dmhash_t id, dmhash_t resource_id, dmhash_t type, uint32_t index, uint32_t parent)
     {
         // See profiler.html, loadGameObjects() for the receiving end of this code
-        dmWebServer::Request* request = ctx->m_Request;
         dmWebServer::Result r;
         r = SendString(request, dmHashReverseSafe64(id)); CHECK_RESULT_BOOL(r);
         r = SendString(request, dmHashReverseSafe64(resource_id)); CHECK_RESULT_BOOL(r);
-        r = SendString(request, type); CHECK_RESULT_BOOL(r);
+        r = SendString(request, dmHashReverseSafe64(type)); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &index, 4); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &parent, 4); CHECK_RESULT_BOOL(r);
         return true;
     }
 
-    static bool ComponentIteratorFunction(const dmGameObject::IteratorComponent* iterator, void* user_ctx)
+    static void OutputResourceSceneGraph(dmGameObject::SceneNode* node, uint32_t parent, uint32_t* counter, dmWebServer::Request* request)
     {
-        GameObjectProfilerCtx* ctx = (GameObjectProfilerCtx*)user_ctx;
-        uint32_t parent = ctx->m_Stack.Back();
-        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, ctx->m_Index++, parent, iterator->m_Type);
-        return true;
-    }
+        static const dmhash_t s_PropertyId = dmHashString64("id");
+        static const dmhash_t s_PropertyResource = dmHashString64("resource");
+        static const dmhash_t s_PropertyType = dmHashString64("type");
 
-    static bool GameObjectIteratorFunction(const dmGameObject::IteratorGameObject* iterator, void* user_ctx)
-    {
-        GameObjectProfilerCtx* ctx = (GameObjectProfilerCtx*)user_ctx;
-        uint32_t parent = ctx->m_Stack.Back();
-        uint32_t index = ctx->m_Index++;
-        ctx->m_Stack.Push(index);
+        if (node->m_Type == dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT)
+            return;
 
-        SendGameObjectData(ctx, dmGameObject::GetIdentifier(iterator->m_Instance), iterator->m_Resource, index, parent, "goc");
+        dmhash_t id = 0;
+        dmhash_t resource_id = 0;
+        dmhash_t type = 0;
+        dmGameObject::SceneNodePropertyIterator pit = TraverseIterateProperties(node);
+        while(dmGameObject::TraverseIteratePropertiesNext(&pit))
+        {
+            if (pit.m_Property.m_NameHash == s_PropertyId)
+                id = pit.m_Property.m_Value.m_Hash;
+            else if (pit.m_Property.m_NameHash == s_PropertyResource)
+                resource_id = pit.m_Property.m_Value.m_Hash;
+            else if (pit.m_Property.m_NameHash == s_PropertyType)
+                type = pit.m_Property.m_Value.m_Hash;
+        }
 
-        bool result = dmGameObject::IterateComponents(iterator->m_Instance, ComponentIteratorFunction, user_ctx);
+        uint32_t index = (*counter)++;
 
-        uint32_t lastindex = ctx->m_Stack.Back();
-        ctx->m_Stack.Pop();
-        assert(lastindex == index);
+        SendGameObjectData(request, id, resource_id, type, index, parent);
 
-        return result;
-    }
-
-    static bool CollectionIteratorFunction(const dmGameObject::IteratorCollection* iterator, void* user_ctx)
-    {
-        GameObjectProfilerCtx* ctx = (GameObjectProfilerCtx*)user_ctx;
-
-        uint32_t parent = ctx->m_Stack.Back();
-        uint32_t index = ctx->m_Index++;
-        ctx->m_Stack.Push(index);
-
-        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, index, parent, "collectionc");
-
-        bool result = dmGameObject::IterateGameObjects(iterator->m_Collection, GameObjectIteratorFunction, user_ctx);
-
-        uint32_t lastindex = ctx->m_Stack.Back();
-        ctx->m_Stack.Pop();
-        assert(lastindex == index);
-
-        return result;
+        dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(node);
+        while(dmGameObject::TraverseIterateNext(&it))
+        {
+            OutputResourceSceneGraph( &it.m_Node, index, counter, request );
+        }
     }
 
     static void HttpGameObjectRequestCallback(void* context, dmWebServer::Request* request)
     {
-        dmWebServer::Result r = SendString(request, "GOBJ");
-        if (r != dmWebServer::RESULT_OK)
+        dmGameObject::HRegister regist = (dmGameObject::HRegister)context;
+
+        dmGameObject::SceneNode root;
+        if (!dmGameObject::TraverseGetRoot(regist, &root))
         {
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
             dmWebServer::SetStatusCode(request, 500);
-            dmWebServer::Send(request, INTERNAL_SERVER_ERROR, sizeof(INTERNAL_SERVER_ERROR));
+            SendText(request, "Failed to get root node");
             return;
         }
 
-        GameObjectProfilerCtx ctx;
-        ctx.m_Request = request;
-        ctx.m_Index = 0;
-        ctx.m_Stack.SetCapacity(1024); // This is the depth of the tree. We don't expect the tree to ever be this big
-        ctx.m_Stack.Push(ctx.m_Index);
-        ctx.m_Index++;
-
+        dmWebServer::SetStatusCode(request, 200);
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
+        SendString(request, "GOBJ");
+
+        uint32_t counter = 1;
+        OutputResourceSceneGraph(&root, 0, &counter, request);
+    }
+
+    static void SendIndent(dmWebServer::Request* request, int indent)
+    {
+        const char buf[4] = {' ', ' ', ' ', ' '};
+        for (int i = 0; i < indent; ++i)
+            dmWebServer::Send(request, buf, sizeof(buf));
+    }
+
+    static void OutputJsonProperty(dmGameObject::SceneNodeProperty* property, dmWebServer::Request* request, int indent)
+    {
+        SendIndent(request, indent);
+        SendText(request, "\"");
+        SendText(request, dmHashReverseSafe64(property->m_NameHash));
+        SendText(request, "\": ");
+
+        char buffer[128];
+        buffer[0] = 0;
+
+        switch(property->m_Type)
+        {
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH:
+            {
+                const char* rev_hash = (const char*)dmHashReverse64(property->m_Value.m_Hash, 0);
+                if (rev_hash)
+                    dmSnPrintf(buffer, sizeof(buffer), "\"%s\"", rev_hash);
+                else
+                    dmSnPrintf(buffer, sizeof(buffer), "\"0x%016llX\"", (unsigned long long)property->m_Value.m_Hash);
+            }
+            break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: dmSnPrintf(buffer, sizeof(buffer), "%f", property->m_Value.m_Number); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN: dmSnPrintf(buffer, sizeof(buffer), "%d", property->m_Value.m_Bool?1:0); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f]", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2]); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f, %f]", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2], property->m_Value.m_V4[3]); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_QUAT: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f, %f]", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2], property->m_Value.m_V4[3]); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_URL: dmSnPrintf(buffer, sizeof(buffer), "\"%s\"", property->m_Value.m_URL); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT: SendText(request, "\""); SendText(request, property->m_Value.m_Text); SendText(request, "\""); break;
+        default: break;
+        }
+
+        if (buffer[0] != 0)
+        {
+            SendText(request, buffer);
+        }
+    }
+
+    static void OutputJsonSceneGraph(dmGameObject::SceneNode* node, dmWebServer::Request* request, int indent)
+    {
+        SendIndent(request, indent);
+        SendText(request, "{\n");
+
+        bool first_property = true;
+        dmGameObject::SceneNodePropertyIterator pit = TraverseIterateProperties(node);
+        while(dmGameObject::TraverseIteratePropertiesNext(&pit))
+        {
+            if (!first_property)
+                SendText(request, ",\n");
+            first_property = false;
+
+            OutputJsonProperty( &pit.m_Property, request, indent+1 );
+        }
+
+        if (!first_property)
+            SendText(request, ",\n");
+
+        SendIndent(request, indent+1);
+        SendText(request, "\"children\": [");
+
+        bool first_object = true;
+        dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(node);
+        while(dmGameObject::TraverseIterateNext(&it))
+        {
+            if (!first_object)
+                SendText(request, ",\n");
+            else
+                SendText(request, "\n");
+            first_object = false;
+
+            OutputJsonSceneGraph( &it.m_Node, request, indent+1 );
+        }
+        SendText(request, "]\n");
+
+        SendIndent(request, indent);
+        SendText(request, "}");
+    }
+
+    static void HttpSceneGraphRequestCallback(void* context, dmWebServer::Request* request)
+    {
         dmGameObject::HRegister regist = (dmGameObject::HRegister)context;
-        bool result = dmGameObject::IterateCollections(regist, CollectionIteratorFunction, &ctx);
 
-        uint32_t lastindex = ctx.m_Stack.Back();
-        ctx.m_Stack.Pop();
-        assert(lastindex == 0);
+        dmGameObject::SceneNode root;
+        if (!dmGameObject::TraverseGetRoot(regist, &root))
+        {
+            dmWebServer::SetStatusCode(request, 500);
+            SendText(request, "Failed to get root node");
+            return;
+        }
 
-        dmWebServer::SetStatusCode(request, result ? 200 : 500);
+        dmWebServer::SetStatusCode(request, 200);
+        dmWebServer::SendAttribute(request, "Content-Type", "application/json");
+        dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
+
+        OutputJsonSceneGraph(&root, request, 0);
     }
 
     //
@@ -901,6 +983,11 @@ namespace dmEngineService
         frame_params.m_Handler = HttpProfileSendFrame;
         frame_params.m_Userdata = engine_service;
         dmWebServer::AddHandler(engine_service->m_WebServer, "/profile_frame", &frame_params);
+
+        dmWebServer::HandlerParams scenegraph_params;
+        scenegraph_params.m_Handler = HttpSceneGraphRequestCallback;
+        scenegraph_params.m_Userdata = regist;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/scene_graph", &scenegraph_params);
 
         // The entry point to the engine service profiler
         dmWebServer::HandlerParams profile_params;
