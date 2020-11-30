@@ -90,12 +90,7 @@ function package_xcode() {
 
 	pushd ${XCODE}
 
-	EXTRA_ARGS="--exclude=${_name}/usr/bin --exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework --exclude=${_name}/usr/metal"
-	for f in ${_name}/usr/lib/*.dylib
-	do
-		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
-	done
-
+	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework --exclude=${_name}/usr/metal"
 	for f in ${_name}/usr/lib/swift*
 	do
 		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
