@@ -197,42 +197,7 @@ namespace dmDNS
 
     static void ConfigureChannel(Channel* channel)
     {
-        struct ares_addr_port_node* servers = 0;
-        ares_get_servers_ports(channel->m_Handle, &servers);
-
-        if (servers)
-        {
-            uint16_t server_count = 1;
-            struct ares_addr_port_node* next = servers->next;
-            struct in_addr ch_addr = servers->addr.addr4;
-
-            while(next)
-            {
-                server_count++;
-                next = next->next;
-            }
-
-            // Check if we got the default configuration, i.e no servers found
-            // when ares configured the channel. We can't send in default channels
-            // as option when initializing the channel since in that case ares
-            // won't look for system dns severs on certain platforms..
-            //
-            // These options are specified in init_by_defaults(..) in ares_init.c
-            if (server_count      == 1 &&
-                servers->family   == AF_INET &&
-                ch_addr.s_addr    == dmEndian::ToNetwork((uint32_t)INADDR_LOOPBACK) &&
-                servers->udp_port == 0 &&
-                servers->tcp_port == 0)
-            {
-                ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
-            }
-
-            ares_free_data(servers);
-        }
-        else
-        {
-            ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
-        }
+        ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
     }
 
     Result Initialize()
