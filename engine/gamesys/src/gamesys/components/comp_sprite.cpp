@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1144,5 +1144,47 @@ namespace dmGameSystem
             return res;
         }
         return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompSpriteSetConstantCallback, component);
+    }
+
+    static bool CompSpriteIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        SpriteWorld* sprite_world = (SpriteWorld*)pit->m_Node->m_ComponentWorld;
+        SpriteComponent* component = &sprite_world->m_Components.Get(pit->m_Node->m_Component);
+
+        uint64_t index = pit->m_Next++;
+
+        if (index < 4)
+        {
+            int num_elements = 3;
+            Vector4 value;
+            const char* name;
+            switch(index)
+            {
+            case 0: name = "position"; value = Vector4(component->m_Position); break;
+            case 1: name = "rotation"; value = Vector4(component->m_Rotation); num_elements = 4; break;
+            case 2: name = "scale"; value = Vector4(component->m_Scale); break;
+            case 3: name = "size"; value = Vector4(component->m_Size); break;
+            }
+
+            pit->m_Property.m_NameHash = dmHashString64(name);
+            pit->m_Property.m_Type = num_elements == 3 ? dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3 : dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
+            pit->m_Property.m_Value.m_V4[0] = value.getX();
+            pit->m_Property.m_Value.m_V4[1] = value.getY();
+            pit->m_Property.m_Value.m_V4[2] = value.getZ();
+            pit->m_Property.m_Value.m_V4[3] = value.getW();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    void CompSpriteIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompSpriteIterPropertiesGetNext;
     }
 }

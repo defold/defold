@@ -53,6 +53,7 @@
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
+#include "extension.h"
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
@@ -107,33 +108,7 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
-    void GetWorldTransform(void* user_data, Point3& position, Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        position = dmGameObject::GetWorldPosition(instance);
-        rotation = dmGameObject::GetWorldRotation(instance);
-    }
-
-    void SetWorldTransform(void* user_data, const Point3& position, const Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        dmGameObject::SetPosition(instance, position);
-        dmGameObject::SetRotation(instance, rotation);
-    }
-
-    void SetObjectModel(void* visual_object, Quat* rotation, Point3* position)
-    {
-        if (!visual_object) return;
-        dmGameObject::HInstance go = (dmGameObject::HInstance) visual_object;
-        *position = dmGameObject::GetWorldPosition(go);
-        *rotation = dmGameObject::GetWorldRotation(go);
-    }
-
-    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
@@ -168,7 +143,7 @@ namespace dmEngine
         dmGameSystem::OnWindowResized(width, height);
     }
 
-    bool OnWindowClose(void* user_data)
+    static bool OnWindowClose(void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         engine->m_Alive = false;
@@ -176,7 +151,7 @@ namespace dmEngine
         return false;
     }
 
-    void Dispatch(dmMessage::Message *message_object, void* user_ptr);
+    static void Dispatch(dmMessage::Message *message_object, void* user_ptr);
 
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
@@ -350,10 +325,11 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
-        dmExtension::AppParams app_params;
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
-        dmExtension::AppFinalize(&app_params);
+        app_params.m_GameObjectRegister = engine->m_Register;
+        dmExtension::AppFinalize((dmExtension::AppParams*)&app_params);
 
         dmBuffer::DeleteContext();
 
@@ -580,10 +556,11 @@ namespace dmEngine
 
         dmBuffer::NewContext();
 
-        dmExtension::AppParams app_params;
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
-        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        app_params.m_GameObjectRegister = engine->m_Register;
+        dmExtension::Result er = dmExtension::AppInitialize((dmExtension::AppParams*)&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;
@@ -1605,7 +1582,7 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    void Dispatch(dmMessage::Message* message, void* user_ptr)
+    static void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
         Engine* self = (Engine*) user_ptr;
 

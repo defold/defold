@@ -59,6 +59,33 @@ DM_DLLEXPORT uint64_t dmHashBuffer64(const void* buffer, uint32_t buffer_len);
  */
 DM_DLLEXPORT uint64_t dmHashString64(const char* string);
 
+
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown>" if the original string wasn't found.
+ * @name dmHashReverseSafe64
+ * @param hash [type:uint64_t] hash value
+ * @return [type:const char*] Original string value
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
+
+/*# get string value from hash
+ *
+ * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
+ * buffer is null-terminated. If the buffer contains a valid c-string
+ * it can safely be used in printf and friends.
+ *
+ * @name dmHashReverseSafe64
+ * @param hash [type:uint64_t] hash to lookup
+ * @param length [type:uint32_t*] original data length. Optional argument and NULL-pointer is accepted.
+ * @return [type:const char*] pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
+
+
 }
 
 #endif // DMSDK_HASH_H
