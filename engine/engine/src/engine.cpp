@@ -579,8 +579,6 @@ namespace dmEngine
         }
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
-        dmHID::Init(engine->m_HidContext);
-
 
         dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
@@ -791,6 +789,8 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_RenderScriptContext);
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
+
+        dmHID::Init(engine->m_HidContext);
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
