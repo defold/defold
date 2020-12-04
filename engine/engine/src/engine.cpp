@@ -329,6 +329,7 @@ namespace dmEngine
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
         app_params.m_GameObjectRegister = engine->m_Register;
+        app_params.m_HIDContext = engine->m_HidContext;
         dmExtension::AppFinalize((dmExtension::AppParams*)&app_params);
 
         dmBuffer::DeleteContext();
@@ -556,10 +557,37 @@ namespace dmEngine
 
         dmBuffer::NewContext();
 
+
+        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
+
+        // Accelerometer
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        if (use_accelerometer) {
+            dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
+        }
+        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
+
+#if defined(__EMSCRIPTEN__)
+        // DEF-2450 Reverse scroll direction for firefox browser
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+        if (info.m_UserAgent != 0x0)
+        {
+            const char* str_firefox = "firefox";
+            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
+        }
+#endif
+        engine->m_HidContext = dmHID::NewContext(new_hid_params);
+        dmHID::Init(engine->m_HidContext);
+
+
         dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
         app_params.m_GameObjectRegister = engine->m_Register;
+        app_params.m_HIDContext = engine->m_HidContext;
+
         dmExtension::Result er = dmExtension::AppInitialize((dmExtension::AppParams*)&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
@@ -763,29 +791,6 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_RenderScriptContext);
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
-
-        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
-        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
-
-        // Accelerometer
-        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
-        if (use_accelerometer) {
-        	dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
-        }
-        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
-
-#if defined(__EMSCRIPTEN__)
-        // DEF-2450 Reverse scroll direction for firefox browser
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-        if (info.m_UserAgent != 0x0)
-        {
-            const char* str_firefox = "firefox";
-            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
-        }
-#endif
-        engine->m_HidContext = dmHID::NewContext(new_hid_params);
-        dmHID::Init(engine->m_HidContext);
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
@@ -1163,7 +1168,7 @@ bail:
         return false;
     }
 
-    void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
+    static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
@@ -1361,10 +1366,16 @@ bail:
 
                     dmSound::Update();
 
-                    dmHID::KeyboardPacket keybdata;
-                    dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
+                    bool esc_pressed = false;
+                    if (engine->m_QuitOnEsc)
+                    {
+                        dmHID::KeyboardPacket keybdata;
+                        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+                        dmHID::GetKeyboardPacket(keyboard, &keybdata);
+                        esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
+                    }
 
-                    if ((engine->m_QuitOnEsc && dmHID::GetKey(&keybdata, dmHID::KEY_ESC)) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                    if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
                         return;

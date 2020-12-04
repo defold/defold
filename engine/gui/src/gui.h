@@ -915,6 +915,7 @@ namespace dmGui
     NodeType GetNodeType(HScene scene, HNode node);
 
     Point3 GetNodePosition(HScene scene, HNode node);
+    Matrix4 GetNodeWorldTransform(HScene scene, HNode node);
 
     Vector4 GetNodeSlice9(HScene scene, HNode node);
     Point3 GetNodeSize(HScene scene, HNode node);

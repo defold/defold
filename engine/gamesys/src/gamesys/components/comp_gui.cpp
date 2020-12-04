@@ -2120,12 +2120,12 @@ namespace dmGameSystem
         uint64_t index = pit->m_Next++;
 
         const char* properties_common[] = { "type", "id" };
-        uint32_t num_properties_common = sizeof(properties_common)/sizeof(properties_common[0]);
+        uint32_t num_properties_common = DM_ARRAY_SIZE(properties_common);
 
         if (index < num_properties_common)
         {
             const char* type_names[] = {"gui_node_box", "gui_node_text", "gui_node_pie", "gui_node_template", "gui_node_spine", "gui_node_particlefx"};
-            const uint32_t num_gui_types = sizeof(type_names)/sizeof(type_names[0]);
+            const uint32_t num_gui_types = DM_ARRAY_SIZE(type_names);
             DM_STATIC_ASSERT(num_gui_types == dmGui::NODE_TYPE_COUNT, _size_mismatch);
 
             if (index == 0) // type
@@ -2168,7 +2168,7 @@ namespace dmGameSystem
             dmGui::PROPERTY_PIE_PARAMS, dmGui::PROPERTY_TEXT_PARAMS,
         };
         properties = properties_all;
-        num_properties = sizeof(properties_all)/sizeof(properties_all[0]);
+        num_properties = DM_ARRAY_SIZE(properties_all);
 
         if (index < num_properties)
         {
@@ -2185,6 +2185,37 @@ namespace dmGameSystem
         }
 
         index -= num_properties;
+
+        const char* world_property_names[] = {
+            "world_position",
+            "world_rotation",
+            "world_scale",
+        };
+
+        uint32_t num_world_properties = DM_ARRAY_SIZE(world_property_names);
+        if (index < num_world_properties)
+        {
+            Matrix4 world = dmGui::GetNodeWorldTransform(component->m_Scene, node);
+            dmTransform::Transform transform = dmTransform::ToTransform(world);
+
+            Vector4 value;
+            switch(index)
+            {
+                case 0: value = Vector4(transform.GetTranslation()); break;
+                case 1: value = Vector4(transform.GetRotation()); break;
+                case 2: value = Vector4(transform.GetScale()); break;
+                default:
+                    return false;
+            }
+
+            pit->m_Property.m_NameHash = dmHashString64(world_property_names[index]);
+            pit->m_Property.m_Value.m_V4[0] = value.getX();
+            pit->m_Property.m_Value.m_V4[1] = value.getY();
+            pit->m_Property.m_Value.m_V4[2] = value.getZ();
+            pit->m_Property.m_Value.m_V4[3] = value.getW();
+            return true;
+        }
+        index -= num_world_properties;
 
         if (type == dmGui::NODE_TYPE_TEXT)
         {

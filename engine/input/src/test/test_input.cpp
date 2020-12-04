@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -128,7 +128,9 @@ TEST_F(InputTest, Keyboard)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_0, true);
+    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(m_HidContext, 0);
+
+    dmHID::SetKey(keyboard, dmHID::KEY_0, true);
 
     dmHID::Update(m_HidContext);
 
@@ -144,7 +146,7 @@ TEST_F(InputTest, Keyboard)
     ASSERT_TRUE(dmInput::Pressed(binding, key_0_id));
     ASSERT_FALSE(dmInput::Released(binding, key_0_id));
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_0, false);
+    dmHID::SetKey(keyboard, dmHID::KEY_0, false);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
@@ -160,14 +162,14 @@ TEST_F(InputTest, Keyboard)
 
     dmInput::SetBinding(binding, m_Test2DDF);
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_0, true);
+    dmHID::SetKey(keyboard, dmHID::KEY_0, true);
     dmHID::Update(m_HidContext);
 
     dmInput::UpdateBinding(binding, m_DT);
     v = dmInput::GetValue(binding, key_0_id);
     ASSERT_EQ(0.0f, v);
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_1, true);
+    dmHID::SetKey(keyboard, dmHID::KEY_1, true);
     dmHID::Update(m_HidContext);
 
     dmInput::UpdateBinding(binding, m_DT);
@@ -189,7 +191,9 @@ TEST_F(InputTest, Mouse)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
 
-    dmHID::SetMouseButton(m_HidContext, dmHID::MOUSE_BUTTON_LEFT, true);
+    dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
 
     dmHID::Update(m_HidContext);
 
@@ -205,7 +209,7 @@ TEST_F(InputTest, Mouse)
     ASSERT_TRUE(dmInput::Pressed(binding, mouse_click_id));
     ASSERT_FALSE(dmInput::Released(binding, mouse_click_id));
 
-    dmHID::SetMouseButton(m_HidContext, dmHID::MOUSE_BUTTON_LEFT, false);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, false);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
@@ -229,7 +233,7 @@ TEST_F(InputTest, Mouse)
     ASSERT_EQ(0, click_action->m_DY);
     ASSERT_TRUE(click_action->m_PositionSet);
 
-    dmHID::SetMousePosition(m_HidContext, 0, 1);
+    dmHID::SetMousePosition(mouse, 0, 1);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
@@ -238,7 +242,7 @@ TEST_F(InputTest, Mouse)
     ASSERT_EQ(0, click_action->m_DX);
     ASSERT_EQ(1, click_action->m_DY);
 
-    dmHID::SetMousePosition(m_HidContext, 0, -1);
+    dmHID::SetMousePosition(mouse, 0, -1);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
@@ -252,8 +256,8 @@ TEST_F(InputTest, Mouse)
     dmHashTable64<dmInput::Action*> actions;
     actions.SetCapacity(32, 64);
 
-    dmHID::SetMouseButton(m_HidContext, dmHID::MOUSE_BUTTON_LEFT, false);
-    dmHID::SetMousePosition(m_HidContext, 0, 0);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, false);
+    dmHID::SetMousePosition(mouse, 0, 0);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     // make mouse movement come to a rest => no mouse movement
@@ -263,7 +267,7 @@ TEST_F(InputTest, Mouse)
     dmInput::Action** move_action = actions.Get(0);
     ASSERT_EQ((void*)0, (void*)move_action);
 
-    dmHID::SetMousePosition(m_HidContext, 1, 0);
+    dmHID::SetMousePosition(mouse, 1, 0);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     actions.Clear();
@@ -278,7 +282,7 @@ TEST_F(InputTest, Mouse)
     ASSERT_EQ(0, (*move_action)->m_DY);
     ASSERT_TRUE((*move_action)->m_PositionSet);
 
-    dmHID::SetMousePosition(m_HidContext, 0, 0);
+    dmHID::SetMousePosition(mouse, 0, 0);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     actions.Clear();
@@ -393,7 +397,7 @@ TEST_F(InputTest, GamepadConnectedContainsGamepadName)
 
     dmInput::GamepadConfig* map = m_Context->m_GamepadMaps.Get(dmHashString32("null_device"));
     ASSERT_NE((void*)0x0, (void*)map);
-    
+
     dmHID::SetGamepadConnectivity(m_HidContext, 0, true);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
@@ -441,6 +445,8 @@ TEST_F(InputTest, Touch)
     input_params.m_RepeatInterval = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
+    dmHID::HTouchDevice device = dmHID::GetTouchDevice(m_HidContext, 0);
+
     dmInput::HBinding binding = dmInput::NewBinding(context);
     dmInput::SetBinding(binding, m_TestDDF);
 
@@ -459,8 +465,8 @@ TEST_F(InputTest, Touch)
     ASSERT_EQ(0.0f, action->m_Value);
     ASSERT_FALSE(action->m_PositionSet);
 
-    dmHID::AddTouch(hid_context, 0, 1, 0, dmHID::PHASE_MOVED);
-    dmHID::AddTouch(hid_context, 2, 3, 1, dmHID::PHASE_MOVED);
+    dmHID::AddTouch(device, 0, 1, 0, dmHID::PHASE_MOVED);
+    dmHID::AddTouch(device, 2, 3, 1, dmHID::PHASE_MOVED);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
@@ -487,9 +493,9 @@ TEST_F(InputTest, Touch)
     ASSERT_EQ(2, action->m_Touch[1].m_X);
     ASSERT_EQ(3, action->m_Touch[1].m_Y);
 
-    dmHID::ClearTouches(hid_context);
-    dmHID::AddTouch(hid_context, 4, 5, 0, dmHID::PHASE_MOVED);
-    dmHID::AddTouch(hid_context, 6, 7, 1, dmHID::PHASE_MOVED);
+    dmHID::ClearTouches(device);
+    dmHID::AddTouch(device, 4, 5, 0, dmHID::PHASE_MOVED);
+    dmHID::AddTouch(device, 6, 7, 1, dmHID::PHASE_MOVED);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
@@ -510,7 +516,7 @@ TEST_F(InputTest, Touch)
     ASSERT_EQ(6, action->m_Touch[1].m_X);
     ASSERT_EQ(7, action->m_Touch[1].m_Y);
 
-    dmHID::ClearTouches(hid_context);
+    dmHID::ClearTouches(device);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
@@ -548,6 +554,8 @@ TEST_F(InputTest, TouchPhases)
     input_params.m_RepeatInterval = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
+    dmHID::HTouchDevice device = dmHID::GetTouchDevice(m_HidContext, 0);
+
     dmInput::HBinding binding = dmInput::NewBinding(context);
     dmInput::SetBinding(binding, m_TestDDF);
 
@@ -563,8 +571,8 @@ TEST_F(InputTest, TouchPhases)
     ASSERT_FALSE(action->m_PositionSet);
 
     // Step 1: Both touches began
-    dmHID::AddTouch(hid_context, 0, 1, 0, dmHID::PHASE_BEGAN);
-    dmHID::AddTouch(hid_context, 2, 3, 1, dmHID::PHASE_BEGAN);
+    dmHID::AddTouch(device, 0, 1, 0, dmHID::PHASE_BEGAN);
+    dmHID::AddTouch(device, 2, 3, 1, dmHID::PHASE_BEGAN);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
@@ -597,11 +605,11 @@ TEST_F(InputTest, TouchPhases)
         ASSERT_EQ(dmHID::PHASE_BEGAN, action->m_Touch[1].m_Phase);
     }
 
-    dmHID::ClearTouches(hid_context);
+    dmHID::ClearTouches(device);
 
     // Step 2: Touch 1 ended, while touch 0 moved
-    dmHID::AddTouch(hid_context, 4, 5, 1, dmHID::PHASE_ENDED);
-    dmHID::AddTouch(hid_context, 6, 7, 0, dmHID::PHASE_MOVED);
+    dmHID::AddTouch(device, 4, 5, 1, dmHID::PHASE_ENDED);
+    dmHID::AddTouch(device, 6, 7, 0, dmHID::PHASE_MOVED);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
@@ -629,10 +637,10 @@ TEST_F(InputTest, TouchPhases)
         ASSERT_EQ(dmHID::PHASE_MOVED, action->m_Touch[1].m_Phase);
     }
 
-    dmHID::ClearTouches(hid_context);
+    dmHID::ClearTouches(device);
 
     // Step 3: Touch 0 ended
-    dmHID::AddTouch(hid_context, 6, 7, 0, dmHID::PHASE_ENDED);
+    dmHID::AddTouch(device, 6, 7, 0, dmHID::PHASE_ENDED);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
@@ -652,7 +660,7 @@ TEST_F(InputTest, TouchPhases)
         ASSERT_EQ(dmHID::PHASE_ENDED, action->m_Touch[0].m_Phase);
     }
 
-    dmHID::ClearTouches(hid_context);
+    dmHID::ClearTouches(device);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
@@ -684,6 +692,8 @@ TEST_F(InputTest, ForEachActive)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
 
+    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(m_HidContext, 0);
+
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
@@ -693,7 +703,7 @@ TEST_F(InputTest, ForEachActive)
 
     ASSERT_EQ(0.0f, value);
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_0, true);
+    dmHID::SetKey(keyboard, dmHID::KEY_0, true);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
@@ -709,10 +719,12 @@ TEST_F(InputTest, Combinations)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_ComboDDF);
 
+    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(m_HidContext, 0);
+
     dmhash_t action0 = dmHashString64("Action0");
     dmhash_t action1 = dmHashString64("Action1");
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_0, true);
+    dmHID::SetKey(keyboard, dmHID::KEY_0, true);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
@@ -720,8 +732,8 @@ TEST_F(InputTest, Combinations)
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action0));
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action1));
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_0, false);
-    dmHID::SetKey(m_HidContext, dmHID::KEY_1, true);
+    dmHID::SetKey(keyboard, dmHID::KEY_0, false);
+    dmHID::SetKey(keyboard, dmHID::KEY_1, true);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
@@ -776,7 +788,9 @@ TEST_F(InputTest, TestRepeat)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
 
-    dmHID::SetKey(m_HidContext, dmHID::KEY_0, true);
+    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(m_HidContext, 0);
+
+    dmHID::SetKey(keyboard, dmHID::KEY_0, true);
 
     dmHID::Update(m_HidContext);
 

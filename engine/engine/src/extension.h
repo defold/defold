@@ -32,6 +32,7 @@ namespace dmEngine
         dmConfigFile::HConfig   m_ConfigFile;
         dmWebServer::HServer    m_WebServer;
         dmGameObject::HRegister m_GameObjectRegister;
+        dmHID::HContext         m_HIDContext;
     };
 
 }
