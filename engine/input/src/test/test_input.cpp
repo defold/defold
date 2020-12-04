@@ -445,13 +445,15 @@ TEST_F(InputTest, Touch)
     input_params.m_RepeatInterval = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
-    dmHID::HTouchDevice device = dmHID::GetTouchDevice(m_HidContext, 0);
+    dmHID::HTouchDevice device = dmHID::GetTouchDevice(hid_context, 0);
 
     dmInput::HBinding binding = dmInput::NewBinding(context);
     dmInput::SetBinding(binding, m_TestDDF);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_TRUE(dmHID::IsTouchDeviceConnected(device));
 
     dmhash_t touch_1_id = dmHashString64("TOUCH_1");
     dmhash_t touch_2_id = dmHashString64("TOUCH_2");
@@ -554,13 +556,15 @@ TEST_F(InputTest, TouchPhases)
     input_params.m_RepeatInterval = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
-    dmHID::HTouchDevice device = dmHID::GetTouchDevice(m_HidContext, 0);
+    dmHID::HTouchDevice device = dmHID::GetTouchDevice(hid_context, 0);
 
     dmInput::HBinding binding = dmInput::NewBinding(context);
     dmInput::SetBinding(binding, m_TestDDF);
 
     dmHID::Update(hid_context);
     dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_TRUE(dmHID::IsTouchDeviceConnected(device));
 
     dmhash_t touch_action_id = dmHashString64("TOUCH_1");
 
