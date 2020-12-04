@@ -21,7 +21,7 @@
 #include <dlib/math.h>
 #include <dlib/static_assert.h>
 
-#include <graphics/glfw/glfw.h>
+#include <dmsdk/graphics/glfw/glfw.h>
 
 #include "hid_private.h"
 

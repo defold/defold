@@ -40,7 +40,7 @@
 #include <Carbon/Carbon.h>
 #endif
 
-#include <graphics/glfw/glfw.h>
+#include <dmsdk/graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
