@@ -2198,16 +2198,18 @@ namespace dmGameSystem
             Matrix4 world = dmGui::GetNodeWorldTransform(component->m_Scene, node);
             dmTransform::Transform transform = dmTransform::ToTransform(world);
 
+            dmGameObject::SceneNodePropertyType type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3;
             Vector4 value;
             switch(index)
             {
                 case 0: value = Vector4(transform.GetTranslation()); break;
-                case 1: value = Vector4(transform.GetRotation()); break;
+                case 1: value = Vector4(transform.GetRotation()); type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4; break;
                 case 2: value = Vector4(transform.GetScale()); break;
                 default:
                     return false;
             }
 
+            pit->m_Property.m_Type = type;
             pit->m_Property.m_NameHash = dmHashString64(world_property_names[index]);
             pit->m_Property.m_Value.m_V4[0] = value.getX();
             pit->m_Property.m_Value.m_V4[1] = value.getY();
