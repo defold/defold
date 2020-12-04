@@ -2705,6 +2705,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return Point3(n->m_Node.m_Properties[PROPERTY_SIZE].getXYZ());
     }
 
+    Matrix4 GetNodeWorldTransform(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        Matrix4 world;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), world);
+        return world;
+    }
+
     Vector4 GetNodeSlice9(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
