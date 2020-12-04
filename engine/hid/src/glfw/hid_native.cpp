@@ -148,7 +148,7 @@ namespace dmHID
             for (uint32_t m = 0; m < MAX_MOUSE_COUNT; ++m)
             {
                 Mouse* mouse = &context->m_Mice[m];
-                // TODO: Actually detect if the keyboard is present,
+                // TODO: Actually detect if the mouse is present,
                 // this is important for mouse input and touch input to not interfere
                 mouse->m_Connected = 1;
 
