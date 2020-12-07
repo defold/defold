@@ -50,6 +50,8 @@ The following third party software has licenses which does not require inclusion
   * Public Domain
     * stb_image - Sean Barrett
     * stb_vorbis - Sean Barrett
+    * miniz - Rich Geldrich
+    * zip -  Kuba Podgórski
   * ZLib
     * zlib - Jean-loup Gailly and Mark Adler
     * Box2D - Erin Catto

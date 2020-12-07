@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+    <asset>
+        <contributor>
+            <author></author>
+            <authoring_tool>FBX COLLADA exporter</authoring_tool>
+            <comments></comments>
+        </contributor>
+        <created>2012-10-10T12:34:45Z</created>
+        <keywords></keywords>
+        <modified>2012-10-10T12:34:45Z</modified>
+        <revision></revision>
+        <subject></subject>
+        <title></title>
+        <unit name="meter" meter="1.000000"/>
+        <up_axis>Z_UP</up_axis>
+    </asset>
+    <library_materials>
+        <material id="lambert1" name="lambert1">
+            <instance_effect url="#lambert1-fx"/>
+        </material>
+    </library_materials>
+    <library_effects>
+        <effect id="lambert1-fx" name="lambert1">
+            <profile_COMMON>
+                <technique sid="standard">
+                    <lambert>
+                        <emission>
+                            <color sid="emission">0.000000  0.000000 0.000000 1.000000</color>
+                        </emission>
+                        <ambient>
+                            <color sid="ambient">0.000000  0.000000 0.000000 1.000000</color>
+                        </ambient>
+                        <diffuse>
+                            <color sid="diffuse">0.400000  0.400000 0.400000 1.000000</color>
+                        </diffuse>
+                        <transparent opaque="RGB_ZERO">
+                            <color sid="transparent">0.000000  0.000000 0.000000 1.000000</color>
+                        </transparent>
+                        <transparency>
+                            <float sid="transparency">1.000000</float>
+                        </transparency>
+                    </lambert>
+                </technique>
+            </profile_COMMON>
+        </effect>
+    </library_effects>
+    <library_geometries>
+        <geometry id="Cube_001-mesh" name="Cube">
+            <mesh>
+                <source id="Cube_001-mesh-positions">
+                    <float_array id="Cube_001-mesh-positions-array" count="24">
+                        -0.5 -0.5 -0.5
+                        -0.5 -0.5 0.5
+                        -0.5 0.5 -0.5
+                        -0.5 0.5 0.5
+                        0.5 -0.5 -0.5
+                        0.5 -0.5 0.5
+                        0.5 0.5 -0.5
+                        0.5 0.5 0.5
+                    </float_array>
+                    <technique_common>
+                        <accessor source="#Cube_001-mesh-positions-array" count="8" stride="3">
+                            <param name="X" type="float"/>
+                            <param name="Y" type="float"/>
+                            <param name="Z" type="float"/>
+                        </accessor>
+                    </technique_common>
+                </source>
+                <source id="Cube_001-mesh-normals">
+                    <float_array id="Cube_001-mesh-normals-array" count="18">
+                        -1 0 0
+                        0 1 0
+                        1 0 0
+                        0 -1 0
+                        0 0 -1
+                        0 0 1
+                    </float_array>
+                    <technique_common>
+                        <accessor source="#Cube_001-mesh-normals-array" count="6" stride="3">
+                            <param name="X" type="float"/>
+                            <param name="Y" type="float"/>
+                            <param name="Z" type="float"/>
+                        </accessor>
+                    </technique_common>
+                </source>
+                <source id="Cube_001-mesh-map-0">
+                    <float_array id="Cube_001-mesh-map-0-array" count="72">1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1</float_array>
+                    <technique_common>
+                        <accessor source="#Cube_001-mesh-map-0-array" count="36" stride="2">
+                            <param name="S" type="float"/>
+                            <param name="T" type="float"/>
+                        </accessor>
+                    </technique_common>
+                </source>
+                <vertices id="Cube_001-mesh-vertices">
+                    <input semantic="POSITION" source="#Cube_001-mesh-positions"/>
+                </vertices>
+                <polylist count="12" material="lambert1">
+                    <input semantic="VERTEX" source="#Cube_001-mesh-vertices" offset="0"/>
+                    <input semantic="NORMAL" source="#Cube_001-mesh-normals" offset="1"/>
+                    <input semantic="TEXCOORD" source="#Cube_001-mesh-map-0" offset="2" set="0"/>
+                    <vcount>3 3 3 3 3 3 3 3 3 3 3 3 </vcount>
+                    <p>1 0 0 2 0 1 0 0 2 3 1 3 6 1 4 2 1 5 7 2 6 4 2 7 6 2 8 5 3 9 0 3 10 4 3 11 6 4 12 0 4 13 2 4 14 3 5 15 5 5 16 7 5 17 1 0 18 3 0 19 2 0 20 3 1 21 7 1 22 6 1 23 7 2 24 5 2 25 4 2 26 5 3 27 1 3 28 0 3 29 6 4 30 4 4 31 0 4 32 3 5 33 1 5 34 5 5 35</p>
+                </polylist>
+            </mesh>
+        </geometry>
+    </library_geometries>
+    <library_visual_scenes>
+        <visual_scene id="" name="">
+            <node id="Cube" name="Cube" type="NODE">
+                <matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+                <instance_geometry url="#Cube_001-mesh" name="Cube">
+                    <bind_material><technique_common><instance_material symbol="lambert1" target="#lambert1"/></technique_common></bind_material>
+                </instance_geometry>
+            </node>
+        </visual_scene>
+    </library_visual_scenes>
+    <scene>
+        <instance_visual_scene url="#"></instance_visual_scene>
+    </scene>
+</COLLADA>

@@ -247,6 +247,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
             spinlock_lock(&_glfwWinAndroid.m_RenderLock);
 
             destroy_gl_surface(&_glfwWinAndroid);
+            _glfwWinAndroid.surface = EGL_NO_SURFACE;
 
             spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
         }

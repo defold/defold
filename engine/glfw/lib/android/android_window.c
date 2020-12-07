@@ -356,6 +356,7 @@ void glfwAndroidFlushEvents()
             {
                 CreateGLSurface();
             }
+            computeIconifiedState();
             break;
 
         case APP_CMD_GAINED_FOCUS:
