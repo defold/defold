@@ -43,6 +43,10 @@
 		vertical-align: bottom;
 	}
 
+	#canvas-container {
+		position: relative;
+	}
+
 	canvas:focus, canvas:active {
 		outline: none;
 		border: 0;
@@ -66,7 +70,9 @@
 
 <body>
 	<div id="app-container" class="canvas-app-container">
-		<canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{display.width}}" height="{{display.height}}"></canvas>
+		<div id="canvas-container" class="canvas-app-canvas-container">
+			<canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{display.width}}" height="{{display.height}}"></canvas>
+		</div>
 		<div class="buttons-background">
 {{#html5.show_fullscreen_button}}
 			<div class="button" onclick="Module.toggleFullscreen();">Fullscreen</div>
@@ -86,6 +92,7 @@
 		},
 		engine_arguments: [{{#DEFOLD_ENGINE_ARGUMENTS}}"{{.}}",{{/DEFOLD_ENGINE_ARGUMENTS}}],
 		custom_heap_size: {{DEFOLD_HEAP_SIZE}},
+		full_screen_container: "#canvas-container",
 		disable_context_menu: true
 	}
 

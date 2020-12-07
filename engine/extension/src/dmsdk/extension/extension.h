@@ -24,6 +24,11 @@ extern "C"
 }
 
 
+namespace dmWebServer
+{
+    typedef struct Server* HServer;
+}
+
 namespace dmExtension
 {
     /*# SDK Extension API documentation
@@ -60,13 +65,14 @@ namespace dmExtension
      * @struct
      * @name dmExtension::AppParams
      * @member m_ConfigFile [type:dmConfigFile::HConfig]
+     * @member m_WebServer [type:dmWebServer::HServer] Only valid in debug builds, where the engine service is running. 0 otherwise.
      *
      */
     struct AppParams
     {
         AppParams();
-        /// Config file
         dmConfigFile::HConfig m_ConfigFile;
+        dmWebServer::HServer m_WebServer;
     };
 
     /*# extension level callback data

@@ -312,14 +312,12 @@ namespace dmDNS
     //       dns channel to this function, which needs to be stored somewhere that's easily reachable by
     //       the calling functions on the main thread. We could do something like a global channel that lives
     //       in this module that can be accessed everywhere, but we need to make sure this solution works first.
-    Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4, bool ipv6)
+    Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, int timeout, bool ipv4, bool ipv6)
     {
         assert(channel);
         assert(address);
 
-        // Note: We are emulating a total-request timeout of 30 seconds here, but we can use
-        //       much more sensible numbers.. This is to mock the built-in timeout in getaddrinfo.
-        static const uint64_t request_timeout = 30 * 1000000;
+        static const uint64_t request_timeout = (timeout > 0) ? timeout : 30 * 1000000;
         uint64_t              request_started = dmTime::GetTime();
 
         Channel* dns_channel = (Channel*) channel;

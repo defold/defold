@@ -141,6 +141,12 @@ namespace dmHttpClient
         /// DNS-Channel.
         dmDNS::HChannel m_DNSChannel;
 
+        /// Maximum number of retries for GET-request.
+        int m_MaxGetRetries;
+
+        /// Request timeout in us
+        int m_RequestTimeout;
+
         NewParams()
         {
             SetDefaultParams(this);

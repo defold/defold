@@ -46,7 +46,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.material
- * @param path [type:string] optional resource path string to the resource
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -70,7 +70,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.font
- * @param path [type:string] optional resource path string to the resource
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -94,7 +94,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.texture
- * @param path [type:string] optional resource path string to the resource
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -118,7 +118,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.atlas
- * @param path [type:string] optional resource path string to the resource
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -142,7 +142,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.buffer
- * @param path [type:string] optional resource path string to the resource
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -166,7 +166,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.tile_source
- * @param path [type:string] optional resource path string to the resource
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *

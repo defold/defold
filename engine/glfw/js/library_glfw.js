@@ -438,21 +438,22 @@ var LibraryGLFW = {
       GLFW.prevHeight = 0;
     },
 
-    requestFullScreen: function() {
-      if (!Module["canvas"]) {
+    requestFullScreen: function(element) {
+      element = element || Module["fullScreenContainer"] || Module["canvas"];
+      if (!element) {
         return;
       }
       document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
       document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
       document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
       document.addEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
-      var RFS = Module["canvas"]['requestFullscreen'] ||
-                Module["canvas"]['requestFullScreen'] ||
-                Module["canvas"]['mozRequestFullScreen'] ||
-                Module["canvas"]['webkitRequestFullScreen'] ||
-                Module["canvas"]['msRequestFullScreen'] ||
+      var RFS = element['requestFullscreen'] ||
+                element['requestFullScreen'] ||
+                element['mozRequestFullScreen'] ||
+                element['webkitRequestFullScreen'] ||
+                element['msRequestFullScreen'] ||
                 (function() {});
-      RFS.apply(Module["canvas"], []);
+      RFS.apply(element, []);
     },
 
     cancelFullScreen: function() {
