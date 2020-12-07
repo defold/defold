@@ -50,13 +50,16 @@ namespace dmHID
 
     void Final(HContext context)
     {
-        char** dummy_data = g_DummyData->Get((uintptr_t)context);
-        delete *dummy_data;
-        g_DummyData->Erase((uintptr_t)context);
-        if (g_DummyData->Empty())
+        if (g_DummyData)
         {
-            delete g_DummyData;
-            g_DummyData = 0;
+            char** dummy_data = g_DummyData->Get((uintptr_t)context);
+            delete *dummy_data;
+            g_DummyData->Erase((uintptr_t)context);
+            if (g_DummyData->Empty())
+            {
+                delete g_DummyData;
+                g_DummyData = 0;
+            }
         }
     }
 
