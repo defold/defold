@@ -69,6 +69,7 @@
             [util.profiler :as profiler]
             [service.smoke-log :as slog])
   (:import [com.defold.editor Editor]
+           [com.defold.editor UIUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
@@ -1109,12 +1110,13 @@ If you do not specifically require different script states, consider changing th
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["version" "channel" "editor-sha1" "engine-sha1" "time"])]
+        controls (ui/collect-controls root ["version" "channel" "editor-sha1" "engine-sha1" "time", "sponsor-push"])]
     (ui/text! (:version controls) (System/getProperty "defold.version" "No version"))
     (ui/text! (:channel controls) (or (system/defold-channel) "No channel"))
     (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
     (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
     (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
+    (UIUtil/stringToTextFlowNodes (:sponsor-push controls) "Support the continued development of Defold\n[Become a community sponsor](https://www.defold.com/community-donations)!")
     (ui/title! stage "About")
     (.setScene stage scene)
     (ui/show! stage)))
