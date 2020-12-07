@@ -1539,6 +1539,31 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return (uint32_t)(current - begin);
     }
 
+    static inline void CompleteAnimation(HScene scene, Animation* anim, bool finished)
+    {
+        if (!anim->m_AnimationCompleteCalled)
+        {
+            // NOTE: Very important to set m_AnimationCompleteCalled to 1
+            // before invoking the call-back. The call-back could potentially
+            // start a new animation that could reuse the same animation slot.
+            anim->m_AnimationCompleteCalled = 1;
+
+            // NOTE: Very important to invoke the easing release callback for
+            // the before calling animation complete. The animation
+            // complete callback could start a new animation with an easing
+            // curve that would be immediately released.
+            if (anim->m_Easing.release_callback)
+            {
+                anim->m_Easing.release_callback(&anim->m_Easing);
+            }
+
+            if (anim->m_AnimationComplete)
+            {
+                anim->m_AnimationComplete(scene, anim->m_Node, finished, anim->m_Userdata1, anim->m_Userdata2);
+            }
+        }
+    }
+
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
@@ -1613,22 +1638,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                             anim->m_Backwards ^= 1;
                         }
                     } else {
-                        if (!anim->m_AnimationCompleteCalled)
-                        {
-                            // NOTE: Very important to set m_AnimationCompleteCalled to 1
-                            // before invoking the call-back. The call-back could potentially
-                            // start a new animation that could reuse the same animation slot.
-                            anim->m_AnimationCompleteCalled = 1;
-
-                            if (anim->m_AnimationComplete)
-                            {
-                                anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
-                            }
-                            if (anim->m_Easing.release_callback)
-                            {
-                                anim->m_Easing.release_callback(&anim->m_Easing);
-                            }
-                        }
+                        CompleteAnimation(scene, anim, true);
                     }
                 }
             }
@@ -2523,20 +2533,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             if (anim->m_Node == node)
             {
-                if(!anim->m_AnimationCompleteCalled)
-                {
-                    anim->m_AnimationCompleteCalled = 1;
-                    if (anim->m_AnimationComplete)
-                    {
-                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-                    }
-
-                    if (anim->m_Easing.release_callback)
-                    {
-                        anim->m_Easing.release_callback(&anim->m_Easing);
-                    }
-                }
-
+                CompleteAnimation(scene, anim, false);
                 RemoveAnimation(*animations, i);
                 i--;
                 n_anims--;
