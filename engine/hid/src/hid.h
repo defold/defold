@@ -299,14 +299,6 @@ namespace dmHID
     bool GetKey(KeyboardPacket* packet, Key key);
 
     /**
-     * Add a keyboard character input
-     *
-     * @param context context handle
-     * @param chr The character (unicode)
-     */
-    void AddKeyboardChar(HContext context, int chr);
-
-    /**
      * Set current marked text
      *
      * @param context context handle
