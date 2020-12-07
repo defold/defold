@@ -204,3 +204,18 @@ Links:
     }
   }
 }
+
+#sponsor-push > .text {
+  -fx-fill: $bright-grey-light;
+  -fx-padding: 0;
+}
+
+#sponsor-push > .hyperlink {
+  -fx-text-fill: #5BC0FF;
+  -fx-border-width: 0;
+  -fx-padding: 0;
+}
+
+#sponsor-push > .hyperlink:hover {
+  -fx-text-fill: #89d2ff;
+}
