@@ -587,7 +587,7 @@ namespace dmHID
 
     /*# Add text input
      * @name AddKeyboardChar
-     * @param keyboard [type: dmHID::HContext] context handle
+     * @param keyboard [type: dmHID::HContext] context handle
      * @param chr [type: int] The character (unicode)
      */
     void AddKeyboardChar(HContext context, int chr);
