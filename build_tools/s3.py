@@ -113,3 +113,18 @@ def get_single_release(archive_path, version_tag, sha1):
             'sha1': sha1,
             'abbrevsha1': sha1[:7],
             'files': files}
+
+def move_release(archive_path, sha1, to_channel):
+    archive_root = urlparse.urlparse(archive_path).path[1:]
+    u = urlparse.urlparse(archive_path)
+    bucket_name = u.hostname
+    bucket = get_bucket(bucket_name)
+
+    prefix = "%s/%s/" % (archive_root, sha1)
+    keys = bucket.get_all_keys(prefix = prefix)
+    for key in keys:
+        name = key.name.replace(prefix, "")
+        to_key = "archive/%s/%s/%s" % (to_channel, sha1, name)
+        to_redirect = "http://%s/%s" % (bucket_name, to_key)
+        bucket.copy_key(to_key, bucket_name, from_key)
+        key.set_redirect(to_redirect)
