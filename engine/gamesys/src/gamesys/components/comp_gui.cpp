@@ -2217,6 +2217,7 @@ namespace dmGameSystem
             "world_position",
             "world_rotation",
             "world_scale",
+            "world_size",
         };
 
         uint32_t num_world_properties = DM_ARRAY_SIZE(world_property_names);
@@ -2232,6 +2233,7 @@ namespace dmGameSystem
                 case 0: value = Vector4(transform.GetTranslation()); break;
                 case 1: value = Vector4(transform.GetRotation()); type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4; break;
                 case 2: value = Vector4(transform.GetScale()); break;
+                case 3: value = Vectormath::Aos::mulPerElem(dmGui::GetNodeProperty(component->m_Scene, node, dmGui::PROPERTY_SIZE), Vector4(transform.GetScale())); break;
                 default:
                     return false;
             }
