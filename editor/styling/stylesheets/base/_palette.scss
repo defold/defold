@@ -3,32 +3,34 @@
 	-df-defold-blue:         #0084ff;
 	-df-defold-blue-fifty:   rgba(0, 132, 255, 0.5);
 	-df-bright-blue: 		 #5bc0ff;
-	-df-bright-blue-light:   derive(#5bc0ff, 20%);
-	-df-bright-blue-lighter: derive(#5bc0ff, 40%);
+	-df-bright-blue-light:   derive(#5bc0ff, 10%);
+	-df-bright-blue-lighter: derive(#5bc0ff, 20%);
 	-df-selected-blue:       #264a8b;
 
 	// Grey
 	-df-dark-grey-darker:    derive(#212428, -20%);
-	-df-dark-grey-dark:      derive(#212428, -10%);
+	-df-dark-grey-dark:      derive(#212428, -5%); // #1f2125
 	-df-dark-grey:           #212428;
 	-df-dark-grey-semi:      rgba(33, 36, 40, 0.8);
-	-df-dark-grey-light:     derive(#212428, 10%);
-	-df-dark-grey-lighter:   derive(#212428, 20%);
-	-df-dark-grey-lightest:  derive(#212428, 30%);
+	-df-dark-grey-light:     derive(#212428, 5%); // #2c2f34
+	-df-dark-grey-lighter:   derive(#212428, 20%); // #373c41
+	-df-dark-grey-lightest:  derive(#212428, 35%); //
 
-	-df-dark-grey-header:    #373a40;
+	-df-dark-grey-header:    -df-dark-grey-lighter;
 	-df-dark-grey-selected:  #3B3F43;
 	-df-dark-grey-border:    #424348;
+
+
 	-df-mid-grey:            #393c41;
 	-df-mid-grey-light:      #45474B;
 	-df-grey:                #52575C;
 
-	-df-light-grey-darker:   derive(#a4b4c1, -40%);
-	-df-light-grey-dark:	 derive(#a4b4c1, -20%);
+	-df-light-grey-darker:   derive(#a4b4c1, -20%);
+	-df-light-grey-dark:	 derive(#a4b4c1, -10%);
 	-df-light-grey:			 #a4b4c1;
-	-df-light-grey-light:	 derive(#a4b4c1, 20%);
-	-df-light-grey-lighter:	 derive(#a4b4c1, 40%);
-	-df-light-grey-lightest: derive(#a4b4c1, 60%);
+	-df-light-grey-light:	 derive(#a4b4c1, 10%);
+	-df-light-grey-lighter:	 derive(#a4b4c1, 20%);
+	-df-light-grey-lightest: derive(#a4b4c1, 30%);
 
 	// White
 	-df-defold-white:        #dddddd;
@@ -49,8 +51,8 @@
 	/* Revamp */
 	-df-root-background:       -df-dark-grey;
 	-df-panel-background:      -df-dark-grey-light;
-	-df-input-background:      #292a2f;
-	-df-input-border:          #3e4147;
+	-df-input-background:      -df-dark-grey-light;
+	-df-input-border:          -df-dark-grey-lighter;
 	-df-input-border-light:    derive(#3e4147, 3%);
 	-df-floating-input-border: #56595d;
 	-df-icon-grey:             -df-light-grey-dark;
