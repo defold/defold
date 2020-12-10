@@ -1,5 +1,3 @@
-$console-background: #27292D;
-
 .console-button-base {
   @extend .button-small;
   -fx-border-width: 0;
@@ -48,7 +46,7 @@ $console-background: #27292D;
 }
 
 #console-canvas-pane {
-  -fx-background-color: $console-background;
+  -fx-background-color: -df-dark-grey-light;
   -fx-min-height: 20px;
 }
 
@@ -136,7 +134,7 @@ $console-background: #27292D;
 
 #debugger-prompt-label {
   -fx-alignment: center-right;
-  -fx-background-color: $console-background;
+  -fx-background-color: -df-dark-grey-light;
   -fx-border-color: -df-input-border;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
@@ -148,7 +146,7 @@ $console-background: #27292D;
 }
 
 #debugger-prompt-field {
-  -fx-background-color: $console-background;
+  -fx-background-color: -df-dark-grey-light;
   -fx-border-color: -df-input-border;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
@@ -159,7 +157,7 @@ $console-background: #27292D;
   -fx-text-fill: -df-defold-white;
 
   &:focused {
-    -fx-background-color: $console-background;
+    -fx-background-color: -df-dark-grey-light;
     -fx-border-color: -df-input-border;
     -fx-border-width: 1px 0px 0px 0px;
     -fx-padding: 0px;
