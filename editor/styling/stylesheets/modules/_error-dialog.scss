@@ -1,19 +1,18 @@
 #error-dialog {
-  $df-bright-blue: #5BC0FF;
   .text-run {
-    -fx-fill: $defold-white;
+    -fx-fill: -df-defold-white;
     -fx-font-smoothing-type: lcd;
   }
 
   .link-run {
     -fx-font-size: 14px;
-    -fx-text-fill: $df-bright-blue;
+    -fx-text-fill: -df-bright-blue;
     -fx-padding: 0;
     -fx-underline: false;
     -fx-cursor: default;
 
     &:hover {
-      -fx-text-fill: lighten($df-bright-blue, 9%);
+      -fx-text-fill: -df-bright-blue-light;
     }
   }
 

@@ -1,59 +1,128 @@
+* {
+  -df-defold-blue: #0084ff;
+  -df-defold-blue-fifty: rgba(0, 132, 255, 0.5);
+  -df-bright-blue: #5bc0ff;
+  -df-bright-light-blue: #89d2ff;
+  -df-selected-blue: #264a8b;
+  -df-bright-black: #292c30;
+  -df-bright-black-light: #2e3236;
+  -df-dark-black: #232529;
+  -df-dark-black-light: #26282a;
+  -df-dark-grey: #212428;
+  -df-dark-grey-semi: rgba(33, 36, 40, 0.8);
+  -df-dark-grey-light: #2c2e33;
+  -df-dark-grey-header: #373a40;
+  -df-dark-grey-selected: #3B3F43;
+  -df-dark-grey-border: #424348;
+  -df-mid-grey: #393c41;
+  -df-mid-grey-light: #45474B;
+  -df-grey: #52575C;
+  -df-bright-grey: #8f9296;
+  -df-bright-grey-light: #a2b0be;
+  -df-defold-white: #dddddd;
+  -df-defold-white-light: #f4f4f4;
+  -df-defold-white-eighty: rgba(221, 221, 221, 0.8);
+  -df-defold-red: #e32f44;
+  -df-defold-red-fifty: rgba(227, 47, 68, 0.5);
+  -df-defold-yellow: #fbce2f;
+  -df-defold-yellow-fifty: rgba(251, 206, 47, 0.5);
+  -df-defold-green: #3cff00;
+  -df-defold-green-fifty: rgba(60, 255, 0, 0.5);
+  -df-defold-orange: #fa6731;
+  /* Revamp */
+  -df-root-background: -df-dark-grey;
+  -df-panel-background: -df-dark-grey-light;
+  -df-input-background: #292a2f;
+  -df-input-border: #3e4147;
+  -df-input-border-light: #45484f;
+  -df-floating-input-border: #56595d;
+  -df-icon-grey: -df-bright-grey;
+  -df-tree-view-icon: #6b7b8b;
+  /* Menu colors */
+  -df-menu-background: -df-mid-grey;
+  -df-menu-foreground: -df-bright-grey-light;
+  -df-menu-background-hover: -df-grey;
+  -df-menu-foreground-hover: -df-defold-white;
+  -df-menu-separator: -df-dark-grey-light;
+  /* Scene view colors */
+  -df-scene-toolbar-background: -df-dark-grey-header;
+  -df-scene-toolbar-button-foreground: -df-defold-white;
+  -df-scene-toolbar-button-selected-background: -df-input-background;
+  -df-scene-toolbar-button-selected-foreground: -df-defold-white;
+  -df-scene-toolbar-button-hovered-foreground: -df-defold-white;
+  /* Status colors */
+  -df-error-severity-fatal: -df-defold-red;
+  -df-error-severity-fatal-dim: -df-defold-red-fifty;
+  -df-error-severity-warning: -df-defold-yellow;
+  -df-error-severity-warning-dim: -df-defold-yellow-fifty;
+  -df-error-severity-info: -df-bright-blue;
+  /* Lua script colors */
+  -df-script-helper: #33cccc;
+  -df-script-self: #E066FF;
+  -df-script-logic: #E3A869;
+  -df-script-constant: #FFBBFF;
+  -df-script-function: #33cc33;
+  -df-script-keyword: #fd6623;
+  -df-script-operator: #33cccc;
+  -df-script-string: #fbce2f;
+  -df-script-comment: #ff00ff;
+  -df-script-number: #aaaaff;
+  -df-script-intellisense: #00FFFF;
+  /* File extension group colors */
+  -df-folder: #6b7b8b;
+  -df-folder-active: #a2b0be;
+  -df-unknown-file: #6b7b8b;
+  -df-unknown-file-active: #a2b0be;
+  -df-design-file: #325c7e;
+  -df-design-file-active: #4cb1ff;
+  -df-script-file: #7c7e37;
+  -df-script-file-active: #f4f63c;
+  -df-property-file: #407435;
+  -df-property-file-active: #6eed48; }
+
 @font-face {
   font-family: 'Source Sans Pro';
   src: url("SourceSansPro-Regular.ttf"); }
 
 .root {
   -fx-background-color: transparent;
-  -fx-text-fill: #f0f2f6;
+  -fx-text-fill: -df-defold-white-light;
   -fx-font-family: "Source Sans Pro";
-  -fx-font-size: 13px;
-}
+  -fx-font-size: 13px; }
 
 #launch-error {
-  -fx-text-fill: #f0f2f6;
-  -fx-padding: 0 0 33px 0;
-}
+  -fx-text-fill: -df-defold-white-light;
+  -fx-padding: 0 0 33px 0; }
 
 #footer * {
-  -fx-text-fill: #848587;
-  -fx-font-size: 12px;
-}
+  -fx-text-fill: -df-bright-grey;
+  -fx-font-size: 12px; }
 
 #version {
-  -fx-padding: 0 0 16px 0;
-}
-
-#copyright {
-}
+  -fx-padding: 0 0 16px 0; }
 
 #rights-reserved {
-  -fx-padding: 0 0 16px 0;
-}
+  -fx-padding: 0 0 16px 0; }
 
 #sponsors {
-  -fx-padding: 0 0 16px 0;
-}
+  -fx-padding: 0 0 16px 0; }
 
 #sponsor-icons {
   -fx-opacity: 0.7;
   -fx-padding: 0 0 33px 0;
-  -fx-spacing: 33px;
-}
+  -fx-spacing: 33px; }
 
 #startup-tip > .text {
-  -fx-fill: #8f9296;
-  -fx-padding: 0;
-}
+  -fx-fill: -df-bright-grey;
+  -fx-padding: 0; }
 
 #startup-tip > .hyperlink {
-  -fx-text-fill: #5BC0FF;
+  -fx-text-fill: -df-bright-blue;
   -fx-border-width: 0;
-  -fx-padding: 0;
-}
+  -fx-padding: 0; }
 
 #startup-tip > .hyperlink:hover {
-  -fx-text-fill: #89d2ff;
-}
+  -fx-text-fill: -df-bright-light-blue; }
 
 /* See modena.css for progress bar styling */
 .progress-bar {
@@ -61,32 +130,36 @@
   -fx-background-insets: 0;
   -fx-background-radius: 0;
   -fx-border-radius: 0; }
-  .progress-bar > .track {
-    -fx-background-color: transparent;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
-    -fx-border-width: 0;
-    -fx-background-insets: 0; }
-  .progress-bar > .bar {
-    -fx-background-color: #3f7bbb;
-    -fx-background-insets: 0;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
-    -fx-pref-height: 3;
-    -fx-padding: 0; }
+
+.progress-bar > .track {
+  -fx-background-color: transparent;
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
+  -fx-border-width: 0;
+  -fx-background-insets: 0; }
+
+.progress-bar > .bar {
+  -fx-background-color: -df-dark-grey-semi;
+  -fx-background-insets: 0;
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
+  -fx-pref-height: 3;
+  -fx-padding: 0; }
 
 .button {
   -fx-background-radius: 5;
   -fx-border-radius: 4;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: #393c41;
+  -fx-background-color: -df-mid-grey;
   -fx-background-insets: 0;
-  -fx-border-color: rgba(33, 36, 40, 0.8);
+  -fx-border-color: -df-dark-grey-semi;
   -fx-border-width: 1;
-  -fx-text-fill: rgba(240, 242, 246, 0.8);
+  -fx-text-fill: -df-defold-white-eighty;
   -fx-font-size: 13px; }
-  .button:hover {
-    -fx-background-color: #45474B; }
-  .button:armed {
-    -fx-background-color: #292a2f; }
+
+.button:hover {
+  -fx-background-color: -df-mid-grey-light; }
+
+.button:armed {
+  -fx-background-color: -df-bright-black; }

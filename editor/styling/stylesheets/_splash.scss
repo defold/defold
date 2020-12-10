@@ -1,0 +1,93 @@
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  src: url("SourceSansPro-Regular.ttf"); }
+
+.root {
+  -fx-background-color: transparent;
+  -fx-text-fill: -df-defold-white-light;
+  -fx-font-family: "Source Sans Pro";
+  -fx-font-size: 13px;
+}
+
+#launch-error {
+  -fx-text-fill: -df-defold-white-light;
+  -fx-padding: 0 0 33px 0;
+}
+
+#footer * {
+  -fx-text-fill: -df-bright-grey;
+  -fx-font-size: 12px;
+}
+
+#version {
+  -fx-padding: 0 0 16px 0;
+}
+
+#copyright {
+}
+
+#rights-reserved {
+  -fx-padding: 0 0 16px 0;
+}
+
+#sponsors {
+  -fx-padding: 0 0 16px 0;
+}
+
+#sponsor-icons {
+  -fx-opacity: 0.7;
+  -fx-padding: 0 0 33px 0;
+  -fx-spacing: 33px;
+}
+
+#startup-tip > .text {
+  -fx-fill: -df-bright-grey;
+  -fx-padding: 0;
+}
+
+#startup-tip > .hyperlink {
+  -fx-text-fill: -df-bright-blue;
+  -fx-border-width: 0;
+  -fx-padding: 0;
+}
+
+#startup-tip > .hyperlink:hover {
+  -fx-text-fill: -df-bright-blue-light;
+}
+
+/* See modena.css for progress bar styling */
+.progress-bar {
+  -fx-background-color: transparent;
+  -fx-background-insets: 0;
+  -fx-background-radius: 0;
+  -fx-border-radius: 0; }
+  .progress-bar > .track {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-width: 0;
+    -fx-background-insets: 0; }
+  .progress-bar > .bar {
+    -fx-background-color: -df-dark-grey-semi;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-pref-height: 3;
+    -fx-padding: 0; }
+
+.button {
+  -fx-background-radius: 5;
+  -fx-border-radius: 4;
+  -fx-padding: 6px 17px;
+  -fx-min-width: 100px;
+  -fx-background-color: -df-mid-grey;
+  -fx-background-insets: 0;
+  -fx-border-color: -df-dark-grey-semi;
+  -fx-border-width: 1;
+  -fx-text-fill: -df-defold-white-eighty;
+  -fx-font-size: 13px; }
+  .button:hover {
+    -fx-background-color: -df-mid-grey-light; }
+  .button:armed {
+    -fx-background-color: -df-bright-black; }

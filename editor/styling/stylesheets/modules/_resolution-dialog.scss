@@ -2,7 +2,7 @@
   $vertical-margin-width: 12px;
   $horizontal-margin-width: $vertical-margin-width * 2;
 
-  -fx-background-color: $dark-grey-light;
+  -fx-background-color: -df-dark-grey-light;
   -fx-padding: $vertical-margin-width $horizontal-margin-width 0px $horizontal-margin-width;
   -fx-spacing: 6px;
 
@@ -14,9 +14,9 @@
   .choice-box, .text-field {
     -fx-min-width: 143px;
 
-    &.error { -fx-border-color: $error-severity-fatal; }
-    &.warning { -fx-border-color: $error-severity-warning; }
-    &.info { -fx-border-color: $error-severity-info; }
+    &.error { -fx-border-color: -df-error-severity-fatal; }
+    &.warning { -fx-border-color: -df-error-severity-warning; }
+    &.info { -fx-border-color: -df-error-severity-info; }
   }
 
   >.buttons {

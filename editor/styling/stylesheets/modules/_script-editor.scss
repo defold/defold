@@ -2,20 +2,20 @@
 .styled-text-area {
     -fx-font-family: "Dejavu Sans Mono";
     -fx-font-size: 9pt;
-    -fx-background-color: $bright-black;
+    -fx-background-color: -df-bright-black;
 
     .comment {
-        -styled-text-color: $script-comment;
+        -styled-text-color: -df-script-comment;
         -fx-font-style: italic;
     }
     .list-view {
-        -fx-background-color: $bright-black;
+        -fx-background-color: -df-bright-black;
         .list-cell {
-            -fx-background-color: $bright-black;
+            -fx-background-color: -df-bright-black;
             -fx-padding: 0;
             -fx-border-width: 0;
             &:selected {
-                -fx-background-color: $mid-grey !important;
+                -fx-background-color: -df-mid-grey !important;
                 -fx-border-width: 0;
             }
         }
@@ -23,7 +23,7 @@
     .source-segment, .plain-source-segment {
         -fx-font-family: "Dejavu Sans Mono";
         -fx-font-size: 9pt;
-        -styled-text-color: $defold-white;
+        -styled-text-color: -df-defold-white;
     }
     .selection-marker {
             -fx-background-color: rgba(172,148,120,0.3)
@@ -37,41 +37,41 @@
 /* Script view colors */
 .lua, .glsl, .c {
     &.styled-text-area {
-        -styled-text-color: $script-comment;
+        -styled-text-color: -df-script-comment;
 
         /* Hack for current line */
         .list-cell:selected {
-            -fx-background-color: $dark-grey;
+            -fx-background-color: -df-dark-grey;
         }
 
         .comment, .comment-multi {
-            -styled-text-color: $bright-grey;
+            -styled-text-color: -df-bright-grey;
             -fx-font-style: italic;
         }
 
         .keyword {
-            -styled-text-color: $script-keyword;
+            -styled-text-color: -df-script-keyword;
         }
 
         .operator {
-            -styled-text-color: $script-operator;
+            -styled-text-color: -df-script-operator;
         }
 
         .default {
-            -styled-text-color: $defold-white;
+            -styled-text-color: -df-defold-white;
         }
 
         .string {
-            -styled-text-color: $script-string;
+            -styled-text-color: -df-script-string;
             -fx-font-style: italic;
         }
 
         .number {
-            -styled-text-color: $script-number;
+            -styled-text-color: -df-script-number;
         }
 
 	.control-flow-keyword {
-            -styled-text-color: $script-keyword;
+            -styled-text-color: -df-script-keyword;
 	}
     }
 }
@@ -79,23 +79,23 @@
 .lua {
     &.styled-text-area {
         .helper-keyword {
-            -styled-text-color: $script-helper;
+            -styled-text-color: -df-script-helper;
         }
 
         .self-keyword {
-            -styled-text-color: $script-self;
+            -styled-text-color: -df-script-self;
         }
 
         .logic-keywords {
-            -styled-text-color: $script-logic;
+            -styled-text-color: -df-script-logic;
         }
 
         .constant {
-            -styled-text-color: $script-constant;
+            -styled-text-color: -df-script-constant;
         }
 
         .defold-keyword {
-            -styled-text-color: $script-function;
+            -styled-text-color: -df-script-function;
         }
     }
 }
@@ -104,19 +104,19 @@
     &.styled-text-area {
 	.directive, .macro-keyword, .precision-keyword,
 	.storage-modifier-keyword, .storage-type {
-            -styled-text-color: $script-keyword;
+            -styled-text-color: -df-script-keyword;
         }
 
 	.support-function-keyword {
-	    -styled-text-color: $script-function;
+	    -styled-text-color: -df-script-function;
 	}
 
 	.support-constant-keyword {
-	    -styled-text-color: $script-constant;
+	    -styled-text-color: -df-script-constant;
 	}
 
 	.support-variable-keyword {
-	    -styled-text-color: $script-constant;
+	    -styled-text-color: -df-script-constant;
 	}
     }
 }
@@ -124,7 +124,7 @@
 .c {
     &.styled-text-area {
         .directive {
-            -styled-text-color: $script-keyword;
+            -styled-text-color: -df-script-keyword;
         }
     }
 }
@@ -132,5 +132,5 @@
 
 /* text editor code completion popup */
 #proposals .list-cell:filled:selected {
-    -fx-text-fill: $script-intellisense;
+    -fx-text-fill: -df-script-intellisense;
 }

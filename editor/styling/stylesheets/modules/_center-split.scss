@@ -2,12 +2,12 @@
     -fx-padding: 0;
 
     .viewport {
-        -fx-background-color: $bright-black;//$dark-black;
+        -fx-background-color: -df-bright-black;//-df-dark-black;
 
         .button {
             -fx-min-width: 20px;
             /*-fx-min-height: 10px;*/
-            -fx-background-color: $dark-black;
+            -fx-background-color: -df-dark-black;
             -fx-border-radius: 0;
             -fx-border-width: 0;
             -fx-border-color: transparent;

@@ -2,45 +2,45 @@
     -fx-background-radius: 4px;
     -fx-border-radius: 4px;
     -fx-min-width: 10em;
-    -fx-background-color: $dark-grey;
+    -fx-background-color: -df-dark-grey;
     -fx-background-insets: 0;
-    -fx-border-color: $mid-grey;
+    -fx-border-color: -df-mid-grey;
     -fx-border-width: 1;
     -fx-padding: 0;
-    -fx-text-fill: $mid-grey;
+    -fx-text-fill: -df-mid-grey;
 
     &:showing {
-        -fx-background-color: $dark-grey;
-        -fx-text-fill: $defold-white;
+        -fx-background-color: -df-dark-grey;
+        -fx-text-fill: -df-defold-white;
         .label {
-            -fx-text-fill: $defold-white; 
+            -fx-text-fill: -df-defold-white; 
         }
         .arrow {
-            -fx-text-fill: $defold-white;
-            -fx-background-color: $defold-white;
+            -fx-text-fill: -df-defold-white;
+            -fx-background-color: -df-defold-white;
         }
     }
     .label {
         -fx-background-color: transparent;
         -fx-border-width: 0;
         -fx-background-insets: 0;
-        -fx-text-fill: $bright-grey;
+        -fx-text-fill: -df-bright-grey;
 
         &:hover {
-            -fx-background-color: $dark-black;
+            -fx-background-color: -df-dark-black;
         }
         &:pressed {
-            -fx-text-fill: $defold-white;
+            -fx-text-fill: -df-defold-white;
         }
     }
     .arrow-button {
         -fx-background-insets: 0;
         -fx-background-color: transparent;
         -fx-border-width: 0 0 0 1;
-        -fx-border-color: $dark-grey-border;
+        -fx-border-color: -df-dark-grey-border;
 
         &:hover {
-            -fx-background-color: $dark-black;
+            -fx-background-color: -df-dark-black;
         }
     }
 }

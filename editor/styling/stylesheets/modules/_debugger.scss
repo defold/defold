@@ -1,7 +1,7 @@
 #debugger-data-split {
 
   #debugger-call-stack {
-    -fx-background-color: $dark-grey-light;
+    -fx-background-color: -df-dark-grey-light;
     -fx-padding: 0;
 
     .list-cell {
@@ -9,10 +9,10 @@
       -fx-padding: 5 5 5 12;
 
       .label {
-        -fx-text-fill: $bright-grey-light;
+        -fx-text-fill: -df-bright-grey-light;
       }
       .call-stack-path {
-        -fx-text-fill: $grey;
+        -fx-text-fill: -df-grey;
       }
       .call-stack-line-container {
         -fx-min-width: 30px;
@@ -20,23 +20,23 @@
       }
       .call-stack-line {
         -fx-padding: 0 3px;
-        -fx-background-color: $grey;
+        -fx-background-color: -df-grey;
         -fx-background-radius: 3px;
       }
       &:hover {
         .label {
-          -fx-text-fill: $defold-white
+          -fx-text-fill: -df-defold-white
         }
         .call-stack-path {
-          -fx-text-fill: $grey;
+          -fx-text-fill: -df-grey;
         }
       }
       &:selected {
         .label {
-          -fx-text-fill: $defold-white;
+          -fx-text-fill: -df-defold-white;
         }
         .call-stack-path {
-          -fx-text-fill: $grey;
+          -fx-text-fill: -df-grey;
         }
       }
     }
@@ -45,14 +45,14 @@
   #debugger-variables {
     .tree-cell {
       .label {
-        -fx-text-fill: $bright-grey-light;
+        -fx-text-fill: -df-bright-grey-light;
       }
       .equals {
         -fx-text-fill: #666e79;
       }
       &:hover {
         .label {
-          -fx-text-fill: $defold-white;
+          -fx-text-fill: -df-defold-white;
         }
         .equals {
           -fx-text-fill: #666e79;
@@ -60,7 +60,7 @@
       }
       &:selected {
         .label {
-          -fx-text-fill: $defold-white;
+          -fx-text-fill: -df-defold-white;
         }
         .equals {
           -fx-text-fill: #666e79;
