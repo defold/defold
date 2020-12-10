@@ -12,9 +12,9 @@ Links:
   -fx-background: -df-dark-grey;
   -fx-control-inner-background: -df-dark-grey;
   -fx-text-color-base: -df-defold-white;
-  -fx-mark-color: -df-bright-grey;
-  -fx-text-background-color: -df-bright-grey-light;
-  -fx-text-inner-color: -df-bright-grey-light;
+  -fx-mark-color: -df-light-grey-dark;
+  -fx-text-background-color: -df-light-grey;
+  -fx-text-inner-color: -df-light-grey;
   -fx-box-border: -df-mid-grey;
   -fx-accent: -df-selected-blue;
   -fx-focus-color_: -df-defold-red;
@@ -33,7 +33,7 @@ Links:
   -fx-body-color: linear-gradient(to bottom, -fx-color, -fx-color);
   -fx-mark-color_: -df-defold-red;
   -fx-hover-base: -df-mid-grey;
-  -fx-pressed-base: -df-bright-grey;
+  -fx-pressed-base: -df-light-grey-dark;
   -fx-accent_: -df-defold-red;
   -fx-font-family: $default-font;
   -fx-font-size: $default-font-size;
@@ -63,14 +63,14 @@ Links:
 }*/
 
 .root__ {
-  -fx-base: -df-bright-black;
-  -fx-background: -df-bright-black;
-  -fx-control-inner-background: -df-bright-black; }
+  -fx-base: -df-dark-grey-lighter;
+  -fx-background: -df-dark-grey-lighter;
+  -fx-control-inner-background: -df-dark-grey-lighter; }
 
 .root_ {
-  -fx-base: -df-bright-black-light;
-  -fx-background: -df-bright-black-light;
-  -fx-control-inner-background: -df-bright-black-light;
+  -fx-base: -df-dark-grey-lightest;
+  -fx-background: -df-dark-grey-lightest;
+  -fx-control-inner-background: -df-dark-grey-lightest;
   -fx-hover-base: -df-defold-red; }
 
 /* Drag and drop targets */
@@ -88,7 +88,7 @@ Links:
 .copyable-label, .copyable-label:focused {
   -fx-background-color: transparent;
   -fx-border-width: 0px;
-  -fx-text-fill: -df-bright-grey;
+  -fx-text-fill: -df-light-grey-dark;
 }
 
 .about-value {
@@ -129,7 +129,7 @@ Links:
 
 #status-pane #progress-hbox #progress-cancel-button {
     -fx-background-color: -df-mid-grey;
-    -cross-color: -df-bright-grey;
+    -cross-color: -df-light-grey-dark;
     -fx-background-radius: 50%;
     -fx-border-width: 0;
     -fx-padding: 0;
@@ -206,7 +206,7 @@ Links:
 }
 
 #sponsor-push > .text {
-  -fx-fill: $bright-grey-light;
+  -fx-fill: -df-light-grey-dark;
   -fx-padding: 0;
 }
 

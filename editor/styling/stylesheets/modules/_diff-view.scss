@@ -15,7 +15,7 @@ $diff-delete: #6e2a33;
   }
 
   Text {
-    -fx-fill: -df-bright-grey-light;
+    -fx-fill: -df-light-grey;
   }
 
   #markers {
@@ -27,11 +27,11 @@ $diff-delete: #6e2a33;
 
   .code-view {
     -fx-pref-width: 300px;
-    -fx-background-color: -df-bright-black;
+    -fx-background-color: -df-dark-grey-lighter;
   }
 
   .code-view-header {
-    -fx-text-fill: -df-bright-grey;
+    -fx-text-fill: -df-light-grey-dark;
     -fx-min-height: 40px;
     -fx-alignment: center;
   }

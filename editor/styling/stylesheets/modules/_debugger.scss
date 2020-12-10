@@ -9,7 +9,7 @@
       -fx-padding: 5 5 5 12;
 
       .label {
-        -fx-text-fill: -df-bright-grey-light;
+        -fx-text-fill: -df-light-grey;
       }
       .call-stack-path {
         -fx-text-fill: -df-grey;
@@ -45,7 +45,7 @@
   #debugger-variables {
     .tree-cell {
       .label {
-        -fx-text-fill: -df-bright-grey-light;
+        -fx-text-fill: -df-light-grey;
       }
       .equals {
         -fx-text-fill: #666e79;

@@ -65,7 +65,7 @@
   }
 
   #left-pane {
-    -fx-background-color: #1C1E21;
+    -fx-background-color: -df-dark-grey-dark;
 
     .defold-logo {
       -fx-padding: 16px;
@@ -165,7 +165,7 @@
   }
 
   .form-pane {
-    -fx-background-color: #313238;
+    -fx-background-color: -df-dark-grey-lighter;
     -fx-padding: 24px;
     -fx-spacing: 16px;
 
@@ -236,7 +236,7 @@
 
       .title {
         Text {
-          -fx-fill: -df-bright-grey-light;
+          -fx-fill: -df-light-grey;
           -fx-opacity: 87%;
           -fx-font-size: 16px;
           -fx-font-smoothing-type: lcd;
@@ -250,7 +250,7 @@
 
       .description {
         -fx-font-smoothing-type: lcd;
-        -fx-text-fill: -df-bright-grey-light;
+        -fx-text-fill: -df-light-grey;
         -fx-opacity: 0.4;
       }
     }
@@ -260,7 +260,7 @@
       -fx-text-alignment: right;
       -fx-alignment: center-right;
       -fx-font-smoothing-type: lcd;
-      -fx-text-fill: -df-bright-grey-light;
+      -fx-text-fill: -df-light-grey;
       -fx-opacity: 0.4;
     }
   }
@@ -289,7 +289,7 @@
       -fx-padding: 6px 16px;
 
       Text {
-        -fx-fill: -df-bright-grey-light;
+        -fx-fill: -df-light-grey;
         -fx-font-smoothing-type: lcd;
       }
 
@@ -315,12 +315,12 @@
 
   #progress-overlay {
     .background-cover {
-      -fx-background-color: -df-bright-black;
+      -fx-background-color: -df-dark-grey-lighter;
       -fx-opacity: 85%;
     }
 
     #progress-header {
-      -fx-text-fill: -df-bright-grey-light;
+      -fx-text-fill: -df-light-grey;
       -fx-font-family: "Source Sans Pro Light";
       -fx-font-size: 20px;
       -fx-font-smoothing-type: lcd;

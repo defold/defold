@@ -14,7 +14,7 @@
     }
 
     #header-info-label {
-      -fx-text-fill: -df-bright-grey;
+      -fx-text-fill: -df-light-grey-dark;
 
       &.error { -fx-text-fill: -df-error-severity-fatal; }
       &.warning { -fx-text-fill: -df-error-severity-warning; }

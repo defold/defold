@@ -1,23 +1,4 @@
 // definitions
-
-$light-grey-lightest: derive($light-grey, 60%);
-$light-grey-darker: derive($light-grey, -20%);
-
-$grey: #393c41;
-
-$button-grey: #52575C;
-$button-mid-grey: #393c41;
-$button-dark-grey-header: #373a40;
-
-$orange: #fa6731;
-
-$dark-grey: #2c2e33;
-$dark-grey-lightest: derive($dark-grey, 40%);
-$dark-grey-lighter: derive($dark-grey, 20%);
-$dark-grey-darker: derive($dark-grey, -40%);
-$dark-grey-darkest: derive($dark-grey, -60%);
-$red-darker: #6b2f34; // just making it darker does not look good: too dirty, needed to desaturate a bit
-
 $spacing-smaller: 16px;
 $spacing-default: 24px;
 $spacing-larger: 32px;
@@ -95,7 +76,7 @@ $spacing-largest: 40px;
   }
   &:disabled {
     -fx-text-fill: -df-light-grey;
-    -fx-border-color: $light-grey-darker;
+    -fx-border-color: -df-light-grey-dark;
     -fx-opacity: 0.4;
   }
 }
@@ -109,7 +90,7 @@ $spacing-largest: 40px;
 }
 .button-secondary {
   -fx-text-fill: -df-light-grey;
-  -fx-border-color: $light-grey-darker;
+  -fx-border-color: -df-light-grey-dark;
   &:hover, &:focused {
     -fx-text-fill: -df-light-grey-light;
     -fx-border-color: -df-light-grey;
@@ -128,7 +109,7 @@ $spacing-largest: 40px;
   -fx-text-fill: -df-light-grey;
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: $button-mid-grey;
+  -fx-background-color: -df-mid-grey;
   -fx-padding: 0;
   -fx-min-width: 28px;
   -fx-max-width: 28px;
@@ -139,10 +120,10 @@ $spacing-largest: 40px;
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: $button-grey;
+    -fx-background-color: -df-grey;
   }
   &:armed {
-    -fx-background-color: $button-dark-grey-header !important;
+    -fx-background-color: -df-dark-grey-light !important;
   }
 }
 
@@ -164,7 +145,7 @@ $spacing-largest: 40px;
 .dialog-content {
   -fx-background-color: rgba(0, 0, 0, 0.14);
   -fx-border-width: 1 0;
-  -fx-border-color: $dark-grey-lighter;
+  -fx-border-color: -df-dark-grey-lighter;
 }
 .dialog-content-padding {
   -fx-padding: $spacing-larger;
@@ -192,10 +173,10 @@ $spacing-largest: 40px;
 @mixin text-input-defaults() {
   @include font-default();
   @include font-size-default();
-  -fx-highlight-fill: $dark-grey-lightest;
+  -fx-highlight-fill: -df-dark-grey-lightest;
   -fx-text-fill: -df-light-grey-lightest;
   -fx-prompt-text-fill: #54585e;
-  -fx-background-color: $dark-grey-darker;
+  -fx-background-color: -df-dark-grey-darker;
   -fx-border-width: 1px;
 
   &:readonly {
@@ -225,11 +206,11 @@ $spacing-largest: 40px;
 }
 
 .text-field-default {
-  @include text-input-variant($dark-grey-lighter, $orange);
+  @include text-input-variant(-df-dark-grey-lighter, -df-defold-orange);
 }
 
 .text-field-error {
-  @include text-input-variant($red-darker, $red);
+  @include text-input-variant(-df-defold-red-dark, -df-defold-red);
 }
 
 .text-area {
@@ -250,10 +231,10 @@ $spacing-largest: 40px;
   }
 }
 .text-area-default {
-  @include text-input-variant($dark-grey-lighter, $orange);
+  @include text-input-variant(-df-dark-grey-lighter, -df-defold-orange);
 }
 .text-area-error {
-  @include text-input-variant($red-darker, -df-defold-red);
+  @include text-input-variant(-df-defold-red-dark, -df-defold-red);
 }
 .text-area-borderless {
   @include text-input-variant(transparent, transparent);
@@ -269,14 +250,14 @@ $spacing-largest: 40px;
 .scroll-bar {
   -fx-background-color: transparent;
   > .thumb {
-    -fx-background-color: $dark-grey-lightest;
+    -fx-background-color: -df-dark-grey-lightest;
     -fx-background-radius: 5px;
     -fx-background-insets: 1px;
     &:hover {
-      -fx-background-color: $light-grey-darker;
+      -fx-background-color: -df-light-grey-dark;
     }
     &:pressed {
-      -fx-background-color: $light-grey-lightest;
+      -fx-background-color: -df-light-grey-lightest;
     }
   }
   &:vertical {
@@ -313,14 +294,14 @@ $spacing-largest: 40px;
 .hyperlink {
   @include font-size-default();
   @include font-default();
-  -fx-text-fill: $blue;
+  -fx-text-fill: -df-bright-blue;
   -fx-border-width: 0;
   -fx-padding: 0;
   &:visited {
     -fx-underline: false;
   }
   &:hover {
-    -fx-text-fill: $blue-lighter;
+    -fx-text-fill: -df-bright-blue-light;
     -fx-underline: true;
   }
 }
@@ -336,7 +317,7 @@ Text {
   -fx-min-width: 140px;
 
   .bar {
-    -fx-background-color: $blue;
+    -fx-background-color: -df-bright-blue;
     -fx-background-insets: 0;
     -fx-background-radius: 4;
     -fx-pref-height: 5px;
@@ -354,9 +335,9 @@ Text {
   .menu-item {
     &:focused {
       > .label {
-        -fx-text-fill: $light-grey-lightest;
+        -fx-text-fill: -df-light-grey-lightest;
       }
-      -fx-background-color: $dark-grey-lightest;
+      -fx-background-color: -df-dark-grey-lightest;
       -fx-background-radius: 1px;
     }
     &:disabled {
@@ -369,7 +350,7 @@ Text {
   .separator {
     -fx-padding: 3 0;
     > .line {
-      -fx-background-color: $dark-grey-lightest;
+      -fx-background-color: -df-dark-grey-lightest;
       -fx-border-color: transparent;
     }
     &:horizontal > .line {

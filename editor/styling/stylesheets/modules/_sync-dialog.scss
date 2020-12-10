@@ -5,7 +5,7 @@
   }
 
   Text {
-    -fx-fill: -df-bright-grey-light;
+    -fx-fill: -df-light-grey;
     -fx-font-smoothing-type: lcd;
   }
 
@@ -64,7 +64,7 @@
     .hyperlink:disabled {
       -fx-cursor: default;
       -fx-opacity: 1.0;
-      -fx-text-fill: -df-bright-grey-light;
+      -fx-text-fill: -df-light-grey;
       -fx-underline: false;
     }
   }

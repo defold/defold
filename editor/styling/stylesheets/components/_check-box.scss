@@ -1,12 +1,12 @@
 .check-box {
   &:hover {
     .box {
-      -fx-background-color: -df-dark-black;  
+      -fx-background-color: -df-dark-grey;  
     }
   }
   &:selected {
     .mark {
-      -fx-background-color: -df-bright-grey; 
+      -fx-background-color: -df-light-grey-dark; 
     }
     &:hover {
       .mark {

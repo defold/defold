@@ -15,5 +15,5 @@
 }
 
 @mixin effect-bright-grey() {
-	@include colorize-image-view(-df-bright-grey-light);
+	@include colorize-image-view(-df-light-grey);
 }

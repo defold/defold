@@ -4,7 +4,7 @@
   src: url("SourceSansPro-Regular.ttf"); }
 
 .root {
-  -fx-background-color: transparent;
+  -fx-background-color: transparent !important;
   -fx-text-fill: -df-defold-white-light;
   -fx-font-family: "Source Sans Pro";
   -fx-font-size: 13px;
@@ -16,7 +16,7 @@
 }
 
 #footer * {
-  -fx-text-fill: -df-bright-grey;
+  -fx-text-fill: -df-light-grey-dark;
   -fx-font-size: 12px;
 }
 
@@ -42,7 +42,7 @@
 }
 
 #startup-tip > .text {
-  -fx-fill: -df-bright-grey;
+  -fx-fill: -df-light-grey-dark;
   -fx-padding: 0;
 }
 
@@ -90,4 +90,4 @@
   .button:hover {
     -fx-background-color: -df-mid-grey-light; }
   .button:armed {
-    -fx-background-color: -df-bright-black; }
+    -fx-background-color: -df-dark-grey-lighter; }
