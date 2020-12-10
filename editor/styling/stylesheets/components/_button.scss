@@ -18,15 +18,15 @@
   &.low-prio {
     -fx-background-color: -df-dark-grey;
     -fx-border-color: -df-mid-grey;
-    -fx-text-fill: -df-bright-grey;
+    -fx-text-fill: -df-light-grey-dark;
     -fx-font-weight: normal;
   }
   &.low-prio:hover {
-      -fx-background-color: -df-bright-black;
+      -fx-background-color: -df-dark-grey-lighter;
   }
   &.low-prio:armed {
-      -fx-background-color: -df-bright-black;
-      -fx-border-color: -df-bright-grey;
+      -fx-background-color: -df-dark-grey-lighter;
+      -fx-border-color: -df-light-grey-dark;
       -fx-text-fill: -df-defold-white;
   }
 }
@@ -90,7 +90,7 @@
   -fx-background-radius: 4;
   -fx-border-width: 1;
   -fx-border-radius: 4;
-  -fx-border-color: -df-dark-black;
+  -fx-border-color: -df-dark-grey;
   -fx-text-fill: -fx-text-base-color;
 }
 
@@ -105,7 +105,7 @@
     -fx-background-radius: 10px;
     -fx-border-width: 0px;
     -fx-alignment: center-left;
-    -fx-background-color: -df-dark-black;
+    -fx-background-color: -df-dark-grey;
     > .mark {
       -fx-max-width: 10px;
       -fx-background-insets: 0px;

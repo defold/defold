@@ -3,40 +3,42 @@
 	-df-defold-blue:         #0084ff;
 	-df-defold-blue-fifty:   rgba(0, 132, 255, 0.5);
 	-df-bright-blue: 		 #5bc0ff;
-	-df-bright-blue-light:   lighten(#5bc0ff, 20%);
-	-df-bright-blue-lighter: lighten(#5bc0ff, 40%);
+	-df-bright-blue-light:   derive(#5bc0ff, 20%);
+	-df-bright-blue-lighter: derive(#5bc0ff, 40%);
 	-df-selected-blue:       #264a8b;
 
-	// Black
-	-df-bright-black:        #292c30;
-	-df-bright-black-light:  #2e3236;
-	-df-dark-black:          #232529;
-	-df-dark-black-light:    #26282a;
-
 	// Grey
+	-df-dark-grey-darker:    derive(#212428, -20%);
+	-df-dark-grey-dark:      derive(#212428, -10%);
 	-df-dark-grey:           #212428;
 	-df-dark-grey-semi:      rgba(33, 36, 40, 0.8);
-	-df-dark-grey-light:     #2c2e33;
+	-df-dark-grey-light:     derive(#212428, 10%);
+	-df-dark-grey-lighter:   derive(#212428, 20%);
+	-df-dark-grey-lightest:  derive(#212428, 30%);
+
 	-df-dark-grey-header:    #373a40;
 	-df-dark-grey-selected:  #3B3F43;
 	-df-dark-grey-border:    #424348;
 	-df-mid-grey:            #393c41;
 	-df-mid-grey-light:      #45474B;
 	-df-grey:                #52575C;
-	-df-light-grey:			 #9fb0be;
-	-df-light-grey-light:	 lighten(#9fb0be, 20%);
-	-df-light-grey-lighter:	 lighten(#9fb0be, 40%);
-	-df-bright-grey:         #8f9296;
-	-df-bright-grey-light:   #a2b0be;
+
+	-df-light-grey-darker:   derive(#a4b4c1, -40%);
+	-df-light-grey-dark:	 derive(#a4b4c1, -20%);
+	-df-light-grey:			 #a4b4c1;
+	-df-light-grey-light:	 derive(#a4b4c1, 20%);
+	-df-light-grey-lighter:	 derive(#a4b4c1, 40%);
+	-df-light-grey-lightest: derive(#a4b4c1, 60%);
 
 	// White
 	-df-defold-white:        #dddddd;
-	-df-defold-white-light:  lighten(#dddddd, 9%);
+	-df-defold-white-light:  derive(#dddddd, 9%);
 	-df-defold-white-eighty: rgba(221, 221, 221, 0.8);
 
 	// Colors
+	-df-defold-red-dark:     derive(#e32f44, -20%);
 	-df-defold-red:          #e32f44;
-	-df-defold-red-light:    lighten(#e32f44, 20%);
+	-df-defold-red-light:    derive(#e32f44, 20%);
 	-df-defold-red-fifty:    rgba(227, 47, 68, 0.5);
 	-df-defold-yellow:       #fbce2f;
 	-df-defold-yellow-fifty: rgba(251, 206, 47, 0.5);
@@ -49,15 +51,15 @@
 	-df-panel-background:      -df-dark-grey-light;
 	-df-input-background:      #292a2f;
 	-df-input-border:          #3e4147;
-	-df-input-border-light:    lighten(#3e4147, 3%);
+	-df-input-border-light:    derive(#3e4147, 3%);
 	-df-floating-input-border: #56595d;
-	-df-icon-grey:             -df-bright-grey;
+	-df-icon-grey:             -df-light-grey-dark;
 
 	-df-tree-view-icon:      #6b7b8b;
 
 	/* Menu colors */
 	-df-menu-background: -df-mid-grey;
-	-df-menu-foreground: -df-bright-grey-light;
+	-df-menu-foreground: -df-light-grey;
 	-df-menu-background-hover: -df-grey;
 	-df-menu-foreground-hover: -df-defold-white;
 	-df-menu-separator: -df-dark-grey-light;

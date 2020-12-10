@@ -18,12 +18,12 @@
             -fx-text-fill: -df-defold-white;
         }
         .list-view {
-            -fx-border-color: -df-bright-grey;
+            -fx-border-color: -df-light-grey-dark;
         }
     }
     .list-view {
         -fx-min-width: 10em;
-        -fx-background-color: -df-dark-black-light;
+        -fx-background-color: -df-dark-grey-light;
         -fx-border-width: 0;
         -fx-border-color: -df-mid-grey;
         -fx-border-insets: 0;
@@ -32,7 +32,7 @@
     }
     .list-cell {
         -fx-background-color: -df-root-background;
-        -fx-color: -df-bright-grey;
+        -fx-color: -df-light-grey-dark;
         &:hover {
             -fx-cursor: hand;
             -fx-text-fill: -df-defold-white;

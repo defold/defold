@@ -24,10 +24,10 @@
         -fx-background-color: transparent;
         -fx-border-width: 0;
         -fx-background-insets: 0;
-        -fx-text-fill: -df-bright-grey;
+        -fx-text-fill: -df-light-grey-dark;
 
         &:hover {
-            -fx-background-color: -df-dark-black;
+            -fx-background-color: -df-dark-grey;
         }
         &:pressed {
             -fx-text-fill: -df-defold-white;
@@ -40,7 +40,7 @@
         -fx-border-color: -df-dark-grey-border;
 
         &:hover {
-            -fx-background-color: -df-dark-black;
+            -fx-background-color: -df-dark-grey;
         }
     }
 }

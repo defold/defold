@@ -2,16 +2,16 @@
 .styled-text-area {
     -fx-font-family: "Dejavu Sans Mono";
     -fx-font-size: 9pt;
-    -fx-background-color: -df-bright-black;
+    -fx-background-color: -df-dark-grey-lighter;
 
     .comment {
         -styled-text-color: -df-script-comment;
         -fx-font-style: italic;
     }
     .list-view {
-        -fx-background-color: -df-bright-black;
+        -fx-background-color: -df-dark-grey-lighter;
         .list-cell {
-            -fx-background-color: -df-bright-black;
+            -fx-background-color: -df-dark-grey-lighter;
             -fx-padding: 0;
             -fx-border-width: 0;
             &:selected {
@@ -45,7 +45,7 @@
         }
 
         .comment, .comment-multi {
-            -styled-text-color: -df-bright-grey;
+            -styled-text-color: -df-light-grey-dark;
             -fx-font-style: italic;
         }
 
