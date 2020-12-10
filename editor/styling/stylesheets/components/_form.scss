@@ -3,10 +3,10 @@
     }
     .section-label {
         -fx-font-size: $default-font-size + 2px;
-        -fx-text-fill: $defold-white;
+        -fx-text-fill: -df-defold-white;
     }
     .help-line {
-        -fx-text-fill: $bright-grey;
+        -fx-text-fill: -df-bright-grey;
     }
     .editing-cell {
         -fx-padding: 0;
@@ -26,19 +26,19 @@
 
 .field-error {
     -fx-border-width: 1 !important;
-    -fx-border-color: $error-severity-fatal !important;
+    -fx-border-color: -df-error-severity-fatal !important;
     -fx-effect: none !important;
 }
 
 .field-warning {
     -fx-border-width: 1 !important;
-    -fx-border-color: $error-severity-warning !important;
+    -fx-border-color: -df-error-severity-warning !important;
     -fx-effect: none !important;
 }
 
 .field-info {
     -fx-border-width: 1 !important;
-    -fx-border-color: $error-severity-info !important;
+    -fx-border-color: -df-error-severity-info !important;
     -fx-effect: none !important;
 }
 

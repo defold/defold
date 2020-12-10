@@ -2,22 +2,22 @@
     -fx-padding: 1px;
     -fx-background-insets: 0;
     & > .virtual-flow > .clipped-container > .sheet > .list-cell {
-        -fx-background-color: $dark-grey-light;
+        -fx-background-color: -df-dark-grey-light;
         -fx-font-weight: normal;
         -fx-padding: 5;
         -fx-border-width: 0 0 0 2;
         -fx-border-color: transparent;
-        -fx-text-fill: $bright-grey-light;
+        -fx-text-fill: -df-bright-grey-light;
         &:hover {
-            -fx-text-fill: $defold-white;
+            -fx-text-fill: -df-defold-white;
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
-            -fx-border-color: $defold-orange;
-            -fx-text-fill: $defold-white;
-            -fx-background-color: $dark-grey-selected;
+            -fx-border-color: -df-defold-orange;
+            -fx-text-fill: -df-defold-white;
+            -fx-background-color: -df-dark-grey-selected;
             &:hover {
-                -fx-text-fill: $defold-white;
+                -fx-text-fill: -df-defold-white;
             }
             .image-view {
                 @include effect-bright-grey();

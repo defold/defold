@@ -1,7 +1,5 @@
 // definitions
 
-$light-grey: #9FB0BE;
-$light-grey-lighter: derive($light-grey, 20%);
 $light-grey-lightest: derive($light-grey, 60%);
 $light-grey-darker: derive($light-grey, -20%);
 
@@ -11,10 +9,6 @@ $button-grey: #52575C;
 $button-mid-grey: #393c41;
 $button-dark-grey-header: #373a40;
 
-$blue: #5BC0FF;
-$blue-lighter: derive($blue, 20%);
-$blue-lightest: derive($blue, 40%);
-
 $orange: #fa6731;
 
 $dark-grey: #2c2e33;
@@ -22,9 +16,6 @@ $dark-grey-lightest: derive($dark-grey, 40%);
 $dark-grey-lighter: derive($dark-grey, 20%);
 $dark-grey-darker: derive($dark-grey, -40%);
 $dark-grey-darkest: derive($dark-grey, -60%);
-
-$red: #e32f44;
-$red-lighter: derive($red, 20%);
 $red-darker: #6b2f34; // just making it darker does not look good: too dirty, needed to desaturate a bit
 
 $spacing-smaller: 16px;
@@ -36,7 +27,7 @@ $spacing-largest: 40px;
 @mixin font-size-header { -fx-font-size: 22px; }
 @mixin font-default { -fx-font-family: "Source Sans Pro"; }
 @mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
-@mixin text-fill-text-color { -fx-text-fill: $light-grey; }
+@mixin text-fill-text-color { -fx-text-fill: -df-light-grey; }
 @mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
 @mixin spacing-default { -fx-spacing: $spacing-default;}
 
@@ -103,38 +94,38 @@ $spacing-largest: 40px;
     }
   }
   &:disabled {
-    -fx-text-fill: $light-grey;
+    -fx-text-fill: -df-light-grey;
     -fx-border-color: $light-grey-darker;
     -fx-opacity: 0.4;
   }
 }
 .button-primary {
-  -fx-text-fill: $blue;
-  -fx-border-color: $blue;
+  -fx-text-fill: -df-bright-blue;
+  -fx-border-color: -df-bright-blue;
   &:hover, &:focused {
-    -fx-text-fill: $blue-lighter;
-    -fx-border-color: $blue-lighter;
+    -fx-text-fill: -df-bright-blue-light;
+    -fx-border-color: -df-bright-blue-light;
   }
 }
 .button-secondary {
-  -fx-text-fill: $light-grey;
+  -fx-text-fill: -df-light-grey;
   -fx-border-color: $light-grey-darker;
   &:hover, &:focused {
-    -fx-text-fill: $light-grey-lighter;
-    -fx-border-color: $light-grey;
+    -fx-text-fill: -df-light-grey-light;
+    -fx-border-color: -df-light-grey;
   }
 }
 .button-danger {
-  -fx-text-fill: $red;
-  -fx-border-color: $red;
+  -fx-text-fill: -df-defold-red;
+  -fx-border-color: -df-defold-red;
   &:hover, &:focused {
-    -fx-text-fill: $red-lighter;
-    -fx-border-color: $red-lighter;
+    -fx-text-fill: -df-defold-red-light;
+    -fx-border-color: -df-defold-red-light;
   }
 }
 
 .button-icon {
-  -fx-text-fill: $light-grey;
+  -fx-text-fill: -df-light-grey;
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
   -fx-background-color: $button-mid-grey;
@@ -158,7 +149,7 @@ $spacing-largest: 40px;
 // dialog
 
 .dialog-body {
-  -fx-background-color: $dark-grey;
+  -fx-background-color: -df-dark-grey;
 }
 .dialog-body-small {
   -fx-pref-width: 440px;
@@ -202,7 +193,7 @@ $spacing-largest: 40px;
   @include font-default();
   @include font-size-default();
   -fx-highlight-fill: $dark-grey-lightest;
-  -fx-text-fill: $light-grey-lightest;
+  -fx-text-fill: -df-light-grey-lightest;
   -fx-prompt-text-fill: #54585e;
   -fx-background-color: $dark-grey-darker;
   -fx-border-width: 1px;
@@ -262,7 +253,7 @@ $spacing-largest: 40px;
   @include text-input-variant($dark-grey-lighter, $orange);
 }
 .text-area-error {
-  @include text-input-variant($red-darker, $red);
+  @include text-input-variant($red-darker, -df-defold-red);
 }
 .text-area-borderless {
   @include text-input-variant(transparent, transparent);
@@ -337,7 +328,7 @@ $spacing-largest: 40px;
 Text {
   @include font-size-default();
   @include font-default();
-  -fx-fill: $light-grey;
+  -fx-fill: -df-light-grey;
 }
 
 .progress-bar {
@@ -352,12 +343,12 @@ Text {
   }
 
   .track {
-    -fx-background-color: $grey;
+    -fx-background-color: -df-grey;
   }
 }
 
 .context-menu {
-  -fx-background-color: $grey;
+  -fx-background-color: -df-grey;
   -fx-background-radius: 2px;
   -fx-padding: 5px;
   .menu-item {

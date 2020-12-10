@@ -3,7 +3,7 @@ $diff-delete: #6e2a33;
 
 .diff-view {
   Line {
-    -fx-stroke: $mid-grey;
+    -fx-stroke: -df-mid-grey;
 
     &.insert {
       -fx-stroke: $diff-insert;
@@ -15,30 +15,30 @@ $diff-delete: #6e2a33;
   }
 
   Text {
-    -fx-fill: $bright-grey-light;
+    -fx-fill: -df-bright-grey-light;
   }
 
   #markers {
     -fx-min-width: 40px;
     -fx-max-width: 40px;
     -fx-pref-width: 40px;
-    -fx-background-color: $dark-grey;
+    -fx-background-color: -df-dark-grey;
   }
 
   .code-view {
     -fx-pref-width: 300px;
-    -fx-background-color: $bright-black;
+    -fx-background-color: -df-bright-black;
   }
 
   .code-view-header {
-    -fx-text-fill: $bright-grey;
+    -fx-text-fill: -df-bright-grey;
     -fx-min-height: 40px;
     -fx-alignment: center;
   }
 
   .diff-box {
-    -fx-fill: $mid-grey;
-    -fx-stroke: $mid-grey;
+    -fx-fill: -df-mid-grey;
+    -fx-stroke: -df-mid-grey;
 
     &.insert {
       -fx-fill: $diff-insert;

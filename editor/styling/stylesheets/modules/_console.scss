@@ -9,17 +9,17 @@ $console-background: #27292D;
   -fx-padding: 0px 10px;
 
   &:hover {
-    -fx-background-color: $mid-grey-light;
+    -fx-background-color: -df-mid-grey-light;
   }
 
   &:armed {
-    -fx-background-color: $input-background;
+    -fx-background-color: -df-input-background;
   }
 }
 
 .console-image-button-base {
   @extend .console-button-base;
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-mid-grey;
   -fx-background-position: center;
   -fx-background-repeat: no-repeat;
   -fx-background-size: 16 16;
@@ -39,7 +39,7 @@ $console-background: #27292D;
 }
 
 #console-tool-bar {
-  -fx-background-color: $panel-background;
+  -fx-background-color: -df-panel-background;
   -fx-padding: 16px;
 
   .separator {
@@ -137,7 +137,7 @@ $console-background: #27292D;
 #debugger-prompt-label {
   -fx-alignment: center-right;
   -fx-background-color: $console-background;
-  -fx-border-color: $input-border;
+  -fx-border-color: -df-input-border;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
@@ -149,21 +149,21 @@ $console-background: #27292D;
 
 #debugger-prompt-field {
   -fx-background-color: $console-background;
-  -fx-border-color: $input-border;
+  -fx-border-color: -df-input-border;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
   -fx-font-smoothing-type: lcd;
   -fx-min-height: 44px;
   -fx-padding: 0px;
-  -fx-text-fill: $defold-white;
+  -fx-text-fill: -df-defold-white;
 
   &:focused {
     -fx-background-color: $console-background;
-    -fx-border-color: $input-border;
+    -fx-border-color: -df-input-border;
     -fx-border-width: 1px 0px 0px 0px;
     -fx-padding: 0px;
-    -fx-text-fill: $defold-white;
+    -fx-text-fill: -df-defold-white;
     -fx-prompt-text-fill: transparent;
   }
 }

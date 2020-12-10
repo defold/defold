@@ -1,5 +1,5 @@
 #welcome-dialog {
-  -fx-background-color: $df-dark-grey1;
+  -fx-background-color: -df-dark-grey-light;
 
   HBox, VBox {
     -fx-spacing: 0; // Fight crazy non-zero default.
@@ -87,7 +87,7 @@
     -fx-padding: 9px 16px;
     -fx-border-color: transparent;
     -fx-border-width: 0px 3px 0px 0px;
-    -fx-text-fill: $df-grey2;
+    -fx-text-fill: -df-defold-white;
     -fx-opacity: 50%;
 
     &:hover {
@@ -95,7 +95,7 @@
     }
 
     &:selected {
-      -fx-border-color: $defold-orange;
+      -fx-border-color: -df-defold-orange;
       -fx-opacity: 100%;
     }
 
@@ -128,7 +128,7 @@
       -fx-padding: 4px 4px;
       -fx-border-color: transparent;
       -fx-border-width: 0px 0px 2px 0px;
-      -fx-text-fill: $df-grey2;
+      -fx-text-fill: -df-defold-white;
       -fx-opacity: 50%;
 
       &:hover {
@@ -136,7 +136,7 @@
       }
 
       &:selected {
-        -fx-border-color: $defold-orange;
+        -fx-border-color: -df-defold-orange;
         -fx-opacity: 100%;
       }
 
@@ -210,7 +210,7 @@
 
       &:selected {
         -fx-background-color: rgba(255, 255, 255, 0.05);
-        -fx-border-color: $df-bright-blue;
+        -fx-border-color: -df-bright-blue;
       }
     }
   }
@@ -236,13 +236,13 @@
 
       .title {
         Text {
-          -fx-fill: $df-grey1;
+          -fx-fill: -df-bright-grey-light;
           -fx-opacity: 87%;
           -fx-font-size: 16px;
           -fx-font-smoothing-type: lcd;
 
           &.matched {
-            -fx-fill: $df-bright-blue;
+            -fx-fill: -df-bright-blue;
             -fx-opacity: 100%;
           }
         }
@@ -250,7 +250,7 @@
 
       .description {
         -fx-font-smoothing-type: lcd;
-        -fx-text-fill: $df-grey1;
+        -fx-text-fill: -df-bright-grey-light;
         -fx-opacity: 0.4;
       }
     }
@@ -260,7 +260,7 @@
       -fx-text-alignment: right;
       -fx-alignment: center-right;
       -fx-font-smoothing-type: lcd;
-      -fx-text-fill: $df-grey1;
+      -fx-text-fill: -df-bright-grey-light;
       -fx-opacity: 0.4;
     }
   }
@@ -289,7 +289,7 @@
       -fx-padding: 6px 16px;
 
       Text {
-        -fx-fill: $df-grey1;
+        -fx-fill: -df-bright-grey-light;
         -fx-font-smoothing-type: lcd;
       }
 
@@ -303,24 +303,24 @@
   .list-cell:selected .template-entry {
     -fx-background-radius: 4px;
     -fx-border-radius: 4px;
-    -fx-border-color: $df-bright-blue;
-    -fx-effect: dropshadow(gaussian, $df-bright-blue, 10, 0, 0, 0);
+    -fx-border-color: -df-bright-blue;
+    -fx-effect: dropshadow(gaussian, -df-bright-blue, 10, 0, 0, 0);
 
     .svg-icon {
       SVGPath {
-        -fx-fill: $df-bright-blue;
+        -fx-fill: -df-bright-blue;
       }
     }
   }
 
   #progress-overlay {
     .background-cover {
-      -fx-background-color: #292A2F;
+      -fx-background-color: -df-bright-black;
       -fx-opacity: 85%;
     }
 
     #progress-header {
-      -fx-text-fill: $df-grey1;
+      -fx-text-fill: -df-bright-grey-light;
       -fx-font-family: "Source Sans Pro Light";
       -fx-font-size: 20px;
       -fx-font-smoothing-type: lcd;
@@ -332,7 +332,7 @@
       -fx-padding: 17px 0px 24px 0px;
 
       .bar {
-        -fx-background-color: $df-bright-blue;
+        -fx-background-color: -df-bright-blue;
         -fx-background-insets: 0;
         -fx-background-radius: 4px;
         -fx-min-height: 5px;
@@ -340,7 +340,7 @@
       }
 
       .track {
-        -fx-background-color: $mid-grey;
+        -fx-background-color: -df-mid-grey;
         -fx-background-insets: 0;
         -fx-border-width: 0;
         -fx-background-radius: 4px;
@@ -351,50 +351,50 @@
   .filter-field {
     -fx-pref-width: 106px;
     -fx-padding: 4px 24px 4px 2px;
-    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
+    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // -df-defold-white with opacity.
     -fx-background-color: transparent;
     -fx-border-color: transparent;
 
     &:hover {
-      -fx-border-color: transparent transparent $input-border transparent;
+      -fx-border-color: transparent transparent -df-input-border transparent;
     }
 
     &:focused {
       -fx-padding: 4px 24px 4px 2px;
       -fx-border-width: 1px;
-      -fx-border-color: transparent transparent $defold-orange transparent;
+      -fx-border-color: transparent transparent -df-defold-orange transparent;
     }
   }
 
   .filter-field-icon {
-    -fx-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
+    -fx-fill: rgba(221, 221, 221, 0.4); // -df-defold-white with opacity.
   }
 
   .location-field {
     Button {
       -fx-border-width: 0px;
       -fx-background-radius: 0px 2px 2px 0px;
-      -fx-background-color: $input-border;
+      -fx-background-color: -df-input-border;
       -fx-min-width: 30px;
       -fx-padding: 0px;
       -fx-font-size: 11.5px;
 
       &:hover {
-        -fx-background-color: lighten($input-border, 3%);
+        -fx-background-color: -df-input-border-light;
       }
     }
 
     .path-field {
       -fx-alignment: center-left;
       -fx-background-color: transparent;
-      -fx-border-color: $input-border;
+      -fx-border-color: -df-input-border;
       -fx-border-width: 1px 0px 1px 1px;
       -fx-padding: 4px 8px;
     }
 
     .path-element {
       -fx-padding: 0;
-      -fx-text-fill: $defold-white;
+      -fx-text-fill: -df-defold-white;
       -fx-font-smoothing-type: lcd;
 
       &.implicit {

@@ -3,17 +3,17 @@
 }
 
 @mixin effect-lighten() {
-	@include colorize-image-view($defold-white);
+	@include colorize-image-view(-df-defold-white);
 }
 
 @mixin effect-lighten-blue() {
-	@include colorize-image-view($defold-light-blue);
+	@include colorize-image-view(-df-bright-blue);
 }
 
 @mixin effect-icon-grey() {
-	@include colorize-image-view($tree-view-icon);
+	@include colorize-image-view(-df-tree-view-icon);
 }
 
 @mixin effect-bright-grey() {
-	@include colorize-image-view($bright-grey-light);
+	@include colorize-image-view(-df-bright-grey-light);
 }

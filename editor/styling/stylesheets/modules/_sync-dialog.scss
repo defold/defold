@@ -1,39 +1,39 @@
 .sync-dialog {
   .list-view {
-    -fx-background-color: $dark-grey-light;
+    -fx-background-color: -df-dark-grey-light;
     -fx-padding: 0px;
   }
 
   Text {
-    -fx-fill: $bright-grey-light;
+    -fx-fill: -df-bright-grey-light;
     -fx-font-smoothing-type: lcd;
   }
 
   .text-area {
-    -fx-border-color: $input-border;
+    -fx-border-color: -df-input-border;
     -fx-border-width: 1px;
-    -fx-highlight-fill: $input-background;
-    -fx-highlight-text-fill: $defold-white;
-    -fx-prompt-text-fill: $tree-view-icon;
-    -fx-text-fill: $defold-white;
+    -fx-highlight-fill: -df-input-background;
+    -fx-highlight-text-fill: -df-defold-white;
+    -fx-prompt-text-fill: -df-tree-view-icon;
+    -fx-text-fill: -df-defold-white;
 
     .content {
-      -fx-background-color: $input-background;
+      -fx-background-color: -df-input-background;
     }
 
     &:focused {
       -fx-highlight-fill: -fx-accent;
-      -fx-highlight-text-fill: $defold-white;
+      -fx-highlight-text-fill: -df-defold-white;
       -fx-prompt-text-fill: transparent;
 
       .content {
-        -fx-background-color: $root-background;
+        -fx-background-color: -df-root-background;
       }
     }
   }
 
   .text-field {
-    -fx-prompt-text-fill: $tree-view-icon;
+    -fx-prompt-text-fill: -df-tree-view-icon;
 
     &:focused {
       -fx-prompt-text-fill: transparent;
@@ -41,9 +41,9 @@
   }
 
   .text-area, .text-field {
-    &.error { -fx-border-color: $error-severity-fatal; }
-    &.warning { -fx-border-color: $error-severity-warning; }
-    &.info { -fx-border-color: $error-severity-info; }
+    &.error { -fx-border-color: -df-error-severity-fatal; }
+    &.warning { -fx-border-color: -df-error-severity-warning; }
+    &.info { -fx-border-color: -df-error-severity-info; }
   }
 
   #pull-info-box, #push-info-box {
@@ -64,7 +64,7 @@
     .hyperlink:disabled {
       -fx-cursor: default;
       -fx-opacity: 1.0;
-      -fx-text-fill: $bright-grey-light;
+      -fx-text-fill: -df-bright-grey-light;
       -fx-underline: false;
     }
   }

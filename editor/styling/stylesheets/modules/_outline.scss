@@ -59,8 +59,8 @@
     }
 
     &.overridden {
-      @include colorize-icon(#52a5d9, $defold-light-blue);
-      @include colorize-label(#52a5d9, $defold-light-blue);
+      @include colorize-icon(#52a5d9, -df-bright-blue);
+      @include colorize-label(#52a5d9, -df-bright-blue);
     }
 
     &.child-overridden {
@@ -69,11 +69,11 @@
 
     &.error {
       // NOTE: Icon image also changes to the error icon.
-      @include colorize-icon($error-severity-fatal-dim, $error-severity-fatal);
+      @include colorize-icon(-df-error-severity-fatal-dim, -df-error-severity-fatal);
     }
 
     &.child-error {
-      @include colorize-disclosure-arrow($error-severity-fatal-dim);
+      @include colorize-disclosure-arrow(-df-error-severity-fatal-dim);
     }
 
     &.scene-visibility-hidden {

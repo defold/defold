@@ -1,54 +1,54 @@
 .flat-list-view {
     -fx-background-insets: 0;
     .list-cell {
-        -fx-background-color: $dark-grey-light;
+        -fx-background-color: -df-dark-grey-light;
         -fx-border-width: 0 0 0 2;
-        -fx-border-color: $dark-grey-light;
+        -fx-border-color: -df-dark-grey-light;
         -fx-padding: 5;//0.5em 1em;
 
         Text {
             -fx-font-smoothing-type: lcd;
-            -fx-fill: $bright-grey-light;
+            -fx-fill: -df-bright-grey-light;
             &.diminished {
                 -fx-opacity: 0.5;
             }
             &.matched {
-                -fx-fill: $defold-light-blue;
+                -fx-fill: -df-bright-blue;
             }
         }
 
         &:hover {
-            -fx-text-fill: $defold-white;
+            -fx-text-fill: -df-defold-white;
 
             Text {
-                -fx-fill: $defold-white;
+                -fx-fill: -df-defold-white;
                 &.matched {
-                    -fx-fill: $defold-light-blue;
+                    -fx-fill: -df-bright-blue;
                 }
             }
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
-            -fx-border-color: $defold-orange;
-            -fx-text-fill: $defold-white;
-            -fx-background-color: $dark-grey-selected;
+            -fx-border-color: -df-defold-orange;
+            -fx-text-fill: -df-defold-white;
+            -fx-background-color: -df-dark-grey-selected;
             &:hover {
-                -fx-text-fill: $defold-white; 
+                -fx-text-fill: -df-defold-white; 
             }
             .image-view {
                 @include effect-bright-grey();
             }
 
             Text {
-                -fx-fill: $defold-white;
+                -fx-fill: -df-defold-white;
                 &.matched {
-                    -fx-fill: $defold-light-blue;
+                    -fx-fill: -df-bright-blue;
                 }
             }
         }
 
         .label {
-            -fx-text-fill: $defold-white;
+            -fx-text-fill: -df-defold-white;
         }
     }
 }

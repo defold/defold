@@ -3,31 +3,31 @@
   -fx-border-radius: 4;
   -fx-padding: 4px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-mid-grey;
   -fx-background-insets: 0;
-  -fx-border-color: rgba($dark-grey, 0.8);
+  -fx-border-color: -df-dark-grey-semi;
   -fx-border-width: 1;
-  -fx-text-fill: rgba($defold-white, 0.8);
+  -fx-text-fill: -df-defold-white-eighty;
   -fx-font-size: $default-font-size;
   &:hover {
-    -fx-background-color: $mid-grey-light;
+    -fx-background-color: -df-mid-grey-light;
   }
   &:armed {
-    -fx-background-color: $input-background;
+    -fx-background-color: -df-input-background;
   }
   &.low-prio {
-    -fx-background-color: $dark-grey;
-    -fx-border-color: $mid-grey;
-    -fx-text-fill: $bright-grey;
+    -fx-background-color: -df-dark-grey;
+    -fx-border-color: -df-mid-grey;
+    -fx-text-fill: -df-bright-grey;
     -fx-font-weight: normal;
   }
   &.low-prio:hover {
-      -fx-background-color: $bright-black;
+      -fx-background-color: -df-bright-black;
   }
   &.low-prio:armed {
-      -fx-background-color: $bright-black;
-      -fx-border-color: $bright-grey;
-      -fx-text-fill: $defold-white;
+      -fx-background-color: -df-bright-black;
+      -fx-border-color: -df-bright-grey;
+      -fx-text-fill: -df-defold-white;
   }
 }
 
@@ -46,19 +46,19 @@
 .clear-button {
   -fx-background-radius: 0;
   -fx-border-radius: 0;
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-mid-grey;
   -fx-padding: 0;
   -fx-min-width: 27px;
   -fx-max-width: 27px;
   -fx-min-height: 27px;
   -fx-max-height: 27px;
   -fx-border-width: 0;
-  -fx-text-fill: $defold-white;
+  -fx-text-fill: -df-defold-white;
   &:hover {
-      -fx-background-color: $grey !important;
+      -fx-background-color: -df-grey !important;
   }
   &:armed {
-      -fx-background-color: $dark-grey-header !important;
+      -fx-background-color: -df-dark-grey-header !important;
   }
 }
 
@@ -68,29 +68,29 @@
   -fx-padding: 4px;
   -fx-background-insets: 0px;
   -fx-border-insets: 0px;
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-mid-grey;
   &:hover {
-    -fx-background-color: $mid-grey-light;
+    -fx-background-color: -df-mid-grey-light;
   }
   &:selected {
-    -fx-background-color: $dark-grey;
+    -fx-background-color: -df-dark-grey;
     .image-view {
       @include effect-lighten-blue()
     }
   }
   &:armed {
-    -fx-background-color: $input-background;
+    -fx-background-color: -df-input-background;
   }
 }
 
 .toggle-button,
 .color-picker.split-button > .color-picker-label {
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-mid-grey;
   -fx-background-insets: 0;
   -fx-background-radius: 4;
   -fx-border-width: 1;
   -fx-border-radius: 4;
-  -fx-border-color: $dark-black;
+  -fx-border-color: -df-dark-black;
   -fx-text-fill: -fx-text-base-color;
 }
 
@@ -105,7 +105,7 @@
     -fx-background-radius: 10px;
     -fx-border-width: 0px;
     -fx-alignment: center-left;
-    -fx-background-color: $dark-black;
+    -fx-background-color: -df-dark-black;
     > .mark {
       -fx-max-width: 10px;
       -fx-background-insets: 0px;
@@ -131,5 +131,5 @@
 
 .color-picker.split-button > .arrow-button:hover,
 .color-picker.split-button > .color-picker-label:hover {
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-mid-grey;
   -fx-text-fill: -fx-text-base-color; }

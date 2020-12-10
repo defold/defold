@@ -20,11 +20,11 @@
     }
 
     .tab-content-area {
-        -fx-background-color: $dark-grey-light;
+        -fx-background-color: -df-dark-grey-light;
         -fx-padding: 0;
 
         .content {
-            -fx-background-color: $dark-grey-light;
+            -fx-background-color: -df-dark-grey-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
             -fx-border-radius: 0;
@@ -33,7 +33,7 @@
         }
 
         .text-area, .scroll-pane, .viewport {
-            -fx-background-color: $dark-grey-light;
+            -fx-background-color: -df-dark-grey-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
         }
@@ -96,7 +96,7 @@
     &:hover {
         -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
     }
-    
+
     .label {
         -fx-padding: 5;
     }
@@ -105,7 +105,7 @@
 #build-errors-container {
     -fx-padding: 0;
     .tree-view {
-        -fx-background-color: $dark-grey-light;
+        -fx-background-color: -df-dark-grey-light;
     }
 
     .tree-cell {
@@ -118,11 +118,11 @@
         }
 
         Text {
-            -fx-fill: $bright-grey-light;
+            -fx-fill: -df-bright-grey-light;
         }
         &:selected, &:hover {
             Text {
-                -fx-fill: $defold-white;
+                -fx-fill: -df-defold-white;
             }
         }
 
@@ -141,12 +141,12 @@
 
         &.severity-error {
             -fx-graphic-text-gap: $graphic-text-gap;
-            @include colorize-severity($error-severity-fatal-dim, $error-severity-fatal);
+            @include colorize-severity(-df-error-severity-fatal-dim, -df-error-severity-fatal);
         }
 
         &.severity-warning {
             -fx-graphic-text-gap: $graphic-text-gap;
-            @include colorize-severity($error-severity-warning-dim, $error-severity-warning);
+            @include colorize-severity(-df-error-severity-warning-dim, -df-error-severity-warning);
         }
 
         &.severity-info {

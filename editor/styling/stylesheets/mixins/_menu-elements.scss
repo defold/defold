@@ -2,30 +2,30 @@
     .menu-item {
         -fx-border-width: 0;
         -fx-background-radius: 0;
-        -fx-background-color: $menu-background;
+        -fx-background-color: -df-menu-background;
         > .label {
-            -fx-text-fill: $menu-foreground;
+            -fx-text-fill: -df-menu-background;
         }
         .image-view {
-            @include colorize-image-view($menu-foreground);
+            @include colorize-image-view(-df-menu-foreground);
         }
 
         &:disabled {
             -fx-opacity: 0.4;
-            -fx-background-color: $menu-background !important;
+            -fx-background-color: -df-menu-background !important;
             > .label {
                 -fx-opacity: 1.0;
-                -fx-text-fill: $menu-foreground !important;
+                -fx-text-fill: -df-menu-foreground !important;
             }
             .image-view {
-                -fx-effect: innershadow(gaussian, $menu-foreground, 20, 1.0, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-menu-foreground, 20, 1.0, 0, 0) !important;
             }
         }
 
         &:focused {
-            -fx-background-color: $menu-background-hover;
+            -fx-background-color: -df-menu-background-hover;
             > .label {
-                -fx-text-fill: $menu-foreground-hover;
+                -fx-text-fill: -df-menu-foreground-hover;
             }
             .image-view {
                 @include effect-lighten-blue();
@@ -42,7 +42,7 @@
             -fx-min-height: 0;
             -fx-background-color: transparent;
             .line {
-                -fx-border-color: $menu-separator;
+                -fx-border-color: -df-menu-separator;
                 -fx-border-insets: 0;
                 -fx-border-width: 1 0 0 0;
             }

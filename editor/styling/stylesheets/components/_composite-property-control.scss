@@ -7,18 +7,18 @@
         -fx-background-radius: 0px;
         -fx-border-radius: 0px;
         -fx-background-insets: 0;
-        -fx-background-color: $mid-grey;
+        -fx-background-color: -df-mid-grey;
         -fx-border-width: 0;
         -fx-padding: 5 4;
         -fx-pref-width: 23;
         -fx-max-width: 24px;
-        -fx-text-fill: $icon-grey;
+        -fx-text-fill: -df-icon-grey;
         &:hover {
-            -fx-background-color: $mid-grey-light !important;
-            -fx-border-color: $dark-grey;
+            -fx-background-color: -df-mid-grey-light !important;
+            -fx-border-color: -df-dark-grey;
         }
         &:armed, &:pressed {
-            -fx-background-color: $input-background !important;
+            -fx-background-color: -df-input-background !important;
         }
     }
 }

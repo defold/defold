@@ -3,36 +3,36 @@
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-padding: 4px 8px;
-    -fx-background-color: $input-background;
+    -fx-background-color: -df-input-background;
     -fx-border-width: 1px 1px 1px 1px;
-    -fx-border-color: $input-border;
-    -fx-text-fill: $defold-white;
-    -fx-prompt-text-fill: $bright-grey-light;
+    -fx-border-color: -df-input-border;
+    -fx-text-fill: -df-defold-white;
+    -fx-prompt-text-fill: -df-bright-grey-light;
     -fx-min-height: 26px;
     &:hover {
-        
+
     }
     &:focused {
-        -fx-background-color: $root-background;
+        -fx-background-color: -df-root-background;
         -fx-border-width: 1px 1px 2px 1px;
         -fx-border-insets: 0px 0px 0px 0px;
         -fx-padding: 4px 8px 3px 8px;
-        -fx-border-color: $input-border $input-border $defold-orange $input-border;
-        -fx-text-fill: $defold-white;
+        -fx-border-color: -df-input-border -df-input-border -df-defold-orange -df-input-border;
+        -fx-text-fill: -df-defold-white;
         -fx-border-radius: 0;
     }
     &:readonly {
-        -fx-text-fill: $tree-view-icon;
+        -fx-text-fill: -df-tree-view-icon;
         -fx-cursor: default;
         &:focused {
             -fx-background-radius: 0px;
             -fx-border-radius: 0px;
             -fx-padding: 4px 8px;
-            -fx-background-color: $input-background;
+            -fx-background-color: -df-input-background;
             -fx-border-width: 1px 1px 1px 1px;
-            -fx-border-color: $input-border;
-            -fx-text-fill: $tree-view-icon;
-            -fx-prompt-text-fill: $bright-grey-light;
+            -fx-border-color: -df-input-border;
+            -fx-text-fill: -df-tree-view-icon;
+            -fx-prompt-text-fill: -df-bright-grey-light;
             -fx-min-height: 26px;
         }
     }
