@@ -51,28 +51,6 @@ Links:
 }
 
 
-/* Selected rows */
-/*.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
-.tree-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-cell:filled:selected,
-.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected,
-.tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell:filled:selected,
-.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell .table-cell:selected,
-.tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell .tree-table-cell:selected {
-  -fx-background: -fx-selection-bar;
-  -fx-text-fill: red;//-df-defold-white;
-}*/
-
-.root__ {
-  -fx-base: #ff0000;
-  -fx-background: #ff0000;
-  -fx-control-inner-background: #ff0000; }
-
-.root_ {
-  -fx-base: -df-dark-grey-lightest;
-  -fx-background: -df-dark-grey-lightest;
-  -fx-control-inner-background: -df-dark-grey-lightest;
-  -fx-hover-base: -df-defold-red; }
-
 /* Drag and drop targets */
 .drop-target {
   -fx-background-color: -df-dark-grey !important;

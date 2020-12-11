@@ -173,7 +173,7 @@ $spacing-largest: 40px;
 @mixin text-input-defaults() {
   @include font-default();
   @include font-size-default();
-  -fx-highlight-fill: -df-dark-grey-lightest;
+  -fx-highlight-fill: -df-grey-light;
   -fx-text-fill: -df-defold-white-light;
   -fx-prompt-text-fill: -df-grey;
   -fx-background-color: -df-dark-grey-darker;
@@ -337,7 +337,7 @@ Text {
       > .label {
         -fx-text-fill: -df-defold-white-light;
       }
-      -fx-background-color: -df-dark-grey-lightest;
+      -fx-background-color: -df-grey-light;
       -fx-background-radius: 1px;
     }
     &:disabled {
@@ -350,7 +350,7 @@ Text {
   .separator {
     -fx-padding: 3 0;
     > .line {
-      -fx-background-color: -df-dark-grey-lightest;
+      -fx-background-color: -df-grey-light;
       -fx-border-color: transparent;
     }
     &:horizontal > .line {
