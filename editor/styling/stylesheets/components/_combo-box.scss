@@ -25,10 +25,10 @@
         -fx-min-width: 10em;
         -fx-background-color: -df-dark-grey-light;
         -fx-border-width: 0;
-        -fx-border-color: -df-mid-grey;
+        -fx-border-color: -df-dark-grey-lighter;
         -fx-border-insets: 0;
         -fx-background-insets: 0;
-        -fx-text-fill: -df-mid-grey;
+        -fx-text-fill: -df-dark-grey-lighter;
     }
     .list-cell {
         -fx-background-color: -df-root-background;
@@ -42,12 +42,12 @@
         -fx-background-radius: 0;
         -fx-border-radius: 0;
         -fx-background-insets: 0;
-        -fx-background-color: -df-mid-grey !important;
+        -fx-background-color: -df-dark-grey-lighter !important;
         -fx-border-width: 0;
         -fx-padding: 5 7;
 
         &:hover {
-            -fx-background-color: -df-mid-grey-light !important;
+            -fx-background-color: -df-grey-darker !important;
             -fx-background-insets: 0;
         }
         &:pressed, &:focused {

@@ -210,7 +210,7 @@
 
       &:selected {
         -fx-background-color: rgba(255, 255, 255, 0.05);
-        -fx-border-color: -df-bright-blue;
+        -fx-border-color: -df-defold-blue-lighter;
       }
     }
   }
@@ -242,7 +242,7 @@
           -fx-font-smoothing-type: lcd;
 
           &.matched {
-            -fx-fill: -df-bright-blue;
+            -fx-fill: -df-defold-blue-lighter;
             -fx-opacity: 100%;
           }
         }
@@ -303,12 +303,12 @@
   .list-cell:selected .template-entry {
     -fx-background-radius: 4px;
     -fx-border-radius: 4px;
-    -fx-border-color: -df-bright-blue;
-    -fx-effect: dropshadow(gaussian, -df-bright-blue, 10, 0, 0, 0);
+    -fx-border-color: -df-defold-blue-lighter;
+    -fx-effect: dropshadow(gaussian, -df-defold-blue-lighter, 10, 0, 0, 0);
 
     .svg-icon {
       SVGPath {
-        -fx-fill: -df-bright-blue;
+        -fx-fill: -df-defold-blue-lighter;
       }
     }
   }
@@ -332,7 +332,7 @@
       -fx-padding: 17px 0px 24px 0px;
 
       .bar {
-        -fx-background-color: -df-bright-blue;
+        -fx-background-color: -df-defold-blue-lighter;
         -fx-background-insets: 0;
         -fx-background-radius: 4px;
         -fx-min-height: 5px;
@@ -340,7 +340,7 @@
       }
 
       .track {
-        -fx-background-color: -df-mid-grey;
+        -fx-background-color: -df-dark-grey-lighter;
         -fx-background-insets: 0;
         -fx-border-width: 0;
         -fx-background-radius: 4px;

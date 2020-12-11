@@ -4,10 +4,10 @@
     -fx-min-width: 10em;
     -fx-background-color: -df-dark-grey;
     -fx-background-insets: 0;
-    -fx-border-color: -df-mid-grey;
+    -fx-border-color: -df-dark-grey-lighter;
     -fx-border-width: 1;
     -fx-padding: 0;
-    -fx-text-fill: -df-mid-grey;
+    -fx-text-fill: -df-dark-grey-lighter;
 
     &:showing {
         -fx-background-color: -df-dark-grey;

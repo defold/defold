@@ -7,7 +7,7 @@
   -fx-padding: 0px 10px;
 
   &:hover {
-    -fx-background-color: -df-mid-grey-light;
+    -fx-background-color: -df-grey-darker;
   }
 
   &:armed {
@@ -17,7 +17,7 @@
 
 .console-image-button-base {
   @extend .console-button-base;
-  -fx-background-color: -df-mid-grey;
+  -fx-background-color: -df-dark-grey-lighter;
   -fx-background-position: center;
   -fx-background-repeat: no-repeat;
   -fx-background-size: 16 16;

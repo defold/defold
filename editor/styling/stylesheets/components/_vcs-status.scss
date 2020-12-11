@@ -5,28 +5,28 @@
 .list-view {
   .list-cell {
     &.added-file {
-      @include colorize-image-view(-df-defold-green-fifty);
+      @include colorize-image-view(-df-defold-green-dark);
       &:selected {
         @include colorize-image-view(-df-defold-green);
       }
     }
 
     &.deleted-file {
-      @include colorize-image-view(-df-defold-red-fifty);
+      @include colorize-image-view(-df-defold-red-dark);
       &:selected {
         @include colorize-image-view(-df-defold-red);
       }
     }
 
     &.modified-file {
-      @include colorize-image-view(-df-defold-blue-fifty);
+      @include colorize-image-view(-df-defold-blue-dark);
       &:selected {
         @include colorize-image-view(-df-defold-blue);
       }
     }
 
     &.renamed-file {
-      @include colorize-image-view(-df-defold-yellow-fifty);
+      @include colorize-image-view(-df-defold-yellow-dark);
       &:selected {
         @include colorize-image-view(-df-defold-yellow);
       }

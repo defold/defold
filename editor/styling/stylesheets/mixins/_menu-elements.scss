@@ -4,7 +4,7 @@
         -fx-background-radius: 0;
         -fx-background-color: -df-menu-background;
         > .label {
-            -fx-text-fill: -df-menu-background;
+            -fx-text-fill: -df-menu-foreground;
         }
         .image-view {
             @include colorize-image-view(-df-menu-foreground);

@@ -25,9 +25,9 @@
         -fx-border-width: 0;
         -fx-background-insets: 0;
         -fx-padding: 5 7;
-        -fx-background-color: -df-mid-grey;
+        -fx-background-color: -df-dark-grey-lighter;
         &:hover {
-            -fx-background-color: -df-mid-grey-light;
+            -fx-background-color: -df-grey-darker;
         }
         &:armed, &:pressed {
             -fx-background-color: -df-input-background;
@@ -37,6 +37,6 @@
 .color-palette {
   -fx-background-radius: 3;
   -fx-border-radius: 3;
-  -fx-border-color: -df-mid-grey;
+  -fx-border-color: -df-dark-grey-lighter;
   -fx-background-color: -df-input-background;
 }
