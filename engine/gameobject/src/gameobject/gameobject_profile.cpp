@@ -246,16 +246,22 @@ static dmhash_t g_SceneNodePropertyName_resource = 0;
 static dmhash_t g_SceneNodePropertyName_position = 0;
 static dmhash_t g_SceneNodePropertyName_rotation = 0;
 static dmhash_t g_SceneNodePropertyName_scale = 0;
+static dmhash_t g_SceneNodePropertyName_world_position = 0;
+static dmhash_t g_SceneNodePropertyName_world_rotation = 0;
+static dmhash_t g_SceneNodePropertyName_world_scale = 0;
 
 // In order to do reverse hashes on these, we need to hash them after the engine has started
 static void InitSceneNodePropertyNames()
 {
-    g_SceneNodePropertyName_id       = dmHashString64("id");
-    g_SceneNodePropertyName_type     = dmHashString64("type");
-    g_SceneNodePropertyName_resource = dmHashString64("resource");
-    g_SceneNodePropertyName_position = dmHashString64("position");
-    g_SceneNodePropertyName_rotation = dmHashString64("rotation");
-    g_SceneNodePropertyName_scale    = dmHashString64("scale");
+    g_SceneNodePropertyName_id             = dmHashString64("id");
+    g_SceneNodePropertyName_type           = dmHashString64("type");
+    g_SceneNodePropertyName_resource       = dmHashString64("resource");
+    g_SceneNodePropertyName_position       = dmHashString64("position");
+    g_SceneNodePropertyName_rotation       = dmHashString64("rotation");
+    g_SceneNodePropertyName_scale          = dmHashString64("scale");
+    g_SceneNodePropertyName_world_position = dmHashString64("world_position");
+    g_SceneNodePropertyName_world_rotation = dmHashString64("world_rotation");
+    g_SceneNodePropertyName_world_scale    = dmHashString64("world_scale");
 }
 
 // ********************************************************************************************
@@ -315,72 +321,80 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
     assert(pit->m_Node->m_Type == SCENE_NODE_TYPE_GAMEOBJECT);
     assert(pit->m_Node->m_Instance != 0);
 
-    const dmhash_t names[] = {
+    const dmhash_t property_names[] = {
         g_SceneNodePropertyName_id,
         g_SceneNodePropertyName_type,
         g_SceneNodePropertyName_resource,
+    };
+    uint32_t num_properties = DM_ARRAY_SIZE(property_names);
+
+    const dmhash_t transform_property_names[] = {
         g_SceneNodePropertyName_position,
         g_SceneNodePropertyName_rotation,
-        g_SceneNodePropertyName_scale
+        g_SceneNodePropertyName_scale,
+        g_SceneNodePropertyName_world_position,
+        g_SceneNodePropertyName_world_rotation,
+        g_SceneNodePropertyName_world_scale
     };
+    uint32_t num_transform_properties = DM_ARRAY_SIZE(transform_property_names);
 
     uint64_t index = pit->m_Next++;
-    if (index >= sizeof(names)/sizeof(names[0]))
-        return false;
 
-    pit->m_Property.m_NameHash = names[index];
 
     HInstance instance = pit->m_Node->m_Instance;
-    if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_id)
+    if (index < num_properties)
     {
-        pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
-        pit->m_Property.m_Value.m_Hash = instance->m_Identifier;
-    }
-    else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_type)
-    {
-        pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
-        pit->m_Property.m_Value.m_Hash = dmHashString64("goc");
-    }
-    else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_resource)
-    {
-        pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
+        pit->m_Property.m_NameHash = property_names[index];
 
-        Collection* collection = instance->m_Collection;
-        dmResource::GetPath(collection->m_Factory, instance->m_Prototype, &pit->m_Property.m_Value.m_Hash);
-    }
-    else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_position)
-    {
-        pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_VECTOR3;
-        Point3 pos = dmGameObject::GetPosition(instance);
-        pit->m_Property.m_Value.m_V4[0] = pos.getX();
-        pit->m_Property.m_Value.m_V4[1] = pos.getY();
-        pit->m_Property.m_Value.m_V4[2] = pos.getZ();
-        pit->m_Property.m_Value.m_V4[3] = 1;
-    }
-    else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_rotation)
-    {
-        pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_QUAT;
-        Quat rot = dmGameObject::GetRotation(instance);
-        pit->m_Property.m_Value.m_V4[0] = rot.getX();
-        pit->m_Property.m_Value.m_V4[1] = rot.getY();
-        pit->m_Property.m_Value.m_V4[2] = rot.getZ();
-        pit->m_Property.m_Value.m_V4[3] = rot.getW();
-    }
-    else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_scale)
-    {
-        pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_VECTOR3;
-        Vector3 scale = dmGameObject::GetScale(instance);
-        pit->m_Property.m_Value.m_V4[0] = scale.getX();
-        pit->m_Property.m_Value.m_V4[1] = scale.getY();
-        pit->m_Property.m_Value.m_V4[2] = scale.getZ();
-        pit->m_Property.m_Value.m_V4[3] = 1;
+        if (property_names[index] == g_SceneNodePropertyName_id)
+        {
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
+            pit->m_Property.m_Value.m_Hash = instance->m_Identifier;
+        }
+        else if (property_names[index] == g_SceneNodePropertyName_type)
+        {
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
+            pit->m_Property.m_Value.m_Hash = dmHashString64("goc");
+        }
+        else if (property_names[index] == g_SceneNodePropertyName_resource)
+        {
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
 
-    } else {
-        dmLogError("The game object property iterator hasn't implemented: %s", dmHashReverseSafe64(pit->m_Property.m_NameHash));
-        return false; // we somehow miscounted!
+            Collection* collection = instance->m_Collection;
+            dmResource::GetPath(collection->m_Factory, instance->m_Prototype, &pit->m_Property.m_Value.m_Hash);
+        }
+        return true;
     }
 
-    return true;
+    index -= num_properties;
+
+    if (index < num_transform_properties)
+    {
+
+        Vector4 value;
+        SceneNodePropertyType type = SCENE_NODE_PROPERTY_TYPE_VECTOR3;
+        switch(index)
+        {
+            case 0: value = Vector4(dmGameObject::GetPosition(instance)); break;
+            case 1: value = Vector4(dmGameObject::GetRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
+            case 2: value = Vector4(dmGameObject::GetScale(instance)); break;
+            case 3: value = Vector4(dmGameObject::GetWorldPosition(instance)); break;
+            case 4: value = Vector4(dmGameObject::GetWorldRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
+            case 5: value = Vector4(dmGameObject::GetWorldScale(instance)); break;
+        }
+
+        pit->m_Property.m_NameHash = transform_property_names[index];
+        pit->m_Property.m_Type = type;
+        pit->m_Property.m_Value.m_V4[0] = value.getX();
+        pit->m_Property.m_Value.m_V4[1] = value.getY();
+        pit->m_Property.m_Value.m_V4[2] = value.getZ();
+        pit->m_Property.m_Value.m_V4[3] = value.getW();
+        return true;
+    }
+
+    index -= num_transform_properties;
+
+    return false;
 }
 
 static void IterateGameObjectProperties(SceneNodePropertyIterator* pit, SceneNode* node)
