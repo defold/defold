@@ -81,11 +81,11 @@ $spacing-largest: 40px;
   }
 }
 .button-primary {
-  -fx-text-fill: -df-bright-blue;
-  -fx-border-color: -df-bright-blue;
+  -fx-text-fill: -df-defold-blue-lighter;
+  -fx-border-color: -df-defold-blue-lighter;
   &:hover, &:focused {
-    -fx-text-fill: -df-bright-blue-light;
-    -fx-border-color: -df-bright-blue-light;
+    -fx-text-fill: -df-defold-blue-lightest;
+    -fx-border-color: -df-defold-blue-lightest;
   }
 }
 .button-secondary {
@@ -109,7 +109,7 @@ $spacing-largest: 40px;
   -fx-text-fill: -df-light-grey;
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-mid-grey;
+  -fx-background-color: -df-dark-grey-lighter;
   -fx-padding: 0;
   -fx-min-width: 28px;
   -fx-max-width: 28px;
@@ -294,14 +294,14 @@ $spacing-largest: 40px;
 .hyperlink {
   @include font-size-default();
   @include font-default();
-  -fx-text-fill: -df-bright-blue;
+  -fx-text-fill: -df-defold-blue-lighter;
   -fx-border-width: 0;
   -fx-padding: 0;
   &:visited {
     -fx-underline: false;
   }
   &:hover {
-    -fx-text-fill: -df-bright-blue-light;
+    -fx-text-fill: -df-defold-blue-lightest;
     -fx-underline: true;
   }
 }
@@ -317,7 +317,7 @@ Text {
   -fx-min-width: 140px;
 
   .bar {
-    -fx-background-color: -df-bright-blue;
+    -fx-background-color: -df-defold-blue-lighter;
     -fx-background-insets: 0;
     -fx-background-radius: 4;
     -fx-pref-height: 5px;

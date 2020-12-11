@@ -3,7 +3,7 @@
         -fx-tab-min-height: 3.0em;
         -fx-tab-max-height: 100.0em;
         -fx-border-width: 0;
-        -fx-border-color: -df-mid-grey;
+        -fx-border-color: -df-dark-grey-lighter;
         -fx-padding: 0.0em;
         -fx-background-insets: 0;
         -fx-open-tab-animation: none;
@@ -99,7 +99,7 @@
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
     -fx-background-color: -df-dark-grey;
-    -fx-border-color: -df-mid-grey;
+    -fx-border-color: -df-dark-grey-lighter;
     -fx-border-width: 0 0 0 0;
     -fx-padding: 5px 10px;
     &:hover {
@@ -133,6 +133,6 @@
 
 .tab-content-area {
     -fx-border-width: 0;
-    -fx-border-color: -df-mid-grey;
+    -fx-border-color: -df-dark-grey-lighter;
     -fx-padding: 0;
 }

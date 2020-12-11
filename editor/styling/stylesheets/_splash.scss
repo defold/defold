@@ -47,13 +47,13 @@
 }
 
 #startup-tip > .hyperlink {
-  -fx-text-fill: -df-bright-blue;
+  -fx-text-fill: -df-defold-blue-lighter;
   -fx-border-width: 0;
   -fx-padding: 0;
 }
 
 #startup-tip > .hyperlink:hover {
-  -fx-text-fill: -df-bright-blue-light;
+  -fx-text-fill: -df-defold-blue-lightest;
 }
 
 /* See modena.css for progress bar styling */
@@ -69,7 +69,7 @@
     -fx-border-width: 0;
     -fx-background-insets: 0; }
   .progress-bar > .bar {
-    -fx-background-color: -df-dark-grey-semi;
+    -fx-background-color: -df-dark-grey-dark;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-border-radius: 0;
@@ -81,13 +81,13 @@
   -fx-border-radius: 4;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: -df-mid-grey;
+  -fx-background-color: -df-dark-grey-lighter;
   -fx-background-insets: 0;
-  -fx-border-color: -df-dark-grey-semi;
+  -fx-border-color: -df-dark-grey-dark;
   -fx-border-width: 1;
-  -fx-text-fill: -df-defold-white-eighty;
+  -fx-text-fill: -df-defold-white-dark;
   -fx-font-size: 13px; }
   .button:hover {
-    -fx-background-color: -df-mid-grey-light; }
+    -fx-background-color: -df-grey-darker; }
   .button:armed {
     -fx-background-color: -df-dark-grey-lighter; }

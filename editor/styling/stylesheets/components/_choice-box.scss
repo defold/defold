@@ -20,10 +20,10 @@
     .open-button {
         -fx-background-insets: 0;
         -fx-padding: 10 7;
-        -fx-background-color: -df-mid-grey;
+        -fx-background-color: -df-dark-grey-lighter;
         -fx-border-width: 0;
         &:hover {
-            -fx-background-color: -df-mid-grey-light;
+            -fx-background-color: -df-grey-darker;
             -fx-background-insets: 0;
         }
         &:pressed, &:focused {

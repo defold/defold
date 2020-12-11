@@ -3,7 +3,7 @@ $diff-delete: #6e2a33;
 
 .diff-view {
   Line {
-    -fx-stroke: -df-mid-grey;
+    -fx-stroke: -df-dark-grey-lighter;
 
     &.insert {
       -fx-stroke: $diff-insert;
@@ -37,8 +37,8 @@ $diff-delete: #6e2a33;
   }
 
   .diff-box {
-    -fx-fill: -df-mid-grey;
-    -fx-stroke: -df-mid-grey;
+    -fx-fill: -df-dark-grey-lighter;
+    -fx-stroke: -df-dark-grey-lighter;
 
     &.insert {
       -fx-fill: $diff-insert;

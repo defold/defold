@@ -13,7 +13,7 @@
                 -fx-opacity: 0.5;
             }
             &.matched {
-                -fx-fill: -df-bright-blue;
+                -fx-fill: -df-defold-blue-lighter;
             }
         }
 
@@ -23,7 +23,7 @@
             Text {
                 -fx-fill: -df-defold-white;
                 &.matched {
-                    -fx-fill: -df-bright-blue;
+                    -fx-fill: -df-defold-blue-lighter;
                 }
             }
         }
@@ -42,7 +42,7 @@
             Text {
                 -fx-fill: -df-defold-white;
                 &.matched {
-                    -fx-fill: -df-bright-blue;
+                    -fx-fill: -df-defold-blue-lighter;
                 }
             }
         }

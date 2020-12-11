@@ -1,41 +1,44 @@
 * {
-  -df-defold-blue: #0084ff;
-  -df-defold-blue-fifty: rgba(0, 132, 255, 0.5);
-  -df-bright-blue: #5bc0ff;
-  -df-bright-blue-light: derive(#5bc0ff, 10%);
-  -df-bright-blue-lighter: derive(#5bc0ff, 20%);
-  -df-selected-blue: #264a8b;
   -df-dark-grey-darker: derive(#212428, -20%);
   -df-dark-grey-dark: derive(#212428, -5%);
   -df-dark-grey: #212428;
-  -df-dark-grey-semi: rgba(33, 36, 40, 0.8);
   -df-dark-grey-light: derive(#212428, 5%);
   -df-dark-grey-lighter: derive(#212428, 20%);
   -df-dark-grey-lightest: derive(#212428, 35%);
   -df-dark-grey-header: -df-dark-grey-lighter;
-  -df-dark-grey-selected: #3B3F43;
-  -df-dark-grey-border: #424348;
-  -df-mid-grey: #393c41;
-  -df-mid-grey-light: #45474B;
+  -df-dark-grey-selected: -df-dark-grey-lighter;
+  -df-dark-grey-border: -df-dark-grey-lightest;
+  -df-grey-darker: derive(#52575C, -20%);
+  -df-grey-dark: derive(#52575C, -5%);
   -df-grey: #52575C;
+  -df-grey-light: derive(#52575C, 5%);
+  -df-grey-lighter: derive(#52575C, 20%);
   -df-light-grey-darker: derive(#a4b4c1, -20%);
   -df-light-grey-dark: derive(#a4b4c1, -10%);
   -df-light-grey: #a4b4c1;
   -df-light-grey-light: derive(#a4b4c1, 10%);
   -df-light-grey-lighter: derive(#a4b4c1, 20%);
   -df-light-grey-lightest: derive(#a4b4c1, 30%);
+  -df-defold-white-dark: derive(#dddddd, -10%);
   -df-defold-white: #dddddd;
-  -df-defold-white-light: derive(#dddddd, 9%);
-  -df-defold-white-eighty: rgba(221, 221, 221, 0.8);
-  -df-defold-red-dark: derive(#e32f44, -20%);
+  -df-defold-white-light: derive(#dddddd, 10%);
+  -df-defold-red-dark: derive(#e32f44, -10%);
   -df-defold-red: #e32f44;
-  -df-defold-red-light: derive(#e32f44, 20%);
-  -df-defold-red-fifty: rgba(227, 47, 68, 0.5);
+  -df-defold-red-light: derive(#e32f44, 10%);
+  -df-defold-yellow-dark: derive(#fbce2f, -10%);
   -df-defold-yellow: #fbce2f;
-  -df-defold-yellow-fifty: rgba(251, 206, 47, 0.5);
+  -df-defold-yellow-light: derive(#fbce2f, 10%);
+  -df-defold-green-dark: derive(#3cff00, -10%);
   -df-defold-green: #3cff00;
-  -df-defold-green-fifty: rgba(60, 255, 0, 0.5);
+  -df-defold-green-light: derive(#3cff00, 10%);
+  -df-defold-orange-dark: derive(#fa6731, -10%);
   -df-defold-orange: #fa6731;
+  -df-defold-orange-light: derive(#fa6731, 10%);
+  -df-defold-blue-dark: derive(#0084ff, -10%);
+  -df-defold-blue: #0084ff;
+  -df-defold-blue-light: derive(#0084ff, 10%);
+  -df-defold-blue-lighter: derive(#0084ff, 20%);
+  -df-defold-blue-lightest: derive(#0084ff, 30%);
   /* Revamp */
   -df-root-background: -df-dark-grey;
   -df-panel-background: -df-dark-grey-light;
@@ -46,7 +49,7 @@
   -df-icon-grey: -df-light-grey-dark;
   -df-tree-view-icon: #6b7b8b;
   /* Menu colors */
-  -df-menu-background: -df-mid-grey;
+  -df-menu-background: -df-dark-grey-lighter;
   -df-menu-foreground: -df-light-grey;
   -df-menu-background-hover: -df-grey;
   -df-menu-foreground-hover: -df-defold-white;
@@ -59,10 +62,10 @@
   -df-scene-toolbar-button-hovered-foreground: -df-defold-white;
   /* Status colors */
   -df-error-severity-fatal: -df-defold-red;
-  -df-error-severity-fatal-dim: -df-defold-red-fifty;
+  -df-error-severity-fatal-dim: -df-defold-red-dark;
   -df-error-severity-warning: -df-defold-yellow;
-  -df-error-severity-warning-dim: -df-defold-yellow-fifty;
-  -df-error-severity-info: -df-bright-blue;
+  -df-error-severity-warning-dim: -df-defold-yellow-dark;
+  -df-error-severity-info: -df-defold-blue-lighter;
   /* Lua script colors */
   -df-script-helper: #33cccc;
   -df-script-self: #E066FF;
@@ -124,12 +127,12 @@
   -fx-padding: 0; }
 
 #startup-tip > .hyperlink {
-  -fx-text-fill: -df-bright-blue;
+  -fx-text-fill: -df-defold-blue-lighter;
   -fx-border-width: 0;
   -fx-padding: 0; }
 
 #startup-tip > .hyperlink:hover {
-  -fx-text-fill: -df-bright-blue-light; }
+  -fx-text-fill: -df-defold-blue-lightest; }
 
 /* See modena.css for progress bar styling */
 .progress-bar {
@@ -146,7 +149,7 @@
   -fx-background-insets: 0; }
 
 .progress-bar > .bar {
-  -fx-background-color: -df-dark-grey-semi;
+  -fx-background-color: -df-dark-grey-dark;
   -fx-background-insets: 0;
   -fx-background-radius: 0;
   -fx-border-radius: 0;
@@ -158,15 +161,15 @@
   -fx-border-radius: 4;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: -df-mid-grey;
+  -fx-background-color: -df-dark-grey-lighter;
   -fx-background-insets: 0;
-  -fx-border-color: -df-dark-grey-semi;
+  -fx-border-color: -df-dark-grey-dark;
   -fx-border-width: 1;
-  -fx-text-fill: -df-defold-white-eighty;
+  -fx-text-fill: -df-defold-white-dark;
   -fx-font-size: 13px; }
 
 .button:hover {
-  -fx-background-color: -df-mid-grey-light; }
+  -fx-background-color: -df-grey-darker; }
 
 .button:armed {
   -fx-background-color: -df-dark-grey-lighter; }

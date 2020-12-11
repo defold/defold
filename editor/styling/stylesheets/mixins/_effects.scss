@@ -7,7 +7,7 @@
 }
 
 @mixin effect-lighten-blue() {
-	@include colorize-image-view(-df-bright-blue);
+	@include colorize-image-view(-df-defold-blue-lighter);
 }
 
 @mixin effect-icon-grey() {
