@@ -30,7 +30,7 @@
             -fx-background-color: -df-grey-darker;
         }
         &:armed, &:pressed {
-            -fx-background-color: -df-input-background;
+            -fx-background-color: -df-dark-grey-light;
         }
     }
 }
@@ -38,5 +38,5 @@
   -fx-background-radius: 3;
   -fx-border-radius: 3;
   -fx-border-color: -df-dark-grey-lighter;
-  -fx-background-color: -df-input-background;
+  -fx-background-color: -df-dark-grey-light;
 }

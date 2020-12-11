@@ -51,7 +51,7 @@
             -fx-background-insets: 0;
         }
         &:pressed, &:focused {
-            -fx-background-color: -df-input-background;
+            -fx-background-color: -df-dark-grey-light;
             -fx-text-fill: -df-defold-white;
         }
     }

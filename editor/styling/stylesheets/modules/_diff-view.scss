@@ -1,16 +1,13 @@
-$diff-insert: #1e5537;
-$diff-delete: #6e2a33;
-
 .diff-view {
   Line {
     -fx-stroke: -df-dark-grey-lighter;
 
     &.insert {
-      -fx-stroke: $diff-insert;
+      -fx-stroke: -df-defold-green-dark;
     }
 
     &.delete {
-      -fx-stroke: $diff-delete;
+      -fx-stroke: -df-defold-red-dark;
     }
   }
 
@@ -41,13 +38,13 @@ $diff-delete: #6e2a33;
     -fx-stroke: -df-dark-grey-lighter;
 
     &.insert {
-      -fx-fill: $diff-insert;
-      -fx-stroke: $diff-insert;
+      -fx-fill: -df-defold-green-dark;
+      -fx-stroke: -df-defold-green-dark;
     }
 
     &.delete {
-      -fx-fill: $diff-delete;
-      -fx-stroke: $diff-delete;
+      -fx-fill: -df-defold-red-dark;
+      -fx-stroke: -df-defold-red-dark;
     }
   }
 }

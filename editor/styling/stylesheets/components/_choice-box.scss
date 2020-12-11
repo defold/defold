@@ -15,7 +15,7 @@
         -fx-color: -df-defold-white;
     }
     &:showing .arrow {
-        -fx-background-color: -df-defold-white; 
+        -fx-background-color: -df-defold-white;
     }
     .open-button {
         -fx-background-insets: 0;
@@ -27,7 +27,7 @@
             -fx-background-insets: 0;
         }
         &:pressed, &:focused {
-            -fx-background-color: -df-input-background;
+            -fx-background-color: -df-dark-grey-light;
             -fx-text-fill: -df-defold-white;
         }
     }

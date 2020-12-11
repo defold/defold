@@ -189,15 +189,15 @@
 
   .defold-logo-container.gray {
     .left {
-      -fx-fill: #3E3E43;
+      -fx-fill: -df-dark-grey-lightest;
     }
 
     .right {
-      -fx-fill: #37383D;
+      -fx-fill: -df-dark-grey-lighter;
     }
 
     .bottom {
-      -fx-fill: #2D2E32;
+      -fx-fill: -df-dark-grey-light;
     }
   }
 
@@ -266,14 +266,14 @@
   }
 
   .template-entry {
-    -fx-background-color: #35373B;
+    -fx-background-color: -df-grey-darkest;
     -fx-background-radius: 2px;
     -fx-border-width: 1px;
     -fx-border-color: transparent;
     -fx-padding: 8px;
 
     .svg-icon {
-      -fx-background-color: #404146;
+      -fx-background-color: -df-grey-dark;
       -fx-background-radius: 2px;
       -fx-max-width: 171px;
       -fx-max-height: 114px;
@@ -281,7 +281,7 @@
       -fx-min-height: 114px;
 
       SVGPath {
-        -fx-fill: #6D6F73;
+        -fx-fill: -df-grey-lightest;
       }
     }
 

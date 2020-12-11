@@ -13,13 +13,16 @@
 	-df-dark-grey-border:    -df-dark-grey-lightest;
 
 	// Grey
+	-df-grey-darkest:        derive(#52575C, -30%);
 	-df-grey-darker:         derive(#52575C, -20%);
 	-df-grey-dark:           derive(#52575C, -5%);
 	-df-grey:                #52575C;
 	-df-grey-light:          derive(#52575C, 5%);
 	-df-grey-lighter:        derive(#52575C, 20%);
+	-df-grey-lightest:       derive(#52575C, 30%);
 
 	// Light Grey
+	-df-light-grey-darkest:  derive(#a4b4c1, -30%);
 	-df-light-grey-darker:   derive(#a4b4c1, -20%);
 	-df-light-grey-dark:     derive(#a4b4c1, -10%);
 	-df-light-grey:          #a4b4c1;

@@ -59,8 +59,8 @@
     }
 
     &.overridden {
-      @include colorize-icon(#52a5d9, -df-defold-blue-lighter);
-      @include colorize-label(#52a5d9, -df-defold-blue-lighter);
+      @include colorize-icon(-df-grey, -df-defold-blue-lighter);
+      @include colorize-label(-df-grey, -df-defold-blue-lighter);
     }
 
     &.child-overridden {
