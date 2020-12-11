@@ -189,7 +189,7 @@
 
   .defold-logo-container.gray {
     .left {
-      -fx-fill: -df-dark-grey-lightest;
+      -fx-fill: -df-grey-light;
     }
 
     .right {
@@ -380,7 +380,7 @@
       -fx-font-size: 11.5px;
 
       &:hover {
-        -fx-background-color: -df-dark-grey-lightest;
+        -fx-background-color: -df-grey-light;
       }
     }
 

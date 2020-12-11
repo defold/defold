@@ -4,7 +4,6 @@
   -df-dark-grey: #212428;
   -df-dark-grey-light: derive(#212428, 10%);
   -df-dark-grey-lighter: derive(#212428, 20%);
-  -df-dark-grey-lightest: derive(#212428, 30%);
   -df-grey-darker: derive(#52575C, -20%);
   -df-grey-dark: derive(#52575C, -5%);
   -df-grey: #52575C;
