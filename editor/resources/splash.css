@@ -1,10 +1,10 @@
 * {
-  -df-dark-grey-darker: derive(#212428, -20%);
+  -df-dark-grey-darker: derive(#212428, -15%);
   -df-dark-grey-dark: derive(#212428, -5%);
   -df-dark-grey: #212428;
-  -df-dark-grey-light: derive(#212428, 5%);
+  -df-dark-grey-light: derive(#212428, 10%);
   -df-dark-grey-lighter: derive(#212428, 20%);
-  -df-dark-grey-lightest: derive(#212428, 35%);
+  -df-dark-grey-lightest: derive(#212428, 30%);
   -df-dark-grey-header: -df-dark-grey-lighter;
   -df-dark-grey-selected: -df-dark-grey-lighter;
   -df-dark-grey-border: -df-dark-grey-lightest;
@@ -25,29 +25,31 @@
   -df-defold-red-dark: derive(#e32f44, -10%);
   -df-defold-red: #e32f44;
   -df-defold-red-light: derive(#e32f44, 10%);
-  -df-defold-yellow-dark: derive(#fbce2f, -10%);
-  -df-defold-yellow: #fbce2f;
-  -df-defold-yellow-light: derive(#fbce2f, 10%);
-  -df-defold-green-dark: derive(#3cff00, -10%);
-  -df-defold-green: #3cff00;
-  -df-defold-green-light: derive(#3cff00, 10%);
+  -df-defold-yellow-dark: derive(#e6b711, -10%);
+  -df-defold-yellow: #e6b711;
+  -df-defold-yellow-light: derive(#e6b711, 10%);
+  -df-defold-yellow-lighter: derive(#e6b711, 20%);
+  -df-defold-green-dark: derive(#2faa09, -10%);
+  -df-defold-green: #2faa09;
+  -df-defold-green-light: derive(#2faa09, 10%);
+  -df-defold-green-lighter: derive(#2faa09, 20%);
   -df-defold-orange-dark: derive(#fa6731, -10%);
   -df-defold-orange: #fa6731;
   -df-defold-orange-light: derive(#fa6731, 10%);
-  -df-defold-blue-dark: derive(#0084ff, -10%);
-  -df-defold-blue: #0084ff;
-  -df-defold-blue-light: derive(#0084ff, 10%);
-  -df-defold-blue-lighter: derive(#0084ff, 20%);
-  -df-defold-blue-lightest: derive(#0084ff, 30%);
+  -df-defold-blue-dark: derive(#4cb1ff, -10%);
+  -df-defold-blue: #4cb1ff;
+  -df-defold-blue-light: derive(#4cb1ff, 10%);
+  -df-defold-blue-lighter: derive(#4cb1ff, 20%);
+  -df-defold-blue-lightest: derive(#4cb1ff, 30%);
   /* Revamp */
   -df-root-background: -df-dark-grey;
   -df-panel-background: -df-dark-grey-light;
   -df-input-background: -df-dark-grey-light;
   -df-input-border: -df-dark-grey-lighter;
-  -df-input-border-light: derive(#3e4147, 3%);
-  -df-floating-input-border: #56595d;
+  -df-input-border-light: -df-grey;
+  -df-floating-input-border: -df-grey-light;
   -df-icon-grey: -df-light-grey-dark;
-  -df-tree-view-icon: #6b7b8b;
+  -df-tree-view-icon: -df-light-grey;
   /* Menu colors */
   -df-menu-background: -df-dark-grey-lighter;
   -df-menu-foreground: -df-light-grey;
@@ -79,16 +81,16 @@
   -df-script-number: #aaaaff;
   -df-script-intellisense: #00FFFF;
   /* File extension group colors */
-  -df-folder: #6b7b8b;
-  -df-folder-active: #a2b0be;
-  -df-unknown-file: #6b7b8b;
-  -df-unknown-file-active: #a2b0be;
-  -df-design-file: #325c7e;
-  -df-design-file-active: #4cb1ff;
-  -df-script-file: #7c7e37;
-  -df-script-file-active: #f4f63c;
-  -df-property-file: #407435;
-  -df-property-file-active: #6eed48; }
+  -df-folder: -df-light-grey-dark;
+  -df-folder-active: -df-light-grey;
+  -df-unknown-file: -df-light-grey-dark;
+  -df-unknown-file-active: -df-light-grey;
+  -df-design-file: -df-defold-blue;
+  -df-design-file-active: -df-defold-blue-lightest;
+  -df-script-file: -df-defold-yellow;
+  -df-script-file-active: -df-defold-yellow-lighter;
+  -df-property-file: -df-defold-green;
+  -df-property-file-active: -df-defold-green-light; }
 
 @font-face {
   font-family: 'Source Sans Pro';
