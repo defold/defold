@@ -21,13 +21,13 @@
         }
     }
     .thumb {
-        -fx-background-color: -df-dark-grey-lighter;
+        -fx-background-color: -df-grey-darker;
         -fx-background-radius: 2em;
         &:hover {
-            -fx-background-color: -df-light-grey-dark;
+            -fx-background-color: -df-grey;
         }
         &:pressed {
-            -fx-background-color: -df-defold-white;
+            -fx-background-color: -df-grey-lighter;
         }
     }
     .increment-button, .decrement-button {

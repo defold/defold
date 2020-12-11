@@ -7,11 +7,11 @@
     }
     &:selected {
         .dot {
-            -fx-background-color: -df-light-grey-dark; 
+            -fx-background-color: -df-light-grey-dark;
         }
         &:hover {
             .dot {
-                -fx-background-color: -df-defold-white;
+                -fx-background-color: -df-light-grey;
             }
         }
     }

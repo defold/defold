@@ -250,14 +250,14 @@ $spacing-largest: 40px;
 .scroll-bar {
   -fx-background-color: transparent;
   > .thumb {
-    -fx-background-color: -df-dark-grey-lightest;
+    -fx-background-color: -df-grey-darker;
     -fx-background-radius: 5px;
     -fx-background-insets: 1px;
     &:hover {
-      -fx-background-color: -df-light-grey-dark;
+      -fx-background-color: -df-grey;
     }
     &:pressed {
-      -fx-background-color: -df-light-grey-lightest;
+      -fx-background-color: -df-grey-lighter;
     }
   }
   &:vertical {
