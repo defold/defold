@@ -27,7 +27,7 @@
 .cljfx-form-icon-button {
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-mid-grey !important;
+  -fx-background-color: -df-dark-grey-lighter !important;
   -fx-padding: 0;
   -fx-min-width: 27px;
   -fx-max-width: 27px;
@@ -38,10 +38,10 @@
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-grey !important;
+    -fx-background-color: -df-grey-darker !important;
   }
   &:armed {
-    -fx-background-color: -df-dark-grey-header !important;
+    -fx-background-color: -df-dark-grey-light !important;
   }
 }
 
@@ -122,7 +122,7 @@
 
 .cljfx-form-floating-area {
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 8, 0, 0, 4);
-  -fx-background-color: -df-mid-grey;
+  -fx-background-color: -df-dark-grey-dark;
   -fx-background-radius: 6px;
   -fx-padding: 12px;
   -fx-spacing: 8px;
@@ -143,7 +143,7 @@
   .jump-to-menu-button {
     @include floating-input();
     -fx-focus-traversable: false;
-    -fx-background-color: -df-mid-grey;
+    -fx-background-color: -df-dark-grey-dark;
     -fx-background-image: url("icons/32/Icons_S_05_arrowdown.png");
 
     &:hover {

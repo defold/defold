@@ -13,7 +13,7 @@
     -fx-background-color: -df-grey-darker;
   }
   &:armed {
-    -fx-background-color: -df-input-background;
+    -fx-background-color: -df-dark-grey-light;
   }
   &.low-prio {
     -fx-background-color: -df-dark-grey;
@@ -25,7 +25,7 @@
       -fx-background-color: -df-dark-grey-lighter;
   }
   &.low-prio:armed {
-      -fx-background-color: -df-dark-grey-lighter;
+      -fx-background-color: -df-dark-grey-light;
       -fx-border-color: -df-light-grey-dark;
       -fx-text-fill: -df-defold-white;
   }
@@ -58,7 +58,7 @@
       -fx-background-color: -df-grey !important;
   }
   &:armed {
-      -fx-background-color: -df-dark-grey-header !important;
+      -fx-background-color: -df-dark-grey-light !important;
   }
 }
 
@@ -79,7 +79,7 @@
     }
   }
   &:armed {
-    -fx-background-color: -df-input-background;
+    -fx-background-color: -df-dark-grey-light;
   }
 }
 
@@ -109,7 +109,7 @@
     > .mark {
       -fx-max-width: 10px;
       -fx-background-insets: 0px;
-      -fx-background-color: #626365;
+      -fx-background-color: -df-grey-light;
       -fx-background-radius: 10px;
       -fx-shape: none;
     }
@@ -119,7 +119,7 @@
     > .box {
       -fx-alignment: center-right;
       > .mark {
-        -fx-background-color: #4CB1FF;
+        -fx-background-color: -df-defold-blue;
       }
     }
   }
