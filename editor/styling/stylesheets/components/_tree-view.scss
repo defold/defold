@@ -29,7 +29,7 @@
             -fx-border-width: 0 0 0 2;
             -fx-border-color: -df-defold-orange;
             -fx-text-fill: -df-defold-white;
-            -fx-background-color: -df-dark-grey-selected;
+            -fx-background-color: -df-dark-grey-lighter;
             .image-view {
                 @include effect-bright-grey();
             }

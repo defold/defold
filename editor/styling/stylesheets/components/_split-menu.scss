@@ -13,7 +13,7 @@
         -fx-background-color: -df-dark-grey;
         -fx-text-fill: -df-defold-white;
         .label {
-            -fx-text-fill: -df-defold-white; 
+            -fx-text-fill: -df-defold-white;
         }
         .arrow {
             -fx-text-fill: -df-defold-white;
@@ -37,7 +37,7 @@
         -fx-background-insets: 0;
         -fx-background-color: transparent;
         -fx-border-width: 0 0 0 1;
-        -fx-border-color: -df-dark-grey-border;
+        -fx-border-color: -df-dark-grey-lightest;
 
         &:hover {
             -fx-background-color: -df-dark-grey;

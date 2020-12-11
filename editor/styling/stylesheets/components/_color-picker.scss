@@ -1,7 +1,7 @@
 .color-picker {
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-background-color: -df-input-background;
+    -fx-background-color: -df-dark-grey-light;
     -fx-background-insets: 0;
     &:showing {
         -fx-background-color: -df-dark-grey;
@@ -15,7 +15,7 @@
     }
     .color-picker-label {
         -fx-border-width: 1;
-        -fx-border-color: -df-input-border;
+        -fx-border-color: -df-dark-grey-lighter;
         -fx-background-insets: 0;
         -fx-padding: 4px 8px;
     }

@@ -356,7 +356,7 @@
     -fx-border-color: transparent;
 
     &:hover {
-      -fx-border-color: transparent transparent -df-input-border transparent;
+      -fx-border-color: transparent transparent -df-dark-grey-lighter transparent;
     }
 
     &:focused {
@@ -374,20 +374,20 @@
     Button {
       -fx-border-width: 0px;
       -fx-background-radius: 0px 2px 2px 0px;
-      -fx-background-color: -df-input-border;
+      -fx-background-color: -df-dark-grey-lighter;
       -fx-min-width: 30px;
       -fx-padding: 0px;
       -fx-font-size: 11.5px;
 
       &:hover {
-        -fx-background-color: -df-input-border-light;
+        -fx-background-color: -df-dark-grey-lightest;
       }
     }
 
     .path-field {
       -fx-alignment: center-left;
       -fx-background-color: transparent;
-      -fx-border-color: -df-input-border;
+      -fx-border-color: -df-dark-grey-lighter;
       -fx-border-width: 1px 0px 1px 1px;
       -fx-padding: 4px 8px;
     }

@@ -48,8 +48,8 @@
 .cljfx-form-list-view {
   -fx-border-radius: 2px;
   -fx-padding: 0 0 1px 0;
-  -fx-border-color: -df-input-border;
-  -fx-background-color: -df-input-background;
+  -fx-border-color: -df-dark-grey-lighter;
+  -fx-background-color: -df-dark-grey-light;
   -fx-background-radius: 20px;
   .list-cell {
     .text-field {
@@ -84,7 +84,7 @@
 .cljfx-table-view-wrapper {
   -fx-border-width: 1px;
   -fx-border-radius: 2px;
-  -fx-border-color: -df-input-border;
+  -fx-border-color: -df-dark-grey-lighter;
 }
 .cljfx-table-view {
   & > .virtual-flow > .scroll-bar:vertical {
@@ -111,7 +111,7 @@
 }
 
 @mixin floating-input() {
-  -fx-border-color: -df-floating-input-border;
+  -fx-border-color: -df-grey-light;
   -fx-border-radius: 2px;
   -fx-background-radius: 3px;
   -fx-pref-width: 120px;
@@ -135,8 +135,8 @@
     -fx-cursor: text;
     &:focused {
       -fx-padding: 4px 22px 3px 8px;
-      -fx-background-color: -df-root-background;
-      -fx-border-color: -df-floating-input-border -df-floating-input-border -df-defold-orange -df-floating-input-border;
+      -fx-background-color: -df-dark-grey;
+      -fx-border-color: -df-grey-light -df-grey-light -df-defold-orange -df-grey-light;
     }
   }
 

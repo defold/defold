@@ -11,7 +11,7 @@
 }
 
 @mixin effect-icon-grey() {
-	@include colorize-image-view(-df-tree-view-icon);
+	@include colorize-image-view(-df-light-grey);
 }
 
 @mixin effect-bright-grey() {

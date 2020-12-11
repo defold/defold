@@ -1,5 +1,5 @@
 .menu-bar {
-    -fx-background-color: -df-root-background;
+    -fx-background-color: -df-dark-grey;
 
     .menu {
         >.label {
@@ -23,6 +23,6 @@
 }
 
 #menu-bar-space {
-    -fx-background-color: -df-root-background;
+    -fx-background-color: -df-dark-grey;
     -fx-pref-height: $pane-padding-top;
 }
