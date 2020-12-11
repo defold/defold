@@ -11,7 +11,7 @@
   }
 
   &:armed {
-    -fx-background-color: -df-input-background;
+    -fx-background-color: -df-dark-grey-light;
   }
 }
 
@@ -37,7 +37,7 @@
 }
 
 #console-tool-bar {
-  -fx-background-color: -df-panel-background;
+  -fx-background-color: -df-dark-grey-light;
   -fx-padding: 16px;
 
   .separator {
@@ -135,7 +135,7 @@
 #debugger-prompt-label {
   -fx-alignment: center-right;
   -fx-background-color: -df-dark-grey-light;
-  -fx-border-color: -df-input-border;
+  -fx-border-color: -df-dark-grey-lighter;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
@@ -147,7 +147,7 @@
 
 #debugger-prompt-field {
   -fx-background-color: -df-dark-grey-light;
-  -fx-border-color: -df-input-border;
+  -fx-border-color: -df-dark-grey-lighter;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
@@ -158,7 +158,7 @@
 
   &:focused {
     -fx-background-color: -df-dark-grey-light;
-    -fx-border-color: -df-input-border;
+    -fx-border-color: -df-dark-grey-lighter;
     -fx-border-width: 1px 0px 0px 0px;
     -fx-padding: 0px;
     -fx-text-fill: -df-defold-white;

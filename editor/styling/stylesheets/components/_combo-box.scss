@@ -2,12 +2,12 @@
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
-    -fx-border-color: -df-input-border;
+    -fx-border-color: -df-dark-grey-lighter;
     -fx-border-width: 1px;
-    -fx-background-color: -df-panel-background;
+    -fx-background-color: -df-dark-grey-light;
     &:focused {
         -fx-background-insets: 0;
-        -fx-background-color: -df-panel-background;
+        -fx-background-color: -df-dark-grey-light;
     }
     &:showing {
         .arrow {
@@ -31,7 +31,7 @@
         -fx-text-fill: -df-dark-grey-lighter;
     }
     .list-cell {
-        -fx-background-color: -df-root-background;
+        -fx-background-color: -df-dark-grey;
         -fx-color: -df-light-grey-dark;
         &:hover {
             -fx-cursor: hand;
@@ -67,7 +67,7 @@
         }
         &:focused {
             -fx-border-width: 1;
-            -fx-border-color: -df-input-border;
+            -fx-border-color: -df-dark-grey-lighter;
             -fx-padding: 4px 8px;
         }
     }

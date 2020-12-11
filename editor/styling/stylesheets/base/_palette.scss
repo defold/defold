@@ -8,10 +8,6 @@
 	-df-dark-grey-lighter:   derive(#212428, 20%);
 	-df-dark-grey-lightest:  derive(#212428, 30%);
 
-	-df-dark-grey-header:    -df-dark-grey-lighter;
-	-df-dark-grey-selected:  -df-dark-grey-lighter;
-	-df-dark-grey-border:    -df-dark-grey-lightest;
-
 	// Grey
 	-df-grey-darkest:        derive(#52575C, -30%);
 	-df-grey-darker:         derive(#52575C, -20%);
@@ -65,17 +61,6 @@
 	-df-defold-blue-lightest:derive(#4cb1ff, 30%);
 
 
-	/* Revamp */
-	-df-root-background:       -df-dark-grey;
-	-df-panel-background:      -df-dark-grey-light;
-	-df-input-background:      -df-dark-grey-light;
-	-df-input-border:          -df-dark-grey-lighter;
-	-df-input-border-light:    -df-grey;
-	-df-floating-input-border: -df-grey-light;
-	-df-icon-grey:             -df-light-grey-dark;
-
-	-df-tree-view-icon:      -df-light-grey;
-
 	/* Menu colors */
 	-df-menu-background: -df-dark-grey-lighter;
 	-df-menu-foreground: -df-light-grey;
@@ -84,9 +69,9 @@
 	-df-menu-separator: -df-dark-grey-light;
 
 	/* Scene view colors */
-	-df-scene-toolbar-background: -df-dark-grey-header;
+	-df-scene-toolbar-background: -df-dark-grey-lighter;
 	-df-scene-toolbar-button-foreground: -df-defold-white;
-	-df-scene-toolbar-button-selected-background: -df-input-background;
+	-df-scene-toolbar-button-selected-background: -df-dark-grey-light;
 	-df-scene-toolbar-button-selected-foreground: -df-defold-white;
 	-df-scene-toolbar-button-hovered-foreground: -df-defold-white;
 

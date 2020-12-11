@@ -10,15 +10,15 @@
   }
 
   .text-area {
-    -fx-border-color: -df-input-border;
+    -fx-border-color: -df-dark-grey-lighter;
     -fx-border-width: 1px;
-    -fx-highlight-fill: -df-input-background;
+    -fx-highlight-fill: -df-dark-grey-light;
     -fx-highlight-text-fill: -df-defold-white;
-    -fx-prompt-text-fill: -df-tree-view-icon;
+    -fx-prompt-text-fill: -df-light-grey;
     -fx-text-fill: -df-defold-white;
 
     .content {
-      -fx-background-color: -df-input-background;
+      -fx-background-color: -df-dark-grey-light;
     }
 
     &:focused {
@@ -27,13 +27,13 @@
       -fx-prompt-text-fill: transparent;
 
       .content {
-        -fx-background-color: -df-root-background;
+        -fx-background-color: -df-dark-grey;
       }
     }
   }
 
   .text-field {
-    -fx-prompt-text-fill: -df-tree-view-icon;
+    -fx-prompt-text-fill: -df-light-grey;
 
     &:focused {
       -fx-prompt-text-fill: transparent;
