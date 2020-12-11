@@ -174,7 +174,7 @@ $spacing-largest: 40px;
   @include font-default();
   @include font-size-default();
   -fx-highlight-fill: -df-dark-grey-lightest;
-  -fx-text-fill: -df-light-grey-lightest;
+  -fx-text-fill: -df-defold-white-light;
   -fx-prompt-text-fill: -df-grey;
   -fx-background-color: -df-dark-grey-darker;
   -fx-border-width: 1px;
@@ -335,7 +335,7 @@ Text {
   .menu-item {
     &:focused {
       > .label {
-        -fx-text-fill: -df-light-grey-lightest;
+        -fx-text-fill: -df-defold-white-light;
       }
       -fx-background-color: -df-dark-grey-lightest;
       -fx-background-radius: 1px;
