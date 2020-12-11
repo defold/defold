@@ -12,7 +12,8 @@
         -fx-text-fill: -df-light-grey;
       }
       .call-stack-path {
-        -fx-text-fill: -df-light-grey-darkest;
+        -fx-text-fill: -df-light-grey-dark;
+        -fx-opacity: 0.8;
       }
       .call-stack-line-container {
         -fx-min-width: 30px;
@@ -25,18 +26,20 @@
       }
       &:hover {
         .label {
-          -fx-text-fill: -df-light-grey-lightest
+          -fx-text-fill: -df-defold-white-light
         }
         .call-stack-path {
           -fx-text-fill: -df-light-grey-dark;
+          -fx-opacity: 0.8;
         }
       }
       &:selected {
         .label {
-          -fx-text-fill: -df-light-grey-lightest;
+          -fx-text-fill: -df-defold-white-light;
         }
         .call-stack-path {
           -fx-text-fill: -df-light-grey-dark;
+          -fx-opacity: 0.8;
         }
       }
     }
@@ -48,22 +51,25 @@
         -fx-text-fill: -df-light-grey;
       }
       .equals {
-        -fx-text-fill: -df-light-grey-darker;
+        -fx-text-fill: -df-light-grey-dark;
+        -fx-opacity: 0.8;
       }
       &:hover {
         .label {
-          -fx-text-fill: -df-light-grey-lightest;
+          -fx-text-fill: -df-defold-white-light;
         }
         .equals {
           -fx-text-fill: -df-light-grey-dark;
+          -fx-opacity: 0.8;
         }
       }
       &:selected {
         .label {
-          -fx-text-fill: -df-light-grey-lightest;
+          -fx-text-fill: -df-defold-white-light;
         }
         .equals {
           -fx-text-fill: -df-light-grey-dark;
+          -fx-opacity: 0.8;
         }
       }
     }
