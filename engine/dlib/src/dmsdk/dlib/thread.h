@@ -155,6 +155,16 @@ namespace dmThread
      * @note The thread argument is unused on Darwin (uses current thread)
      */
     void SetThreadName(Thread thread, const char* name);
+
+
+    /*# gets the current thread name
+     * Gets the current thread name
+     * @name dmThread::GetThreadName
+     * @param thread the thread
+     * @param name the thread name
+     * @note The thread argument is unused on Darwin (uses current thread)
+     */
+    int GetThreadName(Thread thread, char* buffer, uint32_t buffer_len);
 }
 
 #endif // DMSDK_THREAD_H

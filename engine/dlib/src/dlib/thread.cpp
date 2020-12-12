@@ -131,6 +131,14 @@ namespace dmThread
 #endif
     }
 
+    int GetThreadName(Thread thread, char* buffer, uint32_t buffer_len)
+    {
+#if defined(__EMSCRIPTEN__) || defined(ANDROID)
+#else
+        return pthread_getname_np(thread, buffer, buffer_len);
+#endif
+    }
+
 #elif defined(_WIN32)
 
     static void* GetFunctionPtr(const char* dllname, const char* fnname)
@@ -157,6 +165,30 @@ namespace dmThread
             free(buf);
         }
     #endif
+    }
+
+    int GetThreadName(Thread thread, char* buffer, uint32_t buffer_len)
+    {
+        (void)thread;
+        (void)name;
+    // Currently, this crashed mysteriously on Win32, so we'll keep it only for Win64 until we've figured it out
+    #if defined(_WIN64)
+        static PfnSetThreadDescription pfn = (PfnSetThreadDescription)GetFunctionPtr("kernel32.dll", "GetThreadDescription");
+        if (pfn) {
+            PWSTR wstr;
+            HRESULT hr = pfn(thread, &wstr);
+            if (SUCCEEDED(hr)) {
+                size_t expectedlen = 1 + wcsrtombs(NULL, &wstr, 0, NULL);
+                if (expectedlen < buffer_len)
+                    buffer_len = expectedlen;
+
+                size_t retval = 0;
+                wcsrtombs(buffer, &wstr, buffer_len, NULL);
+                return 0;
+            }
+        }
+    #endif
+        return 1;
     }
 
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
