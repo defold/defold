@@ -3,10 +3,10 @@
     }
     .section-label {
         -fx-font-size: $default-font-size + 2px;
-        -fx-text-fill: -df-defold-white;
+        -fx-text-fill: -df-text-light;
     }
     .help-line {
-        -fx-text-fill: -df-light-grey-dark;
+        -fx-text-fill: -df-text-dark;
     }
     .editing-cell {
         -fx-padding: 0;

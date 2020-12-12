@@ -39,40 +39,40 @@
 .text-area.property {
     -fx-padding: 0px;
     -fx-border-width: 1px 1px 1px 1px;
-    -fx-border-color: -df-dark-grey-lighter;
-    -fx-text-fill: -df-defold-white;
-    -fx-highlight-fill: -df-dark-grey-light;
-    -fx-highlight-text-fill: -df-defold-white;
+    -fx-border-color: -df-background-lighter;
+    -fx-text-fill: -df-text-light;
+    -fx-highlight-fill: -df-background-light;
+    -fx-highlight-text-fill: -df-text-light;
 
     .content {
         -fx-padding: 4px 8px;
         -fx-cursor: text;
         -fx-background-radius: 0;
-        -fx-background-color: -df-dark-grey-light;
+        -fx-background-color: -df-background-light;
     }
 
     &:focused {
         -fx-padding: 0;
         -fx-border-width: 1px 1px 2px 1px;
-        -fx-border-color: -df-grey-darker -df-grey-darker -df-defold-orange -df-grey-darker;
+        -fx-border-color: -df-component-darker -df-component-darker -df-defold-orange -df-component-darker;
         -fx-highlight-fill: -fx-accent;
-        -fx-highlight-text-fill: -df-defold-white;
+        -fx-highlight-text-fill: -df-text-light;
 
         .content {
-            -fx-background-color: -df-dark-grey;
+            -fx-background-color: -df-background;
         }
     }
 
     &:readonly {
-        -fx-text-fill: -df-light-grey;
+        -fx-text-fill: -df-text;
         -fx-cursor: default;
 
         &:focused {
             -fx-padding: 0px;
             -fx-border-width: 1px 1px 1px 1px;
-            -fx-border-color: -df-dark-grey-lighter;
-            -fx-text-fill: -df-light-grey;
-            -fx-prompt-text-fill: -df-light-grey;
+            -fx-border-color: -df-background-lighter;
+            -fx-text-fill: -df-text;
+            -fx-prompt-text-fill: -df-text;
         }
     }
 }
@@ -87,7 +87,7 @@
     -fx-font-size: $default-font-size;
     -fx-padding: 0;
     -fx-cursor: default;
-    -fx-background-color: -df-dark-grey;
+    -fx-background-color: -df-background;
 }
 .copyable-text-area > .scroll-pane {
     -fx-background-color: null;
@@ -104,11 +104,11 @@
 .copyable-text-area .content {
     -fx-padding: 0 0 0 0;
     -fx-cursor: text;
-    -fx-background-color: -df-dark-grey;
+    -fx-background-color: -df-background;
     -fx-background-radius: 0;
 }
 .copyable-text-area:focused .content {
-    -fx-background-color: -df-dark-grey;
+    -fx-background-color: -df-background;
     -fx-background-insets: 0 0 0 0;
     -fx-background-radius: 0 0 0 0;
 }

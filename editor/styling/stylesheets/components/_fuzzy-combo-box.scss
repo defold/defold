@@ -1,5 +1,5 @@
 .fuzzy-combo-box {
-  -fx-border-color: -df-dark-grey-lighter;
+  -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px;
 
   .text-field {
@@ -9,13 +9,13 @@
     -fx-min-height: 26px;
 
     &:focused {
-      -fx-background-color: -df-dark-grey-light;
-      -fx-border-color: -df-dark-grey-lighter;
+      -fx-background-color: -df-background-light;
+      -fx-border-color: -df-background-lighter;
       -fx-border-width: 0px;
     }
 
     &.unmatched {
-      -fx-text-fill: -df-light-grey;
+      -fx-text-fill: -df-text;
       .text {
         -fx-strikethrough: true;
       }
@@ -28,14 +28,14 @@
     -fx-padding: 10px 6px 10px 8px;
 
     > .arrow {
-      -fx-background-color: -df-light-grey-dark;
+      -fx-background-color: -df-text-dark;
       -fx-shape: "M 0 0 h 7 l -3.5 4 z";
     }
   }
 
   &.showing {
     .arrow-button > .arrow {
-      -fx-background-color: -df-defold-white;
+      -fx-background-color: -df-text-light;
       -fx-rotate: 180;
     }
   }
@@ -54,7 +54,7 @@
 }
 
 #fuzzy-choices-list-view {
-  -fx-background-color: -df-dark-grey-lighter;
+  -fx-background-color: -df-background-lighter;
   -fx-background-radius: 0px;
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0.0, 0, 8);
 

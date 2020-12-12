@@ -1,7 +1,7 @@
 #debugger-data-split {
 
   #debugger-call-stack {
-    -fx-background-color: -df-dark-grey-light;
+    -fx-background-color: -df-background-light;
     -fx-padding: 0;
 
     .list-cell {
@@ -9,10 +9,10 @@
       -fx-padding: 5 5 5 12;
 
       .label {
-        -fx-text-fill: -df-light-grey;
+        -fx-text-fill: -df-text;
       }
       .call-stack-path {
-        -fx-text-fill: -df-light-grey-dark;
+        -fx-text-fill: -df-text-dark;
         -fx-opacity: 0.8;
       }
       .call-stack-line-container {
@@ -21,24 +21,24 @@
       }
       .call-stack-line {
         -fx-padding: 0 3px;
-        -fx-background-color: -df-grey;
+        -fx-background-color: -df-component;
         -fx-background-radius: 3px;
       }
       &:hover {
         .label {
-          -fx-text-fill: -df-defold-white-light
+          -fx-text-fill: -df-text-lighter
         }
         .call-stack-path {
-          -fx-text-fill: -df-light-grey-dark;
+          -fx-text-fill: -df-text-dark;
           -fx-opacity: 0.8;
         }
       }
       &:selected {
         .label {
-          -fx-text-fill: -df-defold-white-light;
+          -fx-text-fill: -df-text-lighter;
         }
         .call-stack-path {
-          -fx-text-fill: -df-light-grey-dark;
+          -fx-text-fill: -df-text-dark;
           -fx-opacity: 0.8;
         }
       }
@@ -48,27 +48,27 @@
   #debugger-variables {
     .tree-cell {
       .label {
-        -fx-text-fill: -df-light-grey;
+        -fx-text-fill: -df-text;
       }
       .equals {
-        -fx-text-fill: -df-light-grey-dark;
+        -fx-text-fill: -df-text-dark;
         -fx-opacity: 0.8;
       }
       &:hover {
         .label {
-          -fx-text-fill: -df-defold-white-light;
+          -fx-text-fill: -df-text-lighter;
         }
         .equals {
-          -fx-text-fill: -df-light-grey-dark;
+          -fx-text-fill: -df-text-dark;
           -fx-opacity: 0.8;
         }
       }
       &:selected {
         .label {
-          -fx-text-fill: -df-defold-white-light;
+          -fx-text-fill: -df-text-lighter;
         }
         .equals {
-          -fx-text-fill: -df-light-grey-dark;
+          -fx-text-fill: -df-text-dark;
           -fx-opacity: 0.8;
         }
       }

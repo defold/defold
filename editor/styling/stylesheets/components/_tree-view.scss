@@ -1,10 +1,10 @@
 .tree-view {
-    -fx-background-color: -df-dark-grey-light;
+    -fx-background-color: -df-background-light;
     -fx-background-insets: 0;
 }
 
 .tree-cell {
-    -fx-background-color: -df-dark-grey-light;
+    -fx-background-color: -df-background-light;
     -fx-font-weight: normal;
     .label {
         -fx-padding: 0;
@@ -14,27 +14,27 @@
         -fx-border-width: 0 0 0 2;
         -fx-background-insets: 0 0 0 0;
         -fx-border-color: transparent;
-        -fx-text-fill: -df-light-grey;
+        -fx-text-fill: -df-text;
 
         &:hover {
-            -fx-text-fill: -df-defold-white;
+            -fx-text-fill: -df-text-light;
             .image-view {
                 @include effect-bright-grey();
             }
             .label {
-                -fx-text-fill: -df-defold-white;
+                -fx-text-fill: -df-text-light;
             }
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
             -fx-border-color: -df-defold-orange;
-            -fx-text-fill: -df-defold-white;
-            -fx-background-color: -df-dark-grey-lighter;
+            -fx-text-fill: -df-text-light;
+            -fx-background-color: -df-background-lighter;
             .image-view {
                 @include effect-bright-grey();
             }
             .label {
-                -fx-text-fill: -df-defold-white;
+                -fx-text-fill: -df-text-light;
             }
         }
 

@@ -7,17 +7,17 @@
   -fx-padding: 0px 10px;
 
   &:hover {
-    -fx-background-color: -df-grey-darker;
+    -fx-background-color: -df-component-darker;
   }
 
   &:armed {
-    -fx-background-color: -df-dark-grey-light;
+    -fx-background-color: -df-background-light;
   }
 }
 
 .console-image-button-base {
   @extend .console-button-base;
-  -fx-background-color: -df-dark-grey-lighter;
+  -fx-background-color: -df-background-lighter;
   -fx-background-position: center;
   -fx-background-repeat: no-repeat;
   -fx-background-size: 16 16;
@@ -37,7 +37,7 @@
 }
 
 #console-tool-bar {
-  -fx-background-color: -df-dark-grey-light;
+  -fx-background-color: -df-background-light;
   -fx-padding: 16px;
 
   .separator {
@@ -46,7 +46,7 @@
 }
 
 #console-canvas-pane {
-  -fx-background-color: -df-dark-grey-light;
+  -fx-background-color: -df-background-light;
   -fx-min-height: 20px;
 }
 
@@ -74,7 +74,7 @@
   -fx-padding: 0px 12px 0px 20px;
 
   .line {
-    -fx-border-color: -df-dark-grey-light;
+    -fx-border-color: -df-background-light;
   }
 }
 
@@ -134,8 +134,8 @@
 
 #debugger-prompt-label {
   -fx-alignment: center-right;
-  -fx-background-color: -df-dark-grey-light;
-  -fx-border-color: -df-dark-grey-lighter;
+  -fx-background-color: -df-background-light;
+  -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
@@ -146,22 +146,22 @@
 }
 
 #debugger-prompt-field {
-  -fx-background-color: -df-dark-grey-light;
-  -fx-border-color: -df-dark-grey-lighter;
+  -fx-background-color: -df-background-light;
+  -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
   -fx-font-smoothing-type: lcd;
   -fx-min-height: 44px;
   -fx-padding: 0px;
-  -fx-text-fill: -df-defold-white;
+  -fx-text-fill: -df-text-light;
 
   &:focused {
-    -fx-background-color: -df-dark-grey-light;
-    -fx-border-color: -df-dark-grey-lighter;
+    -fx-background-color: -df-background-light;
+    -fx-border-color: -df-background-lighter;
     -fx-border-width: 1px 0px 0px 0px;
     -fx-padding: 0px;
-    -fx-text-fill: -df-defold-white;
+    -fx-text-fill: -df-text-light;
     -fx-prompt-text-fill: transparent;
   }
 }

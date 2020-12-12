@@ -72,7 +72,7 @@
         > .first-entry {
             -fx-background-radius: 4px 4px 0px 0px;
             -fx-padding: 10px 8px 10px 8px;
-            -fx-background-color: -df-grey-darker;
+            -fx-background-color: -df-component-darker;
         }
 
         > HBox {
@@ -92,19 +92,19 @@
     }
 
     SVGPath {
-        -fx-fill: -df-defold-white;
+        -fx-fill: -df-text-light;
     }
 
     .separator {
         &:horizontal {
             .line {
-                -fx-border-color: -df-grey;
+                -fx-border-color: -df-component;
             }
         }
 
         &:vertical {
             .line {
-                -fx-border-color: -df-grey;
+                -fx-border-color: -df-component;
             }
         }
     }
@@ -118,20 +118,20 @@
         -fx-border-insets: 0;
         -fx-background-color: transparent;
         .image-view {
-            -fx-effect: innershadow(gaussian, -df-defold-white, 20, 0.3, 0, 0) !important;
+            -fx-effect: innershadow(gaussian, -df-text-light, 20, 0.3, 0, 0) !important;
         }
         >.choice-box {
             -fx-border-width: 0;
             -fx-pref-width: 90px;
             >.label {
                 -fx-background-color: -df-scene-toolbar-background;
-                -fx-text-fill: -df-defold-white;
+                -fx-text-fill: -df-text-light;
             }
             .open-button {
                 -fx-border-width: 0;
                 -fx-background-color: -df-scene-toolbar-background;
                 .arrow {
-                    -fx-background-color: -df-defold-white;
+                    -fx-background-color: -df-text-light;
                 }
             }
             &:hover, &:pressed, &:focused {
@@ -149,6 +149,6 @@
     -fx-height: 30px;
     -fx-font-face: $default-font;
     -fx-font-size: 14px;
-    -fx-text-fill: -df-defold-white;
+    -fx-text-fill: -df-text-light;
     -fx-effect: dropshadow(one-pass-box, rgba(0, 0, 0, 1), 0, 0, 1, 1);
 }

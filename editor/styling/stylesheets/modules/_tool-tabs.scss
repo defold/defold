@@ -20,11 +20,11 @@
     }
 
     .tab-content-area {
-        -fx-background-color: -df-dark-grey-light;
+        -fx-background-color: -df-background-light;
         -fx-padding: 0;
 
         .content {
-            -fx-background-color: -df-dark-grey-light;
+            -fx-background-color: -df-background-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
             -fx-border-radius: 0;
@@ -33,7 +33,7 @@
         }
 
         .text-area, .scroll-pane, .viewport {
-            -fx-background-color: -df-dark-grey-light;
+            -fx-background-color: -df-background-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
         }
@@ -105,7 +105,7 @@
 #build-errors-container {
     -fx-padding: 0;
     .tree-view {
-        -fx-background-color: -df-dark-grey-light;
+        -fx-background-color: -df-background-light;
     }
 
     .tree-cell {
@@ -118,11 +118,11 @@
         }
 
         Text {
-            -fx-fill: -df-light-grey;
+            -fx-fill: -df-text;
         }
         &:selected, &:hover {
             Text {
-                -fx-fill: -df-defold-white;
+                -fx-fill: -df-text-light;
             }
         }
 

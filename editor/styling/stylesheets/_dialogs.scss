@@ -8,7 +8,7 @@ $spacing-largest: 40px;
 @mixin font-size-header { -fx-font-size: 22px; }
 @mixin font-default { -fx-font-family: "Source Sans Pro"; }
 @mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
-@mixin text-fill-text-color { -fx-text-fill: -df-light-grey; }
+@mixin text-fill-text-color { -fx-text-fill: -df-text; }
 @mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
 @mixin spacing-default { -fx-spacing: $spacing-default;}
 
@@ -75,25 +75,25 @@ $spacing-largest: 40px;
     }
   }
   &:disabled {
-    -fx-text-fill: -df-light-grey;
-    -fx-border-color: -df-light-grey-dark;
+    -fx-text-fill: -df-text;
+    -fx-border-color: -df-text-dark;
     -fx-opacity: 0.4;
   }
 }
 .button-primary {
-  -fx-text-fill: -df-defold-blue-lighter;
-  -fx-border-color: -df-defold-blue-lighter;
+  -fx-text-fill: -df-defold-blue-light;
+  -fx-border-color: -df-defold-blue-light;
   &:hover, &:focused {
-    -fx-text-fill: -df-defold-blue-lightest;
-    -fx-border-color: -df-defold-blue-lightest;
+    -fx-text-fill: -df-defold-blue-lighter;
+    -fx-border-color: -df-defold-blue-lighter;
   }
 }
 .button-secondary {
-  -fx-text-fill: -df-light-grey;
-  -fx-border-color: -df-light-grey-dark;
+  -fx-text-fill: -df-text;
+  -fx-border-color: -df-text-dark;
   &:hover, &:focused {
-    -fx-text-fill: -df-light-grey-light;
-    -fx-border-color: -df-light-grey;
+    -fx-text-fill: -df-text-light;
+    -fx-border-color: -df-text;
   }
 }
 .button-danger {
@@ -106,10 +106,10 @@ $spacing-largest: 40px;
 }
 
 .button-icon {
-  -fx-text-fill: -df-light-grey;
+  -fx-text-fill: -df-text;
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-dark-grey-lighter;
+  -fx-background-color: -df-background-lighter;
   -fx-padding: 0;
   -fx-min-width: 28px;
   -fx-max-width: 28px;
@@ -120,17 +120,17 @@ $spacing-largest: 40px;
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-grey;
+    -fx-background-color: -df-component;
   }
   &:armed {
-    -fx-background-color: -df-dark-grey-light !important;
+    -fx-background-color: -df-background-light !important;
   }
 }
 
 // dialog
 
 .dialog-body {
-  -fx-background-color: -df-dark-grey;
+  -fx-background-color: -df-background;
 }
 .dialog-body-small {
   -fx-pref-width: 440px;
@@ -145,7 +145,7 @@ $spacing-largest: 40px;
 .dialog-content {
   -fx-background-color: rgba(0, 0, 0, 0.14);
   -fx-border-width: 1 0;
-  -fx-border-color: -df-dark-grey-lighter;
+  -fx-border-color: -df-background-lighter;
 }
 .dialog-content-padding {
   -fx-padding: $spacing-larger;
@@ -173,10 +173,10 @@ $spacing-largest: 40px;
 @mixin text-input-defaults() {
   @include font-default();
   @include font-size-default();
-  -fx-highlight-fill: -df-grey-light;
-  -fx-text-fill: -df-defold-white-light;
-  -fx-prompt-text-fill: -df-grey;
-  -fx-background-color: -df-dark-grey-darker;
+  -fx-highlight-fill: -df-component-light;
+  -fx-text-fill: -df-text-lighter;
+  -fx-prompt-text-fill: -df-component;
+  -fx-background-color: -df-background-darker;
   -fx-border-width: 1px;
 
   &:readonly {
@@ -206,7 +206,7 @@ $spacing-largest: 40px;
 }
 
 .text-field-default {
-  @include text-input-variant(-df-dark-grey-lighter, -df-defold-orange);
+  @include text-input-variant(-df-background-lighter, -df-defold-orange);
 }
 
 .text-field-error {
@@ -231,7 +231,7 @@ $spacing-largest: 40px;
   }
 }
 .text-area-default {
-  @include text-input-variant(-df-dark-grey-lighter, -df-defold-orange);
+  @include text-input-variant(-df-background-lighter, -df-defold-orange);
 }
 .text-area-error {
   @include text-input-variant(-df-defold-red-dark, -df-defold-red);
@@ -250,14 +250,14 @@ $spacing-largest: 40px;
 .scroll-bar {
   -fx-background-color: transparent;
   > .thumb {
-    -fx-background-color: -df-grey-darker;
+    -fx-background-color: -df-component-darker;
     -fx-background-radius: 5px;
     -fx-background-insets: 1px;
     &:hover {
-      -fx-background-color: -df-grey;
+      -fx-background-color: -df-component;
     }
     &:pressed {
-      -fx-background-color: -df-grey-lighter;
+      -fx-background-color: -df-component-lighter;
     }
   }
   &:vertical {
@@ -294,14 +294,14 @@ $spacing-largest: 40px;
 .hyperlink {
   @include font-size-default();
   @include font-default();
-  -fx-text-fill: -df-defold-blue-lighter;
+  -fx-text-fill: -df-defold-blue-light;
   -fx-border-width: 0;
   -fx-padding: 0;
   &:visited {
     -fx-underline: false;
   }
   &:hover {
-    -fx-text-fill: -df-defold-blue-lightest;
+    -fx-text-fill: -df-defold-blue-lighter;
     -fx-underline: true;
   }
 }
@@ -309,7 +309,7 @@ $spacing-largest: 40px;
 Text {
   @include font-size-default();
   @include font-default();
-  -fx-fill: -df-light-grey;
+  -fx-fill: -df-text;
 }
 
 .progress-bar {
@@ -324,20 +324,20 @@ Text {
   }
 
   .track {
-    -fx-background-color: -df-grey;
+    -fx-background-color: -df-component;
   }
 }
 
 .context-menu {
-  -fx-background-color: -df-grey;
+  -fx-background-color: -df-component;
   -fx-background-radius: 2px;
   -fx-padding: 5px;
   .menu-item {
     &:focused {
       > .label {
-        -fx-text-fill: -df-defold-white-light;
+        -fx-text-fill: -df-text-lighter;
       }
-      -fx-background-color: -df-grey-light;
+      -fx-background-color: -df-component-light;
       -fx-background-radius: 1px;
     }
     &:disabled {
@@ -350,7 +350,7 @@ Text {
   .separator {
     -fx-padding: 3 0;
     > .line {
-      -fx-background-color: -df-grey-light;
+      -fx-background-color: -df-component-light;
       -fx-border-color: transparent;
     }
     &:horizontal > .line {

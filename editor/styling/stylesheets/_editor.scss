@@ -8,32 +8,32 @@ Links:
 
 
 .root {
-  -fx-base: -df-dark-grey;
-  -fx-background: -df-dark-grey;
-  -fx-control-inner-background: -df-dark-grey;
-  -fx-text-color-base: -df-defold-white;
-  -fx-mark-color: -df-light-grey-dark;
-  -fx-text-background-color: -df-light-grey;
-  -fx-text-inner-color: -df-light-grey;
-  -fx-box-border: -df-dark-grey-lighter;
+  -fx-base: -df-background;
+  -fx-background: -df-background;
+  -fx-control-inner-background: -df-background;
+  -fx-text-color-base: -df-text-light;
+  -fx-mark-color: -df-text-dark;
+  -fx-text-background-color: -df-text;
+  -fx-text-inner-color: -df-text;
+  -fx-box-border: -df-background-lighter;
   -fx-accent: -df-defold-blue-light;
   -fx-focus-color_: -df-defold-red;
   -fx-faint-focus-color_: -df-defold-red;
   /* cells */
   -fx-selection-bar: -df-defold-blue-light;
-  -fx-selection-bar-non-focused: -df-dark-grey;
+  -fx-selection-bar-non-focused: -df-background;
   -fx-cell-focus-inner-border: -df-defold-blue-light;
   /* splitter */
   -fx-inner-border-horizontal: red_;
   -fx-focus-color: -df-defold-blue-light;
   -fx-outer-border_: -df-defold-red;
   -fx-inner-border_: -df-defold-red;
-  -fx-body-color_: -df-dark-grey;
-  -fx-color: -df-dark-grey;
+  -fx-body-color_: -df-background;
+  -fx-color: -df-background;
   -fx-body-color: linear-gradient(to bottom, -fx-color, -fx-color);
   -fx-mark-color_: -df-defold-red;
-  -fx-hover-base: -df-dark-grey-lighter;
-  -fx-pressed-base: -df-light-grey-dark;
+  -fx-hover-base: -df-background-lighter;
+  -fx-pressed-base: -df-text-dark;
   -fx-accent_: -df-defold-red;
   -fx-font-family: $default-font;
   -fx-font-size: $default-font-size;
@@ -53,7 +53,7 @@ Links:
 
 /* Drag and drop targets */
 .drop-target {
-  -fx-background-color: -df-dark-grey !important;
+  -fx-background-color: -df-background !important;
 }
 
 /* Overrides */
@@ -66,16 +66,16 @@ Links:
 .copyable-label, .copyable-label:focused {
   -fx-background-color: transparent;
   -fx-border-width: 0px;
-  -fx-text-fill: -df-light-grey-dark;
+  -fx-text-fill: -df-text-dark;
 }
 
 .about-value {
-  -fx-text-fill: -df-grey;
+  -fx-text-fill: -df-component;
 }
 
 #progress-hbox {
   .label {
-    -fx-text-fill: -df-grey;
+    -fx-text-fill: -df-component;
   }
   -fx-alignment: center-left;
   -fx-spacing: 10px;
@@ -83,7 +83,7 @@ Links:
 
 /* Status bar */
 #status-label {
-  -fx-text-fill: -df-grey;
+  -fx-text-fill: -df-component;
   -fx-padding: 7 0 7 15;
 }
 
@@ -102,12 +102,12 @@ Links:
 }
 
 #status-pane #progress-hbox {
-  -fx-background-color: -df-dark-grey;
+  -fx-background-color: -df-background;
 }
 
 #status-pane #progress-hbox #progress-cancel-button {
-    -fx-background-color: -df-dark-grey-lighter;
-    -cross-color: -df-light-grey-dark;
+    -fx-background-color: -df-background-lighter;
+    -cross-color: -df-text-dark;
     -fx-background-radius: 50%;
     -fx-border-width: 0;
     -fx-padding: 0;
@@ -117,11 +117,11 @@ Links:
     -fx-max-height: 16px;
     -fx-content-display: center;
     &:hover {
-        -fx-background-color: -df-grey-darker;
+        -fx-background-color: -df-component-darker;
     }
     &:armed {
-        -fx-background-color: -df-dark-grey-light;
-        -cross-color: -df-defold-white;
+        -fx-background-color: -df-background-light;
+        -cross-color: -df-text-light;
     }
 }
 
@@ -184,7 +184,7 @@ Links:
 }
 
 #sponsor-push > .text {
-  -fx-fill: -df-light-grey-dark;
+  -fx-fill: -df-text-dark;
   -fx-padding: 0;
 }
 

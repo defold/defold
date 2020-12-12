@@ -9,7 +9,7 @@
     -fx-font-size: 14px;
     -fx-font-smoothing-type: lcd;
     -fx-padding: 0;
-    -fx-text-fill: -df-defold-white;
+    -fx-text-fill: -df-text-light;
   }
 
   // ---------------------------------------------------------------------------
@@ -32,23 +32,23 @@
   }
 
   .df-button.dim {
-    -fx-border-color: -df-defold-white;
-    -fx-text-fill: -df-defold-white;
+    -fx-border-color: -df-text-light;
+    -fx-text-fill: -df-text-light;
 
     &:hover {
-      -fx-border-color: -df-defold-white-light;
-      -fx-text-fill: -df-defold-white-light;
+      -fx-border-color: -df-text-lighter;
+      -fx-text-fill: -df-text-lighter;
     }
   }
 
   .df-button.extra-dim {
-    -fx-border-color: -df-defold-white;
-    -fx-text-fill: -df-defold-white;
+    -fx-border-color: -df-text-light;
+    -fx-text-fill: -df-text-light;
     -fx-opacity: 0.75;
 
     &:hover {
-      -fx-border-color: -df-defold-white-light;
-      -fx-text-fill: -df-defold-white-light;
+      -fx-border-color: -df-text-lighter;
+      -fx-text-fill: -df-text-lighter;
       -fx-opacity: 0.8;
     }
   }

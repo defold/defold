@@ -1,39 +1,39 @@
 .sync-dialog {
   .list-view {
-    -fx-background-color: -df-dark-grey-light;
+    -fx-background-color: -df-background-light;
     -fx-padding: 0px;
   }
 
   Text {
-    -fx-fill: -df-light-grey;
+    -fx-fill: -df-text;
     -fx-font-smoothing-type: lcd;
   }
 
   .text-area {
-    -fx-border-color: -df-dark-grey-lighter;
+    -fx-border-color: -df-background-lighter;
     -fx-border-width: 1px;
-    -fx-highlight-fill: -df-dark-grey-light;
-    -fx-highlight-text-fill: -df-defold-white;
-    -fx-prompt-text-fill: -df-light-grey;
-    -fx-text-fill: -df-defold-white;
+    -fx-highlight-fill: -df-background-light;
+    -fx-highlight-text-fill: -df-text-light;
+    -fx-prompt-text-fill: -df-text;
+    -fx-text-fill: -df-text-light;
 
     .content {
-      -fx-background-color: -df-dark-grey-light;
+      -fx-background-color: -df-background-light;
     }
 
     &:focused {
       -fx-highlight-fill: -fx-accent;
-      -fx-highlight-text-fill: -df-defold-white;
+      -fx-highlight-text-fill: -df-text-light;
       -fx-prompt-text-fill: transparent;
 
       .content {
-        -fx-background-color: -df-dark-grey;
+        -fx-background-color: -df-background;
       }
     }
   }
 
   .text-field {
-    -fx-prompt-text-fill: -df-light-grey;
+    -fx-prompt-text-fill: -df-text;
 
     &:focused {
       -fx-prompt-text-fill: transparent;
@@ -64,7 +64,7 @@
     .hyperlink:disabled {
       -fx-cursor: default;
       -fx-opacity: 1.0;
-      -fx-text-fill: -df-light-grey;
+      -fx-text-fill: -df-text;
       -fx-underline: false;
     }
   }

@@ -7,18 +7,18 @@
         -fx-background-radius: 0px;
         -fx-border-radius: 0px;
         -fx-background-insets: 0;
-        -fx-background-color: -df-dark-grey-lighter;
+        -fx-background-color: -df-background-lighter;
         -fx-border-width: 0;
         -fx-padding: 5 4;
         -fx-pref-width: 23;
         -fx-max-width: 24px;
-        -fx-text-fill: -df-light-grey-dark;
+        -fx-text-fill: -df-text-dark;
         &:hover {
-            -fx-background-color: -df-grey-darker !important;
-            -fx-border-color: -df-dark-grey;
+            -fx-background-color: -df-component-darker !important;
+            -fx-border-color: -df-background;
         }
         &:armed, &:pressed {
-            -fx-background-color: -df-dark-grey-light !important;
+            -fx-background-color: -df-background-light !important;
         }
     }
 }
