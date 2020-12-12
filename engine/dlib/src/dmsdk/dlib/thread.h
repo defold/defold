@@ -143,28 +143,31 @@ namespace dmThread
     /*# gets the current thread
      * Gets the current thread
      * @name dmThread::GetCurrentThread
-     * @return the current thread
+     * @return thread [type:dmThread::HThread] the current thread
      */
     Thread GetCurrentThread();
 
     /*# sets the current thread name
      * Sets the current thread name
      * @name dmThread::SetThreadName
-     * @param thread the thread
-     * @param name the thread name
+     * @param thread [type:dmThread::HThread] the thread
+     * @param name [type:const char*] the thread name
      * @note The thread argument is unused on Darwin (uses current thread)
      */
     void SetThreadName(Thread thread, const char* name);
 
 
     /*# gets the current thread name
-     * Gets the current thread name
-     * @name dmThread::GetThreadName
-     * @param thread the thread
-     * @param name the thread name
+     * Gets the current thread nam
      * @note The thread argument is unused on Darwin (uses current thread)
+     * @note Not supported on HTML5, Android and 32 bit Win32
+     * @name dmThread::GetThreadName
+     * @param thread [type:dmThread::HThread] the thread
+     * @param buffer [type:char*] the thread name buffer
+     * @param buffer_len [type:uint32_t] the thread name buffer length
+     * @return result [type:bool] true if successful
      */
-    int GetThreadName(Thread thread, char* buffer, uint32_t buffer_len);
+    bool GetThreadName(Thread thread, char* buffer, uint32_t buffer_len);
 }
 
 #endif // DMSDK_THREAD_H
