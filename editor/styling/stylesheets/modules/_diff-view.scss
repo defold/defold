@@ -1,6 +1,6 @@
 .diff-view {
   Line {
-    -fx-stroke: -df-dark-grey-lighter;
+    -fx-stroke: -df-background-lighter;
 
     &.insert {
       -fx-stroke: -df-defold-green-dark;
@@ -12,30 +12,30 @@
   }
 
   Text {
-    -fx-fill: -df-light-grey;
+    -fx-fill: -df-text;
   }
 
   #markers {
     -fx-min-width: 40px;
     -fx-max-width: 40px;
     -fx-pref-width: 40px;
-    -fx-background-color: -df-dark-grey;
+    -fx-background-color: -df-background;
   }
 
   .code-view {
     -fx-pref-width: 300px;
-    -fx-background-color: -df-dark-grey-lighter;
+    -fx-background-color: -df-background-lighter;
   }
 
   .code-view-header {
-    -fx-text-fill: -df-light-grey-dark;
+    -fx-text-fill: -df-text-dark;
     -fx-min-height: 40px;
     -fx-alignment: center;
   }
 
   .diff-box {
-    -fx-fill: -df-dark-grey-lighter;
-    -fx-stroke: -df-dark-grey-lighter;
+    -fx-fill: -df-background-lighter;
+    -fx-stroke: -df-background-lighter;
 
     &.insert {
       -fx-fill: -df-defold-green-dark;

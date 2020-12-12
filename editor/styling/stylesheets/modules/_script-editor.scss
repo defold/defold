@@ -2,20 +2,20 @@
 .styled-text-area {
     -fx-font-family: "Dejavu Sans Mono";
     -fx-font-size: 9pt;
-    -fx-background-color: -df-dark-grey-lighter;
+    -fx-background-color: -df-background-lighter;
 
     .comment {
         -styled-text-color: -df-script-comment;
         -fx-font-style: italic;
     }
     .list-view {
-        -fx-background-color: -df-dark-grey-lighter;
+        -fx-background-color: -df-background-lighter;
         .list-cell {
-            -fx-background-color: -df-dark-grey-lighter;
+            -fx-background-color: -df-background-lighter;
             -fx-padding: 0;
             -fx-border-width: 0;
             &:selected {
-                -fx-background-color: -df-dark-grey-lighter !important;
+                -fx-background-color: -df-background-lighter !important;
                 -fx-border-width: 0;
             }
         }
@@ -23,7 +23,7 @@
     .source-segment, .plain-source-segment {
         -fx-font-family: "Dejavu Sans Mono";
         -fx-font-size: 9pt;
-        -styled-text-color: -df-defold-white;
+        -styled-text-color: -df-text-light;
     }
     .selection-marker {
             -fx-background-color: rgba(172,148,120,0.3)
@@ -41,11 +41,11 @@
 
         /* Hack for current line */
         .list-cell:selected {
-            -fx-background-color: -df-dark-grey;
+            -fx-background-color: -df-background;
         }
 
         .comment, .comment-multi {
-            -styled-text-color: -df-light-grey-dark;
+            -styled-text-color: -df-text-dark;
             -fx-font-style: italic;
         }
 
@@ -58,7 +58,7 @@
         }
 
         .default {
-            -styled-text-color: -df-defold-white;
+            -styled-text-color: -df-text-light;
         }
 
         .string {

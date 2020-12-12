@@ -6,7 +6,7 @@
     -fx-background-radius: 0;
     -fx-border-radius: 0;
     -fx-border-width: 1;
-    -fx-border-color: -df-dark-grey-lighter;
+    -fx-border-color: -df-background-lighter;
     -fx-background-insets: 0; }
   .bar {
     -fx-background-radius: 0;
@@ -24,7 +24,7 @@
   }
 
   .track {
-    -fx-background-color: -df-dark-grey;
+    -fx-background-color: -df-background;
     -fx-background-insets: 0;
     -fx-background-radius: 0; }
 }
@@ -41,7 +41,7 @@
   }
 
   .track {
-    -fx-background-color: -df-dark-grey-lighter;
+    -fx-background-color: -df-background-lighter;
     -fx-background-insets: 0;
     -fx-border-width: 0;
     -fx-background-radius: 4;

@@ -1,9 +1,9 @@
 .menu-bar {
-    -fx-background-color: -df-dark-grey;
+    -fx-background-color: -df-background;
 
     .menu {
         >.label {
-            -fx-text-fill: -df-light-grey-dark;
+            -fx-text-fill: -df-text-dark;
         }
 
         &:hover {
@@ -23,6 +23,6 @@
 }
 
 #menu-bar-space {
-    -fx-background-color: -df-dark-grey;
+    -fx-background-color: -df-background;
     -fx-pref-height: $pane-padding-top;
 }

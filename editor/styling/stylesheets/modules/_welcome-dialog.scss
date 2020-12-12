@@ -1,5 +1,5 @@
 #welcome-dialog {
-  -fx-background-color: -df-dark-grey-light;
+  -fx-background-color: -df-background-light;
 
   HBox, VBox {
     -fx-spacing: 0; // Fight crazy non-zero default.
@@ -65,7 +65,7 @@
   }
 
   #left-pane {
-    -fx-background-color: -df-dark-grey-dark;
+    -fx-background-color: -df-background;
 
     .defold-logo {
       -fx-padding: 16px;
@@ -87,7 +87,7 @@
     -fx-padding: 9px 16px;
     -fx-border-color: transparent;
     -fx-border-width: 0px 3px 0px 0px;
-    -fx-text-fill: -df-defold-white;
+    -fx-text-fill: -df-text-light;
     -fx-opacity: 50%;
 
     &:hover {
@@ -128,7 +128,7 @@
       -fx-padding: 4px 4px;
       -fx-border-color: transparent;
       -fx-border-width: 0px 0px 2px 0px;
-      -fx-text-fill: -df-defold-white;
+      -fx-text-fill: -df-text-light;
       -fx-opacity: 50%;
 
       &:hover {
@@ -165,7 +165,7 @@
   }
 
   .form-pane {
-    -fx-background-color: -df-dark-grey-lighter;
+    -fx-background-color: -df-background-lighter;
     -fx-padding: 24px;
     -fx-spacing: 16px;
 
@@ -189,15 +189,15 @@
 
   .defold-logo-container.gray {
     .left {
-      -fx-fill: -df-grey-light;
+      -fx-fill: -df-component-light;
     }
 
     .right {
-      -fx-fill: -df-dark-grey-lighter;
+      -fx-fill: -df-background-lighter;
     }
 
     .bottom {
-      -fx-fill: -df-dark-grey-light;
+      -fx-fill: -df-background-light;
     }
   }
 
@@ -236,7 +236,7 @@
 
       .title {
         Text {
-          -fx-fill: -df-light-grey;
+          -fx-fill: -df-text;
           -fx-opacity: 87%;
           -fx-font-size: 16px;
           -fx-font-smoothing-type: lcd;
@@ -250,7 +250,7 @@
 
       .description {
         -fx-font-smoothing-type: lcd;
-        -fx-text-fill: -df-light-grey;
+        -fx-text-fill: -df-text;
         -fx-opacity: 0.4;
       }
     }
@@ -260,20 +260,20 @@
       -fx-text-alignment: right;
       -fx-alignment: center-right;
       -fx-font-smoothing-type: lcd;
-      -fx-text-fill: -df-light-grey;
+      -fx-text-fill: -df-text;
       -fx-opacity: 0.4;
     }
   }
 
   .template-entry {
-    -fx-background-color: -df-grey-darker;
+    -fx-background-color: -df-component-darker;
     -fx-background-radius: 2px;
     -fx-border-width: 1px;
     -fx-border-color: transparent;
     -fx-padding: 8px;
 
     .svg-icon {
-      -fx-background-color: -df-grey-dark;
+      -fx-background-color: -df-component-dark;
       -fx-background-radius: 2px;
       -fx-max-width: 171px;
       -fx-max-height: 114px;
@@ -281,7 +281,7 @@
       -fx-min-height: 114px;
 
       SVGPath {
-        -fx-fill: -df-light-grey-dark;
+        -fx-fill: -df-text-dark;
       }
     }
 
@@ -289,7 +289,7 @@
       -fx-padding: 6px 16px;
 
       Text {
-        -fx-fill: -df-light-grey;
+        -fx-fill: -df-text;
         -fx-font-smoothing-type: lcd;
       }
 
@@ -315,12 +315,12 @@
 
   #progress-overlay {
     .background-cover {
-      -fx-background-color: -df-dark-grey-lighter;
+      -fx-background-color: -df-background-lighter;
       -fx-opacity: 85%;
     }
 
     #progress-header {
-      -fx-text-fill: -df-light-grey;
+      -fx-text-fill: -df-text;
       -fx-font-family: "Source Sans Pro Light";
       -fx-font-size: 20px;
       -fx-font-smoothing-type: lcd;
@@ -340,7 +340,7 @@
       }
 
       .track {
-        -fx-background-color: -df-dark-grey-lighter;
+        -fx-background-color: -df-background-lighter;
         -fx-background-insets: 0;
         -fx-border-width: 0;
         -fx-background-radius: 4px;
@@ -351,12 +351,12 @@
   .filter-field {
     -fx-pref-width: 106px;
     -fx-padding: 4px 24px 4px 2px;
-    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // -df-defold-white with opacity.
+    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // -df-text-light with opacity.
     -fx-background-color: transparent;
     -fx-border-color: transparent;
 
     &:hover {
-      -fx-border-color: transparent transparent -df-dark-grey-lighter transparent;
+      -fx-border-color: transparent transparent -df-background-lighter transparent;
     }
 
     &:focused {
@@ -367,34 +367,34 @@
   }
 
   .filter-field-icon {
-    -fx-fill: rgba(221, 221, 221, 0.4); // -df-defold-white with opacity.
+    -fx-fill: rgba(221, 221, 221, 0.4); // -df-text-light with opacity.
   }
 
   .location-field {
     Button {
       -fx-border-width: 0px;
       -fx-background-radius: 0px 2px 2px 0px;
-      -fx-background-color: -df-dark-grey-lighter;
+      -fx-background-color: -df-background-lighter;
       -fx-min-width: 30px;
       -fx-padding: 0px;
       -fx-font-size: 11.5px;
 
       &:hover {
-        -fx-background-color: -df-grey-light;
+        -fx-background-color: -df-component-light;
       }
     }
 
     .path-field {
       -fx-alignment: center-left;
       -fx-background-color: transparent;
-      -fx-border-color: -df-dark-grey-lighter;
+      -fx-border-color: -df-background-lighter;
       -fx-border-width: 1px 0px 1px 1px;
       -fx-padding: 4px 8px;
     }
 
     .path-element {
       -fx-padding: 0;
-      -fx-text-fill: -df-defold-white;
+      -fx-text-fill: -df-text-light;
       -fx-font-smoothing-type: lcd;
 
       &.implicit {

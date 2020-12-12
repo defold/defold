@@ -1,18 +1,18 @@
 #error-dialog {
   .text-run {
-    -fx-fill: -df-defold-white;
+    -fx-fill: -df-text-light;
     -fx-font-smoothing-type: lcd;
   }
 
   .link-run {
     -fx-font-size: 14px;
-    -fx-text-fill: -df-defold-blue-lighter;
+    -fx-text-fill: -df-defold-blue-light;
     -fx-padding: 0;
     -fx-underline: false;
     -fx-cursor: default;
 
     &:hover {
-      -fx-text-fill: -df-defold-blue-lightest;
+      -fx-text-fill: -df-defold-blue-lighter;
     }
   }
 

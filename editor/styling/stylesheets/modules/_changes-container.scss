@@ -1,13 +1,13 @@
 #changes-container {
     -fx-padding: 0 0 $pane-padding-bottom 0;
     >.tool-bar {
-        -fx-background-color: -df-dark-grey-light;
+        -fx-background-color: -df-background-light;
         -fx-border-width: 0;
         -fx-padding: 10 0 10 15;
     }
 
     .list-view {
-        -fx-background-color: -df-dark-grey-light;
+        -fx-background-color: -df-background-light;
     }
 
     .flat-list-view {

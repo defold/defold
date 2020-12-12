@@ -1,5 +1,5 @@
 .cljfx-form-title {
-  -fx-text-fill: -df-defold-white;
+  -fx-text-fill: -df-text-light;
   -fx-font-family: "Source Sans Pro Light";
   -fx-font-size: 24px;
 }
@@ -27,7 +27,7 @@
 .cljfx-form-icon-button {
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-dark-grey-lighter !important;
+  -fx-background-color: -df-background-lighter !important;
   -fx-padding: 0;
   -fx-min-width: 27px;
   -fx-max-width: 27px;
@@ -38,18 +38,18 @@
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-grey-darker !important;
+    -fx-background-color: -df-component-darker !important;
   }
   &:armed {
-    -fx-background-color: -df-dark-grey-light !important;
+    -fx-background-color: -df-background-light !important;
   }
 }
 
 .cljfx-form-list-view {
   -fx-border-radius: 2px;
   -fx-padding: 0 0 1px 0;
-  -fx-border-color: -df-dark-grey-lighter;
-  -fx-background-color: -df-dark-grey-light;
+  -fx-border-color: -df-background-lighter;
+  -fx-background-color: -df-background-light;
   -fx-background-radius: 20px;
   .list-cell {
     .text-field {
@@ -84,7 +84,7 @@
 .cljfx-table-view-wrapper {
   -fx-border-width: 1px;
   -fx-border-radius: 2px;
-  -fx-border-color: -df-dark-grey-lighter;
+  -fx-border-color: -df-background-lighter;
 }
 .cljfx-table-view {
   & > .virtual-flow > .scroll-bar:vertical {
@@ -111,7 +111,7 @@
 }
 
 @mixin floating-input() {
-  -fx-border-color: -df-grey-light;
+  -fx-border-color: -df-component-light;
   -fx-border-radius: 2px;
   -fx-background-radius: 3px;
   -fx-pref-width: 120px;
@@ -122,7 +122,7 @@
 
 .cljfx-form-floating-area {
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 8, 0, 0, 4);
-  -fx-background-color: -df-dark-grey-dark;
+  -fx-background-color: -df-component-darker;
   -fx-background-radius: 6px;
   -fx-padding: 12px;
   -fx-spacing: 8px;
@@ -135,19 +135,19 @@
     -fx-cursor: text;
     &:focused {
       -fx-padding: 4px 22px 3px 8px;
-      -fx-background-color: -df-dark-grey;
-      -fx-border-color: -df-grey-light -df-grey-light -df-defold-orange -df-grey-light;
+      -fx-background-color: -df-component-dark;
+      -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
     }
   }
 
   .jump-to-menu-button {
     @include floating-input();
     -fx-focus-traversable: false;
-    -fx-background-color: -df-dark-grey-dark;
+    -fx-background-color: rgba(0, 0, 0, 0.1);
     -fx-background-image: url("icons/32/Icons_S_05_arrowdown.png");
 
     &:hover {
-      -fx-background-color: -df-grey;
+      -fx-background-color: -df-component-light;
     }
     &:disabled {
       .label {

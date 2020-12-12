@@ -5,19 +5,19 @@
     -fx-background-insets: 0;
     -fx-border-color: transparent; 
     &:hover {
-        -fx-background-color: -df-dark-grey;
+        -fx-background-color: -df-background;
     }
     &:showing {
-        -fx-background-color: -df-dark-grey;
-        -fx-text-fill: -df-defold-white;
+        -fx-background-color: -df-background;
+        -fx-text-fill: -df-text-light;
         .arrow {
-            -fx-background-color: -df-defold-white;
+            -fx-background-color: -df-text-light;
         }
         .label {
-            -fx-text-fill: -df-defold-white;
+            -fx-text-fill: -df-text-light;
         }
     }
     .label {
-        -fx-text-fill: -df-light-grey-dark;
+        -fx-text-fill: -df-text-dark;
     }
 }

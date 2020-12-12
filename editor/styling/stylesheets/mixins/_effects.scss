@@ -3,7 +3,7 @@
 }
 
 @mixin effect-lighten() {
-	@include colorize-image-view(-df-defold-white);
+	@include colorize-image-view(-df-text-light);
 }
 
 @mixin effect-lighten-blue() {
@@ -11,9 +11,9 @@
 }
 
 @mixin effect-icon-grey() {
-	@include colorize-image-view(-df-light-grey);
+	@include colorize-image-view(-df-text);
 }
 
 @mixin effect-bright-grey() {
-	@include colorize-image-view(-df-light-grey);
+	@include colorize-image-view(-df-text);
 }

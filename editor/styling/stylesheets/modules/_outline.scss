@@ -59,12 +59,12 @@
     }
 
     &.overridden {
-      @include colorize-icon(-df-grey, -df-defold-blue-lighter);
-      @include colorize-label(-df-grey, -df-defold-blue-lighter);
+      @include colorize-icon(-df-defold-blue, -df-defold-blue-light);
+      @include colorize-label(-df-defold-blue, -df-defold-blue-light);
     }
 
     &.child-overridden {
-      @include colorize-disclosure-arrow(#52a5d9);
+      @include colorize-disclosure-arrow(-df-defold-blue-light);
     }
 
     &.error {

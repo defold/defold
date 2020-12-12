@@ -1,14 +1,14 @@
 .flat-list-view {
     -fx-background-insets: 0;
     .list-cell {
-        -fx-background-color: -df-dark-grey-light;
+        -fx-background-color: -df-background-light;
         -fx-border-width: 0 0 0 2;
-        -fx-border-color: -df-dark-grey-light;
+        -fx-border-color: -df-background-light;
         -fx-padding: 5;//0.5em 1em;
 
         Text {
             -fx-font-smoothing-type: lcd;
-            -fx-fill: -df-light-grey;
+            -fx-fill: -df-text;
             &.diminished {
                 -fx-opacity: 0.5;
             }
@@ -18,10 +18,10 @@
         }
 
         &:hover {
-            -fx-text-fill: -df-defold-white;
+            -fx-text-fill: -df-text-light;
 
             Text {
-                -fx-fill: -df-defold-white;
+                -fx-fill: -df-text-light;
                 &.matched {
                     -fx-fill: -df-defold-blue-lighter;
                 }
@@ -30,17 +30,17 @@
         &:selected {
             -fx-border-width: 0 0 0 2;
             -fx-border-color: -df-defold-orange;
-            -fx-text-fill: -df-defold-white;
-            -fx-background-color: -df-dark-grey-lighter;
+            -fx-text-fill: -df-text-light;
+            -fx-background-color: -df-background-lighter;
             &:hover {
-                -fx-text-fill: -df-defold-white;
+                -fx-text-fill: -df-text-light;
             }
             .image-view {
                 @include effect-bright-grey();
             }
 
             Text {
-                -fx-fill: -df-defold-white;
+                -fx-fill: -df-text-light;
                 &.matched {
                     -fx-fill: -df-defold-blue-lighter;
                 }
@@ -48,7 +48,7 @@
         }
 
         .label {
-            -fx-text-fill: -df-defold-white;
+            -fx-text-fill: -df-text-light;
         }
     }
 }
