@@ -479,7 +479,7 @@ def web_exported_functions(self):
                 break
 
         if use_crash:
-            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
+            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_dmExportedSymbols","_main"]'])
 
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
@@ -737,7 +737,7 @@ def create_export_symbols(task):
     with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
         for name in Utils.to_list(task.exported_symbols):
             print >>out_f, 'extern "C" void %s();' % name
-        print >>out_f, "void dmExportedSymbols() {"
+        print >>out_f, 'extern "C" void dmExportedSymbols() {'
         for name in Utils.to_list(task.exported_symbols):
             print >>out_f, "    %s();" % name
         print >>out_f, "}"
