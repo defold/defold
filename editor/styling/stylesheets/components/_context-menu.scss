@@ -1,5 +1,5 @@
 .context-menu {
-    -fx-background-color: -df-menu-background;
+    -fx-background-color: -df-component-darker;
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-border-width: 0px;
@@ -7,8 +7,8 @@
 
     .scroll-arrow {
         .menu-down-arrow, .menu-up-arrow {
-            -fx-fill: -df-menu-background;
-            -fx-background-color: -df-menu-background;
+            -fx-fill: -df-component-darker;
+            -fx-background-color: -df-component-darker;
         }
     }
 

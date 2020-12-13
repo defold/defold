@@ -6,7 +6,7 @@
 }
 
 #toolbar {
-    -fx-background-color: -df-scene-toolbar-background;
+    -fx-background-color: -df-component-darker;
     -fx-border-width: 0;
     -fx-border-insets: 0;
     -fx-background-insets: 0;
@@ -25,18 +25,18 @@
         -fx-alignment: center;
 
         .image-view {
-            -fx-effect: innershadow(gaussian, -df-scene-toolbar-button-foreground, 20, 0.3, 0, 0) !important;
+            -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
 
         &:hover {
             .image-view {
-                -fx-effect: innershadow(gaussian, -df-scene-toolbar-button-hovered-foreground, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text-lighter, 20, 0.3, 0, 0) !important;
             }
         }
         &:selected {
-            -fx-background-color: -df-scene-toolbar-button-selected-background;
+            -fx-background-color: -df-background-light;
             .image-view {
-                -fx-effect: innershadow(gaussian, -df-scene-toolbar-button-selected-foreground, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text-lighter, 20, 0.3, 0, 0) !important;
             }
         }
     }
@@ -49,14 +49,14 @@
         #active-indicator {
             visibility: hidden;
             -fx-fill: -df-defold-orange;
-            -fx-stroke: -df-scene-toolbar-background;
+            -fx-stroke: -df-component-darker;
             -fx-stroke-width: 1px;
             -fx-translate-x: 3.5px;
             -fx-translate-y: -5px;
         }
 
         &:selected #active-indicator {
-            -fx-stroke: -df-scene-toolbar-button-selected-background;
+            -fx-stroke: -df-background-light;
         }
 
         &.filters-active #active-indicator {
@@ -65,7 +65,7 @@
     }
 
     .visibility-toggles-list {
-        -fx-background-color: -df-scene-toolbar-background;
+        -fx-background-color: -df-component-darker;
         -fx-background-radius: 4px;
         -fx-padding: 0px 0px 7px 0px;
 
@@ -81,7 +81,7 @@
 
         > Separator {
             -fx-padding: 7px 0px;
-            -fx-background-color: -df-scene-toolbar-background;
+            -fx-background-color: -df-component-darker;
         }
     }
 
@@ -124,19 +124,19 @@
             -fx-border-width: 0;
             -fx-pref-width: 90px;
             >.label {
-                -fx-background-color: -df-scene-toolbar-background;
+                -fx-background-color: -df-component-darker;
                 -fx-text-fill: -df-text-light;
             }
             .open-button {
                 -fx-border-width: 0;
-                -fx-background-color: -df-scene-toolbar-background;
+                -fx-background-color: -df-component-darker;
                 .arrow {
                     -fx-background-color: -df-text-light;
                 }
             }
             &:hover, &:pressed, &:focused {
                 .open-button {
-                    -fx-background-color: -df-scene-toolbar-background;
+                    -fx-background-color: -df-component-darker;
                 }
             }
         }

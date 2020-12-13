@@ -48,21 +48,6 @@
 	-df-defold-blue-light:   derive(#4cb1ff, 10%);
 	-df-defold-blue-lighter: derive(#4cb1ff, 20%);
 
-
-	/* Menu colors */
-	-df-menu-background: -df-background-lighter;
-	-df-menu-foreground: -df-text;
-	-df-menu-background-hover: -df-component;
-	-df-menu-foreground-hover: -df-text-light;
-	-df-menu-separator: -df-background-light;
-
-	/* Scene view colors */
-	-df-scene-toolbar-background: -df-background-lighter;
-	-df-scene-toolbar-button-foreground: -df-text-light;
-	-df-scene-toolbar-button-selected-background: -df-background-light;
-	-df-scene-toolbar-button-selected-foreground: -df-text-light;
-	-df-scene-toolbar-button-hovered-foreground: -df-text-light;
-
 	/* Status colors */
 	-df-error-severity-fatal: -df-defold-red;
 	-df-error-severity-fatal-dim: -df-defold-red-dark;
