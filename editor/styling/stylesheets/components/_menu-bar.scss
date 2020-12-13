@@ -8,13 +8,13 @@
 
         &:hover {
             >.label {
-                -fx-text-fill: -df-menu-foreground-hover;
+                -fx-text-fill: -df-text-light;
             }
         }
         &:showing {
-            -fx-background-color: -df-menu-background-hover;
+            -fx-background-color: -df-component-dark;
             >.label {
-                -fx-text-fill: -df-menu-foreground-hover;
+                -fx-text-fill: -df-text-light;
             }
         }
     }
