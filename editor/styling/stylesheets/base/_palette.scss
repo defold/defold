@@ -1,22 +1,22 @@
 * {
-	// Dark Grey
-	-df-background-darker:    darken(#212428, 10%);
-	-df-background-dark:      darken(#212428, 5%);
+	// Background
+	-df-background-darker:    derive(#212428, -10%);
+	-df-background-dark:      derive(#212428, -5%);
 	-df-background:           #212428;
-	-df-background-light:     lighten(#212428, 5%);
-	-df-background-lighter:   lighten(#212428, 10%);
+	-df-background-light:     derive(#212428, 10%);
+	-df-background-lighter:   derive(#212428, 20%);
 
-	// Grey
-	-df-component-darker:     darken(#515963, 10%);
-	-df-component-dark:       darken(#515963, 5%);
-	-df-component:            #515963;
-	-df-component-light:      lighten(#515963, 5%);
-	-df-component-lighter:    lighten(#515963, 10%);
+	// Component
+	-df-component-darker:     derive(#464c55, -20%);
+	-df-component-dark:       derive(#464c55, -10%);
+	-df-component:            #464c55;
+	-df-component-light:      derive(#464c55, 10%);
+	-df-component-lighter:    derive(#464c55, 20%);
 
-	// Light Grey
-	-df-text-dark:            darken(#c2c7cd, 10%);
-	-df-text:                 #c2c7cd;
-	-df-text-selected:        lighten(#c2c7cd, 20%);
+	// Text & icons
+	-df-text-dark:            derive(#b4bac1, -10%);
+	-df-text:                 #b4bac1;
+	-df-text-selected:        derive(#b4bac1, 20%);
 
 	// Red
 	-df-defold-red-dark:     derive(#e32f44, -10%);
