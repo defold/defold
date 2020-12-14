@@ -92,7 +92,7 @@ $spacing-largest: 40px;
   -fx-text-fill: -df-text;
   -fx-border-color: -df-text-dark;
   &:hover, &:focused {
-    -fx-text-fill: -df-text-light;
+    -fx-text-fill: -df-text-selected;
     -fx-border-color: -df-text;
   }
 }
@@ -174,7 +174,7 @@ $spacing-largest: 40px;
   @include font-default();
   @include font-size-default();
   -fx-highlight-fill: -df-component-light;
-  -fx-text-fill: -df-text-lighter;
+  -fx-text-fill: -df-text-selected;
   -fx-prompt-text-fill: -df-component;
   -fx-background-color: -df-background-darker;
   -fx-border-width: 1px;
@@ -335,7 +335,7 @@ Text {
   .menu-item {
     &:focused {
       > .label {
-        -fx-text-fill: -df-text-lighter;
+        -fx-text-fill: -df-text-selected;
       }
       -fx-background-color: -df-component-light;
       -fx-background-radius: 1px;

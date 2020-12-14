@@ -1,5 +1,5 @@
 .scroll-bar {
-    -fx-background-color: -df-background-dark;
+    -fx-background-color: -df-background;
     &:horizontal {
         -fx-background-insets: 0px -1px -1px -1px;
         //-fx-padding: 2px -1px -1px -1px;
@@ -21,13 +21,13 @@
         }
     }
     .thumb {
-        -fx-background-color: -df-component-darker;
+        -fx-background-color: -df-component-dark;
         -fx-background-radius: 2em;
         &:hover {
-            -fx-background-color: -df-component;
+            -fx-background-color: -df-component-light;
         }
         &:pressed {
-            -fx-background-color: -df-component-lighter;
+            -fx-background-color: -df-component-light;
         }
     }
     .increment-button, .decrement-button {

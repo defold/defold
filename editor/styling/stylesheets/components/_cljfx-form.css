@@ -1,5 +1,5 @@
 .cljfx-form-title {
-  -fx-text-fill: -df-text-light;
+  -fx-text-fill: -df-text;
   -fx-font-family: "Source Sans Pro Light";
   -fx-font-size: 24px;
 }
@@ -27,7 +27,7 @@
 .cljfx-form-icon-button {
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-background-lighter !important;
+  -fx-background-color: -df-component-dark !important;
   -fx-padding: 0;
   -fx-min-width: 27px;
   -fx-max-width: 27px;
@@ -38,17 +38,17 @@
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-component-darker !important;
+    -fx-background-color: -df-component !important;
   }
   &:armed {
-    -fx-background-color: -df-background-light !important;
+    -fx-background-color: -df-component !important;
   }
 }
 
 .cljfx-form-list-view {
   -fx-border-radius: 2px;
   -fx-padding: 0 0 1px 0;
-  -fx-border-color: -df-background-lighter;
+  -fx-border-color: -df-component-dark;
   -fx-background-color: -df-background-light;
   -fx-background-radius: 20px;
   .list-cell {
@@ -77,6 +77,7 @@
 .cljfx-form-combo-box {
   -fx-border-radius: 2px;
   -fx-background-radius: 2px;
+  -fx-border-color: -df-component-dark;
   > .text-field {
     -fx-border-width: 0 !important;
   }

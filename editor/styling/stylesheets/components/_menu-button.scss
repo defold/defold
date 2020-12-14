@@ -3,18 +3,18 @@
     -fx-border-radius: 0;
     -fx-background-color: transparent;
     -fx-background-insets: 0;
-    -fx-border-color: transparent; 
+    -fx-border-color: transparent;
     &:hover {
         -fx-background-color: -df-background;
     }
     &:showing {
         -fx-background-color: -df-background;
-        -fx-text-fill: -df-text-light;
+        -fx-text-fill: -df-text-selected;
         .arrow {
-            -fx-background-color: -df-text-light;
+            -fx-background-color: -df-text-selected;
         }
         .label {
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
         }
     }
     .label {

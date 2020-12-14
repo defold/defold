@@ -30,13 +30,13 @@
 
         &:hover {
             .image-view {
-                -fx-effect: innershadow(gaussian, -df-text-lighter, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
             }
         }
         &:selected {
             -fx-background-color: -df-background-light;
             .image-view {
-                -fx-effect: innershadow(gaussian, -df-text-lighter, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
             }
         }
     }
@@ -92,7 +92,10 @@
     }
 
     SVGPath {
-        -fx-fill: -df-text-light;
+        -fx-fill: -df-text;
+        &:hover, &:pressed, &:focused {
+            -fx-fill: -df-text-selected;
+        }
     }
 
     .separator {
@@ -118,25 +121,31 @@
         -fx-border-insets: 0;
         -fx-background-color: transparent;
         .image-view {
-            -fx-effect: innershadow(gaussian, -df-text-light, 20, 0.3, 0, 0) !important;
+            -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
         >.choice-box {
             -fx-border-width: 0;
             -fx-pref-width: 90px;
             >.label {
                 -fx-background-color: -df-component-darker;
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text;
             }
             .open-button {
                 -fx-border-width: 0;
                 -fx-background-color: -df-component-darker;
                 .arrow {
-                    -fx-background-color: -df-text-light;
+                    -fx-background-color: -df-text;
                 }
             }
             &:hover, &:pressed, &:focused {
                 .open-button {
                     -fx-background-color: -df-component-darker;
+                    .arrow {
+                        -fx-background-color: -df-text-selected;
+                    }
+                }
+                >.label {
+                    -fx-text-fill: -df-text-selected;
                 }
             }
         }
@@ -149,6 +158,6 @@
     -fx-height: 30px;
     -fx-font-face: $default-font;
     -fx-font-size: 14px;
-    -fx-text-fill: -df-text-light;
+    -fx-text-fill: -df-text;
     -fx-effect: dropshadow(one-pass-box, rgba(0, 0, 0, 1), 0, 0, 1, 1);
 }

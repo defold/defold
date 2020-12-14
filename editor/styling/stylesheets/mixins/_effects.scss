@@ -3,7 +3,7 @@
 }
 
 @mixin effect-lighten() {
-	@include colorize-image-view(-df-text-light);
+	@include colorize-image-view(-df-text-selected);
 }
 
 @mixin effect-lighten-blue() {

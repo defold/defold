@@ -39,10 +39,10 @@
 .text-area.property {
     -fx-padding: 0px;
     -fx-border-width: 1px 1px 1px 1px;
-    -fx-border-color: -df-background-lighter;
-    -fx-text-fill: -df-text-light;
+    -fx-border-color: -df-component-dark;
+    -fx-text-fill: -df-text;
     -fx-highlight-fill: -df-background-light;
-    -fx-highlight-text-fill: -df-text-light;
+    -fx-highlight-text-fill: -df-text-selected;
 
     .content {
         -fx-padding: 4px 8px;
@@ -51,16 +51,20 @@
         -fx-background-color: -df-background-light;
     }
 
+    &:hover {
+        -fx-border-color: -df-component-light;
+    }
+
     &:focused {
         -fx-padding: 0;
         -fx-border-width: 1px 1px 2px 1px;
-        -fx-border-color: -df-component-darker -df-component-darker -df-defold-orange -df-component-darker;
+        -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
         -fx-highlight-fill: -fx-accent;
-        -fx-highlight-text-fill: -df-text-light;
+        -fx-highlight-text-fill: -df-text-selected;
 
-        .content {
-            -fx-background-color: -df-background;
-        }
+            .content {
+                -fx-background-color: -df-background;
+            }
     }
 
     &:readonly {

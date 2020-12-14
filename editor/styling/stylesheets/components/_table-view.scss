@@ -21,7 +21,7 @@
         &:selected {
             -fx-background-color: -df-background-lighter;
             .table-cell {
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text-selected;
             }
         }
         &:focused {

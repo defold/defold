@@ -5,13 +5,13 @@
 
 .root {
   -fx-background-color: transparent !important;
-  -fx-text-fill: -df-text-lighter;
+  -fx-text-fill: -df-text;
   -fx-font-family: "Source Sans Pro";
   -fx-font-size: 13px;
 }
 
 #launch-error {
-  -fx-text-fill: -df-text-lighter;
+  -fx-text-fill: -df-defold-red;
   -fx-padding: 0 0 33px 0;
 }
 

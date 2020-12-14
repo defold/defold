@@ -3,7 +3,7 @@
     -fx-border-radius: 0;
     -fx-background-color: -df-background-light;
     -fx-background-insets: 0;
-    -fx-border-color: -df-background-lighter;
+    -fx-border-color: -df-component-dark;
     -fx-border-width: 1;
     -fx-padding: 0;
     .label {
@@ -12,10 +12,10 @@
     }
     &:showing {
         -fx-background-color: -df-background;
-        -fx-color: -df-text-light;
+        -fx-color: -df-text-selected;
     }
     &:showing .arrow {
-        -fx-background-color: -df-text-light;
+        -fx-background-color: -df-text-selected;
     }
     .open-button {
         -fx-background-insets: 0;
@@ -28,7 +28,7 @@
         }
         &:pressed, &:focused {
             -fx-background-color: -df-background-light;
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
         }
     }
 }

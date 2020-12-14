@@ -4,14 +4,14 @@
     -fx-background-color: -df-background-light;
     -fx-background-insets: 0;
     &:showing {
-        -fx-background-color: -df-background;
-        -fx-color: -df-text-light;
+        -fx-background-color: -df-background-light;
+        -fx-color: -df-text;
         .color-picker-label {
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text;
         }
     }
     &:showing .arrow {
-        -fx-background-color: -df-text-light;
+        -fx-background-color: -df-text;
     }
     .color-picker-label {
         -fx-border-width: 1;
@@ -38,5 +38,5 @@
   -fx-background-radius: 3;
   -fx-border-radius: 3;
   -fx-border-color: -df-background-lighter;
-  -fx-background-color: -df-background-light;
+  -fx-background-color: -df-component-darker;
 }

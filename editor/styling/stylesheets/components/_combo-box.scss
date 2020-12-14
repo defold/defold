@@ -11,11 +11,11 @@
     }
     &:showing {
         .arrow {
-            -fx-background-color: -df-text-light;
+            -fx-background-color: -df-text-selected;
             -fx-rotate: 180;
         }
         >.list-cell {
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text;
         }
         .list-view {
             -fx-border-color: -df-text-dark;
@@ -35,7 +35,7 @@
         -fx-color: -df-text-dark;
         &:hover {
             -fx-cursor: hand;
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
         }
     }
     .arrow-button {
@@ -52,11 +52,11 @@
         }
         &:pressed, &:focused {
             -fx-background-color: -df-background-light;
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
         }
     }
     >.list-cell {
-        -fx-text-fill: -df-text-light;
+        -fx-text-fill: -df-text-selected;
     }
     .text-field, .text-input {
         /*-fx-border-width: 0;*/
