@@ -20,9 +20,6 @@
   -fx-font-size: 13px;
   -fx-font-family: "Source Sans Pro"; }
 
-* {
-  -df-pane-padding-top: 17; }
-
 Text.strong {
   -fx-font-family: "Source Sans Pro Semibold"; }
 
@@ -34,6 +31,29 @@ Label.strong {
 
 Label.emphasis {
   -fx-font-family: "Source Sans Pro Italic"; }
+
+#build-errors-container .tree-cell {
+  -fx-font-family: "Dejavu Sans Mono";
+  -fx-font-size: 90%; }
+
+.cljfx-form-title {
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-font-size: 200%;
+  -fx-font-smoothing-type: lcd; }
+
+#welcome-dialog .df-header {
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-font-size: 150%;
+  -fx-font-smoothing-type: lcd; }
+
+#welcome-dialog #left-pane .pane-button {
+  -fx-font-family: "Source Sans Pro Semibold";
+  -fx-font-size: 110%; }
+
+#welcome-dialog #progress-overlay #progress-header {
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-font-size: 150%;
+  -fx-font-smoothing-type: lcd; }
 
 * {
   -df-background-darker: derive(#212428, -10%);
