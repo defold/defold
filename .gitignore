@@ -43,3 +43,4 @@ com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.ja
 
 /local_sdks
 external/**/build/
+editor/resources/splash.css
