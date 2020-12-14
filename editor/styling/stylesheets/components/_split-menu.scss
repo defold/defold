@@ -11,13 +11,13 @@
 
     &:showing {
         -fx-background-color: -df-background;
-        -fx-text-fill: -df-text-light;
+        -fx-text-fill: -df-text-selected;
         .label {
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
         }
         .arrow {
-            -fx-text-fill: -df-text-light;
-            -fx-background-color: -df-text-light;
+            -fx-text-fill: -df-text-selected;
+            -fx-background-color: -df-text-selected;
         }
     }
     .label {
@@ -30,7 +30,7 @@
             -fx-background-color: -df-background;
         }
         &:pressed {
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
         }
     }
     .arrow-button {

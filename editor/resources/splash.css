@@ -4,16 +4,14 @@
   -df-background: #212428;
   -df-background-light: #2d3136;
   -df-background-lighter: #383d44;
-  -df-component-darker: #3a3e41;
-  -df-component-dark: #464a4f;
-  -df-component: #52575C;
-  -df-component-light: #5e6469;
-  -df-component-lighter: #6a7177;
-  -df-text-darker: #859bad;
-  -df-text-dark: #a4b4c2;
-  -df-text: #c2cdd6;
-  -df-text-light: #e1e6eb;
-  -df-text-lighter: white;
+  -df-component-darker: #3a4047;
+  -df-component-dark: #464c55;
+  -df-component: #515963;
+  -df-component-light: #5c6671;
+  -df-component-lighter: #68727f;
+  -df-text-dark: #a6adb6;
+  -df-text: #c2c7cd;
+  -df-text-selected: #fafafb;
   -df-defold-red-dark: derive(#e32f44, -10%);
   -df-defold-red: #e32f44;
   -df-defold-red-light: derive(#e32f44, 10%);
@@ -68,12 +66,12 @@
 
 .root {
   -fx-background-color: transparent !important;
-  -fx-text-fill: -df-text-lighter;
+  -fx-text-fill: -df-text;
   -fx-font-family: "Source Sans Pro";
   -fx-font-size: 13px; }
 
 #launch-error {
-  -fx-text-fill: -df-text-lighter;
+  -fx-text-fill: -df-defold-red;
   -fx-padding: 0 0 33px 0; }
 
 #footer * {

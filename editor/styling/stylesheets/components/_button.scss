@@ -3,31 +3,34 @@
   -fx-border-radius: 4;
   -fx-padding: 4px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: -df-background-lighter;
+  -fx-background-color: -df-component-dark;
   -fx-background-insets: 0;
-  -fx-border-color: -df-background-dark;
+  -fx-border-color: -df-component-darker;
   -fx-border-width: 1;
   -fx-text-fill: -df-text;
   -fx-font-size: $default-font-size;
   &:hover {
-    -fx-background-color: -df-component-darker;
+    -fx-background-color: -df-component;
+    -fx-text-fill: -df-text-selected;
   }
   &:armed {
-    -fx-background-color: -df-background-light;
+    -fx-background-color: -df-component;
+    -fx-text-fill: -df-text-selected;
   }
   &.low-prio {
-    -fx-background-color: -df-background;
+    -fx-background-color: -df-component-darker;
     -fx-border-color: -df-background-lighter;
     -fx-text-fill: -df-text-dark;
     -fx-font-weight: normal;
   }
   &.low-prio:hover {
-      -fx-background-color: -df-background-lighter;
+      -fx-background-color: -df-component-dark;
+      -fx-text-fill: -df-text;
   }
   &.low-prio:armed {
-      -fx-background-color: -df-background-light;
+      -fx-background-color: -df-component-dark;
       -fx-border-color: -df-text-dark;
-      -fx-text-fill: -df-text-light;
+      -fx-text-fill: -df-text;
   }
 }
 
@@ -53,7 +56,7 @@
   -fx-min-height: 27px;
   -fx-max-height: 27px;
   -fx-border-width: 0;
-  -fx-text-fill: -df-text-light;
+  -fx-text-fill: -df-text;
   &:hover {
       -fx-background-color: -df-component !important;
   }

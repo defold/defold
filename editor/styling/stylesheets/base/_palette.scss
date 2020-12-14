@@ -7,18 +7,16 @@
 	-df-background-lighter:   lighten(#212428, 10%);
 
 	// Grey
-	-df-component-darker:     darken(#52575C, 10%);
-	-df-component-dark:       darken(#52575C, 5%);
-	-df-component:            #52575C;
-	-df-component-light:      lighten(#52575C, 5%);
-	-df-component-lighter:    lighten(#52575C, 10%);
+	-df-component-darker:     darken(#515963, 10%);
+	-df-component-dark:       darken(#515963, 5%);
+	-df-component:            #515963;
+	-df-component-light:      lighten(#515963, 5%);
+	-df-component-lighter:    lighten(#515963, 10%);
 
 	// Light Grey
-	-df-text-darker:          darken(#c2cdd6, 20%);
-	-df-text-dark:            darken(#c2cdd6, 10%);
-	-df-text:                 #c2cdd6;
-	-df-text-light:           lighten(#c2cdd6, 10%);
-	-df-text-lighter:         lighten(#c2cdd6, 20%);
+	-df-text-dark:            darken(#c2c7cd, 10%);
+	-df-text:                 #c2c7cd;
+	-df-text-selected:        lighten(#c2c7cd, 20%);
 
 	// Red
 	-df-defold-red-dark:     derive(#e32f44, -10%);

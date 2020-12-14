@@ -18,10 +18,10 @@
         }
 
         &:hover {
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
 
             Text {
-                -fx-fill: -df-text-light;
+                -fx-fill: -df-text-selected;
                 &.matched {
                     -fx-fill: -df-defold-blue-lighter;
                 }
@@ -30,17 +30,17 @@
         &:selected {
             -fx-border-width: 0 0 0 2;
             -fx-border-color: -df-defold-orange;
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text-selected;
             -fx-background-color: -df-background-lighter;
             &:hover {
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text-selected;
             }
             .image-view {
                 @include effect-bright-grey();
             }
 
             Text {
-                -fx-fill: -df-text-light;
+                -fx-fill: -df-text-selected;
                 &.matched {
                     -fx-fill: -df-defold-blue-lighter;
                 }
@@ -48,7 +48,7 @@
         }
 
         .label {
-            -fx-text-fill: -df-text-light;
+            -fx-text-fill: -df-text;
         }
     }
 }

@@ -11,7 +11,7 @@ Links:
   -fx-base: -df-background;
   -fx-background: -df-background;
   -fx-control-inner-background: -df-background;
-  -fx-text-color-base: -df-text-light;
+  -fx-text-color-base: -df-text;
   -fx-mark-color: -df-text-dark;
   -fx-text-background-color: -df-text;
   -fx-text-inner-color: -df-text;
@@ -107,7 +107,7 @@ Links:
 
 #status-pane #progress-hbox #progress-cancel-button {
     -fx-background-color: -df-background-lighter;
-    -cross-color: -df-text-dark;
+    -cross-color: -df-text;
     -fx-background-radius: 50%;
     -fx-border-width: 0;
     -fx-padding: 0;
@@ -118,10 +118,11 @@ Links:
     -fx-content-display: center;
     &:hover {
         -fx-background-color: -df-component-darker;
+        -cross-color: -df-text-selected;
     }
     &:armed {
         -fx-background-color: -df-background-light;
-        -cross-color: -df-text-light;
+        -cross-color: -df-text-selected;
     }
 }
 

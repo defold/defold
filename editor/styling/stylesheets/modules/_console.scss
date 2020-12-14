@@ -154,14 +154,14 @@
   -fx-font-smoothing-type: lcd;
   -fx-min-height: 44px;
   -fx-padding: 0px;
-  -fx-text-fill: -df-text-light;
+  -fx-text-fill: -df-text;
 
   &:focused {
     -fx-background-color: -df-background-light;
     -fx-border-color: -df-background-lighter;
     -fx-border-width: 1px 0px 0px 0px;
     -fx-padding: 0px;
-    -fx-text-fill: -df-text-light;
+    -fx-text-fill: -df-text-selected;
     -fx-prompt-text-fill: transparent;
   }
 }

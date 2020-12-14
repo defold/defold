@@ -26,7 +26,7 @@
       }
       &:hover {
         .label {
-          -fx-text-fill: -df-text-lighter
+          -fx-text-fill: -df-text-selected
         }
         .call-stack-path {
           -fx-text-fill: -df-text-dark;
@@ -35,7 +35,7 @@
       }
       &:selected {
         .label {
-          -fx-text-fill: -df-text-lighter;
+          -fx-text-fill: -df-text-selected;
         }
         .call-stack-path {
           -fx-text-fill: -df-text-dark;
@@ -56,7 +56,7 @@
       }
       &:hover {
         .label {
-          -fx-text-fill: -df-text-lighter;
+          -fx-text-fill: -df-text-selected;
         }
         .equals {
           -fx-text-fill: -df-text-dark;
@@ -65,7 +65,7 @@
       }
       &:selected {
         .label {
-          -fx-text-fill: -df-text-lighter;
+          -fx-text-fill: -df-text-selected;
         }
         .equals {
           -fx-text-fill: -df-text-dark;

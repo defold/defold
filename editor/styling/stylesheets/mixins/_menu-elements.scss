@@ -25,7 +25,7 @@
         &:focused {
             -fx-background-color: -df-component-dark;
             > .label {
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text-selected;
             }
             .image-view {
                 @include effect-lighten-blue();

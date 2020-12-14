@@ -87,7 +87,7 @@
     -fx-padding: 9px 16px;
     -fx-border-color: transparent;
     -fx-border-width: 0px 3px 0px 0px;
-    -fx-text-fill: -df-text-light;
+    -fx-text-fill: -df-text;
     -fx-opacity: 50%;
 
     &:hover {
@@ -128,7 +128,7 @@
       -fx-padding: 4px 4px;
       -fx-border-color: transparent;
       -fx-border-width: 0px 0px 2px 0px;
-      -fx-text-fill: -df-text-light;
+      -fx-text-fill: -df-text;
       -fx-opacity: 50%;
 
       &:hover {
@@ -351,7 +351,7 @@
   .filter-field {
     -fx-pref-width: 106px;
     -fx-padding: 4px 24px 4px 2px;
-    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // -df-text-light with opacity.
+    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4);
     -fx-background-color: transparent;
     -fx-border-color: transparent;
 
@@ -367,7 +367,7 @@
   }
 
   .filter-field-icon {
-    -fx-fill: rgba(221, 221, 221, 0.4); // -df-text-light with opacity.
+    -fx-fill: rgba(221, 221, 221, 0.4);
   }
 
   .location-field {
@@ -394,7 +394,7 @@
 
     .path-element {
       -fx-padding: 0;
-      -fx-text-fill: -df-text-light;
+      -fx-text-fill: -df-text;
       -fx-font-smoothing-type: lcd;
 
       &.implicit {

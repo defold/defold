@@ -22,7 +22,7 @@
         &:hover {
             -fx-background-insets: 0;
             .tab-label {
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text-selected;
                 .image-view {
                     @include effect-lighten();
                 }
@@ -31,10 +31,10 @@
         &:selected {
             -fx-border-insets: 0 8 0 0;
             -fx-border-color: -df-defold-orange;
-            -fx-color: -df-text-light;
+            -fx-color: -df-text-selected;
 
             .tab-label {
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text-selected;
                 .image-view {
                     @include effect-lighten();
                 }
@@ -46,7 +46,7 @@
 
         .tab-label {
             -fx-padding: 0 2 0 0;
-            -fx-text-fill: -df-text-dark;
+            -fx-text-fill: -df-text;
         }
 
         // Generate css for file extensions
@@ -84,7 +84,7 @@
     -fx-background-color: -df-text-dark;
     -fx-effect: none;
     &:hover {
-        -fx-background-color: white;
+        -fx-background-color: -df-text-selected;
     }
 }
 
@@ -103,9 +103,9 @@
     -fx-border-width: 0 0 0 0;
     -fx-padding: 5px 10px;
     &:hover {
-        -fx-text-fill: -df-text-light;
+        -fx-text-fill: -df-text-selected;
         .arrow {
-            -fx-background-color: -df-text-light;
+            -fx-background-color: -df-text-selected;
         }
     }
 

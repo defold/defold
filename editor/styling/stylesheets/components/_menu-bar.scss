@@ -8,13 +8,13 @@
 
         &:hover {
             >.label {
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text-selected;
             }
         }
         &:showing {
             -fx-background-color: -df-component-dark;
             >.label {
-                -fx-text-fill: -df-text-light;
+                -fx-text-fill: -df-text-selected;
             }
         }
     }

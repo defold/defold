@@ -9,7 +9,7 @@
     -fx-font-size: 14px;
     -fx-font-smoothing-type: lcd;
     -fx-padding: 0;
-    -fx-text-fill: -df-text-light;
+    -fx-text-fill: -df-text;
   }
 
   // ---------------------------------------------------------------------------
@@ -32,23 +32,23 @@
   }
 
   .df-button.dim {
-    -fx-border-color: -df-text-light;
-    -fx-text-fill: -df-text-light;
+    -fx-border-color: -df-text;
+    -fx-text-fill: -df-text;
 
     &:hover {
-      -fx-border-color: -df-text-lighter;
-      -fx-text-fill: -df-text-lighter;
+      -fx-border-color: -df-text-selected;
+      -fx-text-fill: -df-text-selected;
     }
   }
 
   .df-button.extra-dim {
-    -fx-border-color: -df-text-light;
-    -fx-text-fill: -df-text-light;
+    -fx-border-color: -df-text;
+    -fx-text-fill: -df-text;
     -fx-opacity: 0.75;
 
     &:hover {
-      -fx-border-color: -df-text-lighter;
-      -fx-text-fill: -df-text-lighter;
+      -fx-border-color: -df-text-selected;
+      -fx-text-fill: -df-text-selected;
       -fx-opacity: 0.8;
     }
   }

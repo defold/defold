@@ -13,9 +13,9 @@
     -fx-border-color: -df-background-lighter;
     -fx-border-width: 1px;
     -fx-highlight-fill: -df-background-light;
-    -fx-highlight-text-fill: -df-text-light;
+    -fx-highlight-text-fill: -df-text-selected;
     -fx-prompt-text-fill: -df-text;
-    -fx-text-fill: -df-text-light;
+    -fx-text-fill: -df-text-selected;
 
     .content {
       -fx-background-color: -df-background-light;
@@ -23,7 +23,7 @@
 
     &:focused {
       -fx-highlight-fill: -fx-accent;
-      -fx-highlight-text-fill: -df-text-light;
+      -fx-highlight-text-fill: -df-text-selected;
       -fx-prompt-text-fill: transparent;
 
       .content {
