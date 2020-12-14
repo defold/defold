@@ -1,49 +1,41 @@
 @font-face {
-  font-family: 'Open Sans';
-  src: url("OpenSans-Regular.ttf");
-} 
+   src: url("OpenSans-Regular.ttf");
+}
 
 @font-face {
-  font-family: 'Source Sans Pro';
   src: url("SourceSansPro-Regular.ttf");
 }
 
 @font-face {
-  font-family: 'Source Sans Pro Semibold';
   src: url("SourceSansPro-Semibold.ttf");
 }
 
 @font-face {
-  font-family: 'Source Sans Pro Italic';
   src: url("SourceSansPro-Italic.ttf");
 }
 
 @font-face {
-  font-family: 'Source Sans Pro Light';
   src: url("SourceSansPro-Light.ttf");
 }
 
-/* Dejavu Sans Mono */
 @font-face {
-  font-family: 'Dejavu Sans Mono Book';
-  src: url("DejaVuSansMono.ttf"); }
+  src: url("DejaVuSansMono.ttf");
+}
 
-@font-face {
-  font-family: 'Dejavu Sans Mono Oblique';
-  src: url("DejaVuSansMono-Oblique.ttf"); }
-
-@font-face {
-  font-family: 'Dejavu Sans Mono Bold';
-  src: url("DejaVuSansMono-Bold.ttf"); }
-
+$default-font-mono: 'Dejavu Sans Mono';
 $default-font: 'Source Sans Pro';
 $default-font-bold: 'Source Sans Pro Semibold';
 $default-font-italic: 'Source Sans Pro Italic';
-$default-font-size: 13px;
+$default-font-light: 'Source Sans Pro Light';
 
-/* Common measurements */
-$pane-padding-top: 17px;
-$pane-padding-bottom: 0px;
+.root {
+    -fx-font-size: 13px;
+    -fx-font-family: $default-font;
+}
+
+* {
+    -df-pane-padding-top: 17;
+}
 
 Text.strong {
   -fx-font-family: $default-font-bold;

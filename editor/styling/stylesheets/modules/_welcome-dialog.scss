@@ -78,8 +78,8 @@
   }
 
   .pane-button {
-    -fx-font-family: "Source Sans Pro Semibold";
-    -fx-font-size: 14px;
+    -fx-font-family: $default-font-bold;
+    -fx-font-size: 110%;
     -fx-alignment: center-right;
     -fx-graphic-text-gap: 0;
     -fx-label-padding: 0;
@@ -238,7 +238,7 @@
         Text {
           -fx-fill: -df-text;
           -fx-opacity: 87%;
-          -fx-font-size: 16px;
+          -fx-font-size: 125%;
           -fx-font-smoothing-type: lcd;
 
           &.matched {
@@ -321,8 +321,8 @@
 
     #progress-header {
       -fx-text-fill: -df-text;
-      -fx-font-family: "Source Sans Pro Light";
-      -fx-font-size: 20px;
+      -fx-font-family: $default-font-light;
+      -fx-font-size: 150%;
       -fx-font-smoothing-type: lcd;
       -fx-padding: 0px 24px 0px 24px;
     }
@@ -377,7 +377,7 @@
       -fx-background-color: -df-background-lighter;
       -fx-min-width: 30px;
       -fx-padding: 0px;
-      -fx-font-size: 11.5px;
+      -fx-font-size: 90%;
 
       &:hover {
         -fx-background-color: -df-component-light;
