@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -66,7 +66,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv4_Localhost)
 {
     dmSocket::Address address;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, true, false);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, true, false);
     ASSERT_EQ(dmDNS::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
     ASSERT_EQ(0x0100007f, *dmSocket::IPv4(&address));
@@ -76,13 +76,27 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_Localhost)
 {
     dmSocket::Address address;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, true);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, true);
     ASSERT_EQ(dmDNS::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV6, address.m_family);
     ASSERT_EQ(0x00000000, address.m_address[0]);
     ASSERT_EQ(0x00000000, address.m_address[1]);
     ASSERT_EQ(0x00000000, address.m_address[2]);
     ASSERT_EQ(0x01000000, address.m_address[3]);
+}
+
+TEST_F(dmDNSTest, GetHostByName_IPv4_External)
+{
+#if !defined(_WIN32)
+    dmSocket::Address address;
+    const char* hostname = "defold.com";
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, true, false);
+    ASSERT_EQ(dmDNS::RESULT_OK, result);
+    ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
+#else
+    printf("[   INFO   ] Test for DNS/GetHostByName/IPv4 is disabled on Windows.\n");
+    ASSERT_TRUE(true);
+#endif
 }
 
 // E.g. when running a linux vm on osx host.
@@ -92,7 +106,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_External)
 #if !defined(_WIN32)
     dmSocket::Address address;
     const char* hostname = "ipv6-test.com";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, true);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, true);
     ASSERT_EQ(dmDNS::RESULT_OK, result);
     ASSERT_EQ(dmSocket::DOMAIN_IPV6, address.m_family);
 #else
@@ -106,7 +120,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv4_Unavailable)
 {
     dmSocket::Address address;
     const char* hostname = "localhost.invalid";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, true, false);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, true, false);
     ASSERT_EQ(dmDNS::RESULT_HOST_NOT_FOUND, result);
 }
 
@@ -114,7 +128,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_Unavailable)
 {
     dmSocket::Address address;
     const char* hostname = "localhost.invalid";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, true);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, true);
     ASSERT_EQ(dmDNS::RESULT_HOST_NOT_FOUND, result);
 }
 
@@ -122,7 +136,7 @@ TEST_F(dmDNSTest, GetHostByName_NoValidAddressFamily)
 {
     dmSocket::Address address;
     const char* hostname = "localhost";
-    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, false, false);
+    dmDNS::Result result = dmDNS::GetHostByName(hostname, &address, channel, 0, false, false);
     ASSERT_EQ(dmDNS::RESULT_HOST_NOT_FOUND, result);
 }
 
@@ -157,7 +171,7 @@ static void ThreadRunner(void* arg)
             ASSERT_TRUE(false);
         }
 
-        ctx->request.result = dmDNS::GetHostByName(ctx->request.hostname, &address, ctx->channel, true, true);
+        ctx->request.result = dmDNS::GetHostByName(ctx->request.hostname, &address, ctx->channel, 0, true, true);
     }
 }
 

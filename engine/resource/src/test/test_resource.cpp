@@ -80,6 +80,9 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+        dmResourceArchive::ClearArchiveLoaders();
+        dmResourceArchive::RegisterDefaultArchiveLoader();
         factory = dmResource::NewFactory(&params, ".");
         ASSERT_NE((void*) 0, factory);
     }
@@ -223,6 +226,9 @@ protected:
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
+
+        dmResourceArchive::ClearArchiveLoaders();
+        dmResourceArchive::RegisterDefaultArchiveLoader();
         m_Factory = dmResource::NewFactory(&params, GetParam());
         ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "/test.cont";
@@ -1105,7 +1111,7 @@ TEST(RecreateTest, RecreateTestHttp)
 
     FILE* f;
 
-    f = fopen(host_name, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "123");
     fclose(f);
@@ -1115,7 +1121,7 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_EQ(dmResource::RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    f = fopen(host_name, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "456");
     fclose(f);
@@ -1391,10 +1397,15 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerification)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
 
-    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
+    dmResourceArchive::SetDefaultReader(archive);
+
+    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+    uint32_t hash_len = dmResource::HashLength(algorithm);
+
+    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, hash_len, archive);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::Delete(archive);
@@ -1410,8 +1421,10 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    dmResourceArchive::SetDefaultReader(archive);
 
     // Deep-copy current manifest resource entries with space for an extra resource entry
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
@@ -1433,7 +1446,10 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     memset(entries[entry_count].m_Hash.m_Data.m_Data, 0xFF, manifest->m_DDFData->m_Resources.m_Data[0].m_Hash.m_Data.m_Count);
     entries[entry_count].m_Url = "not_in_bundle";
 
-    result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, archive);
+    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+    uint32_t hash_len = dmResource::HashLength(algorithm);
+
+    result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, hash_len, archive);
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
 
     // Clean up deep-copied resource entries

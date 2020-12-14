@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,6 +32,10 @@ namespace dmResource
      * Configuration key used to tweak the max number of resources allowed.
      */
     extern const char* MAX_RESOURCES_KEY;
+
+    extern const char* BUNDLE_MANIFEST_FILENAME;
+    extern const char* BUNDLE_INDEX_FILENAME;
+    extern const char* BUNDLE_DATA_FILENAME;
 
     /**
      * Empty flags
@@ -586,16 +590,25 @@ namespace dmResource
 
     Manifest* GetManifest(HFactory factory);
 
-    Result LoadArchiveIndex(const char* bundle_dir, HFactory factory);
+    /**
+     * Set a new manifest to the factory
+     */
+    void SetManifest(HFactory factory, Manifest* manifest);
 
-    Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
+    /**
+     * Delete the manifest and all its resources
+     */
+    void DeleteManifest(Manifest* manifest);
 
-    Result StoreManifest(Manifest* manifest);
 
+// Uses LiveUpdateDDF
+    Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
+
+// Called from liveupdate after storing a manifest
     /**
      * Verify that all resources the manifest expects to be bundled actually are bundled.
      */
-    Result VerifyResourcesBundled(HFactory factory, Manifest* manifest);
+    Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest);
 
     /**
      * Loads the public RSA key from the bundle.
@@ -604,18 +617,7 @@ namespace dmResource
      * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
      * Inspect asn1 key content; http://lapo.it/asn1js/#
      */
-    Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
-
-    /**
-     * Create new archive index with resource.
-     * @param manifest Manifest to use
-     * @param hash_digest Hash digest length buffer
-     * @param hash_digest_length Hash digest length
-     * @param resource LiveUpdate resource to create with
-     * @param out_new_index New archive index
-     * @return RESULT_OK on success
-     */
-    Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hash_digest, uint32_t hash_digest_length, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, dmResourceArchive::HArchiveIndex& out_new_index);
+    Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
      * Determines if the resource could be unique
@@ -672,7 +674,7 @@ namespace dmResource
 
     // Platform specific implementation of archive and manifest loading. Data written into mount_info must
     // be provided for unloading and may contain information about memory mapping etc.
-    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
+    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
     void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
     Result UnmountManifest(void *& map, uint32_t size);
@@ -705,6 +707,13 @@ namespace dmResource
     /**
      */
     const char* ResultToString(Result result);
+
+
+    /*# Get the support path for the project, with the hashed project name at the end
+     */
+    Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
+
+    void RegisterArchiveLoader();
 }
 
 #endif // RESOURCE_H

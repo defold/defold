@@ -1,5 +1,9 @@
 # Derived from src/engine/wscript, headless target: Removes Record,Sound,Graphics,Input
 platforms:
+    common:
+        context:
+            defines: ["DM_HEADLESS"]
+
     x86_64-osx:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]

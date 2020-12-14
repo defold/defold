@@ -160,7 +160,6 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 
     _glfwWin.clientAPI = wndconfig__->clientAPI;
 
-    _glfwWinAndroid.has_window = 1;
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
         if (init_gl(&_glfwWinAndroid) == 0)
@@ -169,6 +168,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         }
         make_current(&_glfwWinAndroid);
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
+        computeIconifiedState();
     }
 
     return GL_TRUE;
@@ -186,7 +186,6 @@ void _glfwPlatformCloseWindow( void )
         destroy_gl_surface(&_glfwWinAndroid);
         _glfwWin.opened = 0;
     }
-    _glfwWinAndroid.has_window = 0;
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -250,7 +249,7 @@ static void _glfwPlatformSwapBuffersNoLock( void )
     if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
     {
         // Error checking inspired by Android implementation of GLSurfaceView:
-        // http://grepcode.com/file/repository.grepcode.com/java/ext/com.google.android/android/5.1.0_r1/android/opengl/GLSurfaceView.java?av=f
+        // https://android.googlesource.com/platform/frameworks/base/+/master/opengl/java/android/opengl/GLSurfaceView.java
         EGLint error = eglGetError();
         if (error != EGL_SUCCESS) {
 
@@ -327,6 +326,20 @@ void glfwAndroidBeginFrame()
     spinlock_lock(&_glfwWinAndroid.m_RenderLock);
 }
 
+static void CreateGLSurface()
+{
+    create_gl_surface(&_glfwWinAndroid);
+
+    // We might have tried to create the surface just as we received an APP_CMD_TERM_WINDOW on the looper thread
+    if (_glfwWinAndroid.surface != EGL_NO_SURFACE)
+    {
+        make_current(&_glfwWinAndroid);
+        update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
+
+        computeIconifiedState();
+    }
+}
+
 void glfwAndroidFlushEvents()
 {
     spinlock_lock(&g_EventLock);
@@ -337,15 +350,31 @@ void glfwAndroidFlushEvents()
         switch(cmd)
         {
         case APP_CMD_INIT_WINDOW:
-            _glfwWinAndroid.has_window = 1;
+            // We don't get here the first time around, but from the second and onwards
+            // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
             if (_glfwWin.opened && _glfwWinAndroid.display != EGL_NO_DISPLAY && _glfwWinAndroid.surface == EGL_NO_SURFACE)
             {
-                create_gl_surface(&_glfwWinAndroid);
-                make_current(&_glfwWinAndroid);
-                update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
-                computeIconifiedState();
+                CreateGLSurface();
+            }
+            computeIconifiedState();
+            break;
+
+        case APP_CMD_GAINED_FOCUS:
+            // If we failed to create the window in APP_CMD_INIT_WINDOW, let's try again
+            if (_glfwWinAndroid.surface == EGL_NO_SURFACE) {
+                CreateGLSurface();
             }
             break;
+
+        case APP_CMD_PAUSE:
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(0); // invokes Lua callbacks
+            break;
+        case APP_CMD_RESUME:
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(1); // invokes Lua callbacks
+            break;
+
         }
     }
     g_NumAppCommands = 0;

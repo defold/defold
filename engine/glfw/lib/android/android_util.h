@@ -71,6 +71,10 @@ void computeIconifiedState();
 void    _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
 int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct InputEvent* event);
 
+// Should only called after an error
+// returns 1 if we the window/surface was ok
+// returns 0 if we the window/surface was bad
+int32_t _glfwAndroidVerifySurfaceError(EGLint error);
 
 // From spinlock.h (we really should keep a C interface there as well!)
 
