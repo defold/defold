@@ -6,7 +6,7 @@
   // ---------------------------------------------------------------------------
 
   .label {
-    -fx-font-size: 14px;
+    -fx-font-size: 110%;
     -fx-font-smoothing-type: lcd;
     -fx-padding: 0;
     -fx-text-fill: -df-text;
@@ -22,7 +22,7 @@
     -fx-border-color: -df-defold-blue-lighter;
     -fx-border-radius: 2px;
     -fx-text-fill: -df-defold-blue-lighter;
-    -fx-font-size: 14px;
+    -fx-font-size: 110%;
     -fx-padding: 4px 12px;
 
     &:hover {
@@ -54,13 +54,13 @@
   }
 
   .df-header {
-    -fx-font-family: "Source Sans Pro Light";
-    -fx-font-size: 20px;
+    -fx-font-family: $default-font-light;
+    -fx-font-size: 150%;
     -fx-font-smoothing-type: lcd;
   }
 
   .df-tiny-text {
-    -fx-font-size: 11px;
+    -fx-font-size: 80%;
 
     &.df-below-field {
       -fx-padding: 2px 0px 0px 0px;
@@ -73,7 +73,7 @@
     -fx-border-insets: 17px 17px 0px 17px;
     -fx-border-radius: 4px;
     -fx-border-width: 1px;
-    -fx-font-size: 14px;
+    -fx-font-size: 110%;
     -fx-line-spacing: 3px;
     -fx-padding: 10px;
     -fx-text-alignment: center;
@@ -90,7 +90,7 @@
     -fx-alignment: top-center;
 
     .hero-text {
-      -fx-font-size: 16px;
+      -fx-font-size: 125%;
       -fx-line-spacing: 3px;
       -fx-padding: 10px 0px 0px 0px;
       -fx-text-alignment: center;

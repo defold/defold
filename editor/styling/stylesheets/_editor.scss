@@ -34,9 +34,6 @@ Links:
   -fx-mark-color_: -df-defold-red;
   -fx-hover-base: -df-background-lighter;
   -fx-pressed-base: -df-text-dark;
-  -fx-accent_: -df-defold-red;
-  -fx-font-family: $default-font;
-  -fx-font-size: $default-font-size;
   -fx-font-weight: normal;
   }
 
@@ -91,7 +88,7 @@ Links:
   -fx-padding: 7 15 7 0;
 
   #update-link {
-    -fx-font-size: 14px;
+    -fx-font-size: 110%;
   }
 
   #progress-percentage-label {

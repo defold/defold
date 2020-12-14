@@ -1,7 +1,7 @@
 #tool-tabs {
     -fx-tab-min-height: 25px;
     -fx-tab-min-width: 40px;
-    -fx-padding: 0 0 $pane-padding-bottom 0;
+    -fx-padding: 0 0 0 0;
 
     .tab {
         -fx-padding: 0 10 5 10;
@@ -105,13 +105,13 @@
 #build-errors-container {
     -fx-padding: 0;
     .tree-view {
-        -fx-background-color: -df-background-light;
+        // -fx-background-color: #ff0000;
     }
 
     .tree-cell {
 
-        -fx-font-family: "Dejavu Sans Mono";
-        -fx-font-size: 9pt;
+        -fx-font-family: $default-font-mono;
+        -fx-font-size: 90%;
 
         HBox {
             -fx-spacing: 9px;

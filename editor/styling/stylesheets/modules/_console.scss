@@ -137,8 +137,8 @@
   -fx-background-color: -df-background-light;
   -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px 0px 0px 0px;
-  -fx-font-family: "Dejavu Sans Mono";
-  -fx-font-size: 12px;
+  -fx-font-family: $default-font-mono;
+  -fx-font-size: 90%;
   -fx-min-width: 42px;
   -fx-max-width: 42px;
   -fx-max-height: 100px;
@@ -149,8 +149,8 @@
   -fx-background-color: -df-background-light;
   -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px 0px 0px 0px;
-  -fx-font-family: "Dejavu Sans Mono";
-  -fx-font-size: 12px;
+  -fx-font-family: $default-font-mono;
+  -fx-font-size: 90%;
   -fx-font-smoothing-type: lcd;
   -fx-min-height: 44px;
   -fx-padding: 0px;

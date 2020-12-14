@@ -1,7 +1,7 @@
 /* Code view */
 .styled-text-area {
-    -fx-font-family: "Dejavu Sans Mono";
-    -fx-font-size: 9pt;
+    -fx-font-family: $default-font-mono;
+    -fx-font-size: 90%;
     -fx-background-color: -df-background-lighter;
 
     .comment {
@@ -21,8 +21,8 @@
         }
     }
     .source-segment, .plain-source-segment {
-        -fx-font-family: "Dejavu Sans Mono";
-        -fx-font-size: 9pt;
+        -fx-font-family: $default-font-mono;
+        -fx-font-size: 90%;
         -styled-text-color: -df-text;
     }
     .selection-marker {

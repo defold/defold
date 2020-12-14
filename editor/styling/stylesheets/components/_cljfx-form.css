@@ -1,7 +1,7 @@
 .cljfx-form-title {
   -fx-text-fill: -df-text;
-  -fx-font-family: "Source Sans Pro Light";
-  -fx-font-size: 24px;
+  -fx-font-family: $default-font-light;
+  -fx-font-size: 200%;
 }
 
 .cljfx-form-separator {
