@@ -17,6 +17,7 @@
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/hid/hid.h>
 
 namespace dmEngine
 {
@@ -49,6 +50,13 @@ namespace dmEngine
      * @return register [type:dmGameObject::HRegister] The game object register
      */
     dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params);
+
+    /*# get the hid context
+     * @name GetHIDContext
+     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+     * @return context [type:dmHID::HContext] The hid context
+     */
+    dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params);
 }
 
 #endif // #ifndef DMSDK_ENGINE_EXTENSION

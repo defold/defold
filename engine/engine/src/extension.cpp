@@ -27,4 +27,9 @@ namespace dmEngine
     {
         return ((dmEngine::ExtensionAppParams*)app_params)->m_GameObjectRegister;
     }
+
+    dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params)
+    {
+        return ((dmEngine::ExtensionAppParams*)app_params)->m_HIDContext;
+    }
 }
