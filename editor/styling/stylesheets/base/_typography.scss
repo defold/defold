@@ -33,10 +33,6 @@ $default-font-light: 'Source Sans Pro Light';
     -fx-font-family: $default-font;
 }
 
-* {
-    -df-pane-padding-top: 17;
-}
-
 Text.strong {
   -fx-font-family: $default-font-bold;
 }
@@ -51,4 +47,38 @@ Label.strong {
 
 Label.emphasis {
   -fx-font-family: $default-font-italic;
+}
+
+#build-errors-container {
+    .tree-cell {
+        -fx-font-family: $default-font-mono;
+        -fx-font-size: 90%;
+    }
+}
+
+// Section titles in game.project
+.cljfx-form-title {
+    -fx-font-family: $default-font-light;
+    -fx-font-size: 200%;
+    -fx-font-smoothing-type: lcd;
+}
+
+// Header on home pane of welcome screen
+#welcome-dialog {
+    .df-header {
+        -fx-font-family: $default-font-light;
+        -fx-font-size: 150%;
+        -fx-font-smoothing-type: lcd;
+    }
+}
+
+#welcome-dialog #left-pane .pane-button {
+    -fx-font-family: $default-font-bold;
+    -fx-font-size: 110%;
+}
+
+#welcome-dialog #progress-overlay #progress-header {
+    -fx-font-family: $default-font-light;
+    -fx-font-size: 150%;
+    -fx-font-smoothing-type: lcd;
 }

@@ -78,8 +78,6 @@
   }
 
   .pane-button {
-    -fx-font-family: $default-font-bold;
-    -fx-font-size: 110%;
     -fx-alignment: center-right;
     -fx-graphic-text-gap: 0;
     -fx-label-padding: 0;
@@ -321,9 +319,6 @@
 
     #progress-header {
       -fx-text-fill: -df-text;
-      -fx-font-family: $default-font-light;
-      -fx-font-size: 150%;
-      -fx-font-smoothing-type: lcd;
       -fx-padding: 0px 24px 0px 24px;
     }
 

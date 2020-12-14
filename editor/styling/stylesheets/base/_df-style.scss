@@ -54,9 +54,7 @@
   }
 
   .df-header {
-    -fx-font-family: $default-font-light;
-    -fx-font-size: 150%;
-    -fx-font-smoothing-type: lcd;
+    -fx-text-fill: -df-text;
   }
 
   .df-tiny-text {

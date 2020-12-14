@@ -1,6 +1,4 @@
 .cljfx-form-title {
-  -fx-text-fill: -df-text;
-  -fx-font-family: $default-font-light;
   -fx-font-size: 200%;
 }
 
