@@ -7,7 +7,7 @@
         .button {
             &:focused {
                 // Tabbed to button
-                -fx-background-color: $root-background;
+                -fx-background-color: -df-background;
             }
         }
     }
