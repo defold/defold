@@ -2,61 +2,61 @@
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
-    -fx-border-color: $input-border;
+    -fx-border-color: -df-background-lighter;
     -fx-border-width: 1px;
-    -fx-background-color: $panel-background;
+    -fx-background-color: -df-background-light;
     &:focused {
         -fx-background-insets: 0;
-        -fx-background-color: $panel-background;
+        -fx-background-color: -df-background-light;
     }
     &:showing {
         .arrow {
-            -fx-background-color: $defold-white;
+            -fx-background-color: -df-text-selected;
             -fx-rotate: 180;
         }
         >.list-cell {
-            -fx-text-fill: $defold-white;
+            -fx-text-fill: -df-text;
         }
         .list-view {
-            -fx-border-color: $bright-grey;
+            -fx-border-color: -df-text-dark;
         }
     }
     .list-view {
         -fx-min-width: 10em;
-        -fx-background-color: $dark-black-light;
+        -fx-background-color: -df-background-light;
         -fx-border-width: 0;
-        -fx-border-color: $mid-grey;
+        -fx-border-color: -df-background-lighter;
         -fx-border-insets: 0;
         -fx-background-insets: 0;
-        -fx-text-fill: $mid-grey; 
+        -fx-text-fill: -df-background-lighter;
     }
     .list-cell {
-        -fx-background-color: $root-background;
-        -fx-color: $bright-grey;
+        -fx-background-color: -df-background;
+        -fx-color: -df-text-dark;
         &:hover {
             -fx-cursor: hand;
-            -fx-text-fill: $defold-white;
+            -fx-text-fill: -df-text-selected;
         }
     }
     .arrow-button {
         -fx-background-radius: 0;
         -fx-border-radius: 0;
         -fx-background-insets: 0;
-        -fx-background-color: $mid-grey !important;
+        -fx-background-color: -df-background-lighter !important;
         -fx-border-width: 0;
         -fx-padding: 5 7;
 
         &:hover {
-            -fx-background-color: $mid-grey-light !important;
+            -fx-background-color: -df-component-darker !important;
             -fx-background-insets: 0;
         }
         &:pressed, &:focused {
-            -fx-background-color: $input-background;
-            -fx-text-fill: $defold-white;
+            -fx-background-color: -df-background-light;
+            -fx-text-fill: -df-text-selected;
         }
     }
     >.list-cell {
-        -fx-text-fill: $defold-white;
+        -fx-text-fill: -df-text-selected;
     }
     .text-field, .text-input {
         /*-fx-border-width: 0;*/
@@ -67,7 +67,7 @@
         }
         &:focused {
             -fx-border-width: 1;
-            -fx-border-color: $input-border;
+            -fx-border-color: -df-background-lighter;
             -fx-padding: 4px 8px;
         }
     }

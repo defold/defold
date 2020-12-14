@@ -1,20 +1,20 @@
 .menu-bar {
-    -fx-background-color: $root-background;
+    -fx-background-color: -df-background;
 
     .menu {
         >.label {
-            -fx-text-fill: $bright-grey;
+            -fx-text-fill: -df-text-dark;
         }
 
         &:hover {
             >.label {
-                -fx-text-fill: $menu-foreground-hover;
+                -fx-text-fill: -df-text-selected;
             }
         }
         &:showing {
-            -fx-background-color: $menu-background-hover;
+            -fx-background-color: -df-component-dark;
             >.label {
-                -fx-text-fill: $menu-foreground-hover;
+                -fx-text-fill: -df-text-selected;
             }
         }
     }
@@ -23,6 +23,6 @@
 }
 
 #menu-bar-space {
-    -fx-background-color: $root-background;
-    -fx-pref-height: $pane-padding-top;
+    -fx-background-color: -df-background;
+    -fx-pref-height: 17;
 }

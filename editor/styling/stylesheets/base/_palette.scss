@@ -1,107 +1,80 @@
-/* Defold re-skin project stylesheet */
-/* Base */
-/* Colors
- * Defold Light Blue   #60a8ff             Highlight borders and always together with Defold Blue
- * Defold Blue         #2268e6             Highlight buttons
- * Selected Blue       #264a8b             Select states and mouseover for blue buttons
- * Bright Black        #292c30 #2e3236     Background of the application
- * Mid Black           #25282b #292d31     Mouseover tabs
- * Dark Black          #222426 #26282a     Text fields, selected (inactive) files, scroll bg & Outline tabs
- * Dark Grey           #34373b #3b3e43     Module headers
- * Mid Grey            #494b4e #54565a     Inactive text and icons
- * Bright Grey         #8f9296 #a8abaf     Normal text & icon color
- * Defold White        #f0f2f6 #f8f8fb     Active text & icon color
- * Defold Red          #ff4646             Errors (text and icons), guides, 3D-Axels
- * Defold Yellow       #fbce2f             Guides, etc.
- * Defold Turquoise    #00e6e1             Guides, (also new update color together with Defold Blue)
- * Defold Green        #00df64             Success, guides etc
- * Defold Orange       #fd6623             Guides etc
- */
+* {
+	// Background
+	-df-background-darker:    derive(#212428, -10%);
+	-df-background-dark:      derive(#212428, -5%);
+	-df-background:           #212428;
+	-df-background-light:     derive(#212428, 10%);
+	-df-background-lighter:   derive(#212428, 20%);
 
-$defold-light-blue:   #60C1FF;
-$defold-blue:         #0084ff;//#2268e6;
-$selected-blue:       #264a8b;
-$bright-black:        #292c30;
-$bright-black-light:  #2e3236;
-$mid-black:           #25282b;
-$mid-black-light:     #292d31;
-$dark-black:          #232529;
-$dark-black-light:    #26282a;
-$dark-grey:           #212428;//#171b1e;//#313439; // Main bakgrund
-$dark-grey-light:     #2c2e33;//#212428;//#1e2226;//#3a3f44; // Paneler
-$dark-grey-header:    #373a40;
-$dark-grey-selected:  #3B3F43;//#42474C;
-$dark-grey-border:    #424348;//#4d4e53;
-$mid-grey:            #393c41;//#454A4F;
-$mid-grey-light:      #45474B;//#54565a;
-$grey:                #52575C;
-$bright-grey:         #8f9296;
-$bright-grey-light:   #a2b0be;
-$defold-white:        #dddddd;
-$defold-white-light:  #f8f8fb;
-$defold-red:          #e32f44;//#ff4646;
-$defold-yellow:       #fbce2f;
-$defold-turquoise:    #00e6e1;
-$defold-green:        #3cff00;//#00df64;
-$defold-orange:       #fa6731;
+	// Component
+	-df-component-darker:     derive(#464c55, -20%);
+	-df-component-dark:       derive(#464c55, -10%);
+	-df-component:            #464c55;
+	-df-component-light:      derive(#464c55, 10%);
+	-df-component-lighter:    derive(#464c55, 20%);
 
-/* Revamp */
-$root-background:      #212428;
-$panel-background:     #2c2e33;
-$input-background:     #292a2f;//#23272b;
-$input-border:         #3e4147;
-$icon-grey:            #8f9296; 
+	// Text & icons
+	-df-text-dark:            derive(#b4bac1, -10%);
+	-df-text:                 #b4bac1;
+	-df-text-selected:        derive(#b4bac1, 20%);
 
-$tree-view-icon:      #6b7b8b;
+	// Red
+	-df-defold-red-dark:     derive(#e32f44, -10%);
+	-df-defold-red:          #e32f44;
+	-df-defold-red-light:    derive(#e32f44, 10%);
 
-$defold-white:      #f0f2f6; // (text header & tools icon)
-$defold-dark-white: #cccfd3; // (text)
-$bright-grey:       #b0b0b0; // (icons)
-$bright-black:      #272b30; // (forms)
-$mid-black:         #1e2021; // (selected)
+	// Yellow
+	-df-defold-yellow-dark:    derive(#e6b711, -10%);
+	-df-defold-yellow:         #e6b711;
+	-df-defold-yellow-light:   derive(#e6b711, 10%);
+	-df-defold-yellow-lighter: derive(#e6b711, 20%);
 
-/* Menu colors */
-$menu-background: $mid-grey;//$grey;
-$menu-foreground: $bright-grey-light;
-$menu-background-hover: $grey;
-$menu-foreground-hover: $defold-white;
-$menu-separator: $dark-grey-light;//$mid-grey;
+	// Green
+	-df-defold-green-dark:   derive(#2faa09, -10%);
+	-df-defold-green:        #2faa09;
+	-df-defold-green-light:  derive(#2faa09, 10%);
+	-df-defold-green-lighter:derive(#2faa09, 20%);
 
-/* Scene view colors */
-$scene-toolbar-background: $dark-grey-header;
-$scene-toolbar-button-foreground: $defold-white;
-$scene-toolbar-button-selected-background: $input-background;
-$scene-toolbar-button-selected-foreground: $defold-white;
-$scene-toolbar-button-hovered-foreground: $defold-white;
+	// Orange
+	-df-defold-orange-dark:  derive(#fa6731, -10%);
+	-df-defold-orange:       #fa6731;
+	-df-defold-orange-light: derive(#fa6731, 10%);
 
-/* Status colors */
-$error-severity-fatal: $defold-red;
-$error-severity-fatal-dim: #ad4051;
-$error-severity-warning: $defold-yellow;
-$error-severity-warning-dim: rgba($error-severity-warning, 0.5);
-$error-severity-info: $defold-light-blue;
+	// Blue
+	-df-defold-blue-dark:    derive(#4cb1ff, -10%);
+	-df-defold-blue:         #4cb1ff;
+	-df-defold-blue-light:   derive(#4cb1ff, 10%);
+	-df-defold-blue-lighter: derive(#4cb1ff, 20%);
 
-/* Lua script colors */
-$script-helper:         #33cccc;
-$script-self:           #E066FF;
-$script-logic:          #E3A869;
-$script-constant:       #FFBBFF;
-$script-function:       #33cc33;
-$script-keyword:        #fd6623;
-$script-operator:       #33cccc;
-$script-string:         #fbce2f;
-$script-comment:        #ff00ff;
-$script-number:         #aaaaff;
-$script-intellisense:   #00FFFF;
+	/* Status colors */
+	-df-error-severity-fatal: -df-defold-red;
+	-df-error-severity-fatal-dim: -df-defold-red-dark;
+	-df-error-severity-warning: -df-defold-yellow;
+	-df-error-severity-warning-dim: -df-defold-yellow-dark;
+	-df-error-severity-info: -df-defold-blue-lighter;
 
-/* File extension group colors */
-$folder:                #6b7b8b;
-$folder-active:         #a2b0be;
-$unknown-file:          #6b7b8b;
-$unknown-file-active:   #a2b0be;
-$design-file:           #325c7e;
-$design-file-active:    #4cb1ff;
-$script-file:           #7c7e37;
-$script-file-active:    #f4f63c;
-$property-file:         #407435;
-$property-file-active:  #6eed48;
+	/* Lua script colors */
+	-df-script-helper:         #33cccc;
+	-df-script-self:           #E066FF;
+	-df-script-logic:          #E3A869;
+	-df-script-constant:       #FFBBFF;
+	-df-script-function:       #33cc33;
+	-df-script-keyword:        #fd6623;
+	-df-script-operator:       #33cccc;
+	-df-script-string:         #fbce2f;
+	-df-script-comment:        #ff00ff;
+	-df-script-number:         #aaaaff;
+	-df-script-intellisense:   #00FFFF;
+
+	/* File extension group colors */
+	-df-folder:                -df-text-dark;
+	-df-folder-active:         -df-text;
+	-df-unknown-file:          -df-text-dark;
+	-df-unknown-file-active:   -df-text;
+	-df-design-file:           -df-defold-blue;
+	-df-design-file-active:    -df-defold-blue-lighter;
+	-df-script-file:           -df-defold-yellow;
+	-df-script-file-active:    -df-defold-yellow-lighter;
+	-df-property-file:         -df-defold-green;
+	-df-property-file-active:  -df-defold-green-light;
+}

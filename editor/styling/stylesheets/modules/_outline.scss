@@ -48,32 +48,32 @@
   .tree-cell {
     &.reference {
       .text {
-        -fx-font-family: $default-font-italic;
+        -fx-font-style: italic;
       }
     }
 
     &.parent-reference {
       .text {
-        -fx-font-family: $default-font-italic;
+        -fx-font-style: italic;
       }
     }
 
     &.overridden {
-      @include colorize-icon(#52a5d9, $defold-light-blue);
-      @include colorize-label(#52a5d9, $defold-light-blue);
+      @include colorize-icon(-df-defold-blue, -df-defold-blue-light);
+      @include colorize-label(-df-defold-blue, -df-defold-blue-light);
     }
 
     &.child-overridden {
-      @include colorize-disclosure-arrow(#52a5d9);
+      @include colorize-disclosure-arrow(-df-defold-blue-light);
     }
 
     &.error {
       // NOTE: Icon image also changes to the error icon.
-      @include colorize-icon($error-severity-fatal-dim, $error-severity-fatal);
+      @include colorize-icon(-df-error-severity-fatal-dim, -df-error-severity-fatal);
     }
 
     &.child-error {
-      @include colorize-disclosure-arrow($error-severity-fatal-dim);
+      @include colorize-disclosure-arrow(-df-error-severity-fatal-dim);
     }
 
     &.scene-visibility-hidden {
