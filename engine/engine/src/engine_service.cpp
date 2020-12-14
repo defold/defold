@@ -12,7 +12,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <dlib/web_server.h>
+#include <dlib/webserver.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
@@ -569,6 +569,11 @@ namespace dmEngineService
         }
 
         return engine_port;
+    }
+
+    dmWebServer::HServer GetWebServer(HEngineService engine_service)
+    {
+        return engine_service ? engine_service->m_WebServer : 0;
     }
 
     #define CHECK_RESULT_BOOL(_RESULT) \

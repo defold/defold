@@ -578,6 +578,7 @@ GLFWAPI int32_t glfwAndroidHandleInput(struct android_app* app, struct AInputEve
 GLFWAPI int32_t glfwAndroidWindowOpened();
 GLFWAPI void    glfwAndroidPollEvents();
 GLFWAPI void    glfwAndroidFlushEvents();
+GLFWAPI int32_t glfwAndroidVerifySurface();
 #endif
 
 // Accelerometer control

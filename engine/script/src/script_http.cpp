@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -63,7 +63,7 @@ namespace dmScript
      * @param callback [type:function(self, id, response)] response callback function
      *
      * `self`
-     * : [type:object] The current object
+     * : [type:object] The script instance
      *
      * `id`
      * : [type:hash] Internal message identifier. Do not use!
@@ -72,14 +72,19 @@ namespace dmScript
      * : [type:table] The response data. Contains the fields:
      *
      * - [type:number] `status`: the status of the response
-     * - [type:string] `response`: the response data
+     * - [type:string] `response`: the response data (if not saved on disc)
      * - [type:table] `headers`: all the returned headers
+     * - [type:string] `path`: the stored path (if saved to disc)
+     * - [type:string] `error`: if any unforeseen errors occurred (e.g. file I/O)
      *
      * @param [headers] [type:table] optional table with custom headers
      * @param [post_data] [type:string] optional data to send
      * @param [options] [type:table] optional table with request parameters. Supported entries:
      *
      * - [type:number] `timeout`: timeout in seconds
+     * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200
+     * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304
+     *
      *
      * @examples
      *
@@ -122,6 +127,7 @@ namespace dmScript
                 return luaL_error(L, "http.request does not support request methods longer than %d characters.", max_method_len);
             }
 
+            // The callback is called from HttpResponseDecoder
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
             // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
@@ -175,16 +181,27 @@ namespace dmScript
             }
 
             uint64_t timeout = g_Timeout;
+            const char* path = 0;
+            bool ignore_cache = false;
             if (top > 5 && !lua_isnil(L, 6)) {
                 luaL_checktype(L, 6, LUA_TTABLE);
                 lua_pushvalue(L, 6);
                 lua_pushnil(L);
                 while (lua_next(L, -2)) {
                     const char* attr = lua_tostring(L, -2);
-                    if( strcmp(attr, "timeout") == 0 )
+                    if (strcmp(attr, "timeout") == 0)
                     {
                         timeout = luaL_checknumber(L, -1) * 1000000.0f;
                     }
+                    else if (strcmp(attr, "path") == 0)
+                    {
+                        path = luaL_checkstring(L, -1);
+                    }
+                    else if (strcmp(attr, "ignore_cache") == 0)
+                    {
+                        ignore_cache = lua_toboolean(L, -1);
+                    }
+
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);
@@ -204,6 +221,8 @@ namespace dmScript
             request->m_Request = (uint64_t) request_data;
             request->m_RequestLength = request_data_length;
             request->m_Timeout = timeout;
+            request->m_Path = path;
+            request->m_IgnoreCache = ignore_cache;
 
             uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1;
             dmMessage::URL receiver;

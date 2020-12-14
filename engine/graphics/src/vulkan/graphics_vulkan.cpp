@@ -37,13 +37,13 @@ namespace dmGraphics
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
     { \
-        if(g_Context->m_VerifyGraphicsCalls && result != VK_SUCCESS) { \
+        if(g_VulkanContext->m_VerifyGraphicsCalls && result != VK_SUCCESS) { \
             dmLogError("Vulkan Error (%s:%d) %s", __FILE__, __LINE__, VkResultToStr(result)); \
             assert(0); \
         } \
     }
 
-    Context* g_Context = 0;
+    Context* g_VulkanContext = 0;
 
     static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
 
@@ -944,7 +944,7 @@ bail:
 
     static HContext VulkanNewContext(const ContextParams& params)
     {
-        if (g_Context == 0x0)
+        if (g_VulkanContext == 0x0)
         {
             if (!NativeInit(params))
             {
@@ -972,9 +972,9 @@ bail:
             LoadVulkanFunctions(vk_instance);
         #endif
 
-            g_Context = new Context(params, vk_instance);
+            g_VulkanContext = new Context(params, vk_instance);
 
-            return g_Context;
+            return g_VulkanContext;
         }
         return 0x0;
     }
@@ -984,7 +984,7 @@ bail:
         if (context != 0x0)
         {
             delete context;
-            g_Context = 0x0;
+            g_VulkanContext = 0x0;
         }
     }
 
@@ -1327,7 +1327,7 @@ bail:
 
         if (!buffer_ptr->m_Destroyed)
         {
-            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1345,10 +1345,10 @@ bail:
 
         if (!buffer_ptr->m_Destroyed)
         {
-            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
 
-        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
     }
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1357,7 +1357,7 @@ bail:
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size <= buffer_ptr->m_MemorySize);
-        DeviceBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
     }
 
     static uint32_t VulkanGetMaxElementsVertices(HContext context)
@@ -1369,7 +1369,7 @@ bail:
     {
         assert(size > 0);
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-        DeviceBufferUploadHelper(g_Context, data, size, 0, (DeviceBuffer*) buffer);
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, (DeviceBuffer*) buffer);
         return (HIndexBuffer) buffer;
     }
 
@@ -1380,7 +1380,7 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         if (!buffer_ptr->m_Destroyed)
         {
-            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1400,10 +1400,10 @@ bail:
 
         if (!buffer_ptr->m_Destroyed && size != buffer_ptr->m_MemorySize)
         {
-            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
 
-        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
     }
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1412,7 +1412,7 @@ bail:
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size < buffer_ptr->m_MemorySize);
-        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1670,11 +1670,11 @@ bail:
 
             if (IsUniformTextureSampler(res))
             {
-                Texture* texture = g_Context->m_TextureUnits[res.m_TextureUnit];
+                Texture* texture = g_VulkanContext->m_TextureUnits[res.m_TextureUnit];
                 VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
                 vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 vk_image_info.imageView           = texture->m_Handle.m_ImageView;
-                vk_image_info.sampler             = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
+                vk_image_info.sampler             = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
                 vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 vk_write_desc_info.pImageInfo     = &vk_image_info;
             }
@@ -2175,7 +2175,7 @@ bail:
             delete[] program->m_UniformDataOffsets;
         }
 
-        DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], program);
+        DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], program);
     }
 
     static void VulkanDeleteProgram(HContext context, HProgram program)
@@ -2188,7 +2188,7 @@ bail:
 
     static void DestroyShader(ShaderModule* shader)
     {
-        DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+        DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
         {
@@ -2214,7 +2214,7 @@ bail:
     static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
     {
         ShaderModule tmp_shader;
-        VkResult res = CreateShaderModule(g_Context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, &tmp_shader);
+        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, &tmp_shader);
         if (res == VK_SUCCESS)
         {
             DestroyShader(shader);
@@ -2223,7 +2223,7 @@ bail:
             // Transfer created module to old pointer and recreate resource bindings
             shader->m_Hash    = tmp_shader.m_Hash;
             shader->m_Module  = tmp_shader.m_Module;
-            CreateShaderResourceBindings(shader, ddf, (uint32_t) g_Context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+            CreateShaderResourceBindings(shader, ddf, (uint32_t) g_VulkanContext->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
             return true;
         }
 
@@ -2252,7 +2252,7 @@ bail:
         ShaderModule* shader = (ShaderModule*) prog;
         assert(shader->m_Attributes == 0);
 
-        DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+        DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
         {
@@ -2822,7 +2822,7 @@ bail:
             DeleteTexture(render_target->m_TextureDepthStencil);
         }
 
-        DestroyRenderTarget(&g_Context->m_LogicalDevice, render_target);
+        DestroyRenderTarget(&g_VulkanContext->m_LogicalDevice, render_target);
 
         delete render_target;
     }
@@ -2860,8 +2860,8 @@ bail:
             render_target->m_BufferTextureParams[i].m_Height = height;
             if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT) && texture_color)
             {
-                DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], texture_color);
-                VkResult res = CreateTexture2D(g_Context->m_PhysicalDevice.m_Device, g_Context->m_LogicalDevice.m_Device,
+                DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
+                VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,
                     width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
@@ -2871,12 +2871,12 @@ bail:
 
         if (render_target->m_TextureDepthStencil)
         {
-            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], render_target->m_TextureDepthStencil);
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], render_target->m_TextureDepthStencil);
 
             // Check tiling support for this format
             VkImageTiling vk_image_tiling    = VK_IMAGE_TILING_OPTIMAL;
             VkFormat vk_depth_stencil_format = render_target->m_TextureDepthStencil->m_Format;
-            VkFormat vk_depth_format         = GetSupportedTilingFormat(g_Context->m_PhysicalDevice.m_Device, &vk_depth_stencil_format,
+            VkFormat vk_depth_format         = GetSupportedTilingFormat(g_VulkanContext->m_PhysicalDevice.m_Device, &vk_depth_stencil_format,
                 1, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
             if (vk_depth_format == VK_FORMAT_UNDEFINED)
@@ -2884,15 +2884,15 @@ bail:
                 vk_image_tiling = VK_IMAGE_TILING_LINEAR;
             }
 
-            VkResult res = CreateDepthStencilTexture(g_Context,
+            VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_image_tiling,
                 width, height, VK_SAMPLE_COUNT_1_BIT,
                 render_target->m_TextureDepthStencil);
             CHECK_VK_ERROR(res);
         }
 
-        DestroyRenderTarget(&g_Context->m_LogicalDevice, render_target);
-        VkResult res = CreateRenderTarget(g_Context->m_LogicalDevice.m_Device, render_target->m_TextureColor, render_target->m_TextureDepthStencil, render_target);
+        DestroyRenderTarget(&g_VulkanContext->m_LogicalDevice, render_target);
+        VkResult res = CreateRenderTarget(g_VulkanContext->m_LogicalDevice.m_Device, render_target->m_TextureColor, render_target->m_TextureDepthStencil, render_target);
         CHECK_VK_ERROR(res);
     }
 
@@ -2925,7 +2925,7 @@ bail:
 
     static void VulkanDeleteTexture(HTexture t)
     {
-        DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], t);
+        DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], t);
         delete t;
     }
 
@@ -3077,8 +3077,8 @@ bail:
             default:break;
         }
 
-        assert(params.m_Width  <= g_Context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D);
-        assert(params.m_Height <= g_Context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D);
+        assert(params.m_Width  <= g_VulkanContext->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D);
+        assert(params.m_Height <= g_VulkanContext->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D);
 
         if (texture->m_MipMapCount == 1 && params.m_MipMap > 0)
         {
@@ -3098,8 +3098,8 @@ bail:
             return;
         }
 
-        LogicalDevice& logical_device       = g_Context->m_LogicalDevice;
-        VkPhysicalDevice vk_physical_device = g_Context->m_PhysicalDevice.m_Device;
+        LogicalDevice& logical_device       = g_VulkanContext->m_LogicalDevice;
+        VkPhysicalDevice vk_physical_device = g_VulkanContext->m_PhysicalDevice.m_Device;
 
         // Note: There's no RGB support in Vulkan. We have to expand this to four channels
         // TODO: Can we use R11G11B10 somehow?
@@ -3130,7 +3130,7 @@ bail:
         {
             if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
             {
-                DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], texture);
+                DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
                 texture->m_Format = vk_format;
             }
         }
@@ -3180,7 +3180,7 @@ bail:
 
         tex_data_size = (int) ceil((float) tex_data_size / 8.0f);
 
-        CopyToTexture(g_Context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
+        CopyToTexture(g_VulkanContext, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
 
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
@@ -3196,7 +3196,7 @@ bail:
 
     static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
-        TextureSampler sampler = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        TextureSampler sampler = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex];
 
         if (sampler.m_MinFilter    != minfilter ||
             sampler.m_MagFilter    != magfilter ||
@@ -3204,10 +3204,10 @@ bail:
             sampler.m_AddressModeV != vwrap     ||
             sampler.m_MaxLod       != texture->m_MipMapCount)
         {
-            int8_t sampler_index = GetTextureSamplerIndex(g_Context->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+            int8_t sampler_index = GetTextureSamplerIndex(g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(g_Context->m_LogicalDevice.m_Device, g_Context->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+                sampler_index = CreateTextureSampler(g_VulkanContext->m_LogicalDevice.m_Device, g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
             }
 
             texture->m_TextureSamplerIndex = sampler_index;

@@ -2146,8 +2146,8 @@ namespace dmScript
      * <code>q<super>*</super> = [w, -v]</code>
      *
      * @name vmath.conj
-     * @param q1 [type:quatertion] quaternion of which to calculate the conjugate
-     * @return q [type:quatertion] the conjugate
+     * @param q1 [type:quaternion] quaternion of which to calculate the conjugate
+     * @return q [type:quaternion] the conjugate
      * @examples
      *
      * ```lua
@@ -2169,7 +2169,7 @@ namespace dmScript
      * quaternion.
      *
      * @name vmath.rotate
-     * @param q [type:quatertion] quaternion
+     * @param q [type:quaternion] quaternion
      * @param v1 [type:vector3] vector to rotate
      * @return v [type:vector3] the rotated vector
      * @examples

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1329,8 +1329,11 @@ namespace dmScript
         return (uint32_t)lua_gc(L, LUA_GCCOUNT, 0);
     }
 
-    LuaStackCheck::LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff)
+    LuaStackCheck::LuaStackCheck(lua_State* L, int diff, const char* filename, int linenumber) : m_L(L), m_Filename(filename), m_Linenumber(linenumber), m_Top(lua_gettop(L)), m_Diff(diff)
     {
+        if (!(m_Diff >= -m_Top)) {
+            dmLogError("%s:%d: LuaStackCheck: m_Diff >= -m_Top == false (m_Diff: %d, m_Top: %d)", m_Filename, m_Linenumber, m_Diff, m_Top);
+        }
         assert(m_Diff >= -m_Top);
     }
 
@@ -1353,7 +1356,7 @@ namespace dmScript
         int32_t actual = lua_gettop(m_L);
         if (expected != actual)
         {
-            dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
+            dmLogError("%s:%d: LuaStackCheck: Unbalanced Lua stack, expected (%d), actual (%d)", m_Filename, m_Linenumber, expected, actual);
             assert(expected == actual);
         }
     }

@@ -347,14 +347,14 @@ namespace dmConnectionPool
         // that the caller can try to connect first to ipv4 and then to ipv6 if ipv4 failed.
         if (dns_channel)
         {
-            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, ipv4, ipv6) == dmDNS::RESULT_OK;
+            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, timeout, ipv4, ipv6) == dmDNS::RESULT_OK;
 
             // If the DNS request failed, we might need to update the DNS configuration for this channel since something
             // might have happened with the network adapter since the last time a HTTP request happened.
             if (!gethost_did_succeed)
             {
                 dmDNS::RefreshChannel(dns_channel);
-                gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, ipv4, ipv6) == dmDNS::RESULT_OK;
+                gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, timeout, ipv4, ipv6) == dmDNS::RESULT_OK;
             }
         }
         else

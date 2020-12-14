@@ -178,6 +178,10 @@ static void LogGLError(GLint err, const char* fnname, int line)
 #endif
 }
 
+// We use defines here so that we get a callstack from the correct function
+
+#if !defined(ANDROID)
+
 #define CHECK_GL_ERROR \
     { \
         if(g_Context->m_VerifyGraphicsCalls) { \
@@ -188,18 +192,44 @@ static void LogGLError(GLint err, const char* fnname, int line)
                 assert(0); \
             } \
         } \
-    }\
+    }
 
-#define CLEAR_GL_ERROR \
+#else
+
+// GL_OUT_OF_MEMORY==1285
+// Due to the fact that Android can start destroying the surface while we have a frame render in flight,
+// we need to not assert on this and instead wait for the proper APP_CMD_* event
+#define CHECK_GL_ERROR \
     { \
         if(g_Context->m_VerifyGraphicsCalls) { \
             GLint err = glGetError(); \
-            while (err != 0) \
+            if (err != 0) \
             { \
-                err = glGetError(); \
+                LogGLError(err, __FUNCTION__, __LINE__); \
+                if (err == GL_OUT_OF_MEMORY) { \
+                    dmLogWarning("Signs of surface being destroyed. skipping assert.");\
+                    if (glfwAndroidVerifySurface()) { \
+                        assert(0); \
+                    } \
+                } else { \
+                    assert(0); \
+                } \
             } \
         } \
-    }\
+    }
+
+#endif
+
+static void _ClearGLError()
+{
+    GLint err = glGetError();
+    while (err != 0)
+    {
+        err = glGetError();
+    }
+}
+
+#define CLEAR_GL_ERROR { if(g_Context->m_VerifyGraphicsCalls) _ClearGLError(); }
 
 
 static void LogFrameBufferError(GLenum status)

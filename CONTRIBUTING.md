@@ -13,7 +13,7 @@ Thanks! ♥
 / The Defold Foundation and the Defold development team
 
 ## Code of conduct
-We ask of all contributors, project members and users to follow our [Code of Conduct](CODE_OF_CONDUCT) to create an open and welcoming environment. We will remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to our Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that we deem inappropriate, threatening, offensive, or harmful.
+We ask of all contributors, project members and users to follow our [Code of Conduct](CODE_OF_CONDUCT.md) to create an open and welcoming environment. We will remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to our Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that we deem inappropriate, threatening, offensive, or harmful.
 
 ## Documentation
 The Defold manuals and examples are hosted in a [separate repository](https://github.com/defold/doc). Please pay it a visit if you wish to help improve our documentation! We need help to fix typos, update images and to write or improve tutorials and manuals.
