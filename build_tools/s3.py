@@ -71,6 +71,7 @@ def get_files(archive_path, bucket, sha1):
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.zip)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "bob", '.*(/bob.jar)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor", '.*(/Defold-.*)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "dev", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "alpha", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "beta", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "stable", '.*(/Defold-.*)$')

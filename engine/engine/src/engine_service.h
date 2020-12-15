@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,6 +31,11 @@ namespace dmProfile
     typedef struct Profile* HProfile;
 }
 
+namespace dmWebServer
+{
+    typedef struct Server* HServer;
+}
+
 namespace dmEngineService
 {
     typedef struct EngineService* HEngineService;
@@ -42,6 +47,7 @@ namespace dmEngineService
     void Delete(HEngineService engine_service);
     void Update(HEngineService engine_service, dmProfile::HProfile);
     uint16_t GetPort(HEngineService engine_service);
+    dmWebServer::HServer GetWebServer(HEngineService engine_service);
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist);
 }

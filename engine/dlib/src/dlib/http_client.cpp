@@ -237,21 +237,24 @@ namespace dmHttpClient
         params->m_HttpWrite = 0;
         params->m_HttpWriteHeaders = 0;
         params->m_HttpCache = 0;
+        params->m_MaxGetRetries = 1;
+        params->m_RequestTimeout = 0;
     }
 
     HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
     {
         dmSocket::Address address;
 
+
         if (params->m_DNSChannel)
         {
-            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
             {
                 // If the DNS request failed, we refresh the DNS configuration and try again.
                 // This is needed if we first perform an HTTP request when there's no network available,
                 // and then later on do more requests once we have gained connectivity.
                 dmDNS::RefreshChannel(params->m_DNSChannel);
-                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
                 {
                     return 0;
                 }
@@ -278,8 +281,8 @@ namespace dmHttpClient
         client->m_HttpSendContentLength = params->m_HttpSendContentLength;
         client->m_HttpWrite = params->m_HttpWrite;
         client->m_HttpWriteHeaders = params->m_HttpWriteHeaders;
-        client->m_MaxGetRetries = 1;
-        client->m_RequestTimeout = 0;
+        client->m_MaxGetRetries = params->m_MaxGetRetries;
+        client->m_RequestTimeout = params->m_RequestTimeout;
         client->m_RequestStart = 0;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
@@ -745,8 +748,8 @@ bail:
 
         if (client->m_HttpCache == 0)
         {
-            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no cache present. Server error?");
-            return RESULT_IO_ERROR;
+            dmLogWarning("Got HTTP response NOT MODIFIED (304) but no cache present");
+            return RESULT_OK;
         }
         dmHttpCache::Result cache_result;
 
@@ -756,8 +759,8 @@ bail:
 
         if (cache_result != dmHttpCache::RESULT_OK)
         {
-            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no ETag present. Server error?");
-            return RESULT_IO_ERROR;
+            dmLogWarning("Got HTTP response NOT MODIFIED (304) but no ETag present. Returning no cached data.");
+            return RESULT_OK;
         }
 
         if (response->m_ETag[0] != '\0')

@@ -63,6 +63,7 @@ namespace dmGui
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
+    static void RemoveFromNodeList(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -1646,13 +1647,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             {
                 // If we have cancelled an animation, its callback won't be called which means
                 // we potentially get dangling lua refs in the script system
-                if (anim->m_Cancelled && anim->m_AnimationComplete)
+                // Another scenario where the callback won't get invoked is when the duration
+                // is 0.0 and the delay > 0.0
+                if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                 {
-                    if (!anim->m_AnimationCompleteCalled)
-                    {
-                        anim->m_AnimationCompleteCalled = 1;
-                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-                    }
+                    anim->m_AnimationCompleteCalled = 1;
+                    anim->m_AnimationComplete(scene, anim->m_Node, !anim->m_Cancelled, anim->m_Userdata1, anim->m_Userdata2);
                 }
 
                 RemoveAnimation(*animations, i);
@@ -2111,7 +2111,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         }
 
                         ResetInternalNode(scene, n);
-                        n->m_ParentIndex = INVALID_INDEX;
                     }
                 }
 
@@ -2494,6 +2493,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         if (!delete_headless_pfx && n->m_Node.m_HasHeadlessPfx)
         {
+            RemoveFromNodeList(scene, n);
+            n->m_ParentIndex = INVALID_INDEX;
+            n->m_PrevIndex = INVALID_INDEX;
+            n->m_NextIndex = INVALID_INDEX;
             return;
         }
 
@@ -4406,7 +4409,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        ret = dmScript::PCall(L, 0, LUA_MULTRET);
+        ret = dmScript::PCall(L, 0, 0);
 
         lua_pushnil(L);
         dmScript::SetInstance(L);

@@ -25,19 +25,18 @@
 
 
 /*# SDK Socket API documentation
- * [file:<dmsdk/dlib/socket.h>]
- *
  * Socket functions.
  *
  * @document
  * @name Socket
  * @namespace dmSocket
+ * @path engine/dlib/src/dmsdk/dlib/socket.h
  */
 namespace dmSocket
 {
     /*#
      * Socket default timeout value
-     * @constant
+     * @variable
      * @name SOCKET_TIMEOUT
      */
     const int SOCKET_TIMEOUT = 500 * 1000;
@@ -45,14 +44,14 @@ namespace dmSocket
     /*# Socket type definition
      * @typedef
      * @name Socket
-     * @note Use INVALID_SOCKET_HANDLE instead of zero for unset values. This is an exception
+     * @note Use dmSocket::INVALID_SOCKET_HANDLE instead of zero for unset values. This is an exception
      * from all other handles.
      */
     typedef int Socket;
 
     /*#
      * Invalid socket handle
-     * @constant
+     * @variable
      * @name INVALID_SOCKET_HANDLE
      */
     const Socket INVALID_SOCKET_HANDLE = 0xffffffff;
@@ -68,11 +67,11 @@ namespace dmSocket
     /*# domain type
      * Domain type
      * @enum
-     * @name dmSocket::Domain
-     * @member dmSocket::DOMAIN_MISSING
-     * @member dmSocket::DOMAIN_IPV4
-     * @member dmSocket::DOMAIN_IPV6
-     * @member dmSocket::DOMAIN_UNKNOWN
+     * @name Domain
+     * @member DOMAIN_MISSING
+     * @member DOMAIN_IPV4
+     * @member DOMAIN_IPV6
+     * @member DOMAIN_UNKNOWN
      */
     enum Domain
     {
@@ -85,9 +84,9 @@ namespace dmSocket
     /*# socket type
      * Socket type
      * @enum
-     * @name dmSocket::Type
-     * @member dmSocket::TYPE_STREAM
-     * @member dmSocket::TYPE_DGRAM
+     * @name Type
+     * @member TYPE_STREAM
+     * @member TYPE_DGRAM
      */
     enum Type
     {
@@ -98,9 +97,9 @@ namespace dmSocket
     /*# network protocol
      * Network protocol
      * @enum
-     * @name dmSocket::Protocol
-     * @member dmSocket::PROTOCOL_TCP
-     * @member dmSocket::PROTOCOL_UDP
+     * @name Protocol
+     * @member PROTOCOL_TCP
+     * @member PROTOCOL_UDP
      */
     enum Protocol
     {
@@ -111,10 +110,10 @@ namespace dmSocket
     /*# socket shutdown type
      * Socket shutdown type
      * @enum
-     * @name dmSocket::ShutdownType
-     * @member dmSocket::SHUTDOWNTYPE_READ
-     * @member dmSocket::SHUTDOWNTYPE_WRITE
-     * @member dmSocket::SHUTDOWNTYPE_READWRITE
+     * @name ShutdownType
+     * @member SHUTDOWNTYPE_READ
+     * @member SHUTDOWNTYPE_WRITE
+     * @member SHUTDOWNTYPE_READWRITE
      */
     enum ShutdownType
     {
@@ -126,41 +125,41 @@ namespace dmSocket
     /*# socket result
      * Socket result
      * @enum
-     * @name dmSocket::Result
-     * @member dmSocket::RESULT_OK 0
-     * @member dmSocket::RESULT_ACCES -1
-     * @member dmSocket::RESULT_AFNOSUPPORT -2
-     * @member dmSocket::RESULT_WOULDBLOCK -3
-     * @member dmSocket::RESULT_BADF -4
-     * @member dmSocket::RESULT_CONNRESET -5
-     * @member dmSocket::RESULT_DESTADDRREQ -6
-     * @member dmSocket::RESULT_FAULT -7
-     * @member dmSocket::RESULT_HOSTUNREACH -8
-     * @member dmSocket::RESULT_INTR -9
-     * @member dmSocket::RESULT_INVAL -10
-     * @member dmSocket::RESULT_ISCONN -11
-     * @member dmSocket::RESULT_MFILE -12
-     * @member dmSocket::RESULT_MSGSIZE -13
-     * @member dmSocket::RESULT_NETDOWN -14
-     * @member dmSocket::RESULT_NETUNREACH -15
-     * @member dmSocket::RESULT_NOBUFS -17
-     * @member dmSocket::RESULT_NOTCONN -20
-     * @member dmSocket::RESULT_NOTSOCK -22
-     * @member dmSocket::RESULT_OPNOTSUPP -23
-     * @member dmSocket::RESULT_PIPE -24
-     * @member dmSocket::RESULT_PROTONOSUPPORT -25
-     * @member dmSocket::RESULT_PROTOTYPE -26
-     * @member dmSocket::RESULT_TIMEDOUT -27
-     * @member dmSocket::RESULT_ADDRNOTAVAIL -28
-     * @member dmSocket::RESULT_CONNREFUSED -29
-     * @member dmSocket::RESULT_ADDRINUSE -30
-     * @member dmSocket::RESULT_CONNABORTED -31
-     * @member dmSocket::RESULT_INPROGRESS -32
-     * @member dmSocket::RESULT_HOST_NOT_FOUND -100
-     * @member dmSocket::RESULT_TRY_AGAIN -101
-     * @member dmSocket::RESULT_NO_RECOVERY -102
-     * @member dmSocket::RESULT_NO_DATA -103
-     * @member dmSocket::RESULT_UNKNOWN -1000
+     * @name Result
+     * @member RESULT_OK 0
+     * @member RESULT_ACCES -1
+     * @member RESULT_AFNOSUPPORT -2
+     * @member RESULT_WOULDBLOCK -3
+     * @member RESULT_BADF -4
+     * @member RESULT_CONNRESET -5
+     * @member RESULT_DESTADDRREQ -6
+     * @member RESULT_FAULT -7
+     * @member RESULT_HOSTUNREACH -8
+     * @member RESULT_INTR -9
+     * @member RESULT_INVAL -10
+     * @member RESULT_ISCONN -11
+     * @member RESULT_MFILE -12
+     * @member RESULT_MSGSIZE -13
+     * @member RESULT_NETDOWN -14
+     * @member RESULT_NETUNREACH -15
+     * @member RESULT_NOBUFS -17
+     * @member RESULT_NOTCONN -20
+     * @member RESULT_NOTSOCK -22
+     * @member RESULT_OPNOTSUPP -23
+     * @member RESULT_PIPE -24
+     * @member RESULT_PROTONOSUPPORT -25
+     * @member RESULT_PROTOTYPE -26
+     * @member RESULT_TIMEDOUT -27
+     * @member RESULT_ADDRNOTAVAIL -28
+     * @member RESULT_CONNREFUSED -29
+     * @member RESULT_ADDRINUSE -30
+     * @member RESULT_CONNABORTED -31
+     * @member RESULT_INPROGRESS -32
+     * @member RESULT_HOST_NOT_FOUND -100
+     * @member RESULT_TRY_AGAIN -101
+     * @member RESULT_NO_RECOVERY -102
+     * @member RESULT_NO_DATA -103
+     * @member RESULT_UNKNOWN -1000
      */
     enum Result
     {
@@ -214,7 +213,7 @@ namespace dmSocket
      * order to support IPv6 the internal representation was changed to a struct.
      *
      * @struct
-     * @name dmSocket::Address
+     * @name Address
      */
     struct Address
     {
@@ -227,92 +226,92 @@ namespace dmSocket
      * Create a new socket. Corresponds to BSD socket function socket().
      * @note SIGPIPE is disabled on applicable platforms. This has the implication
      * that Receive can return zero bytes when the connection is closed by remote peer.
-     * @name dmSocket::New
-     * @param type [type:dmSocket::Type] Socket type
-     * @param protocol [type:dmSocket::Protocol] Protocol
-     * @param socket [type:dmSocket::Socket*] Pointer to socket
-     * @return RESULT_OK on succcess
+     * @name New
+     * @param type [type:Type] Socket type
+     * @param protocol [type:Protocol] Protocol
+     * @param socket [type:Socket*] Pointer to socket
+     * @return [type:Result] RESULT_OK on succcess
      */
     Result New(Domain domain, Type type, enum Protocol protocol, Socket* socket);
 
     /*# delete a socket
      * Delete a socket. Corresponds to BSD socket function close()
-     * @name dmSocket::Delete
-     * @param socket [type:dmSocket::Socket] Socket to close
-     * @return RESULT_OK on success
+     * @name Delete
+     * @param socket [type:Socket] Socket to close
+     * @return [type:Result] RESULT_OK on success
      */
     Result Delete(Socket socket);
 
     /*# make a connection
      * Initiate a connection on a socket
-     * @name dmSocket::Connect
-     * @param socket [type:dmSocket::Socket] Socket to initiate connection on
-     * @param address [type:dmSocket::Address] Address to connect to
+     * @name Connect
+     * @param socket [type:Socket] Socket to initiate connection on
+     * @param address [type:Address] Address to connect to
      * @param port [type:int] Port to connect to
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result Connect(Socket socket, Address address, int port);
 
     /*# close socket
      * Shutdown part of a socket connection
-     * @name dmSocket::Shutdown
-     * @param socket [type:dmSocket::Socket] Socket to shutdown connection ow
-     * @param how [type:dmSocket::ShutdownType] Shutdown type
-     * @return RESULT_OK on success
+     * @name Shutdown
+     * @param socket [type:Socket] Socket to shutdown connection ow
+     * @param how [type:ShutdownType] Shutdown type
+     * @return [type:Result] RESULT_OK on success
      */
     Result Shutdown(Socket socket, ShutdownType how);
 
     /*# get underlying file descriptor
      * Get underlying file descriptor
-     * @name dmSocket::GetFD
-     * @param socket [type:dmSocket::Socket] socket to get fd for
-     * @return file-descriptor
+     * @name GetFD
+     * @param socket [type:Socket] socket to get fd for
+     * @return [type:int] file-descriptor
      */
     int GetFD(Socket socket);
 
     /*#
      * Set reuse socket address option on socket. Socket option SO_REUSEADDR on most platforms
-     * @name dmSocket::SetReuseAddress
-     * @param socket [type:dmSocket::Socket] Socket to set reuse address to
+     * @name SetReuseAddress
+     * @param socket [type:Socket] Socket to set reuse address to
      * @param reuse [type:bool] True if reuse
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result SetReuseAddress(Socket socket, bool reuse);
 
     /*#
      * Set broadcast address option on socket. Socket option SO_BROADCAST on most platforms.
-     * @name dmSocket::SetBroadcast
-     * @param socket [type:dmSocket::Socket] Socket to set reuse address to
+     * @name SetBroadcast
+     * @param socket [type:Socket] Socket to set reuse address to
      * @param broadcast [type:bool] True if broadcast
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result SetBroadcast(Socket socket, bool broadcast);
 
     /*#
      * Set blocking option on a socket
-     * @name dmSocket::SetBlocking
-     * @param socket [type:dmSocket::Socket] Socket to set blocking on
+     * @name SetBlocking
+     * @param socket [type:Socket] Socket to set blocking on
      * @param blocking [type:bool] True to block
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result SetBlocking(Socket socket, bool blocking);
 
     /*#
      * Set TCP_NODELAY on socket
-     * @name dmSocket::SetNoDelay
-     * @param socket [type:dmSocket::Socket] Socket to set TCP_NODELAY on
+     * @name SetNoDelay
+     * @param socket [type:Socket] Socket to set TCP_NODELAY on
      * @param no_delay [type:bool] True for no delay
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result SetNoDelay(Socket socket, bool no_delay);
 
     /*#
      * Set TCP_QUICKACK on socket
      * @note This is a no op on platforms that doesn't support it
-     * @name dmSocket::SetQuickAck
-     * @param socket [type:dmSocket::Socket] Socket to set TCP_QUICKACK on
+     * @name SetQuickAck
+     * @param socket [type:Socket] Socket to set TCP_QUICKACK on
      * @param use_quick_ack [type:bool] False to disable quick ack
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result SetQuickAck(Socket socket, bool use_quick_ack);
 
@@ -320,10 +319,10 @@ namespace dmSocket
      * Set socket send timeout
      * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
      *       larger than or equal to 1000.
-     * @name dmSocket::SetSendTimeout
-     * @param socket [type:dmSocket::Socket] socket
+     * @name SetSendTimeout
+     * @param socket [type:Socket] socket
      * @param timeout [type:uint64_t] timeout in microseconds
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result SetSendTimeout(Socket socket, uint64_t timeout);
 
@@ -331,32 +330,32 @@ namespace dmSocket
      * Set socket receive timeout
      * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
      *       larger than or equal to 1000
-     * @name dmSocket::SetReceiveTimeout
-     * @param socket [type:dmSocket::Socket] socket
+     * @name SetReceiveTimeout
+     * @param socket [type:Socket] socket
      * @param timeout [type:uint64_t] timeout in microseconds
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result SetReceiveTimeout(Socket socket, uint64_t timeout);
 
     /*# Send a message on a socket
-     * @name dmSocket::Send
-     * @param socket [type:dmSocket::Socket] Socket to send a message on
+     * @name Send
+     * @param socket [type:Socket] Socket to send a message on
      * @param buffer [type:void*] Buffer to send
      * @param length [type:int] Length of buffer to send
      * @param sent_bytes[out] [type:int*] Number of bytes sent (result)
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      * @note For dmSocket::Recv() and dmSocket::Send() function ETIMEDOUT is translated to EWOULDBLOCK
      * on win32 for compatibility with BSD sockets.
      */
     Result Send(Socket socket, const void* buffer, int length, int* sent_bytes);
 
     /*# Receive data on a socket
-     * @name dmSocket::Receive
-     * @param socket [type:dmSocket::Socket] Socket to receive data on
+     * @name Receive
+     * @param socket [type:Socket] Socket to receive data on
      * @param buffer[out] [type:void*] Buffer to receive to
      * @param length [type:int] Receive buffer length
      * @param received_bytes[out] [type:int*] Number of received bytes (result)
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      * @note For dmSocket::Recv() and dmSocket::Send() function ETIMEDOUT is translated to EWOULDBLOCK
      * on win32 for compatibility with BSD sockets.
      */
@@ -364,29 +363,29 @@ namespace dmSocket
 
     /*# get host by name
      * Get host by name
-     * @name dmSocket::GetHostByName
+     * @name GetHostByName
      * @param name [type:const char*] Hostname to resolve
-     * @param address [type:dmSocket::Address*] Host address result
+     * @param address [type:Address*] Host address result
      * @param ipv4 [type:bool] Whether or not to search for IPv4 addresses
      * @param ipv6 [type:bool] Whether or not to search for IPv6 addresses
-     * @return RESULT_OK on success
+     * @return [type:Result] RESULT_OK on success
      */
     Result GetHostByName(const char* name, Address* address, bool ipv4 = true, bool ipv6 = true);
 
     /*# Convert result value to string
-     * @name dmSocket::ResultToString
-     * @param result [type:dmSocket::Result] Result to convert
-     * @return Result as string
+     * @name ResultToString
+     * @param result [type:Result] Result to convert
+     * @return [type:const char*] Result as string
      */
     const char* ResultToString(Result result);
 
     /*#
      * Selector kind
      * @enum
-     * @name dmSocket::SelectorKind
-     * @member dmSocket::SELECTOR_KIND_READ
-     * @member dmSocket::SELECTOR_KIND_WRITE
-     * @member dmSocket::SELECTOR_KIND_EXCEPT
+     * @name SelectorKind
+     * @member SELECTOR_KIND_READ
+     * @member SELECTOR_KIND_WRITE
+     * @member SELECTOR_KIND_EXCEPT
      */
     enum SelectorKind
     {
@@ -398,7 +397,7 @@ namespace dmSocket
     /*#
      * Selector
      * @struct
-     * @name dmSocket::Selector
+     * @name Selector
      */
     struct Selector
     {
@@ -409,45 +408,48 @@ namespace dmSocket
 
     /*#
      * Clear selector for socket. Similar to FD_CLR
-     * @name dmSocket::SelectorClear
-     * @param selector Selector
-     * @param selector_kind Kind to clear
-     * @param socket Socket to clear
+     * @name SelectorClear
+     * @param selector [type:Selector*] Selector
+     * @param selector_kind [type:SelectorKind] Kind to clear
+     * @param socket [type:Socket] Socket to clear
+     * @return [type:void]
      */
     void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket);
 
     /*#
      * Set selector for socket. Similar to FD_SET
-     * @name dmSocket::SelectorSet
-     * @param selector Selector
-     * @param selector_kind Kind to clear
-     * @param socket Socket to set
+     * @name SelectorSet
+     * @param selector [type:Selector*] Selector
+     * @param selector_kind [type:SelectorKind] Kind to clear
+     * @param socket [type:Socket] Socket to set
+     * @return [type:void]
      */
     void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket);
 
     /*#
      * Check if selector is set. Similar to FD_ISSET
-     * @name dmSocket::SelectorIsSet
-     * @param selector Selector
-     * @param selector_kind Selector kind
-     * @param socket Socket to check for
-     * @return True if set.
+     * @name SelectorIsSet
+     * @param selector [type:Selector*] Selector
+     * @param selector_kind [type:SelectorKind] Selector kind
+     * @param socket [type:Socket] Socket to check for
+     * @return [type:bool] True if set.
      */
     bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket);
 
     /*#
      * Clear selector (all kinds). Similar to FD_ZERO
-     * @name dmSocket::SelectorZero
-     * @param selector Selector
+     * @name SelectorZero
+     * @param selector [type:Selector*] Selector
+     * @return [type:void]
      */
     void SelectorZero(Selector* selector);
 
     /*#
      * Select for pending data
-     * @name dmSocket::Select
-     * @param selector Selector
-     * @param timeout Timeout. For blocking pass -1. (microseconds)
-     * @return RESULT_OK on success
+     * @name Select
+     * @param selector [type:Selector*] Selector
+     * @param timeout [type:int] Timeout. For blocking pass -1. (microseconds)
+     * @return [type:Result] RESULT_OK on success
      */
     Result Select(Selector* selector, int32_t timeout);
 }
