@@ -86,21 +86,25 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      { name: 'Install Java', shell: bash, uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Download editor',
+        shell: bash,
         run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
       },
       {
         name: 'Install dependencies',
+        shell: bash,
         run: 'ci/ci.sh --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
       },
       {
         name: 'Sign editor',
+        shell: bash,
         run: 'ci/ci.sh sign-editor --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
+        shell: bash,
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       }]
 
