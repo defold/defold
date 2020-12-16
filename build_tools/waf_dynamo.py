@@ -1451,7 +1451,6 @@ def remove_flag(arr, flag, nargs):
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
-    conf.find_program('nodejs', var='NODEJS', mandatory = False)
 
     platform = None
     if getattr(Options.options, 'platform', None):
@@ -1482,7 +1481,7 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
-    if build_platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
+    if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
         conf.find_program('node', var='NODEJS', mandatory = False)
 
     try:
