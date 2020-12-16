@@ -27,7 +27,7 @@ main: |
     }
     #endif
 
-    void dmExportedSymbols() {
+    extern "C" void dmExportedSymbols() {
         {{#symbols}}
         {{{.}}}();
         {{/symbols}}
@@ -320,11 +320,12 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_10}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_10}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_10}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_10}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_10}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_10}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
@@ -333,7 +334,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
@@ -355,11 +356,12 @@ platforms:
 
   wasm-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_10}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_10}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_10}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_10}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_10}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_10}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
@@ -368,7 +370,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
