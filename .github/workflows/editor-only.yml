@@ -99,7 +99,7 @@ jobs:
       {
         name: 'Sign editor',
         shell: bash,
-        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}"" --platform=${{ matrix.platform }}'
+        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
