@@ -248,7 +248,7 @@ def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
         opts.append('--windows-cert=%s' % windows_cert)
 
     if windows_cert_pass:
-        opts.append('--windows-cert-pass=%s' % windows_cert_pass)
+        opts.append("--windows-cert-pass='%s'" % windows_cert_pass)
 
     cmd = ' '.join(args + opts)
     call(cmd)
