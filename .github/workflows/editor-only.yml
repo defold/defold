@@ -25,17 +25,6 @@ env:
 
 
 jobs:
-
-  test-pwsh-windows:
-    if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    runs-on: windows-2016
-    steps: [
-      {
-        name: 'Test PWSH',
-        shell: pwsh,
-        run: '$ErrorView = "NormalView" && python -c "import sys; print \"hello\"; sys.exit(1)"'
-      }]
-
   build-editor:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     runs-on: ubuntu-18.04
@@ -56,7 +45,7 @@ jobs:
 
   sign-editor-darwin:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    needs: [test-pwsh-windows, build-editor]
+    needs: [build-editor]
     runs-on: macOS-latest
     strategy:
       matrix:
@@ -86,10 +75,9 @@ jobs:
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       }]
 
-
   sign-editor-windows:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    needs: [test-pwsh-windows, build-editor]
+    needs: [build-editor]
     runs-on: windows-2016
     strategy:
       matrix:
@@ -106,12 +94,12 @@ jobs:
       {
         name: 'Install dependencies',
         shell: bash,
-        run: 'ci/ci.sh --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" install'
       },
       {
         name: 'Sign editor',
-        shell: pwsh,
-        run: 'ci/ci.sh sign-editor --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
+        shell: bash,
+        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}"" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
