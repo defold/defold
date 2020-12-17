@@ -157,6 +157,9 @@ def sign_files(platform, options, dir):
         if certificate == None:
             print("No codesigning certificate specified")
             sys.exit(1)
+        if not os.path.exists(certificate):
+            print("Certificate file does not exist:", certificate)
+            sys.exit(1)
 
         exec_command([
             'SignTool',
