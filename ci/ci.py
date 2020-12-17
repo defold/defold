@@ -109,7 +109,7 @@ def setup_windows_cert(args):
     print("Setting up certificate")
     cert_path = os.path.join("ci", "windows_cert.pfx")
     with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.windows_cert))
+        file.write(base64.decodestring(args.windows_cert_b64))
 
 
 def install(args):
@@ -150,7 +150,7 @@ def install(args):
         if args.keychain_cert:
             setup_keychain(args)
     elif system == "Windows":
-        if args.windows_cert:
+        if args.windows_cert_b64:
             setup_windows_cert(args)
 
 
@@ -364,7 +364,8 @@ def main(argv):
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
-    parser.add_argument("--windows-cert", dest="windows_cert", help="Base 64 encoded Windows certificate (pfx)")
+    parser.add_argument("--windows-cert-b64", dest="windows_cert_b64", help="String containing Windows certificate (pfx) encoded as base 64")
+    parser.add_argument("--windows-cert", dest="windows_cert", help="File containing Windows certificate (pfx)")
     parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="Password for the Windows certificate")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
