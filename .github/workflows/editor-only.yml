@@ -99,7 +99,6 @@ jobs:
       },
       {
         name: 'Sign editor',
-        shell: bash,
         run: 'ci/ci.sh sign-editor --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
       },
       {
