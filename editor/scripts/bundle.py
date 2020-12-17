@@ -161,8 +161,12 @@ def sign_files(platform, options, dir):
             print("Certificate file does not exist:", certificate)
             sys.exit(1)
 
+        signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
+        if not os.path.exists(signtool):
+            print("signtool.exe file does not exist:", signtool)
+            sys.exit(1)
         exec_command([
-            'SignTool',
+            signtool,
             'sign',
             '/fd', 'sha256',
             '/a',

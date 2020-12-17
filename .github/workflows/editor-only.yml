@@ -97,6 +97,11 @@ jobs:
         run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" install'
       },
       {
+        name: 'Install ext dependencies',
+        shell: bash,
+        run: 'ci/ci.sh install_ext --platform=${{ matrix.platform }}'
+      },
+      {
         name: 'Sign editor',
         shell: bash,
         run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
