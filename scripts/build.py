@@ -1294,7 +1294,7 @@ class Configuration(object):
             cmd.append('--skip-codesign')
         else:
             if self.windows_cert:
-                cmd.append('--windows-cert="%s"' % self.windows_cert)
+                cmd.append('--windows-cert=%s' % self.windows_cert)
             if self.windows_cert_pass:
                 cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
             if self.codesigning_identity:
