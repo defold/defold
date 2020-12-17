@@ -1263,7 +1263,7 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
-        cmd = ['./scripts/bundle.py',
+        cmd = ['python', './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                'build']
 
