@@ -107,9 +107,10 @@ def setup_keychain(args):
 
 def setup_windows_cert(args):
     print("Setting up certificate")
-    cert_path = os.path.join("ci", "windows_cert.pfx")
+    cert_path = os.path.abspath(os.path.join("ci", "windows_cert.pfx"))
     with open(cert_path, "wb") as file:
         file.write(base64.decodestring(args.windows_cert_b64))
+    print("Wrote cert to", cert_path)
 
 
 def install(args):
@@ -239,9 +240,11 @@ def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
     opts.append('--platform=%s' % platform)
 
     if windows_cert:
+        windows_cert = os.path.abspath(windows_cert)
         if not os.path.exists(windows_cert):
             print("Certificate file not found:", windows_cert)
             sys.exit(1)
+        print("Using cert", windows_cert)
         opts.append('--windows-cert=%s' % windows_cert)
 
     if windows_cert_pass:
@@ -411,7 +414,7 @@ def main(argv):
         engine_artifacts = args.engine_artifacts
     elif branch and branch.startswith("DEFEDIT-"):
         engine_channel = None
-        editor_channel = None
+        editor_channel = "editor-dev"
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
