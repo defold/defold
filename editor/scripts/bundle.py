@@ -177,7 +177,7 @@ def sign_files(platform, options, dir):
             '/a',
             '/f', certificate,
             '/p', certificate_pass,
-            '/tr', 'http://timestamp.comodoca.com',
+            '/tr', 'http://timestamp.sectigo.com',
             dir])
     elif 'darwin' in platform:
         codesigning_identity = options.codesigning_identity
