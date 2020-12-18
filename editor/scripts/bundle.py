@@ -158,9 +158,6 @@ def sign_files(platform, options, dir):
             print("No codesigning certificate specified")
             sys.exit(1)
 
-        print("CWD", os.getcwd())
-        print("FILES", os.listdir(os.getcwd()))
-
         if not os.path.exists(certificate):
             print("Certificate file does not exist:", certificate)
             sys.exit(1)
@@ -168,7 +165,6 @@ def sign_files(platform, options, dir):
         certificate_pass = 'invalid'
         with open(certificate_pass_path, 'rb') as f:
             certificate_pass = f.read()
-            print("Read %d bytes from pass file" % len(certificate_pass))
 
         signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
         if not os.path.exists(signtool):
@@ -180,7 +176,7 @@ def sign_files(platform, options, dir):
             '/fd', 'sha256',
             '/a',
             '/f', certificate,
-            '/p', "'%s'" % certificate_pass,
+            '/p', certificate_pass,
             '/tr', 'http://timestamp.comodoca.com',
             dir])
     elif 'darwin' in platform:
