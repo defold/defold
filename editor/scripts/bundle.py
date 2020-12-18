@@ -408,7 +408,7 @@ def sign(options):
             sign_files('darwin', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
             sign_files('darwin', options, os.path.join(sign_dir, "Defold.app"))
         elif 'win32' in platform:
-            sign_files('win32', options,  os.path.join(sign_dir, "Defold.exe"))
+            sign_files('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
 
         # create editor bundle with signed files
         os.remove(bundle_file)
