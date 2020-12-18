@@ -36,22 +36,46 @@ namespace dmMessage
 
 namespace dmGameObject
 {
-    /// Instance handle
+    /*#
+     * Gameobject instance handle
+     * @typedef
+     * @name HInstance
+     */
     typedef struct Instance* HInstance;
 
-    /// Script handle
+    /*#
+     * Script handle
+     * @typedef
+     * @name HScript
+     */
     typedef struct Script* HScript;
 
-    /// Instance handle
+    /*#
+     * Script instance handle
+     * @typedef
+     * @name HScriptInstance
+     */
     typedef struct ScriptInstance* HScriptInstance;
 
-    /// Component register
+    /*#
+     * Collection register.
+     * @typedef
+     * @name HRegister
+     */
     typedef struct Register* HRegister;
 
-    /// Collection handle
+    /*#
+     * Gameobject collection handle
+     * @typedef
+     * @name HCollection
+     */
     typedef struct CollectionHandle* HCollection;
 
-    /// Properties handle
+    /*#
+     * Gameobject properties handle
+     * @typedef
+     * @name HProperties
+     */
     typedef struct Properties* HProperties;
 
     struct ComponentType;
@@ -329,14 +353,22 @@ namespace dmGameObject
     const dmVMath::Matrix4& GetWorldMatrix(HInstance instance);
 
 
-    // These functions are used for profiling/testing functionality
-    // They're not included in release builds
+    // These functions are used for profiling functionality
 
-    // Used by component types to implement iteration
+    // Currently used internally by component types to implement iteration
     typedef void (*FIteratorChildren)(struct SceneNodeIterator* it, struct SceneNode* node);
     typedef bool (*FIteratorNext)(struct SceneNodeIterator* it);
 
     // Scene traversal functions
+
+    /** scene node types
+     * @enum
+     * @name SceneNodeType
+     * @member dmGameObject::SCENE_NODE_TYPE_COLLECTION
+     * @member dmGameObject::SCENE_NODE_TYPE_GAMEOBJECT
+     * @member dmGameObject::SCENE_NODE_TYPE_COMPONENT
+     * @member dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT
+     */
     enum SceneNodeType
     {
         SCENE_NODE_TYPE_COLLECTION,
@@ -345,6 +377,13 @@ namespace dmGameObject
         SCENE_NODE_TYPE_SUBCOMPONENT,
     };
 
+    /*# scene graph traversal node
+     * Opaque struct that holds info about the current node
+     *
+     * @note The concept of a `scene node` only exists here, for the purposes of inspecting the scene graph for inspection and testing purposes only.
+     * @struct
+     * @name SceneNode
+     */
     struct SceneNode
     {
         // The iterator type specific data
@@ -360,6 +399,12 @@ namespace dmGameObject
         uintptr_t       m_Component;
     };
 
+    /*# scene graph traversal iterator
+     * Opaque struct that holds info about the current position when traversing the scene
+     *
+     * @struct
+     * @name SceneNodeIterator
+     */
     struct SceneNodeIterator
     {
         // public data
@@ -372,12 +417,70 @@ namespace dmGameObject
         FIteratorNext       m_FnIterateNext;    // Specified by each node type we're iterating over
     };
 
-    bool                        TraverseGetRoot(HRegister regist, SceneNode* node);
-    SceneNodeIterator           TraverseIterateChildren(SceneNode* node);
-    bool                        TraverseIterateNext(SceneNodeIterator* it);
+    /*#
+     * Gets the top node of the whole game (the main collection)
+     * @name TraverseGetRoot
+     * @param regist [type:dmGameObject::HRegister] the full gameobject register
+     * @param node [type:dmGameObject::HRegister] the node to inspect
+     * @return result [type:bool] True if successful
+     *
+     * @note The dmGameObject::HRegister is obtained from the `dmEngine::GetGameObjectRegister(dmExtension::AppParams)`
+     * @note Traversing the scene like this is not efficient. These functions are here for inspection and testing purposes only.
+     *
+     * @examples
+     *
+     * The following examples show how to iterate over currently loaded scene graph
+     *
+     *```cpp
+     * void OutputNode(dmGameObject::SceneNode* node) {
+     *     dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(node);
+     *     while(dmGameObject::TraverseIterateNext(&it))
+     *     {
+     *         OutputProperties(&it.m_Node); // see dmGameObject::TraverseIterateProperties()
+     *         OutputNode(&it.m_Node);
+     *     }
+     * }
+     *
+     * bool OutputScene(HRegister regist) {
+     *     dmGameObject::SceneNode root;
+     *     if (!dmGameObject::TraverseGetRoot(regist, &root))
+     *         return false;
+     *     OutputNode(&node);
+     * }
+     *```
+     */
+    bool TraverseGetRoot(HRegister regist, SceneNode* node);
 
+    /*#
+     * Get a scene node iterator for the nodes' children
+     * @name TraverseIterateChildren
+     * @param node [type:dmGameObject::SceneNode*] the parent node
+     * @return iterator [type:dmGameObject::SceneNodeIterator] the iterator
+    */
+    SceneNodeIterator TraverseIterateChildren(SceneNode* node);
 
-    // Since we don't support for text properties, we'll keep a separate enum here for now
+    /*#
+     * Step a scene node iterator to the next sibling
+     * @name TraverseIterateNext
+     * @param it [type:dmGameObject::SceneNodeIterator*] the iterator
+     * @return result [type:bool] true if successful. false if the iterator is finished
+    */
+    bool TraverseIterateNext(SceneNodeIterator* it);
+
+    /*# scene node property types
+     * @note Since we don't support text properties, we'll keep a separate enum here for now
+     * @enum
+     * @name SceneNodePropertyType
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_URL
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_QUAT
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT
+     * @member dmGameObject::SCENE_NODE_PROPERTY_TYPE_COUNT
+     */
     enum SceneNodePropertyType
     {
         SCENE_NODE_PROPERTY_TYPE_NUMBER = 0,
@@ -391,9 +494,38 @@ namespace dmGameObject
         SCENE_NODE_PROPERTY_TYPE_COUNT
     };
 
+    // Currently used internally by the component types
     typedef void (*FIteratorProperties)(struct SceneNodePropertyIterator* it, struct SceneNode* node);
     typedef bool (*FIteratorPropertiesNext)(struct SceneNodePropertyIterator* it);
 
+    /*# scene traversal node property
+     * Struct that holds info about the current position when traversing the scene
+     *
+     * @struct
+     * @name SceneNodeProperty
+     * @member m_NameHash [type:dmhash_t] name
+     * @member m_Type [type:dmGameObject::SceneNodePropertyType] type
+     * @member m_Value [type:union] value
+     *
+     * `m_Number`
+     * : [type:double] floating point number
+     *
+     * `m_Hash`
+     * : [type:dmhash_t] The hashed value.
+     *
+     * `m_URL`
+     * : [type:char[1024]] The text representation of the url (if reverse hashes are enabled)
+     *
+     * `m_V4`
+     * : [type:float[4]] Used for Vector3, Vector4 and Quat
+     *
+     * `m_Bool`
+     * : [type:bool] A boolean value
+     *
+     * `m_Text`
+     * : [type:const char*] Text from a text property
+     *
+     */
     struct SceneNodeProperty
     {
         dmhash_t                m_NameHash;
@@ -410,6 +542,13 @@ namespace dmGameObject
         } m_Value;
     };
 
+    /*# scene traversal node property
+     * Holds the property
+     *
+     * @struct
+     * @name SceneNodePropertyIterator
+     * @member m_Property [type:dmGameObject::SceneNodeProperty] property
+     */
     struct SceneNodePropertyIterator
     {
         // public data
@@ -422,8 +561,42 @@ namespace dmGameObject
         FIteratorPropertiesNext m_FnIterateNext;    // Specified by each node type we're iterating over
     };
 
-    SceneNodePropertyIterator   TraverseIterateProperties(SceneNode* node);
-    bool                        TraverseIteratePropertiesNext(SceneNodePropertyIterator* it);
+    /*#
+     * Create a scene node traversal property iterator
+     * @name TraverseIterateProperties
+     * @param node [type:dmGameObject::SceneNode*] the node to inspect
+     * @return iterator [type:dmGameObject::SceneNodePropertyIterator] the property iterator
+     *
+     * @note Getting the properties like this is not efficient. These functions are here for inspection and testing purposes only.
+     * @note Reverse hashes via `dmHashReverseSafe64()` isn't available in release builds.
+     *
+     * @examples
+     *
+     * The following examples show how to iterate over the properties of a node
+     *
+     *```cpp
+     * dmGameObject::SceneNodePropertyIterator pit = TraverseIterateProperties(node);
+     * while(dmGameObject::TraverseIteratePropertiesNext(&pit))
+     * {
+     *     const char* name = dmHashReverseSafe64(pit.m_Property.m_NameHash);
+     *     switch(pit.m_Property.m_Type)
+     *     {
+     *     case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: ...
+     *     ...
+     *     }
+     * }
+     *```
+     */
+    SceneNodePropertyIterator TraverseIterateProperties(SceneNode* node);
+
+    /*#
+     * Steps the scene node traversal property iterator to the next property
+     * @name TraverseIteratePropertiesNext
+     * @param it [type:dmGameObject::SceneNodePropertyIterator*] the iterator
+     * @return finished [type:bool] True if the iterator it valid, false if the iterator is finished.
+     *
+     */
+    bool TraverseIteratePropertiesNext(SceneNodePropertyIterator* it);
 }
 
 #endif // DMSDK_GAMEOBJECT_H
