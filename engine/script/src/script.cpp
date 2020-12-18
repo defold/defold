@@ -67,6 +67,8 @@ namespace dmScript
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
 
+    int g_StoredLuaFunctionTableIndex = 0;
+
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
@@ -145,12 +147,47 @@ namespace dmScript
         return 0;
     }
 
+    void StoreLuaFunction(lua_State* L, const char* module, const char* function_name)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (g_StoredLuaFunctionTableIndex == 0)
+        {
+            lua_newtable(L);
+            g_StoredLuaFunctionTableIndex = luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
+
+        lua_getfield(L, LUA_GLOBALSINDEX, module);
+        if (!lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            return;
+        }
+        lua_getfield(L, -1, function_name);
+        if (!lua_isfunction(L, -1))
+        {
+            lua_pop(L, 2);
+            return;
+        }
+        lua_setfield(L, -3, function_name);
+        lua_pop(L,2);
+    }
+
+    void GetStoredLuaFunction(lua_State* L, const char* function_name)
+    {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
+        lua_getfield(L, -1, function_name);
+    }
+
     void Initialize(HContext context)
     {
         lua_State* L = context->m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
 
         luaL_openlibs(L);
+
+        StoreLuaFunction(L, "debug", "traceback");
 
         // To support 'math.mod' even though it's been deprecated in 5.1 and removed in 5.2
         lua_getglobal(L, "math");
@@ -1229,17 +1266,7 @@ namespace dmScript
         lua_pushvalue(m_state, 1);
         lua_setfield(m_state, -2, "error");
 
-        lua_getfield(m_state, LUA_GLOBALSINDEX, "debug");
-        if (!lua_istable(m_state, -1)) {
-            lua_pop(m_state, 2);
-            return 1;
-        }
-        lua_getfield(m_state, -1, "traceback");
-        if (!lua_isfunction(m_state, -1)) {
-            lua_pop(m_state, 3);
-            return 1;
-        }
-
+        GetStoredLuaFunction(m_state, "traceback");
         lua_pushlstring(m_state, "", 0);
         lua_pushinteger(m_state, 2);
         lua_call(m_state, 2, 1);  /* call debug.traceback */
