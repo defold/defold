@@ -94,7 +94,7 @@ jobs:
       {
         name: 'Install dependencies',
         shell: bash,
-        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" install'
+        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
       },
       {
         name: 'Install ext dependencies',
@@ -104,7 +104,7 @@ jobs:
       {
         name: 'Sign editor',
         shell: bash,
-        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
+        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass=./ci/windows_cert.pass --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',

@@ -1296,10 +1296,7 @@ class Configuration(object):
             if self.windows_cert:
                 cmd.append('--windows-cert=%s' % self.windows_cert)
             if self.windows_cert_pass:
-                windows_cert_pass = self.windows_cert_pass
-                if windows_cert_pass.startswith("'") and windows_cert_pass.endswith("'"):
-                    windows_cert_pass = windows_cert_pass[1:-1]
-                cmd.append("--windows-cert-pass='%s'" % windows_cert_pass)
+                cmd.append("--windows-cert-pass=%s" % windows_cert_pass)
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
@@ -2102,7 +2099,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
                       default = None,
-                      help = 'Password to codesigning certificate for Windows version of the editor')
+                      help = 'Path to file containing password to codesigning certificate for Windows version of the editor')
 
     options, all_args = parser.parse_args()
 

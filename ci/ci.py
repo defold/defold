@@ -111,6 +111,9 @@ def setup_windows_cert(args):
     with open(cert_path, "wb") as file:
         file.write(base64.decodestring(args.windows_cert_b64))
     print("Wrote cert to", cert_path)
+    cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
+    with open(cert_pass_path, "wb") as file:
+        file.write(args.windows_cert_pass)
 
 
 def install(args):
@@ -248,7 +251,7 @@ def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
         opts.append('--windows-cert=%s' % windows_cert)
 
     if windows_cert_pass:
-        opts.append("--windows-cert-pass='%s'" % windows_cert_pass)
+        opts.append("--windows-cert-pass=%s" % windows_cert_pass)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -372,7 +375,7 @@ def main(argv):
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--windows-cert-b64", dest="windows_cert_b64", help="String containing Windows certificate (pfx) encoded as base 64")
     parser.add_argument("--windows-cert", dest="windows_cert", help="File containing Windows certificate (pfx)")
-    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="Password for the Windows certificate")
+    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="File containing password for the Windows certificate")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")

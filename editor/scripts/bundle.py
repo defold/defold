@@ -153,7 +153,7 @@ def sign_files(platform, options, dir):
         return
     if 'win32' in platform:
         certificate = options.windows_cert
-        certificate_pass = options.windows_cert_pass
+        certificate_pass_path = options.windows_cert_pass
         if certificate == None:
             print("No codesigning certificate specified")
             sys.exit(1)
@@ -161,8 +161,10 @@ def sign_files(platform, options, dir):
             print("Certificate file does not exist:", certificate)
             sys.exit(1)
 
-        if certificate_pass.startswith("'") and certificate_pass.endswith("'"):
-            certificate_pass = certificate_pass[1:-1]
+        certificate_pass = 'invalid'
+        with open(certificate_pass_path, 'rb') as f:
+            certificate_pass = f.read()
+            print("Read %d bytes from pass file" % len(certificate_pass))
 
         signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
         if not os.path.exists(signtool):
