@@ -114,6 +114,7 @@ def setup_windows_cert(args):
     cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
     with open(cert_pass_path, "wb") as file:
         file.write(args.windows_cert_pass)
+    print("Wrote cert password to", cert_pass_path)
 
 
 def install(args):

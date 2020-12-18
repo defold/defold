@@ -157,6 +157,10 @@ def sign_files(platform, options, dir):
         if certificate == None:
             print("No codesigning certificate specified")
             sys.exit(1)
+
+        print("CWD", os.getcwd())
+        print("FILES", os.listdir(os.getcwd()))
+
         if not os.path.exists(certificate):
             print("Certificate file does not exist:", certificate)
             sys.exit(1)
