@@ -153,19 +153,31 @@ def sign_files(platform, options, dir):
         return
     if 'win32' in platform:
         certificate = options.windows_cert
-        certificate_pass = options.windows_cert_pass
+        certificate_pass_path = options.windows_cert_pass
         if certificate == None:
             print("No codesigning certificate specified")
             sys.exit(1)
 
+        if not os.path.exists(certificate):
+            print("Certificate file does not exist:", certificate)
+            sys.exit(1)
+
+        certificate_pass = 'invalid'
+        with open(certificate_pass_path, 'rb') as f:
+            certificate_pass = f.read()
+
+        signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
+        if not os.path.exists(signtool):
+            print("signtool.exe file does not exist:", signtool)
+            sys.exit(1)
         exec_command([
-            'SignTool',
+            signtool,
             'sign',
             '/fd', 'sha256',
             '/a',
             '/f', certificate,
             '/p', certificate_pass,
-            '/tr', 'http://timestamp.comodoca.com',
+            '/tr', 'http://timestamp.digicert.com',
             dir])
     elif 'darwin' in platform:
         codesigning_identity = options.codesigning_identity
@@ -396,7 +408,7 @@ def sign(options):
             sign_files('darwin', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
             sign_files('darwin', options, os.path.join(sign_dir, "Defold.app"))
         elif 'win32' in platform:
-            sign_files('win32', options,  os.path.join(sign_dir, "Defold.exe"))
+            sign_files('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
 
         # create editor bundle with signed files
         os.remove(bundle_file)

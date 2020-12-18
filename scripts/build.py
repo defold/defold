@@ -1263,7 +1263,7 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
-        cmd = ['./scripts/bundle.py',
+        cmd = ['python', './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                'build']
 
@@ -1276,7 +1276,7 @@ class Configuration(object):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
-        cmd = ['./scripts/bundle.py',
+        cmd = ['python', './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
@@ -1286,7 +1286,7 @@ class Configuration(object):
 
     def sign_editor2(self):
         editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = ['./scripts/bundle.py',
+        cmd = ['python', './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
                'sign']
@@ -1294,9 +1294,9 @@ class Configuration(object):
             cmd.append('--skip-codesign')
         else:
             if self.windows_cert:
-                cmd.append('--windows-cert="%s"' % self.windows_cert)
+                cmd.append('--windows-cert=%s' % self.windows_cert)
             if self.windows_cert_pass:
-                cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
+                cmd.append("--windows-cert-pass=%s" % self.windows_cert_pass)
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
@@ -2099,7 +2099,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
                       default = None,
-                      help = 'Password to codesigning certificate for Windows version of the editor')
+                      help = 'Path to file containing password to codesigning certificate for Windows version of the editor')
 
     options, all_args = parser.parse_args()
 
