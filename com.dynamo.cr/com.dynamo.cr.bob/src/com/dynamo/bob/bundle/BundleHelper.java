@@ -729,6 +729,9 @@ public class BundleHelper {
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
         properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
+        properties.put("build-number", projectProperties.getStringValue("ios", "build_number", 
+            projectProperties.getStringValue("project", "version", "1.0")
+        ));
 
         String launchScreen = projectProperties.getStringValue("ios", "launch_screen", "LaunchScreen");
         properties.put("launch-screen", FilenameUtils.getBaseName(launchScreen));

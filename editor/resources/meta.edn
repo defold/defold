@@ -452,7 +452,6 @@
    :path ["ios" "bundle_name"]}
   {:type :string,
    :help "build number (CFBundleVersion). numeric or x.y.z",
-   :default "1",
    :path ["ios" "build_number"]}
   {:type :resource,
    :filter "plist",
