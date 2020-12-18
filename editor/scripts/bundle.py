@@ -171,7 +171,7 @@ def sign_files(platform, options, dir):
             '/fd', 'sha256',
             '/a',
             '/f', certificate,
-            '/p', certificate_pass,
+            '/p', "'%s'" % certificate_pass,
             '/tr', 'http://timestamp.comodoca.com',
             dir])
     elif 'darwin' in platform:
