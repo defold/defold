@@ -320,12 +320,12 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_10}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_10}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_10}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_10}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_10}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_10}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_11}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_11}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_11}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_11}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_11}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_11}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
@@ -356,12 +356,12 @@ platforms:
 
   wasm-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_10}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_10}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_10}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_10}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_10}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_10}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_11}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_11}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_11}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_11}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_11}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_11}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
