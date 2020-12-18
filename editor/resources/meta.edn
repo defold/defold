@@ -450,6 +450,10 @@
   {:type :string,
    :help "bundle short name (CFBundleName). max 15 characters",
    :path ["ios" "bundle_name"]}
+  {:type :string,
+   :help "build number (CFBundleVersion). numeric or x.y.z",
+   :default "1",
+   :path ["ios" "build_number"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,
@@ -654,6 +658,10 @@
   {:type :string,
    :help "bundle short name (CFBundleName). max 15 characters",
    :path ["osx" "bundle_name"]}
+  {:type :string,
+   :help "build number (CFBundleVersion). numeric or x.y.z",
+   :default "1",
+   :path ["osx" "build_number"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,
