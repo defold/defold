@@ -760,11 +760,14 @@ namespace dmRender
         delete predicate;
     }
 
-    void AddPredicateTag(HPredicate predicate, dmhash_t tag)
+    Result AddPredicateTag(HPredicate predicate, dmhash_t tag)
     {
         if (predicate->m_TagCount == dmRender::Predicate::MAX_TAG_COUNT)
-            return;
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
         predicate->m_Tags[predicate->m_TagCount++] = tag;
+        return RESULT_OK;
     }
 
     struct NamedConstantBuffer

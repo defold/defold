@@ -2259,7 +2259,10 @@ namespace dmRender
         while (lua_next(L, 1) != 0)
         {
             dmhash_t tag = dmScript::CheckHashOrString(L, -1);
-            AddPredicateTag(*p_predicate, tag);
+            if (RESULT_OK != AddPredicateTag(*p_predicate, tag))
+            {
+                dmLogWarning("Unable to add predicate tag. Max number of tags (%i) reached?", dmRender::Predicate::MAX_TAG_COUNT);
+            }
             lua_pop(L, 1);
         }
         assert(top + 1 == lua_gettop(L));

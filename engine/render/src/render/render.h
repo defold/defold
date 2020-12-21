@@ -360,7 +360,7 @@ namespace dmRender
 
     HPredicate                      NewPredicate();
     void                            DeletePredicate(HPredicate predicate);
-    void                            AddPredicateTag(HPredicate predicate, dmhash_t tag);
+    Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
 }
 
