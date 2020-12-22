@@ -501,6 +501,8 @@ var Module = {
     _syncMaxTries: 3,
     _syncTries: 0,
 
+    arguments: [],
+
     print: function(text) { console.log(text); },
     printErr: function(text) { console.error(text); },
 

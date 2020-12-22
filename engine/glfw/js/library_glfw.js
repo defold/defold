@@ -190,7 +190,7 @@ var LibraryGLFW = {
       if (event.charCode) {
         var char = GLFW.getUnicodeChar(event.charCode);
         if (char !== null && GLFW.charFunc) {
-          dynCall('vii', GLFW.charFunc, [event.charCode, 1]);
+          {{{ makeDynCall('vii', 'GLFW.charFunc') }}}(event.charCode, 1);
         }
       }
     },
@@ -202,7 +202,7 @@ var LibraryGLFW = {
       if (key) {
         GLFW.keys[key] = status;
         if (GLFW.keyFunc) {
-          dynCall('vii', GLFW.keyFunc, [key, status]);
+          {{{ makeDynCall('vii', 'GLFW.keyFunc') }}}(key, status);
         }
       }
     },
@@ -213,7 +213,7 @@ var LibraryGLFW = {
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       if (event.keyCode === 32) {
         if (GLFW.charFunc) {
-          dynCall('vii', GLFW.charFunc, [32, 1]);
+          {{{ makeDynCall('vii', 'GLFW.charFunc') }}}(32, 1);
           event.preventDefault();
         }
       }
@@ -244,7 +244,7 @@ var LibraryGLFW = {
 
       if (event.target == Module["canvas"] && GLFW.mousePosFunc) {
         event.preventDefault();
-        dynCall('vii', GLFW.mousePosFunc, [lastX, lastY]);
+        {{{ makeDynCall('vii', 'GLFW.mousePosFunc') }}}(lastX, lastY);
       }
     },
 
@@ -272,12 +272,12 @@ var LibraryGLFW = {
       // DOM and glfw have different button codes
       var eventButton = GLFW.DOMtoGLFWButton(event['button']);
 
-      dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
+      {{{ makeDynCall('vii', 'GLFW.mouseButtonFunc') }}}(eventButton, status);
     },
 
     fillTouch: function(id, x, y, phase) {
       if (GLFW.touchFunc) {
-        dynCall('viiii', GLFW.touchFunc, [id, x, y, phase]);
+        {{{ makeDynCall('viiii', 'GLFW.touchFunc') }}}(id, x, y, phase);
       }
     },
 
@@ -413,7 +413,7 @@ var LibraryGLFW = {
 
       if (event.target == Module["canvas"]) {
         if (GLFW.mouseWheelFunc) {
-          dynCall('vi', GLFW.mouseWheelFunc, [GLFW.wheelPos]);
+          {{{ makeDynCall('vi', 'GLFW.mouseWheelFunc') }}}(GLFW.wheelPos);
         }
         event.preventDefault();
       }
@@ -421,7 +421,7 @@ var LibraryGLFW = {
 
     onFocusChanged: function(focus) {
       if (GLFW.focusFunc) {
-        dynCall('vi', GLFW.focusFunc, [focus]);
+        {{{ makeDynCall('vi', 'GLFW.focusFunc') }}}(focus);
       }
     },
 
@@ -478,7 +478,7 @@ var LibraryGLFW = {
       _free(GLFW.joys[joy].id);
       delete GLFW.joys[joy];
       if (GLFW.gamepadFunc) {
-        dynCall('vii', GLFW.gamepadFunc, [joy, 0]);
+        {{{ makeDynCall('vii', 'GLFW.gamepadFunc') }}}(joy, 0);
       }
     },
 
@@ -511,7 +511,7 @@ var LibraryGLFW = {
                   buttonsCount: gamepad.buttons.length
                 };
                 if (GLFW.gamepadFunc) {
-                  dynCall('vii', GLFW.gamepadFunc, [joy, 1]);
+                  {{{ makeDynCall('vii', 'GLFW.gamepadFunc') }}}(joy, 1);
                 }
               }
               GLFW.joys[joy].buttons = gamepad.buttons;
@@ -677,7 +677,7 @@ var LibraryGLFW = {
   glfwCloseWindow__deps: ['$Browser'],
   glfwCloseWindow: function() {
     if (GLFW.closeFunc) {
-      dynCall('i', GLFW.closeFunc, []);
+      {{{ makeDynCall('i', 'GLFW.closeFunc') }}}();
     }
     Module.ctx = Browser.destroyContext(Module['canvas'], true, true);
   },
@@ -694,7 +694,7 @@ var LibraryGLFW = {
   glfwSetWindowSize: function(width, height) {
       Browser.setCanvasSize(width, height);
       if (GLFW.resizeFunc) {
-        dynCall('vii', GLFW.resizeFunc, [width, height]);
+        {{{ makeDynCall('vii', 'GLFW.resizeFunc') }}}(width, height);
       }
   },
 
@@ -910,11 +910,7 @@ var LibraryGLFW = {
 
   /* Threading support */
   glfwCreateThread: function(fun, arg) {
-    var str = 'v';
-    for (var i in arg) {
-      str += 'i';
-    }
-    dynCall(str, fun, arg);
+    {{{ makeDynCall('vi', 'str') }}}(fun, arg); // from emscripten-core 2.0.10
     // One single thread
     return 0;
   },
