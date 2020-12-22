@@ -2360,15 +2360,25 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
+        HNode foundNode = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             InternalNode* node = &nodes[i];
             if (node->m_NameHash == id)
             {
-                return GetNodeHandle(node);
+                foundNode = GetNodeHandle(node);
+                // https://github.com/defold/defold/issues/3481
+                // The node may have been deleted and another node given the
+                // same id in the same frame. If we find a node with the correct
+                // id but flagged for deferred delete we keep looking for
+                // another one
+                if (!node->m_Deleted)
+                {
+                    break;
+                }
             }
         }
-        return 0;
+        return foundNode;
     }
 
     uint32_t GetNodeCount(HScene scene)
