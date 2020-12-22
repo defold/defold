@@ -56,7 +56,7 @@
                 <string>iPhoneOS</string>
         </array>
         <key>CFBundleVersion</key>
-        <string>{{project.version}}</string>
+        <string>{{bundle-version}}</string>
         <key>DTCompiler</key>
         <string>com.apple.compilers.llvm.clang.1_0</string>
         <key>DTPlatformBuild</key>
