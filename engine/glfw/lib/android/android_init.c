@@ -153,7 +153,7 @@ static void glfw_atexit( void )
     case cmd:\
         return #cmd;
 
-static const char* GetCmdName(int32_t cmd)
+const char* _glfwGetAndroidCmdName(int32_t cmd)
 {
     switch (cmd)
     {
@@ -214,6 +214,7 @@ GLFWAPI int32_t glfwAndroidVerifySurface()
         if (!result)
         {
             destroy_gl_surface(&_glfwWinAndroid);
+            _glfwWinAndroid.should_recreate_surface = 1;
             _glfwWin.iconified = 1;
             return result;
         }
@@ -222,7 +223,7 @@ GLFWAPI int32_t glfwAndroidVerifySurface()
 }
 
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
-    LOGV("handleCommand: %s", GetCmdName(cmd));
+    LOGV("handleCommand (looper thread): %s", _glfwGetAndroidCmdName(cmd));
 
     switch (cmd)
     {
