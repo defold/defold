@@ -452,7 +452,7 @@
    :path ["ios" "bundle_name"]}
   {:type :string,
    :help "build number (CFBundleVersion). numeric or x.y.z",
-   :path ["ios" "build_number"]}
+   :path ["ios" "bundle_version"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,
@@ -660,7 +660,7 @@
   {:type :string,
    :help "build number (CFBundleVersion). numeric or x.y.z",
    :default "1",
-   :path ["osx" "build_number"]}
+   :path ["osx" "bundle_version"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,

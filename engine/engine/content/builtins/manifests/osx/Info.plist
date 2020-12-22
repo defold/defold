@@ -29,7 +29,7 @@
 		<string>{{.}}</string>{{/application-localizations}}
 	</array>
 	<key>CFBundleVersion</key>
-	<string>{{osx.build_number}}</string>
+	<string>{{osx.bundle_version}}</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>10.7</string>
 	<key>NSMainNibFile</key>
