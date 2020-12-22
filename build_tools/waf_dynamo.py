@@ -78,7 +78,7 @@ MIN_IOS_SDK_VERSION="8.0"
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
 
-XCODE_VERSION="12.0"
+XCODE_VERSION="12.1"
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
