@@ -814,7 +814,7 @@ public class Project {
                 variantSuffix = "_release";
                 break;
             case Bob.VARIANT_HEADLESS:
-                variantSuffix = "_release";
+                variantSuffix = "_headless";
                 break;
         }
 
