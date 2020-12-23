@@ -1,5 +1,3 @@
-$console-background: #27292D;
-
 .console-button-base {
   @extend .button-small;
   -fx-border-width: 0;
@@ -9,17 +7,17 @@ $console-background: #27292D;
   -fx-padding: 0px 10px;
 
   &:hover {
-    -fx-background-color: $mid-grey-light;
+    -fx-background-color: -df-component-darker;
   }
 
   &:armed {
-    -fx-background-color: $input-background;
+    -fx-background-color: -df-background-light;
   }
 }
 
 .console-image-button-base {
   @extend .console-button-base;
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-background-lighter;
   -fx-background-position: center;
   -fx-background-repeat: no-repeat;
   -fx-background-size: 16 16;
@@ -39,7 +37,7 @@ $console-background: #27292D;
 }
 
 #console-tool-bar {
-  -fx-background-color: $panel-background;
+  -fx-background-color: -df-background-light;
   -fx-padding: 16px;
 
   .separator {
@@ -48,7 +46,7 @@ $console-background: #27292D;
 }
 
 #console-canvas-pane {
-  -fx-background-color: $console-background;
+  -fx-background-color: -df-background-light;
   -fx-min-height: 20px;
 }
 
@@ -76,7 +74,7 @@ $console-background: #27292D;
   -fx-padding: 0px 12px 0px 20px;
 
   .line {
-    -fx-border-color: #3e4147;
+    -fx-border-color: -df-background-light;
   }
 }
 
@@ -136,11 +134,11 @@ $console-background: #27292D;
 
 #debugger-prompt-label {
   -fx-alignment: center-right;
-  -fx-background-color: $console-background;
-  -fx-border-color: $input-border;
+  -fx-background-color: -df-background-light;
+  -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px 0px 0px 0px;
-  -fx-font-family: "Dejavu Sans Mono";
-  -fx-font-size: 12px;
+  -fx-font-family: $default-font-mono;
+  -fx-font-size: 90%;
   -fx-min-width: 42px;
   -fx-max-width: 42px;
   -fx-max-height: 100px;
@@ -148,22 +146,22 @@ $console-background: #27292D;
 }
 
 #debugger-prompt-field {
-  -fx-background-color: $console-background;
-  -fx-border-color: $input-border;
+  -fx-background-color: -df-background-light;
+  -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px 0px 0px 0px;
-  -fx-font-family: "Dejavu Sans Mono";
-  -fx-font-size: 12px;
+  -fx-font-family: $default-font-mono;
+  -fx-font-size: 90%;
   -fx-font-smoothing-type: lcd;
   -fx-min-height: 44px;
   -fx-padding: 0px;
-  -fx-text-fill: $defold-white;
+  -fx-text-fill: -df-text;
 
   &:focused {
-    -fx-background-color: $console-background;
-    -fx-border-color: $input-border;
+    -fx-background-color: -df-background-light;
+    -fx-border-color: -df-background-lighter;
     -fx-border-width: 1px 0px 0px 0px;
     -fx-padding: 0px;
-    -fx-text-fill: $defold-white;
+    -fx-text-fill: -df-text-selected;
     -fx-prompt-text-fill: transparent;
   }
 }

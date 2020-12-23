@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -221,6 +221,19 @@ TEST(dmArray, Map)
     a.Map(sum_int, (void*)&sum);
 
     ASSERT_EQ(expected_sum, sum);
+}
+
+TEST(Macros, ArraySize)
+{
+    char a_c1[5] = {};
+    char a_c2[7] = {};
+    ASSERT_EQ(5u, DM_ARRAY_SIZE(a_c1));
+    ASSERT_EQ(7u, DM_ARRAY_SIZE(a_c2));
+
+    uint64_t a_u64_1[21] = {};
+    uint64_t a_u64_2[17] = {};
+    ASSERT_EQ(21u, DM_ARRAY_SIZE(a_u64_1));
+    ASSERT_EQ(17u, DM_ARRAY_SIZE(a_u64_2));
 }
 
 int main(int argc, char **argv)

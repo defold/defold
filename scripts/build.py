@@ -90,7 +90,7 @@ CDN_UPLOAD_URL="s3://d.defold.com/archive"
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.0.xctoolchain"
+PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.1.xctoolchain"
 PACKAGES_TAPI_VERSION="tapi1.6"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
@@ -104,7 +104,7 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.39.16"
+EMSCRIPTEN_VERSION_STR = "2.0.11"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
@@ -521,8 +521,8 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python eggs")
-        run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'requests'])
-        run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pyaml'])
+        run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pip'])
+        run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
@@ -591,7 +591,7 @@ class Configuration(object):
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
@@ -674,8 +674,7 @@ class Configuration(object):
         run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
 
     def check_ems(self):
-        home = os.path.expanduser('~')
-        config = join(home, '.emscripten')
+        config = join(self.get_ems_dir(), '.emscripten')
         err = False
         if not os.path.isfile(config):
             print 'No .emscripten file.'
@@ -1263,7 +1262,7 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
-        cmd = ['./scripts/bundle.py',
+        cmd = ['python', './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                'build']
 
@@ -1276,7 +1275,7 @@ class Configuration(object):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
-        cmd = ['./scripts/bundle.py',
+        cmd = ['python', './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
@@ -1286,7 +1285,7 @@ class Configuration(object):
 
     def sign_editor2(self):
         editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = ['./scripts/bundle.py',
+        cmd = ['python', './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
                'sign']
@@ -1294,9 +1293,9 @@ class Configuration(object):
             cmd.append('--skip-codesign')
         else:
             if self.windows_cert:
-                cmd.append('--windows-cert="%s"' % self.windows_cert)
+                cmd.append('--windows-cert=%s' % self.windows_cert)
             if self.windows_cert_pass:
-                cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
+                cmd.append("--windows-cert-pass=%s" % self.windows_cert_pass)
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
@@ -2099,7 +2098,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
                       default = None,
-                      help = 'Password to codesigning certificate for Windows version of the editor')
+                      help = 'Path to file containing password to codesigning certificate for Windows version of the editor')
 
     options, all_args = parser.parse_args()
 

@@ -25,12 +25,12 @@ var FileLoader = {
                     if (onprogress) onprogress(xhr, e);
                 };
                 xhr.onerror = function(e) {
-                    if (currentAttempt == FileLoader.retryCount) {
+                    if (currentAttempt == FileLoader.options.retryCount) {
                         if (onerror) onerror(xhr, e);
                         return;
                     }
                     currentAttempt = currentAttempt + 1;
-                    setTimeout(obj.send, FileLoader.retryInterval);
+                    setTimeout(obj.send, FileLoader.options.retryInterval);
                 };
                 xhr.onload = function(e) {
                     if (onload) onload(xhr, e);
@@ -500,6 +500,8 @@ var Module = {
     _syncInitial: false,
     _syncMaxTries: 3,
     _syncTries: 0,
+
+    arguments: [],
 
     print: function(text) { console.log(text); },
     printErr: function(text) { console.error(text); },

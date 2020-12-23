@@ -746,7 +746,7 @@
            (ui/children! new-project-pane [(doto (TextArea.)
                                              (.setPrefHeight 10000.0)
                                              (.setEditable false)
-                                             (.setStyle "-fx-font-family: 'Dejavu Sans Mono'; -fx-font-size: 12px;")
+                                             (.setStyle "-fx-font-family: 'Dejavu Sans Mono'; -fx-font-size: 90%;")
                                              (ui/text! (if (and (instance? ExceptionInfo welcome-settings-load-error)
                                                                 (= :schema.core/error (:type (ex-data welcome-settings-load-error))))
                                                          (let [ex-data (ex-data welcome-settings-load-error)]

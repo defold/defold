@@ -1,5 +1,5 @@
 .fuzzy-combo-box {
-  -fx-border-color: $input-border;
+  -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px;
 
   .text-field {
@@ -9,13 +9,13 @@
     -fx-min-height: 26px;
 
     &:focused {
-      -fx-background-color: $input-background;
-      -fx-border-color: $input-border;
+      -fx-background-color: -df-background-light;
+      -fx-border-color: -df-background-lighter;
       -fx-border-width: 0px;
     }
 
     &.unmatched {
-      -fx-text-fill: $tree-view-icon;
+      -fx-text-fill: -df-text;
       .text {
         -fx-strikethrough: true;
       }
@@ -28,33 +28,33 @@
     -fx-padding: 10px 6px 10px 8px;
 
     > .arrow {
-      -fx-background-color: $bright-grey;
+      -fx-background-color: -df-text-dark;
       -fx-shape: "M 0 0 h 7 l -3.5 4 z";
     }
   }
 
   &.showing {
     .arrow-button > .arrow {
-      -fx-background-color: $defold-white;
+      -fx-background-color: -df-text;
       -fx-rotate: 180;
     }
   }
 }
 
 .fuzzy-combo-box.field-error #fuzzy-choices-list-view {
-  -fx-background-color: $defold-red;
+  -fx-background-color: -df-defold-red;
 }
 
 .fuzzy-combo-box.field-warning #fuzzy-choices-list-view {
-  -fx-background-color: $defold-yellow;
+  -fx-background-color: -df-defold-yellow;
 }
 
 .fuzzy-combo-box.field-info #fuzzy-choices-list-view {
-  -fx-background-color: $defold-light-blue;
+  -fx-background-color: -df-defold-blue-lighter;
 }
 
 #fuzzy-choices-list-view {
-  -fx-background-color: $input-border;
+  -fx-background-color: -df-background-lighter;
   -fx-background-radius: 0px;
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0.0, 0, 8);
 
