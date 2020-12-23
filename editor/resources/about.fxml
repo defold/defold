@@ -87,6 +87,11 @@
             <Insets top="20.0"/>
           </VBox.margin>
         </GridPane>
+        <TextFlow id="sponsor-push" textAlignment="CENTER">
+            <VBox.margin>
+              <Insets top="20.0"/>
+            </VBox.margin>
+        </TextFlow>
         <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2020">
           <VBox.margin>
             <Insets top="20.0"/>
