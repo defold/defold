@@ -1,5 +1,5 @@
 #welcome-dialog {
-  -fx-background-color: $df-dark-grey1;
+  -fx-background-color: -df-background-light;
 
   HBox, VBox {
     -fx-spacing: 0; // Fight crazy non-zero default.
@@ -65,7 +65,7 @@
   }
 
   #left-pane {
-    -fx-background-color: #1C1E21;
+    -fx-background-color: -df-background;
 
     .defold-logo {
       -fx-padding: 16px;
@@ -78,8 +78,6 @@
   }
 
   .pane-button {
-    -fx-font-family: "Source Sans Pro Semibold";
-    -fx-font-size: 14px;
     -fx-alignment: center-right;
     -fx-graphic-text-gap: 0;
     -fx-label-padding: 0;
@@ -87,7 +85,7 @@
     -fx-padding: 9px 16px;
     -fx-border-color: transparent;
     -fx-border-width: 0px 3px 0px 0px;
-    -fx-text-fill: $df-grey2;
+    -fx-text-fill: -df-text;
     -fx-opacity: 50%;
 
     &:hover {
@@ -95,7 +93,7 @@
     }
 
     &:selected {
-      -fx-border-color: $defold-orange;
+      -fx-border-color: -df-defold-orange;
       -fx-opacity: 100%;
     }
 
@@ -128,7 +126,7 @@
       -fx-padding: 4px 4px;
       -fx-border-color: transparent;
       -fx-border-width: 0px 0px 2px 0px;
-      -fx-text-fill: $df-grey2;
+      -fx-text-fill: -df-text;
       -fx-opacity: 50%;
 
       &:hover {
@@ -136,7 +134,7 @@
       }
 
       &:selected {
-        -fx-border-color: $defold-orange;
+        -fx-border-color: -df-defold-orange;
         -fx-opacity: 100%;
       }
 
@@ -165,7 +163,7 @@
   }
 
   .form-pane {
-    -fx-background-color: #313238;
+    -fx-background-color: -df-background-lighter;
     -fx-padding: 24px;
     -fx-spacing: 16px;
 
@@ -189,15 +187,15 @@
 
   .defold-logo-container.gray {
     .left {
-      -fx-fill: #3E3E43;
+      -fx-fill: -df-component-light;
     }
 
     .right {
-      -fx-fill: #37383D;
+      -fx-fill: -df-background-lighter;
     }
 
     .bottom {
-      -fx-fill: #2D2E32;
+      -fx-fill: -df-background-light;
     }
   }
 
@@ -210,7 +208,7 @@
 
       &:selected {
         -fx-background-color: rgba(255, 255, 255, 0.05);
-        -fx-border-color: $df-bright-blue;
+        -fx-border-color: -df-defold-blue-lighter;
       }
     }
   }
@@ -236,13 +234,13 @@
 
       .title {
         Text {
-          -fx-fill: $df-grey1;
+          -fx-fill: -df-text;
           -fx-opacity: 87%;
-          -fx-font-size: 16px;
+          -fx-font-size: 125%;
           -fx-font-smoothing-type: lcd;
 
           &.matched {
-            -fx-fill: $df-bright-blue;
+            -fx-fill: -df-defold-blue-lighter;
             -fx-opacity: 100%;
           }
         }
@@ -250,7 +248,7 @@
 
       .description {
         -fx-font-smoothing-type: lcd;
-        -fx-text-fill: $df-grey1;
+        -fx-text-fill: -df-text;
         -fx-opacity: 0.4;
       }
     }
@@ -260,20 +258,20 @@
       -fx-text-alignment: right;
       -fx-alignment: center-right;
       -fx-font-smoothing-type: lcd;
-      -fx-text-fill: $df-grey1;
+      -fx-text-fill: -df-text;
       -fx-opacity: 0.4;
     }
   }
 
   .template-entry {
-    -fx-background-color: #35373B;
+    -fx-background-color: -df-component-darker;
     -fx-background-radius: 2px;
     -fx-border-width: 1px;
     -fx-border-color: transparent;
     -fx-padding: 8px;
 
     .svg-icon {
-      -fx-background-color: #404146;
+      -fx-background-color: -df-component-dark;
       -fx-background-radius: 2px;
       -fx-max-width: 171px;
       -fx-max-height: 114px;
@@ -281,7 +279,7 @@
       -fx-min-height: 114px;
 
       SVGPath {
-        -fx-fill: #6D6F73;
+        -fx-fill: -df-text-dark;
       }
     }
 
@@ -289,7 +287,7 @@
       -fx-padding: 6px 16px;
 
       Text {
-        -fx-fill: $df-grey1;
+        -fx-fill: -df-text;
         -fx-font-smoothing-type: lcd;
       }
 
@@ -303,27 +301,24 @@
   .list-cell:selected .template-entry {
     -fx-background-radius: 4px;
     -fx-border-radius: 4px;
-    -fx-border-color: $df-bright-blue;
-    -fx-effect: dropshadow(gaussian, $df-bright-blue, 10, 0, 0, 0);
+    -fx-border-color: -df-defold-blue-lighter;
+    -fx-effect: dropshadow(gaussian, -df-defold-blue-lighter, 10, 0, 0, 0);
 
     .svg-icon {
       SVGPath {
-        -fx-fill: $df-bright-blue;
+        -fx-fill: -df-defold-blue-lighter;
       }
     }
   }
 
   #progress-overlay {
     .background-cover {
-      -fx-background-color: #292A2F;
+      -fx-background-color: -df-background-lighter;
       -fx-opacity: 85%;
     }
 
     #progress-header {
-      -fx-text-fill: $df-grey1;
-      -fx-font-family: "Source Sans Pro Light";
-      -fx-font-size: 20px;
-      -fx-font-smoothing-type: lcd;
+      -fx-text-fill: -df-text;
       -fx-padding: 0px 24px 0px 24px;
     }
 
@@ -332,7 +327,7 @@
       -fx-padding: 17px 0px 24px 0px;
 
       .bar {
-        -fx-background-color: $df-bright-blue;
+        -fx-background-color: -df-defold-blue-lighter;
         -fx-background-insets: 0;
         -fx-background-radius: 4px;
         -fx-min-height: 5px;
@@ -340,7 +335,7 @@
       }
 
       .track {
-        -fx-background-color: $mid-grey;
+        -fx-background-color: -df-background-lighter;
         -fx-background-insets: 0;
         -fx-border-width: 0;
         -fx-background-radius: 4px;
@@ -351,50 +346,50 @@
   .filter-field {
     -fx-pref-width: 106px;
     -fx-padding: 4px 24px 4px 2px;
-    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
+    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4);
     -fx-background-color: transparent;
     -fx-border-color: transparent;
 
     &:hover {
-      -fx-border-color: transparent transparent $input-border transparent;
+      -fx-border-color: transparent transparent -df-background-lighter transparent;
     }
 
     &:focused {
       -fx-padding: 4px 24px 4px 2px;
       -fx-border-width: 1px;
-      -fx-border-color: transparent transparent $defold-orange transparent;
+      -fx-border-color: transparent transparent -df-defold-orange transparent;
     }
   }
 
   .filter-field-icon {
-    -fx-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
+    -fx-fill: rgba(221, 221, 221, 0.4);
   }
 
   .location-field {
     Button {
       -fx-border-width: 0px;
       -fx-background-radius: 0px 2px 2px 0px;
-      -fx-background-color: $input-border;
+      -fx-background-color: -df-background-lighter;
       -fx-min-width: 30px;
       -fx-padding: 0px;
-      -fx-font-size: 11.5px;
+      -fx-font-size: 90%;
 
       &:hover {
-        -fx-background-color: lighten($input-border, 3%);
+        -fx-background-color: -df-component-light;
       }
     }
 
     .path-field {
       -fx-alignment: center-left;
       -fx-background-color: transparent;
-      -fx-border-color: $input-border;
+      -fx-border-color: -df-background-lighter;
       -fx-border-width: 1px 0px 1px 1px;
       -fx-padding: 4px 8px;
     }
 
     .path-element {
       -fx-padding: 0;
-      -fx-text-fill: $defold-white;
+      -fx-text-fill: -df-text;
       -fx-font-smoothing-type: lcd;
 
       &.implicit {

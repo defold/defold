@@ -17,6 +17,7 @@ pom.xml.asc
 /.cache
 /resources/dialogs.css
 /resources/editor.css
+/resources/splash.css
 /editor2.*.log
 /log.txt
 /.project
@@ -24,4 +25,3 @@ pom.xml.asc
 /resources/doc/
 /build
 /preflight-report.txt
-

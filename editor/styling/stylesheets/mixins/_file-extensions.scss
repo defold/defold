@@ -1,6 +1,6 @@
 @mixin extension-template($element, $color, $active-color){
     .image-view {
-        @include colorize-image-view($color);  
+        @include colorize-image-view($color);
     }
     @if($element == "menu") {
         &:focused {
@@ -29,18 +29,18 @@
 
 @mixin extensions ($element) {
     &.resource {
-        @include extension-template($element, $unknown-file, $unknown-file-active)
+        @include extension-template($element, -df-unknown-file, -df-unknown-file-active)
     }
 
     &.resource-folder {
-        @include extension-template($element, $folder, $folder-active)
+        @include extension-template($element, -df-folder, -df-folder-active)
     }
 
     &.resource-ext- {
         /* Script files */
         &fp, &gui_script, &lua,
         &render_script, &script, &vp {
-            @include extension-template($element, $script-file, $script-file-active);
+            @include extension-template($element, -df-script-file, -df-script-file-active);
         }
 
         /* Design files */
@@ -49,7 +49,7 @@
         &gui, &label, &model, &particlefx,
         &spinemodel, &spinescene, &sprite,
         &tilemap, &tilesource {
-            @include extension-template($element, $design-file, $design-file-active);
+            @include extension-template($element, -df-design-file, -df-design-file-active);
         }
 
         /* Property container files */
@@ -58,7 +58,7 @@
         &display_profiles, &factory,
         &gamepads, &input_binding, &material, &project,
         &render, &sound, &texture_profiles {
-            @include extension-template($element, $property-file, $property-file-active);
+            @include extension-template($element, -df-property-file, -df-property-file-active);
         }
     }
 }
