@@ -1,7 +1,7 @@
 #tool-tabs {
     -fx-tab-min-height: 25px;
     -fx-tab-min-width: 40px;
-    -fx-padding: 0 0 $pane-padding-bottom 0;
+    -fx-padding: 0 0 0 0;
 
     .tab {
         -fx-padding: 0 10 5 10;
@@ -20,11 +20,11 @@
     }
 
     .tab-content-area {
-        -fx-background-color: $dark-grey-light;
+        -fx-background-color: -df-background-light;
         -fx-padding: 0;
 
         .content {
-            -fx-background-color: $dark-grey-light;
+            -fx-background-color: -df-background-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
             -fx-border-radius: 0;
@@ -33,7 +33,7 @@
         }
 
         .text-area, .scroll-pane, .viewport {
-            -fx-background-color: $dark-grey-light;
+            -fx-background-color: -df-background-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
         }
@@ -96,7 +96,7 @@
     &:hover {
         -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
     }
-    
+
     .label {
         -fx-padding: 5;
     }
@@ -105,24 +105,20 @@
 #build-errors-container {
     -fx-padding: 0;
     .tree-view {
-        -fx-background-color: $dark-grey-light;
+        // -fx-background-color: #ff0000;
     }
 
     .tree-cell {
-
-        -fx-font-family: "Dejavu Sans Mono";
-        -fx-font-size: 9pt;
-
         HBox {
             -fx-spacing: 9px;
         }
 
         Text {
-            -fx-fill: $bright-grey-light;
+            -fx-fill: -df-text;
         }
         &:selected, &:hover {
             Text {
-                -fx-fill: $defold-white;
+                -fx-fill: -df-text-selected;
             }
         }
 
@@ -141,12 +137,12 @@
 
         &.severity-error {
             -fx-graphic-text-gap: $graphic-text-gap;
-            @include colorize-severity($error-severity-fatal-dim, $error-severity-fatal);
+            @include colorize-severity(-df-error-severity-fatal-dim, -df-error-severity-fatal);
         }
 
         &.severity-warning {
             -fx-graphic-text-gap: $graphic-text-gap;
-            @include colorize-severity($error-severity-warning-dim, $error-severity-warning);
+            @include colorize-severity(-df-error-severity-warning-dim, -df-error-severity-warning);
         }
 
         &.severity-info {

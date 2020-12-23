@@ -514,7 +514,7 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
         DM_PROFILE(Render, "DrawRenderList");
 
@@ -607,7 +607,7 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
-    Result Draw(HRenderContext render_context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
+    Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
@@ -748,6 +748,27 @@ namespace dmRender
         }
     }
 
+
+    HPredicate NewPredicate()
+    {
+        HPredicate predicate = new Predicate();
+        return predicate;
+    }
+
+    void DeletePredicate(HPredicate predicate)
+    {
+        delete predicate;
+    }
+
+    Result AddPredicateTag(HPredicate predicate, dmhash_t tag)
+    {
+        if (predicate->m_TagCount == dmRender::Predicate::MAX_TAG_COUNT)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        predicate->m_Tags[predicate->m_TagCount++] = tag;
+        return RESULT_OK;
+    }
 
     struct NamedConstantBuffer
     {

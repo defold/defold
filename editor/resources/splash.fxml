@@ -34,6 +34,11 @@
                <Image url="@/sponsors/heroiclabs.png" />
             </ImageView>
          </HBox>
+         <HBox id="sponsor-icons">
+            <ImageView fitHeight="30.0" preserveRatio="true">
+               <Image url="@/sponsors/melsoft.png" />
+            </ImageView>
+         </HBox>
       </VBox>
       <ProgressBar AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
    </AnchorPane>

@@ -121,6 +121,11 @@ public class IOSBundler implements IBundler {
 
     private void lipoBinaries(File resultFile, List<File> binaries)
     throws IOException, CompileExceptionError {
+        if (binaries.size() == 1) {
+            FileUtils.copyFile(binaries.get(0), resultFile);
+            return;
+        }
+
         String exe = resultFile.getPath();
         List<String> lipoArgList = new ArrayList<String>();
         lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));

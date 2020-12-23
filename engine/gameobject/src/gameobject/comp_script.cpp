@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -366,7 +366,7 @@ namespace dmGameObject
 
             int action_table = lua_gettop(L);
 
-            if (params.m_InputAction->m_IsGamepad) 
+            if (params.m_InputAction->m_IsGamepad)
             {
                 lua_pushliteral(L, "gamepad");
                 lua_pushnumber(L, params.m_InputAction->m_GamepadIndex);
@@ -726,19 +726,10 @@ namespace dmGameObject
         return false;
     }
 
-    PropertyResult CompScriptGetProperty(const ComponentGetPropertyParams& params, PropertyDesc& out_value)
+    static PropertyResult RetrieveVarFromScript(HScriptInstance script_instance,
+                                        const char* property_name, PropertyType type, dmhash_t* element_ids, bool is_element, uint32_t element_index,
+                                        PropertyDesc& out_value)
     {
-        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
-
-        dmPropertiesDDF::PropertyDeclarations* declarations = &script_instance->m_Script->m_LuaModule->m_Properties;
-        PropertyType type = PROPERTY_TYPE_NUMBER;
-        dmhash_t* element_ids = 0x0;
-        const char* property_name = 0x0;
-        bool is_element = false;
-        uint32_t element_index = 0;
-        if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
-            return PROPERTY_RESULT_NOT_FOUND;
-
         if (type == PROPERTY_TYPE_VECTOR3)
         {
             out_value.m_ElementIds[0] = element_ids[0];
@@ -796,6 +787,23 @@ namespace dmGameObject
         assert(lua_gettop(L) == top);
 
         return result;
+    }
+
+
+    PropertyResult CompScriptGetProperty(const ComponentGetPropertyParams& params, PropertyDesc& out_value)
+    {
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
+
+        dmPropertiesDDF::PropertyDeclarations* declarations = &script_instance->m_Script->m_LuaModule->m_Properties;
+        PropertyType type = PROPERTY_TYPE_NUMBER;
+        dmhash_t* element_ids = 0x0;
+        const char* property_name = 0x0;
+        bool is_element = false;
+        uint32_t element_index = 0;
+        if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
+            return PROPERTY_RESULT_NOT_FOUND;
+
+        return RetrieveVarFromScript(script_instance, property_name, type, element_ids, is_element, element_index, out_value);
     }
 
     PropertyResult CompScriptSetProperty(const ComponentSetPropertyParams& params)
@@ -863,4 +871,109 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
+    static bool CompScriptIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        HScriptInstance script_instance = (HScriptInstance)pit->m_Node->m_Component;
+        dmPropertiesDDF::PropertyDeclarations* decls = &script_instance->m_Script->m_LuaModule->m_Properties;
+
+        uint32_t property_type = (uint32_t)((pit->m_Next >> 16) & 0xFFFF);
+        uint64_t index = pit->m_Next & 0xFFFF;
+
+        // get next element
+        dmPropertiesDDF::PropertyDeclarationEntry* entries = 0;
+        uint32_t element_count = 0;
+        while (property_type < dmGameObject::PROPERTY_TYPE_COUNT)
+        {
+            element_count = 0;
+            switch(property_type)
+            {
+            case dmGameObject::PROPERTY_TYPE_NUMBER:    entries = decls->m_NumberEntries.m_Data; element_count = decls->m_NumberEntries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_HASH:      entries = decls->m_HashEntries.m_Data; element_count = decls->m_HashEntries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_URL:       entries = decls->m_UrlEntries.m_Data; element_count = decls->m_UrlEntries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_VECTOR3:   entries = decls->m_Vector3Entries.m_Data; element_count = decls->m_Vector3Entries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_VECTOR4:   entries = decls->m_Vector4Entries.m_Data; element_count = decls->m_Vector4Entries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_QUAT:      entries = decls->m_QuatEntries.m_Data; element_count = decls->m_QuatEntries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_BOOLEAN:   entries = decls->m_BoolEntries.m_Data; element_count = decls->m_BoolEntries.m_Count; break;
+            default: break;
+            }
+
+            if (index < element_count)
+                break;
+
+            // We need to check the next list
+            property_type++;
+            index = 0;
+        }
+
+        if (property_type == dmGameObject::PROPERTY_TYPE_COUNT)
+            return false;
+
+        assert(entries != 0);
+
+        dmPropertiesDDF::PropertyDeclarationEntry* entry = &entries[index];
+
+        const char* property_name = entry->m_Key;
+        dmhash_t* element_ids = entry->m_ElementIds.m_Data;
+        bool is_element = false;
+        uint32_t element_index = 0;
+
+        PropertyDesc var_desc;
+        PropertyResult result = RetrieveVarFromScript(script_instance, property_name, (PropertyType)property_type, element_ids, is_element, element_index, var_desc);
+        if (result != PROPERTY_RESULT_OK)
+            return false;
+
+        dmGameObject::PropertyVar& var = var_desc.m_Variant;
+
+        pit->m_Next = (uint64_t)(property_type << 16 | (index+1));
+
+        // Since the data is precompiled, we most likely cannot reverse hash it
+        pit->m_Property.m_NameHash = dmHashString64(property_name);
+
+        switch(property_type)
+        {
+        case dmGameObject::PROPERTY_TYPE_HASH:
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
+            pit->m_Property.m_Value.m_Hash = var.m_Hash;
+            break;
+        case dmGameObject::PROPERTY_TYPE_NUMBER:
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_NUMBER;
+            pit->m_Property.m_Value.m_Number = var.m_Number;
+            break;
+        case dmGameObject::PROPERTY_TYPE_BOOLEAN:
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+            pit->m_Property.m_Value.m_Bool = var.m_Bool;
+            break;
+        case dmGameObject::PROPERTY_TYPE_VECTOR3:
+        case dmGameObject::PROPERTY_TYPE_VECTOR4:
+        case dmGameObject::PROPERTY_TYPE_QUAT:
+            if (property_type == dmGameObject::PROPERTY_TYPE_VECTOR4)
+                pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_VECTOR4;
+            else if (property_type == dmGameObject::PROPERTY_TYPE_VECTOR3)
+                pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_VECTOR3;
+            else if (property_type == dmGameObject::PROPERTY_TYPE_QUAT)
+                pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_QUAT;
+            pit->m_Property.m_Value.m_V4[0] = var.m_V4[0];
+            pit->m_Property.m_Value.m_V4[1] = var.m_V4[1];
+            pit->m_Property.m_Value.m_V4[2] = var.m_V4[2];
+            pit->m_Property.m_Value.m_V4[3] = var.m_V4[3];
+            break;
+        case dmGameObject::PROPERTY_TYPE_URL:
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_URL;
+            dmMessage::URL* url = (dmMessage::URL*)&var.m_URL[0];
+            dmSnPrintf(pit->m_Property.m_Value.m_URL, sizeof(pit->m_Property.m_Value.m_URL), "%s:%s%s%s",
+                            dmHashReverseSafe64(url->m_Socket), dmHashReverseSafe64(url->m_Path), url->m_Fragment?"#":"", url->m_Fragment?dmHashReverseSafe64(url->m_Fragment):"");
+            break;
+        }
+
+        return true;
+    }
+
+    void CompScriptIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = (uint64_t)(dmGameObject::PROPERTY_TYPE_NUMBER << 16 | 0);
+        pit->m_FnIterateNext = CompScriptIterPropertiesGetNext;
+    }
 }

@@ -670,6 +670,8 @@ public class Bob {
             mainInternal(args);
         } catch (LibraryException e) {
             System.err.println(e.getMessage());
+            System.err.println("Cause: " + e.getCause());
+            e.printStackTrace();
             System.exit(1);
         }
     }
