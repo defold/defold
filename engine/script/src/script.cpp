@@ -67,7 +67,7 @@ namespace dmScript
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
 
-    int g_StoredLuaFunctionTableIndex = 0;
+    static int g_StoredLuaFunctionTableIndex = LUA_NOREF;
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -146,35 +146,34 @@ namespace dmScript
         lua_pop(L, 1);
         return 0;
     }
-
-    void StoreLuaFunction(lua_State* L, const char* module, const char* function_name)
+    static void StoreLuaFunction(lua_State* L, const char* module, const char* function_name)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        if (g_StoredLuaFunctionTableIndex == 0)
+        if (g_StoredLuaFunctionTableIndex == LUA_NOREF)
         {
             lua_newtable(L);
-            g_StoredLuaFunctionTableIndex = luaL_ref(L, LUA_REGISTRYINDEX);
+            g_StoredLuaFunctionTableIndex = Ref(L, LUA_REGISTRYINDEX);
         }
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
 
         lua_getfield(L, LUA_GLOBALSINDEX, module);
         if (!lua_istable(L, -1))
         {
-            lua_pop(L, 1);
+            lua_pop(L, 2);
             return;
         }
         lua_getfield(L, -1, function_name);
         if (!lua_isfunction(L, -1))
         {
-            lua_pop(L, 2);
+            lua_pop(L, 3);
             return;
         }
         lua_setfield(L, -3, function_name);
-        lua_pop(L,2);
+        lua_pop(L, 2);
     }
 
-    void GetStoredLuaFunction(lua_State* L, const char* function_name)
+    static void GetStoredLuaFunction(lua_State* L, const char* function_name)
     {
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
         lua_getfield(L, -1, function_name);
@@ -186,8 +185,6 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
 
         luaL_openlibs(L);
-
-        StoreLuaFunction(L, "debug", "traceback");
 
         // To support 'math.mod' even though it's been deprecated in 5.1 and removed in 5.2
         lua_getglobal(L, "math");
@@ -253,6 +250,8 @@ namespace dmScript
                 (*l)->Initialize(context);
             }
         }
+
+        StoreLuaFunction(L, "debug", "traceback");
     }
 
     void RegisterScriptExtension(HContext context, HScriptExtension script_extension)
@@ -293,6 +292,8 @@ namespace dmScript
         lua_pop(L, 1);
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        Unref(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
+        g_StoredLuaFunctionTableIndex = LUA_NOREF;
     }
 
     lua_State* GetLuaState(HContext context) {
