@@ -73,13 +73,13 @@
    "bundle-resources/_defold"                          "_defold"})
 
 (defn engine-artifact-files
-  [git-sha]
+  [archive git-sha]
   (into {} (for [[platform dirs] engine-artifacts
                  [dir files] dirs
                  file files]
              (let [engine-src-dirname (platform->engine-src-dirname platform)
                    src (if (some? git-sha)
-                         (http-cache/download (format "https://d.defold.com/archive/%s/engine/%s/%s" git-sha engine-src-dirname file))
+                         (http-cache/download (format "https://%s/archive/%s/engine/%s/%s" archive git-sha engine-src-dirname file))
                          (io/file (dynamo-home) dir engine-src-dirname file))
                    dest (io/file platform dir file)]
                [src dest]))))
@@ -135,8 +135,8 @@
     (extract-jogl-native-dep jogl-native-dep pack-path)))
 
 (defn copy-artifacts
-  [pack-path git-sha]
-  (let [files (merge (engine-artifact-files git-sha)
+  [pack-path archive git-sha]
+  (let [files (merge (engine-artifact-files archive git-sha)
                      (artifact-files))]
     (doseq [[src dest] files]
       (let [dest (io/file pack-path dest)]
@@ -153,5 +153,5 @@
   (let [sha (or git-sha (:engine project))
         {:keys [pack-path]} packing]
     (FileUtils/deleteQuietly (io/file pack-path))
-    (copy-artifacts pack-path sha)
+    (copy-artifacts pack-path (get project :archive) sha)
     (pack-jogl-natives pack-path dependencies)))
