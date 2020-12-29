@@ -73,13 +73,13 @@
    "bundle-resources/_defold"                          "_defold"})
 
 (defn engine-artifact-files
-  [archive git-sha]
+  [archive-domain git-sha]
   (into {} (for [[platform dirs] engine-artifacts
                  [dir files] dirs
                  file files]
              (let [engine-src-dirname (platform->engine-src-dirname platform)
                    src (if (some? git-sha)
-                         (http-cache/download (format "https://%s/archive/%s/engine/%s/%s" archive git-sha engine-src-dirname file))
+                         (http-cache/download (format "https://%s/archive/%s/engine/%s/%s" archive-domain git-sha engine-src-dirname file))
                          (io/file (dynamo-home) dir engine-src-dirname file))
                    dest (io/file platform dir file)]
                [src dest]))))
@@ -135,8 +135,8 @@
     (extract-jogl-native-dep jogl-native-dep pack-path)))
 
 (defn copy-artifacts
-  [pack-path archive git-sha]
-  (let [files (merge (engine-artifact-files archive git-sha)
+  [pack-path archive-domain git-sha]
+  (let [files (merge (engine-artifact-files archive-domain git-sha)
                      (artifact-files))]
     (doseq [[src dest] files]
       (let [dest (io/file pack-path dest)]
@@ -151,7 +151,8 @@
   "Pack all files that need to be unpacked at runtime into `pack-path`."
   [{:keys [dependencies packing] :as project} & [git-sha]]
   (let [sha (or git-sha (:engine project))
+        archive-domain (get project :archive-domain)
         {:keys [pack-path]} packing]
     (FileUtils/deleteQuietly (io/file pack-path))
-    (copy-artifacts pack-path (get project :archive) sha)
+    (copy-artifacts pack-path archive-domain sha)
     (pack-jogl-natives pack-path dependencies)))

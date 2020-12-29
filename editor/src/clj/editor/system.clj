@@ -73,9 +73,9 @@
   ^String []
   (System/getProperty "defold.engine.sha1"))
 
-(defn defold-archive
+(defn defold-archive-domain
   ^String []
-  (or (System/getProperty "defold.archive")
+  (or (System/getProperty "defold.archive.domain")
       "d.defold.com"))
 
 (defn set-defold-engine-sha1! [^String sha1]

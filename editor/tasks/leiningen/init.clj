@@ -70,11 +70,11 @@
 
   Arguments:
     - version: dynamo-home, archived, archived-stable or a sha.
-    - archive: domain where engine artifacts are stored"
-  [project & [version archive]]
+    - archive-domain: domain where engine artifacts are stored"
+  [project & [version archive-domain]]
   (let [git-sha (resolve-version version)
-        archive (or archive "d.defold.com")
-        project (assoc project :archive archive :engine git-sha)]
-    (println (format "Initializing editor with version '%s', resolved to '%s'. Using archive '%s'" version (get project :engine) (get project :archive)))
+        archive-domain (or archive-domain "d.defold.com")
+        project (assoc project :archive-domain archive-domain :engine git-sha)]
+    (println (format "Initializing editor with version '%s', resolved to '%s'. Using archive domain '%s'." version (get project :engine) (get project :archive-domain)))
     (doseq [task+args init-tasks]
       (main/resolve-and-apply project task+args))))

@@ -21,6 +21,7 @@
     (io/file (format "%s/share/builtins.zip" (get (System/getenv) "DYNAMO_HOME")))))
 
 (defn builtins [project & [git-sha]]
-  (let [sha (or git-sha (:engine project))]
-    (io/copy (builtins-zip (get project :archive) sha)
+  (let [sha (or git-sha (:engine project))
+        archive-domain (get project :archive-domain)]
+    (io/copy (builtins-zip archive-domain sha)
              (io/file "generated-resources/builtins.zip"))))

@@ -47,6 +47,7 @@
   (let [out-path "resources/doc"]
     (delete-dir out-path)
     (.mkdirs (io/file out-path))
-    (let [sha (or git-sha (:engine project))]
-      (unzip (ref-doc-zip (get project :archive) sha)
+    (let [sha (or git-sha (:engine project))
+          archive-domain (get project :archive-domain)]
+      (unzip (ref-doc-zip archive-domain sha)
              out-path))))
