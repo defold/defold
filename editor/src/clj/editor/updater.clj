@@ -30,11 +30,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- download-url [sha1 channel ^Platform platform]
-  (format (get-in connection-properties [:updater :download-url-template]) sha1 channel (.getPair platform)))
+(defn- download-url [archive sha1 channel ^Platform platform]
+  (format (get-in connection-properties [:updater :download-url-template]) archive sha1 channel (.getPair platform)))
 
-(defn- update-url [channel]
-  (format (get-in connection-properties [:updater :update-url-template]) channel))
+(defn- update-url [archive channel]
+  (format (get-in connection-properties [:updater :update-url-template]) archive channel))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -187,7 +187,8 @@
   {:pre [(can-download-update? updater)]}
   (let [{:keys [state-atom platform channel]} updater
         {:keys [current-download server-sha1]} @state-atom
-        url (download-url server-sha1 channel platform)
+        archive (system/defold-archive)
+        url (download-url archive server-sha1 channel platform)
         zip-file (create-temp-zip-file)
         cancelled-atom (atom false)
         track-progress! (fn [progress]
@@ -290,7 +291,8 @@
 
 (defn- check! [updater]
   (let [{:keys [channel state-atom]} updater
-        url (update-url channel)]
+        archive (system/defold-archive)
+        url (update-url archive channel)]
     (try
       (log/info :message "Checking for updates" :url url)
       (with-open [reader (io/reader url)]
