@@ -332,6 +332,7 @@ def create_bundle(options):
         config.set('build', 'engine_sha1', options.engine_sha1)
         config.set('build', 'version', options.version)
         config.set('build', 'time', datetime.datetime.now().isoformat())
+        config.set('build', 'archive', "d.defold.com")
 
         if options.channel:
             config.set('build', 'channel', options.channel)
