@@ -293,7 +293,7 @@ class Configuration(object):
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_domain = archive_domain
-        self.archive_path = ("s3://%s/archive" % archive_domain),
+        self.archive_path = ('s3://%s/archive' % archive_domain)
         self.package_path = package_path
         self.set_version = set_version
         self.channel = channel
