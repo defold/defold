@@ -86,6 +86,7 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
+CDN_UPLOAD_DOMAIN = "d.defold.com"
 
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
@@ -250,7 +251,7 @@ class Configuration(object):
                  skip_bob_light = False,
                  disable_ccache = False,
                  no_colors = False,
-                 archive_path = None,
+                 archive_domain = None,
                  package_path = None,
                  set_version = None,
                  channel = None,
@@ -291,7 +292,8 @@ class Configuration(object):
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
-        self.archive_path = archive_path
+        self.archive_domain = archive_domain
+        self.archive_path = ("s3://%s/archive" % archive_domain),
         self.package_path = package_path
         self.set_version = set_version
         self.channel = channel
@@ -1264,6 +1266,7 @@ class Configuration(object):
     def build_editor2(self):
         cmd = ['python', './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
                'build']
 
         if self.skip_tests:
@@ -1391,7 +1394,7 @@ class Configuration(object):
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Defold Downloads</title>
         <link href='//fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-        <link rel="stylesheet" href="//d.defold.com/static/bootstrap/css/bootstrap.min.css">
+        <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.min.css">
         <style>
             body {
                 padding-top: 50px;
@@ -1418,7 +1421,7 @@ class Configuration(object):
 
         <div id="releases"></div>
         <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="//d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
+        <script src="/static/bootstrap/js/bootstrap.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
         <script id="templ-releases" type="text/html">
             <h2>{{release.channel}} {{release.version}}</h2>
@@ -2034,10 +2037,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'No color output. Default is color output')
 
-    default_archive_path = CDN_UPLOAD_URL
-    parser.add_option('--archive-path', dest='archive_path',
-                      default = default_archive_path,
-                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path)
+    default_archive_domain = CDN_UPLOAD_DOMAIN
+    parser.add_option('--archive-domain', dest='archive_domain',
+                      default = default_archive_domain,
+                      help = 'Name of domain (S3 bucket) where build artifacts should be archived. Default is %s' % default_archive_domain)
 
     default_package_path = CDN_PACKAGES_URL
     parser.add_option('--package-path', dest='package_path',
@@ -2123,7 +2126,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
-                      archive_path = options.archive_path,
+                      archive_domain = options.archive_domain,
                       package_path = options.package_path,
                       set_version = options.set_version,
                       channel = options.channel,

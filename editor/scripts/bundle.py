@@ -28,6 +28,8 @@ import datetime
 import imp
 import fnmatch
 
+CDN_DOWNLOAD_DOMAIN="d.defold.com"
+
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
@@ -199,8 +201,9 @@ def launcher_path(options, platform, exe_suffix):
     if options.launcher:
         return options.launcher
     elif options.engine_sha1:
+        archive_domain = options.archive_domain
         launcher_version = options.engine_sha1
-        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform, exe_suffix)
+        launcher_url = 'https://%s/archive/%s/engine/%s/launcher%s' % (archive_domain, launcher_version, platform, exe_suffix)
         launcher = download(launcher_url)
         if not launcher:
             print('Failed to download launcher', launcher_url)
@@ -260,6 +263,8 @@ def build(options):
     init_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'init']
     if options.engine_sha1:
         init_command += [options.engine_sha1]
+
+    init_command += [options.archive_domain]
 
     exec_command(init_command)
 
@@ -533,6 +538,11 @@ Commands:
     parser.add_option('--bundle-dir', dest='bundle_dir',
                       default = "target/editor",
                       help = 'Path to directory containing editor bundles')
+
+    default_archive_domain = CDN_DOWNLOAD_DOMAIN
+    parser.add_option('--archive-domain', dest='archive_domain',
+                      default = default_archive_domain,
+                      help = 'Domain name where build artifacts are archived. Default is %s' % default_archive_domain)
 
     options, commands = parser.parse_args()
 
