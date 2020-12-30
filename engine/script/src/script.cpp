@@ -67,8 +67,6 @@ namespace dmScript
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
 
-    static int g_StoredLuaFunctionTableIndex = LUA_NOREF;
-
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
@@ -146,38 +144,6 @@ namespace dmScript
         lua_pop(L, 1);
         return 0;
     }
-    static void StoreLuaFunction(lua_State* L, const char* module, const char* function_name)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        if (g_StoredLuaFunctionTableIndex == LUA_NOREF)
-        {
-            lua_newtable(L);
-            g_StoredLuaFunctionTableIndex = Ref(L, LUA_REGISTRYINDEX);
-        }
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
-
-        lua_getfield(L, LUA_GLOBALSINDEX, module);
-        if (!lua_istable(L, -1))
-        {
-            lua_pop(L, 2);
-            return;
-        }
-        lua_getfield(L, -1, function_name);
-        if (!lua_isfunction(L, -1))
-        {
-            lua_pop(L, 3);
-            return;
-        }
-        lua_setfield(L, -3, function_name);
-        lua_pop(L, 2);
-    }
-
-    static void GetStoredLuaFunction(lua_State* L, const char* function_name)
-    {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
-        lua_getfield(L, -1, function_name);
-    }
 
     void Initialize(HContext context)
     {
@@ -250,8 +216,6 @@ namespace dmScript
                 (*l)->Initialize(context);
             }
         }
-
-        StoreLuaFunction(L, "debug", "traceback");
     }
 
     void RegisterScriptExtension(HContext context, HScriptExtension script_extension)
@@ -292,8 +256,6 @@ namespace dmScript
         lua_pop(L, 1);
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-        Unref(L, LUA_REGISTRYINDEX, g_StoredLuaFunctionTableIndex);
-        g_StoredLuaFunctionTableIndex = LUA_NOREF;
     }
 
     lua_State* GetLuaState(HContext context) {
@@ -1259,6 +1221,60 @@ namespace dmScript
         // [-1] value
     }
 
+    // From https://zeux.io/2010/11/07/lua-callstack-with-c-debugger/
+    // And ldlib.c function db_errorfb()
+    static void GetLuaStackTrace(lua_State* L, char* buffer, uint32_t buffersize)
+    {
+        lua_Debug entry;
+        int depth = 0;
+
+        while (lua_getstack(L, depth, &entry))
+        {
+            int status = lua_getinfo(L, "Sln", &entry);
+            assert(status);
+
+            if (depth == 0)
+            {
+                uint32_t nwritten = dmSnPrintf(buffer, buffersize, "\nstack traceback:\n");
+                buffer += nwritten;
+                buffersize -= nwritten;
+            }
+
+            uint32_t nwritten = dmSnPrintf(buffer, buffersize, "  %s:%d:", entry.short_src, entry.currentline);
+            buffer += nwritten;
+            buffersize -= nwritten;
+            if (*entry.namewhat != '\0')
+            {
+                nwritten = dmSnPrintf(buffer, buffersize, " in function %s", entry.name);
+                buffer += nwritten;
+                buffersize -= nwritten;
+            }
+            else if (*entry.what == 'm')
+            {
+                nwritten = dmSnPrintf(buffer, buffersize, " in main chunk");
+                buffer += nwritten;
+                buffersize -= nwritten;
+            }
+            else if (*entry.what == 'C' || *entry.what == 't')
+            {
+                nwritten = dmSnPrintf(buffer, buffersize, " ?");
+                buffer += nwritten;
+                buffersize -= nwritten;
+            }
+            else
+            {
+                nwritten = dmSnPrintf(buffer, buffersize, " in function <%s:%d>", entry.short_src, entry.linedefined);
+                buffer += nwritten;
+                buffersize -= nwritten;
+            }
+            nwritten = dmSnPrintf(buffer, buffersize, "\n");
+            buffer += nwritten;
+            buffersize -= nwritten;
+
+            depth++;
+        }
+    }
+
     static int BacktraceErrorHandler(lua_State *m_state) {
         if (!lua_isstring(m_state, 1))
             return 1;
@@ -1267,12 +1283,11 @@ namespace dmScript
         lua_pushvalue(m_state, 1);
         lua_setfield(m_state, -2, "error");
 
-        GetStoredLuaFunction(m_state, "traceback");
-        lua_pushlstring(m_state, "", 0);
-        lua_pushinteger(m_state, 2);
-        lua_call(m_state, 2, 1);  /* call debug.traceback */
-        lua_setfield(m_state, -3, "traceback");
-        lua_pop(m_state, 1);
+        char traceback[1024];
+        GetLuaStackTrace(m_state, traceback, sizeof(traceback));
+        lua_pushstring(m_state, traceback);
+        lua_setfield(m_state, -2, "traceback");
+
         return 1;
     }
 
