@@ -75,6 +75,11 @@ namespace dmCrash
      */
     void SetEnabled(bool enable);
 
+    // Called during creation of a callstack. May write extra relevant into to the output buffer.
+    typedef void (*FCallstackExtraInfoCallback)(void* ctx, char* buffer, uint32_t buffsersize);
+
+    void SetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx);
+
     /**
      * Record application defined data into the crash dump internal struct. These fields can
      * be read out once a crash dump has been recovered.

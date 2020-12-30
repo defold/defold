@@ -434,6 +434,40 @@ namespace dmEngine
         dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
+    // From https://zeux.io/2010/11/07/lua-callstack-with-c-debugger/
+    static void GetLuaStackTrace(lua_State* L, char* buffer, uint32_t buffersize)
+    {
+        lua_Debug entry;
+        int depth = 0;
+
+        while (lua_getstack(L, depth, &entry))
+        {
+            int status = lua_getinfo(L, "Sln", &entry);
+            assert(status);
+
+            if (depth == 0)
+            {
+                uint32_t nwritten = dmSnPrintf(buffer, buffersize, "Lua Callstack:\n");
+                buffer += nwritten;
+                buffersize -= nwritten;
+            }
+
+            uint32_t nwritten = dmSnPrintf(buffer, buffersize, "%s(%d): %s\n", entry.short_src, entry.currentline, entry.name ? entry.name : "?");
+            buffer += nwritten;
+            buffersize -= nwritten;
+
+            depth++;
+        }
+    }
+
+    static void CrashHandlerCallback(void* ctx, char* buffer, uint32_t buffersize)
+    {
+        HEngine engine = (HEngine)ctx;
+        if (engine->m_SharedScriptContext) {
+            GetLuaStackTrace(dmScript::GetLuaState(engine->m_SharedScriptContext), buffer, buffersize);
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -453,6 +487,8 @@ namespace dmEngine
     bool Init(HEngine engine, int argc, char *argv[])
     {
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+
+        dmCrash::SetExtraInfoCallback(CrashHandlerCallback, engine);
 
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Platform = dmEngineVersion::PLATFORM;

@@ -28,6 +28,8 @@ namespace dmCrash
 {
     static const int SIGNAL_MAX = 64;
     static bool g_CrashDumpEnabled = true;
+    static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
+    static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
     // This array contains the default behavior for each signal.
     static struct sigaction sigdfl[SIGNAL_MAX];
@@ -37,8 +39,14 @@ namespace dmCrash
         g_CrashDumpEnabled = enable;
     }
 
+    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
+    {
+        g_CrashExtraInfoCallback = cbk;
+    }
+
     void OnCrash(int signo)
     {
+        dmLogInfo("Using libunwind.a");
         if (!g_CrashDumpEnabled)
             return;
 
@@ -69,6 +77,13 @@ namespace dmCrash
         }
 
         free(stacktrace);
+
+        if (g_CrashExtraInfoCallback)
+        {
+            int extra_len = strlen(g_AppState.m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+        }
+
         WriteCrash(g_FilePath, &g_AppState);
 
         printf("\n%s\n", g_AppState.m_Extra);
