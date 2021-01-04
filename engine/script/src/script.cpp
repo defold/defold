@@ -284,10 +284,6 @@ namespace dmScript
     // https://github.com/defold/defold/blob/dev/engine/lua/src/lua/ldblib.c#L321
     void GetLuaTraceback(lua_State* L, const char* infostring, void (*cbk)(lua_State* L, lua_Debug* entry, void* ctx), void* ctx)
     {
-        printf("MAWE: %s\n", __FUNCTION__);
-
-        assert(cbk);
-
         const int LEVELS1 = 12;  // size of the first part of the stack
         const int LEVELS2 = 10;  // size of the second part of the stack
 
