@@ -258,12 +258,79 @@ namespace dmScript
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
     }
 
-    lua_State* GetLuaState(HContext context) {
+    lua_State* GetLuaState(HContext context)
+    {
         if (context != 0x0) {
             return context->m_LuaState;
         }
         return 0x0;
     }
+
+    // From ldblib.c (getthread)
+    static lua_State* GetLuaThread(lua_State *L, int *arg)
+    {
+        if (lua_isthread(L, 1)) {
+            *arg = 1;
+            return lua_tothread(L, 1);
+        }
+        else {
+            *arg = 0;
+            return L;
+        }
+    }
+
+    // From https://zeux.io/2010/11/07/lua-callstack-with-c-debugger/
+    // and also
+    // https://github.com/defold/defold/blob/dev/engine/lua/src/lua/ldblib.c#L321
+    void GetLuaTraceback(lua_State* L, const char* infostring, void (*cbk)(lua_State* L, lua_Debug* entry, void* ctx), void* ctx)
+    {
+        printf("MAWE: %s\n", __FUNCTION__);
+
+        assert(cbk);
+
+        const int LEVELS1 = 12;  // size of the first part of the stack
+        const int LEVELS2 = 10;  // size of the second part of the stack
+
+        int firstpart = 1;
+        int arg = 0;
+        lua_State* L1 = GetLuaThread(L, &arg);
+
+        lua_Debug entry;
+        int level = 0;
+        bool first = true;
+
+        if (lua_isnumber(L, arg+2)) {
+            level = (int)lua_tointeger(L, arg+2);
+            lua_pop(L, 1); // problematic?!
+        }
+        else {
+            level = (L == L1) ? 1 : 0;  // level 0 may be this own function
+        }
+
+        if (lua_gettop(L) != arg && !lua_isstring(L, arg+1)) return;  // message is not a string
+
+        while (lua_getstack(L1, level++, &entry))
+        {
+            if (level > LEVELS1 && firstpart) {
+                // no more than `LEVELS2' more levels?
+                if (!lua_getstack(L1, level+LEVELS2, &entry)) {
+                    level--;  // keep going
+                } else {
+                    lua_pushliteral(L, "\n\t...");  // too many levels
+                    while (lua_getstack(L1, level+LEVELS2, &entry))  // find last levels
+                        level++;
+                }
+                firstpart = 0;
+                continue;
+            }
+            int status = lua_getinfo(L1, infostring, &entry);
+            if (!status)
+                continue;
+
+            cbk(L1, &entry, ctx);
+        }
+    }
+
 
     dmConfigFile::HConfig GetConfigFile(HContext context)
     {

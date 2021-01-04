@@ -434,37 +434,39 @@ namespace dmEngine
         dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
-    // From https://zeux.io/2010/11/07/lua-callstack-with-c-debugger/
-    static void GetLuaStackTrace(lua_State* L, char* buffer, uint32_t buffersize)
+    struct LuaCallstackCtx
     {
-        lua_Debug entry;
-        int depth = 0;
+        bool     m_First;
+        char*    m_Buffer;
+        uint32_t m_BufferSize;
+    };
 
-        while (lua_getstack(L, depth, &entry))
+    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
+    {
+        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
+
+        if (ctx->m_First)
         {
-            int status = lua_getinfo(L, "Sln", &entry);
-            assert(status);
-
-            if (depth == 0)
-            {
-                uint32_t nwritten = dmSnPrintf(buffer, buffersize, "Lua Callstack:\n");
-                buffer += nwritten;
-                buffersize -= nwritten;
-            }
-
-            uint32_t nwritten = dmSnPrintf(buffer, buffersize, "%s(%d): %s\n", entry.short_src, entry.currentline, entry.name ? entry.name : "?");
-            buffer += nwritten;
-            buffersize -= nwritten;
-
-            depth++;
+            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            ctx->m_Buffer += nwritten;
+            ctx->m_BufferSize -= nwritten;
+            ctx->m_First = false;
         }
+
+        uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "%s(%d): %s\n", entry->short_src, entry->currentline, entry->name ? entry->name : "?");
+        ctx->m_Buffer += nwritten;
+        ctx->m_BufferSize -= nwritten;
     }
 
     static void CrashHandlerCallback(void* ctx, char* buffer, uint32_t buffersize)
     {
         HEngine engine = (HEngine)ctx;
         if (engine->m_SharedScriptContext) {
-            GetLuaStackTrace(dmScript::GetLuaState(engine->m_SharedScriptContext), buffer, buffersize);
+            LuaCallstackCtx ctx;
+            ctx.m_First = true;
+            ctx.m_Buffer = buffer;
+            ctx.m_BufferSize = buffersize;
+            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
         }
     }
 
