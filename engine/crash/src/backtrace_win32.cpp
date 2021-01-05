@@ -27,6 +27,8 @@ namespace dmCrash
 {
     static char g_MiniDumpPath[AppState::FILEPATH_MAX];
     static bool g_CrashDumpEnabled = true;
+    static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
+    static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
     static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep )
     {
@@ -69,6 +71,12 @@ namespace dmCrash
     void EnableHandler(bool enable)
     {
         g_CrashDumpEnabled = enable;
+    }
+
+    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
+    {
+        g_CrashExtraInfoCallback = cbk;
+        g_CrashExtraInfoCallbackCtx = ctx;
     }
 
     static uint32_t GetCallstackPointers(EXCEPTION_POINTERS* pep, void** ptrs, uint32_t num_ptrs)
@@ -178,6 +186,12 @@ namespace dmCrash
         g_AppState.m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
 
         ::SymCleanup(process);
+
+        if (g_CrashExtraInfoCallback)
+        {
+            int extra_len = strlen(g_AppState.m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+        }
 
         WriteCrash(g_FilePath, &g_AppState);
 

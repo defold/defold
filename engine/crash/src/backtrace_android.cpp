@@ -32,6 +32,8 @@ namespace dmCrash
     static const int SIGNAL_MAX = 64;
     static struct sigaction old_signal[SIGNAL_MAX];
     static bool g_CrashDumpEnabled = true;
+    static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
+    static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
     // -------------------
     // libunwind.so
@@ -88,6 +90,11 @@ namespace dmCrash
     void EnableHandler(bool enable)
     {
         g_CrashDumpEnabled = enable;
+    }
+
+    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
+    {
+        g_CrashExtraInfoCallback = cbk;
     }
 
     void OnCrash(int signo, siginfo_t const *si, const ucontext *uc)
@@ -181,6 +188,12 @@ namespace dmCrash
             {
                 dmLogError("Buffer too short (%d) to write stacktrace (%d)!", sizeof(stacktrace), written);
             }
+        }
+
+        if (g_CrashExtraInfoCallback)
+        {
+            int extra_len = strlen(g_AppState.m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
         WriteCrash(g_FilePath, &g_AppState);
