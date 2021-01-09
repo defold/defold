@@ -924,7 +924,7 @@ bail:
 
         if (response.m_Status == 204 /* No Content*/)
         {
-            assert(response.m_ContentLength == -1);
+            // assume content length is zero. No need to complain if an invalid response non empty content is received.
             response.m_ContentLength = 0;
         }
 
