@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -189,6 +189,8 @@ namespace dmInput
             {
                 binding->m_KeyboardBinding = new KeyboardBinding();
                 memset(binding->m_KeyboardBinding, 0, sizeof(*binding->m_KeyboardBinding));
+
+                binding->m_KeyboardBinding->m_Keyboard = dmHID::GetKeyboard(binding->m_Context->m_HidContext, 0);
             }
             else
             {
@@ -216,6 +218,8 @@ namespace dmInput
             {
                 binding->m_MouseBinding = new MouseBinding();
                 memset(binding->m_MouseBinding, 0, sizeof(*binding->m_MouseBinding));
+
+                binding->m_MouseBinding->m_Mouse = dmHID::GetMouse(binding->m_Context->m_HidContext, 0);
             }
             else
             {
@@ -258,6 +262,8 @@ namespace dmInput
             {
                 binding->m_TouchDeviceBinding = new TouchDeviceBinding();
                 memset(binding->m_TouchDeviceBinding, 0, sizeof(*binding->m_TouchDeviceBinding));
+
+                binding->m_TouchDeviceBinding->m_TouchDevice = dmHID::GetTouchDevice(binding->m_Context->m_HidContext, 0);
             }
             else
             {
@@ -499,7 +505,7 @@ namespace dmInput
             KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
             dmHID::KeyboardPacket* packet = &keyboard_binding->m_Packet;
             dmHID::KeyboardPacket* prev_packet = &keyboard_binding->m_PreviousPacket;
-            if (dmHID::GetKeyboardPacket(hid_context, packet))
+            if (dmHID::GetKeyboardPacket(keyboard_binding->m_Keyboard, packet))
             {
                 const dmArray<KeyTrigger>& triggers = keyboard_binding->m_Triggers;
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
@@ -569,7 +575,7 @@ namespace dmInput
             MouseBinding* mouse_binding = binding->m_MouseBinding;
             dmHID::MousePacket* packet = &mouse_binding->m_Packet;
             dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
-            if (dmHID::GetMousePacket(hid_context, packet))
+            if (dmHID::GetMousePacket(mouse_binding->m_Mouse, packet))
             {
                 context.m_X = packet->m_PositionX;
                 context.m_Y = packet->m_PositionY;
@@ -687,7 +693,7 @@ namespace dmInput
                                     action->m_GamepadDisconnected = packet->m_GamepadDisconnected;
                                     action->m_GamepadConnected = packet->m_GamepadConnected;
 
-                                    if (action->m_GamepadConnected) 
+                                    if (action->m_GamepadConnected)
                                     {
                                         const char* device_name;
                                         dmHID::GetGamepadDeviceName(gamepad, &device_name);
@@ -726,7 +732,7 @@ namespace dmInput
             TouchDeviceBinding* touch_device_binding = binding->m_TouchDeviceBinding;
             dmHID::TouchDevicePacket* packet = &touch_device_binding->m_Packet;
             dmHID::TouchDevicePacket* prev_packet = &touch_device_binding->m_PreviousPacket;
-            if (dmHID::GetTouchDevicePacket(hid_context, packet))
+            if (dmHID::GetTouchDevicePacket(touch_device_binding->m_TouchDevice, packet))
             {
                 const dmArray<TouchTrigger>& triggers = touch_device_binding->m_Triggers;
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
