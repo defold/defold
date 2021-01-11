@@ -772,6 +772,76 @@ public class Project {
         m.done();
     }
 
+    private void downloadToFile(URL url, File file) throws IOException, CompileExceptionError {
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        InputStream input = null;
+        try {
+            connection.connect();
+            int code = connection.getResponseCode();
+
+            if (code == 304) {
+                logInfo("Status %d: Already cached", code);
+            }
+            else if (code >= 400) {
+                logWarning("Status %d: Failed to download %s", code, url);
+                throw new CompileExceptionError(String.format("Status %d: Failed to download %s", code, url), new Exception());
+            }
+            else {
+                input = new BufferedInputStream(connection.getInputStream());
+                FileUtils.copyInputStreamToFile(input, file);
+            }
+            connection.disconnect();
+        } catch (ConnectException e) {
+            throw new CompileExceptionError(String.format("Connection refused by the server at %s", url.toString()), e);
+        } catch (FileNotFoundException e) {
+            throw new CompileExceptionError(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+        } finally {
+            if(input != null) {
+                IOUtils.closeQuietly(input);
+            }
+        }
+    }
+
+    private void downloadSymbols(IProgress progress) throws IOException, CompileExceptionError {
+        final String[] platforms = getPlatformStrings();
+
+        progress.beginTask("Downloading symbols...", platforms.length);
+
+        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+        String variantSuffix = "";
+        switch(variant) {
+            case Bob.VARIANT_RELEASE:
+                variantSuffix = "_release";
+                break;
+            case Bob.VARIANT_HEADLESS:
+                variantSuffix = "_headless";
+                break;
+        }
+
+        for(String platform : platforms) {
+            String symbolsFilename = "";
+            switch(platform) {
+                case "armv7-darwin":
+                case "arm64-darwin":
+                case "x86_64-darwin":
+                    symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
+                    break;
+                case "js-web":
+                    symbolsFilename = String.format("dmengine%s.js.symbols", variantSuffix);
+                    break;
+                case "win32":
+                case "x86_64-win32":
+                    symbolsFilename = String.format("dmengine%s.pdb", variantSuffix);
+                    break;
+            }
+
+            URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+            File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
+            downloadToFile(url, file);
+            progress.worked(1);
+        }
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
@@ -782,7 +852,7 @@ public class Project {
 
         BundleHelper.throwIfCanceled(monitor);
 
-        monitor.beginTask("", 100);
+        monitor.beginTask("Working...", 100);
 
         loop:
         for (String command : commands) {
@@ -817,13 +887,13 @@ public class Project {
                     }
                     BundleHelper.throwIfCanceled(monitor);
 
+                    final Boolean withSymbols = this.hasOption("with-symbols");
                     final String[] platforms = getPlatformStrings();
                     // Get or build engine binary
                     boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
                     if (buildRemoteEngine) {
 
                         final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-                        final Boolean withSymbols = this.hasOption("with-symbols");
 
                         Map<String, String> appmanifestOptions = new HashMap<>();
                         appmanifestOptions.put("baseVariant", variant);
@@ -843,6 +913,11 @@ public class Project {
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngines(monitor, platforms);
+                        if (withSymbols) {
+                            IProgress progress = monitor.subProgress(1);
+                            downloadSymbols(progress);
+                            progress.done();
+                        }
                     }
 
                     BundleHelper.throwIfCanceled(monitor);
