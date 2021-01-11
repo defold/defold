@@ -35,6 +35,7 @@ namespace dmRender
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Material*                HMaterial;
+    typedef struct Predicate*               HPredicate;
 
     /**
      * Font map handle
@@ -236,9 +237,9 @@ namespace dmRender
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
 
-    Result Draw(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
+    Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
@@ -356,6 +357,10 @@ namespace dmRender
     void                            AddMaterialTag(HMaterial material, dmhash_t tag);
     void                            ClearMaterialTags(HMaterial material);
     uint32_t                        ConvertMaterialTagsToMask(dmhash_t* tags, uint32_t tag_count);
+
+    HPredicate                      NewPredicate();
+    void                            DeletePredicate(HPredicate predicate);
+    Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
 }
 

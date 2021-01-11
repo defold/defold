@@ -16,10 +16,10 @@ var LibraryScript = {
               var ab = new Uint8Array(xhr.response);
               var b = allocate(ab, 'i8', ALLOC_NORMAL);
               var resp_headers_buffer = allocate(intArrayFromString(resp_headers), 'i8', ALLOC_NORMAL);
-              dynCall('viiiii', onload, [arg, xhr.status, b, ab.length, resp_headers_buffer]);
+              {{{ makeDynCall('viiiii', 'onload') }}}(arg, xhr.status, b, ab.length, resp_headers_buffer);
               _free(b);
           } else {
-              dynCall('vii', onerror, [arg, xhr.status]);
+              {{{ makeDynCall('vii', 'onerror') }}}(arg, xhr.status);
           }
       }
       xhr.onload = listener;

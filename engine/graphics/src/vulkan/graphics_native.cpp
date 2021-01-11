@@ -1,4 +1,4 @@
-#include <graphics/glfw/glfw.h>
+#include <dmsdk/graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/log.h>

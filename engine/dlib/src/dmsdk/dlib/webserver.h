@@ -13,7 +13,7 @@
 #ifndef DMSDK_WEBSERVER_H
 #define DMSDK_WEBSERVER_H
 
-#include <dlib/socket.h>
+#include <dmsdk/dlib/socket.h>
 
 
 /*# Web server functions
