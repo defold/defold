@@ -17,7 +17,7 @@
 
 // Set BASISU_FORCE_DEVEL_MESSAGES to 1 to enable debug printf()'s whenever an error occurs, for easier debugging during development.
 #ifndef BASISU_FORCE_DEVEL_MESSAGES
-#define BASISU_FORCE_DEVEL_MESSAGES 0
+#define BASISU_FORCE_DEVEL_MESSAGES 1
 #endif
 
 #include "basisu_transcoder_internal.h"
@@ -35,7 +35,7 @@ namespace basist
 	// - The PVRTC1 texture formats only support power of 2 dimension .basis files, but this may be relaxed in a future version.
 	// - The PVRTC1 transcoders are real-time encoders, so don't expect the highest quality. We may add a slower encoder with improved quality.
 	// - These enums must be kept in sync with Javascript code that calls the transcoder.
-	enum class transcoder_texture_format
+	enum transcoder_texture_format
 	{
 		// Compressed formats
 
@@ -81,12 +81,12 @@ namespace basist
 		cTFTotalTextureFormats = 22,
 
 		// Old enums for compatibility with code compiled against previous versions
-		cTFETC1 = cTFETC1_RGB,
-		cTFETC2 = cTFETC2_RGBA,
-		cTFBC1 = cTFBC1_RGB,
-		cTFBC3 = cTFBC3_RGBA,
-		cTFBC4 = cTFBC4_R,
-		cTFBC5 = cTFBC5_RG,
+		// cTFETC1 = cTFETC1_RGB,
+		// cTFETC2 = cTFETC2_RGBA,
+		// cTFBC1 = cTFBC1_RGB,
+		// cTFBC3 = cTFBC3_RGBA,
+		// cTFBC4 = cTFBC4_R,
+		// cTFBC5 = cTFBC5_RG,
 
 		// Previously, the caller had some control over which BC7 mode the transcoder output. We've simplified this due to UASTC, which supports numerous modes.
 		cTFBC7_M6_RGB = cTFBC7_RGBA,			// Opaque only, RGB or alpha if cDecodeFlagsTranscodeAlphaDataToOpaqueFormats flag is specified. Highest quality of all the non-ETC1 formats.
