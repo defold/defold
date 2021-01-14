@@ -293,7 +293,6 @@ namespace dmScript
 
         lua_Debug entry;
         int level = 0;
-        bool first = true;
 
         if (lua_isnumber(L, arg+2)) {
             level = (int)lua_tointeger(L, arg+2);
@@ -325,6 +324,29 @@ namespace dmScript
 
             cbk(L1, &entry, ctx);
         }
+    }
+
+    // From ldblib.c function db_errorfb()
+    uint32_t WriteLuaTracebackEntry(lua_Debug* entry, char* buffer, uint32_t buffer_size)
+    {
+        uint32_t nwritten = 0;
+        if (*entry->namewhat != '\0')
+        {
+            nwritten = dmSnPrintf(buffer, buffer_size, "  %s:%d: in function %s\n", entry->short_src, entry->currentline, entry->name);
+        }
+        else if (*entry->what == 'm')
+        {
+            nwritten = dmSnPrintf(buffer, buffer_size, "  %s:%d: in main chunk\n", entry->short_src, entry->currentline);
+        }
+        else if (*entry->what == 'C' || *entry->what == 't')
+        {
+            nwritten = dmSnPrintf(buffer, buffer_size, "  %s:%d: ?\n", entry->short_src, entry->currentline);
+        }
+        else
+        {
+            nwritten = dmSnPrintf(buffer, buffer_size, "  %s:%d: in function <%s:%d>\n", entry->short_src, entry->currentline, entry->short_src, entry->linedefined);
+        }
+        return nwritten;
     }
 
 
@@ -1284,6 +1306,31 @@ namespace dmScript
         // [-1] value
     }
 
+
+    struct LuaCallstackCtx
+    {
+        bool     m_First;
+        char*    m_Buffer;
+        uint32_t m_BufferSize;
+    };
+
+    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
+    {
+        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
+
+        if (ctx->m_First)
+        {
+            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "stack traceback:\n");
+            ctx->m_Buffer += nwritten;
+            ctx->m_BufferSize -= nwritten;
+            ctx->m_First = false;
+        }
+
+        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
+        ctx->m_Buffer += nwritten;
+        ctx->m_BufferSize -= nwritten;
+    }
+
     static int BacktraceErrorHandler(lua_State *m_state) {
         if (!lua_isstring(m_state, 1))
             return 1;
@@ -1292,22 +1339,15 @@ namespace dmScript
         lua_pushvalue(m_state, 1);
         lua_setfield(m_state, -2, "error");
 
-        lua_getfield(m_state, LUA_GLOBALSINDEX, "debug");
-        if (!lua_istable(m_state, -1)) {
-            lua_pop(m_state, 2);
-            return 1;
-        }
-        lua_getfield(m_state, -1, "traceback");
-        if (!lua_isfunction(m_state, -1)) {
-            lua_pop(m_state, 3);
-            return 1;
-        }
+        char traceback[1024];
+        LuaCallstackCtx ctx;
+        ctx.m_First = true;
+        ctx.m_Buffer = traceback;
+        ctx.m_BufferSize = sizeof(traceback);
+        dmScript::GetLuaTraceback(m_state, "Sln", GetLuaStackTraceCbk, &ctx);
+        lua_pushstring(m_state, traceback);
+        lua_setfield(m_state, -2, "traceback");
 
-        lua_pushlstring(m_state, "", 0);
-        lua_pushinteger(m_state, 2);
-        lua_call(m_state, 2, 1);  /* call debug.traceback */
-        lua_setfield(m_state, -3, "traceback");
-        lua_pop(m_state, 1);
         return 1;
     }
 
@@ -1331,7 +1371,7 @@ namespace dmScript
                 return result;
             }
             // print before calling the error handler
-            dmLogError("%s%s", lua_tostring(L, -2), lua_tostring(L, -1));
+            dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
                 lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
