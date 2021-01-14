@@ -453,7 +453,7 @@ namespace dmEngine
             ctx->m_First = false;
         }
 
-        uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "%s(%d): %s\n", entry->short_src, entry->currentline, entry->name ? entry->name : "?");
+        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
         ctx->m_Buffer += nwritten;
         ctx->m_BufferSize -= nwritten;
     }
