@@ -48,6 +48,9 @@ Multiple commands can be specified
 
     options, args = parser.parse_args()
 
+    if not args:
+        parser.print_help()
+        exit(1)
 
     for cmd in args:
         if cmd == "move_release":

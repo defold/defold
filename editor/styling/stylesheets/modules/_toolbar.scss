@@ -6,7 +6,7 @@
 }
 
 #toolbar {
-    -fx-background-color: $scene-toolbar-background;
+    -fx-background-color: -df-component-darker;
     -fx-border-width: 0;
     -fx-border-insets: 0;
     -fx-background-insets: 0;
@@ -25,18 +25,18 @@
         -fx-alignment: center;
 
         .image-view {
-            -fx-effect: innershadow(gaussian, $scene-toolbar-button-foreground, 20, 0.3, 0, 0) !important;
+            -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
 
         &:hover {
             .image-view {
-                -fx-effect: innershadow(gaussian, $scene-toolbar-button-hovered-foreground, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
             }
         }
         &:selected {
-            -fx-background-color: $scene-toolbar-button-selected-background;
+            -fx-background-color: -df-background-light;
             .image-view {
-                -fx-effect: innershadow(gaussian, $scene-toolbar-button-selected-foreground, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
             }
         }
     }
@@ -48,15 +48,15 @@
 
         #active-indicator {
             visibility: hidden;
-            -fx-fill: $defold-orange;
-            -fx-stroke: $scene-toolbar-background;
+            -fx-fill: -df-defold-orange;
+            -fx-stroke: -df-component-darker;
             -fx-stroke-width: 1px;
             -fx-translate-x: 3.5px;
             -fx-translate-y: -5px;
         }
 
         &:selected #active-indicator {
-            -fx-stroke: $scene-toolbar-button-selected-background;
+            -fx-stroke: -df-background-light;
         }
 
         &.filters-active #active-indicator {
@@ -65,14 +65,14 @@
     }
 
     .visibility-toggles-list {
-        -fx-background-color: $scene-toolbar-background;
+        -fx-background-color: -df-component-darker;
         -fx-background-radius: 4px;
         -fx-padding: 0px 0px 7px 0px;
 
         > .first-entry {
             -fx-background-radius: 4px 4px 0px 0px;
             -fx-padding: 10px 8px 10px 8px;
-            -fx-background-color: #4d4f54;
+            -fx-background-color: -df-component-darker;
         }
 
         > HBox {
@@ -81,7 +81,7 @@
 
         > Separator {
             -fx-padding: 7px 0px;
-            -fx-background-color: $scene-toolbar-background;
+            -fx-background-color: -df-component-darker;
         }
     }
 
@@ -92,19 +92,22 @@
     }
 
     SVGPath {
-        -fx-fill: $defold-white;
+        -fx-fill: -df-text;
+        &:hover, &:pressed, &:focused {
+            -fx-fill: -df-text-selected;
+        }
     }
 
     .separator {
         &:horizontal {
             .line {
-                -fx-border-color: $grey;
+                -fx-border-color: -df-component;
             }
         }
 
         &:vertical {
             .line {
-                -fx-border-color: $grey;
+                -fx-border-color: -df-component;
             }
         }
     }
@@ -118,25 +121,31 @@
         -fx-border-insets: 0;
         -fx-background-color: transparent;
         .image-view {
-            -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
+            -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
         >.choice-box {
             -fx-border-width: 0;
             -fx-pref-width: 90px;
             >.label {
-                -fx-background-color: $scene-toolbar-background;
-                -fx-text-fill: $defold-white;
+                -fx-background-color: -df-component-darker;
+                -fx-text-fill: -df-text;
             }
             .open-button {
                 -fx-border-width: 0;
-                -fx-background-color: $scene-toolbar-background;
+                -fx-background-color: -df-component-darker;
                 .arrow {
-                    -fx-background-color: $defold-white;
+                    -fx-background-color: -df-text;
                 }
             }
             &:hover, &:pressed, &:focused {
                 .open-button {
-                    -fx-background-color: $scene-toolbar-background;
+                    -fx-background-color: -df-component-darker;
+                    .arrow {
+                        -fx-background-color: -df-text-selected;
+                    }
+                }
+                >.label {
+                    -fx-text-fill: -df-text-selected;
                 }
             }
         }
@@ -147,8 +156,7 @@
     -fx-padding: 10px 15px;
     -fx-spacing: 10px;
     -fx-height: 30px;
-    -fx-font-face: $default-font;
-    -fx-font-size: 14px;
-    -fx-text-fill: $defold-white;
+    -fx-font-size: 110%;
+    -fx-text-fill: -df-text;
     -fx-effect: dropshadow(one-pass-box, rgba(0, 0, 0, 1), 0, 0, 1, 1);
 }

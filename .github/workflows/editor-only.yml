@@ -75,7 +75,6 @@ jobs:
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       }]
 
-
   sign-editor-windows:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     needs: [build-editor]
@@ -89,18 +88,27 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Download editor',
+        shell: bash,
         run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
       },
       {
         name: 'Install dependencies',
-        run: 'ci/ci.sh --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+        shell: bash,
+        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+      },
+      {
+        name: 'Install ext dependencies',
+        shell: bash,
+        run: 'ci/ci.sh install_ext --platform=${{ matrix.platform }}'
       },
       {
         name: 'Sign editor',
-        run: 'ci/ci.sh sign-editor --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
+        shell: bash,
+        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass=./ci/windows_cert.pass --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
+        shell: bash,
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       }]
 

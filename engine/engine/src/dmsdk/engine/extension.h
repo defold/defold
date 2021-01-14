@@ -26,7 +26,7 @@ namespace dmEngine
      * @document
      * @name Engine
      * @namespace dmEngine
-     * @path engine/dlib/src/dmsdk/engine/extension_context.h
+     * @path engine/dlib/src/dmsdk/engine/extension.h
      */
 
     /*# get the config file

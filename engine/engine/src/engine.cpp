@@ -434,6 +434,42 @@ namespace dmEngine
         dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
+    struct LuaCallstackCtx
+    {
+        bool     m_First;
+        char*    m_Buffer;
+        uint32_t m_BufferSize;
+    };
+
+    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
+    {
+        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
+
+        if (ctx->m_First)
+        {
+            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            ctx->m_Buffer += nwritten;
+            ctx->m_BufferSize -= nwritten;
+            ctx->m_First = false;
+        }
+
+        uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "%s(%d): %s\n", entry->short_src, entry->currentline, entry->name ? entry->name : "?");
+        ctx->m_Buffer += nwritten;
+        ctx->m_BufferSize -= nwritten;
+    }
+
+    static void CrashHandlerCallback(void* ctx, char* buffer, uint32_t buffersize)
+    {
+        HEngine engine = (HEngine)ctx;
+        if (engine->m_SharedScriptContext) {
+            LuaCallstackCtx ctx;
+            ctx.m_First = true;
+            ctx.m_Buffer = buffer;
+            ctx.m_BufferSize = buffersize;
+            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -453,6 +489,8 @@ namespace dmEngine
     bool Init(HEngine engine, int argc, char *argv[])
     {
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+
+        dmCrash::SetExtraInfoCallback(CrashHandlerCallback, engine);
 
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Platform = dmEngineVersion::PLATFORM;
