@@ -444,6 +444,28 @@ public class IOSBundler implements IBundler {
                 }
             }
 
+            // Sign any .dylib files in the Frameworks folder
+            File frameworksDir = new File(appDir, "Frameworks");
+            if (frameworksDir.exists()) {
+                logger.log(Level.INFO, "Signing ./Frameworks folder");
+                for (File file : frameworksDir.listFiles(File::isFile)) {
+
+                    BundleHelper.throwIfCanceled(canceled);
+
+                    if (!file.getName().endsWith(".dylib"))
+                        continue;
+
+                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());
+                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
+
+                    Process process = processBuilder.start();
+                    logProcess(process);
+
+                }
+            } else {
+                System.out.printf("No ./Framework folder to sign\n");
+            }
+
             BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity,
