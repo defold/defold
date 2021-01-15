@@ -1261,7 +1261,7 @@ If you do not specifically require different script states, consider changing th
                {:label "Search Issues"
                 :command :search-issues}
                {:label :separator}
-               {:label "Donate"
+               {:label "Development Fund"
                 :command :donate}
                {:label :separator}
                {:label "About"
