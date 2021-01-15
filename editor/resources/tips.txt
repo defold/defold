@@ -6,8 +6,8 @@
 # News
 
 Did you know? [Defold now supports Nintendo Switch](https://defold.com/manuals/nintendo-switch/)!
-Contribute toward the Defold Foundation [development fund](https://defold.com/community-donations/) to ensure the long term sustainability of Defold.
-Sponsor the Defold Foundation with a [corporate partnerships](https://defold.com/corporate-partnerships/) to ensure the long term sustainability of Defold.
+The Defold Foundation [development fund](https://defold.com/community-donations/) ensures the long term sustainability of Defold.
+[Corporate partnerships](https://defold.com/corporate-partnerships/) ensure the long term sustainability of Defold.
 
 # Useful links
 
