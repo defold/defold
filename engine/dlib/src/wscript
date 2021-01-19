@@ -240,6 +240,8 @@ def build(bld):
                      classpath=classpath  + os.pathsep + 'default/src/java',
                      source_root='java_test')
 
+    # Install step
+
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
@@ -299,6 +301,9 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
+
+    # for tools
+    bld.install_files('${PREFIX}/ext/include/stb/', 'stb/*.h')
 
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
