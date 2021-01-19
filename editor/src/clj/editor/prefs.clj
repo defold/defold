@@ -17,8 +17,9 @@
             [service.log :as log]
             [cognitect.transit :as transit])
   (:import [java.util.prefs Preferences]
-           [java.io ByteArrayOutputStream StringBufferInputStream]
-           [javafx.scene.paint Color]))
+           [java.io ByteArrayOutputStream ByteArrayInputStream StringBufferInputStream]
+           [javafx.scene.paint Color]
+           [java.nio.charset StandardCharsets]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,7 +37,8 @@
      (.toString out)))
 
 (defn- read-transit [s]
-  (let [reader (transit/reader (StringBufferInputStream. s) :json {:handlers read-handlers})]
+  (let [stream (ByteArrayInputStream. (.getBytes s StandardCharsets/UTF_8))
+        reader (transit/reader stream :json {:handlers read-handlers})]
     (transit/read reader)))
 
 (defprotocol PreferenceStore
