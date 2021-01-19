@@ -221,6 +221,40 @@ def build(bld):
             if 'linux' in bld.env['PLATFORM']:
                 dlib_memprofile.env.append_value('LINKFLAGS', [ '-ldl' ])
 
+    # Basis libraries
+
+    opt_level = getattr(Options.options, 'opt_level', '')
+    FLAG_ST = '/O%s' if 'win' == bld.env.BUILD_PLATFORM else '-O%s'
+    remove_flags = {}
+    if opt_level in ['3','2']:
+        remove_flags['CXXFLAGS'] = []
+        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
+
+    # For the texture compiler
+    basis_encoder = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan remove_flags',
+                            includes = ['basis'],
+                            target = 'basis_encoder',
+                            remove_flags = remove_flags,
+                            defines = ['DM_BASIS_ENCODER'])
+    basis_encoder.find_sources_in_dirs(["basis/encoder", "basis/transcoder"], ['.cpp'])
+    basis_encoder.env.append_unique('CXXFLAGS', ['-std=c++11'])
+    if remove_flags:
+        basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
+
+    # For the runtime
+    basis_transcoder = bld.new_task_gen(features = 'cxx cstaticlib remove_flags',
+                            includes = ['basis'],
+                            target = 'basis_transcoder',
+                            remove_flags = remove_flags,
+                            defines = ['DM_BASIS_TRANSCODER_UASTC'],
+                            uselib = 'WEBP DLIB')
+    basis_transcoder.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])
+    basis_transcoder.env.append_unique('CXXFLAGS', ['-std=c++11'])
+    if remove_flags:
+        basis_transcoder.env.append_unique('CXXFLAGS', ['-Os'])
+
+    # Java
+
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)
 
@@ -303,6 +337,8 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
 
     # for tools
+    bld.install_files('${PREFIX}/ext/include/basis/encoder', 'basis/encoder/*.h')
+    bld.install_files('${PREFIX}/ext/include/basis/transcoder', 'basis/transcoder/*.h')
     bld.install_files('${PREFIX}/ext/include/stb/', 'stb/*.h')
 
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
