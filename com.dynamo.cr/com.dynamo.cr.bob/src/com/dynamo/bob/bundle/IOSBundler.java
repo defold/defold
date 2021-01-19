@@ -459,6 +459,16 @@ public class IOSBundler implements IBundler {
                             InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
                             customEntitlements.read(new InputStreamReader(is));
 
+                            // the custom entitlements file is expected to have the entitlements
+                            // in the root <plist><dict>. To offer a bit of flexibility we
+                            // also support custom entitlements with an <Entitlements><dict>
+                            // property which we extract and put in the root:
+                            if (customEntitlements.getKeys("Entitlements").hasNext()) {
+                                XMLPropertyListConfiguration tmp = new XMLPropertyListConfiguration();
+                                tmp.append(customEntitlements.configurationAt("Entitlements"));
+                                customEntitlements = tmp;
+                            }
+
                             Iterator<String> keys = customEntitlements.getKeys();
                             while (keys.hasNext()) {
                                 String key = keys.next();
