@@ -373,6 +373,41 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
+        // Package zip file
+        File tmpZipDir = createTempDirectory();
+        tmpZipDir.deleteOnExit();
+
+        File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
+
+        // Copy any libswift*.dylib files from the Frameworks folder
+        File frameworksDir = new File(appDir, "Frameworks");
+
+        if (frameworksDir.exists()) {
+            logger.log(Level.INFO, "Copying to /SwiftSupport folder");
+            File iphoneosDir = new File(swiftSupportDir, "iphoneos");
+
+            for (File file : frameworksDir.listFiles(File::isFile)) {
+
+                BundleHelper.throwIfCanceled(canceled);
+
+                if (!file.getName().endsWith(".dylib"))
+                    continue;
+
+                if (!file.getName().startsWith("libswift")) {
+                    continue;
+                }
+
+                if (!swiftSupportDir.exists()) {
+                    swiftSupportDir.mkdir();
+                    iphoneosDir.mkdir();
+                }
+
+                File dst = new File(iphoneosDir, file.getName());
+                FileUtils.copyFile(file, dst);
+                System.out.printf("Copying %s to %s\n", file, dst);
+            }
+        }
+
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
         if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
@@ -445,7 +480,6 @@ public class IOSBundler implements IBundler {
             }
 
             // Sign any .dylib files in the Frameworks folder
-            File frameworksDir = new File(appDir, "Frameworks");
             if (frameworksDir.exists()) {
                 logger.log(Level.INFO, "Signing ./Frameworks folder");
                 for (File file : frameworksDir.listFiles(File::isFile)) {
@@ -482,12 +516,6 @@ public class IOSBundler implements IBundler {
         // Package into IPA zip
         BundleHelper.throwIfCanceled(canceled);
 
-        // Package zip file
-        File tmpZipDir = createTempDirectory();
-        tmpZipDir.deleteOnExit();
-
-        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
-        // to import the resulting zip files.
         File payloadDir = new File(tmpZipDir, "Payload");
         payloadDir.mkdir();
 
@@ -499,7 +527,14 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         File zipFile = new File(bundleDir, title + ".ipa");
         File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
-        processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+
+        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+        // to import the resulting zip files.
+        if (swiftSupportDir.exists())
+            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName(), swiftSupportDir.getName());
+        else
+            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+
         processBuilder.directory(tmpZipDir);
 
         BundleHelper.throwIfCanceled(canceled);
