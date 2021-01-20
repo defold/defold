@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -50,22 +50,6 @@ public class TexcLibrary {
             String libPath = lib.getParent();
             addToPath("jna.library.path", libPath);
             addToPath("java.library.path", libPath);
-
-            String pvrTextLibPath = Bob.getLib(platform, "PVRTexLib"); // dependency of texc_shared
-
-            // TODO: sad with a platform specific hack and placing dependency knowledge here but...
-            if (platform == Platform.X86Linux || platform == Platform.X86_64Linux) {
-                Bob.verbose("Loading PVRTexLib from:'%s'", pvrTextLibPath);
-                System.load(pvrTextLibPath);
-            }
-            else if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
-                final String msvcrlib = Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
-                // Make sure our version is loaded. Windows will do the lookup
-                // for transitive dependencies, not jna, so we need to do this
-                // explicitly or it will not be found.
-                System.load(msvcrlib);
-            }
-
             Native.register("texc_shared");
         } catch (Exception e) {
             System.out.println("FATAL: " + e.getMessage());
@@ -85,13 +69,14 @@ public class TexcLibrary {
         public static int R4G4B4A4          = 9;
         public static int L8A8              = 10;
 
-        /*
-        JIRA issue: DEF-994
-        public static int RGB_DXT1          = 8;
-        public static int RGBA_DXT1         = 9;
-        public static int RGBA_DXT3         = 10;
-        public static int RGBA_DXT5         = 11;
-        */
+        public static int RGBA_ETC2         = 11;
+        public static int RGBA_ASTC_4x4     = 12;
+
+        public static int RGB_BC1           = 13;
+        public static int RGBA_BC3          = 14;
+        public static int R_BC4             = 15;
+        public static int RG_BC5            = 16;
+        public static int RGBA_BC7          = 17;
     }
 
     public interface ColorSpace {
@@ -110,6 +95,8 @@ public class TexcLibrary {
         public static int CT_DEFAULT    = 0;
         public static int CT_WEBP       = 1;
         public static int CT_WEBP_LOSSY = 2;
+        public static int CT_BASIS_UASTC= 3;
+        public static int CT_BASIS_ETC1S= 4;
     }
 
     public enum FlipAxis {
@@ -127,7 +114,7 @@ public class TexcLibrary {
         public static int DT_DEFAULT = 1;
     }
 
-    public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
+    public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, int compressionType, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
     public static native int TEXC_GetDataSizeCompressed(Pointer texture, int minMap);
@@ -140,9 +127,9 @@ public class TexcLibrary {
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
     public static native boolean TEXC_Flip(Pointer texture, int flipAxis);
-    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, int dither);
+    public static native boolean TEXC_Encode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
 
-
+    // For font glyphs
     public static native Pointer TEXC_CompressWebPBuffer(int width, int height, int bitsPerPixel, Buffer data, int datasize, int pixelFormat, int compressionLevel, int compressionType);
     public static native int TEXC_GetTotalBufferDataSize(Pointer buffer);
     public static native int TEXC_GetBufferData(Pointer buffer, Buffer outData, int maxOutDataSize);
