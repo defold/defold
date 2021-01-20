@@ -22,12 +22,12 @@
 
 namespace dmGameSystem
 {
-    static const uint32_t m_MaxMipCount = 32;
+    static const uint32_t s_MaxMipCount = 32;
     struct ImageDesc
     {
         dmGraphics::TextureImage* m_DDFImage;
-        uint8_t* m_DecompressedData[m_MaxMipCount];
-        uint32_t m_DecompressedDataSize[m_MaxMipCount];
+        uint8_t* m_DecompressedData[s_MaxMipCount];
+        uint32_t m_DecompressedDataSize[s_MaxMipCount];
         bool m_UseBlankTexture;
     };
 
@@ -95,10 +95,12 @@ namespace dmGameSystem
             dmGraphics::TextureFormat original_format = TextureImageToTextureFormat(image->m_Format);
             dmGraphics::TextureFormat output_format = original_format;
 
+            uint32_t num_mips = image->m_MipMapOffset.m_Count;
             if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
             {
+                num_mips = s_MaxMipCount;
                 output_format = dmGraphics::GetSupportedFormat(context, output_format);
-                bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, m_MaxMipCount);
+                bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
                 if (!result)
                 {
                     dmLogError("Failed to transcode %s", path);
@@ -119,7 +121,7 @@ namespace dmGameSystem
             params.m_Width = image->m_Width;
             params.m_Height = image->m_Height;
 
-            assert(image->m_MipMapOffset.m_Count <= m_MaxMipCount);
+            assert(image->m_MipMapOffset.m_Count <= s_MaxMipCount);
 
             if (image_desc->m_DDFImage->m_Type == dmGraphics::TextureImage::TYPE_2D) {
                 creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
@@ -160,7 +162,7 @@ namespace dmGameSystem
                 break;
             }
 
-            for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
+            for (uint32_t i = 0; i < num_mips; ++i)
             {
                 params.m_MipMap = i;
                 params.m_Data = image_desc->m_DecompressedData[i] == 0 ? &image->m_Data[image->m_MipMapOffset[i]] : image_desc->m_DecompressedData[i];
@@ -197,7 +199,7 @@ namespace dmGameSystem
 
     static void DestroyImage(ImageDesc* image_desc)
     {
-        for (uint32_t i = 0; i < m_MaxMipCount; ++i)
+        for (uint32_t i = 0; i < s_MaxMipCount; ++i)
         {
             if(image_desc->m_DecompressedData[i])
                 delete[] image_desc->m_DecompressedData[i];

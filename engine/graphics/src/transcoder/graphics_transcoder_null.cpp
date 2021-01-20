@@ -20,14 +20,14 @@ namespace dmGraphics
         return false;
     }
 
-    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t max_num_images)
+    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
     {
         (void)path;
         (void)image;
         (void)format;
         (void)images;
         (void)sizes;
-        (void)max_num_images;
+        (void)num_transcoded_mips;
         return false;
     }
 }

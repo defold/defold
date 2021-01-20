@@ -111,7 +111,7 @@ namespace dmGraphics
     }
 
     bool Transcode(const char* path, dmGraphics::TextureImage::Image* image, dmGraphics::TextureFormat format,
-                    uint8_t** images, uint32_t* sizes, uint32_t max_num_images)
+                    uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
     {
         DM_PROFILE(Graphics, "TranscodeBasis");
 
@@ -123,6 +123,9 @@ namespace dmGraphics
         }
 
         basist::basisu_transcoder tr(0);
+
+        uint32_t max_num_images = *num_transcoded_mips;
+        uint32_t total_size = 0;
 
         // Currently storing one basis file with multiple mip map levels
         uint32_t size = image->m_Data.m_Count;
@@ -255,9 +258,11 @@ namespace dmGraphics
             {
                 images[level_index] = level_data;
                 sizes[level_index] = level_size;
+                total_size += level_size;
             }
         };
 
+        *num_transcoded_mips = info.m_total_levels;
         return true;
     }
 }

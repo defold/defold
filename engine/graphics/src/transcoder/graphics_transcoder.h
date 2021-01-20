@@ -18,7 +18,7 @@
 namespace dmGraphics
 {
     bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
-    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t max_num_images);
+    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 }
 
 
