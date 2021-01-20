@@ -44,7 +44,7 @@ except:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['win32', 'x86_64-win32', 'x86<-64-linux', 'js-web', 'wasm-web']
+        return platform not in ['win32', 'x86_64-win32', 'x86_64-linux', 'js-web', 'wasm-web']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -305,6 +305,8 @@ def default_flags(self):
 
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
+
+    self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -1750,8 +1752,9 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STATICLIB_GRAPHICS']          = 'graphics'
-    conf.env['STATICLIB_GRAPHICS_VULKAN']   = 'graphics_vulkan'
+    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
