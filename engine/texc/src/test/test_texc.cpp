@@ -16,6 +16,9 @@
 #include <dlib/webp.h>
 #include <string.h> // memcmp
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
+
 #include "../texc.h"
 #include "../texc_private.h"
 
@@ -29,7 +32,6 @@ protected:
     virtual void TearDown()
     {
     }
-
 };
 
 uint8_t default_data_l[4] =
@@ -569,6 +571,72 @@ TEST(Helpers, FlipX)
         }
     }
 }
+
+struct CompileInfo
+{
+    const char*             m_Path;
+    dmTexc::CompressionType m_CompressionType;
+    dmTexc::PixelFormat     m_InputFormat;
+    dmTexc::PixelFormat     m_OutputFormat;
+    dmTexc::ColorSpace      m_ColorSpace;
+};
+CompileInfo compile_info[] =
+{
+    {"src/test/data/a.png", dmTexc::CT_DEFAULT, dmTexc::PF_R8G8B8A8, dmTexc::PF_R5G6B5, dmTexc::CS_SRGB},
+};
+
+class TexcCompileTest : public jc_test_params_class<CompileInfo>
+{
+protected:
+    virtual void SetUp()
+    {
+        const CompileInfo& info = GetParam();
+        uint8_t* image = stbi_load(info.m_Path, &m_Width, &m_Height, 0, 0);
+        ASSERT_TRUE(image != 0);
+
+        m_Texture = dmTexc::Create(m_Width, m_Height, info.m_InputFormat, info.m_ColorSpace, info.m_CompressionType, image);
+        printf("image: %s   %u x %u\n", info.m_Path, m_Width, m_Height);
+    }
+
+    virtual void TearDown()
+    {
+        dmTexc::Destroy(m_Texture);
+    }
+
+    dmTexc::HTexture m_Texture;
+    int m_Width;
+    int m_Height;
+};
+
+
+TEST_P(TexcCompileTest, FlipX)
+{
+    ASSERT_TRUE(dmTexc::Flip(m_Texture, dmTexc::FLIP_AXIS_X));
+}
+
+TEST_P(TexcCompileTest, FlipY)
+{
+    ASSERT_TRUE(dmTexc::Flip(m_Texture, dmTexc::FLIP_AXIS_Y));
+}
+
+TEST_P(TexcCompileTest, PreMultiplyAlpha)
+{
+    ASSERT_TRUE(dmTexc::PreMultiplyAlpha(m_Texture));
+}
+
+TEST_P(TexcCompileTest, GenMipMaps)
+{
+    ASSERT_TRUE(dmTexc::GenMipMaps(m_Texture));
+}
+
+TEST_P(TexcCompileTest, Encode)
+{
+    const CompileInfo& info = GetParam();
+    ASSERT_TRUE(dmTexc::Encode(m_Texture, info.m_OutputFormat, info.m_ColorSpace, dmTexc::CL_BEST, info.m_CompressionType, true, 1));
+}
+
+INSTANTIATE_TEST_CASE_P(TexcCompileTest, TexcCompileTest, jc_test_values_in(compile_info));
+
 
 int main(int argc, char **argv)
 {
