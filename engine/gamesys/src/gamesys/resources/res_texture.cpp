@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,8 +14,11 @@
 
 #include <dlib/log.h>
 #include <dlib/webp.h>
+#include <dlib/profile.h>
 #include <dlib/time.h>
+#include <dlib/math.h>
 #include <graphics/graphics.h>
+#include <graphics/graphics_transcoder.h>
 
 namespace dmGameSystem
 {
@@ -24,75 +27,37 @@ namespace dmGameSystem
     {
         dmGraphics::TextureImage* m_DDFImage;
         uint8_t* m_DecompressedData[m_MaxMipCount];
+        uint32_t m_DecompressedDataSize[m_MaxMipCount];
         bool m_UseBlankTexture;
     };
 
-    static dmWebP::TextureEncodeFormat TextureFormatFormatToEncodeFormat(dmGraphics::TextureImage::TextureFormat format)
+    static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
     {
+#define CASE_TF(_X) case dmGraphics::TextureImage::TEXTURE_FORMAT_ ## _X:    return dmGraphics::TEXTURE_FORMAT_ ## _X
         switch (format)
         {
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-                return dmWebP::TEXTURE_ENCODE_FORMAT_PVRTC1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
-                return dmWebP::TEXTURE_ENCODE_FORMAT_ETC1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
-                return dmWebP::TEXTURE_ENCODE_FORMAT_L8;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
-                return dmWebP::TEXTURE_ENCODE_FORMAT_RGB565;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
-                return dmWebP::TEXTURE_ENCODE_FORMAT_RGBA4444;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                return dmWebP::TEXTURE_ENCODE_FORMAT_L8A8;
-            default:
-                assert(0);
-                return (dmWebP::TextureEncodeFormat)-1;
-        }
-    }
-
-    static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::Image* image)
-    {
-        switch (image->m_Format)
-        {
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
-                return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB:
-                return dmGraphics::TEXTURE_FORMAT_RGB;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
-                return dmGraphics::TEXTURE_FORMAT_RGBA;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-                return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-                return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-                return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-                return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
-                return dmGraphics::TEXTURE_FORMAT_RGB_ETC1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
-                return dmGraphics::TEXTURE_FORMAT_RGB_16BPP;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
-                return dmGraphics::TEXTURE_FORMAT_RGBA_16BPP;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
-
-            /*
-            JIRA issue: DEF-994
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
-                return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
-                return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
-                return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
-                return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
-            */
+            CASE_TF(LUMINANCE);
+            CASE_TF(LUMINANCE_ALPHA);
+            CASE_TF(RGB);
+            CASE_TF(RGBA);
+            CASE_TF(RGB_16BPP);
+            CASE_TF(RGBA_16BPP);
+            CASE_TF(RGB_PVRTC_2BPPV1);
+            CASE_TF(RGB_PVRTC_4BPPV1);
+            CASE_TF(RGBA_PVRTC_2BPPV1);
+            CASE_TF(RGBA_PVRTC_4BPPV1);
+            CASE_TF(RGB_ETC1);
+            CASE_TF(RGBA_ETC2);
+            CASE_TF(RGBA_ASTC_4x4);
+            CASE_TF(RGB_BC1);
+            CASE_TF(RGBA_BC3);
+            CASE_TF(R_BC4);
+            CASE_TF(RG_BC5);
+            CASE_TF(RGBA_BC7);
             default:
                 assert(0);
                 return (dmGraphics::TextureFormat)-1;
+#undef CASE_TF
         }
     }
 
@@ -119,124 +84,38 @@ namespace dmGameSystem
         dmGraphics::SetTextureAsync(texture, params);
     }
 
-    bool WebPDecodeTexture(uint32_t mipmap, uint32_t width, int32_t height, dmGraphics::TextureImage::Image* image, uint8_t*& decompressed_data, uint32_t& decompressed_data_size)
-    {
-        uint32_t compressed_data_size = image->m_MipMapSizeCompressed[mipmap];
-        if(!compressed_data_size)
-        {
-            decompressed_data = 0;
-            decompressed_data_size = 0;
-            return true;
-        }
-
-        uint8_t* compressed_data = &image->m_Data[image->m_MipMapOffset[mipmap]];
-        decompressed_data_size = image->m_MipMapSize[mipmap];
-        decompressed_data = new uint8_t[decompressed_data_size];
-        if(!decompressed_data)
-        {
-            dmLogError("Not enough memory to decode WebP encoded image (%u bytes). Using blank texture.", decompressed_data_size);
-            return false;
-        }
-
-        dmWebP::Result webp_res;
-        uint32_t stride = decompressed_data_size/height;
-        switch (image->m_Format)
-        {
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                webp_res = dmWebP::DecodeCompressedTexture(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride, TextureFormatFormatToEncodeFormat(image->m_Format));
-            break;
-
-            default:
-                if(stride == width*3)
-                {
-                    webp_res = dmWebP::DecodeRGB(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
-                }
-                else
-                {
-                    webp_res = dmWebP::DecodeRGBA(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
-                }
-            break;
-        }
-        if(webp_res != dmWebP::RESULT_OK)
-        {
-            dmLogError("Failed to decode WebP encoded image, code(%d). Using blank texture.", (int32_t) webp_res);
-            delete[] decompressed_data;
-            return false;
-        }
-
-        if(image->m_CompressionFlags & dmGraphics::TextureImage::COMPRESSION_FLAG_ALPHA_CLEAN)
-        {
-            switch (image->m_Format)
-            {
-                case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
-                {
-                    uint32_t* p_end = (uint32_t*)(decompressed_data+decompressed_data_size);
-                    for(uint32_t* p = (uint32_t*) decompressed_data; p != p_end; ++p)
-                    {
-                        uint32_t rgba = *p;
-                        if((!(rgba & 0xff000000)) && (rgba & 0x00ffffff))
-                            *p = 0;
-                    }
-                }
-                break;
-
-                case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
-                {
-                    uint16_t* p_end = (uint16_t*)(decompressed_data+decompressed_data_size);
-                    for(uint16_t* p = (uint16_t*) decompressed_data; p != p_end; ++p)
-                    {
-                        uint16_t rgba = *p;
-                        if((!(rgba & 0x000f)) && (rgba & 0xfff0))
-                            *p = 0;
-                    }
-                }
-                break;
-
-                case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                {
-                    uint16_t* p_end = (uint16_t*)(decompressed_data+decompressed_data_size);
-                    for(uint16_t* p = (uint16_t*) decompressed_data; p != p_end; ++p)
-                    {
-                        uint16_t l8a8 = *p;
-                        if((!(l8a8 & 0xff00)) && (l8a8 & 0x00ff))
-                            *p = 0;
-                    }
-                }
-                break;
-
-                default:
-                break;
-            }
-        }
-        return true;
-    }
-
-    dmResource::Result AcquireResources(dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
+    dmResource::Result AcquireResources(const char* path, dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
         dmResource::Result result = dmResource::RESULT_FORMAT_ERROR;
         for (uint32_t i = 0; i < image_desc->m_DDFImage->m_Alternatives.m_Count; ++i)
         {
             dmGraphics::TextureImage::Image* image = &image_desc->m_DDFImage->m_Alternatives[i];
-            dmGraphics::TextureFormat format = TextureImageToTextureFormat(image);
 
-            if (!dmGraphics::IsTextureFormatSupported(context, format))
+
+            dmGraphics::TextureFormat original_format = TextureImageToTextureFormat(image->m_Format);
+            dmGraphics::TextureFormat output_format = original_format;
+
+            if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
+            {
+                output_format = dmGraphics::GetSupportedFormat(context, output_format);
+                bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, m_MaxMipCount);
+                if (!result)
+                {
+                    dmLogError("Failed to transcode %s", path);
+                    continue;
+                }
+            }
+            else if (!dmGraphics::IsTextureFormatSupported(context, original_format))
             {
                 continue;
             }
+
             result = dmResource::RESULT_OK;
 
             dmGraphics::TextureCreationParams creation_params;
             dmGraphics::TextureParams params;
             dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
-            params.m_Format = format;
+            params.m_Format = output_format;
             params.m_Width = image->m_Width;
             params.m_Height = image->m_Height;
 
@@ -285,7 +164,7 @@ namespace dmGameSystem
             {
                 params.m_MipMap = i;
                 params.m_Data = image_desc->m_DecompressedData[i] == 0 ? &image->m_Data[image->m_MipMapOffset[i]] : image_desc->m_DecompressedData[i];
-                params.m_DataSize = image->m_MipMapSize[i];
+                params.m_DataSize = image_desc->m_DecompressedData[i] == 0 ? image->m_MipMapSize[i] : image_desc->m_DecompressedDataSize[i];
                 dmGraphics::SetTextureAsync(texture, params);
 
                 params.m_Width >>= 1;
@@ -308,55 +187,15 @@ namespace dmGameSystem
         return result;
     }
 
-    ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
+    static ImageDesc* CreateImage(const char* path, dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
         image_desc->m_DDFImage = texture_image;
-        for(uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
-        {
-            dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
-            if (!dmGraphics::IsTextureFormatSupported(context, TextureImageToTextureFormat(image)))
-            {
-                continue;
-            }
-            switch(image->m_CompressionType)
-            {
-                case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP:
-                case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP_LOSSY:
-                {
-                    uint32_t w = image->m_Width;
-                    uint32_t h = image->m_Height;
-                    for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
-                    {
-                        uint8_t* decompressed_data;
-                        uint32_t decompressed_data_size;
-                        if(WebPDecodeTexture(i, w, h, image, decompressed_data, decompressed_data_size))
-                        {
-                            image_desc->m_DecompressedData[i] = decompressed_data;
-                        }
-                        else
-                        {
-                            image_desc->m_UseBlankTexture = true;
-                            break;
-                        }
-                        w >>= 1;
-                        h >>= 1;
-                        if (w == 0) w = 1;
-                        if (h == 0) h = 1;
-                    }
-                }
-                break;
-
-                default:
-                break;
-            }
-            break;
-        }
         return image_desc;
     }
 
-    void DestroyImage(ImageDesc* image_desc)
+    static void DestroyImage(ImageDesc* image_desc)
     {
         for (uint32_t i = 0; i < m_MaxMipCount; ++i)
         {
@@ -375,7 +214,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage(params.m_Filename, (dmGraphics::HContext) params.m_Context, texture_image);
         *params.m_PreloadData = image_desc;
         return dmResource::RESULT_OK;
     }
@@ -400,7 +239,7 @@ namespace dmGameSystem
     {
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, 0, &texture);
+        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, 0, &texture);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) texture;
@@ -430,11 +269,11 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage(params.m_Filename, (dmGraphics::HContext) params.m_Context, texture_image);
 
         // Set up the new texture (version), wait for it to finish before issuing new requests
         SynchronizeTexture(texture, true);
-        dmResource::Result r = AcquireResources(params.m_Resource, graphics_context, image_desc, texture, &texture);
+        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, texture, &texture);
 
         // Wait for any async texture uploads
         SynchronizeTexture(texture, true);

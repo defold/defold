@@ -879,22 +879,44 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
-        if (IsExtensionSupported("GL_EXT_texture_compression_dxt1", extensions))
-        {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_DXT1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT1;
-        }
-        if (IsExtensionSupported("GL_EXT_texture_compression_dxt3", extensions))
-        {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT3;
-        }
-        if (IsExtensionSupported("GL_EXT_texture_compression_dxt5", extensions))
-        {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT5;
-        }
+
         if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+        // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
+        if (IsExtensionSupported("GL_EXT_texture_compression_s3tc", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
+            // We'll use BC3 for this
+            //context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC2; // DXT3
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3; // DXT5
+        }
+
+        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
+        if (IsExtensionSupported("GL_ARB_texture_compression_rgtc", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+        }
+
+        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
+        if (IsExtensionSupported("GL_ARB_texture_compression_bptc", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+        }
+
+        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
+        if (IsExtensionSupported("GL_ARB_ES3_compatibility", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+        }
+
+        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
+        if (IsExtensionSupported("GL_KHR_texture_compression_astc_ldr", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
         }
 
 #if defined (__EMSCRIPTEN__)
@@ -2231,12 +2253,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         int unpackAlignment = 4;
         /*
-         * For RGA-textures the row-alignment may not be a multiple of 4.
+         * For RGB-textures the row-alignment may not be a multiple of 4.
          * OpenGL doesn't like this by default
          */
-        if (params.m_Format != TEXTURE_FORMAT_RGBA)
+        if (params.m_Format != TEXTURE_FORMAT_RGBA && !IsTextureFormatCompressed(params.m_Format))
         {
-            uint32_t bytes_per_row = params.m_Width * dmMath::Max(1U, GetTextureFormatBPP(params.m_Format)) >> 3;
+            uint32_t bytes_per_row = params.m_Width * dmMath::Max(1U, GetTextureFormatBitsPerPixel(params.m_Format)/8);
             if (bytes_per_row % 4 == 0) {
                 // Ok
             } else if (bytes_per_row % 2 == 0) {
@@ -2268,9 +2290,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         GLenum gl_format;
-        GLenum gl_type = GL_UNSIGNED_BYTE;
-        // Only used for uncompressed formats
-        GLint internal_format = -1;
+        GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
+        GLint internal_format = -1; // // Only used for uncompressed formats
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
@@ -2299,34 +2320,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
-        case TEXTURE_FORMAT_RGB_DXT1:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1;
-            break;
-        case TEXTURE_FORMAT_RGBA_DXT1:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT1;
-            break;
-        case TEXTURE_FORMAT_RGBA_DXT3:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT3;
-            break;
-        case TEXTURE_FORMAT_RGBA_DXT5:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT3;
-            CHECK_GL_ERROR;
-            break;
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            break;
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
-            break;
-        case TEXTURE_FORMAT_RGB_ETC1:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1;
-            break;
+
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
+        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+        case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
+        case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
+        case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
+        case TEXTURE_FORMAT_RG_BC5:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2; break;
+        case TEXTURE_FORMAT_RGBA_BC7:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM; break;
+
+        // Float formats
         case TEXTURE_FORMAT_RGB16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
@@ -2432,15 +2440,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             }
             break;
 
-        case TEXTURE_FORMAT_RGB_DXT1:
-        case TEXTURE_FORMAT_RGBA_DXT1:
-        case TEXTURE_FORMAT_RGBA_DXT3:
-        case TEXTURE_FORMAT_RGBA_DXT5:
         case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
         case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
         case TEXTURE_FORMAT_RGB_ETC1:
+        case TEXTURE_FORMAT_RGBA_ETC2:
+        case TEXTURE_FORMAT_RGBA_ASTC_4x4:
+        case TEXTURE_FORMAT_RGB_BC1:
+        case TEXTURE_FORMAT_RGBA_BC3:
+        case TEXTURE_FORMAT_R_BC4:
+        case TEXTURE_FORMAT_RG_BC5:
+        case TEXTURE_FORMAT_RGBA_BC7:
             if (params.m_DataSize > 0) {
                 if (texture->m_Type == TEXTURE_TYPE_2D) {
                     if (params.m_SubUpdate) {
@@ -2499,10 +2510,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
+    // NOTE: Currently overestimates the resource usage for compressed formats!
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
-        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Params.m_Format)) >> 3;
+        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBitsPerPixel(texture->m_Params.m_Format)) / 8;
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
         {
             size_total += size;

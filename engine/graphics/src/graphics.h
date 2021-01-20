@@ -132,36 +132,39 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA                 = 3,
         TEXTURE_FORMAT_RGB_16BPP            = 4,
         TEXTURE_FORMAT_RGBA_16BPP           = 5,
-        TEXTURE_FORMAT_RGB_DXT1             = 6,
-        TEXTURE_FORMAT_RGBA_DXT1            = 7,
-        TEXTURE_FORMAT_RGBA_DXT3            = 8,
-        TEXTURE_FORMAT_RGBA_DXT5            = 9,
-        TEXTURE_FORMAT_DEPTH                = 10,
-        TEXTURE_FORMAT_STENCIL              = 11,
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 12,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 13,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 14,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 15,
-        TEXTURE_FORMAT_RGB_ETC1             = 16,
+        TEXTURE_FORMAT_DEPTH                = 6,
+        TEXTURE_FORMAT_STENCIL              = 7,
+        // Compressed formats
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
+        TEXTURE_FORMAT_RGB_ETC1             = 12,
+        TEXTURE_FORMAT_RGBA_ETC2            = 13,
+        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 14,
+        TEXTURE_FORMAT_RGB_BC1              = 15,
+        TEXTURE_FORMAT_RGBA_BC3             = 16,
+        TEXTURE_FORMAT_R_BC4                = 17,
+        TEXTURE_FORMAT_RG_BC5               = 18,
+        TEXTURE_FORMAT_RGBA_BC7             = 19,
 
         // Floating point texture formats
-        TEXTURE_FORMAT_RGB16F               = 17,
-        TEXTURE_FORMAT_RGB32F               = 18,
-        TEXTURE_FORMAT_RGBA16F              = 19,
-        TEXTURE_FORMAT_RGBA32F              = 20,
-        TEXTURE_FORMAT_R16F                 = 21,
-        TEXTURE_FORMAT_RG16F                = 22,
-        TEXTURE_FORMAT_R32F                 = 23,
-        TEXTURE_FORMAT_RG32F                = 24,
+        TEXTURE_FORMAT_RGB16F               = 20,
+        TEXTURE_FORMAT_RGB32F               = 21,
+        TEXTURE_FORMAT_RGBA16F              = 22,
+        TEXTURE_FORMAT_RGBA32F              = 23,
+        TEXTURE_FORMAT_R16F                 = 24,
+        TEXTURE_FORMAT_RG16F                = 25,
+        TEXTURE_FORMAT_R32F                 = 26,
+        TEXTURE_FORMAT_RG32F                = 27,
+
+        // Replace with BC
+        TEXTURE_FORMAT_RGB_DXT1 = TEXTURE_FORMAT_RGB_BC1,
+        TEXTURE_FORMAT_RGBA_DXT1 = 28,
+        TEXTURE_FORMAT_RGBA_DXT3 = 29,
+        TEXTURE_FORMAT_RGBA_DXT5 = TEXTURE_FORMAT_RGBA_BC3,
 
         TEXTURE_FORMAT_COUNT
-    };
-
-    // Translation table to translate TextureFormat texture to BPP
-    struct TextureFormatToBPP
-    {
-        uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
-        TextureFormatToBPP();
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -667,6 +670,7 @@ namespace dmGraphics
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
+    TextureFormat GetSupportedFormat(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 

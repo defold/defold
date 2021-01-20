@@ -10,22 +10,17 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GRAPHICS_PRIVATE_H
-#define DM_GRAPHICS_PRIVATE_H
+#ifndef DM_GRAPHICS_TRANSCODER_H
+#define DM_GRAPHICS_TRANSCODER_H
 
-#include <stdint.h>
-#include "graphics.h"
+#include <graphics/graphics.h>
 
 namespace dmGraphics
 {
-    uint64_t GetDrawCount();
-    void SetForceFragmentReloadFail(bool should_fail);
-    void SetForceVertexReloadFail(bool should_fail);
-
-    // Gets the bits per pixel from uncompressed formats
-    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
-
-    bool IsTextureFormatCompressed(TextureFormat format);
+    bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
+    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t max_num_images);
 }
 
-#endif // #ifndef DM_GRAPHICS_PRIVATE_H
+
+
+#endif // #ifndef DM_GRAPHICS_TRANSCODER_H

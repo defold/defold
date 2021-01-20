@@ -103,10 +103,10 @@ namespace dmGraphics
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_DXT1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT3);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT5);
+            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_DXT1);
+            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT1);
+            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT3);
+            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT5);
             DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
             DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
@@ -2931,7 +2931,7 @@ bail:
 
     static inline uint32_t GetOffsetFromMipmap(Texture* texture, uint8_t mipmap)
     {
-        uint8_t bitspp  = GetTextureFormatBPP(texture->m_GraphicsFormat);
+        uint8_t bitspp  = GetTextureFormatBitsPerPixel(texture->m_GraphicsFormat);
         uint32_t width  = texture->m_Width;
         uint32_t height = texture->m_Height;
         uint32_t offset = 0;
@@ -3086,7 +3086,7 @@ bail:
         }
 
         TextureFormat format_orig   = params.m_Format;
-        uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format);
+        uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
         uint8_t tex_layer_count     = GetLayerCount(texture);
         size_t tex_data_size        = 0;
         void*  tex_data_ptr         = (void*)params.m_Data;
@@ -3214,10 +3214,11 @@ bail:
         }
     }
 
+    // NOTE: Currently over estimates the resource usage for compressed formats!
     static uint32_t VulkanGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
-        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_GraphicsFormat)) >> 3;
+        uint32_t size = texture->m_Width * texture->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(texture->m_GraphicsFormat)/8);
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
         {
             size_total += size;

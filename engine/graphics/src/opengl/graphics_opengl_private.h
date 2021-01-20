@@ -47,8 +47,8 @@ namespace dmGraphics
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
-        uint32_t                m_TextureFormatSupport;
         uint32_t                m_IndexBufferFormatSupport;
+        uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         uint8_t                 m_FrameBufferInvalidateAttachments : 1;

@@ -47,7 +47,6 @@ def configure(conf):
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_RENDER'] = 'render'
-    conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_RIG'] = 'rig'
     conf.env['STATICLIB_GUI'] = 'gui'
@@ -56,12 +55,6 @@ def configure(conf):
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
-
-    conf.env['STATICLIB_GRAPHICS'] = []
-    if platform_supports_feature(platform, 'opengl', {}):
-        conf.env['STATICLIB_GRAPHICS'].append('graphics')
-    if platform_supports_feature(platform, 'vulkan', {}):
-        conf.env['STATICLIB_GRAPHICS'].append('graphics_vulkan')
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
