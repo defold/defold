@@ -2054,6 +2054,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         tex->m_MipMapCount = 0;
         tex->m_DataState = 0;
+        tex->m_ResourceSize = 0;
         return (HTexture) tex;
     }
 
@@ -2287,6 +2288,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 texture->m_Width  = params.m_Width;
                 texture->m_Height = params.m_Height;
             }
+
+            if (params.m_MipMap == 0)
+                texture->m_ResourceSize = params.m_DataSize;
         }
 
         GLenum gl_format;
@@ -2510,11 +2514,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    // NOTE: Currently overestimates the resource usage for compressed formats!
+    // NOTE: This is an approximation
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
-        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBitsPerPixel(texture->m_Params.m_Format)) / 8;
+        uint32_t size = texture->m_ResourceSize; // Size for mip 0
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
         {
             size_total += size;
