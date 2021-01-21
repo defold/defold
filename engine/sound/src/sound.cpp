@@ -1174,6 +1174,12 @@ namespace dmSound
                     instance->m_FrameCount += decoded / stride;
 
                 } else {
+					
+					if  (instance->m_FrameCount < instance->m_Speed) {
+						// since this is the last mix and no more frames will be added, trailing frames will linger on forever
+						// if they are less than m_Speed. We will truncate them to avoid this. 
+						instance->m_FrameCount = 0;
+					}
                     instance->m_EndOfStream = 1;
                 }
             }
@@ -1390,6 +1396,8 @@ namespace dmSound
             sound->m_DeviceType->m_DeviceStart(sound->m_Device);
             sound->m_IsDeviceStarted = true;
         }
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
 
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
         if (free_slots > 0) {

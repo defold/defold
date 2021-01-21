@@ -107,9 +107,14 @@ def setup_keychain(args):
 
 def setup_windows_cert(args):
     print("Setting up certificate")
-    cert_path = os.path.join("ci", "windows_cert.pfx")
+    cert_path = os.path.abspath(os.path.join("ci", "windows_cert.pfx"))
     with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.windows_cert))
+        file.write(base64.decodestring(args.windows_cert_b64))
+    print("Wrote cert to", cert_path)
+    cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
+    with open(cert_pass_path, "wb") as file:
+        file.write(args.windows_cert_pass)
+    print("Wrote cert password to", cert_pass_path)
 
 
 def install(args):
@@ -150,7 +155,7 @@ def install(args):
         if args.keychain_cert:
             setup_keychain(args)
     elif system == "Windows":
-        if args.windows_cert:
+        if args.windows_cert_b64:
             setup_windows_cert(args)
 
 
@@ -239,10 +244,16 @@ def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
     opts.append('--platform=%s' % platform)
 
     if windows_cert:
-        opts.append('--windows-cert="%s"' % windows_cert)
+        windows_cert = os.path.abspath(windows_cert)
+        if not os.path.exists(windows_cert):
+            print("Certificate file not found:", windows_cert)
+            sys.exit(1)
+        print("Using cert", windows_cert)
+        opts.append('--windows-cert=%s' % windows_cert)
 
     if windows_cert_pass:
-        opts.append('--windows-cert-pass="%s"' % windows_cert_pass)
+        windows_cert_pass = os.path.abspath(windows_cert_pass)
+        opts.append("--windows-cert-pass=%s" % windows_cert_pass)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -364,8 +375,9 @@ def main(argv):
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
-    parser.add_argument("--windows-cert", dest="windows_cert", help="Base 64 encoded Windows certificate (pfx)")
-    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="Password for the Windows certificate")
+    parser.add_argument("--windows-cert-b64", dest="windows_cert_b64", help="String containing Windows certificate (pfx) encoded as base 64")
+    parser.add_argument("--windows-cert", dest="windows_cert", help="File containing Windows certificate (pfx)")
+    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="File containing password for the Windows certificate")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")
@@ -409,7 +421,7 @@ def main(argv):
         engine_artifacts = args.engine_artifacts
     elif branch and branch.startswith("DEFEDIT-"):
         engine_channel = None
-        editor_channel = None
+        editor_channel = "editor-dev"
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     elif branch and branch.startswith("platform-switch-"):
@@ -434,6 +446,12 @@ def main(argv):
         make_release = False
         skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
+
+    if 'defold-switch' in os.environ['GITHUB_REPOSITORY']:
+        print("Overriding channel for private platform branch:", os.environ['GITHUB_REPOSITORY'])
+        print("\t", (branch, engine_channel, editor_channel, engine_artifacts), "->")
+        engine_channel, editor_channel, engine_artifacts = ("dev", "dev", "dev")
+        print("\t", (branch, engine_channel, editor_channel, engine_artifacts))
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
 

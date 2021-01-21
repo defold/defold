@@ -867,7 +867,17 @@ public class SpineSceneUtil {
 
             // Gather all available attachment points in all slots.
             // We do this by looping over all the different skins and their slots.
-            getAllAttachments(node.get("skins"), scene);
+            JsonNode skinJsonNode = node.get("skins");
+            if (skinJsonNode.isArray()) {
+                Iterator<JsonNode> skinIt = skinJsonNode.iterator();
+                while (skinIt.hasNext()) {
+                    JsonNode skin = skinIt.next();
+                    getAllAttachments(skin, scene);
+                }
+            }
+            else {
+                getAllAttachments(skinJsonNode, scene);
+            }
 
             if (node.has("events")) {
                 Iterator<Map.Entry<String, JsonNode>> eventIt = node.get("events").getFields();

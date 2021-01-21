@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,6 +23,8 @@
 #undef _USE_MATH_DEFINES
 #endif
 
+#include <dmsdk/dlib/math.h>
+
 /**
  * Collection of math functions.
  */
@@ -30,43 +32,6 @@ namespace dmMath
 {
 #define DM_RAND_MAX (0x7fff)
 #define DM_RAND_MAX_RECIP (0.000030518509476f)
-
-    /**
-     * Min function
-     * @param a Value a
-     * @param b Value b
-     * @return Min of a and b
-     */
-    template <class T>
-    const T Min(const T a, const T b)
-    {
-        return (a < b) ? a : b;
-    }
-
-    /**
-     * Max function
-     * @param a Value a
-     * @param b Value b
-     * @return Max of a and b
-     */
-    template <class T>
-    const T Max(const T a, const T b)
-    {
-        return (a > b) ? a : b;
-    }
-
-    /**
-     * Clamp function
-     * @param v Value to clamp
-     * @param min Lower bound
-     * @param max Upper bound
-     * @return Value closest to v inside the range [min, max]
-     */
-    template <class T>
-    const T Clamp(const T v, const T min, const T max)
-    {
-        return (v < min) ? min : (v > max) ? max : v;
-    }
 
     /**
      * Linear Bezier curve (linear interpolation):
@@ -113,31 +78,6 @@ namespace dmMath
     {
         float s = (1.0f - t);
         return s * s * s * p0 + 3.0f * s * s * t * p1 + 3.0f * s * t * t * p2 + t * t * t * p3;
-    }
-
-    /**
-     * Select one of two floats depending on the sign of another.
-     * @param x Value to test for positiveness
-     * @param a Result if test succeeded
-     * @param b Result if test failed
-     * @return a when x >= 0, b otherwise
-     */
-    inline float Select(float x, float a, float b)
-    {
-        if (x >= 0.0f)
-            return a;
-        else
-            return b;
-    }
-
-    /**
-     * Abs function
-     * @param x
-     * @return Absolute value of x
-     */
-    inline float Abs(float x)
-    {
-        return Select(x, x, -x);
     }
 
     /**

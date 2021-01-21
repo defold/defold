@@ -50,7 +50,7 @@ done
 [ -d "${DYNAMO_HOME}" ] || \
     terminate 1 "DYNAMO_HOME (${DYNAMO_HOME}) is not a directory."
 
-_TIMESTAMP="$(date +%s)"
+start_time="$(date -u +%s)"
 for i in $(seq 2 $#); do
     _SUBMODULE="${@:$i:1}"
     (
@@ -73,6 +73,9 @@ done
 # ----------------------------------------------------------------------------
 # teardown
 # ----------------------------------------------------------------------------
-echo "Built $(echo $# - 1 | bc) submodule(s) for platform '${1}' ..."
-echo "... elapsed time: $(echo $(date +%s) - ${_TIMESTAMP} | bc) seconds"
+platform=${1}
+shift
+end_time="$(date -u +%s)"
+elapsed="$(($end_time-$start_time))"
+echo "Built $# submodule(s) for platform '${platform}' in ${elapsed} seconds"
 terminate 0 "${SCRIPT_NAME} done."

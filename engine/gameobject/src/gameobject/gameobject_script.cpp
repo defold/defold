@@ -1064,6 +1064,43 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# get the parent for a specific game object instance
+     * Get the parent for a game object instance.
+     *
+     * @name go.get_parent
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get parent for, defaults to the instance containing the calling script
+     * @return parent_id [type:hash] parent instance or nil
+     * @examples
+     *
+     * Get parent of the instance containing the calling script:
+     *
+     * ```lua
+     * local parent_id = go.get_parent()
+     * ```
+     *
+     * Get parent of the instance with id "x":
+     *
+     * ```lua
+     * local parent_id = go.get_parent("x")
+     * ```
+     *
+     */
+    int Script_GetParent(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        Instance* parent = dmGameObject::GetParent(instance);
+        if (parent != 0)
+        {
+            dmScript::PushHash(L, parent->m_Identifier);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+
+    }
+
     /*# gets the game object instance world position
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
@@ -1872,6 +1909,7 @@ namespace dmGameObject
         {"get_scale",               Script_GetScale},
         {"get_scale_vector",        Script_GetScaleVector},
         {"get_scale_uniform",       Script_GetScaleUniform},
+        {"get_parent",              Script_GetParent},
         {"set_position",            Script_SetPosition},
         {"set_rotation",            Script_SetRotation},
         {"set_scale",               Script_SetScale},

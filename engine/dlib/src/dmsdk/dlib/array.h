@@ -50,6 +50,18 @@ namespace dmArrayUtil
     void SetCapacity(uint32_t capacity, uint32_t type_size, uintptr_t* first, uintptr_t* last, uintptr_t* end);
 };
 
+
+template <typename T, size_t N>
+char (&ArraySizeHelper(T (&a)[N]))[N];
+
+/*# get number of elements in C array
+ * @macro
+ * @name DM_ARRAY_SIZE
+ * @param Array [type:]
+ * @return Number of elements
+ */
+#define DM_ARRAY_SIZE(A) (sizeof(ArraySizeHelper(A)))
+
 /*# Templatized array with bounds checking.
  *
  * The backing storage is either auto-allocated (dynamically allocated) or user-allocated (supplied by user).
