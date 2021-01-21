@@ -10,9 +10,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>
 #include <dlib/math.h>
-#include <dlib/array.h>
 
 #include "graphics_vulkan_defines.h"
 #include "../graphics.h"
@@ -533,6 +531,7 @@ bail:
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
         };
 
+        descriptorAllocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
         descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
         descriptorAllocator->m_DescriptorMax           = descriptor_count;
         descriptorAllocator->m_DescriptorIndex         = 0;
