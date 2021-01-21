@@ -429,6 +429,12 @@ def main(argv):
         skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
 
+    if 'defold-switch' in os.environ['GITHUB_REPOSITORY']:
+        print("Overriding channel for private platform branch:", os.environ['GITHUB_REPOSITORY'])
+        print("\t", (branch, engine_channel, editor_channel, engine_artifacts), "->")
+        engine_channel, editor_channel, engine_artifacts = ("dev", "dev", "dev")
+        print("\t", (branch, engine_channel, editor_channel, engine_artifacts))
+
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
 
     # execute commands
