@@ -4872,8 +4872,8 @@ namespace dmGui
      */
 
     /*# data error
-     * The provided data contains is not in the expected format or is in some
-     * other way incorrect, for instance the image data provided to gui.new_texture().
+     * The provided data is not in the expected format or is in some other way
+     * incorrect, for instance the image data provided to gui.new_texture().
      * @name gui.RESULT_DATA_ERROR
      * @variable
      */
