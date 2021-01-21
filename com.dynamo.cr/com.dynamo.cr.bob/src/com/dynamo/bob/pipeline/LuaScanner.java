@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,8 +35,8 @@ public class LuaScanner {
     private static String identifier = "[_\\p{L}][_\\p{L}0-9]*";
     private static String beforeRequire = ".*?";
     private static String afterRequire = "\\s*(,{0,1}|\\." + identifier + ",{0,1})" + comment;
-    
-    
+
+
     private static Pattern requirePattern1 = Pattern.compile(beforeRequire + "require\\s*?\"(.*?)\"" + afterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
@@ -50,7 +50,7 @@ public class LuaScanner {
      * Note: we need four different patterns here to match the same beginning and ending character for
      * a string (eg " or '). We can't match on [\"']. If we do we'd have a false positive for the
      * following line:
-     * 
+     *
      * local s = 'require "should_not_match"'
      */
     private static Pattern requirePattern4 = Pattern.compile(beforeRequire + "require\\s*?\\(\\s*?'(.*?)'\\s*?\\)" + afterRequire,
@@ -71,42 +71,53 @@ public class LuaScanner {
     private static Pattern[] patterns = new Pattern[] { numPattern, hashPattern, urlPattern,
             vec3Pattern, vec4Pattern, quatPattern, boolPattern, resourcePattern};
 
-
-    private static String stripSingleLineComments(String str) {
-        str = str.replace("\r", "");
+    private static String stripComments(String str) {
+        boolean insideBlockComment = false;
         StringBuffer sb = new StringBuffer();
         String[] lines = str.split("\n");
         for (String line : lines) {
-            String lineTrimmed = line.trim();
-            // Strip single line comments but preserve "pure" multi-line comments
-            // Note that ---[[ is a single line comment
-            // You can enable a block in Lua by adding a hyphen, e.g.
-            /*
-             ---[[
-             The block is enabled
-             --]]
-             */
-            if (!lineTrimmed.startsWith("--") || lineTrimmed.startsWith("--[[") || lineTrimmed.startsWith("--]]")) {
-                sb.append(line);
+            line = line.trim();
+
+            while(!line.isEmpty()) {
+                if (insideBlockComment) {
+                    int blockEnd = line.indexOf("]]");
+                    if (blockEnd == -1) {
+                        // whole line is part of a block comment
+                        break;
+                    }
+                    else {
+                        // remove everything up to the end of the block comment
+                        insideBlockComment = false;
+                        line = line.substring(blockEnd + 2);
+                    }
+                }
+                else {
+                    int dashdash = line.indexOf("--");
+                    int blockStart = line.indexOf("--[[");
+
+                    // single line comment before block comment
+                    // rest of the line is a comment
+                    if (dashdash >= 0 && (dashdash < blockStart || blockStart == -1)) {
+                        sb.append(line.substring(0, dashdash));
+                        break;
+                    }
+
+                    // block comment start before single line comment
+                    // add what we have up until the start of the block comment
+                    // then keep searching for end of block comment
+                    if (blockStart >= 0) {
+                        insideBlockComment = true;
+                        sb.append(line.substring(0, blockStart));
+                        line = line.substring(blockStart + 4);
+                    }
+                    else {
+                        sb.append(line);
+                        break;
+                    }
+                }
             }
             sb.append("\n");
         }
-        return sb.toString();
-    }
-
-    private static String stripComments(String str) {
-        str = stripSingleLineComments(str);
-        Matcher matcher = multiLineCommentPattern.matcher(str);
-
-        StringBuffer sb = new StringBuffer();
-        while (matcher.find()) {
-            // Replace comment with n lines in order to preserve line indices
-            int n = matcher.group().split("\n").length;
-            StringBuffer lines = new StringBuffer(n);
-            for (int i = 0; i < n-1; ++i) lines.append('\n');
-            matcher.appendReplacement(sb, lines.toString());
-        }
-        matcher.appendTail(sb);
         return sb.toString();
     }
 
