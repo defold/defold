@@ -36,7 +36,7 @@
      (transit/write writer value)
      (.toString out)))
 
-(defn- read-transit [s]
+(defn- read-transit [^String s]
   (let [stream (ByteArrayInputStream. (.getBytes s StandardCharsets/UTF_8))
         reader (transit/reader stream :json {:handlers read-handlers})]
     (transit/read reader)))
