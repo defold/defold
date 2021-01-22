@@ -2003,7 +2003,7 @@ namespace dmGui
     }
 
     /*# gets the node clipping mode
-     * Clipping mode defines how the node will clipping it's children nodes
+     * Clipping mode defines how the node will clip it's children nodes
      *
      * @name gui.get_clipping_mode
      * @param node [type:node] node from which to get the clipping mode
@@ -2021,7 +2021,7 @@ namespace dmGui
     }
 
     /*# sets node clipping mode state
-     * Clipping mode defines how the node will clipping it's children nodes
+     * Clipping mode defines how the node will clip it's children nodes
      *
      * @name gui.set_clipping_mode
      * @param node [type:node] node to set clipping mode for
