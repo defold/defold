@@ -77,7 +77,7 @@ def build(bld):
                            target = 'graphics_transcoder_null')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['.'],
+                           includes = ['.', '../proto'],
                            uselib = 'DLIB',
                            source = 'transcoder/graphics_transcoder_uastc.cpp',
                            target = 'graphics_transcoder_uastc')

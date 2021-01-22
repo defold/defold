@@ -15,6 +15,7 @@
 #include <dlib/profile.h>
 #include "graphics.h"
 #include "graphics_transcoder.h"
+#include <graphics/graphics_ddf.h>
 #include <basis/transcoder/basisu_transcoder.h>
 
 namespace dmGraphics
@@ -258,11 +259,15 @@ namespace dmGraphics
             {
                 images[level_index] = level_data;
                 sizes[level_index] = level_size;
+
                 total_size += level_size;
             }
         };
 
         *num_transcoded_mips = info.m_total_levels;
+
+        printf("total size: %u (kb) in %u mip levels\n", total_size / 1024, info.m_total_levels);
+
         return true;
     }
 }
