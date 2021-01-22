@@ -874,7 +874,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
 
-        if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
+        if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions) ||
+            IsExtensionSupported("WEBGL_compressed_texture_pvrtc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
@@ -882,13 +883,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
 
-        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions) ||
+            IsExtensionSupported("WEBGL_compressed_texture_etc", extensions) ||
+            IsExtensionSupported("WEBGL_compressed_texture_etc1", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
-        if (IsExtensionSupported("GL_EXT_texture_compression_s3tc", extensions))
+        if (IsExtensionSupported("GL_EXT_texture_compression_s3tc", extensions) ||
+            IsExtensionSupported("WEBGL_compressed_texture_s3tc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
             // We'll use BC3 for this
@@ -897,7 +901,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
-        if (IsExtensionSupported("GL_ARB_texture_compression_rgtc", extensions))
+        if (IsExtensionSupported("GL_ARB_texture_compression_rgtc", extensions) ||
+            IsExtensionSupported("GL_EXT_texture_compression_rgtc", extensions) ||
+            IsExtensionSupported("EXT_texture_compression_rgtc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
@@ -916,7 +922,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (IsExtensionSupported("GL_KHR_texture_compression_astc_ldr", extensions))
+        if (IsExtensionSupported("GL_KHR_texture_compression_astc_ldr", extensions) ||
+            IsExtensionSupported("WEBGL_compressed_texture_astc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
         }
