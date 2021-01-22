@@ -424,22 +424,6 @@ def main(argv):
         editor_channel = "editor-dev"
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
-    elif branch and branch.startswith("platform-switch-"):
-        branch_tokens = branch.split('-')
-        if len(branch_tokens) == 3:
-            branch_type = branch_tokens[2]
-            name_to_enginechannel = {'dev': 'alpha', 'beta': 'beta', 'master': 'stable', 'main': 'stable'}
-            engine_channel = name_to_enginechannel.get(branch_type, "dev")
-
-            name_to_editorchannel = {'dev': 'alpha', 'beta': 'beta', 'master': 'editor-alpha', 'main': 'editor-alpha'}
-            editor_channel = name_to_editorchannel.get(branch_type, "dev")
-
-        if editor_channel is None or engine_channel is None:
-            print("Unsupported engine branch name {0}".format(branch))
-            sys.exit(1)
-
-        make_release = False
-        engine_artifacts = args.engine_artifacts
     else:
         engine_channel = "dev"
         editor_channel = "dev"
@@ -448,10 +432,21 @@ def main(argv):
         engine_artifacts = args.engine_artifacts or "archived"
 
     if 'defold-switch' in os.environ['GITHUB_REPOSITORY']:
-        print("Overriding channel for private platform branch:", os.environ['GITHUB_REPOSITORY'])
-        print("\t", (branch, engine_channel, editor_channel, engine_artifacts), "->")
-        engine_channel, editor_channel, engine_artifacts = ("dev", "dev", "dev")
-        print("\t", (branch, engine_channel, editor_channel, engine_artifacts))
+        print("Overriding channel defaults for private platform branch:", os.environ['GITHUB_REPOSITORY'])
+
+        if branch and branch.startswith("platform-switch"):
+            engine_channel = "dev"
+            editor_channel = "dev"
+            release_channel = "dev"
+            make_release = False # we make special releases
+            skip_editor_tests = True
+            engine_artifacts = args.engine_artifacts or "archived"
+        else:
+            engine_channel = "dev"
+            editor_channel = "dev"
+            release_channel = "dev"
+            engine_artifacts = "archived"
+            make_release = False
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
 
