@@ -29,6 +29,51 @@ namespace dmEngine
      * @path engine/dlib/src/dmsdk/engine/extension.h
      */
 
+    /*# define for debug builds
+     *
+     * @macro
+     * @name DM_DEBUG
+     *
+     * @examples
+     * Only enable code in debug builds
+     *
+     * ```cpp
+     * #if defined(DM_DEBUG)
+     *     // ...
+     * #endif
+     * ```
+     */
+
+    /*# define for release builds
+     *
+     * @macro
+     * @name DM_RELEASE
+     *
+     * @examples
+     * Only enable code in release builds
+     *
+     * ```cpp
+     * #if defined(DM_RELEASE)
+     *     // ...
+     * #endif
+     * ```
+     */
+
+    /*# define for headless builds
+     *
+     * @macro
+     * @name DM_HEADLESS
+     *
+     * @examples
+     * Only enable code in headless builds
+     *
+     * ```cpp
+     * #if defined(DM_HEADLESS)
+     *     // ...
+     * #endif
+     * ```
+     */
+
     /*# get the config file
      * @name GetConfigFile
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
