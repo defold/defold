@@ -177,14 +177,35 @@ namespace dmGameSystem
             break;
         }
 
+        if (result == dmResource::RESULT_FORMAT_ERROR)
+        {
+            dmLogError("No matching texture format found for %s. Using blank texture.", path);
+
+            if (!texture)
+            {
+                dmGraphics::TextureCreationParams creation_params;
+                creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+                creation_params.m_Width = 1;
+                creation_params.m_Height = 1;
+                creation_params.m_OriginalWidth = 1;
+                creation_params.m_OriginalHeight = 1;
+                creation_params.m_MipMapCount = 1;
+                texture = dmGraphics::NewTexture(context, creation_params);
+            }
+
+            if (texture)
+            {
+                dmGraphics::TextureParams params;
+                dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
+                SetBlankTexture(texture, params);
+                result = dmResource::RESULT_OK;
+            }
+        }
+
         if (result == dmResource::RESULT_OK)
         {
             *texture_out = texture;
             return dmResource::RESULT_OK;
-        }
-        if (result == dmResource::RESULT_FORMAT_ERROR)
-        {
-            dmLogWarning("No matching texture format found");
         }
         return result;
     }

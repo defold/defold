@@ -158,12 +158,6 @@ namespace dmGraphics
         TEXTURE_FORMAT_R32F                 = 26,
         TEXTURE_FORMAT_RG32F                = 27,
 
-        // Replace with BC
-        TEXTURE_FORMAT_RGB_DXT1 = TEXTURE_FORMAT_RGB_BC1,
-        TEXTURE_FORMAT_RGBA_DXT1 = 28,
-        TEXTURE_FORMAT_RGBA_DXT3 = 29,
-        TEXTURE_FORMAT_RGBA_DXT5 = TEXTURE_FORMAT_RGBA_BC3,
-
         TEXTURE_FORMAT_COUNT
     };
 

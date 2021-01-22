@@ -19,6 +19,7 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
+#include "../graphics.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -103,10 +104,6 @@ namespace dmGraphics
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
-            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_DXT1);
-            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT1);
-            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT3);
-            // DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT5);
             DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
             DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
@@ -114,6 +111,13 @@ namespace dmGraphics
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_2BPPV1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG_BC5);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC7);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB16F);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB32F);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA16F);
@@ -128,6 +132,40 @@ namespace dmGraphics
     }
     #undef DM_TEXTURE_FORMAT_TO_STR_CASE
 
+
+    Context::Context(const ContextParams& params, const VkInstance vk_instance)
+    : m_MainRenderTarget(0)
+    {
+        memset(this, 0, sizeof(*this));
+        m_Instance                = vk_instance;
+        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_UseValidationLayers     = params.m_UseValidationLayers;
+        m_RenderDocSupport        = params.m_RenderDocSupport;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
+
+#if defined(__MACH__) && !(defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+        // Apparently these aren't supported on macOS/Metal
+#else
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+#endif
+
+        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+    }
+
+    Context::~Context()
+    {
+        if (m_Instance != VK_NULL_HANDLE)
+        {
+            vkDestroyInstance(m_Instance, 0);
+            m_Instance = VK_NULL_HANDLE;
+        }
+    }
 
     static inline uint32_t GetNextRenderTargetId()
     {
@@ -856,21 +894,27 @@ namespace dmGraphics
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
-    #else
+    #endif
 
         if (selected_device->m_Features.textureCompressionETC2)
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         if (selected_device->m_Features.textureCompressionBC)
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_DXT1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT3;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT5;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
         }
-    #endif
+
+        if (selected_device->m_Features.textureCompressionASTC_LDR)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
+        }
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), (uint8_t)device_extensions.Size(),
@@ -2610,36 +2654,38 @@ bail:
     {
         // Reference: https://github.com/KhronosGroup/Vulkan-Samples-Deprecated/blob/master/external/include/vulkan/vk_format.h
         assert(format <= TEXTURE_FORMAT_COUNT);
-        const VkFormat conversion_table[] = {
-            VK_FORMAT_R8_UNORM,                     // TEXTURE_FORMAT_LUMINANCE
-            VK_FORMAT_R8G8_UNORM,                   // TEXTURE_FORMAT_LUMINANCE_ALPHA
-            VK_FORMAT_R8G8B8_UNORM,                 // TEXTURE_FORMAT_RGB
-            VK_FORMAT_R8G8B8A8_UNORM,               // TEXTURE_FORMAT_RGBA
-            VK_FORMAT_R16G16B16_UNORM,              // TEXTURE_FORMAT_RGB_16BPP
-            VK_FORMAT_R16G16B16A16_UNORM,           // TEXTURE_FORMAT_RGBA_16BPP
-            VK_FORMAT_BC1_RGB_UNORM_BLOCK,         // TEXTURE_FORMAT_RGB_DXT1
-            VK_FORMAT_BC1_RGBA_UNORM_BLOCK,        // TEXTURE_FORMAT_RGBA_DXT1
-            VK_FORMAT_BC3_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT3
-            VK_FORMAT_BC2_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT5
-            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_DEPTH
-            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_STENCIL
-            VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
-            VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
-            VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
-            VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
-            VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,     // TEXTURE_FORMAT_RGB_ETC1
-            VK_FORMAT_R16G16B16_SFLOAT,            // TEXTURE_FORMAT_RGB16F
-            VK_FORMAT_R32G32B32_SFLOAT,            // TEXTURE_FORMAT_RGB32F
-            VK_FORMAT_R16G16B16A16_SFLOAT,         // TEXTURE_FORMAT_RGBA16F
-            VK_FORMAT_R32G32B32A32_SFLOAT,         // TEXTURE_FORMAT_RGBA32F
-            VK_FORMAT_R16_SFLOAT,                  // TEXTURE_FORMAT_R16F
-            VK_FORMAT_R16G16_SFLOAT,               // TEXTURE_FORMAT_RG16F
-            VK_FORMAT_R32_SFLOAT,                  // TEXTURE_FORMAT_R32F
-            VK_FORMAT_R32G32_SFLOAT,               // TEXTURE_FORMAT_RG32F
-            VK_FORMAT_UNDEFINED                    // TEXTURE_FORMAT_COUNT
+        switch (format)
+        {
+            case TEXTURE_FORMAT_LUMINANCE:          return VK_FORMAT_R8_UNORM;
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA:    return VK_FORMAT_R8G8_UNORM;
+            case TEXTURE_FORMAT_RGB:                return VK_FORMAT_R8G8B8_UNORM;
+            case TEXTURE_FORMAT_RGBA:               return VK_FORMAT_R8G8B8A8_UNORM;
+            case TEXTURE_FORMAT_RGB_16BPP:          return VK_FORMAT_R5G6B5_UNORM_PACK16;
+            case TEXTURE_FORMAT_RGBA_16BPP:         return VK_FORMAT_R4G4B4A4_UNORM_PACK16;
+            case TEXTURE_FORMAT_DEPTH:              return VK_FORMAT_UNDEFINED;
+            case TEXTURE_FORMAT_STENCIL:            return VK_FORMAT_UNDEFINED;
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
+            case TEXTURE_FORMAT_RGB_ETC1:           return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ETC2:          return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGB_BC1:            return VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_BC3:           return VK_FORMAT_BC3_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_BC7:           return VK_FORMAT_BC7_UNORM_BLOCK;
+            case TEXTURE_FORMAT_R_BC4:              return VK_FORMAT_BC4_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RG_BC5:             return VK_FORMAT_BC5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGB16F:             return VK_FORMAT_R16G16B16_SFLOAT;
+            case TEXTURE_FORMAT_RGB32F:             return VK_FORMAT_R32G32B32_SFLOAT;
+            case TEXTURE_FORMAT_RGBA16F:            return VK_FORMAT_R16G16B16A16_SFLOAT;
+            case TEXTURE_FORMAT_RGBA32F:            return VK_FORMAT_R32G32B32A32_SFLOAT;
+            case TEXTURE_FORMAT_R16F:               return VK_FORMAT_R16_SFLOAT;
+            case TEXTURE_FORMAT_RG16F:              return VK_FORMAT_R16G16_SFLOAT;
+            case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
+            case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
+            default:                                return VK_FORMAT_UNDEFINED;
         };
-
-        return conversion_table[format];
     }
 
     static VkResult CreateRenderTarget(VkDevice vk_device, Texture* colorTexture, Texture* depthStencilTexture, RenderTarget* rtOut)
@@ -3136,7 +3182,7 @@ bail:
         }
 
         bool use_stage_buffer = true;
-#if defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+#if defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
         // Can't use a staging buffer for MoltenVK when we upload
         // PVRTC textures.
         if (vk_format == VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG ||

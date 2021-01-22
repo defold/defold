@@ -287,6 +287,10 @@ namespace dmGraphics
 
         #define TEST_AND_RETURN(_TYPEN_ENUM) if (dmGraphics::IsTextureFormatSupported(context, (_TYPEN_ENUM))) return (_TYPEN_ENUM);
 
+#if defined(__MACH__) && !(defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+        // Apparently these aren't supported on macOS/Metal
+#else
+
         if (IsFormat16bit(format))
         {
             if (IsFormatRGBA(format))
@@ -296,6 +300,7 @@ namespace dmGraphics
 
             return dmGraphics::TEXTURE_FORMAT_RGB_16BPP;
         }
+#endif
 
         if (IsFormatRGBA(format))
         {
