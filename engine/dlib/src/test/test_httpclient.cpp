@@ -24,7 +24,6 @@
 #include "dlib/socket.h"
 #include "dlib/sslsocket.h"
 #include "dlib/http_client.h"
-#include "dlib/http_client_private.h"
 #include "dlib/http_cache_verify.h"
 #include "testutil.h"
 
@@ -203,14 +202,14 @@ public:
         self->m_ContentOffset = offset;
     }
 
-    dmHttpClientPrivate::ParseResult Parse(const char* headers, bool end_of_receive)
+    dmHttpClient::ParseResult Parse(const char* headers, bool end_of_receive)
     {
         char* h = strdup(headers);
-        dmHttpClientPrivate::ParseResult r;
-        r = dmHttpClientPrivate::ParseHeader(h, this, end_of_receive,
-                                             &dmHttpClientParserTest::Version,
-                                             &dmHttpClientParserTest::Header,
-                                             &dmHttpClientParserTest::Content);
+        dmHttpClient::ParseResult r;
+        r = dmHttpClient::ParseHeader(h, this, end_of_receive,
+                                     &dmHttpClientParserTest::Version,
+                                     &dmHttpClientParserTest::Header,
+                                     &dmHttpClientParserTest::Content);
         free(h);
         return r;
     }
@@ -230,9 +229,9 @@ TEST_F(dmHttpClientParserTest, TestMoreData)
 {
     const char* headers = "HTTP/1.1 200 OK\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_NEED_MORE_DATA, r);
     ASSERT_EQ(-1, m_Status);
 }
 
@@ -240,18 +239,18 @@ TEST_F(dmHttpClientParserTest, TestSyntaxError)
 {
     const char* headers = "HTTP/x.y 200 OK\r\n\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_SYNTAX_ERROR, r);
 }
 
 TEST_F(dmHttpClientParserTest, TestMissingStatusString)
 {
     const char* headers = "HTTP/1.0 200\r\n\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_SYNTAX_ERROR, r);
 }
 
 TEST_F(dmHttpClientParserTest, TestHeaders)
@@ -262,9 +261,9 @@ TEST_F(dmHttpClientParserTest, TestHeaders)
 "Server: Jetty(7.0.2.v20100331)\r\n"
 "\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
@@ -285,9 +284,9 @@ TEST_F(dmHttpClientParserTest, TestWhitespaceHeaders)
 "Server:  Jetty(7.0.2.v20100331)\r\n"
 "\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
@@ -308,9 +307,9 @@ TEST_F(dmHttpClientParserTest, TestNoWhitespaceHeaders)
 "Server:Jetty(7.0.2.v20100331)\r\n"
 "\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
@@ -330,9 +329,9 @@ TEST_F(dmHttpClientParserTest, TestContent)
 "foo\r\n\r\nbar"
 ;
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_STREQ("foo\r\n\r\nbar", headers + m_ContentOffset);
 }
@@ -347,9 +346,9 @@ TEST_F(dmHttpClientParserTest, TestContentAndHeaders)
 "30"
 ;
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
     ASSERT_EQ("text/html;charset=UTF-8", m_Headers["Content-Type"]);
     ASSERT_EQ("2", m_Headers["Content-Length"]);
     ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
@@ -363,9 +362,9 @@ TEST_F(dmHttpClientParserTest, TestNoContent)
     const char* headers = "HTTP/1.1 204 No Content\r\n"
 "Server: Jetty(7.0.2.v20100331)\r\n"
 ;
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, true);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
     ASSERT_EQ(204, m_Status);
