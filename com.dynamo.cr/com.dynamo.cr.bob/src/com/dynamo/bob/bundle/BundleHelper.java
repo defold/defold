@@ -660,7 +660,12 @@ public class BundleHelper {
     }
 
     public static List<String> createArrayFromString(String line) {
-        return line != null ? new ArrayList<String>(Arrays.asList(line.trim().split("\\s*,\\s*"))) : new ArrayList<String>();
+        if (line == null)
+            return new ArrayList<String>();
+        line = line.trim();
+        if (line.isEmpty())
+            return new ArrayList<String>();
+        return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
     public Map<String, Object> createAndroidManifestProperties(String exeName) throws IOException {
