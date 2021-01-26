@@ -99,7 +99,7 @@ namespace dmGameSystem
             if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
             {
                 num_mips = s_MaxMipCount;
-                output_format = dmGraphics::GetSupportedFormat(context, output_format);
+                output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format);
                 bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
                 if (!result)
                 {

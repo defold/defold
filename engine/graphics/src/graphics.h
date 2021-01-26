@@ -664,7 +664,7 @@ namespace dmGraphics
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
-    TextureFormat GetSupportedFormat(HContext context, TextureFormat format);
+    TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 

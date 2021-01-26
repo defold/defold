@@ -185,18 +185,6 @@ namespace dmGraphics
         }
     }
 
-        static bool IsFormat16bit(dmGraphics::TextureFormat format)
-    {
-        switch(format)
-        {
-            case dmGraphics::TEXTURE_FORMAT_RGB_16BPP:
-            case dmGraphics::TEXTURE_FORMAT_RGBA_16BPP:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     static bool IsFormatRGBA(dmGraphics::TextureFormat format)
     {
         switch(format)
@@ -274,35 +262,11 @@ namespace dmGraphics
         }
     }
 
-    dmGraphics::TextureFormat GetSupportedFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format)
+    // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
+    // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
+    dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format)
     {
-        if (IsFormatCompressed(format))
-        {
-            // If a specific format was requested, check it specifically
-            if (dmGraphics::IsTextureFormatSupported(context, format))
-                return format;
-
-            // If the format wasn't supported, let's continue to try to find one that is
-        }
-
         #define TEST_AND_RETURN(_TYPEN_ENUM) if (dmGraphics::IsTextureFormatSupported(context, (_TYPEN_ENUM))) return (_TYPEN_ENUM);
-
-        if (IsFormat16bit(format))
-        {
-            // Apparently these aren't supported on macOS/Metal, hence the fallback values of RGBA/RGB
-            if (IsFormatRGBA(format))
-            {
-                TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_16BPP);
-                return dmGraphics::TEXTURE_FORMAT_RGBA;
-            }
-            else
-            {
-                TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_16BPP);
-                return dmGraphics::TEXTURE_FORMAT_RGB;
-            }
-
-            return dmGraphics::TEXTURE_FORMAT_RGB_16BPP;
-        }
 
         if (IsFormatRGBA(format))
         {
@@ -311,6 +275,7 @@ namespace dmGraphics
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+            TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_RGBA;
         }
 
@@ -319,18 +284,21 @@ namespace dmGraphics
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_BC1);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_ETC1);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_RGB;
         }
 
         if (IsFormatRG(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_BC5);
+            TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
         }
 
         if (IsFormatR(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_BC4);
+            TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
         }
 
