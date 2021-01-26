@@ -149,6 +149,7 @@ namespace dmTexc
         if (first)
         {
             basisu::basisu_encoder_init();
+            first = 0;
         }
 
         uint32_t size = width * height * 4;
@@ -187,6 +188,8 @@ namespace dmTexc
         basisu::image tmp(width, height);
         basisu::image_resample(texture->m_BasisImage, tmp);
         texture->m_BasisImage.swap(tmp);
+        texture->m_Width = width;
+        texture->m_Height = height;
         return true;
     }
 
