@@ -124,10 +124,6 @@ public class LuaScannerTest {
     @Test
     public void testProps() throws Exception {
         List<Property> properties = scanProperties("test_props.lua");
-        for(Property p : properties) {
-            System.out.println("property: " + p.name + " original: " + p.original);
-        }
-
         assertEquals(8, properties.size());
         assertProperty(properties, "prop1", new Double(0));
         assertProperty(properties, "prop2", new Double(0));
