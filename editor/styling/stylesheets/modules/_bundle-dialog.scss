@@ -2,22 +2,22 @@
   $vertical-margin-width: 12px;
   $horizontal-margin-width: $vertical-margin-width * 2;
 
-  -fx-background-color: $dark-grey-light;
+  -fx-background-color: -df-background-light;
 
   >.headers {
     -fx-padding: $vertical-margin-width $horizontal-margin-width $vertical-margin-width $horizontal-margin-width;
-    -fx-background-color: $dark-grey;
+    -fx-background-color: -df-background;
     -fx-pref-height: 50px;
 
     .header-label {
-      -fx-text-fill: $defold-white;
+      -fx-text-fill: -df-text;
     }
 
     #header-info-label {
-      -fx-text-fill: $bright-grey;
+      -fx-text-fill: -df-text-dark;
 
-      &.error { -fx-text-fill: $error-severity-fatal; }
-      &.warning { -fx-text-fill: $error-severity-warning; }
+      &.error { -fx-text-fill: -df-error-severity-fatal; }
+      &.warning { -fx-text-fill: -df-error-severity-warning; }
     }
   }
 
@@ -33,9 +33,9 @@
     .choice-box, .text-field {
       -fx-pref-width: 165px;
 
-      &.error { -fx-border-color: $error-severity-fatal; }
-      &.warning { -fx-border-color: $error-severity-warning; }
-      &.info { -fx-border-color: $error-severity-info; }
+      &.error { -fx-border-color: -df-error-severity-fatal; }
+      &.warning { -fx-border-color: -df-error-severity-warning; }
+      &.info { -fx-border-color: -df-error-severity-info; }
     }
   }
 

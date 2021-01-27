@@ -62,6 +62,8 @@ namespace dmExtension
      * Extension application entry callback data.
      * This is the data structure passed as parameter by extension Application entry callbacks (AppInit and AppFinalize) functions
      *
+     * @note This struct is kept as-is for backwards compatibility. In practice, the struct passed to the callbacks is of the type dmEngine::ExtensionAppParams
+     *
      * @struct
      * @name dmExtension::AppParams
      * @member m_ConfigFile [type:dmConfigFile::HConfig]
@@ -71,8 +73,7 @@ namespace dmExtension
     struct AppParams
     {
         AppParams();
-        dmConfigFile::HConfig m_ConfigFile;
-        dmWebServer::HServer m_WebServer;
+        dmConfigFile::HConfig   m_ConfigFile; // here for backwards compatibility
     };
 
     /*# extension level callback data
@@ -89,8 +90,8 @@ namespace dmExtension
     struct Params
     {
         Params();
-        dmConfigFile::HConfig m_ConfigFile;
-        lua_State*            m_L;
+        dmConfigFile::HConfig   m_ConfigFile;
+        lua_State*              m_L;
     };
 
     /*# event id enumeration

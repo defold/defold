@@ -33,6 +33,8 @@ namespace dmCrash
     // The default path is where the dumps are stored before the application configures a different path.
     static char g_FilePathDefault[AppState::FILEPATH_MAX];
     static bool g_CrashDumpEnabled = true;
+
+    void SetExtraInfoCallback(FCallstackExtraInfoCallback cbk);
     char g_FilePath[AppState::FILEPATH_MAX];
 
     bool IsInitialized()
@@ -90,6 +92,11 @@ namespace dmCrash
     {
         g_CrashDumpEnabled = enable;
         EnableHandler(enable);
+    }
+
+    void SetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
+    {
+        HandlerSetExtraInfoCallback(cbk, ctx);
     }
 
     void SetFilePath(const char *filepath)

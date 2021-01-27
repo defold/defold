@@ -153,7 +153,7 @@ static void glfw_atexit( void )
     case cmd:\
         return #cmd;
 
-static const char* GetCmdName(int32_t cmd)
+const char* _glfwGetAndroidCmdName(int32_t cmd)
 {
     switch (cmd)
     {
@@ -196,6 +196,12 @@ void computeIconifiedState()
     // A good detailed overview over the recommended app flow is found here:
     //   https://developer.nvidia.com/fixing-common-android-lifecycle-issues-games
     _glfwWin.iconified = !(g_AppResumed && g_AppFocused && _glfwWinAndroid.surface != EGL_NO_SURFACE);
+
+    LOGV("iconified: %s    (resume: %s, focus: %s, surface: %s)",
+        _glfwWin.iconified?"YES":"no",
+        g_AppResumed?"YES":"no",
+        g_AppFocused?"YES":"no",
+        (_glfwWinAndroid.surface != EGL_NO_SURFACE )?"YES":"no");
 }
 
 GLFWAPI int32_t glfwAndroidWindowOpened()
@@ -214,6 +220,7 @@ GLFWAPI int32_t glfwAndroidVerifySurface()
         if (!result)
         {
             destroy_gl_surface(&_glfwWinAndroid);
+            _glfwWinAndroid.should_recreate_surface = 1;
             _glfwWin.iconified = 1;
             return result;
         }
@@ -222,7 +229,7 @@ GLFWAPI int32_t glfwAndroidVerifySurface()
 }
 
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
-    LOGV("handleCommand: %s", GetCmdName(cmd));
+    LOGV("handleCommand (looper thread): %s", _glfwGetAndroidCmdName(cmd));
 
     switch (cmd)
     {

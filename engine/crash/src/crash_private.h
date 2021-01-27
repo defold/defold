@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include "crash.h"
 
 namespace dmCrash
 {
@@ -75,6 +76,7 @@ namespace dmCrash
     void SetLoadAddrs(AppState *state);
     void SetCrashFilename(const char* file_name);
     void PlatformPurge();
+    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx);
 
     extern AppState g_AppState;
     extern char g_FilePath[AppState::FILEPATH_MAX];

@@ -11,11 +11,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/math.h>
-#include <dlib/hashtable.h>
 #include <dlib/array.h>
 #include <dlib/profile.h>
 #include <dlib/log.h>
-#include <dlib/dstrings.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -706,6 +704,7 @@ namespace dmGraphics
                         break;
                     case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
                         DestroyDescriptorAllocator(vk_device, &resource.m_DescriptorAllocator);
+                        break;
                     case RESOURCE_TYPE_PROGRAM:
                         DestroyProgram(vk_device, &resource.m_Program);
                         break;
