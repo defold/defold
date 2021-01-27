@@ -243,6 +243,7 @@ namespace dmGameObject
 
     /*# Get instance identifier
      * Get instance identifier
+     * @name GetIdentifier
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @return [type:dmhash_t] Identifier. dmGameObject::UNNAMED_IDENTIFIER if not set.
      */

@@ -430,12 +430,21 @@ public class IOSBundler implements IBundler {
 
             // If an override entitlements has been set, use that custom entitlements file directly instead of trying to merge it.
             if (overrideEntitlementsProperty) {
-                IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
-                InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
-                OutputStream outStream = new FileOutputStream(entitlementOut);
-                byte[] buffer = new byte[is.available()];
-                is.read(buffer);
-                outStream.write(buffer);
+                try {
+                    if (customEntitlementsProperty == null || customEntitlementsProperty.length() == 0) {
+                        throw new IOException("Override Entitlements option was set in game.project but no custom entitlements file were provided.");
+                    }
+                    IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                    InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                    OutputStream outStream = new FileOutputStream(entitlementOut);
+                    byte[] buffer = new byte[is.available()];
+                    is.read(buffer);
+                    outStream.write(buffer);
+                }
+                catch (Exception e) {
+                    logger.log(Level.SEVERE, "Error when loading custom entitlements from file '" + customEntitlementsProperty + "'.");
+                    throw new RuntimeException(e);
+                }
             } else {
                 try {
                     XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
@@ -449,6 +458,16 @@ public class IOSBundler implements IBundler {
                         if (customEntitlementsResource.exists()) {
                             InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
                             customEntitlements.read(new InputStreamReader(is));
+
+                            // the custom entitlements file is expected to have the entitlements
+                            // in the root <plist><dict>. To offer a bit of flexibility we
+                            // also support custom entitlements with an <Entitlements><dict>
+                            // property which we extract and put in the root:
+                            if (customEntitlements.getKeys("Entitlements").hasNext()) {
+                                XMLPropertyListConfiguration tmp = new XMLPropertyListConfiguration();
+                                tmp.append(customEntitlements.configurationAt("Entitlements"));
+                                customEntitlements = tmp;
+                            }
 
                             Iterator<String> keys = customEntitlements.getKeys();
                             while (keys.hasNext()) {

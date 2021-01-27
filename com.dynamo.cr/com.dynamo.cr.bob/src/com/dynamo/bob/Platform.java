@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,8 +23,8 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 public enum Platform {
     X86Darwin("x86", "darwin", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86-osx"),
     X86_64Darwin("x86_64", "darwin", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
-    X86Win32("x86", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows, "x86-win32"),
-    X86_64Win32("x86_64", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows, "x86_64-win32"),
+    X86Win32("x86", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows32, "x86-win32"),
+    X86_64Win32("x86_64", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows64, "x86_64-win32"),
     X86Linux("x86", "linux", new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
     X86_64Linux("x86_64", "linux", new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
     Armv7Darwin("armv7", "darwin", new String[] {""}, "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformArchitectures.iOS, "armv7-ios"),
