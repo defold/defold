@@ -85,7 +85,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_native.h')
-    bld.install_files('${PREFIX}/include/graphics/', 'transcoder/graphics_transcoder.h')
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
 

@@ -241,27 +241,6 @@ namespace dmGraphics
         }
     }
 
-    static bool IsFormatCompressed(dmGraphics::TextureFormat format)
-    {
-        // Which formats
-        switch(format)
-        {
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
-        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
-        case dmGraphics::TEXTURE_FORMAT_R_BC4:
-        case dmGraphics::TEXTURE_FORMAT_RG_BC5:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
-            return true;
-        default:
-            return false;
-        }
-    }
-
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
     dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format)

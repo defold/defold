@@ -19,6 +19,7 @@
 #include <dmsdk/graphics/graphics.h>
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
+#include <graphics/graphics_ddf.h>
 
 namespace dmGraphics
 {
@@ -699,10 +700,31 @@ namespace dmGraphics
     /**
      * Get status of texture.
      *
+     * @name GetTextureStatusFlags
      * @param texture HTexture
      * @return  TextureStatusFlags enumerated status bit flags
      */
     uint32_t GetTextureStatusFlags(HTexture texture);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param format dmGraphics::TextureImage::CompressionType
+     * @return true if the format is compressed
+     */
+    bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param path The path of the texture
+     * @param image The input image
+     * @param format The desired output format
+     * @param images An array of transcoded mipmaps
+     * @param sizes An array of transcoded mipmap sizes
+     * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
+     * @param format dmGraphics::TextureImage::CompressionType
+     * @return true if the format is transcoded
+     */
+    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 
     /**
      * Read frame buffer pixels in BGRA format

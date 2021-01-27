@@ -14,7 +14,6 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 #include "graphics.h"
-#include "graphics_transcoder.h"
 #include <graphics/graphics_ddf.h>
 #include <basis/transcoder/basisu_transcoder.h>
 

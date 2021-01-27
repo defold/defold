@@ -18,7 +18,6 @@
 #include <dlib/time.h>
 #include <dlib/math.h>
 #include <graphics/graphics.h>
-#include <graphics/graphics_transcoder.h>
 
 namespace dmGameSystem
 {
