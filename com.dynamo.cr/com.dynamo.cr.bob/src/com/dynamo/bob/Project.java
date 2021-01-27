@@ -327,10 +327,26 @@ public class Project {
         newTasks = new ArrayList<Task<?>>();
         List<String> sortedInputs = sortInputs();
 
+        // To currently know the output resources, we need to parse the main.collectionc
+        // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
+        // But the real problem is building/compressing the redundant textures (e.g. .png)
+        String excludeFoldersStr = this.option("exclude-build-folder", "");
+        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
+
         for (String input : sortedInputs) {
             Task<?> task = doCreateTask(input);
             if (task != null) {
-                newTasks.add(task);
+                boolean skipped = false;
+                for (String excludeFolder : excludeFolders) {
+                    if (input.startsWith(excludeFolder)) {
+                        skipped = true;
+                        break;
+                    }
+                }
+
+                if (!skipped) {
+                    newTasks.add(task);
+                }
             }
         }
     }

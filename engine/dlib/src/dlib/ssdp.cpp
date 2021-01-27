@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,7 +28,7 @@
 #include "log.h"
 #include "template.h"
 #include "http_server_private.h"
-#include "http_client_private.h"
+#include "http_client.h"
 #include "http_server.h"
 #include "network_constants.h"
 
@@ -787,8 +787,8 @@ bail:
 
         if (response)
         {
-            dmHttpClientPrivate::ParseResult pr = dmHttpClientPrivate::ParseHeader((char*) ssdp->m_Buffer, &state, true, VersionCallback, HeaderCallback, ResponseCallback);
-            ok = pr == dmHttpClientPrivate::PARSE_RESULT_OK;
+            dmHttpClient::ParseResult pr = dmHttpClient::ParseHeader((char*) ssdp->m_Buffer, &state, true, VersionCallback, HeaderCallback, ResponseCallback);
+            ok = pr == dmHttpClient::PARSE_RESULT_OK;
         }
         else
         {
