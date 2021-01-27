@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -17,10 +18,10 @@ import org.antlr.v4.runtime.Token;
 
 import com.dynamo.bob.pipeline.luaparser.LuaParser;
 import com.dynamo.bob.pipeline.luaparser.LuaLexer;
-import com.dynamo.bob.pipeline.luaparser.LuaBaseListener;
+import com.dynamo.bob.pipeline.luaparser.LuaParserBaseListener;
 
 
-public class DefoldLuaParser extends LuaBaseListener {
+public class DefoldLuaParser extends LuaParserBaseListener {
 	private static final Logger LOGGER = Logger.getLogger(DefoldLuaParser.class.getName());
 
 	private StringBuffer parsedBuffer = null;
@@ -32,9 +33,7 @@ public class DefoldLuaParser extends LuaBaseListener {
 	private boolean stripComments = false;
 	private boolean stripProperties = false;
 
-	public DefoldLuaParser() {
-
-	}
+	public DefoldLuaParser() {}
 
 	public void setStripComments(boolean strip) {
 		stripComments = strip;
@@ -87,6 +86,12 @@ public class DefoldLuaParser extends LuaBaseListener {
 		return properties;
 	}
 
+	// get all tokens spanning a context and belonging to a specific channel
+	private List<Token> getTokens(ParserRuleContext ctx, int channel) {
+		List<Token> tokens = getTokens(ctx);
+		return tokens.stream().filter(t -> t.getChannel() == channel).collect(Collectors.toList());
+	}
+
 	// get all tokens spanning a context
 	private List<Token> getTokens(ParserRuleContext ctx) {
 		Token startToken = ctx.getStart();
@@ -94,6 +99,7 @@ public class DefoldLuaParser extends LuaBaseListener {
 		return tokenStream.getTokens(startToken.getTokenIndex(), stopToken.getTokenIndex());
 	}
 
+	// remove a token from the parsed buffer
 	private void removeToken(Token token) {
 		int from = token.getStartIndex();
 		int to = from + token.getText().length();
@@ -106,7 +112,7 @@ public class DefoldLuaParser extends LuaBaseListener {
 	private void handleFunctionCall(ParserRuleContext ctx) {
 		String text = ctx.getText();
 		if (text.startsWith("require")) {
-			List<Token> tokens = getTokens(ctx);
+			List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
 			// token 0 is the require function
 			// token 1 is either the string or parenthesis
 			// if it is a parenthesis we instead get token 2
@@ -121,7 +127,7 @@ public class DefoldLuaParser extends LuaBaseListener {
 		else if (text.startsWith("go.property")) {
 			properties.add(text);
 			if (this.stripProperties) {
-				List<Token> tokens = getTokens(ctx);
+				List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
 				for (Token token : tokens) {
 					removeToken(token);
 				}
@@ -145,11 +151,10 @@ public class DefoldLuaParser extends LuaBaseListener {
 	}
 
 	private void log(String s) {
-		LOGGER.warning(s);
+		LOGGER.info(s);
 	}
-
 	private void log(ParserRuleContext ctx) {
-		LOGGER.warning("ctx: " + ctx.getText() + " start token: " + ctx.getStart().getText() + " stop token: " + ctx.getStop().getText());
+		log("ctx: " + ctx.getText() + " start token: " + ctx.getStart().getText() + " stop token: " + ctx.getStop().getText());
 	}
 
 	private void enterContext(ParserRuleContext ctx) {
@@ -161,13 +166,38 @@ public class DefoldLuaParser extends LuaBaseListener {
 	}
 
 	@Override public void enterChunk(LuaParser.ChunkContext ctx) { writeTokens(ctx); }
+	// @Override public void exitChunk(LuaParser.ChunkContext ctx) { exitContext(ctx); }
 	@Override public void enterFunctioncall(LuaParser.FunctioncallContext ctx) { handleFunctionCall(ctx); }
 	// @Override public void exitFunctioncall(LuaParser.FunctioncallContext ctx) { exitContext(ctx); }
-	// @Override public void exitChunk(LuaParser.ChunkContext ctx) { exitContext(ctx); }
+
 	// @Override public void enterBlock(LuaParser.BlockContext ctx) { enterContext(ctx); }
 	// @Override public void exitBlock(LuaParser.BlockContext ctx) { exitContext(ctx); }
 	// @Override public void enterStat(LuaParser.StatContext ctx) { enterContext(ctx); }
 	// @Override public void exitStat(LuaParser.StatContext ctx) { exitContext(ctx); }
+	// @Override public void enterBreakstat(LuaParser.BreakstatContext ctx) { enterContext(ctx); }
+	// @Override public void exitBreakstat(LuaParser.BreakstatContext ctx) { exitContext(ctx); }
+	// @Override public void enterGotostat(LuaParser.GotostatContext ctx) { enterContext(ctx); }
+	// @Override public void exitGotostat(LuaParser.GotostatContext ctx) { exitContext(ctx); }
+	// @Override public void enterDostat(LuaParser.DostatContext ctx) { enterContext(ctx); }
+	// @Override public void exitDostat(LuaParser.DostatContext ctx) { exitContext(ctx); }
+	// @Override public void enterWhilestat(LuaParser.WhilestatContext ctx) { enterContext(ctx); }
+	// @Override public void exitWhilestat(LuaParser.WhilestatContext ctx) { exitContext(ctx); }
+	// @Override public void enterRepeatstat(LuaParser.RepeatstatContext ctx) { enterContext(ctx); }
+	// @Override public void exitRepeatstat(LuaParser.RepeatstatContext ctx) { exitContext(ctx); }
+	// @Override public void enterIfstat(LuaParser.IfstatContext ctx) { enterContext(ctx); }
+	// @Override public void exitIfstat(LuaParser.IfstatContext ctx) { exitContext(ctx); }
+	// @Override public void enterGenericforstat(LuaParser.GenericforstatContext ctx) { enterContext(ctx); }
+	// @Override public void exitGenericforstat(LuaParser.GenericforstatContext ctx) { exitContext(ctx); }
+	// @Override public void enterNumericforstat(LuaParser.NumericforstatContext ctx) { enterContext(ctx); }
+	// @Override public void exitNumericforstat(LuaParser.NumericforstatContext ctx) { exitContext(ctx); }
+	// @Override public void enterFunctionstat(LuaParser.FunctionstatContext ctx) { enterContext(ctx); }
+	// @Override public void exitFunctionstat(LuaParser.FunctionstatContext ctx) { exitContext(ctx); }
+	// @Override public void enterLocalfunctionstat(LuaParser.LocalfunctionstatContext ctx) { enterContext(ctx); }
+	// @Override public void exitLocalfunctionstat(LuaParser.LocalfunctionstatContext ctx) { exitContext(ctx); }
+	// @Override public void enterLocalvariablestat(LuaParser.LocalvariablestatContext ctx) { enterContext(ctx); }
+	// @Override public void exitLocalvariablestat(LuaParser.LocalvariablestatContext ctx) { exitContext(ctx); }
+	// @Override public void enterVariablestat(LuaParser.VariablestatContext ctx) { enterContext(ctx); }
+	// @Override public void exitVariablestat(LuaParser.VariablestatContext ctx) { exitContext(ctx); }
 	// @Override public void enterAttnamelist(LuaParser.AttnamelistContext ctx) { enterContext(ctx); }
 	// @Override public void exitAttnamelist(LuaParser.AttnamelistContext ctx) { exitContext(ctx); }
 	// @Override public void enterAttrib(LuaParser.AttribContext ctx) { enterContext(ctx); }
@@ -178,22 +208,20 @@ public class DefoldLuaParser extends LuaBaseListener {
 	// @Override public void exitLabel(LuaParser.LabelContext ctx) { exitContext(ctx); }
 	// @Override public void enterFuncname(LuaParser.FuncnameContext ctx) { enterContext(ctx); }
 	// @Override public void exitFuncname(LuaParser.FuncnameContext ctx) { exitContext(ctx); }
-	// @Override public void enterVarlist(LuaParser.VarlistContext ctx) { enterContext(ctx); }
-	// @Override public void exitVarlist(LuaParser.VarlistContext ctx) { exitContext(ctx); }
+	// @Override public void enterVariablelist(LuaParser.VariablelistContext ctx) { enterContext(ctx); }
+	// @Override public void exitVariablelist(LuaParser.VariablelistContext ctx) { exitContext(ctx); }
 	// @Override public void enterNamelist(LuaParser.NamelistContext ctx) { enterContext(ctx); }
 	// @Override public void exitNamelist(LuaParser.NamelistContext ctx) { exitContext(ctx); }
 	// @Override public void enterExplist(LuaParser.ExplistContext ctx) { enterContext(ctx); }
 	// @Override public void exitExplist(LuaParser.ExplistContext ctx) { exitContext(ctx); }
 	// @Override public void enterExp(LuaParser.ExpContext ctx) { enterContext(ctx); }
 	// @Override public void exitExp(LuaParser.ExpContext ctx) { exitContext(ctx); }
-	// @Override public void enterPrefixexp(LuaParser.PrefixexpContext ctx) { enterContext(ctx); }
-	// @Override public void exitPrefixexp(LuaParser.PrefixexpContext ctx) { exitContext(ctx); }
-	// @Override public void enterVarOrExp(LuaParser.VarOrExpContext ctx) { enterContext(ctx); }
-	// @Override public void exitVarOrExp(LuaParser.VarOrExpContext ctx) { exitContext(ctx); }
-	// @Override public void enterVar(LuaParser.VarContext ctx) { enterContext(ctx); }
-	// @Override public void exitVar(LuaParser.VarContext ctx) { exitContext(ctx); }
-	// @Override public void enterVarSuffix(LuaParser.VarSuffixContext ctx) { enterContext(ctx); }
-	// @Override public void exitVarSuffix(LuaParser.VarSuffixContext ctx) { exitContext(ctx); }
+	// @Override public void enterNamedvariable(LuaParser.NamedvariableContext ctx) { enterContext(ctx); }
+	// @Override public void exitNamedvariable(LuaParser.NamedvariableContext ctx) { exitContext(ctx); }
+	// @Override public void enterParenthesesvariable(LuaParser.ParenthesesvariableContext ctx) { enterContext(ctx); }
+	// @Override public void exitParenthesesvariable(LuaParser.ParenthesesvariableContext ctx) { exitContext(ctx); }
+	// @Override public void enterIndex(LuaParser.IndexContext ctx) { enterContext(ctx); }
+	// @Override public void exitIndex(LuaParser.IndexContext ctx) { exitContext(ctx); }
 	// @Override public void enterNameAndArgs(LuaParser.NameAndArgsContext ctx) { enterContext(ctx); }
 	// @Override public void exitNameAndArgs(LuaParser.NameAndArgsContext ctx) { exitContext(ctx); }
 	// @Override public void enterArgs(LuaParser.ArgsContext ctx) { enterContext(ctx); }
@@ -216,8 +244,18 @@ public class DefoldLuaParser extends LuaBaseListener {
 	// @Override public void exitOperatorOr(LuaParser.OperatorOrContext ctx) { exitContext(ctx); }
 	// @Override public void enterOperatorAnd(LuaParser.OperatorAndContext ctx) { enterContext(ctx); }
 	// @Override public void exitOperatorAnd(LuaParser.OperatorAndContext ctx) { exitContext(ctx); }
-	// @Override public void enterOperatorComparison(LuaParser.OperatorComparisonContext ctx) { enterContext(ctx); }
-	// @Override public void exitOperatorComparison(LuaParser.OperatorComparisonContext ctx) { exitContext(ctx); }
+	// @Override public void enterLessthan(LuaParser.LessthanContext ctx) { enterContext(ctx); }
+	// @Override public void exitLessthan(LuaParser.LessthanContext ctx) { exitContext(ctx); }
+	// @Override public void enterGreaterthan(LuaParser.GreaterthanContext ctx) { enterContext(ctx); }
+	// @Override public void exitGreaterthan(LuaParser.GreaterthanContext ctx) { exitContext(ctx); }
+	// @Override public void enterLessthanorequal(LuaParser.LessthanorequalContext ctx) { enterContext(ctx); }
+	// @Override public void exitLessthanorequal(LuaParser.LessthanorequalContext ctx) { exitContext(ctx); }
+	// @Override public void enterGreaterthanorequal(LuaParser.GreaterthanorequalContext ctx) { enterContext(ctx); }
+	// @Override public void exitGreaterthanorequal(LuaParser.GreaterthanorequalContext ctx) { exitContext(ctx); }
+	// @Override public void enterNotequal(LuaParser.NotequalContext ctx) { enterContext(ctx); }
+	// @Override public void exitNotequal(LuaParser.NotequalContext ctx) { exitContext(ctx); }
+	// @Override public void enterEqual(LuaParser.EqualContext ctx) { enterContext(ctx); }
+	// @Override public void exitEqual(LuaParser.EqualContext ctx) { exitContext(ctx); }
 	// @Override public void enterOperatorStrcat(LuaParser.OperatorStrcatContext ctx) { enterContext(ctx); }
 	// @Override public void exitOperatorStrcat(LuaParser.OperatorStrcatContext ctx) { exitContext(ctx); }
 	// @Override public void enterOperatorAddSub(LuaParser.OperatorAddSubContext ctx) { enterContext(ctx); }
@@ -232,8 +270,12 @@ public class DefoldLuaParser extends LuaBaseListener {
 	// @Override public void exitOperatorPower(LuaParser.OperatorPowerContext ctx) { exitContext(ctx); }
 	// @Override public void enterNumber(LuaParser.NumberContext ctx) { enterContext(ctx); }
 	// @Override public void exitNumber(LuaParser.NumberContext ctx) { exitContext(ctx); }
-	// @Override public void enterString(LuaParser.StringContext ctx) { enterContext(ctx); }
-	// @Override public void exitString(LuaParser.StringContext ctx) { exitContext(ctx); }
+	// @Override public void enterLstring(LuaParser.LstringContext ctx) { enterContext(ctx); }
+	// @Override public void exitLstring(LuaParser.LstringContext ctx) { exitContext(ctx); }
+	// @Override public void enterEveryRule(ParserRuleContext ctx) { enterContext(ctx); }
+	// @Override public void exitEveryRule(ParserRuleContext ctx) { exitContext(ctx); }
+	// @Override public void visitTerminal(TerminalNode node) { }
+	// @Override public void visitErrorNode(ErrorNode node) { }
 
 	public static void main(String[] args) throws IOException {
 		DefoldLuaParser listener = new DefoldLuaParser();
