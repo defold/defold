@@ -2,7 +2,9 @@
 
 Defold is created and distributed under the developer-friendly Defold License. The Defold License is derived from the popular Apache 2.0 license. The license in its entirety can be [read here](/license.txt) with additional information to help you understand the [difference from the standard Apache 2.0 license here](https://defold.com/license/).
 
-Defold itself contains software written by third parties. Some of the software also requires the inclusion of their respective license in derivative work.
+Defold itself contains software written by third parties. Some of the software is used in the Defold editor and command line tools ([learn more](/TOOLS_LICENSES.md)) and some of the software is used in the Defold engine. The software included in the Defold engine will be included in the games and applications created using Defold and require the inclusion of their respective license in derivative work.
+
+**If you use Defold to create games and applications it is your responsibility to include the required licenses in your work.**
 
 
 ## How to include required licenses in your work

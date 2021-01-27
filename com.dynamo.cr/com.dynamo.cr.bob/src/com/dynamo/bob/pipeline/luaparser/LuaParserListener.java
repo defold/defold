@@ -1,13 +1,13 @@
 package com.dynamo.bob.pipeline.luaparser;
 
-// Generated from Lua.g4 by ANTLR 4.9.1
+// Generated from LuaParser.g4 by ANTLR 4.9.1
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
 /**
  * This interface defines a complete listener for a parse tree produced by
  * {@link LuaParser}.
  */
-public interface LuaListener extends ParseTreeListener {
+public interface LuaParserListener extends ParseTreeListener {
 	/**
 	 * Enter a parse tree produced by {@link LuaParser#chunk}.
 	 * @param ctx the parse tree
@@ -38,6 +38,126 @@ public interface LuaListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitStat(LuaParser.StatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#breakstat}.
+	 * @param ctx the parse tree
+	 */
+	void enterBreakstat(LuaParser.BreakstatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#breakstat}.
+	 * @param ctx the parse tree
+	 */
+	void exitBreakstat(LuaParser.BreakstatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#gotostat}.
+	 * @param ctx the parse tree
+	 */
+	void enterGotostat(LuaParser.GotostatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#gotostat}.
+	 * @param ctx the parse tree
+	 */
+	void exitGotostat(LuaParser.GotostatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#dostat}.
+	 * @param ctx the parse tree
+	 */
+	void enterDostat(LuaParser.DostatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#dostat}.
+	 * @param ctx the parse tree
+	 */
+	void exitDostat(LuaParser.DostatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#whilestat}.
+	 * @param ctx the parse tree
+	 */
+	void enterWhilestat(LuaParser.WhilestatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#whilestat}.
+	 * @param ctx the parse tree
+	 */
+	void exitWhilestat(LuaParser.WhilestatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#repeatstat}.
+	 * @param ctx the parse tree
+	 */
+	void enterRepeatstat(LuaParser.RepeatstatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#repeatstat}.
+	 * @param ctx the parse tree
+	 */
+	void exitRepeatstat(LuaParser.RepeatstatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#ifstat}.
+	 * @param ctx the parse tree
+	 */
+	void enterIfstat(LuaParser.IfstatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#ifstat}.
+	 * @param ctx the parse tree
+	 */
+	void exitIfstat(LuaParser.IfstatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#genericforstat}.
+	 * @param ctx the parse tree
+	 */
+	void enterGenericforstat(LuaParser.GenericforstatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#genericforstat}.
+	 * @param ctx the parse tree
+	 */
+	void exitGenericforstat(LuaParser.GenericforstatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#numericforstat}.
+	 * @param ctx the parse tree
+	 */
+	void enterNumericforstat(LuaParser.NumericforstatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#numericforstat}.
+	 * @param ctx the parse tree
+	 */
+	void exitNumericforstat(LuaParser.NumericforstatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#functionstat}.
+	 * @param ctx the parse tree
+	 */
+	void enterFunctionstat(LuaParser.FunctionstatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#functionstat}.
+	 * @param ctx the parse tree
+	 */
+	void exitFunctionstat(LuaParser.FunctionstatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#localfunctionstat}.
+	 * @param ctx the parse tree
+	 */
+	void enterLocalfunctionstat(LuaParser.LocalfunctionstatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#localfunctionstat}.
+	 * @param ctx the parse tree
+	 */
+	void exitLocalfunctionstat(LuaParser.LocalfunctionstatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#localvariablestat}.
+	 * @param ctx the parse tree
+	 */
+	void enterLocalvariablestat(LuaParser.LocalvariablestatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#localvariablestat}.
+	 * @param ctx the parse tree
+	 */
+	void exitLocalvariablestat(LuaParser.LocalvariablestatContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LuaParser#variablestat}.
+	 * @param ctx the parse tree
+	 */
+	void enterVariablestat(LuaParser.VariablestatContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LuaParser#variablestat}.
+	 * @param ctx the parse tree
+	 */
+	void exitVariablestat(LuaParser.VariablestatContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LuaParser#attnamelist}.
 	 * @param ctx the parse tree
@@ -89,15 +209,15 @@ public interface LuaListener extends ParseTreeListener {
 	 */
 	void exitFuncname(LuaParser.FuncnameContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LuaParser#varlist}.
+	 * Enter a parse tree produced by {@link LuaParser#variablelist}.
 	 * @param ctx the parse tree
 	 */
-	void enterVarlist(LuaParser.VarlistContext ctx);
+	void enterVariablelist(LuaParser.VariablelistContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LuaParser#varlist}.
+	 * Exit a parse tree produced by {@link LuaParser#variablelist}.
 	 * @param ctx the parse tree
 	 */
-	void exitVarlist(LuaParser.VarlistContext ctx);
+	void exitVariablelist(LuaParser.VariablelistContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LuaParser#namelist}.
 	 * @param ctx the parse tree
@@ -129,55 +249,53 @@ public interface LuaListener extends ParseTreeListener {
 	 */
 	void exitExp(LuaParser.ExpContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LuaParser#prefixexp}.
+	 * Enter a parse tree produced by the {@code namedvariable}
+	 * labeled alternative in {@link LuaParser#variable}.
 	 * @param ctx the parse tree
 	 */
-	void enterPrefixexp(LuaParser.PrefixexpContext ctx);
+	void enterNamedvariable(LuaParser.NamedvariableContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LuaParser#prefixexp}.
+	 * Exit a parse tree produced by the {@code namedvariable}
+	 * labeled alternative in {@link LuaParser#variable}.
 	 * @param ctx the parse tree
 	 */
-	void exitPrefixexp(LuaParser.PrefixexpContext ctx);
+	void exitNamedvariable(LuaParser.NamedvariableContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LuaParser#functioncall}.
+	 * Enter a parse tree produced by the {@code parenthesesvariable}
+	 * labeled alternative in {@link LuaParser#variable}.
+	 * @param ctx the parse tree
+	 */
+	void enterParenthesesvariable(LuaParser.ParenthesesvariableContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code parenthesesvariable}
+	 * labeled alternative in {@link LuaParser#variable}.
+	 * @param ctx the parse tree
+	 */
+	void exitParenthesesvariable(LuaParser.ParenthesesvariableContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code functioncall}
+	 * labeled alternative in {@link LuaParser#variable}.
 	 * @param ctx the parse tree
 	 */
 	void enterFunctioncall(LuaParser.FunctioncallContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LuaParser#functioncall}.
+	 * Exit a parse tree produced by the {@code functioncall}
+	 * labeled alternative in {@link LuaParser#variable}.
 	 * @param ctx the parse tree
 	 */
 	void exitFunctioncall(LuaParser.FunctioncallContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LuaParser#varOrExp}.
+	 * Enter a parse tree produced by the {@code index}
+	 * labeled alternative in {@link LuaParser#variable}.
 	 * @param ctx the parse tree
 	 */
-	void enterVarOrExp(LuaParser.VarOrExpContext ctx);
+	void enterIndex(LuaParser.IndexContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LuaParser#varOrExp}.
+	 * Exit a parse tree produced by the {@code index}
+	 * labeled alternative in {@link LuaParser#variable}.
 	 * @param ctx the parse tree
 	 */
-	void exitVarOrExp(LuaParser.VarOrExpContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link LuaParser#var}.
-	 * @param ctx the parse tree
-	 */
-	void enterVar(LuaParser.VarContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link LuaParser#var}.
-	 * @param ctx the parse tree
-	 */
-	void exitVar(LuaParser.VarContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link LuaParser#varSuffix}.
-	 * @param ctx the parse tree
-	 */
-	void enterVarSuffix(LuaParser.VarSuffixContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link LuaParser#varSuffix}.
-	 * @param ctx the parse tree
-	 */
-	void exitVarSuffix(LuaParser.VarSuffixContext ctx);
+	void exitIndex(LuaParser.IndexContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LuaParser#nameAndArgs}.
 	 * @param ctx the parse tree
@@ -289,15 +407,77 @@ public interface LuaListener extends ParseTreeListener {
 	 */
 	void exitOperatorAnd(LuaParser.OperatorAndContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LuaParser#operatorComparison}.
+	 * Enter a parse tree produced by the {@code lessthan}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
 	 * @param ctx the parse tree
 	 */
-	void enterOperatorComparison(LuaParser.OperatorComparisonContext ctx);
+	void enterLessthan(LuaParser.LessthanContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LuaParser#operatorComparison}.
+	 * Exit a parse tree produced by the {@code lessthan}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
 	 * @param ctx the parse tree
 	 */
-	void exitOperatorComparison(LuaParser.OperatorComparisonContext ctx);
+	void exitLessthan(LuaParser.LessthanContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code greaterthan}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void enterGreaterthan(LuaParser.GreaterthanContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code greaterthan}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void exitGreaterthan(LuaParser.GreaterthanContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code lessthanorequal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void enterLessthanorequal(LuaParser.LessthanorequalContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code lessthanorequal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void exitLessthanorequal(LuaParser.LessthanorequalContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code greaterthanorequal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void enterGreaterthanorequal(LuaParser.GreaterthanorequalContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code greaterthanorequal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void exitGreaterthanorequal(LuaParser.GreaterthanorequalContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code notequal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void enterNotequal(LuaParser.NotequalContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code notequal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void exitNotequal(LuaParser.NotequalContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code equal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void enterEqual(LuaParser.EqualContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code equal}
+	 * labeled alternative in {@link LuaParser#operatorComparison}.
+	 * @param ctx the parse tree
+	 */
+	void exitEqual(LuaParser.EqualContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LuaParser#operatorStrcat}.
 	 * @param ctx the parse tree
@@ -369,13 +549,13 @@ public interface LuaListener extends ParseTreeListener {
 	 */
 	void exitNumber(LuaParser.NumberContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LuaParser#string}.
+	 * Enter a parse tree produced by {@link LuaParser#lstring}.
 	 * @param ctx the parse tree
 	 */
-	void enterString(LuaParser.StringContext ctx);
+	void enterLstring(LuaParser.LstringContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LuaParser#string}.
+	 * Exit a parse tree produced by {@link LuaParser#lstring}.
 	 * @param ctx the parse tree
 	 */
-	void exitString(LuaParser.StringContext ctx);
+	void exitLstring(LuaParser.LstringContext ctx);
 }
