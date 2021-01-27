@@ -183,7 +183,7 @@ namespace dmLiveUpdate
             dmPath::Concat(app_support_path, names[i], path, DMPATH_MAX_PATH);
             if (FileExists(path))
             {
-                dmLogDebug("Cleaning up %s", path);
+                dmLogInfo("Cleaning up %s", path);
                 dmSys::Unlink(path);
             }
         }

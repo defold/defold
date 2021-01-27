@@ -838,13 +838,10 @@ namespace dmSys
         if (asset) {
             AAsset_close(asset);
             return true;
-        } else {
-            return false;
         }
-#else
+#endif
         struct stat file_stat;
         return stat(path, &file_stat) == 0;
-#endif
     }
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
@@ -858,13 +855,10 @@ namespace dmSys
 
             AAsset_close(asset);
             return RESULT_OK;
-        } else {
-            return RESULT_NOENT;
         }
-#else
+#endif
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
-
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -873,18 +867,17 @@ namespace dmSys
         } else {
             return RESULT_NOENT;
         }
-#endif
     }
 
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
 #ifdef __ANDROID__
-        path = FixAndroidResourcePath(path);
+        const char* asset_path = FixAndroidResourcePath(path);
 
         AAssetManager* am = g_AndroidApp->activity->assetManager;
         // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_BUFFER);
+        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
         if (asset) {
             uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
             if (asset_size > buffer_size) {
@@ -898,10 +891,8 @@ namespace dmSys
             }
             *resource_size = asset_size;
             return RESULT_OK;
-        } else {
-            return RESULT_NOENT;
         }
-#else
+#endif
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
@@ -921,6 +912,5 @@ namespace dmSys
         } else {
             return NativeToResult(errno);
         }
-#endif
     }
 }
