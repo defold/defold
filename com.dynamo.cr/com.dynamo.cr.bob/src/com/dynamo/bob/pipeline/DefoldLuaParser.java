@@ -24,11 +24,20 @@ import com.dynamo.bob.pipeline.luaparser.LuaParserBaseListener;
 public class DefoldLuaParser extends LuaParserBaseListener {
 	private static final Logger LOGGER = Logger.getLogger(DefoldLuaParser.class.getName());
 
+	public class PropertyAndLine {
+		public String property;
+		public int line;
+		public PropertyAndLine(String property, int line) {
+			this.property = property;
+			this.line = line - 1;
+		}
+	}
+
 	private StringBuffer parsedBuffer = null;
 	private CommonTokenStream tokenStream = null;
 
 	private List<String> modules = new ArrayList<String>();
-	private List<String> properties = new ArrayList<String>();
+	private List<PropertyAndLine> properties = new ArrayList<PropertyAndLine>();
 
 	private boolean stripComments = false;
 	private boolean stripProperties = false;
@@ -82,7 +91,7 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 	 * Get all proprty declarations found while parsing
 	 * @return Game object properties
 	 */
-	public List<String> getProperties() {
+	public List<PropertyAndLine> getProperties() {
 		return properties;
 	}
 
@@ -125,9 +134,9 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 			modules.add(module);
 		}
 		else if (text.startsWith("go.property")) {
-			properties.add(text);
+			List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
+			properties.add(new PropertyAndLine(text, tokens.get(0).getLine()));
 			if (this.stripProperties) {
-				List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
 				for (Token token : tokens) {
 					removeToken(token);
 				}
