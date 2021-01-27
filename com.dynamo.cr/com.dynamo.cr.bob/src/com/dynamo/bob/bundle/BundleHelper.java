@@ -659,8 +659,13 @@ public class BundleHelper {
             return copyFile(projectProperties, projectRoot, resDir, category, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
-    public List<String> createArrayFromString(String line) {
-        return line != null ? new ArrayList<String>(Arrays.asList(line.trim().split("\\s*,\\s*"))) : new ArrayList<String>();
+    public static List<String> createArrayFromString(String line) {
+        if (line == null)
+            return new ArrayList<String>();
+        line = line.trim();
+        if (line.isEmpty())
+            return new ArrayList<String>();
+        return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
     public Map<String, Object> createAndroidManifestProperties(String exeName) throws IOException {
@@ -729,7 +734,7 @@ public class BundleHelper {
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
         properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
-        properties.put("bundle-version", projectProperties.getStringValue("ios", "bundle_version", 
+        properties.put("bundle-version", projectProperties.getStringValue("ios", "bundle_version",
             projectProperties.getStringValue("project", "version", "1.0")
         ));
 

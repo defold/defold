@@ -123,6 +123,11 @@
     return NSTerminateCancel;
 }
 
+- (void)applicationDidFinishLaunching:(NSNotification *)notification
+{
+    [[NSRunningApplication currentApplication] activateWithOptions:(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
+}
+
 @end
 
 // TODO: Need to find mappings for F13-F15, volume down/up/mute, and eject.
