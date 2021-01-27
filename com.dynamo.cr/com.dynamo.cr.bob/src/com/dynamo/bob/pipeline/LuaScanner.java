@@ -25,6 +25,7 @@ import javax.vecmath.Vector4d;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
+import com.dynamo.bob.pipeline.DefoldLuaParser.PropertyAndLine;
 
 public class LuaScanner {
 
@@ -67,9 +68,12 @@ public class LuaScanner {
         /// Set iff status == OK
         public Object value;
         /// Always set
+        public int line;
+        /// Always set
         public Status status;
 
-        public Property() {
+        public Property(int line) {
+            this.line = line;
         }
     }
 
@@ -86,29 +90,40 @@ public class LuaScanner {
         luaParser.parse(str);
 
         List<Property> properties = new ArrayList<Property>();
-        for(String propString : luaParser.getProperties()) {
-            Matcher propDeclMatcher = propertyDeclPattern.matcher(propString);
-            if (propDeclMatcher.matches()) {
-                Property property = new Property();
-                Matcher propArgsMatcher = propertyArgsPattern.matcher(propDeclMatcher.group(1).trim());
-                if (!propArgsMatcher.matches()) {
-                    property.status = Status.INVALID_ARGS;
-                } else {
-                    property.name = propArgsMatcher.group(1).trim();
-                    property.rawValue = propArgsMatcher.group(2).trim();
-                    if (parseProperty(property.rawValue, property)) {
-                        property.status = Status.OK;
-                    } else {
-                        property.status = Status.INVALID_VALUE;
-                    }
-                }
+        for(PropertyAndLine p : luaParser.getProperties()) {
+            Property property = parseProperty(p.property, p.line);
+            if (property != null) {
                 properties.add(property);
             }
         }
         return properties;
     }
 
-    private static boolean parseProperty(String rawValue, Property property) {
+
+    private static Property parseProperty(String propString, int line) {
+        Matcher propDeclMatcher = propertyDeclPattern.matcher(propString);
+        if (!propDeclMatcher.matches()) {
+            return null;
+        }
+        Property property = new Property(line);
+        Matcher propArgsMatcher = propertyArgsPattern.matcher(propDeclMatcher.group(1).trim());
+        if (!propArgsMatcher.matches()) {
+            property.status = Status.INVALID_ARGS;
+        } else {
+            property.name = propArgsMatcher.group(1).trim();
+            property.rawValue = propArgsMatcher.group(2).trim();
+            if (parsePropertyValue(property.rawValue, property)) {
+                property.status = Status.OK;
+            } else {
+                property.status = Status.INVALID_VALUE;
+            }
+        }
+
+        return property;
+    }
+
+
+    private static boolean parsePropertyValue(String rawValue, Property property) {
         boolean result = false;
         for (Pattern pattern : patterns) {
             Matcher matcher = pattern.matcher(property.rawValue);
