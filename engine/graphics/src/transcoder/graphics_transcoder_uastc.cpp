@@ -14,7 +14,6 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 #include "graphics.h"
-#include <graphics/graphics_ddf.h>
 #include <basis/transcoder/basisu_transcoder.h>
 
 namespace dmGraphics
