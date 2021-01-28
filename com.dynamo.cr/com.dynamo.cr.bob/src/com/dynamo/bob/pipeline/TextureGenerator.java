@@ -60,8 +60,10 @@ public class TextureGenerator {
     private static HashMap<TextureImage.CompressionType, Integer> compressionTypeLUT = new HashMap<TextureImage.CompressionType, Integer>();
     static {
         compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, CompressionType.CT_DEFAULT);
-        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP, CompressionType.CT_WEBP);
-        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY, CompressionType.CT_WEBP_LOSSY);
+        // For backwards compatibility, we automatically convert the WEBP to either DEFAULT, or UASTC
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP, CompressionType.CT_DEFAULT);
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY, CompressionType.CT_BASIS_UASTC);
+
         compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC, CompressionType.CT_BASIS_UASTC);
         compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_ETC1S, CompressionType.CT_BASIS_ETC1S);
     }
@@ -384,7 +386,8 @@ public class TextureGenerator {
     }
 
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.
-    private static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+    // Used by the editor
+    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
         BufferedImage image;

@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,9 +33,8 @@
 (def CL_HIGH   TexcLibrary$CompressionLevel/CL_HIGH)
 (def CL_BEST   TexcLibrary$CompressionLevel/CL_BEST)
 
-(def CT_DEFAULT    TexcLibrary$CompressionType/CT_DEFAULT)
-(def CT_WEBP       TexcLibrary$CompressionType/CT_WEBP)
-(def CT_WEBP_LOSSY TexcLibrary$CompressionType/CT_WEBP_LOSSY)
+(def CT_DEFAULT     TexcLibrary$CompressionType/CT_DEFAULT)
+(def CT_WEBP        TexcLibrary$CompressionType/CT_DEFAULT)
 
 (def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
 (def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
@@ -89,8 +88,10 @@
 (defn- gen-mipmaps [texture]
   (TexcLibrary/TEXC_GenMipMaps texture))
 
-(defn- transcode [texture pixel-format color-model compression-level]
-  (TexcLibrary/TEXC_Transcode texture pixel-format color-model compression-level TexcLibrary$CompressionType/CT_DEFAULT TexcLibrary$DitherType/DT_DEFAULT))
+(def num-texc-threads 8)
+
+(defn- transcode [texture pixel-format color-model compression-level compression-type mipmaps]
+  (TexcLibrary/TEXC_Encode texture pixel-format color-model compression-level compression-type mipmaps (num-texc-threads)))
 
 (defn double-down [[n m]] [(max (bit-shift-right n 1) 1)
                            (max (bit-shift-right m 1) 1)])
@@ -115,14 +116,16 @@
         height-pot                    (int (closest-power-of-two height))
         color-count                   (image-color-components img)
         [pixel-format texture-format] (get formats color-count default-formats)
-        texture                       (TexcLibrary/TEXC_Create width height R8G8B8A8 SRGB (image->byte-buffer img))
-        compression-level             Graphics$TextureFormatAlternative$CompressionLevel/FAST]
+        texture                       (TexcLibrary/TEXC_Create width height R8G8B8A8 SRGB CT_DEFAULT (image->byte-buffer img))
+        compression-level             Graphics$TextureFormatAlternative$CompressionLevel/FAST
+        mipmaps                       false]
+
     (try
       (do-or-do-not!
         (resize texture width height width-pot height-pot)      "could not resize texture to POT"
         (premultiply-alpha texture)                             "could not premultiply alpha"
         (gen-mipmaps texture)                                   "could not generate mip-maps"
-        (transcode texture pixel-format SRGB compression-level) "could not transcode")
+        (transcode texture pixel-format SRGB compression-level CT_DEFAULT mipmaps) "could not transcode")
       (let [buffer-size  (* width-pot height-pot color-count 2)
             buffer       (little-endian (new-byte-buffer buffer-size))
             data-size    (TexcLibrary/TEXC_GetData texture buffer buffer-size)
