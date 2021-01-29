@@ -306,7 +306,10 @@ def default_flags(self):
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
+    use_cl_exe = build_util.get_target_platform() in ['win32', 'x86_64-win32']
+
+    if not use_cl_exe:
+        self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CCFLAGS', 'CXXFLAGS']:

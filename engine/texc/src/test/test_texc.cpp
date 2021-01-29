@@ -321,8 +321,8 @@ static void PrintTexture(const char* msg, uint32_t* data, uint32_t width, uint32
 
 TEST(Helpers, FlipY)
 {
-    uint32_t width = 8;
-    uint32_t height = 8;
+    const uint32_t width = 8;
+    const uint32_t height = 8;
     uint32_t image[width*height];
 
     for (uint32_t y = 0; y < height; ++y)
@@ -348,29 +348,29 @@ TEST(Helpers, FlipY)
     }
 
 
-    width = 7;
-    height = 7;
+    int w = 7;
+    int h = 7;
 
-    for (uint32_t y = 0; y < height; ++y)
+    for (uint32_t y = 0; y < h; ++y)
     {
-        for (uint32_t x = 0; x < width; ++x)
+        for (uint32_t x = 0; x < w; ++x)
         {
-            image[x + width * y] = x + width * (height - y - 1);
+            image[x + w * y] = x + w * (h - y - 1);
         }
     }
 
 
-    PrintTexture("\nBEFORE", image, width, height);
+    PrintTexture("\nBEFORE", image, w, h);
 
-    dmTexc::FlipImageY_RGBA8888(image, width, height);
+    dmTexc::FlipImageY_RGBA8888(image, w, h);
 
-    PrintTexture("\nAFTER", image, width, height);
+    PrintTexture("\nAFTER", image, w, h);
 
-    for (uint32_t y = 0; y < height; ++y)
+    for (uint32_t y = 0; y < h; ++y)
     {
-        for (uint32_t x = 0; x < width; ++x)
+        for (uint32_t x = 0; x < w; ++x)
         {
-            ASSERT_EQ(x + width * y, image[x + width * y]);
+            ASSERT_EQ(x + w * y, image[x + w * y]);
         }
     }
 
@@ -378,8 +378,8 @@ TEST(Helpers, FlipY)
 
 TEST(Helpers, FlipX)
 {
-    uint32_t width = 8;
-    uint32_t height = 8;
+    const uint32_t width = 8;
+    const uint32_t height = 8;
     uint32_t image[width*height];
 
     for (uint32_t y = 0; y < height; ++y)
@@ -404,28 +404,28 @@ TEST(Helpers, FlipX)
         }
     }
 
-    width = 7;
-    height = 7;
+    int w = 7;
+    int h = 7;
 
-    for (uint32_t y = 0; y < height; ++y)
+    for (uint32_t y = 0; y < h; ++y)
     {
-        for (uint32_t x = 0; x < width; ++x)
+        for (uint32_t x = 0; x < w; ++x)
         {
-            image[x + width * y] = (width - x - 1) + width * y;
+            image[x + w * y] = (w - x - 1) + w * y;
         }
     }
 
-    PrintTexture("\nBEFORE", image, width, height);
+    PrintTexture("\nBEFORE", image, w, h);
 
-    dmTexc::FlipImageX_RGBA8888(image, width, height);
+    dmTexc::FlipImageX_RGBA8888(image, w, h);
 
-    PrintTexture("\nAFTER", image, width, height);
+    PrintTexture("\nAFTER", image, w, h);
 
-    for (uint32_t y = 0; y < height; ++y)
+    for (uint32_t y = 0; y < h; ++y)
     {
-        for (uint32_t x = 0; x < width; ++x)
+        for (uint32_t x = 0; x < w; ++x)
         {
-            ASSERT_EQ(x + width * y, image[x + width * y]);
+            ASSERT_EQ(x + w * y, image[x + w * y]);
         }
     }
 }
