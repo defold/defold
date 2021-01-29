@@ -321,7 +321,7 @@ SOFTWARE.
 
 #### Wslay
 
-Used when using [extension-websockets]()
+Used when using [extension-websocket](https://github.com/defold/extension-websocket)
 
 ```
 The MIT License
