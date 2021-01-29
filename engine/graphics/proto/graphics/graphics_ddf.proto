@@ -29,9 +29,9 @@ message TextureImage
     {
         // Not compressed
         COMPRESSION_TYPE_DEFAULT = 0;
-        // WebP encoded
+        // WebP encoded (Deprecated, converts to Default)
         COMPRESSION_TYPE_WEBP = 1;
-        // WebP lossy encoded
+        // WebP lossy encoded (Deprecated, converts to UASTC)
         COMPRESSION_TYPE_WEBP_LOSSY = 2;
         // Basis UASTC
         COMPRESSION_TYPE_BASIS_UASTC = 3;

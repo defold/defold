@@ -32,7 +32,7 @@ namespace dmTexc
         return true;
     }
 
-    static HBuffer CompressWebPBuffer_Deflate(void* data, uint32_t size)
+    static HBuffer CompressBuffer_Deflate(void* data, uint32_t size)
     {
         dmArray<uint8_t> out_data_array;
         out_data_array.SetCapacity(32 * 1024);
@@ -49,12 +49,14 @@ namespace dmTexc
 
     HBuffer CompressBuffer(void* data, uint32_t size)
     {
-        TextureData* out = (TextureData*)CompressWebPBuffer_Deflate(data, size);
+        TextureData* out = (TextureData*)CompressBuffer_Deflate(data, size);
 
         if (out->m_ByteSize > size)
         {
+            free(out->m_Data);
             out->m_IsCompressed = 0;
             out->m_ByteSize = size;
+            out->m_Data = (uint8_t*)malloc(size);
             memcpy(out->m_Data, data, size);
         }
         return out;

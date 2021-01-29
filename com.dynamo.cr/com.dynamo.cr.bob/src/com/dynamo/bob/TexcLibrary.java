@@ -93,8 +93,6 @@ public class TexcLibrary {
 
     public interface CompressionType {
         public static int CT_DEFAULT    = 0;
-        public static int CT_WEBP       = 1;
-        public static int CT_WEBP_LOSSY = 2;
         public static int CT_BASIS_UASTC= 3;
         public static int CT_BASIS_ETC1S= 4;
     }

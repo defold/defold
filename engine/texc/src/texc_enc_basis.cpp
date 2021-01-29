@@ -68,6 +68,10 @@ namespace dmTexc
         comp_params.m_uastc = compression_type == CT_BASIS_UASTC;
         comp_params.m_mip_gen = texture->m_BasisGenMipmaps;
 
+        comp_params.m_status_output = false;
+        comp_params.m_debug = false;
+        basisu::enable_debug_printf(false);
+
         comp_params.m_source_images.push_back(texture->m_BasisImage);
 
         SetCompressionLevel(compression_type, compression_level, comp_params);
