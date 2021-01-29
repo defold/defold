@@ -71,7 +71,7 @@ def build(bld):
     obj.source.remove(os.path.join('.','graphics_glfw_wrappers.cpp'))
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['.'],
+                           includes = ['.', '../proto'],
                            uselib = 'DLIB',
                            source = 'transcoder/graphics_transcoder_null.cpp',
                            target = 'graphics_transcoder_null')
