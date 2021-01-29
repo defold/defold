@@ -202,7 +202,6 @@ namespace dmTexc
 
     DM_TEXC_TRAMPOLINE6(HTexture, Create, uint32_t, uint32_t, PixelFormat, ColorSpace, CompressionType, void*);
     DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
-    //DM_TEXC_TRAMPOLINE2(bool, GetHeader, HTexture, Header*);
     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeCompressed, HTexture, uint32_t);
     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeUncompressed, HTexture, uint32_t);
     DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalDataSize, HTexture);

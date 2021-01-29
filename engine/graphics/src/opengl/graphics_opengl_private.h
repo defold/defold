@@ -68,7 +68,7 @@ namespace dmGraphics
     {
         TextureType m_Type;
         GLuint      m_Texture;
-        uint32_t    m_ResourceSize; // For Mip level 0. We approximape each mip level is 1/4th. Or MipSize0 * 1.33
+        uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
         uint16_t    m_Width;
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;

@@ -145,14 +145,9 @@ namespace dmGraphics
             return false;
         }
 
-        dmLogWarning("MAWE: Transcoding: %p from %d to %d (%s -> %s)", path, format, transcoder_format, ToString(format), ToString(transcoder_format));
-
-        //uint32_t block_size = (uint32_t)basist::basis_get_bytes_per_block_or_pixel(transcoder_format);
+        dmLogInfo("MAWE: Transcoding: %p from %d to %d (%s -> %s)", path, format, transcoder_format, ToString(format), ToString(transcoder_format));
 
         tr.start_transcoding(ptr, size);
-
-        dmLogWarning("MAWE: total input size %u", size);
-        dmLogWarning("MAWE: num mipmaps %u", info.m_total_levels);
 
         uint32_t image_index = 0;
         for (uint32_t level_index = 0; level_index < info.m_total_levels; ++level_index) {
@@ -161,12 +156,7 @@ namespace dmGraphics
             if (!tr.get_image_level_desc(ptr, size, image_index, level_index, orig_width, orig_height, total_blocks))
                 return 0;
 
-        dmLogWarning("MAWE: Transcoding mipmap %u  mip size: %u x %u", level_index, orig_width, orig_height);
-
-
             // from basis_wrappers.cpp
-
-            //uint32_t flags = get_alpha_for_opaque_formats ? cDecodeFlagsTranscodeAlphaDataToOpaqueFormats : 0;
             uint32_t flags = 0;
 
             bool status = false;
@@ -263,9 +253,6 @@ namespace dmGraphics
         };
 
         *num_transcoded_mips = info.m_total_levels;
-
-        printf("total size: %u (kb) in %u mip levels\n", total_size / 1024, info.m_total_levels);
-
         return true;
     }
 }
