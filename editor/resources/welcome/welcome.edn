@@ -37,7 +37,7 @@
                              :image "gamedistribution.svg"
                              :duration "Short"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-gamedistribution/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-gamedistribution/archive/main.zip"
                              :skip-root? true}
 
                             {:name "Native Extension"
