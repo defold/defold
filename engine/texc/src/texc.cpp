@@ -213,7 +213,7 @@ namespace dmTexc
     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
     DM_TEXC_TRAMPOLINE2(bool, Flip, HTexture, FlipAxis);
     DM_TEXC_TRAMPOLINE7(bool, Encode, HTexture, PixelFormat, ColorSpace, CompressionLevel, CompressionType, bool, int);
-    DM_TEXC_TRAMPOLINE8(HBuffer, CompressWebPBuffer, uint32_t, uint32_t, uint32_t, void*, uint32_t, PixelFormat, CompressionLevel, CompressionType);
+    DM_TEXC_TRAMPOLINE2(HBuffer, CompressBuffer, void*, uint32_t);
     DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalBufferDataSize, HBuffer);
     DM_TEXC_TRAMPOLINE3(uint32_t, GetBufferData, HBuffer, void*, uint32_t);
     DM_TEXC_TRAMPOLINE1(void, DestroyBuffer, HBuffer);

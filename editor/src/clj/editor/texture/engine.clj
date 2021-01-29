@@ -34,7 +34,6 @@
 (def CL_BEST   TexcLibrary$CompressionLevel/CL_BEST)
 
 (def CT_DEFAULT     TexcLibrary$CompressionType/CT_DEFAULT)
-(def CT_WEBP        TexcLibrary$CompressionType/CT_DEFAULT)
 
 (def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
 (def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
@@ -142,16 +141,14 @@
       (finally
         (TexcLibrary/TEXC_Destroy texture)))))
 
-(defn webp-compress-rgba-buffer
+(defn compress-rgba-buffer
   ^ByteBuffer [^ByteBuffer rgba-buffer ^long width ^long height ^long channel-count]
   (assert (pos? width))
   (assert (pos? height))
   (assert (pos? channel-count))
   (assert (= (* width height channel-count) (.remaining rgba-buffer)) "Buffer size mismatch.")
   (let [rgba-buffer-size (.remaining rgba-buffer)
-        bits-per-pixel (* 8 channel-count)
-        pixel-format (channel-count->pixel-format channel-count)
-        compressed-texture (TexcLibrary/TEXC_CompressWebPBuffer width height bits-per-pixel rgba-buffer rgba-buffer-size pixel-format CL_BEST CT_WEBP)]
+        compressed-texture (TexcLibrary/TEXC_CompressBuffer rgba-buffer rgba-buffer-size)]
     (try
       (let [compressed-size (TexcLibrary/TEXC_GetTotalBufferDataSize compressed-texture)
             compressed-buffer (ByteBuffer/allocateDirect compressed-size)]

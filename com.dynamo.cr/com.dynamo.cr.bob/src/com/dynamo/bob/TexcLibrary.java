@@ -130,7 +130,7 @@ public class TexcLibrary {
     public static native boolean TEXC_Encode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
 
     // For font glyphs
-    public static native Pointer TEXC_CompressWebPBuffer(int width, int height, int bitsPerPixel, Buffer data, int datasize, int pixelFormat, int compressionLevel, int compressionType);
+    public static native Pointer TEXC_CompressBuffer(Buffer data, int datasize);
     public static native int TEXC_GetTotalBufferDataSize(Pointer buffer);
     public static native int TEXC_GetBufferData(Pointer buffer, Buffer outData, int maxOutDataSize);
     public static native void TEXC_DestroyBuffer(Pointer buffer);

@@ -13,7 +13,6 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/image.h>
-#include <dlib/webp.h>
 #include <string.h> // memcmp
 
 #define STB_IMAGE_IMPLEMENTATION

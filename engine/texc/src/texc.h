@@ -190,7 +190,7 @@ namespace dmTexc
 
     // Now only used for font glyphs
     // Compresses an image buffer
-    DM_TEXC_PROTO(HBuffer, CompressWebPBuffer, uint32_t width, uint32_t height, uint32_t bpp, void* data, uint32_t size, PixelFormat pixelFormat, CompressionLevel compressionLevel, CompressionType compression_type);
+    DM_TEXC_PROTO(HBuffer, CompressBuffer, void* data, uint32_t size);
 
     // Get the total data size in bytes including all mip maps in a texture (compressed or not)
     DM_TEXC_PROTO(uint32_t, GetTotalBufferDataSize, HBuffer buffer);

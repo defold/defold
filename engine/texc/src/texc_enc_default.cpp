@@ -18,12 +18,8 @@
 #include "texc.h"
 #include "texc_private.h"
 
-//#define STB_IMAGE_RESIZE_IMPLEMENTATION
-//#define STB_IMAGE_RESIZE_STATIC
-//#define STBIR_DEFAULT_FILTER_UPSAMPLE    STBIR_FILTER_TRIANGLE // for testing really (we don't upsample textures)
-//#include <stb/stb_image_resize.h>
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb/stb_image_write.h>
+// #define STB_IMAGE_WRITE_IMPLEMENTATION
+// #include <stb/stb_image_write.h>
 
 #include <basis/encoder/basisu_enc.h>
 #include <basis/encoder/basisu_comp.h>

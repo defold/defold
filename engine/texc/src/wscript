@@ -11,14 +11,14 @@ def build(bld):
     texc = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = ['.'],
                             target = 'texc',
-                            uselib = 'BASIS_TRANSCODER WEBP DLIB')
+                            uselib = 'BASIS_TRANSCODER DLIB')
     texc.find_sources_in_dirs(["."], ['.cpp'])
 
     # For the pipeline
     texc_shared = bld.new_task_gen(features = 'cxx cshlib skip_asan',
                                    includes = ['.'],
                                    target = 'texc_shared',
-                                   uselib = 'BASIS_ENCODER WEBP DLIB_NOASAN')
+                                   uselib = 'BASIS_ENCODER DLIB_NOASAN')
     texc_shared.find_sources_in_dirs(["."], ['.cpp'])
     texc_shared.env.append_unique('CXXFLAGS', '-std=c++11')
 

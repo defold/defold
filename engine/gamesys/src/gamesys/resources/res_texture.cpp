@@ -13,7 +13,6 @@
 #include "res_texture.h"
 
 #include <dlib/log.h>
-#include <dlib/webp.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
 #include <dlib/math.h>
