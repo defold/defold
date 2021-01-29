@@ -17,7 +17,7 @@
 
 // Set BASISU_FORCE_DEVEL_MESSAGES to 1 to enable debug printf()'s whenever an error occurs, for easier debugging during development.
 #ifndef BASISU_FORCE_DEVEL_MESSAGES
-#define BASISU_FORCE_DEVEL_MESSAGES 1
+#define BASISU_FORCE_DEVEL_MESSAGES 0
 #endif
 
 #include "basisu_transcoder_internal.h"
