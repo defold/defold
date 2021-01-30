@@ -876,6 +876,7 @@ namespace dmEngine
         input_params.m_HidContext = engine->m_HidContext;
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
+        input_params.m_UseSquareDeadzone = dmConfigFile::GetInt(engine->m_Config, "input.use_square_deadzone", 0);
         engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);

@@ -269,6 +269,10 @@
    "seconds to wait between each repetition of a held down keyboard-key",
    :default 0.2,
    :path ["input" "repeat_interval"]}
+  {:type :boolean,
+   :help "use a per axis deadzone. useful when handling the analog stick pressed/released event",
+   :default false,
+   :path ["input" "use_square_deadzone"]}
   {:type :resource,
    :filter "gamepads",
    :help

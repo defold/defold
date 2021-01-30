@@ -46,6 +46,7 @@ namespace dmInput
         context->m_HidContext = params.m_HidContext;
         context->m_RepeatDelay = params.m_RepeatDelay;
         context->m_RepeatInterval = params.m_RepeatInterval;
+        context->m_UseSquareDeadzone = params.m_UseSquareDeadzone;
         return context;
     }
 
@@ -652,29 +653,59 @@ namespace dmInput
                     {
                         dmHID::GetGamepadPacket(gamepad, packet);
 
+                        float deadzone = config->m_DeadZone;
+                        bool square_deadzone = binding->m_Context->m_UseSquareDeadzone;
+
                         // Apply dead zone
                         uint32_t lstick_vert_axis = config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_UP].m_Index;
                         uint32_t lstick_hori_axis = config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_LEFT].m_Index;
                         uint32_t rstick_vert_axis = config->m_Inputs[dmInputDDF::GAMEPAD_RSTICK_UP].m_Index;
                         uint32_t rstick_hori_axis = config->m_Inputs[dmInputDDF::GAMEPAD_RSTICK_LEFT].m_Index;
-                        if (lstick_vert_axis != ~0U && lstick_hori_axis != ~0U)
+
+                        if (square_deadzone)
                         {
-                            float& lx = packet->m_Axis[lstick_hori_axis];
-                            float& ly = packet->m_Axis[lstick_vert_axis];
-                            if (lx * lx + ly * ly <= config->m_DeadZone * config->m_DeadZone)
-                            {
-                                lx = 0.0f;
-                                ly = 0.0f;
+                            if (lstick_hori_axis != ~0U) {
+                                float& v = packet->m_Axis[lstick_hori_axis];
+                                if (dmMath::Abs(v) < deadzone)
+                                    v = 0;
+                            }
+                            if (lstick_vert_axis != ~0U) {
+                                float& v = packet->m_Axis[lstick_vert_axis];
+                                if (dmMath::Abs(v) < deadzone)
+                                    v = 0;
+                            }
+                            if (rstick_hori_axis != ~0U) {
+                                float& v = packet->m_Axis[rstick_hori_axis];
+                                if (dmMath::Abs(v) < deadzone)
+                                    v = 0;
+                            }
+                            if (rstick_vert_axis != ~0U) {
+                                float& v = packet->m_Axis[rstick_vert_axis];
+                                if (dmMath::Abs(v) < deadzone)
+                                    v = 0;
                             }
                         }
-                        if (rstick_vert_axis != ~0U && rstick_hori_axis != ~0U)
+                        else
                         {
-                            float& rx = packet->m_Axis[rstick_hori_axis];
-                            float& ry = packet->m_Axis[rstick_vert_axis];
-                            if (rx * rx + ry * ry <= config->m_DeadZone * config->m_DeadZone)
+                            if (lstick_vert_axis != ~0U && lstick_hori_axis != ~0U)
                             {
-                                rx = 0.0f;
-                                ry = 0.0f;
+                                float& lx = packet->m_Axis[lstick_hori_axis];
+                                float& ly = packet->m_Axis[lstick_vert_axis];
+                                if (lx * lx + ly * ly <= config->m_DeadZone * config->m_DeadZone)
+                                {
+                                    lx = 0.0f;
+                                    ly = 0.0f;
+                                }
+                            }
+                            if (rstick_vert_axis != ~0U && rstick_hori_axis != ~0U)
+                            {
+                                float& rx = packet->m_Axis[rstick_hori_axis];
+                                float& ry = packet->m_Axis[rstick_vert_axis];
+                                if (rx * rx + ry * ry <= config->m_DeadZone * config->m_DeadZone)
+                                {
+                                    rx = 0.0f;
+                                    ry = 0.0f;
+                                }
                             }
                         }
 

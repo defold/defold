@@ -139,6 +139,7 @@ namespace dmInput
         dmHID::HContext m_HidContext;
         float m_RepeatDelay;
         float m_RepeatInterval;
+        bool m_UseSquareDeadzone;
     };
 }
 
