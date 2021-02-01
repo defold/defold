@@ -923,10 +923,36 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
         if (IsExtensionSupported("GL_KHR_texture_compression_astc_ldr", extensions) ||
+            IsExtensionSupported("GL_OES_texture_compression_astc", extensions) ||
+            IsExtensionSupported("OES_texture_compression_astc", extensions) ||
             IsExtensionSupported("WEBGL_compressed_texture_astc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
         }
+
+        // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
+        GLint iNumCompressedFormats = 0;
+        glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &iNumCompressedFormats);
+        if (iNumCompressedFormats > 0)
+        {
+            GLint *pCompressedFormats = new GLint[iNumCompressedFormats];
+            glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, pCompressedFormats);
+            for (int i = 0; i < iNumCompressedFormats; i++)
+            {
+                switch (pCompressedFormats[i])
+                {
+                    #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_TextureFormatSupport |= 1 << _NAME2; break;
+                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
+                    CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
+                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
+                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, TEXTURE_FORMAT_RGBA_ASTC_4x4);
+                    #undef CASE
+                default: break;
+                }
+            }
+            delete[] pCompressedFormats;
+        }
+
 
 #if defined (__EMSCRIPTEN__)
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
@@ -2339,7 +2365,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
         case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
-        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2; break;
+        case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
+        case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
+        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
         case TEXTURE_FORMAT_RGBA_ASTC_4x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
         case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
         case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
@@ -2458,6 +2486,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
         case TEXTURE_FORMAT_RGB_ETC1:
+        case TEXTURE_FORMAT_R_ETC2:
+        case TEXTURE_FORMAT_RG_ETC2:
         case TEXTURE_FORMAT_RGBA_ETC2:
         case TEXTURE_FORMAT_RGBA_ASTC_4x4:
         case TEXTURE_FORMAT_RGB_BC1:

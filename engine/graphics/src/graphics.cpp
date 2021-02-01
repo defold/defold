@@ -138,6 +138,8 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGB_16BPP:          return 16;
         case TEXTURE_FORMAT_RGBA_16BPP:         return 16;
         case TEXTURE_FORMAT_RGB_ETC1:           return 4;
+        case TEXTURE_FORMAT_R_ETC2:             return 8;
+        case TEXTURE_FORMAT_RG_ETC2:            return 8;
         case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
         case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 8;
         case TEXTURE_FORMAT_RGB_BC1:            return 4;
@@ -270,6 +272,7 @@ namespace dmGraphics
         if (IsFormatRG(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_BC5);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_ETC2);
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
         }
@@ -277,6 +280,7 @@ namespace dmGraphics
         if (IsFormatR(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_BC4);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_ETC2);
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
         }

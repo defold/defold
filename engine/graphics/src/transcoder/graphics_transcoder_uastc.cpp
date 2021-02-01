@@ -31,6 +31,8 @@ namespace dmGraphics
         case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   out = basist::cTFPVRTC1_4_RGB; return true;
         case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  out = basist::cTFPVRTC1_4_RGBA; return true;
         case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           out = basist::cTFETC1_RGB; return true;
+        case dmGraphics::TEXTURE_FORMAT_R_ETC2:             out = basist::cTFETC2_EAC_R11; return true;
+        case dmGraphics::TEXTURE_FORMAT_RG_ETC2:            out = basist::cTFETC2_EAC_RG11; return true;
         case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          out = basist::cTFETC2_RGBA; return true;
         case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      out = basist::cTFASTC_4x4_RGBA; return true;
         case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            out = basist::cTFBC1_RGB; return true;
@@ -59,6 +61,8 @@ namespace dmGraphics
                 case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1: return "TEXTURE_FORMAT_RGB_PVRTC_4BPPV1";
                 case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1: return "TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1";
                 case dmGraphics::TEXTURE_FORMAT_RGB_ETC1: return "TEXTURE_FORMAT_RGB_ETC1";
+                case dmGraphics::TEXTURE_FORMAT_R_ETC2: return "TEXTURE_FORMAT_R_ETC2";
+                case dmGraphics::TEXTURE_FORMAT_RG_ETC2: return "TEXTURE_FORMAT_RG_ETC2";
                 case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2: return "TEXTURE_FORMAT_RGBA_ETC2";
                 case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4: return "TEXTURE_FORMAT_RGBA_ASTC_4x4";
                 case dmGraphics::TEXTURE_FORMAT_RGB_BC1: return "TEXTURE_FORMAT_RGB_BC1";
@@ -80,6 +84,8 @@ namespace dmGraphics
                 case basist::cTFPVRTC1_4_RGBA: return "cTFPVRTC1_4_RGBA";
                 case basist::cTFETC1_RGB: return "cTFETC1_RGB";
                 case basist::cTFETC2_RGBA: return "cTFETC2_RGBA";
+                case basist::cTFETC2_EAC_R11: return "cTFETC2_EAC_R11";
+                case basist::cTFETC2_EAC_RG11: return "cTFETC2_EAC_RG11";
                 case basist::cTFASTC_4x4_RGBA: return "cTFASTC_4x4_RGBA";
                 case basist::cTFBC1_RGB: return "cTFBC1_RGB";
                 case basist::cTFBC3_RGBA: return "cTFBC3_RGBA";
@@ -145,7 +151,9 @@ namespace dmGraphics
             return false;
         }
 
+#if defined(TEX_TRANSCODE_DEBUG)
         dmLogInfo("MAWE: Transcoding: %p from %d to %d (%s -> %s)", path, format, transcoder_format, ToString(format), ToString(transcoder_format));
+#endif
 
         tr.start_transcoding(ptr, size);
 
