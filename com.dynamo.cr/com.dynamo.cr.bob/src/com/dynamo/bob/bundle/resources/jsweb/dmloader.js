@@ -84,7 +84,12 @@ var FileLoader = {
         request.onload = function(xhr, e) {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
-                    onload(xhr.response);
+                    var res = xhr.response;
+                    if (responseType == "json" && typeof res === "string") {
+                        onload(JSON.parse(res));
+                    } else {
+                        onload(res);
+                    }
                 } else {
                     onerror("Error loading '" + url + "' (" + e + ")");
                 }
@@ -659,7 +664,6 @@ var Module = {
 
         Module.arguments = params["engine_arguments"];
         Module.persistentStorage = params["persistent_storage"];
-        Module["TOTAL_MEMORY"] = params["custom_heap_size"];
 
         var fullScreenContainer = params["full_screen_container"];
         if (typeof fullScreenContainer === "string") {
@@ -816,10 +820,6 @@ var Module = {
         if (!Module._archiveLoaded) {
             Module._waitingForArchive = true;
         } else {
-
-            // Need to set heap size before calling main
-            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
-
             Module.preloadAll();
             Progress.removeProgress();
             if (Module.callMain === undefined) {

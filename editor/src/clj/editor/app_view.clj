@@ -1116,7 +1116,7 @@ If you do not specifically require different script states, consider changing th
     (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
     (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
     (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
-    (UIUtil/stringToTextFlowNodes (:sponsor-push controls) "Support the continued development of Defold\n[Become a community sponsor](https://www.defold.com/community-donations)!")
+    (UIUtil/stringToTextFlowNodes (:sponsor-push controls) "[Defold Foundation Development Fund](https://www.defold.com/community-donations)")
     (ui/title! stage "About")
     (.setScene stage scene)
     (ui/show! stage)))
@@ -1261,7 +1261,7 @@ If you do not specifically require different script states, consider changing th
                {:label "Search Issues"
                 :command :search-issues}
                {:label :separator}
-               {:label "Donate"
+               {:label "Development Fund"
                 :command :donate}
                {:label :separator}
                {:label "About"

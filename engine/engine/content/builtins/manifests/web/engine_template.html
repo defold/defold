@@ -96,6 +96,8 @@
 		disable_context_menu: true
 	}
 
+	Module['INITIAL_MEMORY'] = extra_params.custom_heap_size;
+
 	Module['onRuntimeInitialized'] = function() {
 		Module.runApp("canvas", extra_params);
 	};

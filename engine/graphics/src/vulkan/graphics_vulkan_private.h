@@ -113,7 +113,7 @@ namespace dmGraphics
         };
 
         VulkanHandle     m_Handle;
-        // 16 bits supports max 65536 draw calls
+        // 15 bits supports max 32768 draw calls
         uint32_t         m_DescriptorMax   : 15;
         uint32_t         m_DescriptorIndex : 15;
         uint32_t         m_Destroyed       : 1;
