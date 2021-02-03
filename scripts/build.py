@@ -1109,7 +1109,7 @@ class Configuration(object):
                 luajit_exe_64 = format_exes('luajit-64', plf[1])[0]
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
-        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
+        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
