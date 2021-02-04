@@ -31,11 +31,10 @@ static BaseView*            g_BaseView = 0;
 
 @implementation BaseView
 
-@synthesize markedTextStyle;
-
 + (Class)layerClass
 {
-    return [CAEAGLLayer class];
+    [self doesNotRecognizeSelector:_cmd];
+    return nil;
 }
 
 - (id) init {
