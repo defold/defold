@@ -20,7 +20,6 @@
 #include "internal.h"
 
 
-_GLFWwin                    g_Savewin;
 static int                  g_AccelerometerEnabled = 0;
 static double               g_AccelerometerFrequency = 1.0 / 60.0;
 
