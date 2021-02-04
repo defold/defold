@@ -307,6 +307,17 @@ static void LogFrameBufferError(GLenum status)
         } \
     } \
 
+
+    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    struct ChooseEAGLView
+    {
+        ChooseEAGLView() {
+            // Let's us choose the CAEAGLLayer
+            glfwSetViewType(GLFW_OPENGL_API);
+        }
+    } g_ChooseEAGLView;
+    #endif
+
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static int8_t          g_null_adapter_priority = 1;
@@ -487,9 +498,6 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLInitialize()
     {
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-        glfwSetViewType(GLFW_OPENGL_API);
-#endif
         // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
         return (glfwInit() == GL_TRUE);
     }
