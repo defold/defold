@@ -79,7 +79,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
     abstract void writeExtraDirectives(PrintWriter writer);
 
-    private ShaderDesc.Shader.Builder tranformGLSL(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
+    private ShaderDesc.Shader.Builder transformGLSL(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
+        System.out.printf("MAWE: transformGLSL  language: %d\n", shaderLanguage.getNumber());
         InputStreamReader isr = new InputStreamReader(is);
         BufferedReader reader = new BufferedReader(isr);
         ByteArrayOutputStream os = new ByteArrayOutputStream(is.available() + 128 * 16);
@@ -104,6 +105,11 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         // Write our directives.
         if (directiveLineCount != 0) {
             writer.println();
+        }
+
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES2) {
+            // Normally, the ES2ToES3Converter would do this
+            writer.println("precision mediump float;");
         }
 
         writeExtraDirectives(writer);
@@ -132,14 +138,20 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         // Always write the glsl source (for now)
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
-        builder.setLanguage(ShaderDesc.Language.LANGUAGE_GLSL);
+        builder.setLanguage(shaderLanguage);
 
-        boolean gles = isGLES(platform);
-        String source = os.toString().replace("\r", "");
+        String source = source = os.toString().replace("\r", "");
 
-        int version = gles ? 300 : 140;
-        ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, isGLES(platform) ? "es" : "", version, false);
-        builder.setSource(ByteString.copyFrom(es3Result.output, "UTF-8"));
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL) {
+            boolean gles = isGLES(platform);
+            int version = gles ? 300 : 140;
+            ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, false);
+
+            System.out.printf("MAWE: shader: profile: %s\n%s\n\n", es3Result.shaderProfile, es3Result.output);
+            source = es3Result.output;
+        }
+
+        builder.setSource(ByteString.copyFrom(source, "UTF-8"));
         return builder;
     }
 
@@ -468,7 +480,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case X86Darwin:
                 case X86_64Darwin:
                 {
-                    shaderDescBuilder.addShaders(tranformGLSL(is, shaderType, resource, resourceOutput, platform, isDebug));
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL, resource, resourceOutput, platform, isDebug));
                     is.reset();
 
                     if (outputSpirv)
@@ -485,7 +497,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case X86Win32:
                 case X86_64Win32:
                 {
-                    shaderDescBuilder.addShaders(tranformGLSL(is, shaderType, resource, resourceOutput, platform, isDebug));
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL, resource, resourceOutput, platform, isDebug));
                     is.reset();
 
                     if (outputSpirv)
@@ -502,7 +514,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case X86Linux:
                 case X86_64Linux:
                 {
-                    shaderDescBuilder.addShaders(tranformGLSL(is, shaderType, resource, resourceOutput, platform, isDebug));
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     if (outputSpirv)
                     {
@@ -519,7 +531,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case Arm64Darwin:
                 case X86_64Ios:
                 {
-                    shaderDescBuilder.addShaders(tranformGLSL(is, shaderType, resource, resourceOutput, platform, isDebug));
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     if (outputSpirv)
                     {
@@ -535,7 +547,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case Armv7Android:
                 case Arm64Android:
                 {
-                    shaderDescBuilder.addShaders(tranformGLSL(is, shaderType, resource, resourceOutput, platform, isDebug));
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES2, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     if (outputSpirv)
                     {
@@ -550,12 +564,15 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
                 case JsWeb:
                 case WasmWeb:
-                    shaderDescBuilder.addShaders(tranformGLSL(is, shaderType, resource, resourceOutput, platform, isDebug));
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES2, resource, resourceOutput, platform, isDebug));
+                    is.reset();
                 break;
 
                 case Arm64NX64:
                 {
-                    shaderDescBuilder.addShaders(tranformGLSL(is, shaderType, resource, resourceOutput, platform, isDebug));
+                    shaderDescBuilder.addShaders(transformGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                     if (builder != null)

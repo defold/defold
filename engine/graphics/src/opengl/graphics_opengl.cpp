@@ -807,6 +807,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_WindowHeight = (uint32_t)height;
         context->m_Dpi = 0;
 
+        context->m_LegacyShaderLanguage = 0;
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+        const char* version = (char *) glGetString(GL_VERSION);
+        if (strstr(version, "OpenGL ES 2.0") != 0)
+            context->m_LegacyShaderLanguage = 1;
+#endif
+
         if (params->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: OpenGL");
@@ -925,12 +932,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #else
         // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
         GLint gl_max_elem_verts = 65536;
-        glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
+        if (!context->m_LegacyShaderLanguage) {
+            glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
+        }
         context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
         CLEAR_GL_ERROR
 
         GLint gl_max_elem_indices = 65536;
-        glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
+        if (!context->m_LegacyShaderLanguage) {
+            glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
+        }
         context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
         CLEAR_GL_ERROR
 #endif
@@ -1654,7 +1665,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
     {
-        return ShaderDesc::LANGUAGE_GLSL;
+        return context->m_LegacyShaderLanguage ? ShaderDesc::LANGUAGE_GLES2 : ShaderDesc::LANGUAGE_GLSL;
     }
 
     static void OpenGLEnableProgram(HContext context, HProgram program)
