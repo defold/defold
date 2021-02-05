@@ -62,6 +62,8 @@
 #include "win32/glext.h"
 #endif
 
+
+
 // VBO Extension for OGL 1.4.1
 typedef void (APIENTRY * PFNGLGENPROGRAMARBPROC) (GLenum, GLuint *);
 typedef void (APIENTRY * PFNGLBINDPROGRAMARBPROC) (GLenum, GLuint);
@@ -133,7 +135,7 @@ PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
 PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
 PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
+#if !defined(GL_ES_VERSION_2_0)
 PFNGLGETSTRINGIPROC glGetStringi = NULL;
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
 PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
@@ -152,7 +154,7 @@ PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 using namespace Vectormath::Aos;
 
 // OpenGLES compatibility
-#if defined GL_ES_VERSION_2_0
+#if defined(GL_ES_VERSION_2_0)
 #define glClearDepth glClearDepthf
 #define glGenBuffersARB glGenBuffers
 #define glDeleteBuffersARB glDeleteBuffers
@@ -171,7 +173,7 @@ namespace dmGraphics
 {
 static void LogGLError(GLint err, const char* fnname, int line)
 {
-#ifdef GL_ES_VERSION_2_0
+#if defined(GL_ES_VERSION_2_0)
     dmLogError("%s(%d): gl error %d\n", fnname, line, err);
 #else
     dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, gluErrorString(err));
@@ -271,7 +273,7 @@ static void LogFrameBufferError(GLenum status)
             break;
 #endif
 
-#ifdef GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE
+#if defined(GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE) && !defined(GL_ES_VERSION_3_0)
         case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE:
             dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE");
             break;
@@ -541,7 +543,8 @@ static void LogFrameBufferError(GLenum status)
 
     static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
     {
-        assert(extension && extensions);
+        assert(extension);
+        assert(extensions);
 
         // Copied from http://www.opengl.org/archives/resources/features/OGLextensions/
         const GLubyte *start;
@@ -693,14 +696,31 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
 
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (context->m_RenderDocSupport)
-        {
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+        // These is for desktop only. The mobile devices and html5 make their own choice of version
+#if defined(ANDROID)
+        // Seems to work fine anyway with out any hints
+        // which is good, since we want to fallback from OpenGLES 3 to 2
+#elif defined(__linux__)
+#elif defined(_WIN32)
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
+#elif defined(__MACH__)
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+            #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
+            #else
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
+            #endif
+#endif
+
+        bool is_desktop = false;
+#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || (defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+        is_desktop = true;
+#endif
+        if (is_desktop) {
+            glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         }
-#endif
 
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
@@ -774,13 +794,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
         GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (context->m_RenderDocSupport)
-        {
-            GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
-            GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
-            GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
-        }
+#if !defined(GL_ES_VERSION_2_0)
+        GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
+        GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
+        GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
 #endif
 
 #undef GET_PROC_ADDRESS
@@ -828,7 +845,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             dmLogInfo("Renderer: %s\n", (char *) glGetString(GL_RENDERER));
             dmLogInfo("Version: %s\n", (char *) glGetString(GL_VERSION));
             dmLogInfo("Vendor: %s\n", (char *) glGetString(GL_VENDOR));
-            dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
@@ -841,49 +857,46 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             (void) SetFrontProcess( &psn );
 #endif
 
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
         char* extensions_ptr = 0;
-        if (context->m_RenderDocSupport)
+#if !(defined(__EMSCRIPTEN__) || defined(GL_ES_VERSION_2_0))
+        GLint n;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+        if (n > 0)
         {
-            GLint n;
-            glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-            if (n > 0)
+            int max_len = 0;
+            int cursor = 0;
+
+            for (GLint i = 0; i < n; i++)
             {
-                int max_len = 0;
-                int cursor = 0;
+                char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                max_len += (int) strlen((const char*)ext) + 1;
+            }
 
-                for (GLint i = 0; i < n; i++)
-                {
-                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
-                    max_len += (int) strlen((const char*)ext) + 1;
-                }
+            extensions_ptr = (char*) malloc(max_len);
 
-                extensions_ptr = (char*) malloc(max_len);
+            for (GLint i = 0; i < n; i++)
+            {
+                char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                int str_len = (int) strlen((const char*)ext);
 
-                for (GLint i = 0; i < n; i++)
-                {
-                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
-                    int str_len = (int) strlen((const char*)ext);
+                strcpy(extensions_ptr + cursor, ext);
 
-                    strcpy(extensions_ptr + cursor, ext);
+                cursor += str_len;
+                extensions_ptr[cursor] = ' ';
 
-                    cursor += str_len;
-                    extensions_ptr[cursor] = ' ';
-
-                    cursor += 1;
-                }
+                cursor += 1;
             }
         }
-        else
-        {
-            extensions_ptr = (char*) glGetString(GL_EXTENSIONS);
-        }
-
         const GLubyte* extensions = (const GLubyte*) extensions_ptr;
 #else
-        // Check texture format support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+        assert(extensions);
 #endif
+
+        if (params->m_PrintDeviceInfo && extensions != 0)
+        {
+            dmLogInfo("Extensions: %s\n", extensions);
+        }
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
 
@@ -978,14 +991,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             }
         }
 
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (context->m_RenderDocSupport)
+        if (extensions_ptr)
         {
-            if (extensions_ptr)
-            {
-                free(extensions_ptr);
-            }
+            free(extensions_ptr);
+        }
 
+#if !defined(GL_ES_VERSION_2_0)
+        {
             GLuint vao;
             glGenVertexArrays(1, &vao);
             glBindVertexArray(vao);
@@ -1912,11 +1924,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         // Disable color buffer
         if ((buffer_type_flags & BUFFER_TYPE_COLOR_BIT) == 0)
         {
-#ifndef GL_ES_VERSION_2_0
+#if !defined(GL_ES_VERSION_2_0)
             // TODO: Not available in OpenGL ES.
             // According to this thread it should not be required but honestly I don't quite understand
             // https://devforums.apple.com/message/495216#495216
-            glDrawBuffer(GL_NONE);
+            GLenum attributes[1] = {GL_NONE};
+            glDrawBuffers(1, attributes);
             CHECK_GL_ERROR;
             glReadBuffer(GL_NONE);
             CHECK_GL_ERROR;
@@ -2559,13 +2572,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         assert(texture);
 
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (!context->m_RenderDocSupport)
-        {
-            glEnable(GL_TEXTURE_2D);
-            CHECK_GL_ERROR;
-        }
-#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
 #endif
@@ -2582,13 +2589,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
 
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (!context->m_RenderDocSupport)
-        {
-            glEnable(GL_TEXTURE_2D);
-            CHECK_GL_ERROR;
-        }
-#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
 #endif
@@ -2613,10 +2614,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLEnableState(HContext context, State state)
     {
         assert(context);
-    #if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (context->m_RenderDocSupport && state == STATE_ALPHA_TEST)
+    #if !defined(GL_ES_VERSION_2_0)
+        if (state == STATE_ALPHA_TEST)
         {
-            dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
+            dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
             return;
         }
     #endif
@@ -2627,10 +2628,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLDisableState(HContext context, State state)
     {
         assert(context);
-    #if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (context->m_RenderDocSupport && state == STATE_ALPHA_TEST)
+    #if !defined(GL_ES_VERSION_2_0)
+        if (state == STATE_ALPHA_TEST)
         {
-            dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
+            dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
             return;
         }
     #endif

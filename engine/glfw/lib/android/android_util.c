@@ -161,7 +161,7 @@ int init_gl(_GLFWwin_android* win)
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
     if (context == EGL_NO_CONTEXT)
     {
-        contextAttribs[0] = 2;
+        contextAttribs[1] = 2;
         context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
     }
     CHECK_EGL_ERROR

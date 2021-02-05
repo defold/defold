@@ -80,7 +80,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     abstract void writeExtraDirectives(PrintWriter writer);
 
     private ShaderDesc.Shader.Builder transformGLSL(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
-        System.out.printf("MAWE: transformGLSL  language: %d\n", shaderLanguage.getNumber());
         InputStreamReader isr = new InputStreamReader(is);
         BufferedReader reader = new BufferedReader(isr);
         ByteArrayOutputStream os = new ByteArrayOutputStream(is.available() + 128 * 16);
@@ -146,8 +145,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             boolean gles = isGLES(platform);
             int version = gles ? 300 : 140;
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, false);
-
-            System.out.printf("MAWE: shader: profile: %s\n%s\n\n", es3Result.shaderProfile, es3Result.output);
             source = es3Result.output;
         }
 
