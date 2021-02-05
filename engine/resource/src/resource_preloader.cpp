@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -898,6 +898,14 @@ namespace dmResource
             params.m_Resource = &ip.m_ResourceDesc;
             resource_type->m_DestroyFunction(params);
             ip.m_Destroy = false;
+        }
+        else {
+            SResourceDescriptor* rd = FindByHash(preloader->m_Factory, params.m_Resource->m_NameHash);
+            if (rd)
+            {
+                if (params.m_Resource->m_ResourceSize != 0)
+                    rd->m_ResourceSize = params.m_Resource->m_ResourceSize;
+            }
         }
 
         if (preloader->m_PostCreateCallbackIndex == preloader->m_PostCreateCallbacks.Size())

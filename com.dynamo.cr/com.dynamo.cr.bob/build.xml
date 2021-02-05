@@ -203,7 +203,6 @@
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-darwin/*PVRTexLib.dylib"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
@@ -211,7 +210,6 @@
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-linux/*PVRTexLib.so"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
@@ -224,13 +222,10 @@
                 <include name="x86_64-win32/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="x86_64-win32/*PVRTexLib*"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-win32/PVRTexLib.dll"/>
-                <include name="x86_64-win32/msvcr120.dll"/>
             </fileset>
         </copy>
         <jar destfile="${bob.dir}/lib/luajit-share.zip">
@@ -295,8 +290,6 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/*PVRTexLib*"/>
-                <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
 
             <fileset dir="${bob.dir}">
@@ -343,8 +336,6 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/*PVRTexLib*"/>
-                <include name="lib/**/*msvcr120.dll*"/>
                 <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
                 <include name="lib/*win32/wrap_oal.dll"/>

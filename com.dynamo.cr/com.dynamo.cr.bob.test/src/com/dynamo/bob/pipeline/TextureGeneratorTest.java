@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -602,145 +602,4 @@ public class TextureGeneratorTest {
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP, texture.getAlternatives(1).getFormat());
         assertEquals(128*64*2, texture.getAlternatives(1).getData().toByteArray().length);
     }
-
-
-    @Test
-    public void testWEBP() throws TextureGeneratorException, IOException {
-
-        // Create texture profiles with texture compression for webp lossy and lossless
-        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
-        textureProfile.setName("Test Profile");
-
-        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
-        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
-        platformProfile.setMipmaps(false);
-        platformProfile.setMaxTextureSize(0);
-
-        ArrayList<TextureFormat> formats = new ArrayList<TextureFormat>();
-        formats.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
-        formats.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGB);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGB_16BPP);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGB_ETC1);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGBA);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-        formats.add(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
-        for(TextureFormat format : formats)
-        {
-            TextureFormatAlternative.Builder textureFormatAlt = TextureFormatAlternative.newBuilder();
-            textureFormatAlt.setFormat(format);
-            textureFormatAlt.setCompressionLevel(CompressionLevel.FAST);
-            textureFormatAlt.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP);
-            platformProfile.addFormats(textureFormatAlt.build());
-        }
-
-        ArrayList<TextureFormat> formats_lossy = new ArrayList<TextureFormat>();
-        formats_lossy.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
-        formats_lossy.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
-        formats_lossy.add(TextureFormat.TEXTURE_FORMAT_RGB);
-        formats_lossy.add(TextureFormat.TEXTURE_FORMAT_RGB_16BPP);
-        formats_lossy.add(TextureFormat.TEXTURE_FORMAT_RGBA);
-        formats_lossy.add(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP);
-        for(TextureFormat format : formats_lossy)
-        {
-            TextureFormatAlternative.Builder textureFormatAlt = TextureFormatAlternative.newBuilder();
-            textureFormatAlt.setFormat(format);
-            textureFormatAlt.setCompressionLevel(CompressionLevel.FAST);
-            textureFormatAlt.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
-            platformProfile.addFormats(textureFormatAlt.build());
-        }
-
-        textureProfile.addPlatforms(platformProfile.build());
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
-
-        int formatIndex = 0;
-        for(TextureFormat format : formats)
-        {
-            assertEquals(format, texture.getAlternatives(formatIndex).getFormat());
-            assertTrue(texture.getAlternatives(formatIndex).getMipMapSizeCompressed(0) > 0);
-            assertTrue(texture.getAlternatives(formatIndex).getMipMapSizeCompressed(0) < texture.getAlternatives(formatIndex).getMipMapSize(0));
-            formatIndex++;
-        }
-        for(TextureFormat format : formats_lossy)
-        {
-            assertEquals(format, texture.getAlternatives(formatIndex).getFormat());
-            assertTrue(texture.getAlternatives(formatIndex).getMipMapSizeCompressed(0) > 0);
-            assertTrue(texture.getAlternatives(formatIndex).getMipMapSizeCompressed(0) < texture.getAlternatives(formatIndex).getMipMapSize(0));
-            formatIndex++;
-        }
-    }
-
-    @Test
-    public void testWEBPMipMapped() throws TextureGeneratorException, IOException {
-
-        // Create texture profiles with texture compression for webp lossy, lossless and with mipmaps
-        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
-        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
-        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
-        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
-
-        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
-        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
-        textureFormatAlt1.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP);
-        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
-        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
-        textureFormatAlt2.setCompressionType(CompressionType.COMPRESSION_TYPE_WEBP_LOSSY);
-
-        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
-        platformProfile.addFormats(textureFormatAlt1.build());
-        platformProfile.addFormats(textureFormatAlt2.build());
-        platformProfile.setMipmaps(true);
-        platformProfile.setMaxTextureSize(0);
-
-        textureProfile.setName("Test Profile");
-        textureProfile.addPlatforms(platformProfile.build());
-
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("btn_next_level.png"), textureProfile.build(), true);
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(0).getFormat());
-        assertTrue(texture.getAlternatives(0).getMipMapSizeCompressed(0) > texture.getAlternatives(0).getMipMapSizeCompressed(1));
-        assertTrue(texture.getAlternatives(0).getMipMapSizeCompressed(1) > texture.getAlternatives(0).getMipMapSizeCompressed(2));
-        assertEquals(0, texture.getAlternatives(0).getMipMapSizeCompressed(texture.getAlternatives(0).getMipMapSizeCount()-1)); // ensure small mipmaps aren't compressed
-        assertTrue(texture.getAlternatives(1).getMipMapSizeCompressed(0) > texture.getAlternatives(1).getMipMapSizeCompressed(1));
-        assertTrue(texture.getAlternatives(1).getMipMapSizeCompressed(1) > texture.getAlternatives(1).getMipMapSizeCompressed(2));
-        assertEquals(0, texture.getAlternatives(1).getMipMapSizeCompressed(texture.getAlternatives(1).getMipMapSizeCount()-1));
-    }
-
-    /*
-     JIRA issue: DEF-994
-    @Test
-    public void testDXTCompress() throws TextureGeneratorException, IOException {
-
-        // Create a texture profile with texture compression
-        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
-        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
-        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
-        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
-
-        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_DXT1);
-        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
-        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
-        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
-
-        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
-        platformProfile.addFormats(textureFormatAlt1.build());
-        platformProfile.addFormats(textureFormatAlt2.build());
-        platformProfile.setMipmaps(false);
-        platformProfile.setMaxTextureSize(0);
-
-        textureProfile.setName("Test Profile");
-        textureProfile.addPlatforms(platformProfile.build());
-
-
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build());
-
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_DXT1, texture.getAlternatives(0).getFormat());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(1).getFormat());
-        assertEquals(2, texture.getAlternativesCount());
-
-    }
-    */
-
 }
