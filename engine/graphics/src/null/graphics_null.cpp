@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -971,6 +971,7 @@ namespace dmGraphics
     {
         Texture* tex = new Texture();
 
+        tex->m_Type = params.m_Type;
         tex->m_Width = params.m_Width;
         tex->m_Height = params.m_Height;
         tex->m_MipMapCount = 0;
@@ -1038,11 +1039,15 @@ namespace dmGraphics
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
-        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Format)) >> 3;
+        uint32_t size = texture->m_Width * texture->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(texture->m_Format)/8);
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
         {
             size_total += size;
             size >>= 2;
+        }
+        if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            size_total *= 6;
         }
         return size_total + sizeof(Texture);
     }

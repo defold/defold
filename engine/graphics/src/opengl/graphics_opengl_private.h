@@ -47,8 +47,8 @@ namespace dmGraphics
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
-        uint32_t                m_TextureFormatSupport;
         uint32_t                m_IndexBufferFormatSupport;
+        uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         uint8_t                 m_FrameBufferInvalidateAttachments : 1;
@@ -68,6 +68,7 @@ namespace dmGraphics
     {
         TextureType m_Type;
         GLuint      m_Texture;
+        uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
         uint16_t    m_Width;
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;

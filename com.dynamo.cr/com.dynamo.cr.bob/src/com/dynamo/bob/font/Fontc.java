@@ -605,31 +605,34 @@ public class Fontc {
                 try {
                     int width = paddedGlyphImage.getWidth();
                     int height = paddedGlyphImage.getHeight();
-                    int compressionLevel = TexcLibrary.CompressionLevel.CL_BEST;
-                    int compressionType = TexcLibrary.CompressionType.CT_WEBP;
-
-                    int pixelFormat = PixelFormat.L8;
-                    if (channelCount > 3)
-                        pixelFormat = PixelFormat.R8G8B8A8;
-                    else if (channelCount > 1)
-                        pixelFormat = PixelFormat.R8G8B8;
 
                     ByteBuffer paddedBuffer = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
 
-                    compressedTexture = TexcLibrary.TEXC_CompressWebPBuffer(width, height, channelCount*8, paddedBuffer, width*height*channelCount, pixelFormat, compressionLevel, compressionType);
+                    compressedTexture = TexcLibrary.TEXC_CompressBuffer(paddedBuffer, paddedBuffer.limit());
+                    int texcBufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
+                    ByteBuffer buffer = ByteBuffer.allocateDirect(texcBufferSize);
+                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, texcBufferSize);
 
-                    int bufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
-                    ByteBuffer buffer = ByteBuffer.allocateDirect(bufferSize);
-                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, bufferSize);
+                    byte[] uncompressedBuffer = new byte[paddedBuffer.limit()];
+                    paddedBuffer.get(uncompressedBuffer);
+
+                    byte[] compressedBuffer = new byte[buffer.limit()];
+                    buffer.get(compressedBuffer);
+
+                    int size = uncompressedBuffer.length;
+                    int bufferSize = compressedBuffer.length;
+
+                    if (size < bufferSize)
+                    {
+                        bufferSize = size;
+                        compressedBuffer = uncompressedBuffer;
+                    }
 
                     glyph.cache_entry_offset = dataOffset;
-                    dataOffset += bufferSize;
+                    glyph.cache_entry_size = compressedBuffer.length;
+                    dataOffset += glyph.cache_entry_size;
 
-                    byte[] arr = new byte[buffer.limit()];
-                    buffer.get(arr);
-                    glyphDataBank.write(arr);
-
-                    glyph.cache_entry_size = bufferSize;
+                    glyphDataBank.write(compressedBuffer);
 
                 } catch(IOException e) {
                     throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
