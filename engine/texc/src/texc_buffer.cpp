@@ -20,6 +20,19 @@
 
 namespace dmTexc
 {
+
+    // https://en.wikipedia.org/wiki/Delta_encoding
+    static void delta_encode(uint8_t* buffer, uint32_t length)
+    {
+        uint8_t last = 0;
+        for (uint32_t i = 0; i < length; i++)
+        {
+            uint8_t current = buffer[i];
+            buffer[i] = current - last;
+            last = current;
+        }
+    }
+
     static bool DeflateWriter(void* context, const void* buffer, uint32_t buffer_size)
     {
         dmArray<uint8_t>* out = (dmArray<uint8_t>*) context;
@@ -34,22 +47,37 @@ namespace dmTexc
 
     static HBuffer CompressBuffer_Deflate(void* data, uint32_t size)
     {
+        uint8_t* delta_encoded_data = (uint8_t*)malloc(size);
+        memcpy(delta_encoded_data, data, size);
+        delta_encode(delta_encoded_data, size);
+        data = delta_encoded_data;
+
         dmArray<uint8_t> out_data_array;
         out_data_array.SetCapacity(32 * 1024);
         dmZlib::DeflateBuffer(data, size, 9, &out_data_array, DeflateWriter);
-        uint8_t* out_data = (uint8_t*)malloc(out_data_array.Size());
-        memcpy(out_data, &out_data_array[0], out_data_array.Size());
+        size = out_data_array.Size();
+
+        uint8_t* out_data = (uint8_t*)malloc(size);
+        memcpy(out_data, &out_data_array[0], size);
+
+        free(delta_encoded_data);
 
         TextureData* out = new TextureData;
         out->m_Data = out_data;
-        out->m_IsCompressed = 3;
-        out->m_ByteSize = out_data_array.Size();
+        out->m_IsCompressed = 1;
+        out->m_ByteSize = size;
         return out;
     }
 
     HBuffer CompressBuffer(void* data, uint32_t size)
     {
         TextureData* out = (TextureData*)CompressBuffer_Deflate(data, size);
+        if (!out)
+        {
+            out = new TextureData;
+            out->m_Data = 0;
+            out->m_ByteSize = 0xFFFFFFFF; // trigger realloc below
+        }
 
         if (out->m_ByteSize > size)
         {

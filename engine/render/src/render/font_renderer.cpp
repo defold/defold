@@ -38,6 +38,18 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
+    // https://en.wikipedia.org/wiki/Delta_encoding
+    static void delta_decode(uint8_t* buffer, int length)
+    {
+        uint8_t last = 0;
+        for (int i = 0; i < length; i++)
+        {
+            uint8_t delta = buffer[i];
+            buffer[i] = delta + last;
+            last = buffer[i];
+        }
+    }
+
     enum RenderLayerMask
     {
         FACE    = 0x1,
@@ -604,15 +616,20 @@ namespace dmRender
 
                 uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
                 uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
-                uint8_t is_compressed = *glyph_data++;
+                uint8_t compression_type = *glyph_data++;
 
-                if (is_compressed) {
+                if (compression_type) {
+
                     // When if came to choosing between the different algorithms, here are some speed/compression tests
                     // Decoding 100 glyphs
                     // lz4:     0.1060 ms  compression: 72%
                     // deflate: 0.2190 ms  compression: 66%
                     // png:     0.6930 ms  compression: 67%
                     // webp:    1.5170 ms  compression: 55%
+                    // further improvements (different test, Android, 92 glyphs)
+                    // webp          2.9440 ms  compression: 55%
+                    // deflate       0.7110 ms  compression: 66%
+                    // deflate+delta 0.7680 ms  compression: 62%
 
                     FontGlyphInflaterContext deflate_context;
                     deflate_context.m_Output = font_map->m_CellTempData;
@@ -623,6 +640,10 @@ namespace dmRender
                         dmLogError("Failed to decompress glyph (%c)", g->m_Character);
                         return;
                     }
+
+                    uint32_t uncompressed_size = deflate_context.m_Cursor;
+                    delta_decode(font_map->m_CellTempData, uncompressed_size);
+
                     tex_params.m_Data = font_map->m_CellTempData;
                 } else {
                     tex_params.m_Data = glyph_data;
