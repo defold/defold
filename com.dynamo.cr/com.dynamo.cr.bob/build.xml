@@ -202,15 +202,15 @@
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-            </fileset>
+<!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+            </fileset> -->
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-            </fileset>
+<!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+            </fileset> -->
         </copy>
         <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
@@ -221,13 +221,13 @@
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-            </fileset>
+<!--             <fileset dir="${env.DYNAMO_HOME}/lib">
+            </fileset> -->
         </copy>
-        <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
+<!--         <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
             </fileset>
-        </copy>
+        </copy> -->
         <jar destfile="${bob.dir}/lib/luajit-share.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share">
                  <include name="luajit/**"/>
