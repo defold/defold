@@ -283,6 +283,7 @@
               <include name="jaxb-api-2.3.0.jar"/>
               <include name="jaxb-core-2.3.0.jar"/>
               <include name="jaxb-impl-2.3.0.jar"/>
+              <include name="antlr-runtime-4.9.1.jar"/>
             </zipgroupfileset>
          </jar>
 
