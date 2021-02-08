@@ -117,11 +117,13 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     rm -rf "Payload/${APPLICATION}.app/_CodeSignature"
     cp "${PROFILE}" "Payload/${APPLICATION}.app/embedded.mobileprovision"
 
-    for name in Payload/${APPLICATION}.app/Frameworks/*
-    do
-        name=$(basename $name)
-        "${CODESIGN}" -f -s "${IDENTITY}" --verbose "Payload/${APPLICATION}.app/Frameworks/$name"
-    done
+    if [ -d  Payload/${APPLICATION}.app/Frameworks ]; then
+        for name in Payload/${APPLICATION}.app/Frameworks/*
+        do
+            name=$(basename $name)
+            "${CODESIGN}" -f -s "${IDENTITY}" --verbose "Payload/${APPLICATION}.app/Frameworks/$name"
+        done
+    fi
 
     EMBEDDED_PROFILE_NAME="embedded.mobileprovision" "${CODESIGN}" -f -s "${IDENTITY}" --entitlements "${ENTITLEMENT}" "Payload/${APPLICATION}.app"
 
