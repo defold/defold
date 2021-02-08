@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os, re
-from waf_dynamo import copy_file_task, apidoc_extract_task, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature
 import Options
 
 def set_options(opt):
@@ -28,7 +28,7 @@ def build(bld):
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                    source='engine.cpp engine_main.cpp engine_loop.cpp physics_debug_render.cpp ../proto/engine_ddf.proto ' + platform_main_cpp,
+                    source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine_ddf.proto ' + platform_main_cpp,
                     uselib_local = 'engine_service')
 
     bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
@@ -38,7 +38,7 @@ def build(bld):
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins_release.arci ../content/builtins_release.arcd ../content/builtins_release.dmanifest', # for draw_line/draw_text
-                    source='engine.cpp engine_main.cpp engine_loop.cpp ../proto/engine_ddf.proto ' + platform_main_cpp,
+                    source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp ../proto/engine_ddf.proto ' + platform_main_cpp,
                     uselib_local = 'engine_service_null')
 
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
@@ -184,6 +184,8 @@ def build(bld):
 
     if not Options.options.skip_build_tests:
         bld.add_subdirs('test')
+
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     apidoc_extract_task(bld, ['../proto/engine_ddf.proto', 'engine_doc.h'])
 

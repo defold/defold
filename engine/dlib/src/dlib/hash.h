@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -195,26 +195,10 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
 DM_DLLEXPORT void dmHashReverseErase32(uint32_t hash);
 
 /**
- * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
- * buffer is null-terminated. If the buffer contains a valid c-string
- * it can safely be used in printf and friends.
- * @param hash hash to lookup
- * @param length original data length. Optional argument and NULL-pointer is accepted.
- * @return pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
- */
-DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
-
-/**
  * Reverse hash key entry removal.
  * @param hash hash key to erase
  */
 DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash);
-
-/** Returns the original string used to produce a hash.
- * Always returns a null terminated string. Returns "<unknown>" if the original string wasn't found.
- */
-DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
-
 
 
 }

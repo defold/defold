@@ -20,9 +20,12 @@
         c (Color/web "#11223344")]
     (prefs/set-prefs p "foo" [1 2 3])
     (prefs/set-prefs p "color" c)
+    (prefs/set-prefs p "utf8stuff" "/foo/τεστ")
     (is (= [1 2 3] (prefs/get-prefs p "foo" nil)))
     (is (= "unknown" (prefs/get-prefs p "___----does-not-exists" "unknown")))
-    (is (= c (prefs/get-prefs p "color" nil)))))
+    (is (= c (prefs/get-prefs p "color" nil)))
+    (is (= "/foo/τεστ" (prefs/get-prefs p "utf8stuff" nil)))
+    ))
 
 (deftest prefs-load-test
   (let [p (prefs/load-prefs "test/resources/test_prefs.json")]

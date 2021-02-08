@@ -789,8 +789,18 @@
 
 (handler/defhandler :move-up :workbench
   (active? [selection] (move-active? selection))
+  (enabled? [selection] (let [node-id (selection->image selection)
+                              parent (core/scope node-id)
+                              children (vec (g/node-value parent :nodes))
+                              node-child-index (.indexOf ^java.util.List children node-id)]
+                          (pos? node-child-index)))
   (run [selection] (move-node! (selection->image selection) -1)))
 
 (handler/defhandler :move-down :workbench
   (active? [selection] (move-active? selection))
+  (enabled? [selection] (let [node-id (selection->image selection)
+                              parent (core/scope node-id)
+                              children (vec (g/node-value parent :nodes))
+                              node-child-index (.indexOf ^java.util.List children node-id)]
+                          (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))

@@ -1,9 +1,9 @@
 .choice-box {
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-background-color: $input-background;
+    -fx-background-color: -df-background-light;
     -fx-background-insets: 0;
-    -fx-border-color: $input-border;
+    -fx-border-color: -df-component-dark;
     -fx-border-width: 1;
     -fx-padding: 0;
     .label {
@@ -11,24 +11,24 @@
         -fx-background-insets: 0;
     }
     &:showing {
-        -fx-background-color: $dark-grey;
-        -fx-color: $defold-white;
+        -fx-background-color: -df-background;
+        -fx-color: -df-text-selected;
     }
     &:showing .arrow {
-        -fx-background-color: $defold-white; 
+        -fx-background-color: -df-text-selected;
     }
     .open-button {
         -fx-background-insets: 0;
         -fx-padding: 10 7;
-        -fx-background-color: $mid-grey;
+        -fx-background-color: -df-background-lighter;
         -fx-border-width: 0;
         &:hover {
-            -fx-background-color: $mid-grey-light;
+            -fx-background-color: -df-component-darker;
             -fx-background-insets: 0;
         }
         &:pressed, &:focused {
-            -fx-background-color: $input-background;
-            -fx-text-fill: $defold-white;
+            -fx-background-color: -df-background-light;
+            -fx-text-fill: -df-text-selected;
         }
     }
 }

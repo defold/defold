@@ -68,7 +68,7 @@ def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
 # Get archive files for a single release/sha1
 def get_files(archive_path, bucket, sha1):
     files = []
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.zip)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.zip|ref-doc.zip)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "bob", '.*(/bob.jar)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "dev", '.*(/Defold-.*)$')
@@ -114,3 +114,48 @@ def get_single_release(archive_path, version_tag, sha1):
             'sha1': sha1,
             'abbrevsha1': sha1[:7],
             'files': files}
+
+def move_release(archive_path, sha1, channel):
+    u = urlparse.urlparse(archive_path)
+    # get archive root and bucket name
+    # archive root:     s3://d.defold.com/archive -> archive
+    # bucket name:      s3://d.defold.com/archive -> d.defold.com
+    archive_root = u.path[1:]
+    bucket_name = u.hostname
+    bucket = get_bucket(bucket_name)
+
+    # the search prefix we use when listing keys
+    # we only want the keys associated with specifed sha1
+    prefix = "%s/%s/" % (archive_root, sha1)
+    keys = bucket.get_all_keys(prefix = prefix)
+    for key in keys:
+        # get the name of the file this key points to
+        # archive/sha1/engine/arm64-android/android.jar -> engine/arm64-android/android.jar
+        name = key.name.replace(prefix, "")
+
+        # destination
+        new_key = "archive/%s/%s/%s" % (channel, sha1, name)
+
+        # the keys in archive/sha1/* are all redirects to files in archive/channel/sha1/*
+        # get the actual file from the redirect
+        redirect_path = key.get_redirect()
+        if not redirect_path:
+            # the key is an actual file and not a redirect
+            # it shouldn't really happen but it's better to check
+            print("The file %s has no redirect. The file will not be moved" % name)
+            continue
+
+        # resolve the redirect and get a key to the file
+        redirect_name = urlparse.urlparse(redirect_path).path[1:]
+        redirect_key = bucket.get_key(redirect_name)
+        if not redirect_key:
+            print("Invalid redirect for %s. The file will not be moved" % redirect_path)
+            continue
+
+        # copy the file to the new location
+        print("Copying %s to %s" % (redirect_key.name, new_key))
+        bucket.copy_key(new_key, bucket_name, redirect_key.name)
+
+        # update the redirect
+        new_redirect = "http://%s/%s" % (bucket_name, new_key)
+        key.set_redirect(new_redirect)

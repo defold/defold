@@ -662,7 +662,7 @@ driver
 driver {
     device: "Wireless Controller"
     platform: "linux"
-    dead_zone: 0.2 
+    dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
@@ -724,7 +724,7 @@ driver {
 driver {
     device: "Joy-Con (Handheld)"
     platform: "switch"
-    dead_zone: 0.1
+    dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
@@ -754,7 +754,7 @@ driver {
 driver {
     device: "Joy-Con (Dual)"
     platform: "switch"
-    dead_zone: 0.1
+    dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
@@ -784,7 +784,7 @@ driver {
 driver {
     device: "Switch Pro"
     platform: "switch"
-    dead_zone: 0.1
+    dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
@@ -853,7 +853,7 @@ driver
 driver {
     device: "Joy-Con (L)"
     platform: "switch"
-    dead_zone: 0.1
+    dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
@@ -869,7 +869,7 @@ driver {
 }
 
 driver
-{ 
+{
     device: "Joy-Con (R)"
     platform: "linux"
     dead_zone: 0.2
@@ -911,7 +911,7 @@ driver
 driver {
     device: "Joy-Con (R)"
     platform: "switch"
-    dead_zone: 0.1
+    dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }

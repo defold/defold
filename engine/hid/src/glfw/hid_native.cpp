@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,9 @@
 #include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
+#include <dlib/static_assert.h>
 
-#include <graphics/glfw/glfw.h>
+#include <dmsdk/graphics/glfw/glfw.h>
 
 #include "hid_private.h"
 
@@ -92,9 +93,6 @@ namespace dmHID
             if (glfwSetGamepadCallback(GamepadCallback) == 0) {
                 dmLogFatal("could not set glfw gamepad callback.");
             }
-            context->m_KeyboardConnected = 0;
-            context->m_MouseConnected = 0;
-            context->m_TouchDeviceConnected = 0;
             for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
             {
                 Gamepad& gamepad = context->m_Gamepads[i];
@@ -125,43 +123,53 @@ namespace dmHID
         // Update keyboard
         if (!context->m_IgnoreKeyboard)
         {
-            // TODO: Actually detect if the keyboard is present
-            context->m_KeyboardConnected = 1;
-            for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
+            for (uint32_t k = 0; k < MAX_KEYBOARD_COUNT; ++k)
             {
-                uint32_t mask = 1;
-                mask <<= i % 32;
-                int key = glfwGetKey(i);
-                if (key == GLFW_PRESS)
-                    context->m_KeyboardPacket.m_Keys[i / 32] |= mask;
-                else
-                    context->m_KeyboardPacket.m_Keys[i / 32] &= ~mask;
+                Keyboard* keyboard = &context->m_Keyboards[k];
+                keyboard->m_Connected = 1; // TODO: Actually detect if the keyboard is present
+
+                for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
+                {
+                    uint32_t mask = 1;
+                    mask <<= i % 32;
+                    int state = glfwGetKey(i);
+                    if (state == GLFW_PRESS)
+                        keyboard->m_Packet.m_Keys[i / 32] |= mask;
+                    else
+                        keyboard->m_Packet.m_Keys[i / 32] &= ~mask;
+                }
             }
         }
 
         // Update mouse
         if (!context->m_IgnoreMouse)
         {
-            // TODO: Actually detect if the keyboard is present, this is important for mouse input and touch input to not interfere
-            context->m_MouseConnected = 1;
-            MousePacket& packet = context->m_MousePacket;
-            for (uint32_t i = 0; i < MAX_MOUSE_BUTTON_COUNT; ++i)
+            for (uint32_t m = 0; m < MAX_MOUSE_COUNT; ++m)
             {
-                uint32_t mask = 1;
-                mask <<= i % 32;
-                int button = glfwGetMouseButton(i);
-                if (button == GLFW_PRESS)
-                    packet.m_Buttons[i / 32] |= mask;
-                else
-                    packet.m_Buttons[i / 32] &= ~mask;
+                Mouse* mouse = &context->m_Mice[m];
+                // TODO: Actually detect if the mouse is present,
+                // this is important for mouse input and touch input to not interfere
+                mouse->m_Connected = 1;
+
+                MousePacket& packet = mouse->m_Packet;
+                for (uint32_t i = 0; i < MAX_MOUSE_BUTTON_COUNT; ++i)
+                {
+                    uint32_t mask = 1;
+                    mask <<= i % 32;
+                    int state = glfwGetMouseButton(i);
+                    if (state == GLFW_PRESS)
+                        packet.m_Buttons[i / 32] |= mask;
+                    else
+                        packet.m_Buttons[i / 32] &= ~mask;
+                }
+                int32_t wheel = glfwGetMouseWheel();
+                if (context->m_FlipScrollDirection)
+                {
+                    wheel *= -1;
+                }
+                packet.m_Wheel = wheel;
+                glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
             }
-            int32_t wheel = glfwGetMouseWheel();
-            if (context->m_FlipScrollDirection)
-            {
-                wheel *= -1;
-            }
-            packet.m_Wheel = wheel;
-            glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
         }
 
         // Update gamepads
@@ -206,22 +214,27 @@ namespace dmHID
 
         if (!context->m_IgnoreTouchDevice)
         {
-            GLFWTouch glfw_touch[dmHID::MAX_TOUCH_COUNT];
-            int n_touch;
-            if (glfwGetTouch(glfw_touch, dmHID::MAX_TOUCH_COUNT, &n_touch))
+            for (uint32_t t = 0; t < MAX_TOUCH_DEVICE_COUNT; ++t)
             {
-                context->m_TouchDeviceConnected = 1;
-                TouchDevicePacket* packet = &context->m_TouchDevicePacket;
-                packet->m_TouchCount = n_touch;
-                for (int i = 0; i < n_touch; ++i)
+                TouchDevice* device = &context->m_TouchDevices[t];
+
+                GLFWTouch glfw_touch[dmHID::MAX_TOUCH_COUNT];
+                int n_touch;
+                if (glfwGetTouch(glfw_touch, dmHID::MAX_TOUCH_COUNT, &n_touch))
                 {
-                    packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
-                    packet->m_Touches[i].m_Id = glfw_touch[i].Id;
-                    packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
-                    packet->m_Touches[i].m_X = glfw_touch[i].X;
-                    packet->m_Touches[i].m_Y = glfw_touch[i].Y;
-                    packet->m_Touches[i].m_DX = glfw_touch[i].DX;
-                    packet->m_Touches[i].m_DY = glfw_touch[i].DY;
+                    device->m_Connected = 1;
+                    TouchDevicePacket* packet = &device->m_Packet;
+                    packet->m_TouchCount = n_touch;
+                    for (int i = 0; i < n_touch; ++i)
+                    {
+                        packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
+                        packet->m_Touches[i].m_Id = glfw_touch[i].Id;
+                        packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
+                        packet->m_Touches[i].m_X = glfw_touch[i].X;
+                        packet->m_Touches[i].m_Y = glfw_touch[i].Y;
+                        packet->m_Touches[i].m_DX = glfw_touch[i].DX;
+                        packet->m_Touches[i].m_DY = glfw_touch[i].DY;
+                    }
                 }
             }
         }

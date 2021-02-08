@@ -175,10 +175,9 @@ namespace dmGameSystem
      *
      * ```lua
      * -- get angular velocity from collision object "collisionobject" in gameobject "boulder"
-     * -- this is a 2d game so rotation around z is the only one available.
-     * local velocity = go.get("boulder#collisionobject", "angular_velocity.z")
+     * local velocity = go.get("boulder#collisionobject", "angular_velocity")
      * -- do something interesting
-     * if velocity < 0 then
+     * if velocity.z < 0 then
      *     -- clockwise rotation
      *     ...
      * else
@@ -186,7 +185,8 @@ namespace dmGameSystem
      *     ...
      * end
      * -- decrease it by 10%
-     * go.set("boulder#collisionobject", "angular_velocity.z", velocity * 0.9)
+     * velocity.z = velocity.z * 0.9
+     * go.set("boulder#collisionobject", "angular_velocity", velocity * 0.9)
      * ```
      */
 

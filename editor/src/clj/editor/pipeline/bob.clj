@@ -235,7 +235,7 @@
 (defmethod bundle-bob-args :ios     [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (ios-bundle-bob-args bundle-options)))
 (defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 (defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
-(defmethod bundle-bob-args :windows [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :windows [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) {"architectures" (bundle-options :platform)}))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5

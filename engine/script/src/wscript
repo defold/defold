@@ -17,10 +17,6 @@ def build(bld):
 
     script.find_sources_in_dirs(['script', '.'])
 
-    if not platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
-        script.source.remove(os.path.join('.','script_luasocket.cpp'))
-        script.env.CXXDEFINES.append('DM_DISABLE_LUASOCKET')
-
     if 'web' in bld.env.PLATFORM:
         script.source.remove(os.path.join('.','script_http.cpp'))
         script.source.remove(os.path.join('.', 'script_html5.cpp'))

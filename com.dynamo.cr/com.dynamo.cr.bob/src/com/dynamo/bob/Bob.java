@@ -398,6 +398,8 @@ public class Bob {
         options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
         options.addOption("k", "keep-unused", false, "Keep unused resources in archived output");
 
+        options.addOption(null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build");
+
         options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
         options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
 
@@ -679,6 +681,8 @@ public class Bob {
             mainInternal(args);
         } catch (LibraryException e) {
             System.err.println(e.getMessage());
+            System.err.println("Cause: " + e.getCause());
+            e.printStackTrace();
             System.exit(1);
         }
     }

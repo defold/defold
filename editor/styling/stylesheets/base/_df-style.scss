@@ -1,9 +1,4 @@
 // Shared styling for new-look components.
-$df-dark-grey1: #292A2F;
-$df-grey1: #A6B2BF;
-$df-grey2: #CFDAE6;
-$df-bright-blue: #5BC0FF;
-
 .df-style {
 
   // ---------------------------------------------------------------------------
@@ -11,10 +6,10 @@ $df-bright-blue: #5BC0FF;
   // ---------------------------------------------------------------------------
 
   .label {
-    -fx-font-size: 14px;
+    -fx-font-size: 110%;
     -fx-font-smoothing-type: lcd;
     -fx-padding: 0;
-    -fx-text-fill: $df-grey2;
+    -fx-text-fill: -df-text;
   }
 
   // ---------------------------------------------------------------------------
@@ -24,49 +19,46 @@ $df-bright-blue: #5BC0FF;
   .df-button {
     -fx-min-width: 0;
     -fx-background-color: transparent;
-    -fx-border-color: $df-bright-blue;
+    -fx-border-color: -df-defold-blue-lighter;
     -fx-border-radius: 2px;
-    -fx-text-fill: $df-bright-blue;
-    -fx-font-size: 14px;
+    -fx-text-fill: -df-defold-blue-lighter;
+    -fx-font-size: 110%;
     -fx-padding: 4px 12px;
 
     &:hover {
-      -fx-border-color: lighten($df-bright-blue, 9%);
-      -fx-text-fill: lighten($df-bright-blue, 9%);
+      -fx-border-color: -df-defold-blue-lighter;
+      -fx-text-fill: -df-defold-blue-lighter;
     }
   }
 
   .df-button.dim {
-    -fx-border-color: $df-grey2;
-    -fx-text-fill: $df-grey2;
+    -fx-border-color: -df-text;
+    -fx-text-fill: -df-text;
 
     &:hover {
-      -fx-border-color: lighten($df-grey2, 9%);
-      -fx-text-fill: lighten($df-grey2, 9%);
+      -fx-border-color: -df-text-selected;
+      -fx-text-fill: -df-text-selected;
     }
   }
 
   .df-button.extra-dim {
-    -fx-border-color: $df-grey2;
-    -fx-text-fill: $df-grey2;
+    -fx-border-color: -df-text;
+    -fx-text-fill: -df-text;
     -fx-opacity: 0.75;
 
     &:hover {
-      -fx-border-color: lighten($df-grey2, 9%);
-      -fx-text-fill: lighten($df-grey2, 9%);
+      -fx-border-color: -df-text-selected;
+      -fx-text-fill: -df-text-selected;
       -fx-opacity: 0.8;
     }
   }
 
   .df-header {
-    -fx-fill: #A6B2BF;
-    -fx-font-family: "Source Sans Pro Light";
-    -fx-font-size: 20px;
-    -fx-font-smoothing-type: lcd;
+    -fx-text-fill: -df-text;
   }
 
   .df-tiny-text {
-    -fx-font-size: 11px;
+    -fx-font-size: 80%;
 
     &.df-below-field {
       -fx-padding: 2px 0px 0px 0px;
@@ -75,15 +67,15 @@ $df-bright-blue: #5BC0FF;
 
   .df-error-banner {
     -fx-alignment: center;
-    -fx-border-color: $error-severity-warning;
+    -fx-border-color: -df-error-severity-warning;
     -fx-border-insets: 17px 17px 0px 17px;
     -fx-border-radius: 4px;
     -fx-border-width: 1px;
-    -fx-font-size: 14px;
+    -fx-font-size: 110%;
     -fx-line-spacing: 3px;
     -fx-padding: 10px;
     -fx-text-alignment: center;
-    -fx-text-fill: $error-severity-warning;
+    -fx-text-fill: -df-error-severity-warning;
     -fx-wrap-text: true;
     -fx-max-width: Infinity;
   }
@@ -96,7 +88,7 @@ $df-bright-blue: #5BC0FF;
     -fx-alignment: top-center;
 
     .hero-text {
-      -fx-font-size: 16px;
+      -fx-font-size: 125%;
       -fx-line-spacing: 3px;
       -fx-padding: 10px 0px 0px 0px;
       -fx-text-alignment: center;
