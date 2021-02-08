@@ -696,12 +696,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
 
-        // These is for desktop only. The mobile devices and html5 make their own choice of version
 #if defined(ANDROID)
         // Seems to work fine anyway with out any hints
         // which is good, since we want to fallback from OpenGLES 3 to 2
-#elif defined(__linux__)
-#elif defined(_WIN32)
+#elif defined(_WIN32) || defined(__linux__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
