@@ -738,6 +738,7 @@ TEST_P(dmSoundTestSpeedTest, Speed)
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        ASSERT_LT(g_LoopbackDevice->m_NumWrites, 500); // probably will never end
     } while (dmSound::IsPlaying(instance));
 
     // The loop back device will have time to write out another output buffer while the
@@ -804,6 +805,16 @@ const TestParams params_speed_test[] = {
             2048,
             0.0f,
             0.5f),
+	TestParams("loopback",
+			MONO_TONE_440_44100_88200_WAV,		// sound
+            MONO_TONE_440_44100_88200_WAV_SIZE,	// uint32_t sound_size
+            dmSound::SOUND_DATA_TYPE_WAV,		// SoundDataType type
+            440,								// uint32_t tone_rate
+            44100,								// uint32_t mix_rate
+            88200,								// uint32_t frame_count
+            1999,								// uint32_t buffer_frame_count
+            0.0f,								// float pan
+            3.999909297f),						// float speed - this strange number will result in having remainder frames at the end of mixing
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
 #endif

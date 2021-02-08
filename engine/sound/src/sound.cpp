@@ -1174,6 +1174,12 @@ namespace dmSound
                     instance->m_FrameCount += decoded / stride;
 
                 } else {
+					
+					if  (instance->m_FrameCount < instance->m_Speed) {
+						// since this is the last mix and no more frames will be added, trailing frames will linger on forever
+						// if they are less than m_Speed. We will truncate them to avoid this. 
+						instance->m_FrameCount = 0;
+					}
                     instance->m_EndOfStream = 1;
                 }
             }

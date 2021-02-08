@@ -407,9 +407,9 @@ namespace dmGameSystem
      *
      *```lua
      * local function anim_done(self, message_id, message, sender)
-     *   if message_id == hash("model_animation_done") then
+     *   if message_id == hash("animation_done") then
      *     if message.id == hash("jump") then
-     *       -- open animation done, chain with "run"
+     *       -- jump animation done, chain with "run"
      *       sprite.play_flipbook(url, "run")
      *     end
      *   end

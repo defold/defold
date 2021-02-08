@@ -26,7 +26,52 @@ namespace dmEngine
      * @document
      * @name Engine
      * @namespace dmEngine
-     * @path engine/dlib/src/dmsdk/engine/extension_context.h
+     * @path engine/dlib/src/dmsdk/engine/extension.h
+     */
+
+    /*# define for debug builds
+     *
+     * @macro
+     * @name DM_DEBUG
+     *
+     * @examples
+     * Only enable code in debug builds
+     *
+     * ```cpp
+     * #if defined(DM_DEBUG)
+     *     // ...
+     * #endif
+     * ```
+     */
+
+    /*# define for release builds
+     *
+     * @macro
+     * @name DM_RELEASE
+     *
+     * @examples
+     * Only enable code in release builds
+     *
+     * ```cpp
+     * #if defined(DM_RELEASE)
+     *     // ...
+     * #endif
+     * ```
+     */
+
+    /*# define for headless builds
+     *
+     * @macro
+     * @name DM_HEADLESS
+     *
+     * @examples
+     * Only enable code in headless builds
+     *
+     * ```cpp
+     * #if defined(DM_HEADLESS)
+     *     // ...
+     * #endif
+     * ```
      */
 
     /*# get the config file

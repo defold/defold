@@ -46,6 +46,7 @@ namespace dmInput
         context->m_HidContext = params.m_HidContext;
         context->m_RepeatDelay = params.m_RepeatDelay;
         context->m_RepeatInterval = params.m_RepeatInterval;
+        context->m_PressedThreshold = 0.9f;
         return context;
     }
 
@@ -454,13 +455,14 @@ namespace dmInput
 
     void UpdateAction(void* context, const dmhash_t* id, Action* action)
     {
-        action->m_Pressed = (action->m_PrevValue == 0.0f && action->m_Value > 0.0f) ? 1 : 0;
-        action->m_Released = (action->m_PrevValue > 0.0f && action->m_Value == 0.0f) ? 1 : 0;
-        action->m_Repeated = false;
         UpdateContext* update_context = (UpdateContext*)context;
+
+        float pressed_threshold = update_context->m_Context->m_PressedThreshold;
+        action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
+        action->m_Released = (action->m_PrevValue >= pressed_threshold && action->m_Value < pressed_threshold) ? 1 : 0;
+        action->m_Repeated = false;
         if (action->m_Value > 0.0f)
         {
-            UpdateContext* update_context = (UpdateContext*)context;
             if (action->m_Pressed)
             {
                 action->m_Repeated = true;
