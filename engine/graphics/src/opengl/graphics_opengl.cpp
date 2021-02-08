@@ -1928,8 +1928,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             // TODO: Not available in OpenGL ES.
             // According to this thread it should not be required but honestly I don't quite understand
             // https://devforums.apple.com/message/495216#495216
-            GLenum attributes[1] = {GL_NONE};
-            glDrawBuffers(1, attributes);
+            glDrawBuffer(GL_NONE);
             CHECK_GL_ERROR;
             glReadBuffer(GL_NONE);
             CHECK_GL_ERROR;
