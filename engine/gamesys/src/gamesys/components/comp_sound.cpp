@@ -386,7 +386,7 @@ namespace dmGameSystem
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(speed, 0, 0, 0));
-                    dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
+                    dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
 
                     entry.m_Listener = params.m_Message->m_Sender;
                 }

@@ -29,6 +29,7 @@ namespace dmGameSystem
         float               m_Gain;
         float               m_Pan;
         float               m_Speed;
+        uint8_t             m_Loopcount;
         uint8_t             m_Looping:1;
     };
 

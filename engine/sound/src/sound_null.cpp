@@ -206,9 +206,10 @@ namespace dmSound
         return sound_instance->m_Playing == 1;
     }
 
-    Result SetLooping(HSoundInstance sound_instance, bool looping)
+    Result SetLooping(HSoundInstance sound_instance, bool looping, int8_t loopcount)
     {
         sound_instance->m_Looping = looping ? 1 : 0;
+        // loopcount is ignored
         return RESULT_OK;
     }
 
