@@ -56,6 +56,7 @@ namespace dmGraphics
         uint8_t                 m_WindowOpened : 1;
         uint8_t                 m_VerifyGraphicsCalls : 1;
         uint8_t                 m_RenderDocSupport : 1;
+        uint8_t                 m_LegacyShaderLanguage : 1; // 1 == gles2
     };
 
     static inline void IncreaseModificationVersion(Context* context)
