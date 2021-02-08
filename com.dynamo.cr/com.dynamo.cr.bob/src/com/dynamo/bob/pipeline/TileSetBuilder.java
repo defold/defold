@@ -149,16 +149,6 @@ public class TileSetBuilder extends Builder<Void>  {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        for(TextureImage.Image img  : texture.getAlternativesList()) {
-            if(img.getCompressionType() != TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
-                for(IResource res : task.getOutputs()) {
-                    if(res.getPath().endsWith("texturec")) {
-                        this.project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
-                    }
-                }
-            }
-        }
-
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(texture.toByteArray());
     }
