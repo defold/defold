@@ -2569,7 +2569,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         assert(texture);
 
-#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
+#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
 #endif
@@ -2586,7 +2586,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
 
-#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
+#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
 #endif
