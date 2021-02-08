@@ -85,7 +85,7 @@ PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
-CDN_UPLOAD_URL="s3://d.defold.com/archive"
+DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
 
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
@@ -250,7 +250,7 @@ class Configuration(object):
                  skip_bob_light = False,
                  disable_ccache = False,
                  no_colors = False,
-                 archive_path = None,
+                 archive_domain = None,
                  package_path = None,
                  set_version = None,
                  channel = None,
@@ -291,7 +291,8 @@ class Configuration(object):
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
-        self.archive_path = archive_path
+        self.archive_path = "s3://%s/archive" % (archive_domain)
+        self.archive_domain = archive_domain
         self.package_path = package_path
         self.set_version = set_version
         self.channel = channel
@@ -1280,6 +1281,7 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
                'bundle']
         self.run_editor_script(cmd)
 
@@ -1950,10 +1952,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'No color output. Default is color output')
 
-    default_archive_path = CDN_UPLOAD_URL
-    parser.add_option('--archive-path', dest='archive_path',
-                      default = default_archive_path,
-                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path)
+    default_archive_domain = DEFAULT_ARCHIVE_DOMAIN
+    parser.add_option('--archive-domain', dest='archive_domain',
+                      default = default_archive_domain,
+                      help = 'Domain where builds will be archived. Default is %s' % default_archive_domain)
 
     default_package_path = CDN_PACKAGES_URL
     parser.add_option('--package-path', dest='package_path',
@@ -2039,7 +2041,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
-                      archive_path = options.archive_path,
+                      archive_domain = options.archive_domain,
                       package_path = options.package_path,
                       set_version = options.set_version,
                       channel = options.channel,
