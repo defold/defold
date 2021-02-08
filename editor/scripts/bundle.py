@@ -28,6 +28,8 @@ import datetime
 import imp
 import fnmatch
 
+DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
+
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
@@ -332,7 +334,7 @@ def create_bundle(options):
         config.set('build', 'engine_sha1', options.engine_sha1)
         config.set('build', 'version', options.version)
         config.set('build', 'time', datetime.datetime.now().isoformat())
-        config.set('build', 'archive_domain', "d.defold.com")
+        config.set('build', 'archive_domain', options.archive_domain)
 
         if options.channel:
             config.set('build', 'channel', options.channel)
@@ -500,6 +502,11 @@ Commands:
     parser.add_option('--channel', dest='channel',
                       default = None,
                       help = 'Channel to set in editor config when creating the bundle')
+
+    default_archive_domain = DEFAULT_ARCHIVE_DOMAIN
+    parser.add_option('--archive-domain', dest='archive_domain',
+                      default = DEFAULT_ARCHIVE_DOMAIN,
+                      help = 'Domain to set in the editor config where builds are archived. Default is %s' % default_archive_domain)
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
