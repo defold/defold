@@ -26,7 +26,7 @@
 #include <OpenGLES/ES2/gl.h>
 #include <OpenGLES/ES2/glext.h>
 #else
-#include <OpenGL/gl.h>
+#include <OpenGL/gl3.h>
 #endif
 
 #elif defined (_WIN32)
@@ -105,11 +105,15 @@
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
 // We check this at runtime through extensions supported
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
+#if defined(GL_RED) && !defined (__EMSCRIPTEN__)
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_RED)
-#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_RG)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_LUMINANCE)
+#endif
+
+#if defined(GL_RG) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_RG)
+#else
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
 #endif
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)

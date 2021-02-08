@@ -157,7 +157,8 @@ message ShaderDesc
     {
         LANGUAGE_GLSL   = 1;
         LANGUAGE_SPIRV  = 2;
-    }
+        LANGUAGE_GLES2  = 3; // while using the backend for WebGL 1 and OpenGLES 2
+     }
 
     enum ShaderDataType
     {

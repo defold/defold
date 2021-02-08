@@ -536,12 +536,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
     int colorBits = 0;
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
-        // Fail if OpenGL 3.0 or above was requested
-        if( wndconfig->glMajor > 2 )
-        {
-            return GL_FALSE;
-        }
-
         // Mac OS X needs non-zero color size, so set resonable values
         colorBits = fbconfig->redBits + fbconfig->greenBits + fbconfig->blueBits;
         if( colorBits == 0 )
@@ -686,6 +680,15 @@ int  _glfwPlatformOpenWindow( int width, int height,
         {
             ADD_ATTR2( NSOpenGLPFASampleBuffers, 1 );
             ADD_ATTR2( NSOpenGLPFASamples, fbconfig->samples );
+        }
+
+        if( wndconfig->glMajor >= 4 )
+        {
+            ADD_ATTR2(NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core);
+        }
+        else if( wndconfig->glMajor >= 3 )
+        {
+            ADD_ATTR2(NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion3_2Core);
         }
 
         ADD_ATTR(0);

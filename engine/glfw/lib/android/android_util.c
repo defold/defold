@@ -131,11 +131,6 @@ int init_gl(_GLFWwin_android* win)
      * NOTE: The example simple_gles2 doesn't work with EGL_CONTEXT_CLIENT_VERSION
      * set to 2 in emulator. Might work on real device though
      */
-    const EGLint contextAttribs[] = {
-            EGL_CONTEXT_CLIENT_VERSION, 2, // GLES 2.x support
-            EGL_NONE, // terminator
-    };
-
     EGLint numConfigs;
     EGLConfig config;
     EGLContext context;
@@ -158,7 +153,17 @@ int init_gl(_GLFWwin_android* win)
     CHECK_EGL_ERROR
     ANativeWindow_setBuffersGeometry(win->app->window, 0, 0, format);
 
+    EGLint contextAttribs[] = {
+        EGL_CONTEXT_MAJOR_VERSION, 3,
+        EGL_NONE,
+    };
+
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
+    if (context == EGL_NO_CONTEXT)
+    {
+        contextAttribs[1] = 2;
+        context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
+    }
     CHECK_EGL_ERROR
 
     win->display = display;
