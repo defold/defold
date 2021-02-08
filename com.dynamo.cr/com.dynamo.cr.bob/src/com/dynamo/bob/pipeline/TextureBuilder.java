@@ -65,12 +65,6 @@ public class TextureBuilder extends Builder<Void> {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        for(TextureImage.Image img  : texture.getAlternativesList()) {
-            if(img.getCompressionType() != TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
-                this.project.addOutputFlags(task.output(0).getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
-            }
-        }
-
         ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
         texture.writeTo(out);
         out.close();
