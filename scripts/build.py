@@ -73,7 +73,7 @@ PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77
 PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1".split()
 PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1 MoltenVK-1.0.41".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 MoltenVK-1.0.41".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 MoltenVK-1.0.41".split()
 PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 c-ares-1.16.1 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
@@ -1382,93 +1382,9 @@ class Configuration(object):
 
 
     def release(self):
-        page = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Defold Downloads</title>
-        <link href='//fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-        <link rel="stylesheet" href="//d.defold.com/static/bootstrap/css/bootstrap.min.css">
-        <style>
-            body {
-                padding-top: 50px;
-            }
-            .starter-template {
-                padding: 40px 15px;
-                text-align: center;
-            }
-        </style>
-
-    </head>
-    <body>
-    <div class="navbar navbar-fixed-top">
-        <div class="navbar-inner">
-            <div class="container">
-                <a class="brand" href="/">Defold Downloads</a>
-                <ul class="nav">
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <div class="container">
-
-        <div id="releases"></div>
-        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="//d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
-        <script id="templ-releases" type="text/html">
-            <h2>{{release.channel}} {{release.version}}</h2>
-            {{#release.editor}}
-                <p>
-                    <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
-                </p>
-            {{/release.editor}}
-
-            {{#has_releases}}
-                <h2>Releases</h2>
-            {{/has_releases}}
-
-            {{#releases}}
-                <div class="panel-group" id="accordion">
-                  <div class="panel panel-default">
-                    <div class="panel-heading">
-                      <h4 class="panel-title">
-                        <a data-toggle="collapse" data-parent="#accordion" href="#{{sha1}}">
-                          <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
-                        </a>
-                      </h4>
-                    </div>
-                    <div id="{{sha1}}" class="panel-collapse collapse ">
-                      <div class="panel-body">
-                        <table class="table table-striped">
-                          <tbody>
-                            {{#files}}
-                            <tr><td><a href="{{path}}">{{name}}</a></td></tr>
-                            {{/files}}
-                            {{^files}}
-                            <i>No files</i>
-                            {{/files}}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-            {{/releases}}
-        </script>
-
-        <script>
-            var model = %(model)s
-            var output = Mustache.render($('#templ-releases').html(), model);
-            $("#releases").html(output);
-        </script>
-      </body>
-</html>
-"""
+        page = None;
+        with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
+            page = file.read()
 
         if run.shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.

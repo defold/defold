@@ -373,6 +373,41 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
+        // Package zip file
+        File tmpZipDir = createTempDirectory();
+        tmpZipDir.deleteOnExit();
+
+        File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
+
+        // Copy any libswift*.dylib files from the Frameworks folder
+        File frameworksDir = new File(appDir, "Frameworks");
+
+        if (frameworksDir.exists()) {
+            logger.log(Level.INFO, "Copying to /SwiftSupport folder");
+            File iphoneosDir = new File(swiftSupportDir, "iphoneos");
+
+            for (File file : frameworksDir.listFiles(File::isFile)) {
+
+                BundleHelper.throwIfCanceled(canceled);
+
+                if (!file.getName().endsWith(".dylib"))
+                    continue;
+
+                if (!file.getName().startsWith("libswift")) {
+                    continue;
+                }
+
+                if (!swiftSupportDir.exists()) {
+                    swiftSupportDir.mkdir();
+                    iphoneosDir.mkdir();
+                }
+
+                File dst = new File(iphoneosDir, file.getName());
+                FileUtils.copyFile(file, dst);
+                System.out.printf("Copying %s to %s\n", file, dst);
+            }
+        }
+
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
         if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
@@ -395,12 +430,21 @@ public class IOSBundler implements IBundler {
 
             // If an override entitlements has been set, use that custom entitlements file directly instead of trying to merge it.
             if (overrideEntitlementsProperty) {
-                IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
-                InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
-                OutputStream outStream = new FileOutputStream(entitlementOut);
-                byte[] buffer = new byte[is.available()];
-                is.read(buffer);
-                outStream.write(buffer);
+                try {
+                    if (customEntitlementsProperty == null || customEntitlementsProperty.length() == 0) {
+                        throw new IOException("Override Entitlements option was set in game.project but no custom entitlements file were provided.");
+                    }
+                    IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                    InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                    OutputStream outStream = new FileOutputStream(entitlementOut);
+                    byte[] buffer = new byte[is.available()];
+                    is.read(buffer);
+                    outStream.write(buffer);
+                }
+                catch (Exception e) {
+                    logger.log(Level.SEVERE, "Error when loading custom entitlements from file '" + customEntitlementsProperty + "'.");
+                    throw new RuntimeException(e);
+                }
             } else {
                 try {
                     XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
@@ -414,6 +458,16 @@ public class IOSBundler implements IBundler {
                         if (customEntitlementsResource.exists()) {
                             InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
                             customEntitlements.read(new InputStreamReader(is));
+
+                            // the custom entitlements file is expected to have the entitlements
+                            // in the root <plist><dict>. To offer a bit of flexibility we
+                            // also support custom entitlements with an <Entitlements><dict>
+                            // property which we extract and put in the root:
+                            if (customEntitlements.getKeys("Entitlements").hasNext()) {
+                                XMLPropertyListConfiguration tmp = new XMLPropertyListConfiguration();
+                                tmp.append(customEntitlements.configurationAt("Entitlements"));
+                                customEntitlements = tmp;
+                            }
 
                             Iterator<String> keys = customEntitlements.getKeys();
                             while (keys.hasNext()) {
@@ -444,6 +498,27 @@ public class IOSBundler implements IBundler {
                 }
             }
 
+            // Sign any .dylib files in the Frameworks folder
+            if (frameworksDir.exists()) {
+                logger.log(Level.INFO, "Signing ./Frameworks folder");
+                for (File file : frameworksDir.listFiles(File::isFile)) {
+
+                    BundleHelper.throwIfCanceled(canceled);
+
+                    if (!file.getName().endsWith(".dylib"))
+                        continue;
+
+                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());
+                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
+
+                    Process process = processBuilder.start();
+                    logProcess(process);
+
+                }
+            } else {
+                System.out.printf("No ./Framework folder to sign\n");
+            }
+
             BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity,
@@ -460,12 +535,6 @@ public class IOSBundler implements IBundler {
         // Package into IPA zip
         BundleHelper.throwIfCanceled(canceled);
 
-        // Package zip file
-        File tmpZipDir = createTempDirectory();
-        tmpZipDir.deleteOnExit();
-
-        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
-        // to import the resulting zip files.
         File payloadDir = new File(tmpZipDir, "Payload");
         payloadDir.mkdir();
 
@@ -477,7 +546,14 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         File zipFile = new File(bundleDir, title + ".ipa");
         File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
-        processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+
+        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+        // to import the resulting zip files.
+        if (swiftSupportDir.exists())
+            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName(), swiftSupportDir.getName());
+        else
+            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+
         processBuilder.directory(tmpZipDir);
 
         BundleHelper.throwIfCanceled(canceled);

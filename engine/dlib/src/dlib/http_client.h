@@ -17,6 +17,7 @@
 #include <dlib/socket.h>
 #include <dlib/http_cache.h>
 #include <dlib/dns.h>
+#include <dmsdk/dlib/http_client.h>
 
 namespace dmHttpClient
 {

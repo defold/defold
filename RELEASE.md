@@ -22,9 +22,16 @@ The alpha channel is automatically released for every successful push to dev.
         $ git merge editor-dev
         $ git push
 
+1. Merge `dev` into `beta`
+
+        $ git checkout beta
+        $ git pull
+        $ git merge dev
+        $ git push
+
     Beta beta channel is automatically released for every successful push to beta.
 
-1. Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+1. Collect release notes using `python scripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
 and add the "BETA" tag to the headline
 
 ## Stable
