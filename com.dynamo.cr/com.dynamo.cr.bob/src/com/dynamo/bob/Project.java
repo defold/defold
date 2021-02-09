@@ -835,13 +835,15 @@ public class Project {
         }
 
         for(String platform : platforms) {
-            String symbolsFilename = "";
+            String symbolsFilename = null;
             switch(platform) {
                 case "armv7-darwin":
                 case "arm64-darwin":
                 case "x86_64-darwin":
                     symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
                     break;
+                case "wasm-web":
+                    platform = "js-web";
                 case "js-web":
                     symbolsFilename = String.format("dmengine%s.js.symbols", variantSuffix);
                     break;
@@ -851,9 +853,11 @@ public class Project {
                     break;
             }
 
-            URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
-            File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
-            downloadToFile(url, file);
+            if (symbolsFilename != null) {
+                URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+                File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
+                downloadToFile(url, file);
+            }
             progress.worked(1);
         }
     }
