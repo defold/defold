@@ -842,8 +842,6 @@ public class Project {
                 case "x86_64-darwin":
                     symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
                     break;
-                case "wasm-web":
-                    platform = "js-web";
                 case "js-web":
                     symbolsFilename = String.format("dmengine%s.js.symbols", variantSuffix);
                     break;
