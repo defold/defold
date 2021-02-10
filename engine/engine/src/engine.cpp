@@ -681,7 +681,7 @@ namespace dmEngine
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
         window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
         window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
-        window_params.m_PrintDeviceInfo = false;
+        window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
