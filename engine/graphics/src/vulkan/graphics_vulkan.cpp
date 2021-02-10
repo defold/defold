@@ -1119,7 +1119,7 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % g_max_frames_in_flight;
         context->m_FrameBegun           = 0;
 
-        SwapBuffers();
+        NativeSwapBuffers(context);
     }
 
     static void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
