@@ -44,7 +44,7 @@ except:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['win32', 'x86_64-win32', 'x86_64-linux', 'js-web', 'wasm-web']
+        return platform not in ['js-web', 'wasm-web']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
