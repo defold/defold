@@ -141,7 +141,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             line = scanner.nextLine();
             writer.println(line);
         }
-        scanner.close
+        scanner.close();
         writer.flush();
 
         String source = source = os.toString().replace("\r", "");
