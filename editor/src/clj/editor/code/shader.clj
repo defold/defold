@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +20,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace])
   (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
-           (com.dynamo.graphics.proto Graphics$ShaderDesc)
+           (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
            (com.google.protobuf ByteString)))
 
 (set! *warn-on-reflection* true)
@@ -83,9 +83,7 @@
                    :view-opts glsl-opts}])
 
 (defn- make-full-source ^String [resource-ext lines]
-  (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives resource-ext)]
-                      (shader/insert-directives lines compat-directive-lines)
-                      lines)))
+  (string/join "\n" lines))
 
 (defn- shader-type-from-str [^String shader-type-in]
   (case shader-type-in
@@ -109,6 +107,14 @@
     "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
     "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER))
 
+(defn- shader-language-from-string
+  ^Graphics$ShaderDesc$Language [name]
+  (case name
+    "glsl"  Graphics$ShaderDesc$Language/LANGUAGE_GLSL
+    "spirv" Graphics$ShaderDesc$Language/LANGUAGE_SPIRV
+    "gles2" Graphics$ShaderDesc$Language/LANGUAGE_GLES2
+    ))
+
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
 
@@ -118,9 +124,14 @@
    :set (.set shader-resource)
    :binding (.binding shader-resource)})
 
-(defn- make-glsl-shader [^String glsl-source]
-  {:language :language-glsl
-   :source (ByteString/copyFrom (.getBytes glsl-source "UTF-8"))})
+(defn- make-glsl-shader [^String glsl-source resource-ext resource-path language]
+  (let [shader-stage (shader-stage-from-ext resource-ext)
+        target-profile ""
+        is-debug true
+        shader-language (shader-language-from-string language)
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage shader-language resource-path target-profile is-debug)]
+    {:language (if (= "glsl" language) :language-glsl :language-gles2)
+     :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
 
 (defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
   (let [shader-stage (shader-stage-from-ext resource-ext)
@@ -140,8 +151,9 @@
         spirv-shader-or-errors-or-nil (when compile-spirv
                                         (make-spirv-shader full-source resource-ext resource-path))]
     (g/precluding-errors spirv-shader-or-errors-or-nil
-      (let [glsl-shader (make-glsl-shader full-source)
-            shaders (filterv some? [glsl-shader spirv-shader-or-errors-or-nil])
+      (let [glsl-shader (make-glsl-shader full-source resource-ext resource-path "glsl")
+            gles2-shader (make-glsl-shader full-source resource-ext resource-path "gles2")
+            shaders (filterv some? [glsl-shader gles2-shader spirv-shader-or-errors-or-nil])
             shader-desc {:shaders shaders}
             content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
         {:resource resource

@@ -41,16 +41,6 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
         }
     }
 
-    public void writeExtraDirectives(PrintWriter writer)
-    {
-        writer.println("#ifndef GL_ES");
-        writer.println("#define lowp");
-        writer.println("#define mediump");
-        writer.println("#define highp");
-        writer.println("#endif");
-        writer.println();
-    }
-
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         FragmentProgramBuilder builder = new FragmentProgramBuilder();
