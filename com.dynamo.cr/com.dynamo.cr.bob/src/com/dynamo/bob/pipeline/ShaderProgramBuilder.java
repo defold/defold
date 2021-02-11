@@ -157,12 +157,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
     private ShaderDesc.Shader.Builder buildGLSL(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
                                 IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
-        // Always write the glsl source (for now)
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(shaderLanguage);
-
-        // InputStreamReader isr = new InputStreamReader(is);
-        // BufferedReader reader = new BufferedReader(isr);
 
         int n = is.available();
         byte[] bytes = new byte[n];
@@ -174,7 +170,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         builder.setSource(ByteString.copyFrom(transformedSource, "UTF-8"));
         return builder;
     }
-
 
     static private String getResultString(Result r)
     {
