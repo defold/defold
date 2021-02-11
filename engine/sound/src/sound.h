@@ -124,7 +124,7 @@ namespace dmSound
     bool IsPlaying(HSoundInstance sound_instance);
     uint32_t GetAndIncreasePlayCounter();
 
-    Result SetLooping(HSoundInstance sound_instance, bool looping);
+    Result SetLooping(HSoundInstance sound_instance, bool looping, int8_t loopcount);
 
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vectormath::Aos::Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vectormath::Aos::Vector4& value);
