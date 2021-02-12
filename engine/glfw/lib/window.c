@@ -32,6 +32,14 @@
 
 #include <limits.h>
 
+#if defined(ANDROID)
+#include "android/android_log.h"
+#endif
+
+#if defined(__EMSCRIPTEN__)
+#define LOGV printf
+#define LOGE printf
+#endif
 
 #ifndef GL_VERSION_3_2
 
@@ -579,10 +587,12 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     // Platform specific window opening routine
     if( !_glfwPlatformOpenWindow( width, height, &wndconfig, &fbconfig ) )
     {
+        LOGE("%s %d", __FUNCTION__, __LINE__);
         glfwCloseWindow();
         return GL_FALSE;
     }
 
+LOGE("%s %d", __FUNCTION__, __LINE__);
     // Flag that window is now opened
     _glfwWin.opened = GL_TRUE;
 
@@ -597,6 +607,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
             ( _glfwWin.glMajor == wndconfig.glMajor &&
               _glfwWin.glMinor < wndconfig.glMinor ) )
         {
+            LOGE("%s %d  _glfwWin: %d.%d   wndconfig: %d.%d", __FUNCTION__, __LINE__, _glfwWin.glMajor, _glfwWin.glMinor, wndconfig.glMajor, wndconfig.glMinor);
             glfwCloseWindow();
             return GL_FALSE;
         }
@@ -627,6 +638,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
             _glfwWin.GetStringi = (PFNGLGETSTRINGIPROC) glfwGetProcAddress("glGetStringi");
             if (!_glfwWin.GetStringi) {
                 if (glfwGetProcAddress("glGetString") == NULL) {
+                    LOGE("%s %d failed to get glGetStringi", __FUNCTION__, __LINE__);
                     glfwCloseWindow();
                     return GL_FALSE;
                 }

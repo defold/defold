@@ -187,6 +187,7 @@ static void LogGLError(GLint err, const char* fnname, int line)
 #define CHECK_GL_ERROR \
     { \
         if(g_Context->m_VerifyGraphicsCalls) { \
+            printf("CHECK_GL_ERROR: %s %d\n", __FUNCTION__,  __LINE__); \
             GLint err = glGetError(); \
             if (err != 0) \
             { \

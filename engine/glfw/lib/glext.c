@@ -30,6 +30,8 @@
 
 #include "internal.h"
 
+//#include <dlib/log.h>
+
 
 //************************************************************************
 //****                  GLFW internal functions                       ****
@@ -61,30 +63,48 @@ static void _ClearGLError()
     }
 }
 
+#if defined(ANDROID)
+#include "android/android_log.h"
+#endif
+#if defined(__EMSCRIPTEN__)
+#define LOGV printf
+#define LOGE printf
+#endif
+
 //========================================================================
 // Parses the OpenGL version string and extracts the version number
 //========================================================================
 
 void _glfwParseGLVersion( int *major, int *minor, int *rev )
 {
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
     glGetIntegerv(GL_MAJOR_VERSION, major);
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
     glGetIntegerv(GL_MINOR_VERSION, minor);
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
     *rev = 0;
 
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
     GLint err = glGetError();
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
     if (err == 0) {
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
         return;
     }
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
     _ClearGLError();
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
 
     GLuint _major, _minor = 0, _rev = 0;
     const GLubyte *version;
     const GLubyte *ptr;
 
     // Get OpenGL version string
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
     version = glGetString( GL_VERSION );
     if( !version )
     {
+    LOGV("MAWE: %s %d", __FUNCTION__, __LINE__);
         return;
     }
 
@@ -111,6 +131,7 @@ void _glfwParseGLVersion( int *major, int *minor, int *rev )
         }
     }
 
+    LOGV("MAWE: %s %d  %d.%d.%d", __FUNCTION__, __LINE__, _major, _minor, _rev);
     // Return parsed values
     *major = _major;
     *minor = _minor;

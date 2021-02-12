@@ -158,9 +158,12 @@ int init_gl(_GLFWwin_android* win)
         EGL_NONE,
     };
 
+    LOGV("creating opengles 3 context...");
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
     if (context == EGL_NO_CONTEXT)
     {
+        LOGV("failed!");
+        LOGV("creating opengles 2 context...");
         contextAttribs[1] = 2;
         context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
     }

@@ -165,6 +165,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
     {
         if (init_gl(&_glfwWinAndroid) == 0)
         {
+    LOGV("_glfwPlatformOpenWindow init_gl failed");
             return GL_FALSE;
         }
         make_current(&_glfwWinAndroid);
@@ -172,6 +173,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         computeIconifiedState();
     }
 
+    LOGV("_glfwPlatformOpenWindow ok!");
     return GL_TRUE;
 }
 
