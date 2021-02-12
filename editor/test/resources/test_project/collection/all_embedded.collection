@@ -166,6 +166,7 @@ embedded_instances {
   "gain: 1.0\\n"
   "pan: 0.0\\n"
   "speed: 1.0\\n"
+  "loopcount: 0\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
