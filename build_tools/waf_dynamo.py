@@ -420,11 +420,11 @@ def default_flags(self):
         emflags =[j for i in emflags for j in i]
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-O%s' % opt_level, '-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+            self.env.append_value(f, ['-O%s' % opt_level, '-g', '-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
                                         '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS'])
             self.env.append_value(f, emflags)
 
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '-g', '-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
         self.env.append_value('LINKFLAGS', emflags)
 
     elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:

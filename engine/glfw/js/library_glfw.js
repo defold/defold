@@ -635,6 +635,8 @@ var LibraryGLFW = {
     if (width > 0 && height == 0) {
       height = 3 * width / 4;
     }
+    console.log("MAWE: glfwOpenWindow:");
+    console.log("MAWE: size:", width, height);
     GLFW.params[0x00020005] = redbits; // GLFW_RED_BITS
     GLFW.params[0x00020006] = greenbits; // GLFW_GREEN_BITS
     GLFW.params[0x00020007] = bluebits; // GLFW_BLUE_BITS
@@ -646,6 +648,7 @@ var LibraryGLFW = {
       GLFW.initWindowWidth = width;
       GLFW.initWindowHeight = height;
       GLFW.params[0x00030003] = true; // GLFW_STICKY_MOUSE_BUTTONS
+      Browser.setCanvasSize(width, height);
     } else if (mode == 0x00010002) {// GLFW_FULLSCREEN
       GLFW.requestFullScreen();
       GLFW.params[0x00030003] = false; // GLFW_STICKY_MOUSE_BUTTONS
@@ -658,7 +661,22 @@ var LibraryGLFW = {
       depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
       stencil: (GLFW.params[0x0002000A] > 0) // GLFW_STENCIL_BITS
     };
+
+    console.log("MAWE: glfwOpenWindow: createContext:");
+
     Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+
+    console.log("MAWE: glfwOpenWindow: ctx:", Module.ctx);
+
+    // clear any glGetErrors (not sure why they occur)
+    if (Module.ctx != null) {
+      var err = Module.ctx.getError();
+      if (err != 0) {
+        console.log("WARNING:GLFW: ignoring ctx.getError", err, "from inside WebGL context creation function");
+      }
+    }
+
+    console.log("MAWE: glfwOpenWindow: ctx.getError", Module.ctx.getError());
 
     return 1; // GL_TRUE
   },

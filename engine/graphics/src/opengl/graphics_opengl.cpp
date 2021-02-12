@@ -187,7 +187,6 @@ static void LogGLError(GLint err, const char* fnname, int line)
 #define CHECK_GL_ERROR \
     { \
         if(g_Context->m_VerifyGraphicsCalls) { \
-            printf("CHECK_GL_ERROR: %s %d\n", __FUNCTION__,  __LINE__); \
             GLint err = glGetError(); \
             if (err != 0) \
             { \
@@ -726,10 +725,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
+
+        dmLogWarning("MAWE: %s  %d", __FUNCTION__, __LINE__);
+
         if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
+        CHECK_GL_ERROR;
+
 
 #if defined (_WIN32)
 #define GET_PROC_ADDRESS(function, name, type)\
