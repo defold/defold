@@ -66,7 +66,7 @@ static void _ClearGLError()
 #if defined(ANDROID)
 #include "android/android_log.h"
 #endif
-#if defined(__EMSCRIPTEN__)
+#if !defined(ANDROID)
 #define LOGV printf
 #define LOGE printf
 #endif
