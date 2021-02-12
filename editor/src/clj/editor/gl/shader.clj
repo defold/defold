@@ -446,24 +446,6 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
   ([request-id verts frags uniforms]
     (->ShaderLifecycle request-id verts frags uniforms)))
 
-(def compat-directives {"vp" [""
-                              "#ifndef GL_ES"
-                              "#define lowp"
-                              "#define mediump"
-                              "#define highp"
-                              "#endif"
-                              ""]
-                        "fp" [""
-                              "#ifdef GL_ES"
-                              "precision mediump float;"
-                              "#endif"
-                              "#ifndef GL_ES"
-                              "#define lowp"
-                              "#define mediump"
-                              "#define highp"
-                              "#endif"
-                              ""]})
-
 (def ^:private directive-line-re #"^\s*(#|//).*")
 
 (defn- directive-line? [line]
