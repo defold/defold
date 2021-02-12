@@ -9,10 +9,10 @@ uniform mediump sampler2D texture_sampler;
 
 void main()
 {
-    mediump vec4 sample = texture2D(texture_sampler, var_texcoord0);
+    mediump vec4 df_sample = texture2D(texture_sampler, var_texcoord0);
 
-    mediump float distance        = sample.x;
-    mediump float distance_shadow = sample.z;
+    mediump float distance        = df_sample.x;
+    mediump float distance_shadow = df_sample.z;
 
     lowp float sdf_edge      = var_sdf_params.x;
     lowp float sdf_outline   = var_sdf_params.y;
