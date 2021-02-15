@@ -90,6 +90,11 @@ void _glfwParseGLVersion( int *major, int *minor, int *rev )
 
     // Parse string
     ptr = version;
+
+    const char* opengles = "OpenGL ES ";
+    if (strstr(ptr, opengles))
+        ptr += strlen(opengles);
+
     for( _major = 0; *ptr >= '0' && *ptr <= '9'; ptr ++ )
     {
         _major = 10*_major + (*ptr - '0');
