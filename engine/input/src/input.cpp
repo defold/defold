@@ -712,6 +712,11 @@ namespace dmInput
                                         if (dmMath::Abs(action->m_Value) < dmMath::Abs(v)) {
                                             action->m_Value = v;
                                         }
+
+                                        // We want to make sure we report going back to 0 again
+                                        action->m_Dirty = 0;
+                                        if (input.m_Type == dmInputDDF::GAMEPAD_TYPE_AXIS && action->m_PrevValue != action->m_Value)
+                                            action->m_Dirty = 1;
                                     }
                                 }
                             }
@@ -891,6 +896,7 @@ namespace dmInput
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
         bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TouchCount > 0 || action->m_HasText || action->m_GamepadConnected || action->m_GamepadDisconnected;
+        active = active || action->m_Dirty; // e.g. for analog stick action being released
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)
