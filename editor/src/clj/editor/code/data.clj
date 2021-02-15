@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -501,7 +501,7 @@
 
 (defn tab-stops [glyph-metrics tab-spaces]
   (let [^double space-width (char-width glyph-metrics \space)
-        tab-width (* space-width (double tab-spaces))]
+        tab-width (max 1 (* space-width (double tab-spaces)))]
     ;; tab-stops is now a list of rules applicable for a range.
     ;; For now, there is one rule covering the whole x range.
     [{:tab-width tab-width}]))
