@@ -664,7 +664,13 @@ var LibraryGLFW = {
 
     console.log("MAWE: glfwOpenWindow: createContext:");
 
+    // Browser.createContext: https://github.com/emscripten-core/emscripten/blob/master/src/library_browser.js#L312
     Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+    if (Module.ctx == null) {
+      console.log("MAWE: glfwOpenWindow: Context creation failed. Trying WebGL 1", Module.ctx);
+      contextAttributes.majorVersion = 1; // Try WebGL 1
+      Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+    }
 
     console.log("MAWE: glfwOpenWindow: ctx:", Module.ctx);
 
