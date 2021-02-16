@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -13,6 +13,7 @@
 #include "res_material.h"
 
 #include <string.h>
+#include <algorithm> // std::sort
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -112,12 +113,22 @@ namespace dmGameSystem
         }
     }
 
-    void SetMaterial(dmRender::HMaterial material, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
+    void SetMaterial(const char* path, dmRender::HMaterial material, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
     {
-        for (uint32_t i = 0; i < ddf->m_Tags.m_Count; ++i)
-        {
-            dmRender::AddMaterialTag(material, dmHashString64(ddf->m_Tags[i]));
+        dmhash_t tags[dmRender::MAX_MATERIAL_TAG_COUNT];
+        uint32_t tag_count = ddf->m_Tags.m_Count;
+
+        if (tag_count > dmRender::MAX_MATERIAL_TAG_COUNT) {
+            dmLogError("The maximum number of tags per material is %d. Skipping the last ones for %s", dmRender::MAX_MATERIAL_TAG_COUNT, path);
+            tag_count = dmRender::MAX_MATERIAL_TAG_COUNT;
         }
+
+        for (uint32_t i = 0; i < tag_count; ++i)
+        {
+            tags[i] = dmHashString64(ddf->m_Tags[i]);
+        }
+        std::sort(tags, tags + tag_count);
+        dmRender::SetMaterialTags(material, tag_count, tags);
 
         dmRender::SetMaterialVertexSpace(material, ddf->m_VertexSpace);
         dmRenderDDF::MaterialDesc::Constant* fragment_constant = ddf->m_FragmentConstants.m_Data;
@@ -192,7 +203,7 @@ namespace dmGameSystem
 
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
 
-            SetMaterial(material, ddf, &resources);
+            SetMaterial(params.m_Filename, material, ddf, &resources);
             params.m_Resource->m_Resource = (void*) material;
         }
         dmDDF::FreeMessage(ddf);
@@ -234,7 +245,7 @@ namespace dmGameSystem
             dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialFragmentProgram(material));
             dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
             dmRender::ClearMaterialTags(material);
-            SetMaterial(material, ddf, &resources);
+            SetMaterial(params.m_Filename, material, ddf, &resources);
         }
         dmDDF::FreeMessage(ddf);
         return r;

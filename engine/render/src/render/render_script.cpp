@@ -2247,6 +2247,7 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
         luaL_checktype(L, 1, LUA_TTABLE);
 
         HPredicate* p_predicate = (HPredicate*) lua_newuserdata(L, sizeof(HPredicate*));
