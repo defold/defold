@@ -1904,7 +1904,7 @@ namespace dmGameSystem
                 write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
                 write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
                 write_ptr->m_BatchKey = lastEnd;
-                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(gro.m_RenderObject.m_Material);
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(gro.m_RenderObject.m_Material);
                 write_ptr->m_Dispatch = dispatch;
                 write_ptr++;
                 lastEnd++;

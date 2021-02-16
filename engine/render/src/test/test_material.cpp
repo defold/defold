@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,12 +52,8 @@ TEST(dmMaterialTest, TestTags)
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
 
     dmhash_t tags[] = {dmHashString64("tag1"), dmHashString64("tag2")};
-    uint32_t mask = dmRender::ConvertMaterialTagsToMask(tags, 1);
-    ASSERT_NE(0u, mask);
-    dmRender::AddMaterialTag(material, tags[0]);
-    dmRender::AddMaterialTag(material, tags[1]);
-    mask = dmRender::ConvertMaterialTagsToMask(tags, 2);
-    ASSERT_EQ(mask, dmRender::GetMaterialTagMask(material));
+    dmRender::SetMaterialTags(material, DM_ARRAY_SIZE(tags), tags);
+    ASSERT_EQ(dmHashBuffer32(tags, DM_ARRAY_SIZE(tags)*sizeof(tags[0])), dmRender::GetMaterialTagListKey(material));
 
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
@@ -179,6 +175,27 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmRender::DeleteRenderContext(render_context, 0);
     dmGraphics::DeleteContext(context);
     dmScript::DeleteContext(params.m_ScriptContext);
+}
+
+TEST(dmMaterialTest, MatchMaterialTags)
+{
+    dmhash_t material_tags[] = { 1, 2, 3, 4, 5 };
+
+    dmhash_t tags_a[] = { 1 };
+    ASSERT_TRUE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_a), tags_a));
+
+    dmhash_t tags_b[] = { 0 };
+    ASSERT_FALSE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_b), tags_b));
+
+    dmhash_t tags_c[] = { 2, 3 };
+    ASSERT_TRUE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_c), tags_c));
+
+    // This list is unsorted, and will fail!
+    dmhash_t tags_d[] = { 2, 3, 1 };
+    ASSERT_FALSE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_d), tags_d));
+
+    dmhash_t tags_e[] = { 3, 4, 6 };
+    ASSERT_FALSE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_e), tags_e));
 }
 
 int main(int argc, char **argv)
