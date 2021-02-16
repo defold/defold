@@ -1084,7 +1084,7 @@ namespace dmRender
                     write_ptr->m_Order = render_order;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
                     write_ptr->m_BatchKey = te.m_BatchKey;
-                    write_ptr->m_TagMask = GetMaterialTagMask(te.m_Material);
+                    write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(te.m_Material);
                     write_ptr->m_Dispatch = dispatch;
                     write_ptr++;
                 }

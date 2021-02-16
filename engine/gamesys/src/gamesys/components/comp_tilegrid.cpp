@@ -67,10 +67,10 @@ namespace dmGameSystem
 
         TileGridComponent()
         : m_Instance(0)
-        , m_Material(0)
         , m_Cells(0)
-        , m_TextureSet(0)
         , m_CellFlags(0)
+        , m_Material(0)
+        , m_TextureSet(0)
         , m_Resource(0)
         {
         }
@@ -770,7 +770,7 @@ namespace dmGameSystem
 
                         write_ptr->m_WorldPosition = Point3(trans.getXYZ());
                         write_ptr->m_UserData = EncodeRegionInfo(i, l, x, y);
-                        write_ptr->m_TagMask = dmRender::GetMaterialTagMask(GetMaterial(component));
+                        write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(component));
                         write_ptr->m_BatchKey = component->m_MixedHash;
                         write_ptr->m_Dispatch = dispatch;
                         write_ptr->m_MinorOrder = 0;
