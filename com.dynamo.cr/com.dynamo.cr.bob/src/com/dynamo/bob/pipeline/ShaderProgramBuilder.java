@@ -73,7 +73,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 platform.equals("arm64-android") ||
                 platform.equals("armv7-darwin") ||
                 platform.equals("arm64-darwin") ||
-                platform.equals("x86_64--ios") ||
+                platform.equals("x86_64-ios") ||
                 platform.equals("js-web") ||
                 platform.equals("wasm-web"));
     }
@@ -110,7 +110,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES2) {
             // Normally, the ES2ToES3Converter would do this
-            writer.println("precision mediump float;");
+            boolean gles = isGLES(platform);
+            if (gles)
+                writer.println("precision mediump float;");
         }
 
         writer.println("#ifndef GL_ES");
