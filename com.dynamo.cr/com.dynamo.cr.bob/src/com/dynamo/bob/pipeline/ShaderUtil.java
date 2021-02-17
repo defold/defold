@@ -208,20 +208,21 @@ public class ShaderUtil {
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
-            int patchLineIndex = 0;
 
             // Try get version and profile. Override targetProfile if version is set in shader
             Matcher versionMatcher = regexVersionStringPattern.matcher(input.substring(0, Math.min(input.length(), 128)));
             if (versionMatcher.find()) {
-                patchLineIndex = 1;
                 result.shaderVersion = versionMatcher.group("version");
                 result.shaderProfile = versionMatcher.group("profile");
                 result.shaderProfile = result.shaderProfile == null ? "" : result.shaderProfile;
                 // override targetProfile if version is set in shader
                 targetProfile = result.shaderProfile;
             } else {
-                input = String.format("#version %d %s\n", targetVersion, targetProfile) + input;
-                patchLineIndex = 1;
+                String versionPrefix = String.format("#version %d", targetVersion);
+                if (!targetProfile.isEmpty())
+                    versionPrefix += String.format(" %s", targetProfile);
+                versionPrefix += "\n";
+                input = versionPrefix + input;
             }
 
             if (!result.shaderVersion.isEmpty()) {
@@ -245,12 +246,27 @@ public class ShaderUtil {
             // This to reduce parsing complexity
             String[] inputLines = regexLineBreakPattern.split(input);
 
+            // Find the first non directive line
+            Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
+            int patchLineIndex = 0;
+            for(String line : inputLines) {
+                line = line.trim();
+                if (line.startsWith("#line")) { // The next line is where the used code starts
+                    break;
+                }
+                if (line.isEmpty() || directiveLinePattern.matcher(line).find()) {
+                    patchLineIndex++;
+                    continue;
+                }
+                break;
+            }
+
             // Preallocate array of resulting slices. This makes patching in specific positions less complex
             ArrayList<String> output = new ArrayList<String>(input.length());
 
             // Multi-instance patching
             int ubIndex = 0;
-            for(String line : inputLines ) {
+            for(String line : inputLines) {
 
                 if(line.contains("uniform") && !line.contains("{") && useLatestFeatures)
                 {
@@ -299,12 +315,11 @@ public class ShaderUtil {
             }
 
             // Post patching
-            // Currently only required on fragment shaders for ES profiles..
             if (shaderType == ShaderType.FRAGMENT_SHADER) {
                 // if we have patched glFragColor
                 if(output_glFragColor || output_glFragData) {
                     // insert precision if not found, as it is mandatory for out attributes
-                    if(floatPrecisionIndex < 0) {
+                    if(floatPrecisionIndex < 0 && targetProfile.equals("es")) {
                         output.add(patchLineIndex++, floatPrecisionAttrRep);
                     }
                     // insert fragcolor out attr
