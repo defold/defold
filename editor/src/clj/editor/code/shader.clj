@@ -82,9 +82,6 @@
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn- make-full-source ^String [resource-ext lines]
-  (string/join "\n" lines))
-
 (defn- shader-type-from-str [^String shader-type-in]
   (case shader-type-in
     "int" :shader-type-int
@@ -126,10 +123,10 @@
 
 (defn- make-glsl-shader [^String glsl-source resource-ext resource-path language]
   (let [shader-stage (shader-stage-from-ext resource-ext)
-        target-profile ""
+        platform ""
         is-debug true
         shader-language (shader-language-from-string language)
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage shader-language resource-path target-profile is-debug)]
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage shader-language resource-path platform is-debug)]
     {:language (if (= "glsl" language) :language-glsl :language-gles2)
      :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
 
@@ -146,13 +143,13 @@
 
 (defn- build-shader [resource _dep-resources user-data]
   (let [{:keys [compile-spirv resource-ext lines]} user-data
-        full-source (make-full-source resource-ext lines)
+        source (string/join "\n" lines)
         resource-path (resource/path resource)
         spirv-shader-or-errors-or-nil (when compile-spirv
-                                        (make-spirv-shader full-source resource-ext resource-path))]
+                                        (make-spirv-shader source resource-ext resource-path))]
     (g/precluding-errors spirv-shader-or-errors-or-nil
-      (let [glsl-shader (make-glsl-shader full-source resource-ext resource-path "glsl")
-            gles2-shader (make-glsl-shader full-source resource-ext resource-path "gles2")
+      (let [glsl-shader (make-glsl-shader source resource-ext resource-path "glsl")
+            gles2-shader (make-glsl-shader source resource-ext resource-path "gles2")
             shaders (filterv some? [glsl-shader gles2-shader spirv-shader-or-errors-or-nil])
             shader-desc {:shaders shaders}
             content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
@@ -168,8 +165,17 @@
                   :lines lines
                   :resource-ext (resource/type-ext resource)}})])
 
+;; Used for rendering in the editor
 (g/defnk produce-full-source [resource lines]
-  (make-full-source (resource/type-ext resource) lines))
+  (let [source (string/join "\n" lines)
+        resource-ext (resource/type-ext resource)
+        resource-path (resource/path resource)
+        shader-stage (shader-stage-from-ext resource-ext)
+        platform "" ;; ok, since it won't register as a gles platform
+        is-debug true
+        shader-language (shader-language-from-string "gles2") ;; use the gles2 compatible shaders
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage shader-language resource-path platform is-debug)]
+    glsl-compile-result))
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)
