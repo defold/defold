@@ -780,7 +780,7 @@ namespace dmGraphics
 
     static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context)
     {
-        return ShaderDesc::LANGUAGE_GLSL;
+        return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
 
     static void NullEnableProgram(HContext context, HProgram program)
