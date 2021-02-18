@@ -832,11 +832,27 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_WindowHeight = (uint32_t)height;
         context->m_Dpi = 0;
 
-        context->m_LegacyShaderLanguage = 0;
+
+        context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
+
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+        context->m_IsShaderLanguageGles = 1;
+
         const char* version = (char *) glGetString(GL_VERSION);
-        if (strstr(version, "OpenGL ES 2.0") != 0)
-            context->m_LegacyShaderLanguage = 1;
+        if (strstr(version, "OpenGL ES 2.") != 0) {
+            context->m_IsGles3Version = 0;
+        } else {
+            context->m_IsGles3Version = 1;
+        }
+#else
+        #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+            // iOS
+            context->m_IsGles3Version = 1;
+            context->m_IsShaderLanguageGles = 1;
+        #else
+            context->m_IsGles3Version = 1;
+            context->m_IsShaderLanguageGles = 0;
+        #endif
 #endif
 
         if (params->m_PrintDeviceInfo)
@@ -1008,14 +1024,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #else
         // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
         GLint gl_max_elem_verts = 65536;
-        if (!context->m_LegacyShaderLanguage) {
+        bool legacy = context->m_IsGles3Version == 0;
+        if (!legacy) {
             glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
         }
         context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
         CLEAR_GL_ERROR
 
         GLint gl_max_elem_indices = 65536;
-        if (!context->m_LegacyShaderLanguage) {
+        if (!legacy) {
             glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
         }
         context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
@@ -1740,7 +1757,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
     {
-        return context->m_LegacyShaderLanguage ? ShaderDesc::LANGUAGE_GLES2 : ShaderDesc::LANGUAGE_GLSL;
+        if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles
+            return context->m_IsGles3Version ? ShaderDesc::LANGUAGE_GLES_SM300 : ShaderDesc::LANGUAGE_GLES_SM100;
+        else
+            return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
 
     static void OpenGLEnableProgram(HContext context, HProgram program)

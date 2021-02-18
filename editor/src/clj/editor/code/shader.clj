@@ -104,13 +104,22 @@
     "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
     "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER))
 
-(defn- shader-language-from-string
-  ^Graphics$ShaderDesc$Language [name]
+(defn- shader-language-from-str [name]
   (case name
-    "glsl"  Graphics$ShaderDesc$Language/LANGUAGE_GLSL
-    "spirv" Graphics$ShaderDesc$Language/LANGUAGE_SPIRV
-    "gles2" Graphics$ShaderDesc$Language/LANGUAGE_GLES2
-    ))
+    "glsl_sm120" :language-glsl-sm120
+    "glsl_sm140" :language-glsl-sm140
+    "gles_sm100" :language-gles-sm100
+    "gles_sm300" :language-gles-sm300
+    "spirv" :language-spirv))
+
+(defn- shader-language-to-java
+  ^Graphics$ShaderDesc$Language [language]
+  (case language
+    :language-glsl-sm120 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM120
+    :language-glsl-sm140 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM140
+    :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
+    :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
+    :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
@@ -123,11 +132,10 @@
 
 (defn- make-glsl-shader [^String glsl-source resource-ext resource-path language]
   (let [shader-stage (shader-stage-from-ext resource-ext)
-        platform ""
+        shader-language (shader-language-from-str language)
         is-debug true
-        shader-language (shader-language-from-string language)
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage shader-language resource-path platform is-debug)]
-    {:language (if (= "glsl" language) :language-glsl :language-gles2)
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
+    {:language shader-language
      :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
 
 (defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
@@ -148,9 +156,10 @@
         spirv-shader-or-errors-or-nil (when compile-spirv
                                         (make-spirv-shader source resource-ext resource-path))]
     (g/precluding-errors spirv-shader-or-errors-or-nil
-      (let [glsl-shader (make-glsl-shader source resource-ext resource-path "glsl")
-            gles2-shader (make-glsl-shader source resource-ext resource-path "gles2")
-            shaders (filterv some? [glsl-shader gles2-shader spirv-shader-or-errors-or-nil])
+      (let [glsl-140-shader (make-glsl-shader source resource-ext resource-path "glsl_sm140")
+            gles-300-shader (make-glsl-shader source resource-ext resource-path "gles_sm300")
+            gles-100-shader (make-glsl-shader source resource-ext resource-path "gles_sm100")
+            shaders (filterv some? [glsl-140-shader gles-300-shader gles-100-shader spirv-shader-or-errors-or-nil])
             shader-desc {:shaders shaders}
             content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
         {:resource resource
@@ -171,10 +180,9 @@
         resource-ext (resource/type-ext resource)
         resource-path (resource/path resource)
         shader-stage (shader-stage-from-ext resource-ext)
-        platform "" ;; ok, since it won't register as a gles platform
         is-debug true
-        shader-language (shader-language-from-string "gles2") ;; use the gles2 compatible shaders
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage shader-language resource-path platform is-debug)]
+        shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
     glsl-compile-result))
 
 (g/defnode ShaderNode
