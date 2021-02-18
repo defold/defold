@@ -56,6 +56,35 @@
    Error Compilation_aborted_CARES_TYPEOF_ARES_SOCKLEN_T_already_defined
 #endif
 
+// Defold patch: This is a combination of ares_build.h from win32/64 and other platforms
+//               We simply frankenstein this to avoid having 8 different headers that
+//               basically contain the same things.
+#if defined(_WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+    #  define WIN32_LEAN_AND_MEAN 1
+    #endif
+
+    #if defined(CARES_TYPEOF_ARES_SSIZE_T)
+        #undef CARES_TYPEOF_ARES_SSIZE_T
+    #endif
+    #if defined(_WIN64)
+        #define CARES_TYPEOF_ARES_SSIZE_T __int64
+    #else
+        #define CARES_TYPEOF_ARES_SSIZE_T int
+    #endif
+    #define CARES_TYPEOF_ARES_SOCKLEN_T int
+
+    /* #undef CARES_PULL_SYS_TYPES_H */
+    /* #undef CARES_PULL_SYS_SOCKET_H */
+    #define CARES_PULL_WS2TCPIP_H
+#else
+    #define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t
+    #define CARES_TYPEOF_ARES_SSIZE_T ssize_t
+    #define CARES_PULL_SYS_TYPES_H
+    #define CARES_PULL_SYS_SOCKET_H
+    /* #undef CARES_PULL_WS2TCPIP_H */
+#endif
+
 /* ================================================================ */
 /*  EXTERNAL INTERFACE SETTINGS FOR CONFIGURE CAPABLE SYSTEMS ONLY  */
 /* ================================================================ */
@@ -65,7 +94,7 @@
 /* #undef CARES_PULL_WS2TCPIP_H */
 #ifdef CARES_PULL_WS2TCPIP_H
 #  ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN 1
 #  endif
 #  include <windows.h>
 #  include <winsock2.h>
@@ -74,26 +103,26 @@
 
 /* Configure process defines this to 1 when it finds out that system   */
 /* header file sys/types.h must be included by the external interface. */
-#define CARES_PULL_SYS_TYPES_H 1
+/* #undef CARES_PULL_SYS_TYPES_H */
 #ifdef CARES_PULL_SYS_TYPES_H
 #  include <sys/types.h>
 #endif
 
 /* Configure process defines this to 1 when it finds out that system    */
 /* header file sys/socket.h must be included by the external interface. */
-#define CARES_PULL_SYS_SOCKET_H 1
+/* #undef CARES_PULL_SYS_SOCKET_H */
 #ifdef CARES_PULL_SYS_SOCKET_H
 #  include <sys/socket.h>
 #endif
 
 /* Integral data type used for ares_socklen_t. */
-#define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t
+//#define CARES_TYPEOF_ARES_SOCKLEN_T int
 
 /* Data type definition of ares_socklen_t. */
 typedef CARES_TYPEOF_ARES_SOCKLEN_T ares_socklen_t;
 
 /* Integral data type used for ares_ssize_t. */
-#define CARES_TYPEOF_ARES_SSIZE_T ssize_t
+//#define CARES_TYPEOF_ARES_SSIZE_T ssize_t
 
 /* Data type definition of ares_ssize_t. */
 typedef CARES_TYPEOF_ARES_SSIZE_T ares_ssize_t;

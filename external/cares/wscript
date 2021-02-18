@@ -1,5 +1,9 @@
 #! /usr/bin/env python
 
+"""
+Look at ares_build.h for the Defold specific patches of defines
+"""
+
 import os
 
 srcdir = '.'
@@ -35,7 +39,7 @@ def build(bld):
 
     has_resolv = bld.env.PLATFORM in ('armv7-darwin','arm64-darwin','x86_64-ios')
 
-    defines = ['NDEBUG', 'CARES_STATICLIB', 'HAVE_CONFIG_H=1']
+    defines = ['NDEBUG', 'CARES_STATICLIB']
     if has_resolv:
         defines += ['CARES_USE_LIBRESOLV', 'HAVE_INET_NET_PTON=1', 'HAVE_INET_PTON=1']
 
