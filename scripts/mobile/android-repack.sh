@@ -115,7 +115,6 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     fi
 
     rm -rf "META-INF"
-
     if [ -e "${ENGINE_LIB}" ]; then
         if [ "$EXENAME" != "" ]; then
             cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
