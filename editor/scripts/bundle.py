@@ -28,6 +28,8 @@ import datetime
 import imp
 import fnmatch
 
+DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
+
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
@@ -153,19 +155,31 @@ def sign_files(platform, options, dir):
         return
     if 'win32' in platform:
         certificate = options.windows_cert
-        certificate_pass = options.windows_cert_pass
+        certificate_pass_path = options.windows_cert_pass
         if certificate == None:
             print("No codesigning certificate specified")
             sys.exit(1)
 
+        if not os.path.exists(certificate):
+            print("Certificate file does not exist:", certificate)
+            sys.exit(1)
+
+        certificate_pass = 'invalid'
+        with open(certificate_pass_path, 'rb') as f:
+            certificate_pass = f.read()
+
+        signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
+        if not os.path.exists(signtool):
+            print("signtool.exe file does not exist:", signtool)
+            sys.exit(1)
         exec_command([
-            'SignTool',
+            signtool,
             'sign',
             '/fd', 'sha256',
             '/a',
             '/f', certificate,
             '/p', certificate_pass,
-            '/tr', 'http://timestamp.comodoca.com',
+            '/tr', 'http://timestamp.digicert.com',
             dir])
     elif 'darwin' in platform:
         codesigning_identity = options.codesigning_identity
@@ -308,6 +322,8 @@ def create_bundle(options):
 
         if is_mac:
             shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
+            shutil.copy('bundle-resources/Assets.car', resources_dir)
+            shutil.copy('bundle-resources/document_legacy.icns', resources_dir)
         if icon:
             shutil.copy('bundle-resources/%s' % icon, resources_dir)
 
@@ -318,6 +334,7 @@ def create_bundle(options):
         config.set('build', 'engine_sha1', options.engine_sha1)
         config.set('build', 'version', options.version)
         config.set('build', 'time', datetime.datetime.now().isoformat())
+        config.set('build', 'archive_domain', options.archive_domain)
 
         if options.channel:
             config.set('build', 'channel', options.channel)
@@ -394,7 +411,7 @@ def sign(options):
             sign_files('darwin', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
             sign_files('darwin', options, os.path.join(sign_dir, "Defold.app"))
         elif 'win32' in platform:
-            sign_files('win32', options,  os.path.join(sign_dir, "Defold.exe"))
+            sign_files('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
 
         # create editor bundle with signed files
         os.remove(bundle_file)
@@ -485,6 +502,11 @@ Commands:
     parser.add_option('--channel', dest='channel',
                       default = None,
                       help = 'Channel to set in editor config when creating the bundle')
+
+    default_archive_domain = DEFAULT_ARCHIVE_DOMAIN
+    parser.add_option('--archive-domain', dest='archive_domain',
+                      default = DEFAULT_ARCHIVE_DOMAIN,
+                      help = 'Domain to set in the editor config where builds are archived. Default is %s' % default_archive_domain)
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',

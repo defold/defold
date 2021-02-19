@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,6 +35,8 @@ protected:
     virtual void SetUp()
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
+
+        dmHashEnableReverseHash(true);
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
@@ -886,6 +888,153 @@ TEST_F(HierarchyTest, TestEmptyInstance)
     ASSERT_TRUE(ret);
 
     dmGameObject::Delete(m_Collection, go, false);
+}
+
+struct TestHierarchyCtx
+{
+    int num_collections;
+    int num_gameobjects;
+    int num_components;
+    int num_subcomponents;
+};
+
+static void PrintIndent(int indent, char* buffer, size_t buffer_size)
+{
+    const int indent_size = 4;
+    for (int i = 0; i < indent*indent_size && i < buffer_size; ++i)
+        buffer[i] = ' ';
+    buffer[indent*indent_size] = 0;
+}
+
+static void PrintProperty(dmGameObject::SceneNodeProperty* property, int indent)
+{
+    char buffer[64];
+    PrintIndent(indent, buffer, sizeof(buffer));
+
+    printf("%s'%s': ", buffer, dmHashReverseSafe64(property->m_NameHash));
+    switch(property->m_Type)
+    {
+    case dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH:
+        {
+            const void* rev_hash = dmHashReverse64(property->m_Value.m_Hash, 0);
+            if (rev_hash)
+                printf("%s", (const char*)rev_hash);
+            else
+                printf("%016llX", (unsigned long long)property->m_Value.m_Hash);
+        }
+        break;
+    case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: printf("%f", property->m_Value.m_Number); break;
+    case dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN: printf("%d", property->m_Value.m_Bool?1:0); break;
+    case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3: printf("%f, %f, %f", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2]); break;
+    case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4: printf("%f, %f, %f, %f", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2], property->m_Value.m_V4[3]); break;
+    case dmGameObject::SCENE_NODE_PROPERTY_TYPE_QUAT: printf("%f, %f, %f, %f", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2], property->m_Value.m_V4[3]); break;
+    case dmGameObject::SCENE_NODE_PROPERTY_TYPE_URL: printf("%s", property->m_Value.m_URL); break;
+    default: break;
+    }
+    printf("\n");
+}
+
+static void TraverseHierarchy(dmGameObject::SceneNode* node, TestHierarchyCtx* ctx, int indent)
+{
+    switch(node->m_Type)
+    {
+    case dmGameObject::SCENE_NODE_TYPE_COLLECTION:      ctx->num_collections++; break;
+    case dmGameObject::SCENE_NODE_TYPE_GAMEOBJECT:      ctx->num_gameobjects++; break;
+    case dmGameObject::SCENE_NODE_TYPE_COMPONENT:       ctx->num_components++; break;
+    case dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT:    ctx->num_subcomponents++; break;
+    }
+
+    char buffer[64];
+    PrintIndent(indent, buffer, sizeof(buffer));
+
+    dmGameObject::SceneNodePropertyIterator pit = TraverseIterateProperties(node);
+    while(dmGameObject::TraverseIteratePropertiesNext(&pit))
+    {
+        PrintProperty( &pit.m_Property, indent );
+    }
+
+    dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(node);
+    while(dmGameObject::TraverseIterateNext(&it))
+    {
+        TraverseHierarchy( &it.m_Node, ctx, indent+1 );
+    }
+}
+
+static void SetProperties(dmGameObject::HInstance instance)
+{
+    dmGameObject::Prototype::Component* components = instance->m_Prototype->m_Components;
+    uint32_t count = instance->m_Prototype->m_ComponentCount;
+    uint32_t component_instance_data_index = 0;
+    dmGameObject::ComponentSetPropertiesParams params;
+    params.m_Instance = instance;
+    params.m_PropertySet.m_GetPropertyCallback = 0;
+    params.m_PropertySet.m_FreeUserDataCallback = 0;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmGameObject::ComponentType* type = components[i].m_Type;
+        if (type->m_SetPropertiesFunction != 0x0)
+        {
+            uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
+            params.m_UserData = component_instance_data;
+            type->m_SetPropertiesFunction(params);
+        }
+        if (components[i].m_Type->m_InstanceHasUserData)
+            ++component_instance_data_index;
+    }
+}
+
+// Testing the debug inspection api
+TEST_F(HierarchyTest, TestIterateHierarchy)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child1, "child1"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child2, "child2"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child3, "child3"));
+
+    // parent
+    // +--child1
+    //   +--child2
+    //     +--child3
+    dmGameObject::SetParent(child1, parent);
+    dmGameObject::SetParent(child3, child2);
+    dmGameObject::SetParent(child2, child1);
+
+    dmGameObject::SetPosition(child1, Point3(1,2,3));
+    dmGameObject::SetPosition(child3, Point3(2,2,2));
+
+    SetProperties(parent);
+    SetProperties(child1);
+    SetProperties(child2);
+    SetProperties(child3);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    dmGameObject::SceneNode root;
+    if (!dmGameObject::TraverseGetRoot(m_Register, &root))
+        return;
+
+    TestHierarchyCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    printf("\n");
+    TraverseHierarchy(&root, &ctx, 0);
+
+    ASSERT_EQ(1, ctx.num_collections);
+    ASSERT_EQ(4, ctx.num_gameobjects);
+    ASSERT_EQ(4, ctx.num_components);
+    ASSERT_EQ(0, ctx.num_subcomponents);
+
+    dmGameObject::Delete(m_Collection, parent, false);
+    dmGameObject::Delete(m_Collection, child1, false);
+    dmGameObject::Delete(m_Collection, child2, false);
+    dmGameObject::Delete(m_Collection, child3, false);
+
 }
 
 #undef EPSILON

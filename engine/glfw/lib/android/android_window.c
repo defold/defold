@@ -51,6 +51,7 @@ extern int g_NumAppCommands;
 extern struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
 extern int g_NumAppInputEvents;
 extern uint32_t g_EventLock;
+extern const char* _glfwGetAndroidCmdName(int32_t cmd);
 
 int g_KeyboardActive = 0;
 int g_autoCloseKeyboard = 0;
@@ -261,6 +262,7 @@ static void _glfwPlatformSwapBuffersNoLock( void )
                 // Recreate surface
                 LOGE("eglSwapBuffers failed due to EGL_BAD_SURFACE, destroy surface and wait for recreation.");
                 destroy_gl_surface(&_glfwWinAndroid);
+                _glfwWinAndroid.should_recreate_surface = 1;
                 _glfwWin.iconified = 1;
                 return;
             } else {
@@ -347,6 +349,9 @@ void glfwAndroidFlushEvents()
     for (int i = 0; i < g_NumAppCommands; ++i)
     {
         int cmd = g_AppCommands[i];
+
+        LOGV("handleCommand (main thread): %s", _glfwGetAndroidCmdName(cmd));
+
         switch(cmd)
         {
         case APP_CMD_INIT_WINDOW:
@@ -359,15 +364,33 @@ void glfwAndroidFlushEvents()
             computeIconifiedState();
             break;
 
-
         case APP_CMD_GAINED_FOCUS:
             // If we failed to create the window in APP_CMD_INIT_WINDOW, let's try again
             if (_glfwWinAndroid.surface == EGL_NO_SURFACE) {
                 CreateGLSurface();
             }
+            break;
+
+        case APP_CMD_PAUSE:
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(0); // invokes Lua callbacks
+            break;
+        case APP_CMD_RESUME:
+            if(_glfwWin.windowFocusCallback)
+                _glfwWin.windowFocusCallback(1); // invokes Lua callbacks
+            break;
+
         }
     }
     g_NumAppCommands = 0;
+
+    // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
+    if (_glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
+    {
+        LOGV("Recreating surface");
+        CreateGLSurface();
+        _glfwWinAndroid.should_recreate_surface = 0;
+    }
 
     JNIEnv* env = 0;
     JavaVM* vm = 0;

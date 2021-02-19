@@ -252,7 +252,7 @@ namespace dmLiveUpdate
         char zip_path[DMPATH_MAX_PATH] = {0};
         FILE* f = fopen(archive_path, "rb");
         fread(zip_path, 1, sizeof(zip_path), f);
-        fclose(0);
+        fclose(f);
 
         zip_path[sizeof(zip_path)-1] = 0;
 
@@ -314,7 +314,7 @@ namespace dmLiveUpdate
         char zip_path[DMPATH_MAX_PATH] = {0};
         FILE* f = fopen(archive_path, "rb");
         fread(zip_path, 1, sizeof(zip_path), f);
-        fclose(0);
+        fclose(f);
 
         zip_path[sizeof(zip_path)-1] = 0;
 

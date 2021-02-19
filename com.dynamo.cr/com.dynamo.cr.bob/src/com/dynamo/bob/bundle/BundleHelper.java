@@ -608,11 +608,11 @@ public class BundleHelper {
         BufferedImage largestIconImage = getFallbackIconImage("ios", iconPropNames);
 
         // Copy game.project specified icons
-        genIcon(largestIconImage, appDir, "ios",   "app_icon_76x76",      "Icon-76.png",  76);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_152x152",   "Icon-76@2x.png", 152);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_120x120",   "Icon-60@2x.png", 120);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_180x180",   "Icon-60@3x.png", 180);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_167x167", "Icon-83.5@2x.png", 167);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_120x120",          "AppIcon60x60@2x.png", 120);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_180x180",          "AppIcon60x60@3x.png", 180);
+        genIcon(largestIconImage, appDir, "ios",   "app_icon_76x76",        "AppIcon76x76~ipad.png",  76);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_152x152",     "AppIcon76x76@2x~ipad.png", 152);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_167x167", "AppIcon83.5x83.5@2x~ipad.png", 167);
     }
 
     public void copyAndroidIcons(File resDir) throws IOException
@@ -659,8 +659,13 @@ public class BundleHelper {
             return copyFile(projectProperties, projectRoot, resDir, category, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
-    public List<String> createArrayFromString(String line) {
-        return line != null ? new ArrayList<String>(Arrays.asList(line.trim().split("\\s*,\\s*"))) : new ArrayList<String>();
+    public static List<String> createArrayFromString(String line) {
+        if (line == null)
+            return new ArrayList<String>();
+        line = line.trim();
+        if (line.isEmpty())
+            return new ArrayList<String>();
+        return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
     public Map<String, Object> createAndroidManifestProperties(String exeName) throws IOException {
@@ -729,6 +734,9 @@ public class BundleHelper {
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
         properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
+        properties.put("bundle-version", projectProperties.getStringValue("ios", "bundle_version",
+            projectProperties.getStringValue("project", "version", "1.0")
+        ));
 
         String launchScreen = projectProperties.getStringValue("ios", "launch_screen", "LaunchScreen");
         properties.put("launch-screen", FilenameUtils.getBaseName(launchScreen));

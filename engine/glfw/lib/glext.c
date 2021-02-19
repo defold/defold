@@ -41,11 +41,25 @@
 #define GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT 0x0001
 #endif
 
+#if !defined(GL_MAJOR_VERSION)
+#define GL_MAJOR_VERSION 0x821B
+#define GL_MINOR_VERSION 0x821C
+#endif
+
 #ifndef GL_VERSION_3_2
 #define GL_CONTEXT_CORE_PROFILE_BIT       0x00000001
 #define GL_CONTEXT_COMPATIBILITY_PROFILE_BIT 0x00000002
 #define GL_CONTEXT_PROFILE_MASK           0x9126
 #endif
+
+static void _ClearGLError()
+{
+    GLint err = glGetError();
+    while (err != 0)
+    {
+        err = glGetError();
+    }
+}
 
 //========================================================================
 // Parses the OpenGL version string and extracts the version number
@@ -53,12 +67,16 @@
 
 void _glfwParseGLVersion( int *major, int *minor, int *rev )
 {
-#if defined(__arm__) || defined(__arm64__) || defined(__aarch64__) || defined(IOS_SIMULATOR)
-    // Parsing code below is broken for iOS. Just set some values.
-    _glfwWin.glMajor = 1;
-    _glfwWin.glMinor = 0;
-    _glfwWin.glRevision = 0;
-#else
+    glGetIntegerv(GL_MAJOR_VERSION, major);
+    glGetIntegerv(GL_MINOR_VERSION, minor);
+    *rev = 0;
+
+    GLint err = glGetError();
+    if (err == 0) {
+        return;
+    }
+    _ClearGLError();
+
     GLuint _major, _minor = 0, _rev = 0;
     const GLubyte *version;
     const GLubyte *ptr;
@@ -72,6 +90,11 @@ void _glfwParseGLVersion( int *major, int *minor, int *rev )
 
     // Parse string
     ptr = version;
+
+    const char* opengles = "OpenGL ES ";
+    if (strstr(ptr, opengles))
+        ptr += strlen(opengles);
+
     for( _major = 0; *ptr >= '0' && *ptr <= '9'; ptr ++ )
     {
         _major = 10*_major + (*ptr - '0');
@@ -97,7 +120,6 @@ void _glfwParseGLVersion( int *major, int *minor, int *rev )
     *major = _major;
     *minor = _minor;
     *rev = _rev;
-#endif
 }
 
 //========================================================================
@@ -153,7 +175,7 @@ void _glfwRefreshContextParams( void )
     {
         GLint flags;
         glGetIntegerv( GL_CONTEXT_FLAGS, &flags );
-
+        _ClearGLError();
         if( flags & GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT )
         {
             _glfwWin.glForward = GL_TRUE;
@@ -165,7 +187,7 @@ void _glfwRefreshContextParams( void )
     {
         GLint mask;
         glGetIntegerv( GL_CONTEXT_PROFILE_MASK, &mask );
-
+        _ClearGLError();
         if( mask & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT )
         {
             _glfwWin.glProfile = GLFW_OPENGL_COMPAT_PROFILE;

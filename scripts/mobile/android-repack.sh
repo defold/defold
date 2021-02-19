@@ -117,12 +117,12 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     rm -rf "META-INF"
 
     if [ -e "${ENGINE_LIB}" ]; then
-        if [ "" != "$EXENAME" ]; then
+        if [ "$EXENAME" != "" ]; then
             cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
         fi
     fi
     if [ -e "${ENGINE_64_LIB}" ]; then
-        if [ "" != "$EXENAME_64" ]; then
+        if [ "$EXENAME_64" != "" ]; then
             cp -v "${ENGINE_64_LIB}" "lib/arm64-v8a/${EXENAME_64}"
         fi
     fi
@@ -131,6 +131,9 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     if [ -e "$GDBSERVER" ]; then
         cp -v "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
     fi
+
+    # Todo: Detect ASAN dependency
+    # ".../lib/arm64/libSoundTest.so": dlopen failed: library "libclang_rt.asan-aarch64-android.so" not found
 
     ${ZIP} -qr "${REPACKZIP}" "."
 )

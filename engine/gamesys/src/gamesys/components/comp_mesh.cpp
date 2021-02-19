@@ -305,7 +305,8 @@ namespace dmGameSystem
     static void FillRenderObject(dmRender::RenderObject& ro,
         const dmGraphics::PrimitiveType& primitive_type,
         const dmRender::HMaterial& material,
-        const dmGraphics::HTexture* textures,
+        const dmGraphics::HTexture* textures_resource,
+        const dmGraphics::HTexture* textures_component,
         const dmGraphics::HVertexDeclaration& vert_decl,
         const dmGraphics::HVertexBuffer& vert_buffer,
         uint32_t vert_start, uint32_t vert_count,
@@ -329,7 +330,7 @@ namespace dmGameSystem
         // }
 
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            ro.m_Textures[i] = textures[i];
+            ro.m_Textures[i] = textures_component[i] ? textures_component[i] : textures_resource[i];
 
         for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
         {
@@ -523,7 +524,10 @@ namespace dmGameSystem
 
         world->m_RenderedVertexSize += vert_size * element_count;
 
-        FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, vert_decl, vert_buffer, 0, element_count, Matrix4::identity(), first->m_RenderConstants);
+        // since they are batched, they have the same settings as the first mesh
+        const MeshComponent* component = (MeshComponent*) buf[*begin].m_UserData;
+
+        FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, component->m_Textures, vert_decl, vert_buffer, 0, element_count, Matrix4::identity(), first->m_RenderConstants);
         dmGraphics::SetVertexBufferData(vert_buffer, vert_size * element_count, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmRender::AddToRender(render_context, &ro);
     }
@@ -575,7 +579,7 @@ namespace dmGameSystem
 
             world->m_RenderedVertexSize += vert_size * elem_count;
 
-            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, vert_decl, vert_buf, 0, elem_count, component->m_World, component->m_RenderConstants);
+            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, component->m_Textures, vert_decl, vert_buf, 0, elem_count, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
     }
@@ -657,7 +661,7 @@ namespace dmGameSystem
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;
             write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
+            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(component.m_Resource->m_Material);
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;

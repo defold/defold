@@ -53,7 +53,7 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('lib')
-    bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/graphics/glfw', 'include/GL/glfw.h')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')
 
     if 'android' in bld.env['PLATFORM']:

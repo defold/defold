@@ -53,6 +53,7 @@
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
+#include "extension.h"
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
@@ -107,33 +108,7 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
-    void GetWorldTransform(void* user_data, Point3& position, Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        position = dmGameObject::GetWorldPosition(instance);
-        rotation = dmGameObject::GetWorldRotation(instance);
-    }
-
-    void SetWorldTransform(void* user_data, const Point3& position, const Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        dmGameObject::SetPosition(instance, position);
-        dmGameObject::SetRotation(instance, rotation);
-    }
-
-    void SetObjectModel(void* visual_object, Quat* rotation, Point3* position)
-    {
-        if (!visual_object) return;
-        dmGameObject::HInstance go = (dmGameObject::HInstance) visual_object;
-        *position = dmGameObject::GetWorldPosition(go);
-        *rotation = dmGameObject::GetWorldRotation(go);
-    }
-
-    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
@@ -168,7 +143,7 @@ namespace dmEngine
         dmGameSystem::OnWindowResized(width, height);
     }
 
-    bool OnWindowClose(void* user_data)
+    static bool OnWindowClose(void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         engine->m_Alive = false;
@@ -176,7 +151,7 @@ namespace dmEngine
         return false;
     }
 
-    void Dispatch(dmMessage::Message *message_object, void* user_ptr);
+    static void Dispatch(dmMessage::Message *message_object, void* user_ptr);
 
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
@@ -350,10 +325,12 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
-        dmExtension::AppParams app_params;
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
-        dmExtension::AppFinalize(&app_params);
+        app_params.m_GameObjectRegister = engine->m_Register;
+        app_params.m_HIDContext = engine->m_HidContext;
+        dmExtension::AppFinalize((dmExtension::AppParams*)&app_params);
 
         dmBuffer::DeleteContext();
 
@@ -457,6 +434,42 @@ namespace dmEngine
         dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
+    struct LuaCallstackCtx
+    {
+        bool     m_First;
+        char*    m_Buffer;
+        uint32_t m_BufferSize;
+    };
+
+    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
+    {
+        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
+
+        if (ctx->m_First)
+        {
+            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            ctx->m_Buffer += nwritten;
+            ctx->m_BufferSize -= nwritten;
+            ctx->m_First = false;
+        }
+
+        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
+        ctx->m_Buffer += nwritten;
+        ctx->m_BufferSize -= nwritten;
+    }
+
+    static void CrashHandlerCallback(void* ctx, char* buffer, uint32_t buffersize)
+    {
+        HEngine engine = (HEngine)ctx;
+        if (engine->m_SharedScriptContext) {
+            LuaCallstackCtx ctx;
+            ctx.m_First = true;
+            ctx.m_Buffer = buffer;
+            ctx.m_BufferSize = buffersize;
+            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -476,6 +489,8 @@ namespace dmEngine
     bool Init(HEngine engine, int argc, char *argv[])
     {
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+
+        dmCrash::SetExtraInfoCallback(CrashHandlerCallback, engine);
 
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Platform = dmEngineVersion::PLATFORM;
@@ -580,10 +595,36 @@ namespace dmEngine
 
         dmBuffer::NewContext();
 
-        dmExtension::AppParams app_params;
+
+        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
+
+        // Accelerometer
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        if (use_accelerometer) {
+            dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
+        }
+        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
+
+#if defined(__EMSCRIPTEN__)
+        // DEF-2450 Reverse scroll direction for firefox browser
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+        if (info.m_UserAgent != 0x0)
+        {
+            const char* str_firefox = "firefox";
+            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
+        }
+#endif
+        engine->m_HidContext = dmHID::NewContext(new_hid_params);
+
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
-        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        app_params.m_GameObjectRegister = engine->m_Register;
+        app_params.m_HIDContext = engine->m_HidContext;
+
+        dmExtension::Result er = dmExtension::AppInitialize((dmExtension::AppParams*)&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;
@@ -640,7 +681,7 @@ namespace dmEngine
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
         window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
         window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
-        window_params.m_PrintDeviceInfo = false;
+        window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
@@ -787,27 +828,6 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
-        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
-
-        // Accelerometer
-        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
-        if (use_accelerometer) {
-        	dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
-        }
-        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
-
-#if defined(__EMSCRIPTEN__)
-        // DEF-2450 Reverse scroll direction for firefox browser
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-        if (info.m_UserAgent != 0x0)
-        {
-            const char* str_firefox = "firefox";
-            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
-        }
-#endif
-        engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
 
         dmSound::InitializeParams sound_params;
@@ -1186,7 +1206,7 @@ bail:
         return false;
     }
 
-    void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
+    static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
@@ -1384,10 +1404,16 @@ bail:
 
                     dmSound::Update();
 
-                    dmHID::KeyboardPacket keybdata;
-                    dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
+                    bool esc_pressed = false;
+                    if (engine->m_QuitOnEsc)
+                    {
+                        dmHID::KeyboardPacket keybdata;
+                        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+                        dmHID::GetKeyboardPacket(keyboard, &keybdata);
+                        esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
+                    }
 
-                    if ((engine->m_QuitOnEsc && dmHID::GetKey(&keybdata, dmHID::KEY_ESC)) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                    if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
                         return;
@@ -1605,7 +1631,7 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    void Dispatch(dmMessage::Message* message, void* user_ptr)
+    static void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
         Engine* self = (Engine*) user_ptr;
 

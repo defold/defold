@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +20,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace])
   (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
-           (com.dynamo.graphics.proto Graphics$ShaderDesc)
+           (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
            (com.google.protobuf ByteString)))
 
 (set! *warn-on-reflection* true)
@@ -82,11 +82,6 @@
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn- make-full-source ^String [resource-ext lines]
-  (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives resource-ext)]
-                      (shader/insert-directives lines compat-directive-lines)
-                      lines)))
-
 (defn- shader-type-from-str [^String shader-type-in]
   (case shader-type-in
     "int" :shader-type-int
@@ -109,6 +104,23 @@
     "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
     "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER))
 
+(defn- shader-language-from-str [name]
+  (case name
+    "glsl_sm120" :language-glsl-sm120
+    "glsl_sm140" :language-glsl-sm140
+    "gles_sm100" :language-gles-sm100
+    "gles_sm300" :language-gles-sm300
+    "spirv" :language-spirv))
+
+(defn- shader-language-to-java
+  ^Graphics$ShaderDesc$Language [language]
+  (case language
+    :language-glsl-sm120 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM120
+    :language-glsl-sm140 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM140
+    :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
+    :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
+    :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
+
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
 
@@ -118,9 +130,13 @@
    :set (.set shader-resource)
    :binding (.binding shader-resource)})
 
-(defn- make-glsl-shader [^String glsl-source]
-  {:language :language-glsl
-   :source (ByteString/copyFrom (.getBytes glsl-source "UTF-8"))})
+(defn- make-glsl-shader [^String glsl-source resource-ext resource-path language]
+  (let [shader-stage (shader-stage-from-ext resource-ext)
+        shader-language (shader-language-from-str language)
+        is-debug true
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
+    {:language shader-language
+     :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
 
 (defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
   (let [shader-stage (shader-stage-from-ext resource-ext)
@@ -135,13 +151,15 @@
 
 (defn- build-shader [resource _dep-resources user-data]
   (let [{:keys [compile-spirv resource-ext lines]} user-data
-        full-source (make-full-source resource-ext lines)
+        source (string/join "\n" lines)
         resource-path (resource/path resource)
         spirv-shader-or-errors-or-nil (when compile-spirv
-                                        (make-spirv-shader full-source resource-ext resource-path))]
+                                        (make-spirv-shader source resource-ext resource-path))]
     (g/precluding-errors spirv-shader-or-errors-or-nil
-      (let [glsl-shader (make-glsl-shader full-source)
-            shaders (filterv some? [glsl-shader spirv-shader-or-errors-or-nil])
+      (let [glsl-140-shader (make-glsl-shader source resource-ext resource-path "glsl_sm140")
+            gles-300-shader (make-glsl-shader source resource-ext resource-path "gles_sm300")
+            gles-100-shader (make-glsl-shader source resource-ext resource-path "gles_sm100")
+            shaders (filterv some? [glsl-140-shader gles-300-shader gles-100-shader spirv-shader-or-errors-or-nil])
             shader-desc {:shaders shaders}
             content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
         {:resource resource
@@ -156,8 +174,16 @@
                   :lines lines
                   :resource-ext (resource/type-ext resource)}})])
 
+;; Used for rendering in the editor
 (g/defnk produce-full-source [resource lines]
-  (make-full-source (resource/type-ext resource) lines))
+  (let [source (string/join "\n" lines)
+        resource-ext (resource/type-ext resource)
+        resource-path (resource/path resource)
+        shader-stage (shader-stage-from-ext resource-ext)
+        is-debug true
+        shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
+    glsl-compile-result))
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)

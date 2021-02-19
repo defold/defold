@@ -25,12 +25,12 @@ var FileLoader = {
                     if (onprogress) onprogress(xhr, e);
                 };
                 xhr.onerror = function(e) {
-                    if (currentAttempt == FileLoader.retryCount) {
+                    if (currentAttempt == FileLoader.options.retryCount) {
                         if (onerror) onerror(xhr, e);
                         return;
                     }
                     currentAttempt = currentAttempt + 1;
-                    setTimeout(obj.send, FileLoader.retryInterval);
+                    setTimeout(obj.send, FileLoader.options.retryInterval);
                 };
                 xhr.onload = function(e) {
                     if (onload) onload(xhr, e);
@@ -84,7 +84,12 @@ var FileLoader = {
         request.onload = function(xhr, e) {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
-                    onload(xhr.response);
+                    var res = xhr.response;
+                    if (responseType == "json" && typeof res === "string") {
+                        onload(JSON.parse(res));
+                    } else {
+                        onload(res);
+                    }
                 } else {
                     onerror("Error loading '" + url + "' (" + e + ")");
                 }
@@ -501,6 +506,8 @@ var Module = {
     _syncMaxTries: 3,
     _syncTries: 0,
 
+    arguments: [],
+
     print: function(text) { console.log(text); },
     printErr: function(text) { console.error(text); },
 
@@ -657,7 +664,12 @@ var Module = {
 
         Module.arguments = params["engine_arguments"];
         Module.persistentStorage = params["persistent_storage"];
-        Module["TOTAL_MEMORY"] = params["custom_heap_size"];
+
+        var fullScreenContainer = params["full_screen_container"];
+        if (typeof fullScreenContainer === "string") {
+            fullScreenContainer = document.querySelector(fullScreenContainer);
+        }
+        Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
         if (Module.hasWebGLSupport()) {
             // Override game keys
@@ -709,11 +721,11 @@ var Module = {
         }
     },
 
-    toggleFullscreen: function() {
+    toggleFullscreen: function(element) {
         if (GLFW.isFullscreen) {
             GLFW.cancelFullScreen();
         } else {
-            GLFW.requestFullScreen();
+            GLFW.requestFullScreen(element);
         }
     },
 
@@ -808,10 +820,6 @@ var Module = {
         if (!Module._archiveLoaded) {
             Module._waitingForArchive = true;
         } else {
-
-            // Need to set heap size before calling main
-            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
-
             Module.preloadAll();
             Progress.removeProgress();
             if (Module.callMain === undefined) {

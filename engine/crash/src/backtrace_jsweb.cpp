@@ -25,6 +25,8 @@
 #include <unistd.h>
 
 static bool g_CrashDumpEnabled = true;
+static dmCrash::FCallstackExtraInfoCallback g_CrashExtraInfoCallback = 0;
+static void*                                g_CrashExtraInfoCallbackCtx = 0;
 
 void dmCrash::WriteDump()
 {
@@ -49,6 +51,12 @@ void dmCrash::EnableHandler(bool enable)
     g_CrashDumpEnabled = enable;
 }
 
+void dmCrash::HandlerSetExtraInfoCallback(dmCrash::FCallstackExtraInfoCallback cbk, void* ctx)
+{
+    g_CrashExtraInfoCallback = cbk;
+    g_CrashExtraInfoCallbackCtx = ctx;
+}
+
 extern "C" void JSWriteDump(char* json_stacktrace) {
     if (!g_CrashDumpEnabled)
         return;
@@ -59,6 +67,11 @@ extern "C" void JSWriteDump(char* json_stacktrace) {
     {
         uint32_t len = dmMath::Min((size_t)(dmCrash::AppState::EXTRA_MAX - 1), strlen(json_stacktrace));
         strncpy(dmCrash::g_AppState.m_Extra, json_stacktrace, len);
+        if (g_CrashExtraInfoCallback)
+        {
+            int extra_len = strlen(dmCrash::g_AppState.m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, dmCrash::g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+        }
         dmCrash::WriteCrash(dmCrash::g_FilePath, &dmCrash::g_AppState);
         dmJson::Free(&doc);
     }

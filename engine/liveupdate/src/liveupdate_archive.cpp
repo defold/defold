@@ -134,7 +134,7 @@ namespace dmLiveUpdate
         dmPath::Concat(app_support_path, LIVEUPDATE_DATA_FILENAME, archive_data_path, DMPATH_MAX_PATH);
 
         void* mount_info = 0;
-        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, 0x0, out, &mount_info);
+        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
         if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
         {
             (*out)->m_UserData = mount_info;
@@ -183,7 +183,7 @@ namespace dmLiveUpdate
             dmPath::Concat(app_support_path, names[i], path, DMPATH_MAX_PATH);
             if (FileExists(path))
             {
-                dmLogDebug("Cleaning up %s", path);
+                dmLogInfo("Cleaning up %s", path);
                 dmSys::Unlink(path);
             }
         }

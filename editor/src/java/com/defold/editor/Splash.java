@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,16 +30,16 @@ import javafx.scene.text.TextFlow;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
-import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URI;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+
+import com.defold.editor.UIUtil;
 
 public class Splash {
 
@@ -49,57 +49,6 @@ public class Splash {
     private BooleanProperty shown = new SimpleBooleanProperty(false);
 
     public Splash() {
-    }
-
-    private static Hyperlink hyperlink(String text, String url) {
-        Hyperlink hyperlink = new Hyperlink(text);
-        hyperlink.setOnAction(event -> new Thread(() -> {
-            try {
-                Desktop.getDesktop().browse(URI.create(url));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start());
-        return hyperlink;
-    }
-
-    private static Text text(String str) {
-        Text text = new Text(str);
-        text.getStyleClass().add("text");
-        return text;
-    }
-
-    private static String unescape(String str) {
-        return str.replace("\\n", "\n");
-    }
-
-    private static List<Node> stringToTextFlowNodes(String str) {
-        List<Node> ret = new ArrayList<>();
-        int i = 0;
-        while (i < str.length()) {
-            if (str.charAt(i) == '[') {
-                // parse link
-                int textStartIndex = i + 1; // skip '['
-                int textEndIndex = str.indexOf(']', textStartIndex);
-                String text = unescape(str.substring(textStartIndex, textEndIndex));
-                int urlStartIndex = textEndIndex + 2; // skip ']' and then '('
-                int urlEndIndex = str.indexOf(')', urlStartIndex);
-                String url = str.substring(urlStartIndex, urlEndIndex);
-
-                ret.add(hyperlink(text, url));
-
-                i = urlEndIndex + 1;
-            } else {
-                // parse text
-                int nextUrlIndex = str.indexOf('[', i);
-                int textEndIndex = nextUrlIndex == -1 ? str.length() : nextUrlIndex;
-
-                ret.add(text(unescape(str.substring(i, textEndIndex))));
-
-                i = textEndIndex;
-            }
-        }
-        return ret;
     }
 
     private static List<String> readTips() throws IOException {
@@ -134,7 +83,7 @@ public class Splash {
 
         TextFlow startupTipFlow = (TextFlow) scene.lookup("#startup-tip");
         startupTipFlow.visibleProperty().bind(errorShowing.not());
-        startupTipFlow.getChildren().setAll(stringToTextFlowNodes(randomElement(readTips())));
+        startupTipFlow.getChildren().setAll(UIUtil.stringToTextFlowNodes(randomElement(readTips())));
 
         Label launchErrorLabel = (Label) scene.lookup("#launch-error");
         launchErrorLabel.textProperty().bind(launchError);

@@ -1,7 +1,7 @@
 #search-in-files-dialog {
     .text-input {
         &:focused {
-            -fx-background-color: $dark-black-light;
+            -fx-background-color: -df-background-light;
         }
     }
 }
@@ -17,7 +17,7 @@
                     -fx-padding: 0.0 0.0 0.0 4.0;
                 }
                 &.matched {
-                    -fx-text-fill: $defold-light-blue;
+                    -fx-text-fill: -df-defold-blue-lighter;
                 }
             }
         }
@@ -35,7 +35,7 @@
             .tree-cell {
                 &:filled {
                     &:selected {
-                        -fx-border-color: $defold-orange;
+                        -fx-border-color: -df-defold-orange;
                     }
                 }
             }

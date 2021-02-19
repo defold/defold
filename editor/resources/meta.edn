@@ -118,6 +118,10 @@
    :severity-default :warning
    :help "This setting is deprecated. When checked, will disable \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."
    :path ["display" "variable_dt"]}
+  {:type :boolean,
+   :help "output gpu info to console at startup",
+   :default false,
+   :path ["display" "display_device_info"]}
   {:type :number,
    :help "Render clear color - red channel",
    :label "Clear Color Red"
@@ -450,6 +454,9 @@
   {:type :string,
    :help "bundle short name (CFBundleName). max 15 characters",
    :path ["ios" "bundle_name"]}
+  {:type :string,
+   :help "build number (CFBundleVersion). numeric or x.y.z",
+   :path ["ios" "bundle_version"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,
@@ -654,6 +661,10 @@
   {:type :string,
    :help "bundle short name (CFBundleName). max 15 characters",
    :path ["osx" "bundle_name"]}
+  {:type :string,
+   :help "build number (CFBundleVersion). numeric or x.y.z",
+   :default "1",
+   :path ["osx" "bundle_version"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,

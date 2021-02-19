@@ -1,49 +1,37 @@
 @font-face {
-  font-family: 'Open Sans';
-  src: url("OpenSans-Regular.ttf");
-} 
+   src: url("OpenSans-Regular.ttf");
+}
 
 @font-face {
-  font-family: 'Source Sans Pro';
   src: url("SourceSansPro-Regular.ttf");
 }
 
 @font-face {
-  font-family: 'Source Sans Pro Semibold';
   src: url("SourceSansPro-Semibold.ttf");
 }
 
 @font-face {
-  font-family: 'Source Sans Pro Italic';
   src: url("SourceSansPro-Italic.ttf");
 }
 
 @font-face {
-  font-family: 'Source Sans Pro Light';
   src: url("SourceSansPro-Light.ttf");
 }
 
-/* Dejavu Sans Mono */
 @font-face {
-  font-family: 'Dejavu Sans Mono Book';
-  src: url("DejaVuSansMono.ttf"); }
+  src: url("DejaVuSansMono.ttf");
+}
 
-@font-face {
-  font-family: 'Dejavu Sans Mono Oblique';
-  src: url("DejaVuSansMono-Oblique.ttf"); }
-
-@font-face {
-  font-family: 'Dejavu Sans Mono Bold';
-  src: url("DejaVuSansMono-Bold.ttf"); }
-
+$default-font-mono: 'Dejavu Sans Mono';
 $default-font: 'Source Sans Pro';
 $default-font-bold: 'Source Sans Pro Semibold';
 $default-font-italic: 'Source Sans Pro Italic';
-$default-font-size: 13px;
+$default-font-light: 'Source Sans Pro Light';
 
-/* Common measurements */
-$pane-padding-top: 17px;
-$pane-padding-bottom: 0px;
+.root {
+    -fx-font-size: 13px;
+    -fx-font-family: $default-font;
+}
 
 Text.strong {
   -fx-font-family: $default-font-bold;
@@ -59,4 +47,38 @@ Label.strong {
 
 Label.emphasis {
   -fx-font-family: $default-font-italic;
+}
+
+#build-errors-container {
+    .tree-cell {
+        -fx-font-family: $default-font-mono;
+        -fx-font-size: 90%;
+    }
+}
+
+// Section titles in game.project
+.cljfx-form-title {
+    -fx-font-family: $default-font-light;
+    -fx-font-size: 200%;
+    -fx-font-smoothing-type: lcd;
+}
+
+// Header on home pane of welcome screen
+#welcome-dialog {
+    .df-header {
+        -fx-font-family: $default-font-light;
+        -fx-font-size: 150%;
+        -fx-font-smoothing-type: lcd;
+    }
+}
+
+#welcome-dialog #left-pane .pane-button {
+    -fx-font-family: $default-font-bold;
+    -fx-font-size: 110%;
+}
+
+#welcome-dialog #progress-overlay #progress-header {
+    -fx-font-family: $default-font-light;
+    -fx-font-size: 150%;
+    -fx-font-smoothing-type: lcd;
 }

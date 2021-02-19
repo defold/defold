@@ -3,27 +3,14 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 from waf_dynamo import copy_file_task
+from Options import options
 
 def build(bld):
-    platform = bld.env["PLATFORM"]
-
-    if "win32" in platform:
-        for dll in ["PVRTexLib.dll", "msvcr120.dll"]:
-            src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, dll)
-            copy_file_task(bld, src)
-
-    elif "darwin" in platform:
-        for lib in ["libPVRTexLib.dylib"]:
-            src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, lib)
-            copy_file_task(bld, src)
-
-    elif "linux" in platform:
-        for lib in ["libPVRTexLib.so"]:
-            src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, lib)
-            copy_file_task(bld, src)
+    if options.skip_build_tests:
+       return
 
     test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
-                                     uselib = 'DLIB',
+                                     uselib = 'DLIB BASIS_ENCODER',
                                      uselib_local = 'texc',
                                      proto_gen_py = True,
                                      target = 'test_texc')

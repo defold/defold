@@ -161,10 +161,9 @@ extern "C" {
  */
 #if defined(__APPLE_CC__)
 #if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
-#include <OpenGLES/ES1/gl.h>
-#include <OpenGLES/ES2/gl.h>
+#include <OpenGLES/ES3/gl.h>
 #else
- #include <OpenGL/gl.h>
+ #include <OpenGL/gl3.h>
  #ifndef GLFW_NO_GLU
   #include <OpenGL/glu.h>
  #endif

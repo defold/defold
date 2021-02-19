@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -46,6 +46,7 @@ namespace dmInput
         context->m_HidContext = params.m_HidContext;
         context->m_RepeatDelay = params.m_RepeatDelay;
         context->m_RepeatInterval = params.m_RepeatInterval;
+        context->m_PressedThreshold = 0.9f;
         return context;
     }
 
@@ -189,6 +190,8 @@ namespace dmInput
             {
                 binding->m_KeyboardBinding = new KeyboardBinding();
                 memset(binding->m_KeyboardBinding, 0, sizeof(*binding->m_KeyboardBinding));
+
+                binding->m_KeyboardBinding->m_Keyboard = dmHID::GetKeyboard(binding->m_Context->m_HidContext, 0);
             }
             else
             {
@@ -216,6 +219,8 @@ namespace dmInput
             {
                 binding->m_MouseBinding = new MouseBinding();
                 memset(binding->m_MouseBinding, 0, sizeof(*binding->m_MouseBinding));
+
+                binding->m_MouseBinding->m_Mouse = dmHID::GetMouse(binding->m_Context->m_HidContext, 0);
             }
             else
             {
@@ -258,6 +263,8 @@ namespace dmInput
             {
                 binding->m_TouchDeviceBinding = new TouchDeviceBinding();
                 memset(binding->m_TouchDeviceBinding, 0, sizeof(*binding->m_TouchDeviceBinding));
+
+                binding->m_TouchDeviceBinding->m_TouchDevice = dmHID::GetTouchDevice(binding->m_Context->m_HidContext, 0);
             }
             else
             {
@@ -448,13 +455,14 @@ namespace dmInput
 
     void UpdateAction(void* context, const dmhash_t* id, Action* action)
     {
-        action->m_Pressed = (action->m_PrevValue == 0.0f && action->m_Value > 0.0f) ? 1 : 0;
-        action->m_Released = (action->m_PrevValue > 0.0f && action->m_Value == 0.0f) ? 1 : 0;
-        action->m_Repeated = false;
         UpdateContext* update_context = (UpdateContext*)context;
+
+        float pressed_threshold = update_context->m_Context->m_PressedThreshold;
+        action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
+        action->m_Released = (action->m_PrevValue >= pressed_threshold && action->m_Value < pressed_threshold) ? 1 : 0;
+        action->m_Repeated = false;
         if (action->m_Value > 0.0f)
         {
-            UpdateContext* update_context = (UpdateContext*)context;
             if (action->m_Pressed)
             {
                 action->m_Repeated = true;
@@ -499,7 +507,7 @@ namespace dmInput
             KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
             dmHID::KeyboardPacket* packet = &keyboard_binding->m_Packet;
             dmHID::KeyboardPacket* prev_packet = &keyboard_binding->m_PreviousPacket;
-            if (dmHID::GetKeyboardPacket(hid_context, packet))
+            if (dmHID::GetKeyboardPacket(keyboard_binding->m_Keyboard, packet))
             {
                 const dmArray<KeyTrigger>& triggers = keyboard_binding->m_Triggers;
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
@@ -569,7 +577,7 @@ namespace dmInput
             MouseBinding* mouse_binding = binding->m_MouseBinding;
             dmHID::MousePacket* packet = &mouse_binding->m_Packet;
             dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
-            if (dmHID::GetMousePacket(hid_context, packet))
+            if (dmHID::GetMousePacket(mouse_binding->m_Mouse, packet))
             {
                 context.m_X = packet->m_PositionX;
                 context.m_Y = packet->m_PositionY;
@@ -687,7 +695,7 @@ namespace dmInput
                                     action->m_GamepadDisconnected = packet->m_GamepadDisconnected;
                                     action->m_GamepadConnected = packet->m_GamepadConnected;
 
-                                    if (action->m_GamepadConnected) 
+                                    if (action->m_GamepadConnected)
                                     {
                                         const char* device_name;
                                         dmHID::GetGamepadDeviceName(gamepad, &device_name);
@@ -704,6 +712,11 @@ namespace dmInput
                                         if (dmMath::Abs(action->m_Value) < dmMath::Abs(v)) {
                                             action->m_Value = v;
                                         }
+
+                                        // We want to make sure we report going back to 0 again
+                                        action->m_Dirty = 0;
+                                        if (input.m_Type == dmInputDDF::GAMEPAD_TYPE_AXIS && action->m_PrevValue != action->m_Value)
+                                            action->m_Dirty = 1;
                                     }
                                 }
                             }
@@ -726,7 +739,7 @@ namespace dmInput
             TouchDeviceBinding* touch_device_binding = binding->m_TouchDeviceBinding;
             dmHID::TouchDevicePacket* packet = &touch_device_binding->m_Packet;
             dmHID::TouchDevicePacket* prev_packet = &touch_device_binding->m_PreviousPacket;
-            if (dmHID::GetTouchDevicePacket(hid_context, packet))
+            if (dmHID::GetTouchDevicePacket(touch_device_binding->m_TouchDevice, packet))
             {
                 const dmArray<TouchTrigger>& triggers = touch_device_binding->m_Triggers;
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
@@ -883,6 +896,7 @@ namespace dmInput
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
         bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TouchCount > 0 || action->m_HasText || action->m_GamepadConnected || action->m_GamepadDisconnected;
+        active = active || action->m_Dirty; // e.g. for analog stick action being released
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)

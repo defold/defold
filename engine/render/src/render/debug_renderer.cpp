@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -83,11 +83,13 @@ namespace dmRender
 
         HMaterial material3d = NewMaterial(render_context, vertex_program, fragment_program);
         SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        AddMaterialTag(material3d, dmHashString64(DEBUG_3D_NAME));
+        dmhash_t debug_tag_3d = dmHashString64(DEBUG_3D_NAME);
+        SetMaterialTags(material3d, 1, &debug_tag_3d);
 
         HMaterial material2d = NewMaterial(render_context, vertex_program, fragment_program);
         SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        AddMaterialTag(material2d, dmHashString64(DEBUG_2D_NAME));
+        dmhash_t debug_tag_2d = dmHashString64(DEBUG_2D_NAME);
+        SetMaterialTags(material2d, 1, &debug_tag_2d);
 
         dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES, dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
         HMaterial materials[MAX_DEBUG_RENDER_TYPE_COUNT] = {material3d, material3d, material2d, material2d};
@@ -325,7 +327,7 @@ namespace dmRender
                 write_ptr->m_Order = render_order;
                 write_ptr->m_UserData = (uintptr_t) &ro;
                 write_ptr->m_BatchKey = debug_renderer.m_RenderBatchVersion;
-                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(ro.m_Material);
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(ro.m_Material);
                 write_ptr->m_Dispatch = dispatch;
                 write_ptr++;
             }

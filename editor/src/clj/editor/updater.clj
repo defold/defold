@@ -30,11 +30,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- download-url [sha1 channel ^Platform platform]
-  (format (get-in connection-properties [:updater :download-url-template]) sha1 channel (.getPair platform)))
+(defn- download-url [archive-domain sha1 channel ^Platform platform]
+  (format (get-in connection-properties [:updater :download-url-template]) archive-domain sha1 channel (.getPair platform)))
 
-(defn- update-url [channel]
-  (format (get-in connection-properties [:updater :update-url-template]) channel))
+(defn- update-url [archive-domain channel]
+  (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -187,7 +187,8 @@
   {:pre [(can-download-update? updater)]}
   (let [{:keys [state-atom platform channel]} updater
         {:keys [current-download server-sha1]} @state-atom
-        url (download-url server-sha1 channel platform)
+        archive-domain (system/defold-archive-domain)
+        url (download-url archive-domain server-sha1 channel platform)
         zip-file (create-temp-zip-file)
         cancelled-atom (atom false)
         track-progress! (fn [progress]
@@ -290,7 +291,8 @@
 
 (defn- check! [updater]
   (let [{:keys [channel state-atom]} updater
-        url (update-url channel)]
+        archive-domain (system/defold-archive-domain)
+        url (update-url archive-domain channel)]
     (try
       (log/info :message "Checking for updates" :url url)
       (with-open [reader (io/reader url)]
@@ -344,7 +346,7 @@
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000
-        update-delay 60000]
+        update-delay 3600000]
     (if (or (string/blank? channel) (string/blank? sha1))
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)

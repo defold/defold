@@ -44,7 +44,7 @@ except:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['win32', 'x86_64-win32', 'x86<-64-linux', 'js-web', 'wasm-web']
+        return platform not in ['js-web', 'wasm-web']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -78,7 +78,7 @@ MIN_IOS_SDK_VERSION="8.0"
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
 
-XCODE_VERSION="12.0"
+XCODE_VERSION="12.1"
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
@@ -306,6 +306,11 @@ def default_flags(self):
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
+    use_cl_exe = build_util.get_target_platform() in ['win32', 'x86_64-win32']
+
+    if not use_cl_exe:
+        self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
+
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CCFLAGS', 'CXXFLAGS']:
            self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
@@ -402,16 +407,15 @@ def default_flags(self):
                 '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
-        # Default to asmjs output
-        wasm_enabled = 0
-        legacy_vm_support = 1
-        if 'wasm' == build_util.get_target_architecture():
-            wasm_enabled = 1
-            legacy_vm_support = 0
-
-        emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
+        emflags = ['DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
                    'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456', 'LLD_REPORT_UNDEFINED']
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2']
+
+        if 'wasm' == build_util.get_target_architecture():
+            emflags += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
+        else:
+            emflags += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
+
         emflags = zip(['-s'] * len(emflags), emflags)
         emflags =[j for i in emflags for j in i]
 
@@ -479,7 +483,7 @@ def web_exported_functions(self):
                 break
 
         if use_crash:
-            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
+            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_dmExportedSymbols","_main"]'])
 
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
@@ -737,7 +741,7 @@ def create_export_symbols(task):
     with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
         for name in Utils.to_list(task.exported_symbols):
             print >>out_f, 'extern "C" void %s();' % name
-        print >>out_f, "void dmExportedSymbols() {"
+        print >>out_f, 'extern "C" void dmExportedSymbols() {'
         for name in Utils.to_list(task.exported_symbols):
             print >>out_f, "    %s();" % name
         print >>out_f, "}"
@@ -1451,7 +1455,6 @@ def remove_flag(arr, flag, nargs):
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
-    conf.find_program('nodejs', var='NODEJS', mandatory = False)
 
     platform = None
     if getattr(Options.options, 'platform', None):
@@ -1482,7 +1485,7 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
-    if build_platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
+    if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
         conf.find_program('node', var='NODEJS', mandatory = False)
 
     try:
@@ -1515,10 +1518,12 @@ def detect(conf):
         if not Options.options.skip_codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
 
-    if  build_util.get_target_os() in ('osx', 'ios'):
+    if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
             path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')]
+        else:
+            path_list=[os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
         conf.find_program('zip', var='ZIP', mandatory = True)
 
@@ -1749,8 +1754,9 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STATICLIB_GRAPHICS']          = 'graphics'
-    conf.env['STATICLIB_GRAPHICS_VULKAN']   = 'graphics_vulkan'
+    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 

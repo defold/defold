@@ -1,7 +1,7 @@
 #debugger-data-split {
 
   #debugger-call-stack {
-    -fx-background-color: $dark-grey-light;
+    -fx-background-color: -df-background-light;
     -fx-padding: 0;
 
     .list-cell {
@@ -9,10 +9,11 @@
       -fx-padding: 5 5 5 12;
 
       .label {
-        -fx-text-fill: $bright-grey-light;
+        -fx-text-fill: -df-text;
       }
       .call-stack-path {
-        -fx-text-fill: $grey;
+        -fx-text-fill: -df-text-dark;
+        -fx-opacity: 0.8;
       }
       .call-stack-line-container {
         -fx-min-width: 30px;
@@ -20,23 +21,25 @@
       }
       .call-stack-line {
         -fx-padding: 0 3px;
-        -fx-background-color: $grey;
+        -fx-background-color: -df-component;
         -fx-background-radius: 3px;
       }
       &:hover {
         .label {
-          -fx-text-fill: $defold-white
+          -fx-text-fill: -df-text-selected
         }
         .call-stack-path {
-          -fx-text-fill: $grey;
+          -fx-text-fill: -df-text-dark;
+          -fx-opacity: 0.8;
         }
       }
       &:selected {
         .label {
-          -fx-text-fill: $defold-white;
+          -fx-text-fill: -df-text-selected;
         }
         .call-stack-path {
-          -fx-text-fill: $grey;
+          -fx-text-fill: -df-text-dark;
+          -fx-opacity: 0.8;
         }
       }
     }
@@ -45,25 +48,28 @@
   #debugger-variables {
     .tree-cell {
       .label {
-        -fx-text-fill: $bright-grey-light;
+        -fx-text-fill: -df-text;
       }
       .equals {
-        -fx-text-fill: #666e79;
+        -fx-text-fill: -df-text-dark;
+        -fx-opacity: 0.8;
       }
       &:hover {
         .label {
-          -fx-text-fill: $defold-white;
+          -fx-text-fill: -df-text-selected;
         }
         .equals {
-          -fx-text-fill: #666e79;
+          -fx-text-fill: -df-text-dark;
+          -fx-opacity: 0.8;
         }
       }
       &:selected {
         .label {
-          -fx-text-fill: $defold-white;
+          -fx-text-fill: -df-text-selected;
         }
         .equals {
-          -fx-text-fill: #666e79;
+          -fx-text-fill: -df-text-dark;
+          -fx-opacity: 0.8;
         }
       }
     }

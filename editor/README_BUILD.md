@@ -88,8 +88,8 @@ If you want to work on the editor chances are you want to `connect` or `jack-in`
 For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, Cider (etc) dependencies there;
 
 ```
-{:user {:plugins [[cider/cider-nrepl "0.10.2"]
-                  [refactor-nrepl "1.1.0" :exclusions [org.clojure/clojure]]]
+{:user {:plugins [[cider/cider-nrepl "0.25.8"]
+                  [refactor-nrepl "2.5.0" :exclusions [org.clojure/clojure]]]
         :dependencies [[org.clojure/tools.nrepl "0.2.12"]]}}
 ```
 

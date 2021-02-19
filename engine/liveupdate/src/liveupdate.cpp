@@ -239,6 +239,11 @@ namespace dmLiveUpdate
     Result VerifyManifestReferences(const dmResource::Manifest* manifest)
     {
         assert(g_LiveUpdate.m_ResourceFactory != 0);
+        const dmResource::Manifest* base_manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
+        // The reason the base manifest is zero here, could be that we're running from the editor.
+        // (The editor doesn't bundle the resources required for this step)
+        if (!base_manifest)
+            return RESULT_INVALID_RESOURCE;
         return VerifyManifestBundledResources(dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory)->m_ArchiveIndex, manifest);
     }
 
@@ -317,7 +322,6 @@ namespace dmLiveUpdate
         }
 
         AsyncResourceRequest request;
-        memset(&request, 0, sizeof(request));
         request.m_CallbackData = callback_data;
         request.m_Callback = callback;
         request.m_Path = path;
