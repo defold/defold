@@ -71,8 +71,9 @@ cp -r ${SOURCE}/ ${TARGET}/
 cp -v ${DYNAMO_HOME}/bin/js-web/dmengine.js ${TARGET}/${PROJECTNAME}_asmjs.js
 cp -v ${DYNAMO_HOME}/bin/wasm-web/dmengine.js ${TARGET}/${PROJECTNAME}_wasm.js
 cp -v ${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm ${TARGET}/${PROJECTNAME}.wasm
-#cp -v ${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm.map ${TARGET}/${PROJECTNAME}.wasm.map
-cp -v ${DYNAMO_HOME}/../../engine/engine/build/default/src/dmengine.wasm.map ${TARGET}/dmengine.wasm.map
+if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm.map" ]; then
+    cp -v ${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm.map ${TARGET}/${PROJECTNAME}.wasm.map
+fi
 
 # ----------------------------------------------------------------------------
 # Script teardown
