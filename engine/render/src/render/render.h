@@ -28,6 +28,8 @@ namespace dmRender
 
     extern const char* RENDER_SOCKET_NAME;
 
+    static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
+
     typedef struct RenderContext*           HRenderContext;
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -185,7 +187,7 @@ namespace dmRender
         Point3 m_WorldPosition;
         uint32_t m_Order;
         uint32_t m_BatchKey;
-        uint32_t m_TagMask;
+        uint32_t m_TagListKey;
         uint64_t m_UserData;
         uint32_t m_MinorOrder:4;
         uint32_t m_MajorOrder:2;
@@ -353,10 +355,9 @@ namespace dmRender
     bool                            GetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4& value);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
 
-    uint32_t                        GetMaterialTagMask(HMaterial material);
-    void                            AddMaterialTag(HMaterial material, dmhash_t tag);
     void                            ClearMaterialTags(HMaterial material);
-    uint32_t                        ConvertMaterialTagsToMask(dmhash_t* tags, uint32_t tag_count);
+    uint32_t                        GetMaterialTagListKey(HMaterial material);
+    void                            SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
 
     HPredicate                      NewPredicate();
     void                            DeletePredicate(HPredicate predicate);

@@ -77,7 +77,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id sound looping group gain pan speed]
+  [_node-id sound looping group gain pan speed loopcount]
   {:navigation false
    :form-ops {:user-data {:node-id _node-id}
               :set set-form-op
@@ -90,6 +90,9 @@
                         {:path [:looping]
                          :label "Loop"
                          :type :boolean}
+                        {:path [:loopcount]
+                         :label "Loopcount"
+                         :type :integer}
                         {:path [:group]
                          :label "Group"
                          :type :string}
@@ -101,22 +104,25 @@
                          :type :number}
                          {:path [:speed]
                          :label "Speed"
-                         :type :number}]}]
+                         :type :number}
+                         ]}]
    :values {[:sound] sound
             [:looping] looping
             [:group] group
             [:gain] gain
             [:pan] pan
-            [:speed] speed}})
+            [:speed] speed
+            [:loopcount] loopcount}})
 
 (g/defnk produce-pb-msg
-  [_node-id sound-resource looping group gain pan speed]
+  [_node-id sound-resource looping group gain pan speed loopcount]
   {:sound (resource/resource->proj-path sound-resource)
    :looping (if looping 1 0)
    :group group
    :gain gain
    :pan pan
-   :speed speed})
+   :speed speed
+   :loopcount loopcount})
 
 (defn build-sound
   [resource dep-resources user-data]
@@ -150,7 +156,8 @@
     :group (:group sound)
     :gain (:gain sound)
     :pan (:pan sound)
-    :speed (:speed sound)))
+    :speed (:speed sound)
+    :loopcount (:loopcount sound)))
 
 (def prop-sound_speed? (partial validation/prop-outside-range? [0.1 5.0]))
 
@@ -172,6 +179,15 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats})))
 
   (property looping g/Bool (default false))
+  (property loopcount g/Int
+            (value (g/fnk [looping loopcount]
+                     (if (not looping) 0 loopcount)))
+            (dynamic error (g/fnk [_node-id loopcount]
+                             (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount "Loopcount" )))
+            (dynamic read-only? (g/fnk [looping]
+                                  (not looping))))
+
+
   (property group g/Str (default "master"))
   (property gain g/Num (default 1.0)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-0-1? gain)))
@@ -179,6 +195,8 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan)))
   (property speed g/Num (default 1.0)
             (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed)))
+
+
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)

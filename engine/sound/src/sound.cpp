@@ -171,6 +171,7 @@ namespace dmSound
         uint8_t     m_EndOfStream : 1;
         uint8_t     m_Playing : 1;
         uint8_t     : 5;
+        int8_t      m_Loopcounter; // if set to 3, there will be 3 loops effectively playing the sound 4 times.
     };
 
     struct SoundGroup
@@ -791,10 +792,11 @@ namespace dmSound
         return sound_instance->m_Playing; // && !sound_instance->m_EndOfStream;
     }
 
-    Result SetLooping(HSoundInstance sound_instance, bool looping)
+    Result SetLooping(HSoundInstance sound_instance, bool looping, int8_t loopcounter)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         sound_instance->m_Looping = (uint32_t) looping;
+        sound_instance->m_Loopcounter = loopcounter;
         return RESULT_OK;
     }
 
@@ -1152,8 +1154,11 @@ namespace dmSound
 
             if (instance->m_FrameCount < sound->m_FrameCount) {
 
-                if (instance->m_Looping) {
+                if (instance->m_Looping && instance->m_Loopcounter != 0) {
                     dmSoundCodec::Reset(sound->m_CodecContext, instance->m_Decoder);
+                    if ( instance->m_Loopcounter > 0 ) {
+                        instance->m_Loopcounter --;
+                    }
 
                     uint32_t n = sound->m_FrameCount - instance->m_FrameCount;
                     if (!is_muted)

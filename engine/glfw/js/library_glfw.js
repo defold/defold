@@ -658,7 +658,13 @@ var LibraryGLFW = {
       depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
       stencil: (GLFW.params[0x0002000A] > 0) // GLFW_STENCIL_BITS
     };
+
+    // Browser.createContext: https://github.com/emscripten-core/emscripten/blob/master/src/library_browser.js#L312
     Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+    if (Module.ctx == null) {
+      contextAttributes.majorVersion = 1; // Try WebGL 1
+      Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+    }
 
     return 1; // GL_TRUE
   },

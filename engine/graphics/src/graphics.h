@@ -19,6 +19,7 @@
 #include <dmsdk/graphics/graphics.h>
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
+#include <graphics/graphics_ddf.h>
 
 namespace dmGraphics
 {
@@ -132,36 +133,35 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA                 = 3,
         TEXTURE_FORMAT_RGB_16BPP            = 4,
         TEXTURE_FORMAT_RGBA_16BPP           = 5,
-        TEXTURE_FORMAT_RGB_DXT1             = 6,
-        TEXTURE_FORMAT_RGBA_DXT1            = 7,
-        TEXTURE_FORMAT_RGBA_DXT3            = 8,
-        TEXTURE_FORMAT_RGBA_DXT5            = 9,
-        TEXTURE_FORMAT_DEPTH                = 10,
-        TEXTURE_FORMAT_STENCIL              = 11,
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 12,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 13,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 14,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 15,
-        TEXTURE_FORMAT_RGB_ETC1             = 16,
+        TEXTURE_FORMAT_DEPTH                = 6,
+        TEXTURE_FORMAT_STENCIL              = 7,
+        // Compressed formats
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
+        TEXTURE_FORMAT_RGB_ETC1             = 12,
+        TEXTURE_FORMAT_R_ETC2               = 13,
+        TEXTURE_FORMAT_RG_ETC2              = 14,
+        TEXTURE_FORMAT_RGBA_ETC2            = 15,
+        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
+        TEXTURE_FORMAT_RGB_BC1              = 17,
+        TEXTURE_FORMAT_RGBA_BC3             = 18,
+        TEXTURE_FORMAT_R_BC4                = 19,
+        TEXTURE_FORMAT_RG_BC5               = 20,
+        TEXTURE_FORMAT_RGBA_BC7             = 21,
 
         // Floating point texture formats
-        TEXTURE_FORMAT_RGB16F               = 17,
-        TEXTURE_FORMAT_RGB32F               = 18,
-        TEXTURE_FORMAT_RGBA16F              = 19,
-        TEXTURE_FORMAT_RGBA32F              = 20,
-        TEXTURE_FORMAT_R16F                 = 21,
-        TEXTURE_FORMAT_RG16F                = 22,
-        TEXTURE_FORMAT_R32F                 = 23,
-        TEXTURE_FORMAT_RG32F                = 24,
+        TEXTURE_FORMAT_RGB16F               = 22,
+        TEXTURE_FORMAT_RGB32F               = 23,
+        TEXTURE_FORMAT_RGBA16F              = 24,
+        TEXTURE_FORMAT_RGBA32F              = 25,
+        TEXTURE_FORMAT_R16F                 = 26,
+        TEXTURE_FORMAT_RG16F                = 27,
+        TEXTURE_FORMAT_R32F                 = 28,
+        TEXTURE_FORMAT_RG32F                = 29,
 
         TEXTURE_FORMAT_COUNT
-    };
-
-    // Translation table to translate TextureFormat texture to BPP
-    struct TextureFormatToBPP
-    {
-        uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
-        TextureFormatToBPP();
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -667,6 +667,7 @@ namespace dmGraphics
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
+    TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 
@@ -701,10 +702,31 @@ namespace dmGraphics
     /**
      * Get status of texture.
      *
+     * @name GetTextureStatusFlags
      * @param texture HTexture
      * @return  TextureStatusFlags enumerated status bit flags
      */
     uint32_t GetTextureStatusFlags(HTexture texture);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param format dmGraphics::TextureImage::CompressionType
+     * @return true if the format is compressed
+     */
+    bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param path The path of the texture
+     * @param image The input image
+     * @param format The desired output format
+     * @param images An array of transcoded mipmaps
+     * @param sizes An array of transcoded mipmap sizes
+     * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
+     * @param format dmGraphics::TextureImage::CompressionType
+     * @return true if the format is transcoded
+     */
+    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 
     /**
      * Read frame buffer pixels in BGRA format

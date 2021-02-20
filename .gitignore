@@ -16,7 +16,6 @@
 *.pyc
 
 /.ccache
-/.idea
 *.iml
 *.apidoc_
 engine/.clang_complete
@@ -29,6 +28,10 @@ scripts/android-v4/.gradle/
 scripts/android-v4/.project
 scripts/android-v4/.settings/
 scripts/android-v4/build/
+
+# IntelliJ
+**/.idea
+editor/.gradle/
 
 # eastwood
 editor/.eastwood

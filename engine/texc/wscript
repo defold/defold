@@ -20,10 +20,10 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_PVRTEXLIB'] = 'PVRTexLib'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DLIB_NOASAN'] = 'dlib_noasan'
-    conf.env['STATICLIB_WEBP'] = 'webp'
+    conf.env['STATICLIB_BASIS_ENCODER'] = 'basis_encoder'
+    conf.env['STATICLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
 
     platform = conf.env['PLATFORM']
 
