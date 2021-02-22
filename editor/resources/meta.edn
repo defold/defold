@@ -11,6 +11,10 @@
    :help "publisher name",
    :default "",
    :path ["project" "publisher"]}
+  {:type :string,
+   :help "developer name",
+   :default "",
+   :path ["project" "developer"]}
   {:type :boolean,
    :help "Write log file to disk",
    :default false,
