@@ -2247,6 +2247,7 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
         luaL_checktype(L, 1, LUA_TTABLE);
 
         HPredicate* p_predicate = (HPredicate*) lua_newuserdata(L, sizeof(HPredicate*));
@@ -2435,10 +2436,6 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(LUMINANCE);
         REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGBA);
-        REGISTER_FORMAT_CONSTANT(RGB_DXT1);
-        REGISTER_FORMAT_CONSTANT(RGBA_DXT1);
-        REGISTER_FORMAT_CONSTANT(RGBA_DXT3);
-        REGISTER_FORMAT_CONSTANT(RGBA_DXT5);
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 

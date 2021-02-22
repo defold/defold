@@ -371,32 +371,8 @@ namespace dmGraphics
 
     struct Context
     {
-        Context(const ContextParams& params, const VkInstance vk_instance)
-        : m_MainRenderTarget(0)
-        {
-            memset(this, 0, sizeof(*this));
-            m_Instance                = vk_instance;
-            m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-            m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-            m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-            m_UseValidationLayers     = params.m_UseValidationLayers;
-            m_RenderDocSupport        = params.m_RenderDocSupport;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
-        }
-
-        ~Context()
-        {
-            if (m_Instance != VK_NULL_HANDLE)
-            {
-                vkDestroyInstance(m_Instance, 0);
-                m_Instance = VK_NULL_HANDLE;
-            }
-        }
+        Context(const ContextParams& params, const VkInstance vk_instance);
+        ~Context();
 
         Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         PipelineCache                   m_PipelineCache;
@@ -440,7 +416,7 @@ namespace dmGraphics
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
         Texture*                        m_DefaultTexture;
-        uint32_t                        m_TextureFormatSupport;
+        uint64_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
         uint32_t                        m_Height;
         uint32_t                        m_WindowWidth;

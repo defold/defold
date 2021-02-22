@@ -88,24 +88,20 @@ and add the "BETA" tag to the headline
 
 1. Next, release the stable engine/editor:
 
-        $ ./scripts/build.py release
+        $ git checkout master
+        $ ./scripts/build.py release --channel=stable
     Important: *Make sure the SHA1 and channel is correct!*
 
 1. Verify release by updating an old editor, OSX, Win and Linux. (Currently a bit deprecated workflow, since no one uses editor-stable)
 
 1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes. From the `defold/defold.github.io` repo:
 
-        $ cd defold.github.io
+        $ cd defold.github.io
+        $ git checkout master
+        $ git pull
         $ ./update.py --download refdoc
         $ git commit -am "Updated reference documentation to 1.2.xxx"
         $ git push
-
-1. Upload release artifacts to GitHub:
-
-        $ cd defold
-        $ git checkout master
-        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
-
 
 1. Merge `master` into dev
 
@@ -123,3 +119,10 @@ and add the "BETA" tag to the headline
         $ git push
 
 1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline
+
+1. Upload release artifacts to GitHub:
+
+        $ cd defold
+        $ git checkout master
+        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
+

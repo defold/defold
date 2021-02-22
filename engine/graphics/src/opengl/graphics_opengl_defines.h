@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,7 +26,7 @@
 #include <OpenGLES/ES2/gl.h>
 #include <OpenGLES/ES2/glext.h>
 #else
-#include <OpenGL/gl.h>
+#include <OpenGL/gl3.h>
 #endif
 
 #elif defined (_WIN32)
@@ -105,11 +105,15 @@
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
 // We check this at runtime through extensions supported
-#if defined(GL_HAS_RENDERDOC_SUPPORT)
+#if defined(GL_RED) && !defined (__EMSCRIPTEN__)
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_RED)
-#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_RG)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_LUMINANCE)
+#endif
+
+#if defined(GL_RG) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_RG)
+#else
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
 #endif
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)
@@ -119,6 +123,10 @@
 // There is a bit of difference on format and internal format enums
 // should be used for OGL ES 2.0, WebGL and desktop contexts, hence the
 // ifdefs below.
+
+// Default values (e.g. 0x8xxx ) from engine/graphics/src/opengl/win32/glext.h
+// https://github.com/KhronosGroup/OpenGL-Registry/blob/master/api/GL/glext.h
+// https://github.com/KhronosGroup/OpenGL-Registry/blob/master/api/GL/glext.h#L5000-L5027
 #if defined(GL_RED_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_RED                       (GL_RED_EXT)
 #elif defined(GL_RED)
@@ -212,6 +220,8 @@
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5                 0x83F3
 #endif
+
+
 #ifdef GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1          (GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG)
 #else
@@ -237,5 +247,127 @@
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1                  0x8D64
 #endif
+
+#ifdef GL_COMPRESSED_RED_RGTC1
+#define DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1                 (GL_COMPRESSED_RED_RGTC1)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1                 0x8DBB
+#endif
+#ifdef GL_COMPRESSED_SIGNED_RED_RGTC1
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_RED_RGTC1          (GL_COMPRESSED_SIGNED_RED_RGTC1)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_RED_RGTC1          0x8DBC
+#endif
+#ifdef GL_COMPRESSED_RG_RGTC2
+#define DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2                  (GL_COMPRESSED_RG_RGTC2)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2                  0x8DBD
+#endif
+#ifdef GL_COMPRESSED_SIGNED_RG_RGTC2
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_RG_RGTC2           (GL_COMPRESSED_SIGNED_RG_RGTC2)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_RG_RGTC2           0x8DBE
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_BPTC_UNORM
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM           (GL_COMPRESSED_RGBA_BPTC_UNORM)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM           0x8E8C
+#endif
+#ifdef GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB_ALPHA_BPTC_UNORM     (GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB_ALPHA_BPTC_UNORM     0x8E8D
+#endif
+#ifdef GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB_BPTC_SIGNED_FLOAT     (GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB_BPTC_SIGNED_FLOAT     0x8E8E
+#endif
+#ifdef GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB_BPTC_UNSIGNED_FLOAT   (GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB_BPTC_UNSIGNED_FLOAT   0x8E8F
+#endif
+#ifdef GL_COMPRESSED_RGB8_ETC2
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2                 (GL_COMPRESSED_RGB8_ETC2)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2                 0x9274
+#endif
+#ifdef GL_COMPRESSED_SRGB8_ETC2
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ETC2                (GL_COMPRESSED_SRGB8_ETC2)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ETC2                0x9275
+#endif
+#ifdef GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB8_PUNCHTHROUGH_ALPHA1_ETC2     (GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB8_PUNCHTHROUGH_ALPHA1_ETC2     0x9276
+#endif
+#ifdef GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2    (GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2    0x9277
+#endif
+#ifdef GL_COMPRESSED_RGBA8_ETC2_EAC
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC            (GL_COMPRESSED_RGBA8_ETC2_EAC)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC            0x9278
+#endif
+#ifdef GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ETC2_EAC     (GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ETC2_EAC     0x9279
+#endif
+#ifdef GL_COMPRESSED_R11_EAC
+#define DMGRAPHICS_TEXTURE_FORMAT_R11_EAC                   (GL_COMPRESSED_R11_EAC)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_R11_EAC                   0x9270
+#endif
+#ifdef GL_COMPRESSED_SIGNED_R11_EAC
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_R11_EAC            (GL_COMPRESSED_SIGNED_R11_EAC)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_R11_EAC            0x9271
+#endif
+#ifdef GL_COMPRESSED_RG11_EAC
+#define DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC                  (GL_COMPRESSED_RG11_EAC)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC                  0x9272
+#endif
+#ifdef GL_COMPRESSED_SIGNED_RG11_EAC
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_RG11_EAC           (GL_COMPRESSED_SIGNED_RG11_EAC)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SIGNED_RG11_EAC           0x9273
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR         (GL_COMPRESSED_RGBA_ASTC_4x4_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR         0x93B0
+#endif
+#ifdef GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR (GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR 0x93D0
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

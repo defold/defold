@@ -1,6 +1,5 @@
 Bob
 ===
-
 Defold Bob the Builder build system.
 
 Paths

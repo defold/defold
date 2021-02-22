@@ -11,6 +11,10 @@
    :help "publisher name",
    :default "",
    :path ["project" "publisher"]}
+  {:type :string,
+   :help "developer name",
+   :default "",
+   :path ["project" "developer"]}
   {:type :boolean,
    :help "Write log file to disk",
    :default false,
@@ -118,6 +122,10 @@
    :severity-default :warning
    :help "This setting is deprecated. When checked, will disable \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."
    :path ["display" "variable_dt"]}
+  {:type :boolean,
+   :help "output gpu info to console at startup",
+   :default false,
+   :path ["display" "display_device_info"]}
   {:type :number,
    :help "Render clear color - red channel",
    :label "Clear Color Red"

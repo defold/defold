@@ -202,17 +202,15 @@
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-darwin/*PVRTexLib.dylib"/>
-            </fileset>
+<!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+            </fileset> -->
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-linux/*PVRTexLib.so"/>
-            </fileset>
+<!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+            </fileset> -->
         </copy>
         <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
@@ -223,16 +221,13 @@
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="x86_64-win32/*PVRTexLib*"/>
-            </fileset>
+<!--             <fileset dir="${env.DYNAMO_HOME}/lib">
+            </fileset> -->
         </copy>
-        <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
+<!--         <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-win32/PVRTexLib.dll"/>
-                <include name="x86_64-win32/msvcr120.dll"/>
             </fileset>
-        </copy>
+        </copy> -->
         <jar destfile="${bob.dir}/lib/luajit-share.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share">
                  <include name="luajit/**"/>
@@ -311,6 +306,7 @@
               <include name="jaxb-api-2.3.0.jar"/>
               <include name="jaxb-core-2.3.0.jar"/>
               <include name="jaxb-impl-2.3.0.jar"/>
+              <include name="antlr-runtime-4.9.1.jar"/>
             </zipgroupfileset>
          </jar>
 
@@ -318,8 +314,6 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/*PVRTexLib*"/>
-                <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
 
             <fileset dir="${bob.dir}">
@@ -366,8 +360,6 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/*PVRTexLib*"/>
-                <include name="lib/**/*msvcr120.dll*"/>
                 <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
                 <include name="lib/*win32/wrap_oal.dll"/>

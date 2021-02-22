@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,5 +27,5 @@ if __name__ == "__main__":
     classpath = "%s/share/java/bob-light.jar" % dynamo_home
     ret = os.system("java -cp %s com.dynamo.bob.pipeline.TextureGenerator %s %s" % (classpath, args[0], options.output_file))
     if ret != 0:
-        raise Exception("Failed to compile texture (%d)" % ret)
+        raise Exception("Failed to compile texture (err: %d): %s" % (ret, args[0]))
 

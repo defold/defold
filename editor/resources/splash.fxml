@@ -31,12 +31,15 @@
                <Image url="@/sponsors/king.png" />
             </ImageView>
             <ImageView fitHeight="30.0" preserveRatio="true">
-               <Image url="@/sponsors/heroiclabs.png" />
+               <Image url="@/sponsors/rive.png" />
             </ImageView>
          </HBox>
          <HBox id="sponsor-icons">
             <ImageView fitHeight="30.0" preserveRatio="true">
                <Image url="@/sponsors/melsoft.png" />
+            </ImageView>
+            <ImageView fitHeight="30.0" preserveRatio="true">
+               <Image url="@/sponsors/heroiclabs.png" />
             </ImageView>
          </HBox>
       </VBox>

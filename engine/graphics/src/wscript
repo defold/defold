@@ -70,6 +70,18 @@ def build(bld):
     obj.find_sources_in_dirs('. null ../proto/graphics')
     obj.source.remove(os.path.join('.','graphics_glfw_wrappers.cpp'))
 
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = ['.', '../proto'],
+                           uselib = 'DLIB',
+                           source = 'transcoder/graphics_transcoder_null.cpp',
+                           target = 'graphics_transcoder_null')
+
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = ['.', '../proto'],
+                           uselib = 'DLIB',
+                           source = 'transcoder/graphics_transcoder_uastc.cpp',
+                           target = 'graphics_transcoder_uastc')
+
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_native.h')
@@ -81,8 +93,6 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/bin', 'texc.py')
-    bld.install_files('${PREFIX}/lib/python', 'dds.py')
-    bld.install_files('${PREFIX}/lib/python', 'pvrtc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
     if not Options.options.skip_build_tests:

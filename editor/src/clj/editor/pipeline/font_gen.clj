@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -13,7 +13,7 @@
 (ns editor.pipeline.font-gen
   (:require [clojure.java.io :as io]
             [editor.pipeline.fontc :as fontc]
-            [editor.texture.engine :refer [webp-compress-rgba-buffer]])
+            [editor.texture.engine :refer [compress-rgba-buffer]])
   (:import [com.google.protobuf ByteString]
            [java.nio ByteBuffer]))
 
@@ -63,7 +63,7 @@
                        glyph-data-end (+ glyph-data-offset glyph-data-size)]
                    (.limit uncompressed-data-source glyph-data-end)
                    (.position uncompressed-data-source glyph-data-offset)
-                   (webp-compress-rgba-buffer uncompressed-data-source width height glyph-channels))))
+                   (compress-rgba-buffer uncompressed-data-source width height glyph-channels))))
              glyphs)
 
         glyph-data-sizes (map data-size glyph-byte-buffers)

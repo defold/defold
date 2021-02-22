@@ -20,7 +20,6 @@
 #include "internal.h"
 
 
-_GLFWwin                    g_Savewin;
 static int                  g_AccelerometerEnabled = 0;
 static double               g_AccelerometerFrequency = 1.0 / 60.0;
 
@@ -32,11 +31,10 @@ static BaseView*            g_BaseView = 0;
 
 @implementation BaseView
 
-@synthesize markedTextStyle;
-
 + (Class)layerClass
 {
-    return [CAEAGLLayer class];
+    [self doesNotRecognizeSelector:_cmd];
+    return nil;
 }
 
 - (id) init {
