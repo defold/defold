@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -95,14 +95,15 @@
             :prefs [{:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
                     {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
-                    {:label "Path to custom keymap" :type :string :key "custom-keymap-path" :default ""}]}
+                    {:label "Path to custom keymap" :type :string :key "custom-keymap-path" :default ""}
+                    {:label "Code editor font (requires restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
            {:name  "Code"
             :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
                     {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
                     {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}]}
            {:name  "Extensions"
             :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}]
-    
+
     (system/defold-dev?)
     (conj {:name "Dev"
            :prefs [{:label "Custom Engine" :type :string :key engine/custom-engine-pref-key :default ""}]})))
