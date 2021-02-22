@@ -220,6 +220,7 @@ public class TextureGenerator {
         if (!compress) {
             texcCompressionLevel = CompressionLevel.CL_FAST;
             texcCompressionType = CompressionType.CT_DEFAULT;
+            compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
 
             // If pvrtc or etc1, set these as rgba instead. Since these formats will take some time to compress even
             // with "fast" setting and we don't want to increase the build time more than we have to.
