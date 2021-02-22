@@ -207,6 +207,13 @@ public class TextureGenerator {
         // convert from protobuf specified compressionlevel to texc int
         texcCompressionLevel = compressionLevelLUT.get(compressionLevel);
 
+        // convert compression type from WebP to something else
+        if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP)
+            compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
+        else
+        if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY)
+            compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
+
         // convert from protobuf specified compressionType to texc int
         texcCompressionType = compressionTypeLUT.get(compressionType);
 
