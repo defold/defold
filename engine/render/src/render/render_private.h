@@ -158,6 +158,7 @@ namespace dmRender
         dmArray<TextEntry>                  m_TextEntries;
         uint32_t                            m_TextEntriesFlushed;
         uint32_t                            m_Frame;
+        dmhash_t                            m_PreviousHash;
     };
 
     struct RenderScriptContext
