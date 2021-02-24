@@ -161,9 +161,12 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 			if (module.equals("(")) {
 				module = tokens.get(2).getText();
 			}
+			// check that it is a string and not a variable
 			// remove the single or double quotes around the string
-			module = module.replace("\"", "").replace("'", "");
-			modules.add(module);
+			if (module.startsWith("\"") || module.startsWith("'")) {
+				module = module.replace("\"", "").replace("'", "");
+				modules.add(module);
+			}
 		}
 		// go.property() call?
 		else if (text.startsWith("go.property")) {
