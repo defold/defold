@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -334,7 +334,7 @@ namespace dmGameSystem
      * - [type:number] `count`: The number of values each element should hold
      *
      * @return buffer [type:buffer] the new buffer
-     * 
+     *
      * @examples
      * How to create and initialize a buffer
      *
@@ -744,7 +744,9 @@ namespace dmGameSystem
         }
 
         *s = 0;
-        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count);
+        uint32_t version = 0;
+        dmBuffer::GetContentVersion(hbuffer, &version);
+        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version);
         dmStrlCat(s, buf, maxlen);
 
         for( uint32_t i = 0; i < num_streams; ++i )
@@ -870,6 +872,7 @@ namespace dmGameSystem
         uint32_t count = index / stream->m_TypeCount;
         uint32_t component = index % stream->m_TypeCount;
         stream->m_Set(stream->m_Data, count * stream->m_Stride + component, luaL_checknumber(L, 3));
+        dmBuffer::UpdateContentVersion(stream->m_Buffer);
         return 0;
     }
 

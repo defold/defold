@@ -662,6 +662,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     return factory;
 }
 
+static void ResourceIteratorCallback(void*, const dmhash_t* id, SResourceDescriptor* resource)
+{
+    dmLogError("Resource: %s  ref count: %u", dmHashReverseSafe64(*id), resource->m_ReferenceCount);
+}
+
 void DeleteFactory(HFactory factory)
 {
     if (factory->m_Socket)
@@ -695,6 +700,12 @@ void DeleteFactory(HFactory factory)
     }
 
     ReleaseBuiltinsManifest(factory);
+
+    if (!factory->m_Resources->Empty())
+    {
+        dmLogError("Leaked resources:");
+        factory->m_Resources->Iterate<>(&ResourceIteratorCallback, (void*)0);
+    }
 
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;

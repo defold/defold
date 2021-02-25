@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,6 +52,7 @@ namespace dmBuffer
         uint32_t m_Stride;          // The struct size (in bytes)
         uint32_t m_Count;           // The number of "structs" in the buffer (e.g. vertex count)
         uint16_t m_Version;
+        uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
     };
 
@@ -387,6 +388,7 @@ namespace dmBuffer
         buffer->m_Streams = (Buffer::Stream*)((uintptr_t)data_block + sizeof(Buffer));
         buffer->m_Data = (void*)((uintptr_t)data_block + header_size);
         buffer->m_Stride = struct_size;
+        buffer->m_ContentVersion = 0;
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
 
@@ -584,6 +586,26 @@ namespace dmBuffer
 
         *type = (dmBuffer::ValueType)stream->m_ValueType;
         *type_count = stream->m_ValueCount;
+        return RESULT_OK;
+    }
+
+    Result GetContentVersion(HBuffer hbuffer, uint32_t* version)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+        *version = (uint32_t)buffer->m_ContentVersion;
+        return RESULT_OK;
+    }
+
+    Result UpdateContentVersion(HBuffer hbuffer)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+        buffer->m_ContentVersion++;
         return RESULT_OK;
     }
 }
