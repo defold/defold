@@ -299,13 +299,10 @@ namespace dmRender
 
         // Should probably be moved and/or refactored, see case 2261
         // (Cannot reset the text buffer until all render objects are dispatched)
-        context->m_TextContext.m_RenderObjectIndex = 0;
-        context->m_TextContext.m_VertexIndex = 0;
-        context->m_TextContext.m_VerticesFlushed = 0;
+        // Also see FontRenderListDispatch in font_renderer.cpp
         context->m_TextContext.m_Frame += 1;
         context->m_TextContext.m_TextBuffer.SetSize(0);
         context->m_TextContext.m_TextEntries.SetSize(0);
-        context->m_TextContext.m_TextEntriesFlushed = 0;
 
         return RESULT_OK;
     }
