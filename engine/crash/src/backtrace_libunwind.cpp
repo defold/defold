@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,12 +31,29 @@ extern "C" {
 namespace dmCrash
 {
     static const int SIGNAL_MAX = 64;
+    static bool g_CrashDumpEnabled = true;
+    static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
+    static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
     // This array contains the default behavior for each signal.
     static struct sigaction sigdfl[SIGNAL_MAX];
 
+    void EnableHandler(bool enable)
+    {
+        g_CrashDumpEnabled = enable;
+    }
+
+    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
+    {
+        g_CrashExtraInfoCallback = cbk;
+        g_CrashExtraInfoCallbackCtx = ctx;
+    }
+
     void OnCrash(int signo)
     {
+        if (!g_CrashDumpEnabled)
+            return;
+
         fflush(stdout);
         fflush(stderr);
 
@@ -158,6 +175,12 @@ namespace dmCrash
 #ifdef ANDROID
         unw_map_local_destroy();
 #endif
+
+        if (g_CrashExtraInfoCallback)
+        {
+            int extra_len = strlen(g_AppState.m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+        }
 
         WriteCrash(g_FilePath, &g_AppState);
 

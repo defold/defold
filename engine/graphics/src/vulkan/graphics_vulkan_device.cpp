@@ -1,18 +1,16 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>
 #include <dlib/math.h>
-#include <dlib/array.h>
 
 #include "graphics_vulkan_defines.h"
 #include "../graphics.h"
@@ -260,7 +258,8 @@ namespace dmGraphics
     }
 
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout, uint32_t baseMipLevel, uint32_t levelCount)
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
+        uint32_t baseMipLevel, uint32_t layer_count)
     {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
@@ -285,9 +284,9 @@ namespace dmGraphics
         vk_memory_barrier.image                           = vk_image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
         vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
-        vk_memory_barrier.subresourceRange.levelCount     = levelCount;
+        vk_memory_barrier.subresourceRange.levelCount     = 1;
         vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
-        vk_memory_barrier.subresourceRange.layerCount     = 1;
+        vk_memory_barrier.subresourceRange.layerCount     = layer_count;
 
         VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
         VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -422,6 +421,15 @@ namespace dmGraphics
         return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
     }
 
+    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
+    {
+        if (vk_framebuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyFramebuffer(vk_device, vk_framebuffer, 0);
+        }
+        return VK_SUCCESS;
+    }
+
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
     {
         VkCommandBufferAllocateInfo vk_buffers_allocate_info;
@@ -523,6 +531,7 @@ bail:
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
         };
 
+        descriptorAllocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
         descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
         descriptorAllocator->m_DescriptorMax           = descriptor_count;
         descriptorAllocator->m_DescriptorIndex         = 0;
@@ -583,6 +592,7 @@ bail:
         Texture*              textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
+        TextureType tex_type = textureOut->m_Type;
 
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
@@ -602,10 +612,25 @@ bail:
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
+        if (tex_type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            vk_image_create_info.arrayLayers = 6;
+            vk_image_create_info.flags      |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+        }
+
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
         if (res != VK_SUCCESS)
         {
             return res;
+        }
+
+        // Handle cubemap vs 2D
+        VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
+        uint8_t vk_layer_count       = 1;
+        if (tex_type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            vk_view_type   = VK_IMAGE_VIEW_TYPE_CUBE;
+            vk_layer_count = 6;
         }
 
         // Allocate GPU memory to hold texture
@@ -647,13 +672,13 @@ bail:
 
         vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         vk_view_create_info.image                           = textureOut->m_Handle.m_Image;
-        vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+        vk_view_create_info.viewType                        = vk_view_type;
         vk_view_create_info.format                          = vk_format;
         vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
         vk_view_create_info.subresourceRange.baseMipLevel   = 0;
         vk_view_create_info.subresourceRange.levelCount     = imageMips;
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
-        vk_view_create_info.subresourceRange.layerCount     = 1;
+        vk_view_create_info.subresourceRange.layerCount     = vk_layer_count;
 
         textureOut->m_Format                   = vk_format;
         textureOut->m_Destroyed                = 0;
@@ -810,6 +835,14 @@ bail:
         delete[] vk_attachment_color_ref;
 
         return res;
+    }
+
+    void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass)
+    {
+        if (render_pass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(vk_device, render_pass, 0);
+        }
     }
 
     // These lookup values should match the ones in graphics_vulkan_constants.cpp
@@ -1087,23 +1120,6 @@ bail:
         {
             vkDestroyDescriptorPool(vk_device, handle->m_DescriptorPool, 0);
             handle->m_DescriptorPool = VK_NULL_HANDLE;
-        }
-    }
-
-    void DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
-    {
-        assert(logicalDevice);
-        assert(renderTarget);
-        if (renderTarget->m_Framebuffer != VK_NULL_HANDLE)
-        {
-            vkDestroyFramebuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer, 0);
-            renderTarget->m_Framebuffer = VK_NULL_HANDLE;
-        }
-
-        if (renderTarget->m_RenderPass != VK_NULL_HANDLE)
-        {
-            vkDestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass, 0);
-            renderTarget->m_RenderPass = VK_NULL_HANDLE;
         }
     }
 

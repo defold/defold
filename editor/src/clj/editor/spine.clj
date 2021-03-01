@@ -41,8 +41,9 @@
             [editor.rig :as rig]
             [service.log :as log]
             [internal.util :as util])
-  (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
-           [com.defold.editor.pipeline BezierUtil RigUtil$Transform TextureSetGenerator$UVTransform]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.dynamo.bob.util BezierUtil RigUtil$Transform]
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
            [com.jogamp.opengl GL GL2]

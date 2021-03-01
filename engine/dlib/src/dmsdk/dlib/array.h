@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,10 +17,8 @@
 #include <stdint.h>
 #include <string.h>
 
-/*# SDK Array API documentation
- * [file:<dmsdk/dlib/array.h>]
- *
- * Templatized array with bounds checking.<br/>template `<typename T>` class dmArray<br/>
+/*# Templatized array
+ * Templatized array with bounds checking.
  *
  * The backing storage is either auto-allocated (dynamically allocated) or user-allocated (supplied by user).
  * With exception of changing the size and capacity, all operations are guaranteed to be O(1).
@@ -28,11 +26,13 @@
  * ```cpp
  * dmArray<int> a;
  * a.Push(1);
+ * int b = a[0];
  * ```
  *
  * @document
  * @name Array
  * @namespace dmArray
+ * @path engine/dlib/src/dmsdk/dlib/array.h
  */
 
 /**
@@ -50,33 +50,48 @@ namespace dmArrayUtil
     void SetCapacity(uint32_t capacity, uint32_t type_size, uintptr_t* first, uintptr_t* last, uintptr_t* end);
 };
 
-/** Templatized array with bounds checking.
+
+template <typename T, size_t N>
+char (&ArraySizeHelper(T (&a)[N]))[N];
+
+/*# get number of elements in C array
+ * @macro
+ * @name DM_ARRAY_SIZE
+ * @param Array [type:]
+ * @return Number of elements
+ */
+#define DM_ARRAY_SIZE(A) (sizeof(ArraySizeHelper(A)))
+
+/*# Templatized array with bounds checking.
  *
  * The backing storage is either auto-allocated (dynamically allocated) or user-allocated (supplied by user).
  * With exception of changing the size and capacity, all operations are guaranteed to be O(1).
  *
- * @tparam T Contained type, must obey memcpy semantics
+ * @class
+ * @name dmArray
+ * @tparam T [type:typename T] Contained type, must obey memcpy semantics
  */
 template <typename T>
 class dmArray
 {
 public:
-    /*# empty auto-allocated array
+    /*# constructor. empty auto-allocated memory
      *
-     * @name dmArray::dmArray
+     * @name dmArray
      * @examples
      *
      * ```cpp
-     * dmArray<int>* a = new dmArray<int>();
+     * dmArray<int> a;
+     * a.Push(1);
      * ```
      */
     dmArray();
 
-    /*# user-allocated array
+    /*# constructor. user-allocated memory
      *
      * user-allocated array with initial size and capacity
      *
-     * @name dmArray::dmArray
+     * @name dmArray
      * @param user_array [type:T*] User-allocated array to be used as storage.
      * @param size [type:uint32_t] Initial size
      * @param capacity [type:uint32_t] Initial capacity
@@ -87,7 +102,7 @@ public:
      *
      * Only frees memory when auto-allocated.
      *
-     * @name dmArray::~dmArray
+     * @name ~dmArray
      */
     ~dmArray();
 
@@ -95,7 +110,7 @@ public:
      *
      * Pointer to the start of the backing storage
      *
-     * @name dmArray::Begin
+     * @name Begin
      * @return pointer [type:T*] pointer to start of memory
      */
     T* Begin();
@@ -105,7 +120,7 @@ public:
      * Pointer to the end of the backing storage
      * The end is essentially outside of the used storage.
      *
-     * @name dmArray::End
+     * @name End
      * @return pointer [type:T*] pointer to end of memory
      */
     T* End();
@@ -114,7 +129,7 @@ public:
      *
      * First element of the array
      *
-     * @name dmArray::Front
+     * @name Front
      * @return reference [type:T&] reference to the first element
      */
     T& Front();
@@ -123,7 +138,7 @@ public:
      *
      * First element of the array (const)
      *
-     * @name dmArray::Front
+     * @name Front
      * @return reference [type:const T&] const-reference to the first element
      */
     const T& Front() const;
@@ -132,7 +147,7 @@ public:
      *
      * Last element of the array
      *
-     * @name dmArray::Back
+     * @name Back
      * @return reference [type:T&] reference to the last element
      */
     T& Back();
@@ -141,7 +156,7 @@ public:
      *
      * Last element of the array (const)
      *
-     * @name dmArray::Back
+     * @name Back
      * @return reference [type:const T&] const-reference to the last element
      */
     const T& Back() const;
@@ -150,7 +165,7 @@ public:
      *
      * Size of the array in elements
      *
-     * @name dmArray::Size
+     * @name Size
      * @return number [type:uint32_t] array size
      */
     uint32_t Size() const;
@@ -159,7 +174,7 @@ public:
      *
      * Capacity is currently allocated storage.
      *
-     * @name dmArray::Capacity
+     * @name Capacity
      * @return number [type:uint32_t] array capacity
      */
     uint32_t Capacity() const;
@@ -169,7 +184,7 @@ public:
      * Check if the array is full.
      * The array is full when the size is equal to the capacity.
      *
-     * @name dmArray::Full
+     * @name Full
      * @return boolean [type:boolean] true if the array is full
      */
     bool Full() const;
@@ -179,7 +194,7 @@ public:
      * Check if the array is empty.
      * The array is empty when the size is zero.
      *
-     * @name dmArray::Empty
+     * @name Empty
      * @return boolean [type:boolean] true if the array is empty
      */
     bool Empty() const;
@@ -188,7 +203,7 @@ public:
      *
      * Amount of additional elements that can be stored
      *
-     * @name dmArray::Remaining
+     * @name Remaining
      * @return number [type:uint32_t] amount of additional elements that can be stored
      */
     uint32_t Remaining() const;
@@ -197,7 +212,7 @@ public:
      *
      * Retrieve an element by index
      *
-     * @name dmArray::operator[]
+     * @name operator[]
      * @param index [type:uint32_t] array index
      * @return reference [type:T&] reference to the element at the specified index
      */
@@ -207,7 +222,7 @@ public:
      *
      * Retrieve an element by index (const)
      *
-     * @name dmArray::operator[]
+     * @name operator[]
      * @param index [type:uint32_t] array index
      * @return reference [type:const T&] const-reference to the element at the specified index
      */
@@ -220,7 +235,7 @@ public:
      * If it is larger, the array is extended.
      * Only allowed for auto-allocated arrays and will result in a new dynamic allocation followed by memcpy of the elements.
      *
-     * @name dmArray::SetCapacity
+     * @name SetCapacity
      * @param capacity [type:uint32_t] capacity of the array
      */
     void SetCapacity(uint32_t capacity);
@@ -231,7 +246,7 @@ public:
      * Equivalent to SetCapacity(Capacity() + offset).
      * Only allowed for auto-allocated arrays and will result in a new dynamic allocation followed by memcpy of the elements.
      *
-     * @name dmArray::OffsetCapacity
+     * @name OffsetCapacity
      * @param offset [type:uint32_t] relative amount of elements to change the capacity
      */
     void OffsetCapacity(int32_t offset);
@@ -240,7 +255,7 @@ public:
      *
      * Set size of the array
      *
-     * @name dmArray::SetSize
+     * @name SetSize
      * @param size [type:uint32_t] size of the array, must be less or equal to the capacity
      */
     void SetSize(uint32_t size);
@@ -251,7 +266,7 @@ public:
      * The removed element is replaced by the element at the end (if any), thus potentially altering the order.
      * While operation changes the array size, it is guaranteed to be O(1).
      *
-     * @name dmArray::EraseSwap
+     * @name EraseSwap
      * @param index [type:uint32_t] index of the element to remove
      * @return reference [type:T&] reference to the new element at index
      */
@@ -263,7 +278,7 @@ public:
      * The removed element is replaced by the element at the end (if any), thus potentially altering the order.
      * While operation changes the array size, it is guaranteed to be O(1).
      *
-     * @name dmArray::EraseSwapRef
+     * @name EraseSwapRef
      * @param element [type:T&] reference to the element to remove.
      * @return reference [type:T&] reference to the new referenced element
      */
@@ -274,7 +289,7 @@ public:
      * Add an element to the end of the array
      * Only allowed when the capacity is larger than size.
      *
-     * @name dmArray::Push
+     * @name Push
      * @param element [type:const T&] element element to add
      */
     void Push(const T& element);
@@ -284,7 +299,7 @@ public:
      * Add an array of elements to the end of the array
      * Only allowed when the capacity is larger than size + count
      *
-     * @name dmArray::PushArray
+     * @name PushArray
      * @param array [type:const T&] array of elements to add
      * @param count [type:uint32_t] amount of elements in the array
      */
@@ -295,7 +310,7 @@ public:
      * Remove the last element of the array
      * Only allowed when the size is larger than zero.
      *
-     * @name dmArray::Pop
+     * @name Pop
      */
     void Pop();
 
@@ -304,13 +319,14 @@ public:
      *
      * Swap the content of two arrays
      *
-     * @name dmArray::Swap
+     * @name Swap
      * @param rhs [type:dmArray`<T>`&] reference to array to swap content with
      */
     void Swap(dmArray<T>& rhs);
 
     /*# map a function on all values
      * map a function on all values
+     * @name Map
      * @param fn function that will be called for each element
      * @param ctx user defined context that will be passed in with each callback
      */

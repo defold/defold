@@ -14,17 +14,9 @@
   (:require [editor.image-util :as image-util]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.pipeline
-            ConvexHull
-            TextureSetGenerator
-            TextureSetGenerator$AnimDesc
-            TextureSetGenerator$AnimIterator
-            TextureSetGenerator$TextureSetResult
-            TextureSetLayout$Grid
-            TextureSetLayout$Rect
-            TextureUtil
-            TileSetUtil
-            TileSetUtil$Metrics]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect]
+           [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
+           [com.dynamo.bob.util TextureUtil]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet$Builder]
            [com.dynamo.tile.proto Tile$ConvexHull Tile$Playback]
            [java.awt.image BufferedImage]))
@@ -108,8 +100,9 @@
                                        hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
                                    (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))
                                images)
+        use-geometries (if (some #(not= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 1 0)
         result (TextureSetGenerator/calculateLayout
-                 rects sprite-geometries anim-iterator margin inner-padding extrude-borders
+                 rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
                  true false nil)]
     (doto (.builder result)
       (.setTexture "unknown"))
@@ -212,9 +205,11 @@
                                  (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
                                    (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
                                image-rects)
+        use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)
         result (TextureSetGenerator/calculateLayout
                  image-rects
                  sprite-geometries
+                 use-geometries
                  anim-iterator
                  (:margin tile-source-attributes)
                  (:inner-padding tile-source-attributes)

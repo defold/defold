@@ -39,6 +39,7 @@ namespace dmGameObject
         ComponentTypeSetSetPropertiesFn(type, CompScriptSetProperties);
         ComponentTypeSetGetPropertyFn(type, CompScriptGetProperty);
         ComponentTypeSetSetPropertyFn(type, CompScriptSetProperty);
+        ComponentTypeSetPropertyIteratorFn(type, CompScriptIterProperties);
 
         return dmGameObject::RESULT_OK;
     }
@@ -56,5 +57,5 @@ namespace dmGameObject
 
 }
 
-DM_DECLARE_COMPONENT_TYPE(ComponentAnim, "animc", dmGameObject::CompAnimcInit);
-DM_DECLARE_COMPONENT_TYPE(ComponentScript, "scriptc", dmGameObject::CompScriptcInit);
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeAnim, "animc", dmGameObject::CompAnimcInit);
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeScript, "scriptc", dmGameObject::CompScriptcInit);

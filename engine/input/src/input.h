@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,6 +35,7 @@ namespace dmInput
         float m_AccZ;
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         int32_t      m_TouchCount;
+        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
         char         m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t     m_TextCount;
         uint32_t     m_HasText;
@@ -47,6 +48,8 @@ namespace dmInput
         uint32_t m_Repeated : 1;
         uint32_t m_PositionSet : 1;
         uint32_t m_AccelerationSet : 1;
+        uint32_t m_Dirty : 1; // it's dirty and should report its value
+        uint32_t :23;
     };
 
     typedef struct Context* HContext;

@@ -59,31 +59,41 @@ class	btIDebugDraw
 		drawLine (from, to, fromColor);
 	}
 
-	void	drawSphere(btScalar radius, const btTransform& transform, const btVector3& color)
+	void	drawSphere(btScalar radius, const btTransform& transform, const btVector3& color_)
 	{
+		btVector3 color(1,1,1);
+
 		btVector3 start = transform.getOrigin();
 
 		const btVector3 xoffs = transform.getBasis() * btVector3(radius,0,0);
 		const btVector3 yoffs = transform.getBasis() * btVector3(0,radius,0);
 		const btVector3 zoffs = transform.getBasis() * btVector3(0,0,radius);
 
-		// XY 
-		drawLine(start-xoffs, start+yoffs, color);
-		drawLine(start+yoffs, start+xoffs, color);
-		drawLine(start+xoffs, start-yoffs, color);
-		drawLine(start-yoffs, start-xoffs, color);
+		int rings = 12;
+		int sectors = 12;
 
-		// XZ
-		drawLine(start-xoffs, start+zoffs, color);
-		drawLine(start+zoffs, start+xoffs, color);
-		drawLine(start+xoffs, start-zoffs, color);
-		drawLine(start-zoffs, start-xoffs, color);
+        float R = 1./(float)(rings-1);
+        float S = 1./(float)(sectors-1);
+		for(int r = 0; r < rings; r++) {
+			for(int s = 0; s < sectors; s++) {
+                float y = sinf( -M_PI_2 + M_PI * r * R );
+                float x = cosf(2*M_PI * s * S) * sinf( M_PI * r * R );
+                float z = sinf(2*M_PI * s * S) * sinf( M_PI * r * R );
 
-		// YZ
-		drawLine(start-yoffs, start+zoffs, color);
-		drawLine(start+zoffs, start+yoffs, color);
-		drawLine(start+yoffs, start-zoffs, color);
-		drawLine(start-zoffs, start-yoffs, color);
+                int r1 = r < (rings-1) ? r+1 : r;
+                int s1 = s < (sectors-1) ? s+1 : s;
+                float y1 = sinf( -M_PI_2 + M_PI * r * R );
+                float x1 = cosf(2*M_PI * s1 * S) * sinf( M_PI * r * R );
+                float z1 = sinf(2*M_PI * s1 * S) * sinf( M_PI * r * R );
+
+                float y2 = sinf( -M_PI_2 + M_PI * r1 * R );
+                float x2 = cosf(2*M_PI * s1 * S) * sinf( M_PI * r1 * R );
+                float z2 = sinf(2*M_PI * s1 * S) * sinf( M_PI * r1 * R );
+
+                drawLine(start+btVector3(x,y,z)*radius, start+btVector3(x1,y1,z1)*radius, color);
+                drawLine(start+btVector3(x1,y1,z1)*radius, start+btVector3(x2,y2,z2)*radius, color);
+            }
+        }
 	}
 	
 	virtual void	drawSphere (const btVector3& p, btScalar radius, const btVector3& color)

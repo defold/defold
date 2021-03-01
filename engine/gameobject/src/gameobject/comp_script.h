@@ -44,6 +44,8 @@ namespace dmGameObject
     PropertyResult CompScriptGetProperty(const ComponentGetPropertyParams& params, PropertyDesc& out_value);
 
     PropertyResult CompScriptSetProperty(const ComponentSetPropertyParams& params);
+
+    void CompScriptIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 }
 
 #endif // DM_GAMEOBJECT_COMP_SCRIPT_H

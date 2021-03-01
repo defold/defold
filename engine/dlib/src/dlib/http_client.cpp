@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,9 +19,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "math.h"
-#include "./socket.h"
 #include "http_client.h"
-#include "http_client_private.h"
 #include "log.h"
 #include "sys.h"
 #include "dstrings.h"
@@ -29,10 +27,10 @@
 #include "path.h"
 #include "time.h"
 #include "connection_pool.h"
-#include "mutex.h"
-#include "mbedtls/ssl.h"
-#include "mbedtls/net_sockets.h"
-#include "dns.h"
+#include <dlib/dns.h>
+#include <dlib/mutex.h>
+#include <dlib/socket.h>
+#include <dlib/sslsocket.h>
 
 namespace dmHttpClient
 {
@@ -128,7 +126,7 @@ namespace dmHttpClient
         dmConnectionPool::HPool         m_Pool;
         dmConnectionPool::HConnection   m_Connection;
         dmSocket::Socket                m_Socket;
-        mbedtls_ssl_context*            m_SSLConnection;
+        dmSSLSocket::Socket             m_SSLSocket;
 
         Response(HClient client)
         {
@@ -147,7 +145,7 @@ namespace dmHttpClient
             m_Pool = 0;
             m_Connection = 0;
             m_Socket = 0;
-            m_SSLConnection = 0;
+            m_SSLSocket = 0;
         }
         Result Connect(const char* host, uint16_t port, bool secure, int timeout);
         ~Response();
@@ -199,7 +197,7 @@ namespace dmHttpClient
         if (r == dmConnectionPool::RESULT_OK) {
 
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
-            m_SSLConnection = (mbedtls_ssl_context*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
+            m_SSLSocket = dmConnectionPool::GetSSLSocket(m_Pool, m_Connection);
 
             dmSocket::SetSendTimeout(m_Socket, SOCKET_TIMEOUT);
             dmSocket::SetReceiveTimeout(m_Socket, SOCKET_TIMEOUT);
@@ -238,21 +236,24 @@ namespace dmHttpClient
         params->m_HttpWrite = 0;
         params->m_HttpWriteHeaders = 0;
         params->m_HttpCache = 0;
+        params->m_MaxGetRetries = 1;
+        params->m_RequestTimeout = 0;
     }
 
     HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
     {
         dmSocket::Address address;
 
+
         if (params->m_DNSChannel)
         {
-            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
             {
                 // If the DNS request failed, we refresh the DNS configuration and try again.
                 // This is needed if we first perform an HTTP request when there's no network available,
                 // and then later on do more requests once we have gained connectivity.
                 dmDNS::RefreshChannel(params->m_DNSChannel);
-                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
                 {
                     return 0;
                 }
@@ -279,8 +280,8 @@ namespace dmHttpClient
         client->m_HttpSendContentLength = params->m_HttpSendContentLength;
         client->m_HttpWrite = params->m_HttpWrite;
         client->m_HttpWriteHeaders = params->m_HttpWriteHeaders;
-        client->m_MaxGetRetries = 1;
-        client->m_RequestTimeout = 0;
+        client->m_MaxGetRetries = params->m_MaxGetRetries;
+        client->m_RequestTimeout = params->m_RequestTimeout;
         client->m_RequestStart = 0;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
@@ -332,121 +333,43 @@ namespace dmHttpClient
         return int(currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
     }
 
-    static dmSocket::Result SSLToSocket(int r) {
-        // Currently a very limited list but
-        // connection lost -> RESULT_CONNRESET is essential
-        // for the reconnection functionality/logic.
-        // The majority of the error codes in mbedtls can't
-        // be translated into dmSocket::Result and must be
-        // handled specifically, e.g. ssl_handshake_status and RESULT_HANDSHAKE_FAILED
-        // above.
-        switch (r) {
-            case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-            case MBEDTLS_ERR_NET_CONN_RESET:
-            case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
-                return dmSocket::RESULT_CONNRESET;
-            case MBEDTLS_ERR_SSL_TIMEOUT:
-                return dmSocket::RESULT_WOULDBLOCK;
-            case MBEDTLS_ERR_NET_RECV_FAILED:
-            return dmSocket::RESULT_TRY_AGAIN;
-            default:
-                dmLogWarning("Unhandled ssl status code: %d (%c%04X)", r, r < 0 ? '-':' ', r<0?-r:r);
-                // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
-                // and abort the request
-                return dmSocket::RESULT_UNKNOWN;
-        }
-    }
-
     static dmSocket::Result SendAll(Response* response, const char* buffer, int length)
     {
-        static int k = 0;
-        k++;
-        if (response->m_SSLConnection != 0) {
-            int r = 0;
-            while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) < 0 )
+        int total_sent_bytes = 0;
+        int sent_bytes = 0;
+
+        while (total_sent_bytes < length) {
+            dmSocket::Result r;
+            if (response->m_SSLSocket)
+                r = dmSSLSocket::Send(response->m_SSLSocket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
+            else
+                r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
+
+            if( r == dmSocket::RESULT_WOULDBLOCK )
             {
-                if (r == MBEDTLS_ERR_SSL_WANT_WRITE ||
-                    r == MBEDTLS_ERR_SSL_WANT_READ) {
-                    return dmSocket::RESULT_TRY_AGAIN;
-                }
-
-                if (r < 0) {
-                    return SSLToSocket(r);
-                }
+                r = dmSocket::RESULT_TRY_AGAIN;
             }
-
-            // In order to mimic the http code path, we return the same error number
-            if( (r == length) && HasRequestTimedOut(response->m_Client) )
+            if( (r == dmSocket::RESULT_OK || r == dmSocket::RESULT_TRY_AGAIN) && HasRequestTimedOut(response->m_Client) )
             {
-                return dmSocket::RESULT_WOULDBLOCK;
+                r = dmSocket::RESULT_WOULDBLOCK;
             }
 
-            if (r != length) {
-                return SSLToSocket(r);
+            if (r == dmSocket::RESULT_TRY_AGAIN)
+                continue;
+
+            if (r != dmSocket::RESULT_OK) {
+                return r;
             }
 
-            return dmSocket::RESULT_OK;
-        } else {
-            int total_sent_bytes = 0;
-            int sent_bytes = 0;
-
-            while (total_sent_bytes < length) {
-                dmSocket::Result r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
-
-                if( r == dmSocket::RESULT_WOULDBLOCK )
-                {
-                    r = dmSocket::RESULT_TRY_AGAIN;
-                }
-                if( (r == dmSocket::RESULT_OK || r == dmSocket::RESULT_TRY_AGAIN) && HasRequestTimedOut(response->m_Client) )
-                {
-                    r = dmSocket::RESULT_WOULDBLOCK;
-                }
-
-                if (r == dmSocket::RESULT_TRY_AGAIN)
-                    continue;
-
-                if (r != dmSocket::RESULT_OK) {
-                    return r;
-                }
-
-                total_sent_bytes += sent_bytes;
-            }
-            return dmSocket::RESULT_OK;
+            total_sent_bytes += sent_bytes;
         }
+        return dmSocket::RESULT_OK;
     }
 
     static dmSocket::Result Receive(Response* response, void* buffer, int length, int* received_bytes)
     {
-        if (response->m_SSLConnection != 0) {
-
-            int ret = 0;
-            do
-            {
-                memset(buffer, 0, length);
-                ret = mbedtls_ssl_read( response->m_SSLConnection, (unsigned char*)buffer, length-1 );
-
-                if( ret == MBEDTLS_ERR_SSL_WANT_READ ||
-                    ret == MBEDTLS_ERR_SSL_WANT_WRITE ||
-                    ret == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS )
-                {
-                    continue;
-                }
-
-                if (HasRequestTimedOut(response->m_Client)) {
-                    return dmSocket::RESULT_WOULDBLOCK;
-                }
-
-                if( ret <= 0 )
-                {
-                    return SSLToSocket(ret);
-                }
-
-                ((uint8_t*)buffer)[ret] = 0;
-
-                *received_bytes = ret;
-                return dmSocket::RESULT_OK;
-            }
-            while( 1 );
+        if (response->m_SSLSocket != 0) {
+            return dmSSLSocket::Receive(response->m_SSLSocket, buffer, length, received_bytes);
         } else {
             return dmSocket::Receive(response->m_Socket, buffer, length, received_bytes);
         }
@@ -552,9 +475,9 @@ namespace dmHttpClient
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
             client->m_Buffer[response->m_TotalReceived] = '\0';
 
-            dmHttpClientPrivate::ParseResult parse_res;
-            parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, recv_bytes == 0, &HandleVersion, &HandleHeader, &HandleContent);
-            if (parse_res == dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA)
+            dmHttpClient::ParseResult parse_res;
+            parse_res = dmHttpClient::ParseHeader(client->m_Buffer, response, recv_bytes == 0, &HandleVersion, &HandleHeader, &HandleContent);
+            if (parse_res == dmHttpClient::PARSE_RESULT_NEED_MORE_DATA)
             {
                 if (recv_bytes == 0)
                 {
@@ -563,11 +486,11 @@ namespace dmHttpClient
                 }
                 continue;
             }
-            else if (parse_res == dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR)
+            else if (parse_res == dmHttpClient::PARSE_RESULT_SYNTAX_ERROR)
             {
                 return RESULT_HTTP_HEADERS_ERROR;
             }
-            else if (parse_res == dmHttpClientPrivate::PARSE_RESULT_OK)
+            else if (parse_res == dmHttpClient::PARSE_RESULT_OK)
             {
                 break;
             }
@@ -824,8 +747,8 @@ bail:
 
         if (client->m_HttpCache == 0)
         {
-            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no cache present. Server error?");
-            return RESULT_IO_ERROR;
+            dmLogWarning("Got HTTP response NOT MODIFIED (304) but no cache present");
+            return RESULT_OK;
         }
         dmHttpCache::Result cache_result;
 
@@ -835,8 +758,8 @@ bail:
 
         if (cache_result != dmHttpCache::RESULT_OK)
         {
-            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no ETag present. Server error?");
-            return RESULT_IO_ERROR;
+            dmLogWarning("Got HTTP response NOT MODIFIED (304) but no ETag present. Returning no cached data.");
+            return RESULT_OK;
         }
 
         if (response->m_ETag[0] != '\0')
@@ -1000,7 +923,7 @@ bail:
 
         if (response.m_Status == 204 /* No Content*/)
         {
-            assert(response.m_ContentLength == -1);
+            // assume content length is zero. No need to complain if an invalid response non empty content is received.
             response.m_ContentLength = 0;
         }
 
@@ -1281,4 +1204,89 @@ bail:
     }
     #undef DM_HTTPCLIENT_RESULT_TO_STRING_CASE
 
+    ParseResult ParseHeader(char* header_str,
+                            void* user_data,
+                            bool end_of_receive,
+                            void (*version)(void* user_data, int major, int minor, int status, const char* status_str),
+                            void (*header)(void* user_data, const char* key, const char* value),
+                            void (*body)(void* user_data, int offset))
+    {
+        // Check if we have a body section by searching for two new-lines, do this before parsing version since we do destructive string termination
+        char* body_start = strstr(header_str, "\r\n\r\n");
+
+        // Always try to parse version and status
+        char* version_str = header_str;
+        char* end_version = strstr(header_str, "\r\n");
+        if (end_version == 0)
+            return PARSE_RESULT_NEED_MORE_DATA;
+
+        char store_end_version = *end_version;
+        *end_version = '\0';
+
+        int major, minor, status;
+        int count = sscanf(version_str, "HTTP/%d.%d %d", &major, &minor, &status);
+        if (count != 3)
+        {
+            return PARSE_RESULT_SYNTAX_ERROR;
+        }
+
+        if (body_start != 0)
+        {
+            // Skip \r\n\r\n
+            body_start += 4;
+        }
+        else
+        {
+            // According to the HTTP spec, all responses should end with double line feed to indicate end of headers
+            // Unfortunately some server implementations only end with one linefeed if the response is '204 No Content' so we take special measures
+            // to force parsing of headers if we have received no more data and the we get a 204 status
+            if(end_of_receive && status == 204)
+            {
+                // Treat entire input as just headers
+                body_start = (end_version + 1) + strlen(end_version + 1);
+            }
+            else
+            {
+                // Restore string termination since we need more data and will likely try again
+                *end_version = store_end_version;
+                return PARSE_RESULT_NEED_MORE_DATA;
+            }
+        }
+
+        // Find status string, ie "OK" in "HTTP/1.1 200 OK"
+        char* status_string = strchr(version_str, ' ');
+        status_string = status_string ? strchr(status_string + 1, ' ') : 0;
+        if (status_string == 0)
+            return PARSE_RESULT_SYNTAX_ERROR;
+
+        version(user_data, major, minor, status, status_string + 1);
+
+        char store_body_start = *body_start;
+        *body_start = '\0'; // Terminate headers (up to body)
+        char* tok;
+        char* last;
+        tok = dmStrTok(end_version + 2, "\r\n", &last);
+        while (tok)
+        {
+            char* colon = strstr(tok, ":");
+            if (!colon)
+                return PARSE_RESULT_SYNTAX_ERROR;
+
+            char* value = colon + 1;
+            while (*value == ' ') {
+                value++;
+            }
+
+            int c = *colon;
+            *colon = '\0';
+            header(user_data, tok, value);
+            *colon = c;
+            tok = dmStrTok(0, "\r\n", &last);
+        }
+        *body_start = store_body_start;
+
+        body(user_data, (int) (body_start - header_str));
+
+        return PARSE_RESULT_OK;
+    }
 } // namespace dmHttpClient

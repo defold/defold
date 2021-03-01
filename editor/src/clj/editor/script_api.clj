@@ -71,7 +71,7 @@
   ([params]
    (build-param-string params false))
   ([params remove-optional?]
-   (str "(" (string/join "," (param-names params remove-optional?)) ")")))
+   (str "(" (string/join ", " (param-names params remove-optional?)) ")")))
 
 (defmethod convert "function"
   [{:keys [ns name desc parameters]}]

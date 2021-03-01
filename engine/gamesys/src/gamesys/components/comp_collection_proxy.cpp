@@ -536,6 +536,25 @@ namespace dmGameSystem
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 
+    static bool CompCollectionProxyIterGetNext(dmGameObject::SceneNodeIterator* it)
+    {
+        it->m_Node = it->m_NextChild; // copy data fields
+        it->m_NextChild.m_Node = 0; // we only have one collection to worry about
+        return it->m_Node.m_Node != 0;
+    }
+
+    void CompCollectionProxyIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        CollectionProxyComponent* proxy = (CollectionProxyComponent*)node->m_Component;
+        it->m_Parent = *node;
+        it->m_NextChild = *node; // copy data fields
+        it->m_NextChild.m_Collection = proxy->m_Collection;
+        it->m_NextChild.m_Type = dmGameObject::SCENE_NODE_TYPE_COLLECTION;
+        it->m_NextChild.m_Node = (uint64_t)proxy->m_Collection;
+        it->m_FnIterateNext = CompCollectionProxyIterGetNext;
+    }
+
     /*# tells a collection proxy to start loading the referenced collection
      *
      * Post this message to a collection-proxy-component to start the loading of the referenced collection.

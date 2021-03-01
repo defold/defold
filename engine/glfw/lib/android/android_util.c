@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,45 +14,12 @@
 
 #include "android_log.h"
 
-struct {
-    EGLDisplay display;
-    EGLContext context;
-    EGLContext aux_context;
-    EGLConfig config;
-    EGLSurface surface;
-    EGLSurface aux_surface;
-    struct android_app* app;
-    // pipe used to go from java thread to native (JNI)
-    int m_Pipefd[2];
-} g_SavedWin;
+#include <pthread.h>
 
 typedef struct EglAttribSetting_t {
     EGLint m_Attribute;
     EGLint m_Value;
 } EglAttribSetting;
-
-void SaveWin(_GLFWwin* win) {
-    g_SavedWin.display = win->display;
-    g_SavedWin.context = win->context;
-    g_SavedWin.aux_context = win->aux_context;
-    g_SavedWin.config = win->config;
-    g_SavedWin.aux_surface = win->aux_surface;
-    g_SavedWin.app = win->app;
-    g_SavedWin.m_Pipefd[0] = win->m_Pipefd[0];
-    g_SavedWin.m_Pipefd[1] = win->m_Pipefd[1];
-}
-
-void RestoreWin(_GLFWwin* win) {
-    win->display = g_SavedWin.display;
-    win->context = g_SavedWin.context;
-    win->aux_context = g_SavedWin.aux_context;
-    win->config = g_SavedWin.config;
-    win->surface = g_SavedWin.surface;
-    win->aux_surface = g_SavedWin.aux_surface;
-    win->app = g_SavedWin.app;
-    win->m_Pipefd[0] = g_SavedWin.m_Pipefd[0];
-    win->m_Pipefd[1] = g_SavedWin.m_Pipefd[1];
-}
 
 static int add_egl_attrib(EglAttribSetting* buffer, int size, int offset, const EglAttribSetting* setting)
 {
@@ -135,12 +102,12 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
     int offset = 0;
     int stencil_offset;
 
-    offset = add_egl_base_attrib(&settings, max_settings, offset);
-    offset = add_egl_colour_attrib(&settings, max_settings, offset);
-    offset = add_egl_depth_attrib(&settings, max_settings, offset);
+    offset = add_egl_base_attrib((EglAttribSetting*)&settings, max_settings, offset);
+    offset = add_egl_colour_attrib((EglAttribSetting*)&settings, max_settings, offset);
+    offset = add_egl_depth_attrib((EglAttribSetting*)&settings, max_settings, offset);
     stencil_offset = offset;
-    offset = add_egl_stencil_attrib(&settings, max_settings, offset);
-    offset = add_egl_concluding_attrib(&settings, max_settings, offset);
+    offset = add_egl_stencil_attrib((EglAttribSetting*)&settings, max_settings, offset);
+    offset = add_egl_concluding_attrib((EglAttribSetting*)&settings, max_settings, offset);
 
     eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
     CHECK_EGL_ERROR
@@ -148,7 +115,7 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
     {
         // Something along this sort of line when adding Tegra support?
         LOGV("egl config choice failed - removing stencil");
-        add_egl_concluding_attrib(&settings, max_settings, stencil_offset);
+        add_egl_concluding_attrib((EglAttribSetting*)&settings, max_settings, stencil_offset);
         eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
         CHECK_EGL_ERROR
     }
@@ -156,7 +123,7 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
     return result;
 }
 
-int init_gl(_GLFWwin* win)
+int init_gl(_GLFWwin_android* win)
 {
     LOGV("init_gl");
 
@@ -164,11 +131,6 @@ int init_gl(_GLFWwin* win)
      * NOTE: The example simple_gles2 doesn't work with EGL_CONTEXT_CLIENT_VERSION
      * set to 2 in emulator. Might work on real device though
      */
-    const EGLint contextAttribs[] = {
-            EGL_CONTEXT_CLIENT_VERSION, 2, // GLES 2.x support
-            EGL_NONE, // terminator
-    };
-
     EGLint numConfigs;
     EGLConfig config;
     EGLContext context;
@@ -191,7 +153,17 @@ int init_gl(_GLFWwin* win)
     CHECK_EGL_ERROR
     ANativeWindow_setBuffersGeometry(win->app->window, 0, 0, format);
 
+    EGLint contextAttribs[] = {
+        EGL_CONTEXT_MAJOR_VERSION, 3,
+        EGL_NONE,
+    };
+
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
+    if (context == EGL_NO_CONTEXT)
+    {
+        contextAttribs[1] = 2;
+        context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
+    }
     CHECK_EGL_ERROR
 
     win->display = display;
@@ -228,11 +200,12 @@ int init_gl(_GLFWwin* win)
         }
     }
 
+    create_gl_surface(win);
 
     return 1;
 }
 
-void final_gl(_GLFWwin* win)
+void final_gl(_GLFWwin_android* win)
 {
     LOGV("final_gl");
     if (win->display != EGL_NO_DISPLAY)
@@ -256,45 +229,56 @@ void final_gl(_GLFWwin* win)
     }
 }
 
-void create_gl_surface(_GLFWwin* win)
+void create_gl_surface(_GLFWwin_android* win)
 {
     LOGV("create_gl_surface");
     if (win->display != EGL_NO_DISPLAY)
     {
-        EGLint w, h;
-        EGLConfig config = win->config;
-        EGLContext context = win->context;
-        EGLDisplay display = win->display;
         EGLSurface surface = win->surface;
-
         if (surface == EGL_NO_SURFACE)
         {
-            surface = eglCreateWindowSurface(display, config, win->app->window, NULL);
+            surface = eglCreateWindowSurface(win->display, win->config, win->app->window, NULL);
+            EGLint error = eglGetError();
+            if (!_glfwAndroidVerifySurfaceError(error))
+            {
+                LOGE("Failed to create window surface due to bad window. Trying again later.");
+                win->surface = EGL_NO_SURFACE;
+                return;
+            }
             CHECK_EGL_ERROR
         }
-        EGLBoolean res = eglMakeCurrent(display, surface, surface, context);
-        assert(res == EGL_TRUE);
-        CHECK_EGL_ERROR
+        win->surface = surface;
+    }
+}
 
-        eglQuerySurface(display, surface, EGL_WIDTH, &w);
-        CHECK_EGL_ERROR
-        eglQuerySurface(display, surface, EGL_HEIGHT, &h);
-        CHECK_EGL_ERROR
+void make_current(_GLFWwin_android* win)
+{
+    EGLBoolean res = eglMakeCurrent(win->display, win->surface, win->surface, win->context);
+    assert(res == EGL_TRUE);
+    CHECK_EGL_ERROR
+}
 
+void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force)
+{
+    EGLint w, h;
+    eglQuerySurface(win_android->display, win_android->surface, EGL_WIDTH, &w);
+    CHECK_EGL_ERROR
+    eglQuerySurface(win_android->display, win_android->surface, EGL_HEIGHT, &h);
+    CHECK_EGL_ERROR
+
+    if (force || (win->width != w || win->height != h))
+    {
+        LOGV("window size changed from %dx%d to %dx%d", _glfwWin.width, _glfwWin.height, w, h);
         if (win->windowSizeCallback)
         {
             win->windowSizeCallback(w, h);
         }
-
-        win->surface = surface;
-        win->hasSurface = 1;
-
         win->width = w;
         win->height = h;
     }
 }
 
-void destroy_gl_surface(_GLFWwin* win)
+void destroy_gl_surface(_GLFWwin_android* win)
 {
     LOGV("destroy_gl_surface");
     if (win->display != EGL_NO_DISPLAY)
@@ -303,18 +287,19 @@ void destroy_gl_surface(_GLFWwin* win)
         if (win->surface != EGL_NO_SURFACE)
         {
             eglDestroySurface(win->display, win->surface);
-            win->surface = EGL_NO_SURFACE;
             CHECK_EGL_ERROR
+            win->surface = EGL_NO_SURFACE;
         }
     }
+    win->surface = EGL_NO_SURFACE;
 }
 
-int query_gl_aux_context(_GLFWwin* win)
+int query_gl_aux_context(_GLFWwin_android* win)
 {
     return (win->aux_context == EGL_NO_CONTEXT) ? 0 : 1;
 }
 
-void* acquire_gl_aux_context(_GLFWwin* win)
+void* acquire_gl_aux_context(_GLFWwin_android* win)
 {
     if (win->aux_context == EGL_NO_CONTEXT)
     {
@@ -331,7 +316,7 @@ void* acquire_gl_aux_context(_GLFWwin* win)
 }
 
 
-void unacquire_gl_aux_context(_GLFWwin* win)
+void unacquire_gl_aux_context(_GLFWwin_android* win)
 {
     if (win->aux_context == EGL_NO_CONTEXT)
         return;
@@ -339,3 +324,28 @@ void unacquire_gl_aux_context(_GLFWwin* win)
 }
 
 
+int32_t _glfwAndroidVerifySurfaceError(EGLint error)
+{
+    // Error checking inspired by Android implementation of GLSurfaceView:
+    // https://android.googlesource.com/platform/frameworks/base/+/master/opengl/java/android/opengl/GLSurfaceView.java
+    if (error != EGL_SUCCESS) {
+
+        if (error == EGL_CONTEXT_LOST) {
+            LOGE("egl* function failed due to EGL_CONTEXT_LOST!");
+            return 0;
+        } else if (error == EGL_BAD_SURFACE) {
+            LOGE("egl* function failed due to EGL_BAD_SURFACE, destroy surface and wait for recreation.");
+            return 0;
+        } else {
+            // Other errors typically mean that the current surface is bad,
+            // probably because the SurfaceView surface has been destroyed,
+            // but we haven't been notified yet.
+            // Ignore error, but log for debugging purpose.
+            LOGW("egl* function failed, eglGetError: %X", error);
+            return 0;
+        }
+    }
+
+    // Surface is ok
+    return 1;
+}

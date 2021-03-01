@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -51,6 +51,8 @@ namespace dmRender
 
     #define RENDER_SCRIPT_CONSTANTBUFFER "RenderScriptConstantBuffer"
 
+    #define RENDER_SCRIPT_PREDICATE "RenderScriptPredicate"
+
     #define RENDER_SCRIPT_LIB_NAME "render"
     #define RENDER_SCRIPT_FORMAT_NAME "format"
     #define RENDER_SCRIPT_WIDTH_NAME "width"
@@ -63,6 +65,7 @@ namespace dmRender
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
+    static uint32_t RENDER_SCRIPT_PREDICATE_TYPE_HASH = 0;
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -135,6 +138,37 @@ namespace dmRender
         {"__tostring",  RenderScriptConstantBuffer_tostring},
         {"__index",     RenderScriptConstantBuffer_index},
         {"__newindex",  RenderScriptConstantBuffer_newindex},
+        {0, 0}
+    };
+
+    static HPredicate* RenderScriptPredicate_Check(lua_State *L, int index)
+    {
+        return (HPredicate*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_PREDICATE_TYPE_HASH, "Expected a render predicate (acquired from the render.predicate function)");
+    }
+
+    static int RenderScriptPredicate_gc (lua_State *L)
+    {
+        HPredicate* p = (HPredicate*)lua_touserdata(L, 1);
+        DeletePredicate(*p);
+        *p = 0;
+        return 0;
+    }
+
+    static int RenderScriptPredicate_tostring (lua_State *L)
+    {
+        lua_pushfstring(L, "Predicate: %p", lua_touserdata(L, 1));
+        return 1;
+    }
+
+    static const luaL_reg RenderScriptPredicate_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg RenderScriptPredicate_meta[] =
+    {
+        {"__gc",        RenderScriptPredicate_gc},
+        {"__tostring",  RenderScriptPredicate_tostring},
         {0, 0}
     };
 
@@ -597,7 +631,7 @@ namespace dmRender
      *                            height = render.get_window_height(),
      *                            u_wrap = render.WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = render.WRAP_CLAMP_TO_EDGE }
-     *     self.my_render_target = render.render_target("my_target", {[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
+     *     self.my_render_target = render.render_target({[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
      * end
      *
      * function update(self, dt)
@@ -617,16 +651,21 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        dmhash_t namehash = dmScript::CheckHashOrString(L, 1);
+        // Legacy support
+        int table_index = 2;
+        if (lua_istable(L, 1))
+        {
+            table_index = 1;
+        }
 
         const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
         uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
-        luaL_checktype(L, 2, LUA_TTABLE);
+        luaL_checktype(L, table_index, LUA_TTABLE);
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         lua_pushnil(L);
-        while (lua_next(L, 2))
+        while (lua_next(L, table_index))
         {
             bool required_found[] = { false, false, false };
             uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
@@ -739,7 +778,6 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
-        RegisterRenderTarget(i->m_RenderContext, render_target, namehash);
 
         lua_pushlightuserdata(L, (void*)render_target);
 
@@ -1273,7 +1311,7 @@ namespace dmRender
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
      * system constants buffer is used containing constants as defined in materials and set through
-     * `*.set_constant()` and `*.reset_constant()` on visual components.
+     * [ref:go.set] (or [ref:particlefx.set_constant]) on visual components.
      *
      * @name render.draw
      * @param predicate [type:predicate] predicate to draw for
@@ -1304,10 +1342,11 @@ namespace dmRender
     int RenderScript_Draw(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmRender::Predicate* predicate = 0x0;
-        if (lua_islightuserdata(L, 1))
+        HPredicate predicate = 0x0;
+        if (lua_isuserdata(L, 1))
         {
-            predicate = (dmRender::Predicate*)lua_touserdata(L, 1);
+            HPredicate* tmp = RenderScriptPredicate_Check(L, 1);
+            predicate = *tmp;
         }
         else
         {
@@ -2208,27 +2247,27 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
         luaL_checktype(L, 1, LUA_TTABLE);
-        if (i->m_PredicateCount < MAX_PREDICATE_COUNT)
+
+        HPredicate* p_predicate = (HPredicate*) lua_newuserdata(L, sizeof(HPredicate*));
+        *p_predicate = NewPredicate();
+
+        luaL_getmetatable(L, RENDER_SCRIPT_PREDICATE);
+        lua_setmetatable(L, -2);
+
+        lua_pushnil(L);  /* first key */
+        while (lua_next(L, 1) != 0)
         {
-            dmRender::Predicate* predicate = new dmRender::Predicate();
-            i->m_Predicates[i->m_PredicateCount++] = predicate;
-            lua_pushnil(L);  /* first key */
-            while (lua_next(L, 1) != 0)
+            dmhash_t tag = dmScript::CheckHashOrString(L, -1);
+            if (RESULT_OK != AddPredicateTag(*p_predicate, tag))
             {
-                predicate->m_Tags[predicate->m_TagCount++] = dmScript::CheckHashOrString(L, -1);
-                lua_pop(L, 1);
-                if (predicate->m_TagCount == dmRender::Predicate::MAX_TAG_COUNT)
-                    break;
+                dmLogWarning("Unable to add predicate tag. Max number of tags (%i) reached?", dmRender::Predicate::MAX_TAG_COUNT);
             }
-            lua_pushlightuserdata(L, (void*)predicate);
-            assert(top + 1 == lua_gettop(L));
-            return 1;
+            lua_pop(L, 1);
         }
-        else
-        {
-            return luaL_error(L, "Could not create more predicates since the buffer is full (%d).", MAX_PREDICATE_COUNT);
-        }
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     /*# enables a material
@@ -2373,6 +2412,8 @@ namespace dmRender
 
         RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER, RenderScriptConstantBuffer_methods, RenderScriptConstantBuffer_meta);
 
+        RENDER_SCRIPT_PREDICATE_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_PREDICATE, RenderScriptPredicate_methods, RenderScriptPredicate_meta);
+
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, Render_methods);
 
 #define REGISTER_STATE_CONSTANT(name)\
@@ -2395,10 +2436,6 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(LUMINANCE);
         REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGBA);
-        REGISTER_FORMAT_CONSTANT(RGB_DXT1);
-        REGISTER_FORMAT_CONSTANT(RGBA_DXT1);
-        REGISTER_FORMAT_CONSTANT(RGBA_DXT3);
-        REGISTER_FORMAT_CONSTANT(RGBA_DXT5);
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 

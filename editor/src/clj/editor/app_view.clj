@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,6 +12,7 @@
 
 (ns editor.app-view
   (:require [clojure.java.io :as io]
+            [clojure.edn :as edn]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build :as build]
@@ -68,6 +69,7 @@
             [util.profiler :as profiler]
             [service.smoke-log :as slog])
   (:import [com.defold.editor Editor]
+           [com.defold.editor UIUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
@@ -228,6 +230,7 @@
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
   (property manip-space g/Keyword)
+  (property keymap-config g/Any)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -275,8 +278,8 @@
                                                             is-dirty (contains? open-dirty-views view)
                                                             title (tab-title resource is-dirty)]]
                                                 (ui/text! tab title)))))
-  (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
+  (output keymap g/Any :cached (g/fnk [keymap-config]
+                                 (keymap/make-keymap keymap-config {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
@@ -1107,12 +1110,13 @@ If you do not specifically require different script states, consider changing th
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["version" "channel" "editor-sha1" "engine-sha1" "time"])]
+        controls (ui/collect-controls root ["version" "channel" "editor-sha1" "engine-sha1" "time", "sponsor-push"])]
     (ui/text! (:version controls) (System/getProperty "defold.version" "No version"))
     (ui/text! (:channel controls) (or (system/defold-channel) "No channel"))
     (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
     (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
     (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
+    (UIUtil/stringToTextFlowNodes (:sponsor-push controls) "[Defold Foundation Development Fund](https://www.defold.com/community-donations)")
     (ui/title! stage "About")
     (.setScene stage scene)
     (ui/show! stage)))
@@ -1137,6 +1141,9 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :show-logs :global
   (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
+
+(handler/defhandler :donate :global
+  (run [] (ui/open-url "https://www.defold.com/donate")))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -1253,6 +1260,9 @@ If you do not specifically require different script states, consider changing th
                 :command :report-suggestion}
                {:label "Search Issues"
                 :command :search-issues}
+               {:label :separator}
+               {:label "Development Fund"
+                :command :donate}
                {:label :separator}
                {:label "About"
                 :command :about}]}])
@@ -1419,12 +1429,31 @@ If you do not specifically require different script states, consider changing th
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene resource-node view-type)))))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
+(defn open-custom-keymap
+  [path]
+  (try (and (not= path "")
+            (some-> path
+                    slurp
+                    edn/read-string))
+       (catch IOException e
+         (dialogs/make-info-dialog
+          {:title "Couldn't load custom keymap config"
+           :icon :icon/triangle-error
+           :header {:fx/type :v-box
+                    :children [{:fx/type fxui/label
+                                :text (str "The keymap path " path " couldn't be opened.")}]}
+           :content (.getMessage e)})
+         (log/error :exception e)
+         nil)))
+
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
+          keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" ""))
+                     keymap/default-host-key-bindings)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
                                                                      :stage stage
                                                                      :scene app-scene
@@ -1432,7 +1461,8 @@ If you do not specifically require different script states, consider changing th
                                                                      :active-tab-pane editor-tab-pane
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
-                                                                     :manip-space :world))))]
+                                                                     :manip-space :world
+                                                                     :keymap-config keymap))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)

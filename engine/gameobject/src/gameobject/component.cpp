@@ -13,6 +13,7 @@
 #include "component.h"
 
 #include <dlib/static_assert.h>
+#include <dlib/hash.h>
 
 namespace dmGameObject
 {
@@ -54,6 +55,7 @@ Result CreateRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
 
         component_type.m_ResourceType = resource_type;
         component_type.m_Name = type_desc->m_Name;
+        component_type.m_NameHash = dmHashString64(type_desc->m_Name);
         component_type.m_InstanceHasUserData = true;
 
         // Now, let the callback add the function pointers
@@ -71,27 +73,29 @@ Result CreateRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
 }
 
 
-void ComponentTypeSetNewWorldFn(ComponentType* type, ComponentNewWorld fn)          { type->m_NewWorldFunction = fn; }
-void ComponentTypeSetDeleteWorldFn(ComponentType* type, ComponentDeleteWorld fn)    { type->m_DeleteWorldFunction = fn; }
-void ComponentTypeSetCreateFn(ComponentType* type, ComponentCreate fn)              { type->m_CreateFunction = fn; }
-void ComponentTypeSetDestroyFn(ComponentType* type, ComponentDestroy fn)            { type->m_DestroyFunction = fn; }
-void ComponentTypeSetInitFn(ComponentType* type, ComponentInit fn)                  { type->m_InitFunction = fn; }
-void ComponentTypeSetFinalFn(ComponentType* type, ComponentFinal fn)                { type->m_FinalFunction = fn; }
-void ComponentTypeSetAddToUpdateFn(ComponentType* type, ComponentAddToUpdate fn)    { type->m_AddToUpdateFunction = fn; }
-void ComponentTypeSetGetFn(ComponentType* type, ComponentGet fn)                    { type->m_GetFunction = fn; }
-void ComponentTypeSetRenderFn(ComponentType* type, ComponentsRender fn)             { type->m_RenderFunction = fn; }
-void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn)             { type->m_UpdateFunction = fn; }
-void ComponentTypeSetPostUpdateFn(ComponentType* type, ComponentsPostUpdate fn)     { type->m_PostUpdateFunction = fn; }
-void ComponentTypeSetOnMessageFn(ComponentType* type, ComponentOnMessage fn)        { type->m_OnMessageFunction = fn; }
-void ComponentTypeSetOnInputFn(ComponentType* type, ComponentOnInput fn)            { type->m_OnInputFunction = fn; }
-void ComponentTypeSetOnReloadFn(ComponentType* type, ComponentOnReload fn)          { type->m_OnReloadFunction = fn; }
-void ComponentTypeSetSetPropertiesFn(ComponentType* type, ComponentSetProperties fn){ type->m_SetPropertiesFunction = fn; }
-void ComponentTypeSetGetPropertyFn(ComponentType* type, ComponentGetProperty fn)    { type->m_GetPropertyFunction = fn; }
-void ComponentTypeSetSetPropertyFn(ComponentType* type, ComponentSetProperty fn)    { type->m_SetPropertyFunction = fn; }
-void ComponentTypeSetContext(ComponentType* type, void* context)                    { type->m_Context = context; }
-void ComponentTypeSetReadsTransforms(ComponentType* type, bool reads_transforms)    { type->m_ReadsTransforms = reads_transforms?1:0; }
-void ComponentTypeSetPrio(ComponentType* type, uint16_t prio)                       { type->m_UpdateOrderPrio = prio; }
-void ComponentTypeSetHasUserData(ComponentType* type, bool has_user_data)           { type->m_InstanceHasUserData = has_user_data; }
+void ComponentTypeSetNewWorldFn(ComponentType* type, ComponentNewWorld fn)                  { type->m_NewWorldFunction = fn; }
+void ComponentTypeSetDeleteWorldFn(ComponentType* type, ComponentDeleteWorld fn)            { type->m_DeleteWorldFunction = fn; }
+void ComponentTypeSetCreateFn(ComponentType* type, ComponentCreate fn)                      { type->m_CreateFunction = fn; }
+void ComponentTypeSetDestroyFn(ComponentType* type, ComponentDestroy fn)                    { type->m_DestroyFunction = fn; }
+void ComponentTypeSetInitFn(ComponentType* type, ComponentInit fn)                          { type->m_InitFunction = fn; }
+void ComponentTypeSetFinalFn(ComponentType* type, ComponentFinal fn)                        { type->m_FinalFunction = fn; }
+void ComponentTypeSetAddToUpdateFn(ComponentType* type, ComponentAddToUpdate fn)            { type->m_AddToUpdateFunction = fn; }
+void ComponentTypeSetGetFn(ComponentType* type, ComponentGet fn)                            { type->m_GetFunction = fn; }
+void ComponentTypeSetRenderFn(ComponentType* type, ComponentsRender fn)                     { type->m_RenderFunction = fn; }
+void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn)                     { type->m_UpdateFunction = fn; }
+void ComponentTypeSetPostUpdateFn(ComponentType* type, ComponentsPostUpdate fn)             { type->m_PostUpdateFunction = fn; }
+void ComponentTypeSetOnMessageFn(ComponentType* type, ComponentOnMessage fn)                { type->m_OnMessageFunction = fn; }
+void ComponentTypeSetOnInputFn(ComponentType* type, ComponentOnInput fn)                    { type->m_OnInputFunction = fn; }
+void ComponentTypeSetOnReloadFn(ComponentType* type, ComponentOnReload fn)                  { type->m_OnReloadFunction = fn; }
+void ComponentTypeSetSetPropertiesFn(ComponentType* type, ComponentSetProperties fn)        { type->m_SetPropertiesFunction = fn; }
+void ComponentTypeSetGetPropertyFn(ComponentType* type, ComponentGetProperty fn)            { type->m_GetPropertyFunction = fn; }
+void ComponentTypeSetSetPropertyFn(ComponentType* type, ComponentSetProperty fn)            { type->m_SetPropertyFunction = fn; }
+void ComponentTypeSetContext(ComponentType* type, void* context)                            { type->m_Context = context; }
+void ComponentTypeSetReadsTransforms(ComponentType* type, bool reads_transforms)            { type->m_ReadsTransforms = reads_transforms?1:0; }
+void ComponentTypeSetPrio(ComponentType* type, uint16_t prio)                               { type->m_UpdateOrderPrio = prio; }
+void ComponentTypeSetHasUserData(ComponentType* type, bool has_user_data)                   { type->m_InstanceHasUserData = has_user_data; }
+void ComponentTypeSetChilldIteratorFn(ComponentType* type, FIteratorChildren fn)            { type->m_IterChildren = fn; }
+void ComponentTypeSetPropertyIteratorFn(ComponentType* type, FIteratorProperties fn)        { type->m_IterProperties = fn; }
 
 
 } // namespace

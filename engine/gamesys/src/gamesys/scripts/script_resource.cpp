@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -46,6 +46,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.material
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -69,6 +70,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.font
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -92,6 +94,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.texture
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -115,6 +118,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.atlas
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -124,6 +128,30 @@ namespace dmGameSystem
  * go.property("my_atlas", resource.atlas("/atlas.atlas"))
  * function init(self)
  *   go.set("#sprite", "image", self.my_atlas)
+ * end
+ * ```
+ */
+
+/*# reference to buffer resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.buffer
+ * @param [path] [type:string] optional resource path string to the resource
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Set a unique buffer it to a sprite:
+ *
+ * ```lua
+ * go.property("my_buffer", resource.buffer("/cube.buffer"))
+ * function init(self)
+ *   go.set("#mesh", "vertices", self.my_buffer)
  * end
  * ```
  */
@@ -138,6 +166,7 @@ namespace dmGameSystem
  * [icon:attention] This function can only be called within [ref:go.property] function calls.
  *
  * @name resource.tile_source
+ * @param [path] [type:string] optional resource path string to the resource
  * @return path [type:hash] a path hash to the binary version of the resource
  * @examples
  *
@@ -629,6 +658,11 @@ static int SetBuffer(lua_State* L)
         buffer_resource->m_ElementCount = src_count;
     }
 
+    // Update the content version
+    dmBuffer::UpdateContentVersion(dst_buffer);
+    dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
+    buffer_resource->m_NameHash = path_hash;
+
     assert(top == lua_gettop(L));
     return 0;
 }
@@ -643,8 +677,10 @@ static const luaL_reg Module_methods[] =
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
+    {"is_using_liveupdate_data", dmLiveUpdate::Resource_IsUsingLiveUpdateData},
     {"store_resource", dmLiveUpdate::Resource_StoreResource},
     {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
+    {"store_archive", dmLiveUpdate::Resource_StoreArchive},
 
     {0, 0}
 };
@@ -749,12 +785,14 @@ static void LuaInit(lua_State* L)
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_ETC1);
-    /* DEF-994 We don't support these internally yet
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_DXT1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT3);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT5);
-    */
+
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_ETC2);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_BC1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_BC3);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_R_BC4);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RG_BC5);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_BC7);
 
 #undef SETGRAPHICSCONSTANT
 

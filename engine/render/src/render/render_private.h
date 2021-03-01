@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -66,7 +66,6 @@ namespace dmRender
         , m_Program(0)
         , m_VertexProgram(0)
         , m_FragmentProgram(0)
-        , m_TagMask(0)
         , m_UserData1(0)
         , m_UserData2(0)
         , m_VertexSpace(dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
@@ -80,7 +79,7 @@ namespace dmRender
         dmHashTable64<int32_t>                  m_NameHashToLocation;
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
-        uint32_t                                m_TagMask;
+        uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
@@ -159,12 +158,7 @@ namespace dmRender
         dmArray<TextEntry>                  m_TextEntries;
         uint32_t                            m_TextEntriesFlushed;
         uint32_t                            m_Frame;
-    };
-
-    struct RenderTargetSetup
-    {
-        dmGraphics::HRenderTarget   m_RenderTarget;
-        dmhash_t                    m_Hash;
+        uint32_t                            m_PreviousFrame;
     };
 
     struct RenderScriptContext
@@ -202,9 +196,16 @@ namespace dmRender
 
     struct RenderListRange
     {
-        uint32_t m_TagMask;
-        uint32_t m_Start;   // Index into the renderlist
+        uint32_t m_TagListKey;
+        uint32_t m_Start;       // Index into the renderlist
+        uint32_t m_Count:31;
+        uint32_t m_Skip:1;      // During the current draw call
+    };
+
+    struct MaterialTagList
+    {
         uint32_t m_Count;
+        dmhash_t m_Tags[MAX_MATERIAL_TAG_COUNT];
     };
 
     struct RenderContext
@@ -214,7 +215,6 @@ namespace dmRender
         TextContext                 m_TextContext;
         dmScript::HContext          m_ScriptContext;
         RenderScriptContext         m_RenderScriptContext;
-        dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderObject*>      m_RenderObjects;
         dmScript::ScriptWorld*      m_ScriptWorld;
 
@@ -224,6 +224,8 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortBuffer;
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
+
+        dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         HFontMap                    m_SystemFontMap;
 
@@ -251,16 +253,21 @@ namespace dmRender
 
     void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const struct RenderObject* ro);
 
+    // Return true if the predicate tags all exist in the material tag list
+    bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);
+    // Returns a hashkey that the material can use to get the list
+    uint32_t                        RegisterMaterialTagList(HRenderContext context, uint32_t tag_count, const dmhash_t* tags);
+    // Gets the list associated with a hash of all the tags (see RegisterMaterialTagList)
+    void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter
     {
         bool operator()(int a, int b) const
         {
-            // Sort them on tag mask first, then render order (due to costly z calculations)
             const RenderListEntry& ea = m_Base[a];
             const RenderListEntry& eb = m_Base[b];
-            return ea.m_TagMask < eb.m_TagMask;
+            return ea.m_TagListKey < eb.m_TagListKey;
         }
         RenderListEntry* m_Base;
     };
@@ -270,7 +277,7 @@ namespace dmRender
         RenderListEntry* m_Entries;
         bool operator() (const uint32_t& a, const uint32_t& b) const
         {
-            return m_Entries[a].m_TagMask < m_Entries[b].m_TagMask;
+            return m_Entries[a].m_TagListKey < m_Entries[b].m_TagListKey;
         }
     };
 
@@ -279,7 +286,7 @@ namespace dmRender
     // Invokes the callback for each range. Two ranges are not guaranteed to preceed/succeed one another.
     void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
 
-    bool FindTagMaskRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_mask, RenderListRange& range);
+    bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
 }
 
 #endif

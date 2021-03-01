@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,6 @@
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
-#include <dlib/log.h>
 #include <dlib/thread.h>
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
@@ -42,36 +41,51 @@ namespace dmLiveUpdate
     static AsyncResourceRequest m_TreadJob;
     static ResourceRequestCallbackData m_JobCompleteData;
 
-    void ProcessRequest(AsyncResourceRequest &request)
+
+    static void ProcessRequest(AsyncResourceRequest &request)
     {
         m_JobCompleteData.m_CallbackData = request.m_CallbackData;
         m_JobCompleteData.m_Callback = request.m_Callback;
+        m_JobCompleteData.m_Status = false;
         Result res = dmLiveUpdate::RESULT_OK;
-        if (request.m_Resource.m_Header != 0x0)
+        if (request.m_IsArchive)
         {
+            // Stores/stages a zip archive for loading after next reboot
+            res = dmLiveUpdate::StoreZipArchive(request.m_Path);
+            m_JobCompleteData.m_Manifest = 0;
+        }
+        else if (request.m_Resource.m_Header != 0x0)
+        {
+            // Add a resource to the currently created live update archive
             res = dmLiveUpdate::NewArchiveIndexWithResource(request.m_Manifest, request.m_ExpectedResourceDigest, request.m_ExpectedResourceDigestLength, &request.m_Resource, m_JobCompleteData.m_NewArchiveIndex);
-            m_JobCompleteData.m_ArchiveIndexContainer = request.m_Manifest->m_ArchiveIndex;
+            m_JobCompleteData.m_Manifest = request.m_Manifest;
         }
         else
         {
             res = dmLiveUpdate::RESULT_INVALID_HEADER;
         }
-        m_JobCompleteData.m_CallbackData.m_Status = res == dmLiveUpdate::RESULT_OK ? true : false;
+        m_JobCompleteData.m_Status = res == dmLiveUpdate::RESULT_OK ? true : false;
     }
 
-    void ProcessRequestComplete()
+    // Must be called on the Lua main thread
+    static void ProcessRequestComplete()
     {
-        if(m_JobCompleteData.m_CallbackData.m_Status)
+        if(m_JobCompleteData.m_Manifest && m_JobCompleteData.m_Status)
         {
-            dmLiveUpdate::SetNewArchiveIndex(m_JobCompleteData.m_ArchiveIndexContainer, m_JobCompleteData.m_NewArchiveIndex, true);
+            // If we have a new archive, then we've also created a new manifest, so let's use it
+            dmLiveUpdate::SetNewManifest(m_JobCompleteData.m_Manifest);
+
+            dmLiveUpdate::SetNewArchiveIndex(m_JobCompleteData.m_Manifest->m_ArchiveIndex, m_JobCompleteData.m_NewArchiveIndex, true);
         }
-        m_JobCompleteData.m_Callback(&m_JobCompleteData.m_CallbackData);
+        m_JobCompleteData.m_Callback(m_JobCompleteData.m_Status, m_JobCompleteData.m_CallbackData);
     }
 
 
 #if !(defined(__EMSCRIPTEN__))
     static void AsyncThread(void* args)
     {
+        (void)args;
+
         // Liveupdate async thread batch processing requested liveupdate tasks
         AsyncResourceRequest request;
         while (m_Active)

@@ -1,10 +1,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,6 +12,8 @@
 
 # NOTE: This script is only used for CI
 # The corresponding file for development is build.xml
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 set -e
 mkdir -p lib/x86_64-linux
@@ -29,6 +31,7 @@ mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
 mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
+mkdir -p libexec/arm64-nx64
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -58,18 +61,12 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
 
-# PVRTexLib
-cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/PVRTexLib.dll lib/x86_64-win32/PVRTexLib.dll
-cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/libPVRTexLib.so lib/x86_64-linux/libPVRTexLib.so
-cp -v $DYNAMO_HOME/ext/lib/x86_64-darwin/libPVRTexLib.dylib lib/x86_64-darwin/libPVRTexLib.dylib
-
 # Win32 32
 cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
 cp -v $DYNAMO_HOME/ext/lib/win32/wrap_oal.dll lib/x86-win32/wrap_oal.dll
 # Win32 64
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/OpenAL32.dll lib/x86_64-win32/OpenAL32.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.dll
-cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/msvcr120.dll lib/x86_64-win32/msvcr120.dll
 
 
 rm -rf tmp
@@ -120,3 +117,7 @@ copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
 copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm
+
+if [ -e "${DIR}/copy_private.sh" ]; then
+    sh ${DIR}/copy_private.sh
+fi

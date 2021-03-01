@@ -1,7 +1,5 @@
 .cljfx-form-title {
-  -fx-text-fill: $defold-white;
-  -fx-font-family: "Source Sans Pro Light";
-  -fx-font-size: 24px;
+  -fx-font-size: 200%;
 }
 
 .cljfx-form-separator {
@@ -27,7 +25,7 @@
 .cljfx-form-icon-button {
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: $mid-grey !important;
+  -fx-background-color: -df-component-dark !important;
   -fx-padding: 0;
   -fx-min-width: 27px;
   -fx-max-width: 27px;
@@ -38,18 +36,18 @@
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: $grey !important;
+    -fx-background-color: -df-component !important;
   }
   &:armed {
-    -fx-background-color: $dark-grey-header !important;
+    -fx-background-color: -df-component !important;
   }
 }
 
 .cljfx-form-list-view {
   -fx-border-radius: 2px;
   -fx-padding: 0 0 1px 0;
-  -fx-border-color: $input-border;
-  -fx-background-color: $input-background;
+  -fx-border-color: -df-component-dark;
+  -fx-background-color: -df-background-light;
   -fx-background-radius: 20px;
   .list-cell {
     .text-field {
@@ -77,6 +75,7 @@
 .cljfx-form-combo-box {
   -fx-border-radius: 2px;
   -fx-background-radius: 2px;
+  -fx-border-color: -df-component-dark;
   > .text-field {
     -fx-border-width: 0 !important;
   }
@@ -84,7 +83,7 @@
 .cljfx-table-view-wrapper {
   -fx-border-width: 1px;
   -fx-border-radius: 2px;
-  -fx-border-color: $input-border;
+  -fx-border-color: -df-background-lighter;
 }
 .cljfx-table-view {
   & > .virtual-flow > .scroll-bar:vertical {
@@ -100,20 +99,18 @@
 
 .cljfx-form-error {
   .combo-box, .list-view, .text-field, .check-box > .box {
-    -fx-border-color: $error-severity-fatal;
+    -fx-border-color: -df-error-severity-fatal;
   }
 }
 
 .cljfx-form-warning {
   .combo-box, .list-view, .text-field, .check-box > .box {
-    -fx-border-color: $error-severity-warning;
+    -fx-border-color: -df-error-severity-warning;
   }
 }
 
-$floating-input-border: #56595d;
-
 @mixin floating-input() {
-  -fx-border-color: $floating-input-border;
+  -fx-border-color: -df-component-light;
   -fx-border-radius: 2px;
   -fx-background-radius: 3px;
   -fx-pref-width: 120px;
@@ -124,7 +121,7 @@ $floating-input-border: #56595d;
 
 .cljfx-form-floating-area {
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 8, 0, 0, 4);
-  -fx-background-color: $mid-grey;
+  -fx-background-color: -df-component-darker;
   -fx-background-radius: 6px;
   -fx-padding: 12px;
   -fx-spacing: 8px;
@@ -137,19 +134,19 @@ $floating-input-border: #56595d;
     -fx-cursor: text;
     &:focused {
       -fx-padding: 4px 22px 3px 8px;
-      -fx-background-color: $root-background;
-      -fx-border-color: $floating-input-border $floating-input-border $defold-orange $floating-input-border;
+      -fx-background-color: -df-component-dark;
+      -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
     }
   }
 
   .jump-to-menu-button {
     @include floating-input();
     -fx-focus-traversable: false;
-    -fx-background-color: $mid-grey;
+    -fx-background-color: rgba(0, 0, 0, 0.1);
     -fx-background-image: url("icons/32/Icons_S_05_arrowdown.png");
 
     &:hover {
-      -fx-background-color: $grey;
+      -fx-background-color: -df-component-light;
     }
     &:disabled {
       .label {

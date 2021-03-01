@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -157,6 +157,10 @@ range_error:
             resource->m_Mask[i] = dmHashString64(resource->m_DDF->m_Mask[i]);
         }
 
+        const dmPhysicsDDF::CollisionShape* embedded_shape = &resource->m_DDF->m_EmbeddedCollisionShape;
+        const dmPhysicsDDF::CollisionShape::Shape* embedded_shapes = embedded_shape->m_Shapes.m_Data;
+        const uint32_t embedded_shape_count = embedded_shape->m_Shapes.m_Count;
+
         if (resource->m_DDF->m_CollisionShape && resource->m_DDF->m_CollisionShape[0] != '\0')
         {
             void* res;
@@ -173,42 +177,44 @@ range_error:
                     {
                         resource->m_TileGridResource = (TileGridResource*)res;
                         resource->m_TileGrid = 1;
-                        // Add the tile grid as the first and only shape
+
                         dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
                         uint32_t shape_count = shapes.Size();
-                        if (shape_count > COLLISION_OBJECT_MAX_SHAPES)
-                        {
-                            dmLogWarning("The collision object '%s' has a tile map containing more than %d layers, the rest will be ignored.", filename, COLLISION_OBJECT_MAX_SHAPES);
-                            shape_count = COLLISION_OBJECT_MAX_SHAPES;
-                        }
+                        uint32_t total_shapes_count = embedded_shape_count + shape_count;
+                        resource->m_Shapes2D = (dmPhysics::HCollisionShape2D*)malloc(sizeof(dmPhysics::HCollisionShape2D) * total_shapes_count);
+                        resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * total_shapes_count);
+                        resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * total_shapes_count);
                         for (uint32_t i = 0; i < shape_count; ++i)
                         {
                             resource->m_Shapes2D[i] = resource->m_TileGridResource->m_GridShapes[i];
+                            resource->m_ShapeTranslation[i] = Vectormath::Aos::Vector3(0.0, 0.0, 0.0);
+                            resource->m_ShapeRotation[i] = Vectormath::Aos::Quat(0.0, 0.0, 0.0, 0.0);
                         }
+                        resource->m_TileGridShapeCount = shape_count;
                         resource->m_ShapeCount = shape_count;
-                        return true;
                     }
-                    // NOTE: Fall-trough "by design" here, ie not "else return false"
-                    // The control flow should be improved. Currently very difficult to follow or understand
-                    // the expected logical paths
                 }
             }
         }
 
-        const dmPhysicsDDF::CollisionShape* embedded_shape = &resource->m_DDF->m_EmbeddedCollisionShape;
-        const dmPhysicsDDF::CollisionShape::Shape* shapes = embedded_shape->m_Shapes.m_Data;
-        if (shapes)
+        if (embedded_shapes)
         {
-            // Create embedded convex shapes
-            uint32_t count = embedded_shape->m_Shapes.m_Count;
-            if (count > COLLISION_OBJECT_MAX_SHAPES)
+            if (physics_context->m_3D)
             {
-                dmLogWarning("Too many shapes in collision object. Up to %d is supported (%d). Discarding overflowing shapes.", COLLISION_OBJECT_MAX_SHAPES, count);
-                count = COLLISION_OBJECT_MAX_SHAPES;
+                resource->m_Shapes3D = (dmPhysics::HCollisionShape3D*)malloc(sizeof(dmPhysics::HCollisionShape3D) * embedded_shape_count);
+                resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * embedded_shape_count);
+                resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * embedded_shape_count);
+            }
+            else if (!resource->m_TileGrid)
+            {
+                resource->m_Shapes2D = (dmPhysics::HCollisionShape2D*)malloc(sizeof(dmPhysics::HCollisionShape2D) * embedded_shape_count);
+                resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * embedded_shape_count);
+                resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * embedded_shape_count);
             }
 
+            // Create embedded convex shapes
             uint32_t current_shape_count = resource->m_ShapeCount;
-            for (uint32_t i = 0; i < count; ++i)
+            for (uint32_t i = 0; i < embedded_shape_count; ++i)
             {
                 if (physics_context->m_3D)
                 {
@@ -216,8 +222,8 @@ range_error:
                     if (shape)
                     {
                         resource->m_Shapes3D[current_shape_count] = shape;
-                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
-                        resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(embedded_shapes[i].m_Position);
+                        resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
                         current_shape_count++;
                     }
                     else
@@ -232,8 +238,8 @@ range_error:
                     if (shape)
                     {
                         resource->m_Shapes2D[current_shape_count] = shape;
-                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
-                        resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(embedded_shapes[i].m_Position);
+                        resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
                         current_shape_count++;
                     }
                     else
@@ -244,14 +250,14 @@ range_error:
                 }
             }
             resource->m_ShapeCount = current_shape_count;
-            assert(resource->m_ShapeCount <= COLLISION_OBJECT_MAX_SHAPES);
-            return true;
         }
-        else
+
+        if (resource->m_ShapeCount == 0)
         {
             dmLogError("No shapes found in collision object");
             return false;
         }
+        return true;
     }
 
     void ReleaseResources(PhysicsContext* physics_context, dmResource::HFactory factory, CollisionObjectResource* resource)
@@ -261,10 +267,11 @@ range_error:
             if (resource->m_TileGridResource)
                 dmResource::Release(factory, resource->m_TileGridResource);
         }
-        else
+
+        uint32_t shape_count = resource->m_ShapeCount;
+        if (shape_count > 0)
         {
-            uint32_t shape_count = resource->m_ShapeCount;
-            for (uint32_t i = 0; i < shape_count; ++i)
+            for (uint32_t i = resource->m_TileGridShapeCount; i < shape_count; ++i)
             {
                 if (physics_context->m_3D)
                 {
@@ -275,6 +282,16 @@ range_error:
                     dmPhysics::DeleteCollisionShape2D(resource->m_Shapes2D[i]);
                 }
             }
+            if (physics_context->m_3D)
+            {
+                free(resource->m_Shapes3D);
+            }
+            else
+            {
+                free(resource->m_Shapes2D);
+            }
+            free(resource->m_ShapeTranslation);
+            free(resource->m_ShapeRotation);
         }
         if (resource->m_DDF)
             dmDDF::FreeMessage(resource->m_DDF);

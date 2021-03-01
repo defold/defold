@@ -660,7 +660,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# set a shader constant for a spine model
+    /** DEPRECATED! set a shader constant for a spine model
      * Sets a shader constant for a spine model component.
      * The constant must be defined in the material assigned to the spine model.
      * Setting a constant through this function will override the value set for that constant in the material.
@@ -706,7 +706,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# reset a shader constant for a spine model
+    /** DEPRECATED! reset a shader constant for a spine model
      * Resets a shader constant for a spine model component.
      * The constant must be defined in the material assigned to the spine model.
      * Resetting a constant through this function implies that the value defined in the material will be used.

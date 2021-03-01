@@ -29,6 +29,7 @@ namespace dmGameObject
 
         dmResource::ResourceType m_ResourceType;
         const char*             m_Name;
+        dmhash_t                m_NameHash;
         void*                   m_Context;
         ComponentNewWorld       m_NewWorldFunction;
         ComponentDeleteWorld    m_DeleteWorldFunction;
@@ -47,6 +48,8 @@ namespace dmGameObject
         ComponentSetProperties  m_SetPropertiesFunction;
         ComponentGetProperty    m_GetPropertyFunction;
         ComponentSetProperty    m_SetPropertyFunction;
+        FIteratorChildren       m_IterChildren; // for debug/testing
+        FIteratorProperties     m_IterProperties; // for debug/testing
         uint32_t                m_InstanceHasUserData : 1;
         uint32_t                m_ReadsTransforms : 1;
         uint32_t                m_Reserved : 30;

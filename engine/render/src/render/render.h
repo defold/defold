@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,6 +28,8 @@ namespace dmRender
 
     extern const char* RENDER_SOCKET_NAME;
 
+    static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
+
     typedef struct RenderContext*           HRenderContext;
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -35,6 +37,7 @@ namespace dmRender
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Material*                HMaterial;
+    typedef struct Predicate*               HPredicate;
 
     /**
      * Font map handle
@@ -184,7 +187,7 @@ namespace dmRender
         Point3 m_WorldPosition;
         uint32_t m_Order;
         uint32_t m_BatchKey;
-        uint32_t m_TagMask;
+        uint32_t m_TagListKey;
         uint64_t m_UserData;
         uint32_t m_MinorOrder:4;
         uint32_t m_MajorOrder:2;
@@ -225,9 +228,6 @@ namespace dmRender
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 
-    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash);
-    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, dmhash_t hash);
-
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
     const Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
@@ -239,9 +239,9 @@ namespace dmRender
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
 
-    Result Draw(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
+    Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
@@ -355,10 +355,13 @@ namespace dmRender
     bool                            GetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4& value);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
 
-    uint32_t                        GetMaterialTagMask(HMaterial material);
-    void                            AddMaterialTag(HMaterial material, dmhash_t tag);
     void                            ClearMaterialTags(HMaterial material);
-    uint32_t                        ConvertMaterialTagsToMask(dmhash_t* tags, uint32_t tag_count);
+    uint32_t                        GetMaterialTagListKey(HMaterial material);
+    void                            SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
+
+    HPredicate                      NewPredicate();
+    void                            DeletePredicate(HPredicate predicate);
+    Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
 }
 

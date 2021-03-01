@@ -422,6 +422,11 @@ namespace dmGameObject
      */
     typedef PropertyResult (*ComponentSetProperty)(const ComponentSetPropertyParams& params);
 
+    /*#
+     * Callback when iterating over the properties for a component.
+     */
+    typedef void (*ComponentIterProperties)(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
 
     /*# set the new world callback
      * Set the new world callback. Called when a collection (i.e. a "world") is created.
@@ -529,7 +534,15 @@ namespace dmGameObject
      */
     void ComponentTypeSetHasUserData(ComponentType* type, bool has_user_data);
 
+    /*# set the component property iterator function
+     * set the component property iterator function. Called during inspection
+     */
+    void ComponentTypeSetChilldIteratorFn(ComponentType* type, FIteratorChildren fn);
 
+    /*# set the component property iterator function
+     * set the component property iterator function. Called during inspection
+     */
+    void ComponentTypeSetPropertyIteratorFn(ComponentType* type, FIteratorProperties fn);
 
     /*#
      * Register a new component type (Internal)

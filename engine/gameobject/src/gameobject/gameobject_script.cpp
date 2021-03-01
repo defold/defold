@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -630,7 +630,7 @@ namespace dmGameObject
         }
     }
 
-    /*# sets a named property of the specified game object or component
+    /*# sets a named property of the specified game object or component, or a material constant
      *
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
@@ -1062,6 +1062,43 @@ namespace dmGameObject
         }
 
         return 0;
+    }
+
+    /*# get the parent for a specific game object instance
+     * Get the parent for a game object instance.
+     *
+     * @name go.get_parent
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get parent for, defaults to the instance containing the calling script
+     * @return parent_id [type:hash] parent instance or nil
+     * @examples
+     *
+     * Get parent of the instance containing the calling script:
+     *
+     * ```lua
+     * local parent_id = go.get_parent()
+     * ```
+     *
+     * Get parent of the instance with id "x":
+     *
+     * ```lua
+     * local parent_id = go.get_parent("x")
+     * ```
+     *
+     */
+    int Script_GetParent(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        Instance* parent = dmGameObject::GetParent(instance);
+        if (parent != 0)
+        {
+            dmScript::PushHash(L, parent->m_Identifier);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+
     }
 
     /*# gets the game object instance world position
@@ -1872,6 +1909,7 @@ namespace dmGameObject
         {"get_scale",               Script_GetScale},
         {"get_scale_vector",        Script_GetScaleVector},
         {"get_scale_uniform",       Script_GetScaleUniform},
+        {"get_parent",              Script_GetParent},
         {"set_position",            Script_SetPosition},
         {"set_rotation",            Script_SetRotation},
         {"set_scale",               Script_SetScale},

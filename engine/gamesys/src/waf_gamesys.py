@@ -482,6 +482,9 @@ new_copy_task('copy prebuilt texturesetc', '.prebuilt_texturesetc', '.textureset
 new_copy_task('copy prebuilt meshc', '.prebuilt_meshc', '.meshc')
 new_copy_task('copy prebuilt bufferc', '.prebuilt_bufferc', '.bufferc')
 
+# Copy raw data
+new_copy_task('copy raw data', '.raw', '.rawc')
+
 from cStringIO import StringIO
 def strip_single_lua_comments(str):
     str = str.replace("\r", "");

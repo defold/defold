@@ -213,6 +213,7 @@ namespace dmGameObject
         dmArray<Collection*>        m_Collections;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
+        uint32_t                    m_DefaultInputStackCapacity;
 
         dmHashTable64<Collection*>  m_SocketToCollection;
 
@@ -226,7 +227,7 @@ namespace dmGameObject
     const uint32_t MAX_HIERARCHICAL_DEPTH = 128;
     struct Collection
     {
-        Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
+        Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_input_stack_entries);
 
         // Resource factory
         dmResource::HFactory     m_Factory;
@@ -254,7 +255,7 @@ namespace dmGameObject
         dmIndexPool16            m_InstanceIndices;
 
         // Resources referenced through property overrides inside the collection
-        dmArray<void*>         m_PropertyResources;
+        dmArray<void*>           m_PropertyResources;
 
         // Array of dynamically allocated index arrays, one for each level
         // Used for calculating transforms in scene-graph

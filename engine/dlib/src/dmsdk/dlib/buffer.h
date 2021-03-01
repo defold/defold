@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,13 +21,13 @@
 namespace dmBuffer
 {
     /*# SDK Buffer API documentation
-     * [file:<dmsdk/dlib/buffer.h>]
      *
      * Buffer API for data buffers as the main way to communicate between systems.
      *
      * @document
      * @name Buffer
      * @namespace dmBuffer
+     * @path engine/dlib/src/dmsdk/dlib/buffer.h
      */
 
     /*# HBuffer type definition
@@ -252,7 +252,7 @@ namespace dmBuffer
      * @param stream [type:void**] Where to store the stream
      * @param count [type:uint32_t*] Where to store the count (e.g. vertex count). May be null.
      * @param components [type:uint32_t*] Where to store the number of components (e.g. 3 for a Vector3). May be null.
-     * @param stride [type:uint32_t*] Where to store the stride. The stride can be added to the value pointer. May be null.
+     * @param stride [type:uint32_t*] Where to store the (struct) stride. The stride can be added to the value pointer. May be null.
                     E.g. for a float array, the stride is (sizeof(Struct) / sizeof(float))
      * @return result [type:dmBuffer::Result] BUFFER_OK if the stream was successfully accessed
      * @examples
@@ -375,6 +375,24 @@ namespace dmBuffer
      * @return result [type:const char*] The value type as a string
     */
     const char* GetValueTypeString(ValueType value);
+
+    /*# Gets the current update number
+     *
+     * @name dmBuffer::GetContentVersion
+     * @param type [type:dmBuffer::ValueType] The value type
+     * @param version [type:uint32_t*] The current version number
+     * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
+     */
+    Result GetContentVersion(HBuffer hbuffer, uint32_t* version);
+
+    /*# Update the internal frame counter.
+     * Used to know if a buffer has been updated.
+     *
+     * @name dmBuffer::UpdateContentVersion
+     * @param type [type:dmBuffer::ValueType] The value type
+     * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
+     */
+    Result UpdateContentVersion(HBuffer hbuffer);
 }
 
 #endif // DMSDK_BUFFER_H

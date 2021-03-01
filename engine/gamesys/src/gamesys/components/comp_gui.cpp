@@ -347,11 +347,10 @@ namespace dmGameSystem
         }
 
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        dmhash_t current_layout_id = GetLayout(scene);
         dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
-        if(layout_id != GetLayout(scene))
+        if(layout_id != current_layout_id)
         {
-            dmhash_t current_layout_id = GetLayout(scene);
-
             dmRender::DisplayProfileDesc profile_desc;
             GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
             dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
@@ -1125,20 +1124,67 @@ namespace dmGameSystem
                 continue;
             }
 
+            // pre-multiplied alpha
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-
-            // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ(), node_opacities[i]);
-            Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
-            Point3 size = dmGui::GetNodeSize(scene, node);
 
+            // default not uv_rotated texture coords
+            const float default_tc[6] = {0, 0, 0, 1, 1, 1};
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+
+            // tc equals 0 when texture is set from lua script directly with gui.set_texture(...) method
+            bool manually_set_texture = tc == 0;
+            if (manually_set_texture) {
+                tc = default_tc;
+            }
+
+            Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
             bool use_slice_nine = sum(slice9) != 0;
+
+            // render simple quad ignoring 9-slicing
+            if ((!use_slice_nine && manually_set_texture) || !texture)
+            {
+                BoxVertex v00;
+                v00.SetColor(pm_color);
+                v00.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
+                v00.SetUV(0, 0);
+
+                BoxVertex v10;
+                v10.SetColor(pm_color);
+                v10.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+                v10.SetUV(1, 0);
+
+                BoxVertex v01;
+                v01.SetColor(pm_color);
+                v01.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
+                v01.SetUV(0, 1);
+
+                BoxVertex v11;
+                v11.SetColor(pm_color);
+                v11.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
+                v11.SetUV(1, 1);
+
+                gui_world->m_ClientVertexBuffer.Push(v00);
+                gui_world->m_ClientVertexBuffer.Push(v10);
+                gui_world->m_ClientVertexBuffer.Push(v11);
+                gui_world->m_ClientVertexBuffer.Push(v00);
+                gui_world->m_ClientVertexBuffer.Push(v11);
+                gui_world->m_ClientVertexBuffer.Push(v01);
+
+                rendered_vert_count += 6;
+                continue;
+            }
 
             dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
             dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
             bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
 
-            // we skip sprite trimming on slice 9 nodes
+            bool flip_u = false;
+            bool flip_v = false;
+            if (!manually_set_texture)
+                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+
+            // render using geometries without 9-slicing
             if (!use_slice_nine && use_geometries)
             {
                 int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
@@ -1157,10 +1203,6 @@ namespace dmGameSystem
 
                 // Depending on the sprite is flipped or not, we loop the vertices forward or backward
                 // to respect face winding (and backface culling)
-
-                bool flip_u, flip_v;
-                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
-
                 int reverse = (int)flip_u ^ (int)flip_v;
 
                 float scaleX = flip_u ? -1 : 1;
@@ -1188,41 +1230,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
-
-            // we skip sprite trimming on slice 9 nodes
-            if(!tc)
-            {
-                BoxVertex v00;
-                v00.SetColor(pm_color);
-                v00.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
-                v00.SetUV(0, 0);
-
-                BoxVertex v10;
-                v10.SetColor(pm_color);
-                v10.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
-                v10.SetUV(1, 0);
-
-                BoxVertex v01;
-                v01.SetColor(pm_color);
-                v01.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
-                v01.SetUV(0, 1);
-
-                BoxVertex v11;
-                v11.SetColor(pm_color);
-                v11.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
-                v11.SetUV(1, 1);
-
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v10);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v01);
-
-                rendered_vert_count += 6;
-                continue;
-            }
+            // render 9-sliced node
 
             //   0 1     2 3
             // 0 *-*-----*-*
@@ -1246,13 +1254,13 @@ namespace dmGameSystem
 
             const float su = 1.0f / org_width;
             const float sv = 1.0f / org_height;
+
+            Point3 size = dmGui::GetNodeSize(scene, node);
             const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
             const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
 
             static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
             bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-            bool flip_u, flip_v;
-            GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
             if(uv_rotated)
             {
                 const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
@@ -1334,9 +1342,9 @@ namespace dmGameSystem
                     gui_world->m_ClientVertexBuffer.Push(v01);
                 }
             }
-
             rendered_vert_count += verts_per_node;
         }
+
         ro.m_VertexCount = rendered_vert_count;
     }
 
@@ -1563,6 +1571,8 @@ namespace dmGameSystem
                     uint32_t node_count,
                     void* context)
     {
+        DM_PROFILE(Gui, "RenderNodes");
+
         if (node_count == 0)
             return;
 
@@ -1798,6 +1808,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
+        DM_PROFILE(Gui, "Update");
+
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
         dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
@@ -1894,7 +1906,7 @@ namespace dmGameSystem
                 write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
                 write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
                 write_ptr->m_BatchKey = lastEnd;
-                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(gro.m_RenderObject.m_Material);
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(gro.m_RenderObject.m_Material);
                 write_ptr->m_Dispatch = dispatch;
                 write_ptr++;
                 lastEnd++;
@@ -2066,4 +2078,203 @@ namespace dmGameSystem
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
+
+    static bool CompGuiIterGetNext(dmGameObject::SceneNodeIterator* it)
+    {
+        GuiComponent* component = (GuiComponent*)it->m_NextChild.m_Component;
+        dmGui::HNode next = (dmGui::HNode)it->m_NextChild.m_Node;
+        if (next == 0)
+            return false;
+
+        it->m_Node = it->m_NextChild; // copy data fields
+
+        it->m_NextChild.m_Node = (uint64_t)dmGui::GetNextNode(component->m_Scene, next);
+        return it->m_Node.m_Node != 0;
+    }
+
+    void CompGuiIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node)
+    {
+        GuiComponent* component = (GuiComponent*)node->m_Component;
+
+        it->m_Parent = *node;
+        it->m_NextChild = *node; // copy data fields
+        it->m_NextChild.m_Type = dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT;
+
+        dmGui::HNode parent = 0;
+        if (dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT == node->m_Type)
+            parent = (dmGui::HNode)node->m_Node;
+
+        it->m_NextChild.m_Node = (uint64_t)dmGui::GetFirstChildNode(component->m_Scene, parent);
+        it->m_FnIterateNext = CompGuiIterGetNext;
+    }
+
+    static dmhash_t PivotToHash(dmGui::HScene scene, dmGui::HNode node)
+    {
+        dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
+        const char* pivot_name = "";
+#define CASE_PIVOT(_NAME) case dmGui:: _NAME: pivot_name = # _NAME; break
+
+        switch (pivot)
+        {
+        CASE_PIVOT(PIVOT_NW);
+        CASE_PIVOT(PIVOT_N);
+        CASE_PIVOT(PIVOT_NE);
+        CASE_PIVOT(PIVOT_W);
+        CASE_PIVOT(PIVOT_CENTER);
+        CASE_PIVOT(PIVOT_E);
+        CASE_PIVOT(PIVOT_SW);
+        CASE_PIVOT(PIVOT_S);
+        CASE_PIVOT(PIVOT_SE);
+        }
+
+#undef CASE_PIVOT
+
+        return dmHashString64(pivot_name);
+    }
+
+    static bool CompGuiIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        if (pit->m_Node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT)
+        {
+            return false; // currently not implemented
+        }
+
+        GuiComponent* component = (GuiComponent*)pit->m_Node->m_Component;
+        dmGui::HNode node = (dmGui::HNode)pit->m_Node->m_Node;
+        dmGui::NodeType type = dmGui::GetNodeType(component->m_Scene, node);
+
+        uint64_t index = pit->m_Next++;
+
+        const char* properties_common[] = { "type", "id", "pivot" };
+        uint32_t num_properties_common = DM_ARRAY_SIZE(properties_common);
+
+        if (index < num_properties_common)
+        {
+            const char* type_names[] = {"gui_node_box", "gui_node_text", "gui_node_pie", "gui_node_template", "gui_node_spine", "gui_node_particlefx"};
+            const uint32_t num_gui_types = DM_ARRAY_SIZE(type_names);
+            DM_STATIC_ASSERT(num_gui_types == dmGui::NODE_TYPE_COUNT, _size_mismatch);
+
+            pit->m_Property.m_NameHash = dmHashString64(properties_common[index]);
+            if (index == 0) // type
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
+                pit->m_Property.m_Value.m_Hash = dmHashString64(type_names[type]);
+            } else if (index == 1) // id
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
+                pit->m_Property.m_Value.m_Hash = dmGui::GetNodeId(component->m_Scene, node);
+            } else if (index == 2) // pivot
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
+                pit->m_Property.m_Value.m_Hash = PivotToHash(component->m_Scene, node);
+            }
+
+            return true;
+        }
+
+        index -= num_properties_common;
+
+        const char* property_names[] = {
+            "position",
+            "rotation",
+            "scale",
+            "color",
+            "size",
+            "outline",
+            "shadow",
+            "slice9",
+            "pie_params",
+            "text_params",
+        };
+
+        const dmGui::Property* properties = 0;
+        uint32_t num_properties = 0;
+
+
+        const dmGui::Property properties_all[] = {
+            dmGui::PROPERTY_POSITION, dmGui::PROPERTY_ROTATION, dmGui::PROPERTY_SCALE, dmGui::PROPERTY_COLOR,
+            dmGui::PROPERTY_SIZE, dmGui::PROPERTY_OUTLINE, dmGui::PROPERTY_SHADOW, dmGui::PROPERTY_SLICE9,
+            dmGui::PROPERTY_PIE_PARAMS, dmGui::PROPERTY_TEXT_PARAMS,
+        };
+        properties = properties_all;
+        num_properties = DM_ARRAY_SIZE(properties_all);
+
+        if (index < num_properties)
+        {
+            dmGui::Property property = properties[index];
+            Vector4 value = dmGui::GetNodeProperty(component->m_Scene, node, property);
+
+            pit->m_Property.m_NameHash = dmHashString64(property_names[property]);
+            pit->m_Property.m_Value.m_V4[0] = value.getX();
+            pit->m_Property.m_Value.m_V4[1] = value.getY();
+            pit->m_Property.m_Value.m_V4[2] = value.getZ();
+            pit->m_Property.m_Value.m_V4[3] = value.getW();
+            pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
+            return true;
+        }
+
+        index -= num_properties;
+
+        const char* world_property_names[] = {
+            "world_position",
+            "world_rotation",
+            "world_scale",
+            "world_size",
+        };
+
+        uint32_t num_world_properties = DM_ARRAY_SIZE(world_property_names);
+        if (index < num_world_properties)
+        {
+            Matrix4 world = dmGui::GetNodeWorldTransform(component->m_Scene, node);
+            dmTransform::Transform transform = dmTransform::ToTransform(world);
+
+            dmGameObject::SceneNodePropertyType type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3;
+            Vector4 value;
+            switch(index)
+            {
+                case 0: value = Vector4(transform.GetTranslation()); break;
+                case 1: value = Vector4(transform.GetRotation()); type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4; break;
+                case 2: value = Vector4(transform.GetScale()); break;
+                case 3: value = Vectormath::Aos::mulPerElem(dmGui::GetNodeProperty(component->m_Scene, node, dmGui::PROPERTY_SIZE), Vector4(transform.GetScale())); break;
+                default:
+                    return false;
+            }
+
+            pit->m_Property.m_Type = type;
+            pit->m_Property.m_NameHash = dmHashString64(world_property_names[index]);
+            pit->m_Property.m_Value.m_V4[0] = value.getX();
+            pit->m_Property.m_Value.m_V4[1] = value.getY();
+            pit->m_Property.m_Value.m_V4[2] = value.getZ();
+            pit->m_Property.m_Value.m_V4[3] = value.getW();
+            return true;
+        }
+        index -= num_world_properties;
+
+        if (type == dmGui::NODE_TYPE_TEXT)
+        {
+            uint64_t num_text_properties = 1;
+            if (index < num_text_properties)
+            {
+                if (index == 0)
+                {
+                    pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT;
+                    pit->m_Property.m_Value.m_Text = dmGui::GetNodeText(component->m_Scene, node);
+                    pit->m_Property.m_NameHash = dmHashString64("text");
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void CompGuiIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT || node->m_Type == dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompGuiIterPropertiesGetNext;
+    }
+
 }

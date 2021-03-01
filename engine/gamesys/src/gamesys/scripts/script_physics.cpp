@@ -136,7 +136,7 @@ namespace dmGameSystem
 
     /*# [type:vector3] collision object linear velocity
      *
-     * [mark:READ ONLY] Returns the current linear velocity of the collision object component as a vector3.
+     * The current linear velocity of the collision object component as a vector3.
      * The velocity is measured in units/s (pixels/s).
      *
      * @name linear_velocity
@@ -145,12 +145,14 @@ namespace dmGameSystem
      *
      * @examples
      *
-     * How to query a collision object component's linear velocity:
+     * How to query and modify a collision object component's linear velocity:
      *
      * ```lua
      * -- get linear velocity from collision object "collisionobject" in gameobject "ship"
      * local source = "ship#collisionobject"
      * local velocity = go.get(source, "linear_velocity")
+     * -- decrease it by 10%
+     * go.set(source, "linear_velocity", velocity * 0.9)
      * -- apply the velocity on target game object "boulder"'s collision object as a force
      * local target = "boulder#collisionobject"
      * local pos = go.get_position(target)
@@ -160,7 +162,7 @@ namespace dmGameSystem
 
     /*# [type:vector3] collision object angular velocity
      *
-     * [mark:READ ONLY] Returns the current angular velocity of the collision object component as a [type:vector3].
+     * The current angular velocity of the collision object component as a [type:vector3].
      * The velocity is measured as a rotation around the vector with a speed equivalent to the vector length
      * in radians/s.
      *
@@ -169,20 +171,22 @@ namespace dmGameSystem
      * @property
      * @examples
      *
-     * How to query a collision object component's angular velocity:
+     * How to query and modify a collision object component's angular velocity:
      *
      * ```lua
      * -- get angular velocity from collision object "collisionobject" in gameobject "boulder"
-     * -- this is a 2d game so rotation around z is the only one available.
-     * local velocity = go.get("boulder#collisionobject", "angular_velocity.z")
+     * local velocity = go.get("boulder#collisionobject", "angular_velocity")
      * -- do something interesting
-     * if velocity < 0 then
+     * if velocity.z < 0 then
      *     -- clockwise rotation
      *     ...
      * else
      *     -- counter clockwise rotation
      *     ...
      * end
+     * -- decrease it by 10%
+     * velocity.z = velocity.z * 0.9
+     * go.set("boulder#collisionobject", "angular_velocity", velocity * 0.9)
      * ```
      */
 

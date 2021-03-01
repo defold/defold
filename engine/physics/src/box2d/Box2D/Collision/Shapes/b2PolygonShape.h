@@ -73,6 +73,7 @@ public:
 	const b2Vec2& GetVertex(int32 index) const;
 
 	b2Vec2 m_centroid;
+	b2Vec2 m_verticesOriginal[b2_maxPolygonVertices];
 	b2Vec2 m_vertices[b2_maxPolygonVertices];
 	b2Vec2 m_normals[b2_maxPolygonVertices];
 	int32 m_vertexCount;

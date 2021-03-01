@@ -1,11 +1,14 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+from Options import options
 from waf_dynamo import new_copy_task
 
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
-    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT CARES'
+    if options.skip_build_tests:
+       return
+    libs = 'TESTMAIN SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT CARES'
     if 'android' in bld.env['PLATFORM']:
         libs += ' UNWIND'
     test_crash = bld.new_task_gen(features = 'cxx cprogram test',

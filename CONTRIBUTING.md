@@ -13,7 +13,7 @@ Thanks! ♥
 / The Defold Foundation and the Defold development team
 
 ## Code of conduct
-We ask of all contributors, project members and users to follow our [Code of Conduct](CODE_OF_CONDUCT) to create an open and welcoming environment. We will remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to our Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that we deem inappropriate, threatening, offensive, or harmful.
+We ask of all contributors, project members and users to follow our [Code of Conduct](CODE_OF_CONDUCT.md) to create an open and welcoming environment. We will remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to our Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that we deem inappropriate, threatening, offensive, or harmful.
 
 ## Documentation
 The Defold manuals and examples are hosted in a [separate repository](https://github.com/defold/doc). Please pay it a visit if you wish to help improve our documentation! We need help to fix typos, update images and to write or improve tutorials and manuals.
@@ -59,7 +59,7 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
     * Use the .clang_format file for engine code.
   * Should if possible be tested on all target platforms (preferably on physical hardware).
     * Please note in the PR on which platforms the change has been tested.
-* All pull requests must be made towards the defold:dev branch for changes to the engine and defold:editor-dev for changes to the editor.
+* All pull requests should be made to `defold:dev` by default. However, if your pull request *only* touches the editor and you want it to reach users as quickly as possible, it can be made towards the `defold:editor-dev` branch instead. Users will receive an editor update as soon as a change is merged into `defold:editor-dev`, so this should be done with care. The editor uses the latest stable release of the runtime, so any change that touches the runtime, the Bob command-line build tool, or makes a change to the file formats *must* be made towards the `defold:dev` branch, even if it contains mostly editor changes.
 * Pull requests should be given descriptive names: Issue-1234-Changed-the-flux-capacitor-to-use-uranium
   * Make sure to [link the issue to the pull request](https://help.github.com/en/github/managing-your-work-on-github/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
 

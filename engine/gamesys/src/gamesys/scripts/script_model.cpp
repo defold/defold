@@ -436,7 +436,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# set a shader constant for a model
+    /** DEPRECATED! set a shader constant for a model
      * Sets a shader constant for a model component.
      * The constant must be defined in the material assigned to the model.
      * Setting a constant through this function will override the value set for that constant in the material.
@@ -482,7 +482,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# reset a shader constant for a model
+    /** DEPRECATED! reset a shader constant for a model
      * Resets a shader constant for a model component.
      * The constant must be defined in the material assigned to the model.
      * Resetting a constant through this function implies that the value defined in the material will be used.

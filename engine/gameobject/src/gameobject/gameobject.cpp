@@ -42,6 +42,7 @@
 namespace dmGameObject
 {
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
+    const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
@@ -93,6 +94,8 @@ namespace dmGameObject
 
     PropertyVar::PropertyVar()
     {
+        DM_STATIC_ASSERT(sizeof(PropertyVar::m_URL) == sizeof(dmMessage::URL), Invalid_Struct_Alias_Size);
+
         m_Type = PROPERTY_TYPE_NUMBER;
         memset(this, 0, sizeof(*this));
     }
@@ -158,6 +161,7 @@ namespace dmGameObject
     {
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
+        m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
         m_Mutex = dmMutex::New();
         m_SocketToCollection.SetCapacity(15, 17);
     }
@@ -182,7 +186,7 @@ namespace dmGameObject
         return new Register();
     }
 
-    Collection::Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
+    Collection::Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_input_stack_entries)
     {
         m_Factory = factory;
         m_Register = regist;
@@ -193,8 +197,7 @@ namespace dmGameObject
         m_WorldTransforms.SetCapacity(max_instances);
         m_WorldTransforms.SetSize(max_instances);
         m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
-        // TODO: Un-hard-code
-        m_InputFocusStack.SetCapacity(16);
+        m_InputFocusStack.SetCapacity(max_input_stack_entries);
         m_NameHash = 0;
         m_ComponentSocket = 0;
         m_FrameSocket = 0;
@@ -237,6 +240,18 @@ namespace dmGameObject
         return regist->m_DefaultCollectionCapacity;
     }
 
+    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity)
+    {
+        assert(regist != 0x0);
+        regist->m_DefaultInputStackCapacity = capacity;
+    }
+
+    static uint32_t GetInputStackDefaultCapacity(HRegister regist)
+    {
+        assert(regist != 0x0);
+        return regist->m_DefaultInputStackCapacity;
+    }
+
     void DeleteRegister(HRegister regist)
     {
         uint32_t collection_count = regist->m_Collections.Size();
@@ -253,7 +268,7 @@ namespace dmGameObject
 
     Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances)
     {
-        Collection* collection = new Collection(0, 0, max_instances);
+        Collection* collection = new Collection(0, 0, max_instances, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -274,9 +289,13 @@ namespace dmGameObject
 
     void DeallocCollection(Collection* collection)
     {
+        DM_PROFILE(GameObject, "DeallocCollection");
+
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
+            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name, regist->m_ComponentTypes[i].m_NameHash);
+
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
             params.m_World = collection->m_ComponentWorlds[i];
@@ -424,6 +443,8 @@ namespace dmGameObject
 
     void DeleteCollection(Collection* collection)
     {
+        DM_PROFILE(GameObject, "DeleteCollection");
+
         // We mark the collection as beeing deleted here to avoid component
         // triggered recursive deletes to add gameobjects to the delayed delete list.
         //
@@ -500,6 +521,7 @@ namespace dmGameObject
         }
 
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
+        regist->m_ComponentTypes[regist->m_ComponentTypeCount].m_NameHash = dmHashString64(type.m_Name);
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
         regist->m_ComponentProfileCounterIndex[regist->m_ComponentTypeCount] = dmProfile::AllocateCounter(type.m_Name);
         regist->m_ComponentTypeCount++;
@@ -685,6 +707,8 @@ namespace dmGameObject
     }
 
     bool CreateComponents(Collection* collection, HInstance instance) {
+        DM_PROFILE(GameObject, "CreateComponents");
+
         Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
@@ -698,6 +722,8 @@ namespace dmGameObject
             Prototype::Component* component = &proto->m_Components[i];
             ComponentType* component_type = component->m_Type;
             assert(component_type);
+
+            DM_PROFILE_DYN(GameObjectCreateComponents, component_type->m_Name, component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -764,12 +790,16 @@ namespace dmGameObject
     }
 
     static void DestroyComponents(Collection* collection, HInstance instance) {
+        DM_PROFILE(GameObject, "DestroyComponents");
+
         HPrototype prototype = instance->m_Prototype;
         uint32_t next_component_instance_data = 0;
         for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
+
+            DM_PROFILE_DYN(GameObjectDestroyComponents, component_type->m_Name, component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -1779,6 +1809,7 @@ namespace dmGameObject
 
     static void DoDeleteInstance(Collection* collection, HInstance instance)
     {
+        DM_PROFILE(GameObject, "DoDeleteInstance");
         HCollection hcollection = collection->m_HCollection;
         CancelAnimations(hcollection, instance);
         if (instance->m_ToBeAdded) {
@@ -2420,7 +2451,7 @@ namespace dmGameObject
 
             if (component_type->m_UpdateFunction)
             {
-                DM_PROFILE(GameObject, component_type->m_Name);
+                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
                 ComponentsUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_UpdateContext = update_context;
@@ -2470,7 +2501,7 @@ namespace dmGameObject
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
             if (component_type->m_RenderFunction)
             {
-                DM_PROFILE(GameObject, component_type->m_Name);
+                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -2514,7 +2545,7 @@ namespace dmGameObject
 
             if (component_type->m_PostUpdateFunction)
             {
-                DM_PROFILE(GameObject, component_type->m_Name);
+                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
                 ComponentsPostUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];

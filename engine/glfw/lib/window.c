@@ -490,7 +490,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     wndconfig.highDPI        = _glfwLibrary.hints.highDPI;
     wndconfig.clientAPI      = _glfwLibrary.hints.clientAPI;
 
-    if (wndconfig.clientAPI != GLFW_NO_API)
+    if (wndconfig.clientAPI == GLFW_OPENGL_API)
     {
         if( wndconfig.glMajor == 1 && wndconfig.glMinor > 5 )
         {

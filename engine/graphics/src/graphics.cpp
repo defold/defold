@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,6 +12,10 @@
 
 #include "graphics.h"
 #include "graphics_adapter.h"
+
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#include <graphics/glfw/glfw_native.h> // for glfwAppBootstrap
+#endif
 #include <string.h>
 #include <assert.h>
 
@@ -74,39 +78,12 @@ namespace dmGraphics
     ContextParams::ContextParams()
     : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
+    , m_GraphicsMemorySize(0)
     , m_VerifyGraphicsCalls(false)
+    , m_RenderDocSupport(0)
+    , m_UseValidationLayers(0)
     {
 
-    }
-
-    TextureFormatToBPP::TextureFormatToBPP()
-    {
-        memset(m_FormatToBPP, 0x0, sizeof(m_FormatToBPP));
-        m_FormatToBPP[TEXTURE_FORMAT_LUMINANCE]          = 8;
-        m_FormatToBPP[TEXTURE_FORMAT_LUMINANCE_ALPHA]    = 16;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB]                = 24;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA]               = 32;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB_16BPP]          = 16;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA_16BPP]         = 16;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB_DXT1]           = 4;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT1]          = 4;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT3]          = 8;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT5]          = 8;
-        m_FormatToBPP[TEXTURE_FORMAT_DEPTH]              = 24;
-        m_FormatToBPP[TEXTURE_FORMAT_STENCIL]            = 8;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB_PVRTC_2BPPV1]   = 2;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB_PVRTC_4BPPV1]   = 4;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1]  = 2;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1]  = 4;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB_ETC1]           = 4;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB16F]             = 48;
-        m_FormatToBPP[TEXTURE_FORMAT_RGB32F]             = 96;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA16F]            = 64;
-        m_FormatToBPP[TEXTURE_FORMAT_RGBA32F]            = 128;
-        m_FormatToBPP[TEXTURE_FORMAT_R16F]               = 16;
-        m_FormatToBPP[TEXTURE_FORMAT_RG16F]              = 32;
-        m_FormatToBPP[TEXTURE_FORMAT_R32F]               = 32;
-        m_FormatToBPP[TEXTURE_FORMAT_RG32F]              = 64;
     }
 
     AttachmentToBufferType::AttachmentToBufferType()
@@ -149,11 +126,167 @@ namespace dmGraphics
         return 0x0;
     }
 
-    uint32_t GetTextureFormatBPP(TextureFormat format)
+    // For estimating resource size
+    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format)
     {
-        static TextureFormatToBPP g_TextureFormatToBPP;
-        assert(format < TEXTURE_FORMAT_COUNT);
-        return g_TextureFormatToBPP.m_FormatToBPP[format];
+        switch(format)
+        {
+        case TEXTURE_FORMAT_LUMINANCE:          return 8;
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA:    return 16;
+        case TEXTURE_FORMAT_RGB:                return 24;
+        case TEXTURE_FORMAT_RGBA:               return 32;
+        case TEXTURE_FORMAT_RGB_16BPP:          return 16;
+        case TEXTURE_FORMAT_RGBA_16BPP:         return 16;
+        case TEXTURE_FORMAT_RGB_ETC1:           return 4;
+        case TEXTURE_FORMAT_R_ETC2:             return 8;
+        case TEXTURE_FORMAT_RG_ETC2:            return 8;
+        case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
+        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 8;
+        case TEXTURE_FORMAT_RGB_BC1:            return 4;
+        case TEXTURE_FORMAT_RGBA_BC3:           return 4;
+        case TEXTURE_FORMAT_R_BC4:              return 8;
+        case TEXTURE_FORMAT_RG_BC5:             return 8;
+        case TEXTURE_FORMAT_RGBA_BC7:           return 8;
+        case TEXTURE_FORMAT_DEPTH:              return 24;
+        case TEXTURE_FORMAT_STENCIL:            return 8;
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return 2;
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return 4;
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return 2;
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return 4;
+        case TEXTURE_FORMAT_RGB16F:             return 48;
+        case TEXTURE_FORMAT_RGB32F:             return 96;
+        case TEXTURE_FORMAT_RGBA16F:            return 64;
+        case TEXTURE_FORMAT_RGBA32F:            return 128;
+        case TEXTURE_FORMAT_R16F:               return 16;
+        case TEXTURE_FORMAT_RG16F:              return 32;
+        case TEXTURE_FORMAT_R32F:               return 32;
+        case TEXTURE_FORMAT_RG32F:              return 64;
+        default:
+            assert(false && "Unknown texture format");
+            return TEXTURE_FORMAT_COUNT;
+        }
+    }
+
+    bool IsTextureFormatCompressed(dmGraphics::TextureFormat format)
+    {
+        switch(format)
+        {
+        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
+        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
+        case dmGraphics::TEXTURE_FORMAT_R_BC4:
+        case dmGraphics::TEXTURE_FORMAT_RG_BC5:
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    static bool IsFormatRGBA(dmGraphics::TextureFormat format)
+    {
+        switch(format)
+        {
+            case dmGraphics::TEXTURE_FORMAT_RGBA:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_16BPP:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static bool IsFormatRGB(dmGraphics::TextureFormat format)
+    {
+        switch(format)
+        {
+            case dmGraphics::TEXTURE_FORMAT_RGB:
+            case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
+            case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
+            case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case dmGraphics::TEXTURE_FORMAT_RGB_16BPP:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static bool IsFormatRG(dmGraphics::TextureFormat format)
+    {
+        switch(format)
+        {
+            case dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            case dmGraphics::TEXTURE_FORMAT_RG_BC5:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static bool IsFormatR(dmGraphics::TextureFormat format)
+    {
+        switch(format)
+        {
+            case dmGraphics::TEXTURE_FORMAT_LUMINANCE:
+            case dmGraphics::TEXTURE_FORMAT_R_BC4:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
+    // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
+    dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format)
+    {
+        #define TEST_AND_RETURN(_TYPEN_ENUM) if (dmGraphics::IsTextureFormatSupported(context, (_TYPEN_ENUM))) return (_TYPEN_ENUM);
+
+        if (IsFormatRGBA(format))
+        {
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC3);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+            TEST_AND_RETURN(format);
+            return dmGraphics::TEXTURE_FORMAT_RGBA;
+        }
+
+        if (IsFormatRGB(format))
+        {
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_BC1);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_ETC1);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            TEST_AND_RETURN(format);
+            return dmGraphics::TEXTURE_FORMAT_RGB;
+        }
+
+        if (IsFormatRG(format))
+        {
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_BC5);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_ETC2);
+            TEST_AND_RETURN(format);
+            return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
+        }
+
+        if (IsFormatR(format))
+        {
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_BC4);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_ETC2);
+            TEST_AND_RETURN(format);
+            return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+        }
+
+        #undef TEST_AND_RETURN
+        return format;
     }
 
     void DeleteContext(HContext context)
@@ -167,11 +300,6 @@ namespace dmGraphics
     void Finalize()
     {
         g_functions.m_Finalize();
-    }
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-        SelectGraphicsAdapter();
-        g_functions.m_AppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
     }
     uint32_t GetWindowRefreshRate(HContext context)
     {
@@ -561,4 +689,11 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHandle(texture, out_handle);
     }
+
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+    void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
+        glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+    }
+#endif
 }

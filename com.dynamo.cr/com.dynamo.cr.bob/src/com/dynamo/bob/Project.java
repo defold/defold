@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -327,16 +327,35 @@ public class Project {
         newTasks = new ArrayList<Task<?>>();
         List<String> sortedInputs = sortInputs();
 
+        // To currently know the output resources, we need to parse the main.collectionc
+        // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
+        // But the real problem is building/compressing the redundant textures (e.g. .png)
+        String excludeFoldersStr = this.option("exclude-build-folder", "");
+        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
+
         for (String input : sortedInputs) {
             Task<?> task = doCreateTask(input);
             if (task != null) {
-                newTasks.add(task);
+                boolean skipped = false;
+                for (String excludeFolder : excludeFolders) {
+                    if (input.startsWith(excludeFolder)) {
+                        skipped = true;
+                        break;
+                    }
+                }
+
+                if (!skipped) {
+                    newTasks.add(task);
+                }
             }
         }
     }
 
     private void logWarning(String fmt, Object... args) {
         System.err.println(String.format(fmt, args));
+    }
+    private void logInfo(String fmt, Object... args) {
+        System.out.println(String.format(fmt, args));
     }
 
     public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
@@ -359,7 +378,7 @@ public class Project {
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
                         this.publisher = new DefoldPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(settings);
+                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
@@ -429,19 +448,6 @@ public class Project {
         return propertyFiles;
     }
 
-    private void logExceptionToStdErr(IResource res, int line)
-    {
-        String resourceString = "unspecified";
-        String resourceLineString = "";
-        if (res != null) {
-            resourceString = res.toString();
-        }
-        if (line > 0) {
-            resourceLineString = String.format(" at line %d", line);
-        }
-        System.err.println("Error in resource: " + resourceString + resourceLineString);
-    }
-
     /**
      * Build the project
      * @param monitor
@@ -454,11 +460,11 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
-            logExceptionToStdErr(e.getResource(), e.getLineNumber());
+            String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            System.err.println(s);
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
-            logExceptionToStdErr(e.getContextResource(), -1);
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -475,10 +481,13 @@ public class Project {
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
-        List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(getLibPath(), this.libUrls);
+        Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(getLibPath(), this.libUrls);
         boolean missingFiles = false;
-        for (File file : libFiles) {
-            if (file.exists()) {
+
+        for (String url : libFiles.keySet() ) {
+            File file = libFiles.get(url);
+
+            if (file != null && file.exists()) {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, file.getAbsolutePath()));
             } else {
                 missingFiles = true;
@@ -779,6 +788,78 @@ public class Project {
         m.done();
     }
 
+    private void downloadToFile(URL url, File file) throws IOException, CompileExceptionError {
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        InputStream input = null;
+        try {
+            connection.connect();
+            int code = connection.getResponseCode();
+
+            if (code == 304) {
+                logInfo("Status %d: Already cached", code);
+            }
+            else if (code >= 400) {
+                logWarning("Status %d: Failed to download %s", code, url);
+                throw new CompileExceptionError(String.format("Status %d: Failed to download %s", code, url), new Exception());
+            }
+            else {
+                input = new BufferedInputStream(connection.getInputStream());
+                FileUtils.copyInputStreamToFile(input, file);
+            }
+            connection.disconnect();
+        } catch (ConnectException e) {
+            throw new CompileExceptionError(String.format("Connection refused by the server at %s", url.toString()), e);
+        } catch (FileNotFoundException e) {
+            throw new CompileExceptionError(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+        } finally {
+            if(input != null) {
+                IOUtils.closeQuietly(input);
+            }
+        }
+    }
+
+    private void downloadSymbols(IProgress progress) throws IOException, CompileExceptionError {
+        final String[] platforms = getPlatformStrings();
+
+        progress.beginTask("Downloading symbols...", platforms.length);
+
+        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+        String variantSuffix = "";
+        switch(variant) {
+            case Bob.VARIANT_RELEASE:
+                variantSuffix = "_release";
+                break;
+            case Bob.VARIANT_HEADLESS:
+                variantSuffix = "_headless";
+                break;
+        }
+
+        for(String platform : platforms) {
+            String symbolsFilename = null;
+            switch(platform) {
+                case "armv7-darwin":
+                case "arm64-darwin":
+                case "x86_64-darwin":
+                    symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
+                    break;
+                case "js-web":
+                    symbolsFilename = String.format("dmengine%s.js.symbols", variantSuffix);
+                    break;
+                case "win32":
+                case "x86_64-win32":
+                    symbolsFilename = String.format("dmengine%s.pdb", variantSuffix);
+                    break;
+            }
+
+            if (symbolsFilename != null) {
+                URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+                File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
+                downloadToFile(url, file);
+            }
+            progress.worked(1);
+        }
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
@@ -789,7 +870,7 @@ public class Project {
 
         BundleHelper.throwIfCanceled(monitor);
 
-        monitor.beginTask("", 100);
+        monitor.beginTask("Working...", 100);
 
         loop:
         for (String command : commands) {
@@ -824,13 +905,13 @@ public class Project {
                     }
                     BundleHelper.throwIfCanceled(monitor);
 
+                    final Boolean withSymbols = this.hasOption("with-symbols");
                     final String[] platforms = getPlatformStrings();
                     // Get or build engine binary
                     boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
                     if (buildRemoteEngine) {
 
                         final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-                        final Boolean withSymbols = this.hasOption("with-symbols");
 
                         Map<String, String> appmanifestOptions = new HashMap<>();
                         appmanifestOptions.put("baseVariant", variant);
@@ -850,6 +931,11 @@ public class Project {
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngines(monitor, platforms);
+                        if (withSymbols) {
+                            IProgress progress = monitor.subProgress(1);
+                            downloadSymbols(progress);
+                            progress.done();
+                        }
                     }
 
                     BundleHelper.throwIfCanceled(monitor);
@@ -1119,32 +1205,28 @@ run:
             //FileUtils.deleteQuietly(libDir);
             FileUtils.forceMkdir(libDir);
             // Download libs
-            List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
+            Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(libPath, libUrls);
             int count = this.libUrls.size();
             IProgress subProgress = progress.subProgress(count);
-            subProgress.beginTask("Download archives", count);
+            subProgress.beginTask("Download archive(s)", count);
+            logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
                 BundleHelper.throwIfCanceled(progress);
-                File f = libFiles.get(i);
-                String sha1 = null;
-
-                if (f.exists()) {
-                    ZipFile zipFile = null;
-
-                    try {
-                        zipFile = new ZipFile(f);
-                        sha1 = zipFile.getComment();
-                    } finally {
-                        if (zipFile != null) {
-                            zipFile.close();
-                        }
-                    }
-                }
-
                 URL url = libUrls.get(i);
+                File f = libFiles.get(url.toString());
+
+                logInfo("%2d: Downloading %s", i, url);
+
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                if (sha1 != null) {
-                    connection.addRequestProperty("If-None-Match", sha1);
+
+                String etag = null;
+                if (f != null) {
+                    String etagB64 = LibraryUtil.getETagFromName(LibraryUtil.getHashedUrl(url), f.getName());
+                    if (etagB64 != null) {
+                        etag = new String(new Base64().decode(etagB64.getBytes())).replace("\"", ""); // actually includes the quotation marks
+                        etag = String.format("\"%s\"", etag); // fixing broken etag
+                        connection.addRequestProperty("If-None-Match", etag);
+                    }
                 }
 
                 // Check if URL contains basic auth credentials
@@ -1157,46 +1239,59 @@ run:
                 }
 
                 // Pass correct headers along to server depending on auth alternative.
+                final String email = this.options.get("email");
+                final String auth = this.options.get("auth");
                 if (basicAuthData != null) {
                     String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
                     connection.setRequestProperty("Authorization", basicAuth);
-                } else {
-                    connection.addRequestProperty("X-Email", this.options.get("email"));
-                    connection.addRequestProperty("X-Auth", this.options.get("auth"));
+                } else if (email != null && auth != null) {
+                    connection.addRequestProperty("X-Email", email);
+                    connection.addRequestProperty("X-Auth", auth);
                 }
 
                 InputStream input = null;
                 try {
                     connection.connect();
                     int code = connection.getResponseCode();
-                    if (code == 304) {
-                        // Reusing cached library
-                    } else {
-                        boolean serverSha1Match = false;
-                        if(code == 200) {
-                            // GitHub uses eTags and we can check we have the up to date version by comparing SHA1 and server eTag if we get a 200 OK response
-                            if (sha1 != null) {
-                                String serverETag = connection.getHeaderField("ETag");
-                                if (serverETag != null) {
-                                    if (sha1.equals(serverETag.replace("\"", ""))) {
-                                        // Reusing cached library
-                                        serverSha1Match = true;
-                                    }
-                                }
-                            }
-                        }
-                        if(!serverSha1Match) {
-                            input = new BufferedInputStream(connection.getInputStream());
-                            FileUtils.copyInputStreamToFile(input, f);
 
-                            try {
-                                ZipFile zip = new ZipFile(f);
-                                zip.close();
-                            } catch (ZipException e) {
-                                f.delete();
-                                throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
-                            }
+                    if (code == 304) {
+                        logInfo("%2d: Status %d: Already cached", i, code);
+                    } else if (code >= 400) {
+                        logWarning("%2d: Status %d: Failed to download %s", i, code, url);
+                        throw new LibraryException(String.format("Status %d: Failed to download %s", code, url), new Exception());
+                    } else {
+
+                        String serverETag = connection.getHeaderField("ETag");
+                        if (serverETag == null) {
+                            serverETag = connection.getHeaderField("Etag");
                         }
+
+                        if (serverETag == null) {
+                            logWarning(String.format("The URL %s didn't provide an ETag", url));
+                            serverETag = "";
+                        }
+
+                        if (etag != null && !etag.equals(serverETag)) {
+                            logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", i, code, etag!=null?etag:"", serverETag!=null?serverETag:"", f);
+                            f.delete();
+                            f = null;
+                        }
+
+                        input = new BufferedInputStream(connection.getInputStream());
+
+                        if (f == null) {
+                            f = new File(libPath, LibraryUtil.getFileName(url, serverETag));
+                        }
+                        FileUtils.copyInputStreamToFile(input, f);
+
+                        try {
+                            ZipFile zip = new ZipFile(f);
+                            zip.close();
+                        } catch (ZipException e) {
+                            f.delete();
+                            throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                        }
+                        logInfo("%2d: Status %d: Stored %s", i, code, f);
                     }
                     connection.disconnect();
                 } catch (ConnectException e) {
@@ -1209,6 +1304,8 @@ run:
                     }
                     subProgress.worked(1);
                 }
+
+                BundleHelper.throwIfCanceled(subProgress);
             }
         }
         catch(IOException ioe) {

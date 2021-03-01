@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,12 +31,12 @@ namespace dmResource
 
     struct MountInfo
     {
-        AAsset *index_asset;
-        AAsset *data_asset;
-        void *lu_index_map;
-        uint32_t lu_index_length;
-        void *lu_data_map;
-        uint32_t lu_data_map_lenght;
+        AAsset* index_asset;
+        AAsset* data_asset;
+        void* data_map; // non null if retrieved by MapFile
+        void* index_map; // non null if retrieved by MapFile
+        uint32_t data_length;
+        uint32_t index_length;
     };
 
     Result MapAsset(AAssetManager* am, const char* path,  void*& out_asset, uint32_t& out_size, void*& out_map)
@@ -114,7 +114,7 @@ namespace dmResource
         return UnmapFile(map, size);
     }
 
-    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         AAssetManager* am = g_AndroidApp->activity->assetManager;
         AAsset* index_asset = 0x0;
@@ -124,20 +124,40 @@ namespace dmResource
         uint32_t data_length = 0;
         void* data_map = 0x0;
 
-        Result r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
-        if (r != RESULT_OK)
+        Result r;
+
+        // Map data asset (if bundled) or file (if in local storage)
+        bool mem_mapped_data = false;
+        if (strcmp(data_path, "game.arcd") == 0)
         {
-            dmLogError("Error when mapping data file, result = %i", r);
-            return RESULT_IO_ERROR;
+            r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
+            if (r != RESULT_OK)
+            {
+                dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
+                return RESULT_IO_ERROR;
+            }
+        } else
+        {
+            r = MapFile(data_path, data_map, data_length);
+            if (r != RESULT_OK)
+            {
+                dmLogError("Error mapping liveupdate data file, result = %i", r);
+                return RESULT_IO_ERROR;
+            }
+            mem_mapped_data = true;
         }
 
         // Map index asset (if bundled) or file (if in local storage)
+        bool mem_mapped_index = false;
         if (strcmp(index_path, "game.arci") == 0)
         {
             r = MapAsset(am, index_path, (void*&)index_asset, index_length, index_map);
             if (r != RESULT_OK)
             {
-                UnmapAsset(data_asset);
+                if (mem_mapped_data)
+                    UnmapFile(data_map, data_length);
+                else
+                    UnmapAsset(data_asset);
                 dmLogError("Error when mapping index file, result: %i", r);
                 return RESULT_IO_ERROR;
             }
@@ -147,61 +167,40 @@ namespace dmResource
             r = MapFile(index_path, index_map, index_length);
             if (r != RESULT_OK)
             {
-                UnmapAsset(data_asset);
+                if (mem_mapped_data)
+                    UnmapFile(data_map, data_length);
+                else
+                    UnmapAsset(data_asset);
                 dmLogError("Error mapping liveupdate index file, result = %i", r);
                 return RESULT_IO_ERROR;
             }
+            mem_mapped_index = true;
         }
 
-        // Map liveupdate data resource file (if any)
-        void* lu_data_map = 0x0;
-        uint32_t lu_data_length = 0;
-        FILE* lu_data_file = 0x0;
-        if (lu_data_path != 0x0)
-        {
-            r = MapFile(lu_data_path, lu_data_map, lu_data_length);
-            if (r != RESULT_OK)
-            {
-                UnmapAsset(index_asset);
-                UnmapAsset(data_asset);
-                UnmapFile(index_map, index_length);
-                dmLogError("Error mapping liveupdate data file, result = %i", r);
-                return RESULT_IO_ERROR;
-            }
-
-            lu_data_file = fopen(lu_data_path, "rb+");
-            if (!lu_data_file)
-            {
-                UnmapAsset(index_asset);
-                UnmapAsset(data_asset);
-                UnmapFile(index_map, index_length);
-                UnmapFile(lu_data_map, lu_data_length);
-                dmLogError("Error opening liveupdate data file, result = %i", r);
-                return RESULT_IO_ERROR;
-            }
-        }
-
-        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, data_map, lu_data_path, lu_data_map, lu_data_file, archive);
+        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, true,
+                                                          data_map, data_length, true,
+                                                          archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
-            UnmapAsset(index_asset);
-            UnmapAsset(data_asset);
-            if (lu_data_path)
-            {
+            if (mem_mapped_data)
+                UnmapFile(data_map, data_length);
+            else
+                UnmapAsset(data_asset);
+
+            if (mem_mapped_index)
                 UnmapFile(index_map, index_length);
-                UnmapFile(lu_data_map, lu_data_length);
-                fclose(lu_data_file);
-            }
+            else
+                UnmapAsset(index_asset);
             return RESULT_IO_ERROR;
         }
 
         MountInfo* info = new MountInfo();
         info->index_asset = index_asset;
         info->data_asset = data_asset;
-        info->lu_index_map = index_map;
-        info->lu_index_length = index_length;
-        info->lu_data_map = lu_data_map;
-        info->lu_data_map_lenght = lu_data_length;
+        info->data_map = mem_mapped_data ? data_map : 0;
+        info->data_length = data_length;
+        info->index_map = mem_mapped_index ? index_map : 0;
+        info->index_length = index_length;
         *mount_info = (void*)info;
         return RESULT_OK;
     }
@@ -219,19 +218,17 @@ namespace dmResource
         {
             UnmapAsset(info->index_asset);
         }
-        else if (info->lu_index_map)
+        else if (info->index_map)
         {
-            UnmapFile(info->lu_index_map, info->lu_index_length);
+            UnmapFile(info->index_map, info->index_length);
         }
 
         if (info->data_asset)
         {
             UnmapAsset(info->data_asset);
-        }
-
-        if (info->lu_data_map)
+        } else if(info->data_map)
         {
-            UnmapFile(info->lu_data_map, info->lu_data_map_lenght);
+            UnmapFile(info->data_map, info->data_length);
         }
 
         delete info;

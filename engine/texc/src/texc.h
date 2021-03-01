@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,10 +19,11 @@
 
 /**
  * Texture processing
- * Essentially a wrapper for PVRTexLib
  */
 namespace dmTexc
 {
+    // Matches the enums in graphics_ddf.proto
+
     enum PixelFormat
     {
         PF_L8,
@@ -36,14 +37,13 @@ namespace dmTexc
         PF_R5G6B5,
         PF_R4G4B4A4,
         PF_L8A8,
-
-        /*
-        JIRA issue: DEF-994
-        PF_RGB_DXT1,
-        PF_RGBA_DXT1,
-        PF_RGBA_DXT3,
-        PF_RGBA_DXT5
-        */
+        PF_RGBA_ETC2,
+        PF_RGBA_ASTC_4x4,
+        PF_RGB_BC1,
+        PF_RGBA_BC3,
+        PF_R_BC4,
+        PF_RG_BC5,
+        PF_RGBA_BC7,
     };
 
     enum ColorSpace
@@ -63,9 +63,11 @@ namespace dmTexc
 
     enum CompressionType
     {
-        CT_DEFAULT,
-        CT_WEBP,
-        CT_WEBP_LOSSY,
+        CT_DEFAULT,     // == NONE
+        CT_WEBP,        // Deprecated
+        CT_WEBP_LOSSY,  // Deprecated
+        CT_BASIS_UASTC,
+        CT_BASIS_ETC1S,
     };
 
     enum CompressionFlags
@@ -102,6 +104,8 @@ namespace dmTexc
         uint32_t m_MetaDataSize;
     };
 
+
+
     /**
      * Texture handle
      */
@@ -125,7 +129,7 @@ namespace dmTexc
     /**
      * Create a texture
      */
-    DM_TEXC_PROTO(HTexture, Create, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, void* data);
+    DM_TEXC_PROTO(HTexture, Create, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
     /**
      * Destroy a texture
      */
@@ -180,12 +184,13 @@ namespace dmTexc
      */
     DM_TEXC_PROTO(bool, Flip, HTexture texture, FlipAxis flip_axis);
     /**
-     * Transcode a texture into another format.
+     * Encode a texture into basis format.
      */
-    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, DitherType dither_type);
+    DM_TEXC_PROTO(bool, Encode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
 
+    // Now only used for font glyphs
     // Compresses an image buffer
-    DM_TEXC_PROTO(HBuffer, CompressWebPBuffer, uint32_t width, uint32_t height, uint32_t bpp, void* data, uint32_t size, PixelFormat pixelFormat, CompressionLevel compressionLevel, CompressionType compression_type);
+    DM_TEXC_PROTO(HBuffer, CompressBuffer, void* data, uint32_t size);
 
     // Get the total data size in bytes including all mip maps in a texture (compressed or not)
     DM_TEXC_PROTO(uint32_t, GetTotalBufferDataSize, HBuffer buffer);
@@ -196,7 +201,6 @@ namespace dmTexc
     // Destroys a buffer created by CompressWebP
     DM_TEXC_PROTO(void, DestroyBuffer, HBuffer buffer);
 #undef DM_TEXC_PROTO
-
 }
 
 #endif // DM_TEXC_H

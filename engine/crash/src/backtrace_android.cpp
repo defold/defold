@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,6 +31,9 @@ namespace dmCrash
 {
     static const int SIGNAL_MAX = 64;
     static struct sigaction old_signal[SIGNAL_MAX];
+    static bool g_CrashDumpEnabled = true;
+    static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
+    static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
     // -------------------
     // libunwind.so
@@ -84,8 +87,21 @@ namespace dmCrash
         sigcontext uc_mcontext;
     };
 
+    void EnableHandler(bool enable)
+    {
+        g_CrashDumpEnabled = enable;
+    }
+
+    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
+    {
+        g_CrashExtraInfoCallback = cbk;
+    }
+
     void OnCrash(int signo, siginfo_t const *si, const ucontext *uc)
     {
+        if (!g_CrashDumpEnabled)
+            return;
+
         fflush(stdout);
         fflush(stderr);
 
@@ -172,6 +188,12 @@ namespace dmCrash
             {
                 dmLogError("Buffer too short (%d) to write stacktrace (%d)!", sizeof(stacktrace), written);
             }
+        }
+
+        if (g_CrashExtraInfoCallback)
+        {
+            int extra_len = strlen(g_AppState.m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
         WriteCrash(g_FilePath, &g_AppState);

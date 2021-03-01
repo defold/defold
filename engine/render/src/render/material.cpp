@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,21 +23,6 @@
 namespace dmRender
 {
     using namespace Vectormath::Aos;
-
-    static const uint32_t MAX_TAG_COUNT = 32;
-    struct Tag
-    {
-        dmhash_t m_Tag;
-        uint32_t m_BitIndex;
-    };
-
-    Tag g_Tags[MAX_TAG_COUNT];
-    uint32_t g_TagCount = 0;
-
-    bool TagCompare(const Tag& lhs, const Tag& rhs)
-    {
-        return lhs.m_Tag < rhs.m_Tag;
-    }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
@@ -444,11 +429,6 @@ namespace dmRender
         material->m_UserData2 = user_data;
     }
 
-    uint32_t GetMaterialTagMask(HMaterial material)
-    {
-        return material->m_TagMask;
-    }
-
     void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)
     {
         material->m_VertexSpace = vertex_space;
@@ -459,50 +439,77 @@ namespace dmRender
         return material->m_VertexSpace;
     }
 
-    static uint32_t ConvertTagToBitfield(dmhash_t tag)
+    uint32_t GetMaterialTagListKey(HMaterial material)
     {
-        Tag t;
-        t.m_Tag = tag;
-        Tag* begin = g_Tags;
-        Tag* end = g_Tags + g_TagCount;
-        Tag* result = std::lower_bound(begin, end, t, TagCompare);
-        if (result != end && result->m_Tag == tag)
-        {
-            return 1 << result->m_BitIndex;
-        }
-        else if (g_TagCount < MAX_TAG_COUNT)
-        {
-            g_Tags[g_TagCount].m_Tag = tag;
-            g_Tags[g_TagCount].m_BitIndex = g_TagCount;
-            uint32_t result = 1 << g_TagCount;
-            ++g_TagCount;
-            std::sort(g_Tags, g_Tags + g_TagCount, TagCompare);
-            return result;
-        }
-        else
-        {
-            dmLogWarning("The material tag could not be registered since the maximum number of material tags (%d) has been reached.", MAX_TAG_COUNT);
-            return 0;
-        }
+        return material->m_TagListKey;
     }
 
-    void AddMaterialTag(HMaterial material, dmhash_t tag)
+    uint32_t RegisterMaterialTagList(HRenderContext context, uint32_t tag_count, const dmhash_t* tags)
     {
-        material->m_TagMask |= ConvertTagToBitfield(tag);
+        uint32_t list_key = dmHashBuffer32(tags, sizeof(dmhash_t)*tag_count);
+        MaterialTagList* value = context->m_MaterialTagLists.Get(list_key);
+        if (value != 0)
+            return list_key;
+
+        assert(tag_count <= dmRender::MAX_MATERIAL_TAG_COUNT);
+        MaterialTagList taglist;
+        for (uint32_t i = 0; i < tag_count; ++i) {
+            taglist.m_Tags[i] = tags[i];
+        }
+        taglist.m_Count = tag_count;
+
+        if (context->m_MaterialTagLists.Full())
+        {
+            uint32_t capacity = context->m_MaterialTagLists.Capacity();
+            capacity += 8;
+            context->m_MaterialTagLists.SetCapacity(capacity * 2, capacity);
+        }
+
+        context->m_MaterialTagLists.Put(list_key, taglist);
+        return list_key;
+    }
+
+    void GetMaterialTagList(HRenderContext context, uint32_t list_key, MaterialTagList* list)
+    {
+        MaterialTagList* value = context->m_MaterialTagLists.Get(list_key);
+        if (!value) {
+            dmLogError("Failed to get material tag list with hash 0x%08x", list_key)
+            list->m_Count = 0;
+            return;
+        }
+        *list = *value;
+    }
+
+
+    void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags)
+    {
+        material->m_TagListKey = RegisterMaterialTagList(material->m_RenderContext, tag_count, tags);
     }
 
     void ClearMaterialTags(HMaterial material)
     {
-        material->m_TagMask = 0;
+        material->m_TagListKey = 0;
     }
 
-    uint32_t ConvertMaterialTagsToMask(dmhash_t* tags, uint32_t tag_count)
+    bool MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags)
     {
-        uint32_t mask = 0;
-        for (uint32_t i = 0; i < tag_count; ++i)
+        uint32_t last_hit = 0;
+        for (uint32_t t = 0; t < tag_count; ++t)
         {
-            mask |= ConvertTagToBitfield(tags[i]);
+            // Both lists must be sorted in ascending order!
+            bool hit = false;
+            for (uint32_t mt = last_hit; mt < material_tag_count; ++mt)
+            {
+                if (tags[t] == material_tags[mt])
+                {
+                    hit = true;
+                    last_hit = mt + 1; // since the list is sorted, we can start at this index next loop
+                    break;
+                }
+            }
+            if (!hit)
+                return false;
         }
-        return mask;
+        return tag_count > 0; // don't render anything with no matches at all
     }
 }

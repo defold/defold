@@ -21,6 +21,7 @@
 
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
+#include "../components/comp_gui_private.h" // BoxVertex
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -166,6 +167,29 @@ public:
     virtual ~DrawCountTest() {}
 };
 
+struct BoxRenderParams
+{
+    const static uint8_t MAX_VERTICES_IN_9_SLICED_QUAD = 16;
+    const static uint8_t MAX_INDICES_IN_9_SLICED_QUAD = 3 * 2 * 9;
+
+    const char* m_GOPath;
+    dmGameSystem::BoxVertex m_ExpectedVertices[MAX_VERTICES_IN_9_SLICED_QUAD];
+    uint8_t m_ExpectedVerticesCount;
+    int m_ExpectedIndices[MAX_INDICES_IN_9_SLICED_QUAD];
+};
+
+class BoxRenderTest : public GamesysTest<BoxRenderParams>
+{
+public:
+    virtual ~BoxRenderTest() {}
+};
+
+class GamepadConnectedTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~GamepadConnectedTest() {}
+};
+
 struct ResourcePropParams {
     const char* m_PropertyName;
     const char* m_ResourcePath;
@@ -238,6 +262,7 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxInstances = 1000;
     render_params.m_MaxRenderTargets = 10;
     render_params.m_ScriptContext = m_ScriptContext;
+    render_params.m_MaxCharacters = 256;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
     m_GuiContext.m_RenderContext = m_RenderContext;
     m_GuiContext.m_ScriptContext = m_ScriptContext;

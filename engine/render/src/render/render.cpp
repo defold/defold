@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -103,8 +103,6 @@ namespace dmRender
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
         RenderContext* context = new RenderContext;
-
-        context->m_RenderTargets.SetCapacity(params.m_MaxRenderTargets);
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
@@ -255,32 +253,6 @@ namespace dmRender
         render_context->m_SystemFontMap = font_map;
     }
 
-    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash)
-    {
-        if (render_context == 0x0)
-            return RESULT_INVALID_CONTEXT;
-        if (render_context->m_RenderTargets.Full())
-            return RESULT_BUFFER_IS_FULL;
-
-        RenderTargetSetup setup;
-        setup.m_RenderTarget = rendertarget;
-        setup.m_Hash = hash;
-        render_context->m_RenderTargets.Push(setup);
-
-        return RESULT_OK;
-    }
-
-    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, dmhash_t hash)
-    {
-        for (uint32_t i=0; i < render_context->m_RenderTargets.Size(); i++)
-        {
-            if (render_context->m_RenderTargets[i].m_Hash == hash)
-                return render_context->m_RenderTargets[i].m_RenderTarget;
-        }
-
-        return 0x0;
-    }
-
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context)
     {
         return render_context->m_GraphicsContext;
@@ -327,13 +299,10 @@ namespace dmRender
 
         // Should probably be moved and/or refactored, see case 2261
         // (Cannot reset the text buffer until all render objects are dispatched)
-        context->m_TextContext.m_RenderObjectIndex = 0;
-        context->m_TextContext.m_VertexIndex = 0;
-        context->m_TextContext.m_VerticesFlushed = 0;
+        // Also see FontRenderListDispatch in font_renderer.cpp
         context->m_TextContext.m_Frame += 1;
         context->m_TextContext.m_TextBuffer.SetSize(0);
         context->m_TextContext.m_TextEntries.SetSize(0);
-        context->m_TextContext.m_TextEntriesFlushed = 0;
 
         return RESULT_OK;
     }
@@ -393,11 +362,11 @@ namespace dmRender
     }
 
     // For unit testing only
-    bool FindTagMaskRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_mask, RenderListRange& range)
+    bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range)
     {
         for( uint32_t i = 0; i < num_ranges; ++i)
         {
-            if(ranges[i].m_TagMask == tag_mask)
+            if(ranges[i].m_TagListKey == tag_list_key)
             {
                 range = ranges[i];
                 return true;
@@ -407,7 +376,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_mask)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags)
     {
         DM_PROFILE(Render, "MakeSortBuffer");
 
@@ -431,8 +400,16 @@ namespace dmRender
         for( uint32_t i = 0; i < num_ranges; ++i)
         {
             RenderListRange& range = ranges[i];
-            if ( (range.m_TagMask & tag_mask) != tag_mask )
+
+            MaterialTagList taglist;
+            dmRender::GetMaterialTagList(context, range.m_TagListKey, &taglist);
+
+            range.m_Skip = 0;
+            if (tag_count > 0 && !dmRender::MatchMaterialTags(taglist.m_Count, taglist.m_Tags, tag_count, tags))
+            {
+                range.m_Skip = 1;
                 continue;
+            }
 
             // Write z values...
             for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
@@ -457,8 +434,8 @@ namespace dmRender
 
         for( uint32_t i = 0; i < num_ranges; ++i)
         {
-            RenderListRange& range = ranges[i];
-            if ( (range.m_TagMask & tag_mask) != tag_mask )
+            const RenderListRange& range = ranges[i];
+            if (range.m_Skip)
                 continue;
 
             for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
@@ -485,7 +462,7 @@ namespace dmRender
         }
     }
 
-    static void CollectRenderEntryRange(void* _ctx, uint32_t tag_mask, size_t start, size_t count)
+    static void CollectRenderEntryRange(void* _ctx, uint32_t tag_list_key, size_t start, size_t count)
     {
         HRenderContext context = (HRenderContext)_ctx;
         if (context->m_RenderListRanges.Full())
@@ -493,7 +470,7 @@ namespace dmRender
             context->m_RenderListRanges.SetCapacity(context->m_RenderListRanges.Capacity() + 16);
         }
         RenderListRange range;
-        range.m_TagMask = tag_mask;
+        range.m_TagListKey = tag_list_key;
         range.m_Start = start;
         range.m_Count = count;
         context->m_RenderListRanges.Push(range);
@@ -508,7 +485,7 @@ namespace dmRender
         uint32_t* low = first + offset;
         uint32_t* high = low + size;
         uint32_t* middle = low + half;
-        uint32_t val = entries[*middle].m_TagMask;
+        uint32_t val = entries[*middle].m_TagListKey;
 
         low = std::lower_bound(low, middle, *middle, comp);
         high = std::upper_bound(middle, high, *middle, comp);
@@ -542,7 +519,7 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
         DM_PROFILE(Render, "DrawRenderList");
 
@@ -551,17 +528,13 @@ namespace dmRender
         // The sort order is also one below the Texts flush which is only also debug stuff.
         FlushDebug(context, 0xfffffe);
 
-        uint32_t tag_mask = 0;
-        if (predicate != 0x0)
-            tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
-
         // Cleared once per frame
         if (context->m_RenderListRanges.Empty())
         {
             SortRenderList(context);
         }
 
-        MakeSortBuffer(context, tag_mask);
+        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
@@ -635,14 +608,13 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
-    Result Draw(HRenderContext render_context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
+    // NOTE: Currently only used in 1 test (fontview.cpp)
+    // TODO: Replace that occurrance with DrawRenderList
+    Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
 
-        uint32_t tag_mask = 0;
-        if (predicate != 0x0)
-            tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
@@ -656,61 +628,68 @@ namespace dmRender
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
+            if (ro->m_VertexCount == 0)
+                continue;
 
-            if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
+            MaterialTagList taglist;
+            uint32_t taglistkey = dmRender::GetMaterialTagListKey(ro->m_Material);
+            dmRender::GetMaterialTagList(render_context, taglistkey, &taglist);
+
+            if (predicate && !dmRender::MatchMaterialTags(taglist.m_Count, taglist.m_Tags, predicate->m_TagCount, predicate->m_Tags))
             {
-                if (!context_material)
+                continue;
+            }
+
+            if (!context_material)
+            {
+                if(material != ro->m_Material)
                 {
-                    if(material != ro->m_Material)
-                    {
-                        material = ro->m_Material;
-                        dmGraphics::EnableProgram(context, GetMaterialProgram(material));
-                    }
+                    material = ro->m_Material;
+                    dmGraphics::EnableProgram(context, GetMaterialProgram(material));
+                }
+            }
+
+            ApplyMaterialConstants(render_context, material, ro);
+            ApplyRenderObjectConstants(render_context, context_material, ro);
+
+            if (constant_buffer)
+                ApplyNamedConstantBuffer(render_context, material, constant_buffer);
+
+            if (ro->m_SetBlendFactors)
+                dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
+
+            if (ro->m_SetStencilTest)
+                ApplyStencilTest(render_context, ro);
+
+            for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+            {
+                dmGraphics::HTexture texture = ro->m_Textures[i];
+                if (render_context->m_Textures[i])
+                    texture = render_context->m_Textures[i];
+                if (texture)
+                {
+                    dmGraphics::EnableTexture(context, i, texture);
+                    ApplyMaterialSampler(render_context, material, i, texture);
                 }
 
-                ApplyMaterialConstants(render_context, material, ro);
-                ApplyRenderObjectConstants(render_context, context_material, ro);
+            }
 
-                if (constant_buffer)
-                    ApplyNamedConstantBuffer(render_context, material, constant_buffer);
+            dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
 
-                if (ro->m_SetBlendFactors)
-                    dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
+            if (ro->m_IndexBuffer)
+                dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
+            else
+                dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
 
-                if (ro->m_SetStencilTest)
-                    ApplyStencilTest(render_context, ro);
+            dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
 
-                for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
-                {
-                    dmGraphics::HTexture texture = ro->m_Textures[i];
-                    if (render_context->m_Textures[i])
-                        texture = render_context->m_Textures[i];
-                    if (texture)
-                    {
-                        dmGraphics::EnableTexture(context, i, texture);
-                        ApplyMaterialSampler(render_context, material, i, texture);
-                    }
-
-                }
-
-                dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
-
-                if (ro->m_IndexBuffer)
-                    dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
-                else
-                    dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
-
-                dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
-
-                for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
-                {
-                    dmGraphics::HTexture texture = ro->m_Textures[i];
-                    if (render_context->m_Textures[i])
-                        texture = render_context->m_Textures[i];
-                    if (texture)
-                        dmGraphics::DisableTexture(context, i, texture);
-                }
-
+            for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+            {
+                dmGraphics::HTexture texture = ro->m_Textures[i];
+                if (render_context->m_Textures[i])
+                    texture = render_context->m_Textures[i];
+                if (texture)
+                    dmGraphics::DisableTexture(context, i, texture);
             }
         }
         return RESULT_OK;
@@ -776,6 +755,28 @@ namespace dmRender
         }
     }
 
+
+    HPredicate NewPredicate()
+    {
+        HPredicate predicate = new Predicate();
+        return predicate;
+    }
+
+    void DeletePredicate(HPredicate predicate)
+    {
+        delete predicate;
+    }
+
+    Result AddPredicateTag(HPredicate predicate, dmhash_t tag)
+    {
+        if (predicate->m_TagCount == dmRender::Predicate::MAX_TAG_COUNT)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        predicate->m_Tags[predicate->m_TagCount++] = tag;
+        std::sort(predicate->m_Tags, predicate->m_Tags+predicate->m_TagCount);
+        return RESULT_OK;
+    }
 
     struct NamedConstantBuffer
     {

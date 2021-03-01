@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,11 +15,14 @@ package com.dynamo.bob.bundle;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -29,8 +32,11 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+import org.apache.commons.configuration2.io.FileLocator;
+import org.apache.commons.configuration2.io.FileLocator.FileLocatorBuilder;
+import org.apache.commons.configuration2.io.FileLocatorUtils;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -50,19 +56,6 @@ import com.dynamo.bob.util.Exec.Result;
 
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
-
-    private void copyImage(Project project, BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
-            throws IOException {
-        String resource = projectProperties.getStringValue("ios", name);
-        if (resource != null && resource.length() > 0) {
-            IResource inResource = project.getResource(resource);
-            if (!inResource.exists()) {
-                throw new IOException(String.format("%s does not exist.", resource));
-            }
-            File outFile = new File(appDir, outName);
-            FileUtils.writeByteArrayToFile(outFile, inResource.getContent());
-        }
-    }
 
     private void logProcess(Process process)
             throws RuntimeException, IOException {
@@ -128,6 +121,11 @@ public class IOSBundler implements IBundler {
 
     private void lipoBinaries(File resultFile, List<File> binaries)
     throws IOException, CompileExceptionError {
+        if (binaries.size() == 1) {
+            FileUtils.copyFile(binaries.get(0), resultFile);
+            return;
+        }
+
         String exe = resultFile.getPath();
         List<String> lipoArgList = new ArrayList<String>();
         lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
@@ -227,61 +225,72 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy launch images
-        try
+        String launchScreen = projectProperties.getStringValue("ios", "launch_screen");
+        // It might be null if the user uses the "bundle_resources" to copy everything
+        if (launchScreen != null)
         {
-            // iphone 3, 4, 5 portrait
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
+            final String launchScreenBaseName = FilenameUtils.getName(launchScreen);
+            IResource source = project.getResource(launchScreen);
+            IResource storyboardPlist = project.getResource(launchScreen + "/Info.plist");
+            if (source == null) {
+                throw new IOException(String.format("'ios.launch_screen' = '%s' does not exist", source));
+            }
+            // We cannot really if it's a directory, due to our resource abstractions
+            // but we can check for a file that should be there, the Info.plist
+            if (storyboardPlist == null) {
+                throw new IOException(String.format("'ios.launch_screen' = '%s' does not contain an Info.plist", source));
+            }
 
-            // ipad portrait+landscape
-            // backward compatibility with old game.project files with the incorrect launch image sizes
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
+            // Get all files that needs copying
+            List<IResource> resources = BundleHelper.listFilesRecursive(project, launchScreen);
 
-            // iPhone 6, 7 and 8 (portrait+landscape)
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
+            for (IResource r : resources) {
 
-            // iPhone 6 plus portrait+landscape
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
+                // Don't create a file out of the source folder name!
+                if (r.getPath().equals(source.getPath()))
+                    continue;
 
-            // iPad retina portrait+landscape
-            // backward compatibility with old game.project files with the incorrect launch image sizes
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
+                String relativePath = r.getPath().substring(source.getPath().length());
+                File target = new File(appDir, launchScreenBaseName + "/" + relativePath);
 
-            // iPad pro (10.5")
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
+                try {
+                    File parentDir = target.getParentFile();
+                    if (!parentDir.exists()) {
+                        Files.createDirectories(parentDir.toPath());
+                    }
 
-            // iPad pro (12.9")
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+                    FileUtils.writeByteArrayToFile(target, r.getContent());
+                } catch (IOException e) {
+                    logger.log(Level.SEVERE, String.format("Failed copying %s to %s\n", r.getPath(), target));
+                    throw e;
+                }
+            }
+        } else
+        {
+            logger.log(Level.WARNING, "ios.launch_screen is not set");
+        }
 
-            // iPad pro (11")
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2388", "Default-Portrait-1194h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2388x1668", "Default-Landscape-1194h@2x.png");
+        String iconsAsset = projectProperties.getStringValue("ios", "icons_asset");
+        // It might be null if the user uses the "bundle_resources" to copy everything
+        if (iconsAsset != null)
+        {
+            final String iconsName = FilenameUtils.getName(iconsAsset);
+            IResource source = project.getResource(iconsAsset);
+            if (source == null) {
+                throw new IOException(String.format("'ios.icons_asset' = '%s' does not exist", source));
+            }
 
-            // iPhone X, XS (portrait+landscape)
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+            File target = new File(appDir, iconsName);
 
-            // iPhone XR (portrait+landscape
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_828x1792", "Default-Portrait-896h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1792x828", "Default-Landscape-896h@2x.png");
-
-            // iPhone XS Max (portrait+landscape)
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2688", "Default-Portrait-896h@3x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2688x1242", "Default-Landscape-896h@3x.png");
-        } catch (Exception e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+            try {
+                FileUtils.writeByteArrayToFile(target, source.getContent());
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, String.format("Failed copying %s to %s\n", source.getPath(), target));
+                throw e;
+            }
+        } else
+        {
+            logger.log(Level.WARNING, "ios.icons_asset is not set");
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
@@ -364,6 +373,41 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
+        // Package zip file
+        File tmpZipDir = createTempDirectory();
+        tmpZipDir.deleteOnExit();
+
+        File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
+
+        // Copy any libswift*.dylib files from the Frameworks folder
+        File frameworksDir = new File(appDir, "Frameworks");
+
+        if (frameworksDir.exists()) {
+            logger.log(Level.INFO, "Copying to /SwiftSupport folder");
+            File iphoneosDir = new File(swiftSupportDir, "iphoneos");
+
+            for (File file : frameworksDir.listFiles(File::isFile)) {
+
+                BundleHelper.throwIfCanceled(canceled);
+
+                if (!file.getName().endsWith(".dylib"))
+                    continue;
+
+                if (!file.getName().startsWith("libswift")) {
+                    continue;
+                }
+
+                if (!swiftSupportDir.exists()) {
+                    swiftSupportDir.mkdir();
+                    iphoneosDir.mkdir();
+                }
+
+                File dst = new File(iphoneosDir, file.getName());
+                FileUtils.copyFile(file, dst);
+                System.out.printf("Copying %s to %s\n", file, dst);
+            }
+        }
+
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
         if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
@@ -386,26 +430,44 @@ public class IOSBundler implements IBundler {
 
             // If an override entitlements has been set, use that custom entitlements file directly instead of trying to merge it.
             if (overrideEntitlementsProperty) {
-                IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
-                InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
-                OutputStream outStream = new FileOutputStream(entitlementOut);
-                byte[] buffer = new byte[is.available()];
-                is.read(buffer);
-                outStream.write(buffer);
+                try {
+                    if (customEntitlementsProperty == null || customEntitlementsProperty.length() == 0) {
+                        throw new IOException("Override Entitlements option was set in game.project but no custom entitlements file were provided.");
+                    }
+                    IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                    InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                    OutputStream outStream = new FileOutputStream(entitlementOut);
+                    byte[] buffer = new byte[is.available()];
+                    is.read(buffer);
+                    outStream.write(buffer);
+                }
+                catch (Exception e) {
+                    logger.log(Level.SEVERE, "Error when loading custom entitlements from file '" + customEntitlementsProperty + "'.");
+                    throw new RuntimeException(e);
+                }
             } else {
                 try {
                     XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                     XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
 
-                    decodedProvision.load(textProvisionFile);
+                    decodedProvision.read(new FileReader(textProvisionFile));
                     XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
                     entitlements.append(decodedProvision.configurationAt("Entitlements"));
-
                     if (customEntitlementsProperty != null && customEntitlementsProperty.length() > 0) {
                         IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
                         if (customEntitlementsResource.exists()) {
                             InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
-                            customEntitlements.load(is);
+                            customEntitlements.read(new InputStreamReader(is));
+
+                            // the custom entitlements file is expected to have the entitlements
+                            // in the root <plist><dict>. To offer a bit of flexibility we
+                            // also support custom entitlements with an <Entitlements><dict>
+                            // property which we extract and put in the root:
+                            if (customEntitlements.getKeys("Entitlements").hasNext()) {
+                                XMLPropertyListConfiguration tmp = new XMLPropertyListConfiguration();
+                                tmp.append(customEntitlements.configurationAt("Entitlements"));
+                                customEntitlements = tmp;
+                            }
 
                             Iterator<String> keys = customEntitlements.getKeys();
                             while (keys.hasNext()) {
@@ -420,9 +482,13 @@ public class IOSBundler implements IBundler {
                             entitlements.append(customEntitlements);
                         }
                     }
-
+                    FileWriter writer = new FileWriter(entitlementOut);
+                    FileLocatorBuilder builder = FileLocatorUtils.fileLocator();
+                    FileLocator locator = new FileLocator(builder);
+                    entitlements.initFileLocator(locator);
+                    entitlements.write(writer);
+                    writer.close();
                     entitlementOut.deleteOnExit();
-                    entitlements.save(entitlementOut);
                 } catch (ConfigurationException e) {
                     logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
                     throw new RuntimeException(e);
@@ -430,6 +496,27 @@ public class IOSBundler implements IBundler {
                     logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
                     throw new RuntimeException(e);
                 }
+            }
+
+            // Sign any .dylib files in the Frameworks folder
+            if (frameworksDir.exists()) {
+                logger.log(Level.INFO, "Signing ./Frameworks folder");
+                for (File file : frameworksDir.listFiles(File::isFile)) {
+
+                    BundleHelper.throwIfCanceled(canceled);
+
+                    if (!file.getName().endsWith(".dylib"))
+                        continue;
+
+                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());
+                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
+
+                    Process process = processBuilder.start();
+                    logProcess(process);
+
+                }
+            } else {
+                System.out.printf("No ./Framework folder to sign\n");
             }
 
             BundleHelper.throwIfCanceled(canceled);
@@ -448,12 +535,6 @@ public class IOSBundler implements IBundler {
         // Package into IPA zip
         BundleHelper.throwIfCanceled(canceled);
 
-        // Package zip file
-        File tmpZipDir = createTempDirectory();
-        tmpZipDir.deleteOnExit();
-
-        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
-        // to import the resulting zip files.
         File payloadDir = new File(tmpZipDir, "Payload");
         payloadDir.mkdir();
 
@@ -465,7 +546,14 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         File zipFile = new File(bundleDir, title + ".ipa");
         File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
-        processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+
+        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+        // to import the resulting zip files.
+        if (swiftSupportDir.exists())
+            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName(), swiftSupportDir.getName());
+        else
+            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+
         processBuilder.directory(tmpZipDir);
 
         BundleHelper.throwIfCanceled(canceled);

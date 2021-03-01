@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,6 +29,12 @@ extern "C"
 }
 
 #define PATH_FORMAT "build/default/src/test/%s"
+
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS
+#endif
 
 class ScriptTest : public jc_test_base_class
 {
@@ -106,7 +112,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -439,6 +445,24 @@ TEST_F(ScriptTest, TestStackCheck) {
         lua_pushnumber(L, 0);
     }
     lua_pop(L, 1);
+}
+
+static void TestStackCheckAssert(lua_State* L, int expected, int num_stack_vars) {
+    DM_LUA_STACK_CHECK(L, expected);
+
+    for (int i = 0; i < num_stack_vars; ++i)
+    {
+        lua_pushnumber(L, i);
+    }
+}
+
+TEST_F(ScriptTest, TestStackCheckAssert) {
+    for (int i = 0; i < 3; ++i )
+    {
+        int num_stack_vars = i+1;
+        ASSERT_DEATH(TestStackCheckAssert(L, i, i+1),"");
+        lua_pop(L, num_stack_vars);
+    }
 }
 
 static int TestStackCheckErrorFunc(lua_State* L) {

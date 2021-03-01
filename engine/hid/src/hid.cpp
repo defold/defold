@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,9 +22,6 @@
 
 namespace dmHID
 {
-    extern const char* KEY_NAMES[MAX_KEY_COUNT];
-    extern const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT];
-
     NewContextParams::NewContextParams()
     {
         memset(this, 0, sizeof(NewContextParams));
@@ -67,6 +64,30 @@ namespace dmHID
             return INVALID_GAMEPAD_HANDLE;
     }
 
+    HKeyboard GetKeyboard(HContext context, uint8_t index)
+    {
+        if (index < MAX_KEYBOARD_COUNT)
+            return &context->m_Keyboards[index];
+        else
+            return INVALID_KEYBOARD_HANDLE;
+    }
+
+    HMouse GetMouse(HContext context, uint8_t index)
+    {
+        if (index < MAX_MOUSE_COUNT)
+            return &context->m_Mice[index];
+        else
+            return INVALID_MOUSE_HANDLE;
+    }
+
+    HTouchDevice GetTouchDevice(HContext context, uint8_t index)
+    {
+        if (index < MAX_TOUCH_DEVICE_COUNT)
+            return &context->m_TouchDevices[index];
+        else
+            return INVALID_TOUCH_DEVICE_HANDLE;
+    }
+
     uint32_t GetGamepadButtonCount(HGamepad gamepad)
     {
         return gamepad->m_ButtonCount;
@@ -82,14 +103,14 @@ namespace dmHID
         return gamepad->m_AxisCount;
     }
 
-    bool IsKeyboardConnected(HContext context)
+    bool IsKeyboardConnected(HKeyboard keyboard)
     {
-        return context->m_KeyboardConnected;
+        return keyboard->m_Connected;
     }
 
-    bool IsMouseConnected(HContext context)
+    bool IsMouseConnected(HMouse mouse)
     {
-        return context->m_MouseConnected;
+        return mouse->m_Connected;
     }
 
     bool IsGamepadConnected(HGamepad gamepad)
@@ -100,9 +121,9 @@ namespace dmHID
             return false;
     }
 
-    bool IsTouchDeviceConnected(HContext context)
+    bool IsTouchDeviceConnected(HTouchDevice device)
     {
-        return context->m_TouchDeviceConnected;
+        return device->m_Connected;
     }
 
     bool IsAccelerometerConnected(HContext context)
@@ -110,11 +131,11 @@ namespace dmHID
         return context->m_AccelerometerConnected;
     }
 
-    bool GetKeyboardPacket(HContext context, KeyboardPacket* out_packet)
+    bool GetKeyboardPacket(HKeyboard keyboard, KeyboardPacket* out_packet)
     {
-        if (out_packet != 0x0 && context->m_KeyboardConnected)
+        if (out_packet != 0x0 && keyboard != 0x0 && keyboard->m_Connected)
         {
-            *out_packet = context->m_KeyboardPacket;
+            *out_packet = keyboard->m_Packet;
             return true;
         }
         else
@@ -125,7 +146,8 @@ namespace dmHID
 
     bool GetTextPacket(HContext context, TextPacket* out_packet)
     {
-        if (out_packet != 0x0 && context->m_KeyboardConnected)
+        Keyboard* keyboard = &context->m_Keyboards[0];
+        if (out_packet != 0x0 && keyboard->m_Connected)
         {
             *out_packet = context->m_TextPacket;
             context->m_TextPacket.m_Size = 0;
@@ -150,7 +172,8 @@ namespace dmHID
 
     bool GetMarkedTextPacket(HContext context, MarkedTextPacket* out_packet)
     {
-        if (out_packet != 0x0 && context->m_KeyboardConnected)
+        Keyboard* keyboard = &context->m_Keyboards[0];
+        if (out_packet != 0x0 && keyboard->m_Connected)
         {
             *out_packet = context->m_MarkedTextPacket;
             context->m_MarkedTextPacket.m_Size = 0;
@@ -180,11 +203,11 @@ namespace dmHID
         p->m_GamepadConnected = connected;
     }
 
-    bool GetMousePacket(HContext context, MousePacket* out_packet)
+    bool GetMousePacket(HMouse mouse, MousePacket* out_packet)
     {
-        if (out_packet != 0x0 && context->m_MouseConnected)
+        if (out_packet != 0x0 && mouse != 0x0 && mouse->m_Connected)
         {
-            *out_packet = context->m_MousePacket;
+            *out_packet = mouse->m_Packet;
             return true;
         }
         else
@@ -208,11 +231,11 @@ namespace dmHID
         }
     }
 
-    bool GetTouchDevicePacket(HContext context, TouchDevicePacket* out_packet)
+    bool GetTouchDevicePacket(HTouchDevice device, TouchDevicePacket* out_packet)
     {
-        if (out_packet != 0x0 && context->m_TouchDeviceConnected)
+        if (out_packet != 0x0 && device != 0x0 && device->m_Connected)
         {
-            *out_packet = context->m_TouchDevicePacket;
+            *out_packet = device->m_Packet;
             return true;
         }
         else
@@ -242,14 +265,14 @@ namespace dmHID
             return false;
     }
 
-    void SetKey(HContext context, Key key, bool value)
+    void SetKey(HKeyboard keyboard, Key key, bool value)
     {
-        if (context != 0x0)
+        if (keyboard != 0x0)
         {
             if (value)
-                context->m_KeyboardPacket.m_Keys[key / 32] |= (1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key / 32] |= (1 << (key % 32));
             else
-                context->m_KeyboardPacket.m_Keys[key / 32] &= ~(1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key / 32] &= ~(1 << (key % 32));
         }
     }
 
@@ -261,32 +284,32 @@ namespace dmHID
             return false;
     }
 
-    void SetMouseButton(HContext context, MouseButton button, bool value)
+    void SetMouseButton(HMouse mouse, MouseButton button, bool value)
     {
-        if (context != 0x0)
+        if (mouse != 0x0)
         {
             if (value)
-                context->m_MousePacket.m_Buttons[button / 32] |= (1 << (button % 32));
+                mouse->m_Packet.m_Buttons[button / 32] |= (1 << (button % 32));
             else
-                context->m_MousePacket.m_Buttons[button / 32] &= ~(1 << (button % 32));
+                mouse->m_Packet.m_Buttons[button / 32] &= ~(1 << (button % 32));
         }
     }
 
-    void SetMousePosition(HContext context, int32_t x, int32_t y)
+    void SetMousePosition(HMouse mouse, int32_t x, int32_t y)
     {
-        if (context != 0x0)
+        if (mouse != 0x0)
         {
-            MousePacket& packet = context->m_MousePacket;
+            MousePacket& packet = mouse->m_Packet;
             packet.m_PositionX = x;
             packet.m_PositionY = y;
         }
     }
 
-    void SetMouseWheel(HContext context, int32_t value)
+    void SetMouseWheel(HMouse mouse, int32_t value)
     {
-        if (context != 0x0)
+        if (mouse != 0x0)
         {
-            context->m_MousePacket.m_Wheel = value;
+            mouse->m_Packet.m_Wheel = value;
         }
     }
 
@@ -357,11 +380,11 @@ namespace dmHID
 
     // NOTE: A bit contrived function only used for unit-tests
     // We should perhaps include additional relevant touch-arguments
-    void AddTouch(HContext context, int32_t x, int32_t y, uint32_t id, Phase phase)
+    void AddTouch(HTouchDevice device, int32_t x, int32_t y, uint32_t id, Phase phase)
     {
-        if (context->m_TouchDeviceConnected)
+        if (device != 0x0 && device->m_Connected)
         {
-            TouchDevicePacket& packet = context->m_TouchDevicePacket;
+            TouchDevicePacket& packet = device->m_Packet;
             if (packet.m_TouchCount < MAX_TOUCH_COUNT)
             {
                 Touch& t = packet.m_Touches[packet.m_TouchCount++];
@@ -373,149 +396,11 @@ namespace dmHID
         }
     }
 
-    void ClearTouches(HContext context)
+    void ClearTouches(HTouchDevice device)
     {
-        if (context->m_TouchDeviceConnected)
+        if (device != 0x0 && device->m_Connected)
         {
-            context->m_TouchDevicePacket.m_TouchCount = 0;
+            device->m_Packet.m_TouchCount = 0;
         }
     }
-
-    const char* GetKeyName(Key key)
-    {
-        return KEY_NAMES[key];
-    }
-
-    const char* GetMouseButtonName(MouseButton input)
-    {
-        return MOUSE_BUTTON_NAMES[input];
-    }
-
-    const char* KEY_NAMES[MAX_KEY_COUNT] =
-    {
-        "KEY_SPACE",
-        "KEY_EXCLAIM",
-        "KEY_QUOTEDBL",
-        "KEY_HASH",
-        "KEY_DOLLAR",
-        "KEY_AMPERSAND",
-        "KEY_QUOTE",
-        "KEY_LPAREN",
-        "KEY_RPAREN",
-        "KEY_ASTERISK",
-        "KEY_PLUS",
-        "KEY_COMMA",
-        "KEY_MINUS",
-        "KEY_PERIOD",
-        "KEY_SLASH",
-        "KEY_0",
-        "KEY_1",
-        "KEY_2",
-        "KEY_3",
-        "KEY_4",
-        "KEY_5",
-        "KEY_6",
-        "KEY_7",
-        "KEY_8",
-        "KEY_9",
-        "KEY_COLON",
-        "KEY_SEMICOLON",
-        "KEY_LESS",
-        "KEY_EQUALS",
-        "KEY_GREATER",
-        "KEY_QUESTION",
-        "KEY_AT",
-        "KEY_A",
-        "KEY_B",
-        "KEY_C",
-        "KEY_D",
-        "KEY_E",
-        "KEY_F",
-        "KEY_G",
-        "KEY_H",
-        "KEY_I",
-        "KEY_J",
-        "KEY_K",
-        "KEY_L",
-        "KEY_M",
-        "KEY_N",
-        "KEY_O",
-        "KEY_P",
-        "KEY_Q",
-        "KEY_R",
-        "KEY_S",
-        "KEY_T",
-        "KEY_U",
-        "KEY_V",
-        "KEY_W",
-        "KEY_X",
-        "KEY_Y",
-        "KEY_Z",
-        "KEY_LBRACKET",
-        "KEY_BACKSLASH",
-        "KEY_RBRACKET",
-        "KEY_CARET",
-        "KEY_UNDERSCORE",
-        "KEY_BACKQUOTE",
-        "KEY_LBRACE",
-        "KEY_PIPE",
-        "KEY_RBRACE",
-        "KEY_TILDE",
-        "KEY_ESC",
-        "KEY_F1",
-        "KEY_F2",
-        "KEY_F3",
-        "KEY_F4",
-        "KEY_F5",
-        "KEY_F6",
-        "KEY_F7",
-        "KEY_F8",
-        "KEY_F9",
-        "KEY_F10",
-        "KEY_F11",
-        "KEY_F12",
-        "KEY_UP",
-        "KEY_DOWN",
-        "KEY_LEFT",
-        "KEY_RIGHT",
-        "KEY_LSHIFT",
-        "KEY_RSHIFT",
-        "KEY_LCTRL",
-        "KEY_RCTRL",
-        "KEY_LALT",
-        "KEY_RALT",
-        "KEY_TAB",
-        "KEY_ENTER",
-        "KEY_BACKSPACE",
-        "KEY_INSERT",
-        "KEY_DEL",
-        "KEY_PAGEUP",
-        "KEY_PAGEDOWN",
-        "KEY_HOME",
-        "KEY_END",
-        "KEY_KP_0",
-        "KEY_KP_1",
-        "KEY_KP_2",
-        "KEY_KP_3",
-        "KEY_KP_4",
-        "KEY_KP_5",
-        "KEY_KP_6",
-        "KEY_KP_7",
-        "KEY_KP_8",
-        "KEY_KP_9",
-        "KEY_KP_DIVIDE",
-        "KEY_KP_MULTIPLY",
-        "KEY_KP_SUBTRACT",
-        "KEY_KP_ADD",
-        "KEY_KP_DECIMAL",
-        "KEY_KP_EQUAL",
-        "KEY_KP_ENTER"
-    };
-
-    const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT] =
-    {
-        "MOUSE_BUTTON_LEFT",
-        "MOUSE_BUTTON_MIDDLE",
-        "MOUSE_BUTTON_RIGHT"
-    };
 }

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -63,6 +63,7 @@ namespace dmGui
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
+    static void RemoveFromNodeList(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -1493,6 +1494,76 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
+    #define OLD_VERSION false
+
+    static bool AnimCompare(const Animation& lhs, const float* value)
+    {
+        return lhs.m_Value < value;
+    }
+
+    static inline void RemoveAnimation(dmArray<Animation>& animations, uint32_t i)
+    {
+        Animation* current = &animations[i];
+        Animation* end = animations.End();
+        // Move all one step to the "left"
+        memmove(current, current+1, sizeof(Animation) * (end-current-1));
+        animations.SetSize(animations.Size()-1);
+    }
+
+    static inline uint32_t FindAnimation(dmArray<Animation>& animations, float* value)
+    {
+        Animation* begin = animations.Begin();
+        Animation* end = animations.End();
+        Animation* anim = std::lower_bound(begin, end, value, AnimCompare);
+
+        if (anim != end && anim->m_Value == value)
+        {
+            return (uint32_t)(anim - begin);
+        }
+        return 0xffffffff;
+    }
+
+    // This function assumes the size of the array has already grown 1 element
+    static inline uint32_t InsertAnimation(dmArray<Animation>& animations, Animation* anim)
+    {
+        Animation* begin = animations.Begin();
+        // We use the fact that the actual end pointer is actually valid here (it's just uninitialized)
+        Animation* last = animations.End()-1;
+        Animation* current = std::lower_bound(begin, last, anim->m_Value, AnimCompare);
+        if (current != last && current->m_Value != anim->m_Value) // anim.m_Value >= value
+        {
+            // Move all one step to the "right"
+            memmove(current+1, current, sizeof(Animation) * (last-current));
+        }
+        *current = *anim;
+        return (uint32_t)(current - begin);
+    }
+
+    static inline void CompleteAnimation(HScene scene, Animation* anim, bool finished)
+    {
+        if (!anim->m_AnimationCompleteCalled)
+        {
+            // NOTE: Very important to set m_AnimationCompleteCalled to 1
+            // before invoking the call-back. The call-back could potentially
+            // start a new animation that could reuse the same animation slot.
+            anim->m_AnimationCompleteCalled = 1;
+
+            // NOTE: Very important to invoke the easing release callback for
+            // the before calling animation complete. The animation
+            // complete callback could start a new animation with an easing
+            // curve that would be immediately released.
+            if (anim->m_Easing.release_callback)
+            {
+                anim->m_Easing.release_callback(&anim->m_Easing);
+            }
+
+            if (anim->m_AnimationComplete)
+            {
+                anim->m_AnimationComplete(scene, anim->m_Node, finished, anim->m_Userdata1, anim->m_Userdata2);
+            }
+        }
+    }
+
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
@@ -1567,22 +1638,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                             anim->m_Backwards ^= 1;
                         }
                     } else {
-                        if (!anim->m_AnimationCompleteCalled)
-                        {
-                            // NOTE: Very important to set m_AnimationCompleteCalled to 1
-                            // before invoking the call-back. The call-back could potentially
-                            // start a new animation that could reuse the same animation slot.
-                            anim->m_AnimationCompleteCalled = 1;
-
-                            if (anim->m_AnimationComplete)
-                            {
-                                anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
-                            }
-                            if (anim->m_Easing.release_callback)
-                            {
-                                anim->m_Easing.release_callback(&anim->m_Easing);
-                            }
-                        }
+                        CompleteAnimation(scene, anim, true);
                     }
                 }
             }
@@ -1601,16 +1657,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             {
                 // If we have cancelled an animation, its callback won't be called which means
                 // we potentially get dangling lua refs in the script system
-                if (anim->m_Cancelled && anim->m_AnimationComplete)
+                // Another scenario where the callback won't get invoked is when the duration
+                // is 0.0 and the delay > 0.0
+                if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                 {
-                    if (!anim->m_AnimationCompleteCalled)
-                    {
-                        anim->m_AnimationCompleteCalled = 1;
-                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-                    }
+                    anim->m_AnimationCompleteCalled = 1;
+                    anim->m_AnimationComplete(scene, anim->m_Node, !anim->m_Cancelled, anim->m_Userdata1, anim->m_Userdata2);
                 }
 
-                animations->EraseSwap(i);
+                RemoveAnimation(*animations, i);
                 i--;
                 n--;
                 continue;
@@ -1734,6 +1789,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         lua_pushliteral(L, "gamepad");
                         lua_pushnumber(L, ia->m_GamepadIndex);
                         lua_settable(L, -3);
+                    }
+
+                    if (ia->m_GamepadConnected)
+                    {
+                        lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        lua_setfield(L, -2, "gamepad_name");
                     }
 
                     if (ia->m_ActionId != 0)
@@ -1870,7 +1931,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         lua_settable(L, -3);
                     }
 
-                    if (ia->m_TextCount > 0 || ia->m_HasText)
+                    if (ia->m_HasText)
                     {
                         lua_pushliteral(L, "text");
                         if (ia->m_TextCount == 0) {
@@ -2059,7 +2120,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                             }
                         }
 
-                        n->m_ParentIndex = INVALID_INDEX;
                         ResetInternalNode(scene, n);
                     }
                 }
@@ -2082,6 +2142,51 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         DM_COUNTER("Gui.Particlefx", scene->m_AliveParticlefxs.Size());
 
         return result;
+    }
+
+    HNode GetFirstChildNode(HScene scene, HNode node)
+    {
+        assert(scene != 0);
+        if (!node)
+        {
+            uint32_t node_count = scene->m_Nodes.Size();
+            InternalNode* nodes = scene->m_Nodes.Begin();
+            for (uint32_t i = 0; i < node_count; ++i)
+            {
+                InternalNode* node = &nodes[i];
+                if (!node->m_Deleted && node->m_Index != INVALID_INDEX && node->m_ParentIndex == INVALID_INDEX)
+                {
+                    return GetNodeHandle(node);
+                }
+            }
+            return 0;
+        }
+
+        InternalNode* n = GetNode(scene, node);
+        uint16_t child_index = n->m_ChildHead;
+        while (child_index != INVALID_INDEX)
+        {
+            InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
+            child_index = child->m_NextIndex;
+            if (!child->m_Deleted && child->m_Index != INVALID_INDEX)
+                return GetNodeHandle(child);
+        }
+        return 0;
+    }
+
+    HNode GetNextNode(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        uint16_t next_index = n->m_NextIndex;
+        while (next_index != INVALID_INDEX)
+        {
+            InternalNode* next = &scene->m_Nodes[next_index & 0xffff];
+            next_index = next->m_NextIndex;
+
+            if (!next->m_Deleted && next->m_Index != INVALID_INDEX)
+                return GetNodeHandle(next);
+        }
+        return 0;
     }
 
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
@@ -2163,7 +2268,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             // We can't use zero in order to avoid a handle == 0
             ++version;
         }
-        HNode hnode = ((uint32_t) version) << 16 | index;
+
         InternalNode* node = &scene->m_Nodes[index];
         memset(node, 0, sizeof(InternalNode));
         node->m_Node.m_Properties[PROPERTY_POSITION] = Vector4(Vector3(position), 1);
@@ -2222,6 +2327,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_SceneTraversalCacheVersion = INVALID_INDEX;
         node->m_ClipperIndex = INVALID_INDEX;
         scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
+
+        HNode hnode = GetNodeHandle(node);
         MoveNodeAbove(scene, hnode, INVALID_HANDLE);
         return hnode;
     }
@@ -2237,6 +2344,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         SetNodeId(scene, node, dmHashString64(id));
     }
 
+    dmhash_t GetNodeId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_NameHash;
+    }
+
     HNode GetNodeById(HScene scene, const char* id)
     {
         dmhash_t name_hash = dmHashString64(id);
@@ -2247,15 +2360,25 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
+        HNode foundNode = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             InternalNode* node = &nodes[i];
             if (node->m_NameHash == id)
             {
-                return ((uint32_t) node->m_Version) << 16 | node->m_Index;
+                foundNode = GetNodeHandle(node);
+                // https://github.com/defold/defold/issues/3481
+                // The node may have been deleted and another node given the
+                // same id in the same frame. If we find a node with the correct
+                // id but flagged for deferred delete we keep looking for
+                // another one
+                if (!node->m_Deleted)
+                {
+                    break;
+                }
             }
         }
-        return 0;
+        return foundNode;
     }
 
     uint32_t GetNodeCount(HScene scene)
@@ -2420,21 +2543,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             if (anim->m_Node == node)
             {
-                if(!anim->m_AnimationCompleteCalled)
-                {
-                    anim->m_AnimationCompleteCalled = 1;
-                    if (anim->m_AnimationComplete)
-                    {
-                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-                    }
-
-                    if (anim->m_Easing.release_callback)
-                    {
-                        anim->m_Easing.release_callback(&anim->m_Easing);
-                    }
-                }
-
-                animations->EraseSwap(i);
+                CompleteAnimation(scene, anim, false);
+                RemoveAnimation(*animations, i);
                 i--;
                 n_anims--;
                 continue;
@@ -2443,6 +2553,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         if (!delete_headless_pfx && n->m_Node.m_HasHeadlessPfx)
         {
+            RemoveFromNodeList(scene, n);
+            n->m_ParentIndex = INVALID_INDEX;
+            n->m_PrevIndex = INVALID_INDEX;
+            n->m_NextIndex = INVALID_INDEX;
             return;
         }
 
@@ -2596,6 +2710,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
         return Point3(n->m_Node.m_Properties[PROPERTY_SIZE].getXYZ());
+    }
+
+    Matrix4 GetNodeWorldTransform(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        Matrix4 world;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), world);
+        return world;
     }
 
     Vector4 GetNodeSlice9(HScene scene, HNode node)
@@ -3644,26 +3766,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         assert(n->m_Version == version);
 
         Animation animation;
-        uint32_t animation_index = 0xffffffff;
-
-        // Remove old animation for the same property
-        for (uint32_t i = 0; i < scene->m_Animations.Size(); ++i)
-        {
-            const Animation* anim = &scene->m_Animations[i];
-            if (value == anim->m_Value)
-            {
-                // Make sure to invoke the callback when we are re-using the
-                // animation index so that we can clean up dangling ref's in
-                // the gui_script module.
-                if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
-                {
-                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-                }
-
-                animation_index = i;
-                break;
-            }
-        }
+        uint32_t animation_index = FindAnimation(scene->m_Animations, value);
 
         if (animation_index == 0xffffffff)
         {
@@ -3674,6 +3777,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
             animation_index = scene->m_Animations.Size();
             scene->m_Animations.SetSize(animation_index+1);
+        }
+        else
+        {
+            // Make sure to invoke the callback when we are re-using the
+            // animation index so that we can clean up dangling ref's in
+            // the gui_script module.
+            Animation* anim = &scene->m_Animations[animation_index];
+            if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
+            {
+                anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+            }
         }
 
         animation.m_Node = node;
@@ -3693,7 +3807,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Cancelled = 0;
         animation.m_Backwards = 0;
 
-        scene->m_Animations[animation_index] = animation;
+        animation_index = InsertAnimation(scene->m_Animations, &animation);
         return &scene->m_Animations[animation_index];
     }
 
@@ -4363,7 +4477,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        ret = dmScript::PCall(L, 0, LUA_MULTRET);
+        ret = dmScript::PCall(L, 0, 0);
 
         lua_pushnil(L);
         dmScript::SetInstance(L);

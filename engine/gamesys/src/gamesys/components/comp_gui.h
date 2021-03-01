@@ -44,6 +44,9 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
     dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    void CompGuiIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node);
+    void CompGuiIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 }
 
 #endif // DM_GAMESYS_COMP_GUI_H

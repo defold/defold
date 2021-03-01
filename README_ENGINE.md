@@ -4,6 +4,10 @@
 
 The engine source code can be found in the `/engine` folder. The source code is divided into a number of different modules/folders:
 
+### Build process
+
+[Build instructions for the engine are here](/README_BUILD.md).
+
 ### Engine libraries
 
 To see the actual, ordered, list of engine libraries, look for `ENGINE_LIBS` in [./scripts/build.py](./scripts/build.py), and also add `dlib`, and `texc` to that list.

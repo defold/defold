@@ -38,6 +38,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }
@@ -51,6 +52,7 @@ namespace dmPhysics
     , m_ContactListener(this)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
+    , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
     	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
@@ -213,6 +215,7 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit2D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
+        context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -279,6 +282,7 @@ namespace dmPhysics
         for (int i = 0; i < count; ++i)
         {
             shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
+            shape->m_verticesOriginal[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
         }
 
         // Switch the winding of the polygon
@@ -288,6 +292,10 @@ namespace dmPhysics
             tmp = shape->m_vertices[i];
             shape->m_vertices[i] = shape->m_vertices[count-i-1];
             shape->m_vertices[count-i-1] = tmp;
+
+            tmp = shape->m_verticesOriginal[i];
+            shape->m_verticesOriginal[i] = shape->m_verticesOriginal[count-i-1];
+            shape->m_verticesOriginal[count-i-1] = tmp;
         }
 
         // Recalculate the normals
@@ -316,7 +324,7 @@ namespace dmPhysics
             }
             fixture = fixture->GetNext();
         }
-        body->SetSleepingAllowed(false);
+        body->SetAwake(true);
     }
 
     void FlipH2D(HCollisionObject2D collision_object)
@@ -327,6 +335,54 @@ namespace dmPhysics
     void FlipV2D(HCollisionObject2D collision_object)
     {
         FlipBody(collision_object, 1, -1);
+    }
+
+    static inline float GetUniformScale2D(dmTransform::Transform& transform)
+    {
+        const float* v = transform.GetScalePtr();
+        return dmMath::Min(v[0], v[1]);
+    }
+
+    static void UpdateScale(HWorld2D world, b2Body* body)
+    {
+        dmTransform::Transform world_transform;
+        (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+
+        float object_scale = GetUniformScale2D(world_transform);
+
+        b2Fixture* fix = body->GetFixtureList();
+        bool allow_sleep = true;
+        while( fix )
+        {
+            b2Shape* shape = fix->GetShape();
+            if (shape->m_lastScale == object_scale )
+            {
+                break;
+            }
+            shape->m_lastScale = object_scale;
+            allow_sleep = false;
+
+            if (fix->GetShape()->GetType() == b2Shape::e_circle) {
+                // creation scale for circles, is the initial radius
+                shape->m_radius = shape->m_creationScale * object_scale;
+            }
+            else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
+                b2PolygonShape* pshape = (b2PolygonShape*)shape;
+                float s = object_scale / shape->m_creationScale;
+                for( int i = 0; i < 4; ++i)
+                {
+                    b2Vec2 p = pshape->m_verticesOriginal[i];
+                    pshape->m_vertices[i].Set(p.x * s, p.y * s);
+                }
+            }
+
+            fix = fix->GetNext();
+        }
+
+        if (!allow_sleep)
+        {
+            body->SetAwake(true);
+        }
     }
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
@@ -344,7 +400,10 @@ namespace dmPhysics
             DM_PROFILE(Physics, "UpdateKinematic");
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
-                if (body->GetType() == b2_kinematicBody)
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body->GetType() != b2_staticBody;
+
+                // translate & rotation
+                if (retrieve_gameworld_transform || body->GetType() == b2_kinematicBody)
                 {
                     Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
                     dmTransform::Transform world_transform;
@@ -369,6 +428,12 @@ namespace dmPhysics
                     {
                         body->SetSleepingAllowed(true);
                     }
+                }
+
+                // Scaling
+                if(retrieve_gameworld_transform)
+                {
+                    UpdateScale(world, body);
                 }
             }
         }
@@ -556,9 +621,11 @@ namespace dmPhysics
         b2Fixture* fixture = body->GetFixtureList();
         while (fixture != 0x0)
         {
-            assert(fixture->GetShape()->GetType() == b2Shape::e_grid);
-            b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
-            grid_shape->ClearCellData();
+            if (fixture->GetShape()->GetType() == b2Shape::e_grid)
+            {
+                b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+                grid_shape->ClearCellData();
+            }
             fixture = fixture->GetNext();
         }
     }
@@ -593,7 +660,6 @@ namespace dmPhysics
 
     void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
-
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = GetFixture(body, shape_index);
         b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
@@ -675,7 +741,10 @@ namespace dmPhysics
             const b2CircleShape* circle_shape = (const b2CircleShape*) shape;
             b2CircleShape* circle_shape_prim = new b2CircleShape(*circle_shape);
             circle_shape_prim->m_p = TransformScaleB2(transform, scale, circle_shape->m_p);
+            if (context->m_AllowDynamicTransforms)
+                circle_shape_prim->m_creationScale = circle_shape_prim->m_radius;
             circle_shape_prim->m_radius *= scale;
+            scale = circle_shape_prim->m_radius;
             ret = circle_shape_prim;
         }
             break;
@@ -729,6 +798,8 @@ namespace dmPhysics
             break;
         }
 
+        if (shape->m_type != b2Shape::e_circle)
+            ret->m_creationScale = scale;
         return ret;
     }
 
@@ -815,7 +886,7 @@ namespace dmPhysics
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 ToB2(position, def.position, context->m_Scale);
                 def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                scale = world_transform.GetUniformScale();
+                scale = GetUniformScale2D(world_transform);
             }
             else
             {
@@ -962,6 +1033,18 @@ namespace dmPhysics
     {
         float ang_vel = ((b2Body*)collision_object)->GetAngularVelocity();
         return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel);
+    }
+
+    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        b2Vec2 b2_velocity;
+        ToB2(velocity, b2_velocity, context->m_Scale);
+        ((b2Body*)collision_object)->SetLinearVelocity(b2_velocity);
+    }
+
+    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        ((b2Body*)collision_object)->SetAngularVelocity(velocity.getZ());
     }
 
     bool IsEnabled2D(HCollisionObject2D collision_object)

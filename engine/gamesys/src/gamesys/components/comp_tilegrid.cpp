@@ -406,16 +406,6 @@ namespace dmGameSystem
         world->m_Components.Push(component);
         *params.m_UserData = (uintptr_t) component;
 
-        uint32_t num_layers = 0;
-        uint32_t n = world->m_Components.Size();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            TileGridComponent* component = world->m_Components[i];
-            dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_Resource->m_TileGrid;
-            num_layers += tile_grid_ddf->m_Layers.m_Count;
-        }
-        world->m_RenderObjects.SetCapacity(num_layers);
-
         ReHash(component);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -728,6 +718,14 @@ namespace dmGameSystem
         }
 
         uint32_t num_render_entries = CalcNumVisibleRegions(&components[0], n);
+
+        // We need to calculate this before actually pushing render object references to the renderer
+        // This however means we need to make this array potentially oversized, but this allocation should only occur
+        // occasionally after a new tilegrid is added for rendering
+        if (num_render_entries > world->m_RenderObjects.Capacity()) {
+            world->m_RenderObjects.SetCapacity(num_render_entries);
+        }
+
         dmRender::HRenderContext render_context = context->m_RenderContext;
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, num_render_entries);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
@@ -772,7 +770,7 @@ namespace dmGameSystem
 
                         write_ptr->m_WorldPosition = Point3(trans.getXYZ());
                         write_ptr->m_UserData = EncodeRegionInfo(i, l, x, y);
-                        write_ptr->m_TagMask = dmRender::GetMaterialTagMask(GetMaterial(component));
+                        write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(component));
                         write_ptr->m_BatchKey = component->m_MixedHash;
                         write_ptr->m_Dispatch = dispatch;
                         write_ptr->m_MinorOrder = 0;

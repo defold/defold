@@ -7,9 +7,15 @@
 Repository for the Defold engine, editor and command line tools.
 
 ## Supported by
-![](https://defold.com/images/logo/others/king-color.png)
+[![](https://defold.com/images/logo/others/king-color.png)](https://www.king.com)
 ![](https://defold.com/images/spacer32.png)
-![](https://defold.com/images/logo/others/heroiclabs-blue.png)
+[![](https://defold.com/images/logo/others/melsoft-black.png)](http://melsoft-games.com/)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/rive-black.png)](https://www.rive.app)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/heroiclabs-blue.png)](https://www.heroiclabs.com)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/gd-logo.png)](http://gamedistribution.com/)
 
 ## Folder Structure
 
@@ -50,7 +56,6 @@ An overview of the engine architecture and additional engine information can be 
 
 The release process is documented [here](RELEASE.md).
 
+## Complying with licenses
 
-## Third party licenses
-
-See [licenses.md](engine/engine/content/builtins/docs/licenses.md) from `builtins.zip` for licenses of libraries and source code used in this project.
+A full list of third party software licenses along with information on how to give attribution and include the licenses in your game can be found in the [COMPLYING WITH LICENSES](/COMPLYING_WITH_LICENSES.md) document in the Defold repository on GitHub.

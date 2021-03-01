@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,8 +23,9 @@
 #include <linux/if.h>
 #endif
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
 #include <unistd.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -34,6 +35,8 @@
 
 #if defined(_WIN32)
 #include <Winsock2.h>
+#include <ws2tcpip.h>
+typedef int socklen_t;
 #endif
 
 #include "log.h"
@@ -47,7 +50,7 @@ namespace dmSocket
 #else
     #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
 #endif
-    static Result NativeToResult(const char* filename, int line, int r)
+    Result NativeToResult(const char* filename, int line, int r)
     {
         switch (r)
         {
@@ -90,7 +93,7 @@ namespace dmSocket
         }
 
         // TODO: Add log-domain support
-        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
         return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
@@ -108,6 +111,11 @@ namespace dmSocket
             res = RESULT_WOULDBLOCK;
         }
         return res;
+    }
+
+    Address::Address() {
+        m_family = dmSocket::DOMAIN_MISSING;
+        memset(m_address, 0x0, sizeof(m_address));
     }
 
     bool Empty(Address address)
@@ -203,7 +211,9 @@ namespace dmSocket
 
     Result Initialize()
     {
-#ifdef _WIN32
+#if defined(__NX__)
+        return PlatformInitialize();
+#elif defined(_WIN32)
         WORD version_requested = MAKEWORD(2, 2);
         WSADATA wsa_data;
         int result = WSAStartup(version_requested, &wsa_data);
@@ -215,15 +225,44 @@ namespace dmSocket
 
     Result Finalize()
     {
-#ifdef _WIN32
+#if defined(__NX__)
+        return PlatformFinalize();
+#elif defined(_WIN32)
         WSACleanup();
 #endif
         return RESULT_OK;
     }
 
+    static int TypeToNative(Type type)
+    {
+        switch(type)
+        {
+            case TYPE_STREAM:  return SOCK_STREAM;
+            case TYPE_DGRAM:  return SOCK_DGRAM;
+        }
+    }
+    static int ProtocolToNative(Protocol protocol)
+    {
+        switch(protocol)
+        {
+            case PROTOCOL_TCP:  return IPPROTO_TCP;
+            case PROTOCOL_UDP:  return IPPROTO_UDP;
+        }
+    }
+    static int DomainToNative(Domain domain)
+    {
+        switch(domain)
+        {
+            case DOMAIN_MISSING:  return 0x0;
+            case DOMAIN_IPV4:     return AF_INET;
+            case DOMAIN_IPV6:     return AF_INET6;
+            case DOMAIN_UNKNOWN:  return 0xff;
+        }
+    }
+
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
     {
-        Socket sock = ::socket(domain, type, protocol);
+        Socket sock = (Socket)::socket(DomainToNative(domain), TypeToNative(type), ProtocolToNative(protocol));
         *socket = sock;
         if (sock >= 0)
         {
@@ -300,12 +339,14 @@ namespace dmSocket
             inaddr.s_addr = *IPv4(&address);
             result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct in6_addr inaddr;
             memcpy(&inaddr, IPv6(&address), sizeof(struct in6_addr));
             result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to enable multicast interface, unsupported address family!");
@@ -317,7 +358,7 @@ namespace dmSocket
 
     Result Delete(Socket socket)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
         int result = close(socket);
 #else
         int result = closesocket(socket);
@@ -341,6 +382,7 @@ namespace dmSocket
             address->m_family = DOMAIN_IPV4;
             *IPv4(address) = sock_addr.sin_addr.s_addr;
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
@@ -349,6 +391,7 @@ namespace dmSocket
             address->m_family = DOMAIN_IPV6;
             memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to accept connections, unsupported address family!");
@@ -372,6 +415,7 @@ namespace dmSocket
             sock_addr.sin_port = htons(port);
             result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             assert(address.m_family == DOMAIN_IPV6);
@@ -382,6 +426,7 @@ namespace dmSocket
             sock_addr.sin6_port = htons(port);
             result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to bind socket, unsupported address family!");
@@ -404,6 +449,7 @@ namespace dmSocket
             sock_addr.sin_port = htons(port);
             result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             assert(address.m_family == DOMAIN_IPV6);
@@ -414,6 +460,7 @@ namespace dmSocket
             sock_addr.sin6_port = htons(port);
             result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to connect to remote host, unsupported address family!");
@@ -434,9 +481,25 @@ namespace dmSocket
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
+    static int ShutdownTypeToNative(ShutdownType type)
+    {
+        switch(type)
+        {
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
+            case SHUTDOWNTYPE_READ:         return SHUT_RD;
+            case SHUTDOWNTYPE_WRITE:        return SHUT_WR;
+            case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
+#else
+            case SHUTDOWNTYPE_READ:         return SD_RECEIVE;
+            case SHUTDOWNTYPE_WRITE:        return SD_SEND;
+            case SHUTDOWNTYPE_READWRITE:    return SD_BOTH;
+#endif
+        }
+    }
+
     Result Shutdown(Socket socket, ShutdownType how)
     {
-        int ret = shutdown(socket, how);
+        int ret = shutdown(socket, ShutdownTypeToNative(how));
         if (ret < 0)
         {
             return NATIVETORESULT(DM_SOCKET_ERRNO);
@@ -486,6 +549,7 @@ namespace dmSocket
             result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #endif
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             assert(to_addr.m_family == DOMAIN_IPV6);
@@ -501,6 +565,7 @@ namespace dmSocket
             result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
 #endif
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to send to remote host, unsupported address family!");
@@ -555,6 +620,7 @@ namespace dmSocket
                 *received_bytes = result;
             }
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
@@ -573,6 +639,7 @@ namespace dmSocket
                 *received_bytes = result;
             }
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to receive from remote host, unsupported address family!");
@@ -580,56 +647,6 @@ namespace dmSocket
         }
 
         return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO);
-    }
-
-    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
-    {
-        FD_CLR(socket, &selector->m_FdSets[selector_kind]);
-    }
-
-    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
-    {
-        selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
-        FD_SET(socket, &selector->m_FdSets[selector_kind]);
-    }
-
-    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
-    {
-        return (bool) FD_ISSET(socket, &selector->m_FdSets[selector_kind]);
-    }
-
-    void SelectorZero(Selector* selector)
-    {
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
-        selector->m_Nfds = 0;
-    }
-
-    Result Select(Selector* selector, int32_t timeout)
-    {
-        timeval timeout_val;
-        timeout_val.tv_sec = timeout / 1000000;
-        timeout_val.tv_usec = timeout % 1000000;
-
-        int r;
-        if (timeout < 0)
-            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
-        else
-            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
-
-        if (r < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else if(timeout > 0 && r == 0)
-        {
-            return RESULT_WOULDBLOCK;
-        }
-        else
-        {
-            return RESULT_OK;
-        }
     }
 
     Result GetName(Socket socket, Address* address, uint16_t* port)
@@ -647,6 +664,7 @@ namespace dmSocket
                 *port = ntohs(sock_addr.sin_port);
             }
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
@@ -659,6 +677,7 @@ namespace dmSocket
                 *port = ntohs(sock_addr.sin6_port);
             }
         }
+#endif // no ipv6
         else
         {
             dmLogError("Failed to retrieve socket information, unsupported address family!");
@@ -754,7 +773,7 @@ namespace dmSocket
 
     Result SetBlocking(Socket socket, bool blocking)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
         int flags = fcntl(socket, F_GETFL, 0);
         if (flags < 0)
         {
@@ -805,6 +824,15 @@ namespace dmSocket
     Result SetNoDelay(Socket socket, bool no_delay)
     {
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_NODELAY, no_delay);
+    }
+
+    Result SetQuickAck(Socket socket, bool use_quick_ack)
+    {
+#if defined(__MACH__) || defined(_WIN32)
+        return RESULT_OK;
+#else
+        return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
+#endif
     }
 
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
@@ -873,6 +901,9 @@ namespace dmSocket
         }
     }
 
+#if defined(__NX__)
+    // socket_nx.cpp
+#else
     Result GetHostByName(const char* name, Address* address, bool ipv4, bool ipv6)
     {
         Result result = RESULT_HOST_NOT_FOUND;
@@ -907,6 +938,7 @@ namespace dmSocket
                     *IPv4(address) = saddr->sin_addr.s_addr;
                     result = RESULT_OK;
                 }
+#if !defined(DM_IPV6_UNSUPPORTED)
                 else if (ipv6 && iterator->ai_family == AF_INET6)
                 {
                     sockaddr_in6* saddr = (struct sockaddr_in6 *) iterator->ai_addr;
@@ -914,6 +946,7 @@ namespace dmSocket
                     memcpy(IPv6(address), &saddr->sin6_addr, sizeof(struct in6_addr));
                     result = RESULT_OK;
                 }
+#endif // no ipv6
 
                 iterator = iterator->ai_next;
             }
@@ -923,6 +956,7 @@ namespace dmSocket
 
         return result;
     }
+#endif
 
     #define DM_SOCKET_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
     const char* ResultToString(Result r)
@@ -978,4 +1012,60 @@ namespace dmSocket
         return "RESULT_UNDEFINED";
     }
     #undef DM_SOCKET_RESULT_TO_STRING_CASE
+
+
+    Selector::Selector()
+    {
+        SelectorZero(this);
+    }
+
+    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        FD_CLR(socket, &selector->m_FdSets[selector_kind]);
+    }
+
+    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
+        FD_SET(socket, &selector->m_FdSets[selector_kind]);
+    }
+
+    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        return FD_ISSET(socket, &selector->m_FdSets[selector_kind]) != 0;
+    }
+
+    void SelectorZero(Selector* selector)
+    {
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
+        selector->m_Nfds = 0;
+    }
+
+    Result Select(Selector* selector, int32_t timeout)
+    {
+        timeval timeout_val;
+        timeout_val.tv_sec = timeout / 1000000;
+        timeout_val.tv_usec = timeout % 1000000;
+
+        int r;
+        if (timeout < 0)
+            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
+        else
+            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
+
+        if (r < 0)
+        {
+            return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO);
+        }
+        else if(timeout > 0 && r == 0)
+        {
+            return RESULT_WOULDBLOCK;
+        }
+        else
+        {
+            return RESULT_OK;
+        }
+    }
 }

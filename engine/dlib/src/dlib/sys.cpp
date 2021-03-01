@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -73,7 +73,6 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 
 // Implemented in library_sys.js
 extern "C" const char* dmSysGetUserPersistentDataRoot();
-extern "C" void dmSysPumpMessageQueue();
 extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
 extern "C" const char* dmSysGetUserAgent();
 extern "C" bool dmSysOpenURL(const char* url, const char* target);
@@ -84,83 +83,9 @@ extern "C" const char* dmSysGetApplicationPath();
 
 namespace dmSys
 {
-    EngineInfo g_EngineInfo;
-
-    #define DM_SYS_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
-
-    static Result NativeToResult(int r)
+    char* GetEnv(const char* name)
     {
-        switch (r)
-        {
-            DM_SYS_NATIVE_TO_RESULT_CASE(PERM);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NOENT);
-            DM_SYS_NATIVE_TO_RESULT_CASE(SRCH);
-            DM_SYS_NATIVE_TO_RESULT_CASE(INTR);
-            DM_SYS_NATIVE_TO_RESULT_CASE(IO);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NXIO);
-            DM_SYS_NATIVE_TO_RESULT_CASE(2BIG);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NOEXEC);
-            DM_SYS_NATIVE_TO_RESULT_CASE(BADF);
-            DM_SYS_NATIVE_TO_RESULT_CASE(CHILD);
-            DM_SYS_NATIVE_TO_RESULT_CASE(DEADLK);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NOMEM);
-            DM_SYS_NATIVE_TO_RESULT_CASE(ACCES);
-            DM_SYS_NATIVE_TO_RESULT_CASE(FAULT);
-            DM_SYS_NATIVE_TO_RESULT_CASE(BUSY);
-            DM_SYS_NATIVE_TO_RESULT_CASE(EXIST);
-            DM_SYS_NATIVE_TO_RESULT_CASE(XDEV);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NODEV);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NOTDIR);
-            DM_SYS_NATIVE_TO_RESULT_CASE(ISDIR);
-            DM_SYS_NATIVE_TO_RESULT_CASE(INVAL);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NFILE);
-            DM_SYS_NATIVE_TO_RESULT_CASE(MFILE);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NOTTY);
-#ifndef _WIN32
-            DM_SYS_NATIVE_TO_RESULT_CASE(TXTBSY);
-#endif
-            DM_SYS_NATIVE_TO_RESULT_CASE(FBIG);
-            DM_SYS_NATIVE_TO_RESULT_CASE(NOSPC);
-            DM_SYS_NATIVE_TO_RESULT_CASE(SPIPE);
-            DM_SYS_NATIVE_TO_RESULT_CASE(ROFS);
-            DM_SYS_NATIVE_TO_RESULT_CASE(MLINK);
-            DM_SYS_NATIVE_TO_RESULT_CASE(PIPE);
-        }
-
-        dmLogError("Unknown result code %d\n", r);
-        return RESULT_UNKNOWN;
-    }
-    #undef DM_SYS_NATIVE_TO_RESULT_CASE
-
-    Result Rmdir(const char* path)
-    {
-        int ret = rmdir(path);
-        if (ret == 0)
-            return RESULT_OK;
-        else
-            return NativeToResult(errno);
-    }
-
-    Result Mkdir(const char* path, uint32_t mode)
-    {
-#ifdef _WIN32
-        int ret = mkdir(path);
-#else
-        int ret = mkdir(path, (mode_t) mode);
-#endif
-        if (ret == 0)
-            return RESULT_OK;
-        else
-            return NativeToResult(errno);
-    }
-
-    Result Unlink(const char* path)
-    {
-        int ret = unlink(path);
-        if (ret == 0)
-            return RESULT_OK;
-        else
-            return NativeToResult(errno);
+        return getenv(name);
     }
 
 #if defined(__ANDROID__)
@@ -197,7 +122,7 @@ namespace dmSys
 
 
 #if !defined(__EMSCRIPTEN__)
-    Result MoveFile(const char* dst_filename, const char* src_filename)
+    Result RenameFile(const char* dst_filename, const char* src_filename)
     {
 #if defined(_WIN32)
         bool rename_result = MoveFileEx(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
@@ -211,7 +136,7 @@ namespace dmSys
         return RESULT_UNKNOWN;
     }
 #else // EMSCRIPTEN
-    Result MoveFile(const char* dst_filename, const char* src_filename)
+    Result RenameFile(const char* dst_filename, const char* src_filename)
     {
         FILE* src_file = fopen(src_filename, "rb");
         if (!src_file)
@@ -257,11 +182,25 @@ namespace dmSys
 
 #endif
 
+    Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        dmSnPrintf(buffer, buffer_size, "%s", path);
+        if (dmSys::ResourceExists(buffer))
+            return RESULT_OK;
+        return RESULT_NOENT;
+    }
+
 #if defined(__MACH__)
 
 // NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
 
 #elif defined(_WIN32)
+
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
+    {
+        return GetApplicationSupportPath(application_name, path, path_len);
+    }
+
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         char tmp_path[MAX_PATH];
@@ -333,6 +272,11 @@ namespace dmSys
     }
 
 #elif defined(__ANDROID__)
+
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
+    {
+        return GetApplicationSupportPath(application_name, path, path_len);
+    }
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -443,6 +387,11 @@ namespace dmSys
 
 #elif defined(__EMSCRIPTEN__)
 
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
+    {
+        return GetApplicationSupportPath(application_name, path, path_len);
+    }
+
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         const char* const DeviceMount = dmSysGetUserPersistentDataRoot();
@@ -488,6 +437,12 @@ namespace dmSys
     }
 
 #elif defined(__linux__)
+
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
+    {
+        return GetApplicationSupportPath(application_name, path, path_len);
+    }
+
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
@@ -667,48 +622,7 @@ namespace dmSys
     }
 #endif
 
-    void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
-    {
-        // find first separator ("-" or "_")
-        size_t lang_len = lang ? strlen(lang) : 0;
-        if(lang_len == 0)
-        {
-            lang = "en_US";
-            lang_len = strlen(lang);
-            dmLogWarning("Invalid language parameter (empty field), using default: \"%s\"", lang);
-        }
-        const char* sep_first = lang;
-        while((*sep_first) && (*sep_first != '-') && (*sep_first != '_'))
-            ++sep_first;
-        const char* sep_last = lang + lang_len;
-        while((sep_last != sep_first) && (*sep_last != '-') && (*sep_last != '_'))
-            --sep_last;
 
-        dmStrlCpy(info->m_Language, lang, dmMath::Min((size_t)(sep_first+1 - lang), sizeof(info->m_Language)));
-
-        if(sep_first != sep_last)
-        {
-            // Language script. If there is more than one separator, this is what is up to the last separator (<language>-<script>-<territory> format)
-            dmStrlCpy(info->m_DeviceLanguage, lang, dmMath::Min((size_t)(sep_last+1 - lang), sizeof(info->m_DeviceLanguage)));
-            info->m_DeviceLanguage[sep_first - lang] = '-';
-        }
-        else
-        {
-            // No language script, default to language
-            dmStrlCpy(info->m_DeviceLanguage, info->m_Language, dmMath::Min(sizeof(info->m_DeviceLanguage), sizeof(info->m_Language)));
-        }
-
-        if(sep_last != lang + lang_len)
-        {
-            dmStrlCpy(info->m_Territory, sep_last + 1, dmMath::Min((size_t)((lang + lang_len) - sep_last), sizeof(info->m_Territory)));
-        }
-        else
-        {
-            info->m_Territory[0] = '\0';
-            dmLogWarning("No territory detected in language string: \"%s\"", lang);
-        }
-
-    }
 
     void FillTimeZone(struct SystemInfo* info)
     {
@@ -869,20 +783,6 @@ namespace dmSys
     }
 #endif
 
-    void GetEngineInfo(EngineInfo* info)
-    {
-        *info = g_EngineInfo;
-    }
-
-    void SetEngineInfo(EngineInfoParam& info)
-    {
-        size_t copied = dmStrlCpy(g_EngineInfo.m_Version, info.m_Version, sizeof(g_EngineInfo.m_Version));
-        assert(copied < sizeof(g_EngineInfo.m_Version));
-        copied = dmStrlCpy(g_EngineInfo.m_VersionSHA1, info.m_VersionSHA1, sizeof(g_EngineInfo.m_VersionSHA1));
-        assert(copied < sizeof(g_EngineInfo.m_VersionSHA1));
-        g_EngineInfo.m_IsDebug = info.m_IsDebug;
-    }
-
 #if (__ANDROID__)
     bool GetApplicationInfo(const char* id, ApplicationInfo* info)
     {
@@ -938,13 +838,10 @@ namespace dmSys
         if (asset) {
             AAsset_close(asset);
             return true;
-        } else {
-            return false;
         }
-#else
+#endif
         struct stat file_stat;
         return stat(path, &file_stat) == 0;
-#endif
     }
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
@@ -958,13 +855,10 @@ namespace dmSys
 
             AAsset_close(asset);
             return RESULT_OK;
-        } else {
-            return RESULT_NOENT;
         }
-#else
+#endif
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
-
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -973,18 +867,17 @@ namespace dmSys
         } else {
             return RESULT_NOENT;
         }
-#endif
     }
 
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
 #ifdef __ANDROID__
-        path = FixAndroidResourcePath(path);
+        const char* asset_path = FixAndroidResourcePath(path);
 
         AAssetManager* am = g_AndroidApp->activity->assetManager;
         // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_BUFFER);
+        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
         if (asset) {
             uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
             if (asset_size > buffer_size) {
@@ -998,10 +891,8 @@ namespace dmSys
             }
             *resource_size = asset_size;
             return RESULT_OK;
-        } else {
-            return RESULT_NOENT;
         }
-#else
+#endif
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
@@ -1021,58 +912,5 @@ namespace dmSys
         } else {
             return NativeToResult(errno);
         }
-#endif
     }
-
-
-    void PumpMessageQueue() {
-#if defined(__EMSCRIPTEN__)
-        dmSysPumpMessageQueue();
-#endif
-    }
-
-    // Currently only used in tests
-    #define DM_SYS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
-    const char* ResultToString(Result r)
-    {
-        switch (r)
-        {
-            DM_SYS_RESULT_TO_STRING_CASE(OK);
-            DM_SYS_RESULT_TO_STRING_CASE(PERM);
-            DM_SYS_RESULT_TO_STRING_CASE(NOENT);
-            DM_SYS_RESULT_TO_STRING_CASE(SRCH);
-            DM_SYS_RESULT_TO_STRING_CASE(INTR);
-            DM_SYS_RESULT_TO_STRING_CASE(IO);
-            DM_SYS_RESULT_TO_STRING_CASE(NXIO);
-            DM_SYS_RESULT_TO_STRING_CASE(2BIG);
-            DM_SYS_RESULT_TO_STRING_CASE(NOEXEC);
-            DM_SYS_RESULT_TO_STRING_CASE(BADF);
-            DM_SYS_RESULT_TO_STRING_CASE(CHILD);
-            DM_SYS_RESULT_TO_STRING_CASE(DEADLK);
-            DM_SYS_RESULT_TO_STRING_CASE(NOMEM);
-            DM_SYS_RESULT_TO_STRING_CASE(ACCES);
-            DM_SYS_RESULT_TO_STRING_CASE(FAULT);
-            DM_SYS_RESULT_TO_STRING_CASE(BUSY);
-            DM_SYS_RESULT_TO_STRING_CASE(EXIST);
-            DM_SYS_RESULT_TO_STRING_CASE(XDEV);
-            DM_SYS_RESULT_TO_STRING_CASE(NODEV);
-            DM_SYS_RESULT_TO_STRING_CASE(NOTDIR);
-            DM_SYS_RESULT_TO_STRING_CASE(ISDIR);
-            DM_SYS_RESULT_TO_STRING_CASE(INVAL);
-            DM_SYS_RESULT_TO_STRING_CASE(NFILE);
-            DM_SYS_RESULT_TO_STRING_CASE(MFILE);
-            DM_SYS_RESULT_TO_STRING_CASE(NOTTY);
-            DM_SYS_RESULT_TO_STRING_CASE(TXTBSY);
-            DM_SYS_RESULT_TO_STRING_CASE(FBIG);
-            DM_SYS_RESULT_TO_STRING_CASE(NOSPC);
-            DM_SYS_RESULT_TO_STRING_CASE(SPIPE);
-            DM_SYS_RESULT_TO_STRING_CASE(ROFS);
-            DM_SYS_RESULT_TO_STRING_CASE(MLINK);
-            DM_SYS_RESULT_TO_STRING_CASE(PIPE);
-            DM_SYS_RESULT_TO_STRING_CASE(UNKNOWN);
-
-        }
-        return "RESULT_UNDEFINED";
-    }
-    #undef DM_SYS_RESULT_TO_STRING_CASE
 }

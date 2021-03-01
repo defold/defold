@@ -12,7 +12,7 @@
 
 (ns editor.collada
   (:require [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.pipeline ColladaUtil]
+  (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$Skeleton]
            [java.io InputStream]
            [java.util ArrayList]))

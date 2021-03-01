@@ -55,7 +55,7 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
-           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent]
+           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent KeyCombination]
            [javafx.scene.layout VBox]
            [javafx.stage Stage]))
 
@@ -159,6 +159,7 @@
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
+    (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
     
     (ui/show! stage)
@@ -174,7 +175,7 @@
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
-          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)

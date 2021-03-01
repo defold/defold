@@ -94,6 +94,8 @@ public:
 	float32 m_radius;
 
 	// Defold modifications
+	float32 m_creationScale; // DEFOLD: Store the scale used at creation time
+	float32 m_lastScale; // Store the scale used last frame
 
 	uint8 m_filterPerChild : 1;
 

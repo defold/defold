@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,16 +24,21 @@ extern "C"
 }
 
 
+namespace dmWebServer
+{
+    typedef struct Server* HServer;
+}
+
 namespace dmExtension
 {
     /*# SDK Extension API documentation
-     * [file:<dmsdk/extension/extension.h>]
      *
      * Functions for creating and controlling engine native extension libraries.
      *
      * @document
      * @name Extension
      * @namespace dmExtension
+     * @path engine/dlib/src/dmsdk/extension/extension.h
      */
 
     /*# result enumeration
@@ -57,16 +62,18 @@ namespace dmExtension
      * Extension application entry callback data.
      * This is the data structure passed as parameter by extension Application entry callbacks (AppInit and AppFinalize) functions
      *
+     * @note This struct is kept as-is for backwards compatibility. In practice, the struct passed to the callbacks is of the type dmEngine::ExtensionAppParams
+     *
      * @struct
      * @name dmExtension::AppParams
      * @member m_ConfigFile [type:dmConfigFile::HConfig]
+     * @member m_WebServer [type:dmWebServer::HServer] Only valid in debug builds, where the engine service is running. 0 otherwise.
      *
      */
     struct AppParams
     {
         AppParams();
-        /// Config file
-        dmConfigFile::HConfig m_ConfigFile;
+        dmConfigFile::HConfig   m_ConfigFile; // here for backwards compatibility
     };
 
     /*# extension level callback data
@@ -83,8 +90,8 @@ namespace dmExtension
     struct Params
     {
         Params();
-        dmConfigFile::HConfig m_ConfigFile;
-        lua_State*            m_L;
+        dmConfigFile::HConfig   m_ConfigFile;
+        lua_State*              m_L;
     };
 
     /*# event id enumeration
@@ -246,10 +253,10 @@ namespace dmExtension
     */
     const size_t m_ExtensionDescBufferSize = 128;
 
-    /**
-    * Extension declaration helper. Internal
-    */
+    // internal
     #define DM_EXTENSION_PASTE_SYMREG(x, y) x ## y
+    // internal
+    #define DM_EXTENSION_PASTE_SYMREG2(x, y) DM_EXTENSION_PASTE_SYMREG(x, y)
 
     /*# declare a new extension
      *
@@ -302,8 +309,8 @@ namespace dmExtension
      * ```
      */
     #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
-        uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \
-        DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
+        uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \
+        DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
 
 
     /*# Register application delegate
@@ -368,11 +375,6 @@ namespace dmExtension
      */
     void UnregisteriOSUIApplicationDelegate(void* delegate);
 }
-
-/*# Platform defines
- *
- * The platform defines are specified automatically by the build server
- */
 
 /*# Set if the platform is iPhoneOS [icon:ios]
  *

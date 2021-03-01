@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -40,7 +40,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -451,22 +450,20 @@ public class BundleHelper {
         return new File(appDir, "res");
     }
 
-    public void copyAndroidResources(Platform platform, File appDir) throws IOException {
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
-
-        File targetResDir = getAndroidResourceDir(appDir);
-        if (hasExtensions) {
-            // pass
-        } else {
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-            packagesDir.mkdir();
-
-            File resDir = new File(packagesDir, "com.defold.android/res");
-            resDir.mkdirs();
-
-            BundleHelper.createAndroidResourceFolders(resDir);
-            copyAndroidIcons(resDir);
+    public File copyAndroidResources(Platform platform) throws IOException {
+        if (ExtenderUtil.hasNativeExtensions(project)) {
+            return null;
         }
+
+        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+        packagesDir.mkdir();
+
+        File resDir = new File(packagesDir, "com.defold.android/res");
+        resDir.mkdirs();
+
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+        return resDir;
     }
 
     public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {
@@ -486,16 +483,7 @@ public class BundleHelper {
 
             BundleHelper.createAndroidResourceFolders(resDir);
             copyAndroidIcons(resDir);
-
-            // Copy push notification icons
-            copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "drawable/push_icon_small.png");
-            copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "drawable/push_icon_large.png");
-
-            String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
-            for (String dpi : dpis) {
-                copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "push_icon_small.png", dpi);
-                copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "push_icon_large.png", dpi);
-            }
+            copyAndroidPushIcons(resDir);
 
             Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
             ExtenderUtil.storeResources(packagesDir, androidResources);
@@ -616,19 +604,15 @@ public class BundleHelper {
     public void copyIosIcons() throws IOException
     {
         // Get fallback icon as an image
-        String[] iconPropNames = { "app_icon_57x57", "app_icon_72x72", "app_icon_76x76", "app_icon_114x114", "app_icon_120x120", "app_icon_144x144", "app_icon_152x152", "app_icon_167x167", "app_icon_180x180" };
+        String[] iconPropNames = { "app_icon_76x76", "app_icon_120x120", "app_icon_152x152", "app_icon_167x167", "app_icon_180x180" };
         BufferedImage largestIconImage = getFallbackIconImage("ios", iconPropNames);
 
         // Copy game.project specified icons
-        genIcon(largestIconImage, appDir, "ios",   "app_icon_57x57",       "Icon.png",  57);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_114x114",    "Icon@2x.png", 114);
-        genIcon(largestIconImage, appDir, "ios",   "app_icon_72x72",    "Icon-72.png",  72);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_144x144", "Icon-72@2x.png", 144);
-        genIcon(largestIconImage, appDir, "ios",   "app_icon_76x76",    "Icon-76.png",  76);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_152x152", "Icon-76@2x.png", 152);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_120x120", "Icon-60@2x.png", 120);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_180x180", "Icon-60@3x.png", 180);
-        genIcon(largestIconImage, appDir, "ios", "app_icon_167x167",   "Icon-167.png", 167);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_120x120",          "AppIcon60x60@2x.png", 120);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_180x180",          "AppIcon60x60@3x.png", 180);
+        genIcon(largestIconImage, appDir, "ios",   "app_icon_76x76",        "AppIcon76x76~ipad.png",  76);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_152x152",     "AppIcon76x76@2x~ipad.png", 152);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_167x167", "AppIcon83.5x83.5@2x~ipad.png", 167);
     }
 
     public void copyAndroidIcons(File resDir) throws IOException
@@ -645,6 +629,17 @@ public class BundleHelper {
         genIcon(largestIconImage, resDir, "android",   "app_icon_96x96",   "drawable-xhdpi/icon.png",  96);
         genIcon(largestIconImage, resDir, "android", "app_icon_144x144",  "drawable-xxhdpi/icon.png", 144);
         genIcon(largestIconImage, resDir, "android", "app_icon_192x192", "drawable-xxxhdpi/icon.png", 192);
+    }
+
+    public void copyAndroidPushIcons(File resDir) throws IOException {
+        copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "drawable/push_icon_small.png");
+        copyFile(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "drawable/push_icon_large.png");
+
+        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
+        for (String dpi : dpis) {
+            copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_small", "push_icon_small.png", dpi);
+            copyIconDPI(projectProperties, project.getRootDirectory(), resDir, "android", "push_icon_large", "push_icon_large.png", dpi);
+        }
     }
 
     private boolean copyFile(BobProjectProperties projectProperties, String projectRoot, File resDir, String category, String name, String outName)
@@ -664,8 +659,13 @@ public class BundleHelper {
             return copyFile(projectProperties, projectRoot, resDir, category, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
-    public List<String> createArrayFromString(String line) {
-        return line != null ? new ArrayList<String>(Arrays.asList(line.trim().split("\\s*,\\s*"))) : new ArrayList<String>();
+    public static List<String> createArrayFromString(String line) {
+        if (line == null)
+            return new ArrayList<String>();
+        line = line.trim();
+        if (line.isEmpty())
+            return new ArrayList<String>();
+        return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
     public Map<String, Object> createAndroidManifestProperties(String exeName) throws IOException {
@@ -702,6 +702,11 @@ public class BundleHelper {
         return properties;
     }
 
+    private String derivedBundleName() {
+        String title = projectProperties.getStringValue("project", "title", "dmengine");
+        return title.substring(0, Math.min(title.length(), 15));
+    }
+
     public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
@@ -709,6 +714,8 @@ public class BundleHelper {
         String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
         List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
         properties.put("application-localizations", applicationLocalizations);
+
+        properties.put("bundle-name", projectProperties.getStringValue("osx", "bundle_name", derivedBundleName()));
 
         return properties;
     }
@@ -726,6 +733,13 @@ public class BundleHelper {
         properties.put("exe-name", exeName);
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
+        properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
+        properties.put("bundle-version", projectProperties.getStringValue("ios", "bundle_version",
+            projectProperties.getStringValue("project", "version", "1.0")
+        ));
+
+        String launchScreen = projectProperties.getStringValue("ios", "launch_screen", "LaunchScreen");
+        properties.put("launch-screen", FilenameUtils.getBaseName(launchScreen));
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
@@ -1179,5 +1193,21 @@ public class BundleHelper {
             bos.write(bytesIn, 0, read);
         }
         bos.close();
+    }
+
+    public static List<IResource> listFilesRecursive(Project project, String path) {
+        List<IResource> resources = new ArrayList<>();
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths(path, paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+
+            // Note: findResourcePaths will return the supplied path even if it's not a file.
+            // We need to check if the resource is not a directory before adding it to the list of paths found.
+            if (r.isFile()) {
+                resources.add(r);
+            }
+        }
+        return resources;
     }
 }

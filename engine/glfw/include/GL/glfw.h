@@ -161,10 +161,9 @@ extern "C" {
  */
 #if defined(__APPLE_CC__)
 #if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
-#include <OpenGLES/ES1/gl.h>
-#include <OpenGLES/ES2/gl.h>
+#include <OpenGLES/ES3/gl.h>
 #else
- #include <OpenGL/gl.h>
+ #include <OpenGL/gl3.h>
  #ifndef GLFW_NO_GLU
   #include <OpenGL/glu.h>
  #endif
@@ -569,6 +568,17 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwSetViewType(int view_type);
+
+// Defold extensions (Android)
+#if defined(ANDROID)
+GLFWAPI void    glfwAndroidBeginFrame();
+GLFWAPI void    glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
+GLFWAPI int32_t glfwAndroidHandleInput(struct android_app* app, struct AInputEvent* event);
+GLFWAPI int32_t glfwAndroidWindowOpened();
+GLFWAPI void    glfwAndroidPollEvents();
+GLFWAPI void    glfwAndroidFlushEvents();
+GLFWAPI int32_t glfwAndroidVerifySurface();
+#endif
 
 // Accelerometer control
 GLFWAPI void glfwAccelerometerEnable();

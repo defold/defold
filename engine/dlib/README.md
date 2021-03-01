@@ -26,7 +26,3 @@ Create a trace report using memprofile.sh
 
     memprofile.sh `which dmengine` memprofile.trace > report.html
 
-webp
------
-
-* replaced intN_t #define's in types.h with #include <stdint.h> as msvc now ships with one.

@@ -14,11 +14,10 @@
 #define GAMEOBJECT_H
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+
 #include <dmsdk/gameobject/gameobject.h>
 
 #include <dlib/easing.h>
-#include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
@@ -33,10 +32,13 @@
 
 namespace dmGameObject
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     /// Default max instances in collection
     const uint32_t DEFAULT_MAX_COLLECTION_CAPACITY = 1024;
+
+    /// Default max instances in input stack
+    const uint32_t DEFAULT_MAX_INPUT_STACK_CAPACITY = 16;
 
     // Value for an invalid instance index, this must be the same as defined in
     // gamesys_ddf.proto for Create#index.
@@ -45,20 +47,15 @@ namespace dmGameObject
     /// Config key to use for tweaking maximum number of instances in a collection
     extern const char* COLLECTION_MAX_INSTANCES_KEY;
 
-    /// Script handle
-    typedef struct Script* HScript;
+    /// Config key to use for tweaking the maximum capacity of the input stack
+    extern const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY;
 
-    /// Instance handle
-    typedef struct ScriptInstance* HScriptInstance;
-
-    /// Properties handle
-    typedef struct Properties* HProperties;
+    extern const dmhash_t UNNAMED_IDENTIFIER;
 
     /// Prototype handle
     typedef struct Prototype* HPrototype;
 
     typedef void* HCollectionDesc;
-
 
     /**
      * Input result enum
@@ -78,8 +75,6 @@ namespace dmGameObject
         /// Time step
         float m_DT;
     };
-
-    extern const dmhash_t UNNAMED_IDENTIFIER;
 
     /**
      * Container of input related information.
@@ -113,6 +108,7 @@ namespace dmGameObject
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
         int32_t  m_TouchCount;
+        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
@@ -133,66 +129,6 @@ namespace dmGameObject
         uint8_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
         uint8_t  m_Consumed : 1;
-    };
-
-    /**
-     * Supported property types.
-     */
-    enum PropertyType
-    {
-        // NOTE These must match the values in gameobject_ddf.proto
-        PROPERTY_TYPE_NUMBER = 0,
-        PROPERTY_TYPE_HASH = 1,
-        PROPERTY_TYPE_URL = 2,
-        PROPERTY_TYPE_VECTOR3 = 3,
-        PROPERTY_TYPE_VECTOR4 = 4,
-        PROPERTY_TYPE_QUAT = 5,
-        PROPERTY_TYPE_BOOLEAN = 6,
-        PROPERTY_TYPE_COUNT
-    };
-
-    struct PropertyVar
-    {
-        PropertyVar();
-        PropertyVar(float v);
-        PropertyVar(double v);
-        PropertyVar(dmhash_t v);
-        PropertyVar(const dmMessage::URL& v);
-        PropertyVar(Vectormath::Aos::Vector3 v);
-        PropertyVar(Vectormath::Aos::Vector4 v);
-        PropertyVar(Vectormath::Aos::Quat v);
-        PropertyVar(bool v);
-
-        PropertyType m_Type;
-        union
-        {
-            double m_Number;
-            dmhash_t m_Hash;
-            // NOTE: We can't store an URL as is due to constructor
-            char  m_URL[sizeof(dmMessage::URL)];
-            float m_V4[4];
-            bool m_Bool;
-        };
-    };
-
-    /**
-     * Description of a property.
-     *
-     * If the property is externally mutable, m_ValuePtr points to the value and its length is m_ElementCount.
-     * m_Variant always reflects the value.
-     */
-    struct PropertyDesc
-    {
-        PropertyDesc();
-
-        /// For composite properties (float arrays), these ids name each element
-        dmhash_t m_ElementIds[4];
-        /// Variant holding the value
-        PropertyVar m_Variant;
-        /// Pointer to the value, only set for mutable values. The actual data type is described by the variant.
-        float* m_ValuePtr;
-        /// Determines whether we are permitted to write to this property.
-        bool m_ReadOnly;
     };
 
     /**
@@ -228,6 +164,13 @@ namespace dmGameObject
      * @return Default capacity
      */
     uint32_t GetCollectionDefaultCapacity(HRegister regist);
+
+    /**
+     * Set default input stack capacity of collections in this register. This does not affect existing collections.
+     * @param regist Register
+     * @param capacity Default capacity of collections in this register.
+     */
+    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity);
 
     /**
      * Creates a new gameobject collection
@@ -369,13 +312,6 @@ namespace dmGameObject
      * @return RESULT_OK on success
      */
     Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
-
-    /**
-     * Get instance identifier
-     * @param instance Instance
-     * @return Identifier. dmGameObject::UNNAMED_IDENTIFIER if not set.
-     */
-    dmhash_t GetIdentifier(HInstance instance);
 
     /**
      * Get absolute identifier relative to #instance. The returned identifier is the
@@ -605,103 +541,13 @@ namespace dmGameObject
      */
     bool ScaleAlongZ(HCollection collection);
 
-    /**
-     * Set gameobject instance position
-     * @param instance Gameobject instance
-     * @param position New Position
-     */
-    void SetPosition(HInstance instance, Point3 position);
-
-    /**
-     * Get gameobject instance position
-     * @param instance Gameobject instance
-     * @return Position
-     */
-    Point3 GetPosition(HInstance instance);
-
-    /**
-     * Set gameobject instance rotation
-     * @param instance Gameobject instance
-     * @param position New Position
-     */
-    void SetRotation(HInstance instance, Quat rotation);
-
-    /**
-     * Get gameobject instance rotation
-     * @param instance Gameobject instance
-     * @return Position
-     */
-    Quat GetRotation(HInstance instance);
-
-    /**
-     * Set gameobject instance uniform scale
-     * @param instance Gameobject instance
-     * @param scale New uniform scale
-     */
-    void SetScale(HInstance instance, float scale);
-
-    /**
-     * Set gameobject instance non-uniform scale
-     * @param instance Gameobject instance
-     * @param scale New uniform scale
-     */
-    void SetScale(HInstance instance, Vector3 scale);
-
-    /**
-     * Get gameobject instance uniform scale
-     * @param instance Gameobject instance
-     * @return Uniform scale
-     */
-    float GetUniformScale(HInstance instance);
-
-    /**
-     * Get gameobject instance scale
-     * @param instance Gameobject instance
-     * @return Non-uniform scale
-     */
-    Vector3 GetScale(HInstance instance);
-
-    /**
-     * Get gameobject instance world position
-     * @param instance Gameobject instance
-     * @return World position
-     */
-    Point3 GetWorldPosition(HInstance instance);
-
-    /**
-     * Get gameobject instance world rotation
-     * @param instance Gameobject instance
-     * @return World rotation
-     */
-    Quat GetWorldRotation(HInstance instance);
-
-    /**
+    /*# get world transform
      * Get game object instance world transform
-     * @param instance Game object instance
-     * @return World scale
-     */
-    Vector3 GetWorldScale(HInstance instance);
-
-    /**
-     * Get game object instance uniform scale
-     * @param instance Game object instance
-     * @return World uniform scale
-     */
-    float GetWorldUniformScale(HInstance instance);
-
-    /**
-     * Get game object instance world transform
-     * @param instance Game object instance
-     * @return World transform
+     * @name GetWorldTransform
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmTransform::Transform] World transform
      */
     const dmTransform::Transform GetWorldTransform(HInstance instance);
-
-    /**
-     * Get game object instance world transform as Matrix4.
-     * @param instance Game object instance
-     * @return World transform matrix.
-     */
-    const Matrix4 & GetWorldMatrix(HInstance instance);
 
     /**
      * Set parent instance to child
@@ -819,60 +665,6 @@ namespace dmGameObject
      * @return dmResource::Result
      */
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context);
-
-    /** Used in the callback from the collection object iterator
-     */
-    struct IteratorCollection
-    {
-        HCollection     m_Collection;   // The collection
-        dmhash_t        m_NameHash;     // The user specified name
-        dmhash_t        m_Resource;     // The resource path
-    };
-
-    /** Used in the callback from the game object iterator
-     */
-    struct IteratorGameObject
-    {
-        HCollection     m_Collection;   // The collection
-        HInstance       m_Instance;     // The game object
-        dmhash_t        m_NameHash;     // The user specified name
-        dmhash_t        m_Resource;     // The resource path
-    };
-
-    /** Used in the callback from the comonent iterator
-     */
-    struct IteratorComponent
-    {
-        HCollection     m_Collection;   // The collection
-        HInstance       m_Instance;     // The game object
-        dmhash_t        m_NameHash;     // The user specified name
-        dmhash_t        m_Resource;     // The resource path
-        const char*     m_Type;         // The type of the component
-    };
-
-    /** Callback function for iterating over all collection in a register
-     */
-    typedef bool (*FCollectionIterator)(const IteratorCollection* iterator, void* user_ctx);
-
-    /** Callback function for iterating over all game objects in a collection
-     */
-    typedef bool (*FGameObjectIterator)(const IteratorGameObject* iterator, void* user_ctx);
-
-    /** Callback function for iterating over all game objects in a collection
-     */
-    typedef bool (*FGameComponentIterator)(const IteratorComponent* iterator, void* user_ctx);
-
-    /** Iterate over a registry to get all collections
-     */
-    bool IterateCollections(HRegister regist, FCollectionIterator callback, void* user_ctx);
-
-    /** Iterate over a collection to get all game objects
-     */
-    bool IterateGameObjects(HCollection collection, FGameObjectIterator callback, void* user_ctx);
-
-    /** Iterate over a gameobject to get all components
-     */
-    bool IterateComponents(HInstance instance, FGameComponentIterator callback, void* user_ctx);
 }
 
 #endif // GAMEOBJECT_H

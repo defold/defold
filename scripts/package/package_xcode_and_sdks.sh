@@ -46,14 +46,14 @@ function make_archive() {
 	if [ ! -e "$archive" ]; then
 		echo Packaging ${src} to ${archive}
 
-		local tarflags=czf
+		local tarflags=-cz
 		if [ "${VERBOSE}" != "" ]; then
 			tarflags=${tarflags}v
 		fi
 
 		echo EXTRA ARGS: $@
-		echo tar ${tarflags} ${archive} $@ ${src}
-		tar ${tarflags} ${archive} $@ ${src}
+		echo tar ${tarflags} $@ -f ${archive} ${src}
+		tar ${tarflags} $@ -f ${archive} ${src}
 	else
 		echo "Found existing $archive"
 	fi
@@ -65,12 +65,19 @@ function package_platform() {
 	PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l)
 	PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 
+	EXTRA_ARGS=""
+	for f in ${PLATFORM_FOLDER}/usr/lib/swift*
+	do
+		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
+	done
+
 	echo FOUND $PLATFORM_SYMLINK "->" $PLATFORM_FOLDER
-	make_archive $PLATFORM_FOLDER $PLATFORM_SYMLINK
+	make_archive $PLATFORM_FOLDER $PLATFORM_SYMLINK ${EXTRA_ARGS}
 	popd
 }
 
 function package_xcode() {
+    local host_platform=$2
 	local folder=$(find $XCODE -iname "Xcode*" -maxdepth 1 -type d)
 	# split XcodeDefault.xctoolchain -> (XcodeDefault, xctoolchain)
 	local _name=$(basename $folder)
@@ -78,18 +85,34 @@ function package_xcode() {
 	local namesuffix=${_name#*.}
 	echo SPLIT  $name  " and " $namesuffix
 	local version=$(/usr/bin/xcodebuild -version | grep -e "Xcode" | awk '{print $2}')
-	local target=${name}${version}.${namesuffix}
+	local target=${name}${version}.${namesuffix}.${host_platform}
 
 	echo FOUND ${XCODE}/${_name} "->" ${target}
 
 	pushd ${XCODE}
 
-	EXTRA_ARGS="--exclude ${_name}/usr/lib/swift --exclude ${_name}/usr/lib/swift_static --exclude ${_name}/Developer/Platforms --exclude ${_name}/usr/lib/sourcekitd.framework"
-	for f in ${_name}/usr/bin/swift*
-	do
-		EXTRA_ARGS="--exclude ${f} ${EXTRA_ARGS}"
-	done
+    # No need to include executables on linux, where we run vanilla clang
+    if [ $host_platform != "darwin" ]
+    then
+        EXTRA_ARGS="--exclude=${_name}/usr/bin ${EXTRA_ARGS}"
 
+        for f in ${_name}/usr/lib/*.dylib
+        do
+           EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
+        done
+    else
+        for f in ${_name}/usr/bin/swift*
+        do
+            EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
+        done
+    fi
+
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/watchos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/watchsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/appletvos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/appletvsimulator ${EXTRA_ARGS}"
+
+	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework --exclude=${_name}/usr/metal ${EXTRA_ARGS}"
 	make_archive ${_name} ${target} ${EXTRA_ARGS}
 	popd
 }
@@ -98,7 +121,8 @@ package_platform "iPhoneOS"
 package_platform "iPhoneSimulator"
 package_platform "MacOSX"
 
-package_xcode "XcodeDefault"
+package_xcode "XcodeDefault" "darwin"
+package_xcode "XcodeDefault" "linux"
 
 echo "PACKAGES"
 ls -la ${TARGET_DIR}/*.gz

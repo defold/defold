@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,17 +19,27 @@ namespace dmEngine
 {
     typedef struct Engine* HEngine;
 
-    typedef void (*PreRun)(HEngine engine, void* context);
-    typedef void (*PostRun)(HEngine engine, void* context);
-
-    int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context);
-
     uint16_t GetHttpPort(HEngine engine);
     uint32_t GetFrameCount(HEngine engine);
+
+
+	enum UpdateResult
+	{
+	    RESULT_OK       =  0,
+	    RESULT_REBOOT   =  1,
+	    RESULT_EXIT     = -1,
+	};
 };
 
-// For better granularity
+// called once per process: init -> (create -> update -> destroy -> if reboot: goto create) -> finalize
+void                dmEngineInitialize();
+void                dmEngineFinalize();
+
+// Creates an instance of the engine.
+// May be called multiple times due to the reboot mechanic
+// Always matched by a call to dmEngineDestroy
 dmEngine::HEngine   dmEngineCreate(int argc, char *argv[]);
+
 void                dmEngineDestroy(dmEngine::HEngine engine);
 
 /*
@@ -38,7 +48,7 @@ void                dmEngineDestroy(dmEngine::HEngine engine);
  *   0: Valid for more updates
  * !=0: Engine want to exit or reboot
  */
-int                 dmEngineUpdate(dmEngine::HEngine engine);
+dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine);
 
 /* Gets the result from the engine
  *      run_action: 0 == update, 1 == reboot, -1 == exit

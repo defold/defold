@@ -1,13 +1,13 @@
 .slider {
     .track {
-        -fx-background-color: $input-background;
-        -fx-border-color: $input-border;
+        -fx-background-color: -df-background-light;
+        -fx-border-color: -df-component-dark;
         -fx-border-width: 1px;
     }
     .thumb {
-        -fx-background-color: $mid-grey-light;
+        -fx-background-color: -df-component;
         &:pressed, &:hover {
-            -fx-background-color: $grey;
+            -fx-background-color: -df-component-lighter;
         }
     }
 }

@@ -25,16 +25,22 @@ function update(self, dt)
         -- Test that we are getting the expected value back from get_text_metrics
         local metrics = label.get_text_metrics("#" .. label_name)
 
-        return test_metrics.max_ascent  == metrics.max_ascent and
-               test_metrics.max_descent == metrics.max_descent and
-               test_metrics.width       == metrics.width and
-               test_metrics.height      == metrics.height
+        local result = test_metrics.max_ascent  == metrics.max_ascent and
+                       test_metrics.max_descent == metrics.max_descent and
+                       test_metrics.width       == metrics.width and
+                       test_metrics.height      == metrics.height
+
+        if not result then
+            pprint("Wanted:", test_metrics)
+            pprint("Got:", metrics)
+        end
+        return result
     end
 
     local function test_label_bitmap()
         local metrics_valid = {
             max_ascent  = 13,
-            width       = 775,
+            width       = 781,
             height      = 17,
             max_descent = 4
         }
@@ -45,7 +51,7 @@ function update(self, dt)
     local function test_label_df()
         local metrics_valid ={
               max_ascent = 13,
-              width = 776,
+              width = 783,
               height = 17,
               max_descent = 4,
         }

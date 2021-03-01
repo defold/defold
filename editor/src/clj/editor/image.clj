@@ -23,7 +23,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
-  (:import [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)

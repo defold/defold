@@ -9,10 +9,30 @@
 The alpha channel is automatically released for every successful push to dev.
 
 ## Beta
-Beta beta channel is automatically released for e very successful push to beta.
 
 * If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender/blob/dev/README.md#releasing-stage-server), which updates https://build-stage.defold.com.
 * Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+
+1. Merge `editor-dev` into `dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git checkout dev
+        $ git pull
+        $ git merge editor-dev
+        $ git push
+
+1. Merge `dev` into `beta`
+
+        $ git checkout beta
+        $ git pull
+        $ git merge dev
+        $ git push
+
+    Beta beta channel is automatically released for every successful push to beta.
+
+1. Collect release notes using `python scripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+and add the "BETA" tag to the headline
 
 ## Stable
 
@@ -68,34 +88,26 @@ Beta beta channel is automatically released for e very successful push to beta.
 
 1. Next, release the stable engine/editor:
 
-        $ ./scripts/build.py release
+        $ git checkout master
+        $ ./scripts/build.py release --channel=stable
     Important: *Make sure the SHA1 and channel is correct!*
 
 1. Verify release by updating an old editor, OSX, Win and Linux. (Currently a bit deprecated workflow, since no one uses editor-stable)
 
 1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes. From the `defold/defold.github.io` repo:
 
-        $ cd defold.github.io
+        $ cd defold.github.io
+        $ git checkout master
+        $ git pull
         $ ./update.py --download refdoc
         $ git commit -am "Updated reference documentation to 1.2.xxx"
         $ git push
-
-1. Upload release artifacts to GitHub:
-
-        $ cd defold
-        $ git checkout master
-        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
-
 
 1. Merge `master` into dev
 
         $ git checkout dev
         $ git pull
         $ git merge master
-
-1. Merge `editor-dev` into `dev`
-
-        $ git merge editor-dev
 
 1. Bump version:
 
@@ -106,4 +118,11 @@ Beta beta channel is automatically released for e very successful push to beta.
         > Message: "Bumped version to 1.2.xx"
         $ git push
 
-1. Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline
+
+1. Upload release artifacts to GitHub:
+
+        $ cd defold
+        $ git checkout master
+        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
+

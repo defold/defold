@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -445,41 +445,6 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
     (make-shader request-id verts frags {}))
   ([request-id verts frags uniforms]
     (->ShaderLifecycle request-id verts frags uniforms)))
-
-(def compat-directives {"vp" [""
-                              "#ifndef GL_ES"
-                              "#define lowp"
-                              "#define mediump"
-                              "#define highp"
-                              "#endif"
-                              ""]
-                        "fp" [""
-                              "#ifdef GL_ES"
-                              "precision mediump float;"
-                              "#endif"
-                              "#ifndef GL_ES"
-                              "#define lowp"
-                              "#define mediump"
-                              "#define highp"
-                              "#endif"
-                              ""]})
-
-(def ^:private directive-line-re #"^\s*(#|//).*")
-
-(defn- directive-line? [line]
-  (or (string/blank? line)
-      (some? (re-matches directive-line-re line))))
-
-(defn insert-directives
-  [code-lines inserted-directive-lines]
-  ;; Our directives should be inserted after any directives in the shader.
-  ;; This makes it possible to use directives such as #extension in the shader.
-  (let [[code-directive-lines code-non-directive-lines] (split-with directive-line? code-lines)]
-    (into []
-          (concat code-directive-lines
-                  inserted-directive-lines
-                  [(str "#line " (count code-directive-lines))]
-                  code-non-directive-lines))))
 
 (defn- make-shader-program [^GL2 gl [verts frags uniform-names]]
   (let [vs (make-vertex-shader gl verts)]

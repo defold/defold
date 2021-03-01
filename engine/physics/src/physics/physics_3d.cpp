@@ -23,6 +23,8 @@
 
 #include "physics_3d.h"
 
+#include <stdio.h>
+
 namespace dmPhysics
 {
     using namespace Vectormath::Aos;
@@ -39,8 +41,8 @@ namespace dmPhysics
     struct CollisionObject3D
     {
         btCollisionObject* m_CollisionObject;
-        short m_CollisionGroup;
-        short m_CollisionMask;
+        uint16_t m_CollisionGroup;
+        uint16_t m_CollisionMask;
     };
 
     static Vectormath::Aos::Point3 GetWorldPosition(HContext3D context, btCollisionObject* collision_object);
@@ -118,6 +120,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }
@@ -126,6 +129,7 @@ namespace dmPhysics
     : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
+    , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -279,6 +283,7 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit3D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
+        context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -368,7 +373,10 @@ namespace dmPhysics
             for (int i = 0; i < collision_object_count; ++i)
             {
                 btCollisionObject* collision_object = collision_objects[i];
-                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject())
+
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && !collision_object->isStaticObject();
+
+                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject() || retrieve_gameworld_transform)
                 {
                     Point3 old_position = GetWorldPosition(context, collision_object);
                     Quat old_rotation = GetWorldRotation(context, collision_object);
@@ -385,6 +393,26 @@ namespace dmPhysics
                         btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
                         collision_object->setWorldTransform(world_t);
                         collision_object->activate(true);
+                    }
+                }
+
+                // Scaling
+                if (retrieve_gameworld_transform)
+                {
+                    dmTransform::Transform world_transform;
+                    world->m_GetWorldTransform(collision_object->getUserPointer(), world_transform);
+
+                    // The compound shape scale always defaults to 1
+                    btCollisionShape* shape = collision_object->getCollisionShape();
+
+                    float object_scale = world_transform.GetUniformScale();
+                    float shape_scale = shape->getLocalScaling().getX();
+
+                    if (object_scale != shape_scale)
+                    {
+                        shape->setLocalScaling(btVector3(object_scale,object_scale,object_scale));
+                        if (!collision_object->isActive())
+                            collision_object->activate(true);
                     }
                 }
             }
@@ -466,12 +494,14 @@ namespace dmPhysics
                 if (max_impulse < contact_impulse_limit)
                     continue;
 
-                if (collision_callback != 0x0 && requests_collision_callbacks)
+                if (collision_callback != 0x0 && requests_collision_callbacks && num_contacts > 0)
                 {
                     requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, step_context.m_CollisionUserData);
                 }
 
-                if (contact_point_callback != 0x0)
+                bool is_trigger_contact = object_a->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || object_b->getInternalType() == btCollisionObject::CO_GHOST_OBJECT;
+
+                if (contact_point_callback != 0x0 && !is_trigger_contact)
                 {
                     for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
                     {
@@ -532,13 +562,15 @@ namespace dmPhysics
             btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
             btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
 
-            if (!object_a->isActive() || !object_b->isActive())
-                continue;
+            // Don't skip sleeping objects, in order to be able to catch exit events (also consistent with 2d physics)
 
             if (btGhostObject::upcast(object_a) != 0x0 || btGhostObject::upcast(object_b) != 0x0)
             {
-                float max_distance = 0.0f;
                 int contact_count = contact_manifold->getNumContacts();
+                if (contact_count == 0)
+                    continue;
+
+                float max_distance = 0.0f;
                 for (int j = 0; j < contact_count; ++j)
                 {
                     const btManifoldPoint& point = contact_manifold->getContactPoint(j);
@@ -607,7 +639,7 @@ namespace dmPhysics
         switch(shape->getShapeType())
         {
             case SPHERE_SHAPE_PROXYTYPE:        return new btSphereShape(((btSphereShape*)shape)->getRadius()); break;
-            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithoutMargin()); break;
+            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithMargin()); break;
             case CAPSULE_SHAPE_PROXYTYPE:       return new btCapsuleShape(((btCapsuleShape*)shape)->getRadius(), 2.0f * ((btCapsuleShape*)shape)->getHalfHeight()); break;
             case CONVEX_HULL_SHAPE_PROXYTYPE:   return new btConvexHullShape((btScalar*)((btConvexHullShape*)shape)->getPoints(), ((btConvexHullShape*)shape)->getNumPoints()); break;
         }
@@ -662,11 +694,12 @@ namespace dmPhysics
             }
         }
 
+        bool clone_shapes = world->m_AllowDynamicTransforms || object_scale != 1.0f;
         float scale = world->m_Context->m_Scale;
         btCompoundShape* compound_shape = new btCompoundShape(false);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
-            btConvexShape* shape = object_scale == 1.0f ? (btConvexShape*)shapes[i] : CloneShape((btConvexShape*)shapes[i]);
+            btConvexShape* shape = clone_shapes ? CloneShape((btConvexShape*)shapes[i]) : (btConvexShape*)shapes[i];
 
             if (translations && rotations)
             {
@@ -888,6 +921,28 @@ namespace dmPhysics
             FromBt(v, angular_velocity, 1.0f);
         }
         return angular_velocity;
+    }
+
+    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
+        if (body != 0x0)
+        {
+            btVector3 bt_velocity;
+            ToBt(velocity, bt_velocity, context->m_Scale);
+            body->setLinearVelocity(bt_velocity);
+        }
+    }
+
+    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
+        if (body != 0x0)
+        {
+            btVector3 bt_velocity;
+            ToBt(velocity, bt_velocity, 1.0f);
+            body->setAngularVelocity(bt_velocity);
+        }
     }
 
     bool IsEnabled3D(HCollisionObject3D collision_object)

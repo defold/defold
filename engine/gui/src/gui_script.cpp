@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1665,6 +1665,7 @@ namespace dmGui
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
      * @return success [type:boolean] texture creation was successful
+     * @return code [type:number] one of the gui.RESULT_* codes if unsuccessful
      * @examples
      *
      * How to create a texture and apply it to a new box node:
@@ -1678,13 +1679,18 @@ namespace dmGui
      *      local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
      *
      *      -- Create the texture. Repeat the color string for each pixel.
-     *      if gui.new_texture("orange_tx", w, h, "rgb", string.rep(orange, w * h)) then
+     *      local ok, reason = gui.new_texture("orange_tx", w, h, "rgb", string.rep(orange, w * h))
+     *      if ok then
      *          -- Create a box node and apply the texture to it.
      *          local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
      *          gui.set_texture(n, "orange_tx")
      *      else
-     *          -- Could not create texture...
-     *          ...
+     *          -- Could not create texture for some reason...
+     *          if reason == gui.RESULT_TEXTURE_ALREADY_EXISTS then
+     *              ...
+     *          else
+     *              ...
+     *          end
      *      end
      * end
      * ```
@@ -1720,12 +1726,13 @@ namespace dmGui
         Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
         if (r == RESULT_OK) {
             lua_pushboolean(L, 1);
+            lua_pushnil(L);
         } else {
-            dmLogWarning("Failed to create dynamic gui texture (%d)", r);
             lua_pushboolean(L, 0);
+            lua_pushnumber(L, r);
         }
-        assert(top + 1 == lua_gettop(L));
-        return 1;
+        assert(top + 2 == lua_gettop(L));
+        return 2;
     }
 
     /*# delete texture
@@ -1996,7 +2003,7 @@ namespace dmGui
     }
 
     /*# gets the node clipping mode
-     * Clipping mode defines how the node will clipping it's children nodes
+     * Clipping mode defines how the node will clip it's children nodes
      *
      * @name gui.get_clipping_mode
      * @param node [type:node] node from which to get the clipping mode
@@ -2014,7 +2021,7 @@ namespace dmGui
     }
 
     /*# sets node clipping mode state
-     * Clipping mode defines how the node will clipping it's children nodes
+     * Clipping mode defines how the node will clip it's children nodes
      *
      * @name gui.set_clipping_mode
      * @param node [type:node] node to set clipping mode for
@@ -4754,7 +4761,13 @@ namespace dmGui
      * @variable
      */
 
-    /*# center pivor
+    /*# no anchor
+     *
+     * @name gui.ANCHOR_NONE
+     * @variable
+     */
+
+    /*# center pivot
      *
      * @name gui.PIVOT_CENTER
      * @variable
@@ -4841,6 +4854,27 @@ namespace dmGui
     /*# automatic size mode
      * The size of the node is determined by the currently assigned texture.
      * @name gui.SIZE_MODE_AUTO
+     * @variable
+     */
+
+
+    /*# texture already exists
+     * The texture id already exists when trying to use gui.new_texture().
+     * @name gui.RESULT_TEXTURE_ALREADY_EXISTS
+     * @variable
+     */
+
+    /*# out of resource
+     * The system is out of resources, for instance when trying to create a new
+     * texture using gui.new_texture().
+     * @name gui.RESULT_OUT_OF_RESOURCES
+     * @variable
+     */
+
+    /*# data error
+     * The provided data is not in the expected format or is in some other way
+     * incorrect, for instance the image data provided to gui.new_texture().
+     * @name gui.RESULT_DATA_ERROR
      * @variable
      */
 
@@ -5029,6 +5063,15 @@ namespace dmGui
         SETBOUNDS(RECTANGLE)
         SETBOUNDS(ELLIPSE)
 #undef SETBOUNDS
+
+#define SETRESULT(name) \
+        lua_pushnumber(L, (lua_Number) RESULT_##name); \
+        lua_setfield(L, -2, "RESULT_"#name);\
+
+        SETRESULT(TEXTURE_ALREADY_EXISTS)
+        SETRESULT(OUT_OF_RESOURCES)
+        SETRESULT(DATA_ERROR)
+#undef SETRESULT
 
         lua_pushnumber(L, (lua_Number) SIZE_MODE_MANUAL);
         lua_setfield(L, -2, "SIZE_MODE_MANUAL");

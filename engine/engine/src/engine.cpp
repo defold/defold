@@ -20,16 +20,24 @@
 #include <stdio.h>
 #include <algorithm>
 
+#include <crash/crash.h>
+#include <dlib/buffer.h>
 #include <dlib/dlib.h>
+#include <dlib/dns.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/profile.h>
-#include <dlib/time.h>
-#include <dlib/math.h>
-#include <dlib/path.h>
-#include <dlib/sys.h>
 #include <dlib/http_client.h>
-#include <dlib/buffer.h>
+#include <dlib/log.h>
+#include <dlib/math.h>
+#include <dlib/memprofile.h>
+#include <dlib/path.h>
+#include <dlib/profile.h>
+#include <dlib/socket.h>
+#include <dlib/sslsocket.h>
+#include <dlib/sys.h>
+#include <dlib/thread.h>
+#include <dlib/time.h>
+#include <graphics/graphics.h>
 #include <extension/extension.h>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
@@ -47,9 +55,14 @@
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
+#include "extension.h"
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
+
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -74,8 +87,8 @@ extern uint32_t DEBUG_FPC_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
 
-    extern unsigned char CONNECT_PROJECT[];
-    extern uint32_t CONNECT_PROJECT_SIZE;
+    extern unsigned char GAME_PROJECT[];
+    extern uint32_t GAME_PROJECT_SIZE;
 #endif
 
 using namespace Vectormath::Aos;
@@ -87,7 +100,7 @@ using namespace Vectormath::Aos;
 // the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetImmersiveMode(int);
+    extern void _glfwAndroidSetFullscreenParameters(int, int);
 }
 #endif
 
@@ -95,33 +108,9 @@ namespace dmEngine
 {
 #define SYSTEM_SOCKET_NAME "@system"
 
-    void GetWorldTransform(void* user_data, Point3& position, Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        position = dmGameObject::GetWorldPosition(instance);
-        rotation = dmGameObject::GetWorldRotation(instance);
-    }
+    dmEngineService::HEngineService g_EngineService = 0;
 
-    void SetWorldTransform(void* user_data, const Point3& position, const Quat& rotation)
-    {
-        if (!user_data)
-            return;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
-        dmGameObject::SetPosition(instance, position);
-        dmGameObject::SetRotation(instance, rotation);
-    }
-
-    void SetObjectModel(void* visual_object, Quat* rotation, Point3* position)
-    {
-        if (!visual_object) return;
-        dmGameObject::HInstance go = (dmGameObject::HInstance) visual_object;
-        *position = dmGameObject::GetWorldPosition(go);
-        *rotation = dmGameObject::GetWorldRotation(go);
-    }
-
-    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
@@ -156,7 +145,7 @@ namespace dmEngine
         dmGameSystem::OnWindowResized(width, height);
     }
 
-    bool OnWindowClose(void* user_data)
+    static bool OnWindowClose(void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         engine->m_Alive = false;
@@ -164,7 +153,7 @@ namespace dmEngine
         return false;
     }
 
-    void Dispatch(dmMessage::Message *message_object, void* user_ptr);
+    static void Dispatch(dmMessage::Message *message_object, void* user_ptr);
 
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
@@ -338,9 +327,12 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
-        dmExtension::AppParams app_params;
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
-        dmExtension::AppFinalize(&app_params);
+        app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
+        app_params.m_GameObjectRegister = engine->m_Register;
+        app_params.m_HIDContext = engine->m_HidContext;
+        dmExtension::AppFinalize((dmExtension::AppParams*)&app_params);
 
         dmBuffer::DeleteContext();
 
@@ -389,19 +381,26 @@ namespace dmEngine
             char p2[DMPATH_MAX_PATH];
             char p3[DMPATH_MAX_PATH];
             char tmp[DMPATH_MAX_PATH];
-            char* paths[] = { p1, p2, p3 };
+            char* paths[3];
             uint32_t count = 0;
 
-            dmStrlCpy(p1, "./game.projectc", sizeof(p1));
-            dmStrlCpy(p2, "build/default/game.projectc", sizeof(p2));
+            const char* mountstr = "";
+#if defined(__NX__)
+            mountstr = "data:/";
+            // there's no way to check for a named mount, and it will assert
+            // So we'll only enter here if it's set on this platform
+            if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
+                mountstr = "host:/";
+#endif
+            dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
+            dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
+            paths[count++] = p1;
+            paths[count++] = p2;
+
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
                 dmPath::Concat(tmp, "game.projectc", p3, sizeof(p3));
-                count = 3;
-            }
-            else
-            {
-                count = 2;
+                paths[count++] = p3;
             }
 
             for (uint32_t i = 0; i < count; ++i)
@@ -437,6 +436,42 @@ namespace dmEngine
         dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
+    struct LuaCallstackCtx
+    {
+        bool     m_First;
+        char*    m_Buffer;
+        uint32_t m_BufferSize;
+    };
+
+    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
+    {
+        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
+
+        if (ctx->m_First)
+        {
+            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            ctx->m_Buffer += nwritten;
+            ctx->m_BufferSize -= nwritten;
+            ctx->m_First = false;
+        }
+
+        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
+        ctx->m_Buffer += nwritten;
+        ctx->m_BufferSize -= nwritten;
+    }
+
+    static void CrashHandlerCallback(void* ctx, char* buffer, uint32_t buffersize)
+    {
+        HEngine engine = (HEngine)ctx;
+        if (engine->m_SharedScriptContext) {
+            LuaCallstackCtx ctx;
+            ctx.m_First = true;
+            ctx.m_Buffer = buffer;
+            ctx.m_BufferSize = buffersize;
+            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -457,13 +492,16 @@ namespace dmEngine
     {
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
 
+        dmCrash::SetExtraInfoCallback(CrashHandlerCallback, engine);
+
         dmSys::EngineInfoParam engine_info;
+        engine_info.m_Platform = dmEngineVersion::PLATFORM;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
         engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
-        char* qoe_s = getenv("DM_QUIT_ON_ESC");
+        char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
         char project_file[DMPATH_MAX_PATH];
@@ -510,7 +548,7 @@ namespace dmEngine
             dmLogFatal("Unable to load project");
             return false;
 #else
-            dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
+            dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) GAME_PROJECT, GAME_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
                 dmLogFatal("Unable to load builtin connect project");
@@ -529,8 +567,10 @@ namespace dmEngine
             verify_graphics_calls = false;
 
         bool renderdoc_support = false;
+        bool use_validation_layers = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
         const char renderdoc_support_arg[] = "--renderdoc";
+        const char validation_layers_support_arg[] = "--use-validation-layers";
         for (int i = 0; i < argc; ++i)
         {
             const char* arg = argv[i];
@@ -549,13 +589,44 @@ namespace dmEngine
             {
                 renderdoc_support = true;
             }
+            else if (strncmp(validation_layers_support_arg, arg, sizeof(validation_layers_support_arg)-1) == 0)
+            {
+                use_validation_layers = true;
+            }
         }
 
         dmBuffer::NewContext();
 
-        dmExtension::AppParams app_params;
+
+        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
+
+        // Accelerometer
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        if (use_accelerometer) {
+            dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
+        }
+        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
+
+#if defined(__EMSCRIPTEN__)
+        // DEF-2450 Reverse scroll direction for firefox browser
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+        if (info.m_UserAgent != 0x0)
+        {
+            const char* str_firefox = "firefox";
+            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
+        }
+#endif
+        engine->m_HidContext = dmHID::NewContext(new_hid_params);
+
+        dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
-        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
+        app_params.m_GameObjectRegister = engine->m_Register;
+        app_params.m_HIDContext = engine->m_HidContext;
+
+        dmExtension::Result er = dmExtension::AppInitialize((dmExtension::AppParams*)&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;
@@ -583,7 +654,10 @@ namespace dmEngine
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport = renderdoc_support;
+        graphics_context_params.m_RenderDocSupport = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+
+        graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
+        graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -609,7 +683,7 @@ namespace dmEngine
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
         window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
         window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
-        window_params.m_PrintDeviceInfo = false;
+        window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
@@ -683,14 +757,27 @@ namespace dmEngine
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
-        int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
+
+        dmResourceArchive::ClearArchiveLoaders(); // in case we've rebooted
+        dmResourceArchive::RegisterDefaultArchiveLoader();
+
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+            int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
             if (http_cache)
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
+        }
+
+        int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
+        if (liveupdate_enable)
+        {
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
+
+            dmLiveUpdate::RegisterArchiveLoaders();
         }
 
 #if defined(DM_RELEASE)
@@ -743,47 +830,18 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
-        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
-
-        // Accelerometer
-        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
-        if (use_accelerometer) {
-        	dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
-        }
-        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
-
-#if defined(__EMSCRIPTEN__)
-        // DEF-2450 Reverse scroll direction for firefox browser
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-        if (info.m_UserAgent != 0x0)
-        {
-            const char* str_firefox = "firefox";
-            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
-        }
-#endif
-        engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
 
-        // The attempt to fallback to other audio devices only has meaning if:
-        // - sound is being used
-        // - the matching device symbols have been exported for the target device
         dmSound::InitializeParams sound_params;
-        static const char* audio_devices[] = {
-                "default",
-                "null",
-                NULL
-        };
-        int deviceIndex = 0;
-        while (NULL != audio_devices[deviceIndex]) {
-            sound_params.m_OutputDevice = audio_devices[deviceIndex];
-            dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
-            if (dmSound::RESULT_OK == soundInit) {
-                dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
-                break;
-            }
-            ++deviceIndex;
+        sound_params.m_OutputDevice = "default";
+#if defined(__EMSCRIPTEN__)
+        sound_params.m_UseThread = false;
+#else
+        sound_params.m_UseThread = dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) != 0;
+#endif
+        dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
+        if (dmSound::RESULT_OK == soundInit) {
+            dmLogInfo("Initialised sound device '%s'", sound_params.m_OutputDevice);
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
@@ -792,6 +850,7 @@ namespace dmEngine
             dmLogFatal("Failed to set max instance count for collections (%d)", go_result);
             return false;
         }
+        dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
@@ -874,6 +933,7 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
+        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 0) ? 1 : 0;
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
@@ -892,6 +952,7 @@ namespace dmEngine
         }
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
+        // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
 #if !defined(DM_RELEASE)
@@ -960,6 +1021,9 @@ namespace dmEngine
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
 
+        // Variables need to be declared up here due to the goto's
+        bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
@@ -981,7 +1045,7 @@ namespace dmEngine
 
         if (!LoadBootstrapContent(engine, engine->m_Config))
         {
-            dmLogWarning("Unable to load bootstrap data.");
+            dmLogError("Unable to load bootstrap data.");
             goto bail;
         }
 
@@ -1081,10 +1145,21 @@ namespace dmEngine
         dmGameObject::Init(engine->m_MainCollection);
 
         engine->m_LastReloadMTime = 0;
-        struct stat file_stat;
-        if (stat("build/default/content/reload", &file_stat) == 0)
+
+#if defined(__NX__)
+        // there's no way to check for a named mount, and it will assert
+        // So we'll only enter here if it's set on this platform
+        if (has_host_mount)
+#endif
         {
-            engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+            const char* mountstr = has_host_mount ? "host:/" : "";
+            char path[512];
+            dmSnPrintf(path, sizeof(path), "%sbuild/default/content/reload", mountstr);
+            struct stat file_stat;
+            if (stat(path, &file_stat) == 0)
+            {
+                engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+            }
         }
 
         // Tbh, I have never heard of this feature of reordering the component types being utilized.
@@ -1127,7 +1202,8 @@ namespace dmEngine
         }
         {
             int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-            _glfwAndroidSetImmersiveMode(immersive_mode);
+            int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
+            _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
         }
 #endif
 
@@ -1142,7 +1218,7 @@ bail:
         return false;
     }
 
-    void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
+    static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
@@ -1214,8 +1290,8 @@ bail:
     {
         dmGameObject::InputAction *ipa = (dmGameObject::InputAction *)a;
         dmGameObject::InputAction *ipb = (dmGameObject::InputAction *)b;
-        bool a_is_text = ipa->m_HasText || ipa->m_TextCount > 0;
-        bool b_is_text = ipb->m_HasText || ipb->m_TextCount > 0;
+        bool a_is_text = ipa->m_HasText;
+        bool b_is_text = ipb->m_HasText;
         return a_is_text - b_is_text;
     }
 
@@ -1238,6 +1314,7 @@ bail:
     {
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
 
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
@@ -1266,6 +1343,11 @@ bail:
                 if (!engine->m_WasIconified)
                 {
                     engine->m_WasIconified = true;
+
+                    if (!engine->m_RunWhileIconified)
+                    {
+                        dmSound::Pause(true);
+                    }
                 }
 
                 if (!engine->m_RunWhileIconified) {
@@ -1291,6 +1373,8 @@ bail:
                 if (engine->m_WasIconified)
                 {
                     engine->m_WasIconified = false;
+
+                    dmSound::Pause(false);
                 }
             }
 
@@ -1332,10 +1416,16 @@ bail:
 
                     dmSound::Update();
 
-                    dmHID::KeyboardPacket keybdata;
-                    dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
+                    bool esc_pressed = false;
+                    if (engine->m_QuitOnEsc)
+                    {
+                        dmHID::KeyboardPacket keybdata;
+                        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+                        dmHID::GetKeyboardPacket(keyboard, &keybdata);
+                        esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
+                    }
 
-                    if ((engine->m_QuitOnEsc && dmHID::GetKey(&keybdata, dmHID::KEY_ESC)) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                    if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
                         return;
@@ -1511,17 +1601,11 @@ bail:
         return engine->m_Alive;
     }
 
-    static void PerformStep(void* context)
-    {
-        HEngine engine = (HEngine)context;
-        Step(engine);
-    }
-
     static void Exit(HEngine engine, int32_t code)
     {
         engine->m_Alive = false;
         engine->m_RunResult.m_ExitCode = code;
-        engine->m_RunResult.m_Action =  dmEngine::RunResult::EXIT;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
@@ -1559,62 +1643,7 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
-    {
-        dmEngine::HEngine engine = dmEngine::New(engine_service);
-        dmEngine::RunResult run_result;
-        if (dmEngine::Init(engine, argc, argv))
-        {
-            if (pre_run)
-            {
-                pre_run(engine, context);
-            }
-
-            dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
-            run_result = engine->m_RunResult;
-
-            if (post_run)
-            {
-                post_run(engine, context);
-            }
-        }
-        else
-        {
-            run_result.m_ExitCode = 1;
-            run_result.m_Action = dmEngine::RunResult::EXIT;
-        }
-        dmEngine::Delete(engine);
-
-        return run_result;
-    }
-
-    int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
-    {
-        dmEngineService::HEngineService engine_service = 0;
-
-        if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
-        {
-            uint16_t engine_port = dmEngineService::GetServicePort(8001);
-            engine_service = dmEngineService::New(engine_port);
-        }
-
-        dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
-        while (run_result.m_Action == dmEngine::RunResult::REBOOT)
-        {
-            dmEngine::RunResult tmp = InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
-            run_result.Free();
-            run_result = tmp;
-        }
-        run_result.Free();
-
-        if (engine_service)
-        {
-            dmEngineService::Delete(engine_service);
-        }
-        return run_result.m_ExitCode;
-    }
-
-    void Dispatch(dmMessage::Message* message, void* user_ptr)
+    static void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
         Engine* self = (Engine*) user_ptr;
 
@@ -1634,18 +1663,18 @@ bail:
                 dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*) message->m_Data;
                 dmEngine::Reboot(self, reboot);
             }
-            else if (descriptor == dmSystemDDF::ToggleProfile::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::ToggleProfile::m_DDFDescriptor) // "toogle_profile"
             {
                 dmProfiler::ToggleProfiler();
             }
-            else if (descriptor == dmSystemDDF::TogglePhysicsDebug::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::TogglePhysicsDebug::m_DDFDescriptor) // "toggle_physics"
             {
                 if(dLib::IsDebugMode())
                 {
                     self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
                 }
             }
-            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor) // "start_record"
             {
                 dmSystemDDF::StartRecord* start_record = (dmSystemDDF::StartRecord*) message->m_Data;
                 RecordData* record_data = &self->m_RecordData;
@@ -1672,7 +1701,7 @@ bail:
                     record_data->m_Recorder = 0;
                 }
             }
-            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor) // "stop_record"
             {
                 RecordData* record_data = &self->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1687,21 +1716,21 @@ bail:
                     dmLogError("No recording in progress");
                 }
             }
-            else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"
             {
                 dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
             }
-            else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
+            else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor) // "hide_app"
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
             }
-            else if (descriptor == dmSystemDDF::SetVsync::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetVsync::m_DDFDescriptor) // "set_vsync"
             {
                 dmSystemDDF::SetVsync* m = (dmSystemDDF::SetVsync*) message->m_Data;
                 SetSwapInterval(self, m->m_SwapInterval);
             }
-            else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor)
+            else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor) // "run_script"
             {
                 dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
 
@@ -1808,33 +1837,61 @@ bail:
     }
 }
 
-
-dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
+void dmEngineInitialize()
 {
-    dmEngineService::HEngineService engine_service = 0;
+    dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
+
+#if DM_RELEASE
+    dLib::SetDebugMode(false);
+#endif
+    dmHashEnableReverseHash(dLib::IsDebugMode());
+
+    dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+    dmDDF::RegisterAllTypes();
+    dmSocket::Initialize();
+    dmSSLSocket::Initialize();
+    dmDNS::Initialize();
+    dmMemProfile::Initialize();
+    dmProfile::Initialize(256, 1024 * 16, 128);
+    dmLogParams params;
+    dmLogInitialize(&params);
 
     if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
     {
         uint16_t engine_port = dmEngineService::GetServicePort(8001);
-        engine_service = dmEngineService::New(engine_port);
+        dmEngine::g_EngineService = dmEngineService::New(engine_port);
     }
+}
 
+void dmEngineFinalize()
+{
+    if (dmEngine::g_EngineService)
+    {
+        dmEngineService::Delete(dmEngine::g_EngineService);
+    }
+    dmGraphics::Finalize();
+    dmLogFinalize();
+    dmProfile::Finalize();
+    dmMemProfile::Finalize();
+    dmDNS::Finalize();
+    dmSSLSocket::Finalize();
+    dmSocket::Finalize();
+}
+
+dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
+{
     if (!dmGraphics::Initialize())
     {
         dmLogError("Could not initialize graphics.");
         return 0;
     }
 
-    dmEngine::HEngine engine = dmEngine::New(engine_service);
+    dmEngine::HEngine engine = dmEngine::New(dmEngine::g_EngineService);
     bool initialized = dmEngine::Init(engine, argc, argv);
 
     if (!initialized)
     {
-        if (engine_service)
-        {
-            dmEngineService::Delete(engine_service);
-        }
-
+        // Leave cleaning up of engine service to the finalize call
         Delete(engine);
         return 0;
     }
@@ -1845,39 +1902,36 @@ void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
 
-    if (engine->m_EngineService)
-    {
-        dmEngineService::Delete(engine->m_EngineService);
-    }
-
     Delete(engine);
 }
 
-int dmEngineUpdate(dmEngine::HEngine engine)
+static dmEngine::UpdateResult GetAppResultFromAction(int action)
+{
+    switch(action) {
+    case dmEngine::RunResult::REBOOT:   return dmEngine::RESULT_REBOOT;
+    case dmEngine::RunResult::EXIT:     return dmEngine::RESULT_EXIT;
+    default:                            return dmEngine::RESULT_OK;
+    }
+}
+
+dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine)
 {
     if (dmEngine::IsRunning(engine))
     {
-        dmEngine::PerformStep(engine);
+        dmEngine::Step(engine);
+    }
+    else {
+        if (engine->m_RunResult.m_Action == dmEngine::RunResult::NONE)
+            return dmEngine::RESULT_EXIT;
     }
 
-    if (engine->m_RunResult.m_Action == dmEngine::RunResult::REBOOT)
-    {
-        return 1;
-    }
-    else if (engine->m_RunResult.m_Action == dmEngine::RunResult::EXIT)
-    {
-        return -1;
-    }
-    else
-    {
-        return 0;
-    }
+    return GetAppResultFromAction(engine->m_RunResult.m_Action);
 }
 
 void dmEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
 {
     if (run_action)
-        *run_action = engine->m_RunResult.m_Action;
+        *run_action = (int)GetAppResultFromAction(engine->m_RunResult.m_Action);
     if (exit_code)
         *exit_code = engine->m_RunResult.m_ExitCode;
 

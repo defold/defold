@@ -169,6 +169,14 @@ namespace dmPhysics
         return Vectormath::Aos::Vector3();
     }
 
+    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+    }
+
+    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+    }
+
     bool IsEnabled2D(HCollisionObject2D collision_object)
     {
         return false;

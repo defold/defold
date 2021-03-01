@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -44,7 +44,7 @@ public class LuaScannerTest {
         assertTrue(modules.size() == 1);
         assertEquals(expected, modules.get(0));
     }
-    
+
     @Test
     public void testScanner() throws Exception {
         String file = getFile("test_scanner.lua");
@@ -73,7 +73,7 @@ public class LuaScannerTest {
         assertEquals("foo11", modules.get(20));
         assertEquals("foo12", modules.get(21));
         assertEquals("foo13", modules.get(22));
-        
+
         // test require detection with a trailing comment
         assertValidRequire("require \"foo.bar\" -- some comment", "foo.bar");
         assertValidRequire("require 'foo.bar' -- some comment", "foo.bar");
@@ -192,32 +192,29 @@ public class LuaScannerTest {
     public void testPropsVec3() throws Exception {
         List<Property> properties = scanProperties("test_props_vec3.lua");
 
-        assertEquals(3, properties.size());
+        assertEquals(2, properties.size());
         assertProperty(properties, "prop1", new Vector3d(), 0);
         assertProperty(properties, "prop2", new Vector3d(1, 2, 3), 1);
-        assertPropertyStatus(properties, "prop3", Status.INVALID_VALUE, 2);
     }
 
     @Test
     public void testPropsVec4() throws Exception {
         List<Property> properties = scanProperties("test_props_vec4.lua");
 
-        assertEquals(3, properties.size());
+        assertEquals(2, properties.size());
         assertProperty(properties, "prop1", new Vector4d(), 0);
         assertProperty(properties, "prop2", new Vector4d(1, 2, 3, 4), 1);
-        assertPropertyStatus(properties, "prop3", Status.INVALID_VALUE, 2);
     }
 
     @Test
     public void testPropsQuat() throws Exception {
         List<Property> properties = scanProperties("test_props_quat.lua");
 
-        assertEquals(3, properties.size());
+        assertEquals(2, properties.size());
         assertProperty(properties, "prop1", new Quat4d(), 0);
         Quat4d q = new Quat4d();
         q.set(1, 2, 3, 4);
         assertProperty(properties, "prop2", q, 1);
-        assertPropertyStatus(properties, "prop3", Status.INVALID_VALUE, 2);
     }
 
     @Test

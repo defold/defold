@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -338,6 +338,7 @@ namespace dmGui
         NODE_TYPE_TEMPLATE = 3,
         NODE_TYPE_SPINE = 4,
         NODE_TYPE_PARTICLEFX = 5,
+        NODE_TYPE_COUNT = 6,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -444,6 +445,7 @@ namespace dmGui
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
         int32_t  m_TouchCount;
+        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
@@ -836,6 +838,18 @@ namespace dmGui
      */
     Result UpdateScene(HScene scene, float dt);
 
+    /** Get first child node
+     * @param node Gets the first child node. If 0, gets the first top level node.
+     * @return child The first child node
+     */
+    HNode GetFirstChildNode(HScene scene, HNode node);
+
+    /** Get next sibling
+     * @param node The current sibling
+     * @return sibling The next sibling
+     */
+    HNode GetNextNode(HScene scene, HNode node);
+
     /**
      * Dispatch DDF or lua-table message to gui script. If the descriptor is NULL
      * message should be a serialized lua-table, see dmScript::CheckTable()
@@ -873,6 +887,7 @@ namespace dmGui
 
     void SetNodeId(HScene scene, HNode node, dmhash_t id);
     void SetNodeId(HScene scene, HNode node, const char* id);
+    dmhash_t GetNodeId(HScene scene, HNode node);
 
     HNode GetNodeById(HScene scene, const char* id);
     HNode GetNodeById(HScene scene, dmhash_t id);
@@ -900,6 +915,7 @@ namespace dmGui
     NodeType GetNodeType(HScene scene, HNode node);
 
     Point3 GetNodePosition(HScene scene, HNode node);
+    Matrix4 GetNodeWorldTransform(HScene scene, HNode node);
 
     Vector4 GetNodeSlice9(HScene scene, HNode node);
     Point3 GetNodeSize(HScene scene, HNode node);

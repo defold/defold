@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -206,11 +206,14 @@ namespace dmGameSystem
         memset(buffer_resource, 0, sizeof(BufferResource));
         buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params.m_PreloadData;
         params.m_Resource->m_Resource = (void*) buffer_resource;
+        buffer_resource->m_NameHash = dmHashString64(params.m_Filename);
 
         if (!BuildBuffer(buffer_resource))
         {
             return dmResource::RESULT_INVALID_DATA;
         }
+
+        dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
 
         return dmResource::RESULT_OK;
     }
@@ -240,7 +243,7 @@ namespace dmGameSystem
             return dmResource::RESULT_INVALID_DATA;
         }
 
-        buffer_resource->m_Version++;
+        dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
 
         return dmResource::RESULT_OK;
     }

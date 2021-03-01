@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -605,31 +605,34 @@ public class Fontc {
                 try {
                     int width = paddedGlyphImage.getWidth();
                     int height = paddedGlyphImage.getHeight();
-                    int compressionLevel = TexcLibrary.CompressionLevel.CL_BEST;
-                    int compressionType = TexcLibrary.CompressionType.CT_WEBP;
-
-                    int pixelFormat = PixelFormat.L8;
-                    if (channelCount > 3)
-                        pixelFormat = PixelFormat.R8G8B8A8;
-                    else if (channelCount > 1)
-                        pixelFormat = PixelFormat.R8G8B8;
 
                     ByteBuffer paddedBuffer = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
 
-                    compressedTexture = TexcLibrary.TEXC_CompressWebPBuffer(width, height, channelCount*8, paddedBuffer, width*height*channelCount, pixelFormat, compressionLevel, compressionType);
+                    compressedTexture = TexcLibrary.TEXC_CompressBuffer(paddedBuffer, paddedBuffer.limit());
+                    int texcBufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
+                    ByteBuffer buffer = ByteBuffer.allocateDirect(texcBufferSize);
+                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, texcBufferSize);
 
-                    int bufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
-                    ByteBuffer buffer = ByteBuffer.allocateDirect(bufferSize);
-                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, bufferSize);
+                    byte[] uncompressedBuffer = new byte[paddedBuffer.limit()];
+                    paddedBuffer.get(uncompressedBuffer);
+
+                    byte[] compressedBuffer = new byte[buffer.limit()];
+                    buffer.get(compressedBuffer);
+
+                    int size = uncompressedBuffer.length;
+                    int bufferSize = compressedBuffer.length;
+
+                    if (size < bufferSize)
+                    {
+                        bufferSize = size;
+                        compressedBuffer = uncompressedBuffer;
+                    }
 
                     glyph.cache_entry_offset = dataOffset;
-                    dataOffset += bufferSize;
+                    glyph.cache_entry_size = compressedBuffer.length;
+                    dataOffset += glyph.cache_entry_size;
 
-                    byte[] arr = new byte[buffer.limit()];
-                    buffer.get(arr);
-                    glyphDataBank.write(arr);
-
-                    glyph.cache_entry_size = bufferSize;
+                    glyphDataBank.write(compressedBuffer);
 
                 } catch(IOException e) {
                     throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
@@ -672,7 +675,7 @@ public class Fontc {
                 .setCharacter(glyph.c)
                 .setWidth(glyph.width + (glyph.width > 0 ? padding * 2 : 0))
                 .setAdvance(glyph.advance)
-                .setLeftBearing(glyph.leftBearing - padding)
+                .setLeftBearing(glyph.leftBearing)
                 .setAscent(glyph.ascent + padding)
                 .setDescent(glyph.descent + padding)
                 .setGlyphDataOffset(glyph.cache_entry_offset)

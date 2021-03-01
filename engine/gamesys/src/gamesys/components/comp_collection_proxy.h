@@ -42,6 +42,8 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     dmGameObject::InputResult CompCollectionProxyOnInput(const dmGameObject::ComponentOnInputParams& params);
+
+    void CompCollectionProxyIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node);
 }
 
 #endif // DM_GAMESYS_COLLECTION_PROXY_H

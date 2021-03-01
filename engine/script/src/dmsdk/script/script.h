@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,16 +38,16 @@ namespace dmJson {
 namespace dmScript
 {
     /*# SDK Script API documentation
-     * [file:<dmsdk/script/script.h>]
      *
      * Built-in scripting functions.
      *
      * @document
      * @name Script
      * @namespace dmScript
+     * @path engine/dlib/src/dmsdk/script/script.h
      */
 
-    /*#
+    /**
     * LuaStackCheck struct. Internal
     *
     * LuaStackCheck utility to make sure we check the Lua stack state before leaving a function.
@@ -56,7 +56,7 @@ namespace dmScript
     */
     struct LuaStackCheck
     {
-        LuaStackCheck(lua_State* L, int diff);
+        LuaStackCheck(lua_State* L, int diff, const char* filename, int linenumber);
         ~LuaStackCheck();
         void Verify(int diff);
         #if defined(__GNUC__)
@@ -67,6 +67,11 @@ namespace dmScript
 
         /// The Lua state to check
         lua_State* m_L;
+
+        /// Debug info in case of an assert
+        const char* m_Filename;
+        int m_Linenumber;
+
         /// The current top of the Lua stack (from lua_gettop())
         int m_Top;
         /// The expected difference in stack size when this sctruct goes out of scope
@@ -93,7 +98,7 @@ namespace dmScript
      * lua_pushnumber(L, 42);
      * ```
      */
-    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_);
+    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_, __FILE__, __LINE__);
 
 
     /*# helper macro to validate the Lua stack state and throw a lua error.
@@ -187,79 +192,35 @@ namespace dmScript
      * How to create a Lua callback
      *
      * ```cpp
-     * struct LuaCallbackInfo
-     * {
-     *     LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
-     *     lua_State* m_L;
-     *     int        m_Callback;
-     *     int        m_Self;
-     * };
+     * dmScript::LuaCallbackInfo* g_MyCallbackInfo = 0;
      *
-     * static void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+     * static void InvokeCallback(dmScript::LuaCallbackInfo* cbk)
      * {
-     *     if(cbk->m_Callback != LUA_NOREF)
+     *     if (!dmScript::IsCallbackValid(cbk))
+     *         return;
+     *
+     *     lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+     *     DM_LUA_STACK_CHECK(L, 0)
+     *
+     *     if (!dmScript::SetupCallback(cbk))
      *     {
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
-     *     }
-     *
-     *     cbk->m_L = dmScript::GetMainThread(L);
-     *
-     *     luaL_checktype(L, index, LUA_TFUNCTION);
-     *     lua_pushvalue(L, index);
-     *     cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
-     *
-     *     dmScript::GetInstance(L);
-     *     cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-     * }
-     *
-     * static void UnregisterCallback(LuaCallbackInfo* cbk)
-     * {
-     *     if(cbk->m_Callback != LUA_NOREF)
-     *     {
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
-     *         cbk->m_Callback = LUA_NOREF;
-     *     }
-     * }
-     *
-     * LuaCallbackInfo g_MyCallbackInfo;
-     *
-     * static void InvokeCallback(LuaCallbackInfo* cbk)
-     * {
-     *     if(cbk->m_Callback == LUA_NOREF)
-     *     {
+     *         dmLogError("Failed to setup callback");
      *         return;
      *     }
-     *
-     *     lua_State* L = cbk->m_L;
-     *     int top = lua_gettop(L);
-     *
-     *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
-     *
-     *     // Setup self (the script instance)
-     *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self);
-     *     lua_pushvalue(L, -1);
-     *
-     *     dmScript::SetInstance(L);
      *
      *     lua_pushstring(L, "Hello from extension!");
      *     lua_pushnumber(L, 76);
      *
-     *     int number_of_arguments = 3; // instance + 2
-     *     int ret = lua_pcall(L, number_of_arguments, 0, 0);
-     *     if(ret != 0) {
-     *         dmLogError("Error running callback: %s", lua_tostring(L, -1));
-     *         lua_pop(L, 1);
-     *     }
-     *     assert(top == lua_gettop(L));
+     *     dmScript::PCall(L, 3, 0); // instance + 2
+     *
+     *     dmScript::TeardownCallback(cbk);
      * }
      *
      * static int Start(lua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 0);
      *
-     *     RegisterCallback(L, 1, &g_MyCallbackInfo);
+     *     g_MyCallbackInfo = dmScript::CreateCallback(L, 1);
      *
      *     return 0;
      * }
@@ -271,8 +232,10 @@ namespace dmScript
      *     static int count = 0;
      *     if( count++ == 5 )
      *     {
-     *         InvokeCallback(&g_MyCallbackInfo);
-     *         UnregisterCallback(&g_MyCallbackInfo);
+     *         InvokeCallback(g_MyCallbackInfo);
+     *         if (g_MyCallbackInfo)
+     *             dmScript::DestroyCallback(g_MyCallbackInfo);
+     *         g_MyCallbackInfo = 0;
      *     }
      *     return 0;
      * }
@@ -374,6 +337,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a Vectormath::Aos::Vector3*
+     * @name dmScript::IsVector3
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a Vectormath::Aos::Vector3*
@@ -411,6 +375,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a Vectormath::Aos::Vector4*
+     * @name dmScript::IsVector4
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a Vectormath::Aos::Vector4*
@@ -509,6 +474,8 @@ namespace dmScript
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua
+     * @struct
+     * @name dmScript::LuaCallbackInfo
      */
     struct LuaCallbackInfo;
 
@@ -526,6 +493,34 @@ namespace dmScript
      * @param L Lua state
      * @param index Lua stack index of the function
      * @return Lua callback struct if successful, 0 otherwise
+     *
+     * @examples
+     *
+     * ```cpp
+     * static int SomeFunction(lua_State* L) // called from Lua
+     * {
+     *     LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 1);
+     *     ... store the callback for later
+     * }
+     *
+     * static void InvokeCallback(LuaCallbackInfo* cbk)
+     * {
+     *     lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+     *     DM_LUA_STACK_CHECK(L, 0);
+     *
+     *     if (!dmScript::SetupCallback(callback))
+     *     {
+     *         return;
+     *     }
+     *
+     *     lua_pushstring(L, "hello");
+     *
+     *     dmScript::PCall(L, 2, 0); // self + # user arguments
+     *
+     *     dmScript::TeardownCallback(callback);
+     *     dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
+     * }
+     * ```
      */
     LuaCallbackInfo* CreateCallback(lua_State* L, int index);
 

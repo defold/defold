@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,8 +21,9 @@
 #include "dlib/math.h"
 #include "dlib/thread.h"
 #include "dlib/uri.h"
+#include "dlib/socket.h"
+#include "dlib/sslsocket.h"
 #include "dlib/http_client.h"
-#include "dlib/http_client_private.h"
 #include "dlib/http_cache_verify.h"
 #include "testutil.h"
 
@@ -201,14 +202,14 @@ public:
         self->m_ContentOffset = offset;
     }
 
-    dmHttpClientPrivate::ParseResult Parse(const char* headers, bool end_of_receive)
+    dmHttpClient::ParseResult Parse(const char* headers, bool end_of_receive)
     {
         char* h = strdup(headers);
-        dmHttpClientPrivate::ParseResult r;
-        r = dmHttpClientPrivate::ParseHeader(h, this, end_of_receive,
-                                             &dmHttpClientParserTest::Version,
-                                             &dmHttpClientParserTest::Header,
-                                             &dmHttpClientParserTest::Content);
+        dmHttpClient::ParseResult r;
+        r = dmHttpClient::ParseHeader(h, this, end_of_receive,
+                                     &dmHttpClientParserTest::Version,
+                                     &dmHttpClientParserTest::Header,
+                                     &dmHttpClientParserTest::Content);
         free(h);
         return r;
     }
@@ -228,9 +229,9 @@ TEST_F(dmHttpClientParserTest, TestMoreData)
 {
     const char* headers = "HTTP/1.1 200 OK\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_NEED_MORE_DATA, r);
     ASSERT_EQ(-1, m_Status);
 }
 
@@ -238,18 +239,18 @@ TEST_F(dmHttpClientParserTest, TestSyntaxError)
 {
     const char* headers = "HTTP/x.y 200 OK\r\n\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_SYNTAX_ERROR, r);
 }
 
 TEST_F(dmHttpClientParserTest, TestMissingStatusString)
 {
     const char* headers = "HTTP/1.0 200\r\n\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_SYNTAX_ERROR, r);
 }
 
 TEST_F(dmHttpClientParserTest, TestHeaders)
@@ -260,9 +261,9 @@ TEST_F(dmHttpClientParserTest, TestHeaders)
 "Server: Jetty(7.0.2.v20100331)\r\n"
 "\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
@@ -283,9 +284,9 @@ TEST_F(dmHttpClientParserTest, TestWhitespaceHeaders)
 "Server:  Jetty(7.0.2.v20100331)\r\n"
 "\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
@@ -306,9 +307,9 @@ TEST_F(dmHttpClientParserTest, TestNoWhitespaceHeaders)
 "Server:Jetty(7.0.2.v20100331)\r\n"
 "\r\n";
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
@@ -328,9 +329,9 @@ TEST_F(dmHttpClientParserTest, TestContent)
 "foo\r\n\r\nbar"
 ;
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
 
     ASSERT_STREQ("foo\r\n\r\nbar", headers + m_ContentOffset);
 }
@@ -345,9 +346,9 @@ TEST_F(dmHttpClientParserTest, TestContentAndHeaders)
 "30"
 ;
 
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, false);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
     ASSERT_EQ("text/html;charset=UTF-8", m_Headers["Content-Type"]);
     ASSERT_EQ("2", m_Headers["Content-Length"]);
     ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
@@ -361,9 +362,9 @@ TEST_F(dmHttpClientParserTest, TestNoContent)
     const char* headers = "HTTP/1.1 204 No Content\r\n"
 "Server: Jetty(7.0.2.v20100331)\r\n"
 ;
-    dmHttpClientPrivate::ParseResult r;
+    dmHttpClient::ParseResult r;
     r = Parse(headers, true);
-    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(dmHttpClient::PARSE_RESULT_OK, r);
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
     ASSERT_EQ(204, m_Status);
@@ -856,7 +857,7 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     //       But Encode for now is kind to not encode '/'
     const char* message = "testing 1 2";
     snprintf(buf, 128, "/echo/%s", message);
-    dmURI::Encode(buf, uri, sizeof(uri));
+    dmURI::Encode(buf, uri, sizeof(uri), 0);
 
     m_Content = "";
     dmHttpClient::Result r = dmHttpClient::Get(m_Client, uri);
@@ -897,6 +898,7 @@ TEST_P(dmHttpClientTestExternal, PostExternal)
 const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
+#if !defined(GITHUB_CI)
 // For easier debugging, we can use external sites to monitor their responses
 // NOTE: These buckets might expire. If so, we'll have to disable that server test
 const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
@@ -904,6 +906,8 @@ const char* params_http_client_external_test[] = {  // They expire after a few d
                                                     "https://httpbin.org/post",
                                                     "https://ptsv2.com/t/csphn-1581795004/post"};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
+#endif
+
 
 const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
@@ -1169,10 +1173,12 @@ int main(int argc, char **argv)
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
+    dmSSLSocket::Initialize();
     dmDNS::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmDNS::Finalize();
+    dmSSLSocket::Finalize();
     dmSocket::Finalize();
     return ret;
 }

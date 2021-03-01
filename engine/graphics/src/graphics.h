@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,7 @@
 
 #include <dmsdk/graphics/graphics.h>
 #include <ddf/ddf.h>
+#include <graphics/graphics_ddf.h>
 #include <graphics/graphics_ddf.h>
 
 namespace dmGraphics
@@ -60,6 +61,8 @@ namespace dmGraphics
     typedef int32_t (*WindowIsRunning)(void* user_data);
 
     // See documentation in engine.h
+    typedef void (*EngineInit)(void* ctx);
+    typedef void (*EngineExit)(void* ctx);
     typedef void* (*EngineCreate)(int argc, char** argv);
     typedef void (*EngineDestroy)(void* engine);
     typedef int (*EngineUpdate)(void* engine);
@@ -130,36 +133,35 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA                 = 3,
         TEXTURE_FORMAT_RGB_16BPP            = 4,
         TEXTURE_FORMAT_RGBA_16BPP           = 5,
-        TEXTURE_FORMAT_RGB_DXT1             = 6,
-        TEXTURE_FORMAT_RGBA_DXT1            = 7,
-        TEXTURE_FORMAT_RGBA_DXT3            = 8,
-        TEXTURE_FORMAT_RGBA_DXT5            = 9,
-        TEXTURE_FORMAT_DEPTH                = 10,
-        TEXTURE_FORMAT_STENCIL              = 11,
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 12,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 13,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 14,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 15,
-        TEXTURE_FORMAT_RGB_ETC1             = 16,
+        TEXTURE_FORMAT_DEPTH                = 6,
+        TEXTURE_FORMAT_STENCIL              = 7,
+        // Compressed formats
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
+        TEXTURE_FORMAT_RGB_ETC1             = 12,
+        TEXTURE_FORMAT_R_ETC2               = 13,
+        TEXTURE_FORMAT_RG_ETC2              = 14,
+        TEXTURE_FORMAT_RGBA_ETC2            = 15,
+        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
+        TEXTURE_FORMAT_RGB_BC1              = 17,
+        TEXTURE_FORMAT_RGBA_BC3             = 18,
+        TEXTURE_FORMAT_R_BC4                = 19,
+        TEXTURE_FORMAT_RG_BC5               = 20,
+        TEXTURE_FORMAT_RGBA_BC7             = 21,
 
         // Floating point texture formats
-        TEXTURE_FORMAT_RGB16F               = 17,
-        TEXTURE_FORMAT_RGB32F               = 18,
-        TEXTURE_FORMAT_RGBA16F              = 19,
-        TEXTURE_FORMAT_RGBA32F              = 20,
-        TEXTURE_FORMAT_R16F                 = 21,
-        TEXTURE_FORMAT_RG16F                = 22,
-        TEXTURE_FORMAT_R32F                 = 23,
-        TEXTURE_FORMAT_RG32F                = 24,
+        TEXTURE_FORMAT_RGB16F               = 22,
+        TEXTURE_FORMAT_RGB32F               = 23,
+        TEXTURE_FORMAT_RGBA16F              = 24,
+        TEXTURE_FORMAT_RGBA32F              = 25,
+        TEXTURE_FORMAT_R16F                 = 26,
+        TEXTURE_FORMAT_RG16F                = 27,
+        TEXTURE_FORMAT_R32F                 = 28,
+        TEXTURE_FORMAT_RG32F                = 29,
 
         TEXTURE_FORMAT_COUNT
-    };
-
-    // Translation table to translate TextureFormat texture to BPP
-    struct TextureFormatToBPP
-    {
-        uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
-        TextureFormatToBPP();
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -305,8 +307,8 @@ namespace dmGraphics
 
     enum TextureStatusFlags
     {
-        TEXTURE_STATUS_OK           = 0,
-        TEXTURE_STATUS_DATA_PENDING = (1 << 0),
+        TEXTURE_STATUS_OK               = 0,
+        TEXTURE_STATUS_DATA_PENDING     = (1 << 0), // Currently waiting for the upload to be done
     };
 
     struct VertexElement
@@ -416,9 +418,11 @@ namespace dmGraphics
 
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
+        uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
         uint8_t       m_VerifyGraphicsCalls : 1;
-        uint8_t       m_RenderDocSupport : 1;
-        uint8_t       : 6;
+        uint8_t       m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t       m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t       : 5;
     };
 
     /** Creates a graphics context
@@ -443,9 +447,9 @@ namespace dmGraphics
     void Finalize();
 
     /**
-     * Starts the app that needs to control the update loop (e.g iOS)
+     * Starts the app that needs to control the update loop (iOS only)
      */
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+    void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
 
     /**
      * Get the window refresh rate
@@ -663,6 +667,7 @@ namespace dmGraphics
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
+    TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 
@@ -697,10 +702,31 @@ namespace dmGraphics
     /**
      * Get status of texture.
      *
+     * @name GetTextureStatusFlags
      * @param texture HTexture
      * @return  TextureStatusFlags enumerated status bit flags
      */
     uint32_t GetTextureStatusFlags(HTexture texture);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param format dmGraphics::TextureImage::CompressionType
+     * @return true if the format is compressed
+     */
+    bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param path The path of the texture
+     * @param image The input image
+     * @param format The desired output format
+     * @param images An array of transcoded mipmaps
+     * @param sizes An array of transcoded mipmap sizes
+     * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
+     * @param format dmGraphics::TextureImage::CompressionType
+     * @return true if the format is transcoded
+     */
+    bool Transcode(const char* path, TextureImage::Image* image, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 
     /**
      * Read frame buffer pixels in BGRA format
@@ -732,14 +758,6 @@ namespace dmGraphics
         else
             return ~0u;
     }
-
-    /**
-     * Iterates the application loop until it should be terminated.
-     * @param user_data user data supplied to both the step and is running methods.
-     * @param stepMethod the method to be used when executing a single iteration of the application loop.
-     * @param isRunning the method used when determining whether iteration of the application loop should continue.
-     */
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
 }
 
 #endif // DM_GRAPHICS_H

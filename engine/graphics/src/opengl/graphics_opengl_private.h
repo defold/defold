@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -47,8 +47,8 @@ namespace dmGraphics
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
-        uint32_t                m_TextureFormatSupport;
         uint32_t                m_IndexBufferFormatSupport;
+        uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         uint8_t                 m_FrameBufferInvalidateAttachments : 1;
@@ -56,6 +56,8 @@ namespace dmGraphics
         uint8_t                 m_WindowOpened : 1;
         uint8_t                 m_VerifyGraphicsCalls : 1;
         uint8_t                 m_RenderDocSupport : 1;
+        uint8_t                 m_IsGles3Version : 1; // 0 == gles 2, 1 == gles 3
+        uint8_t                 m_IsShaderLanguageGles : 1; // 0 == glsl, 1 == gles
     };
 
     static inline void IncreaseModificationVersion(Context* context)
@@ -68,6 +70,7 @@ namespace dmGraphics
     {
         TextureType m_Type;
         GLuint      m_Texture;
+        uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
         uint16_t    m_Width;
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
