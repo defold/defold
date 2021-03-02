@@ -200,7 +200,6 @@ namespace dmGameObject
 
     #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
 
-    // TODO: Move to component.cpp /MAWE
     struct Register
     {
         uint32_t                    m_ComponentTypeCount;
