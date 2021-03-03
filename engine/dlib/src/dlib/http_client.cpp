@@ -1097,7 +1097,7 @@ bail:
             dmHttpCache::Result cache_r = dmHttpCache::GetInfo(client->m_HttpCache, client->m_URI, &info);
             if (cache_r == dmHttpCache::RESULT_OK) {
                 bool ok_etag = info.m_Verified && policy == dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE;
-                if ((ok_etag || info.m_Valid || client->m_TrustCache)) {
+                if ((ok_etag || info.m_Valid || client->m_TrustCache)) {
                     // We have a cache and trust the content of the cache
                     // OR
                     // the entry is valid in terms of max-age
