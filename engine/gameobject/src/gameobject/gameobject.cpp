@@ -32,7 +32,7 @@
 #include "gameobject_props_ddf.h"
 
 #include "res_collection.h"
-#include "res_prototype.h"
+#include "res_gameobject.h"
 #include "res_script.h"
 #include "res_lua.h"
 #include "res_anim.h"
@@ -556,9 +556,6 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, &ResPrototypeRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
 
         ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate);
         if (ret != dmResource::RESULT_OK)

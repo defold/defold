@@ -1,19 +1,20 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "res_prototype.h"
+//#include "res_gameobject.h"
 
 #include <dlib/log.h>
 
+#include <dmsdk/resource/resource.h>
 #include "gameobject_private.h"
 #include "gameobject_props.h"
 #include "gameobject_props_ddf.h"
@@ -118,7 +119,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResPrototypePreload(const dmResource::ResourcePreloadParams& params)
+    static dmResource::Result ResGameObjectPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameObjectDDF::PrototypeDesc* proto_desc;
         dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
@@ -151,7 +152,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResPrototypeCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResGameObjectCreate(const dmResource::ResourceCreateParams& params)
     {
         HRegister regist = (HRegister) params.m_Context;
         dmGameObjectDDF::PrototypeDesc* proto_desc = (dmGameObjectDDF::PrototypeDesc*) params.m_PreloadData;
@@ -169,7 +170,7 @@ namespace dmGameObject
         return r;
     }
 
-    dmResource::Result ResPrototypeDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResGameObjectDestroy(const dmResource::ResourceDestroyParams& params)
     {
         Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, proto);
@@ -177,7 +178,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResPrototypeRecreate(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResGameObjectRecreate(const dmResource::ResourceRecreateParams& params)
     {
         Register* regist = (Register*) params.m_Context;
         dmGameObjectDDF::PrototypeDesc* proto_desc;
@@ -204,4 +205,22 @@ namespace dmGameObject
         dmDDF::FreeMessage(proto_desc);
         return r;
     }
+
+
+    static dmResource::Result RegisterResourceTypeGameObject(dmResource::ResourceTypeRegisterContext& ctx)
+    {
+        // The engine.cpp creates the contexts for our built in types.
+        void** context = ctx.m_Contexts->Get(ctx.m_NameHash);
+        assert(context);
+        return dmResource::RegisterType(ctx.m_Factory,
+                                           ctx.m_Name,
+                                           *context,
+                                           ResGameObjectPreload,
+                                           ResGameObjectCreate,
+                                           0,
+                                           ResGameObjectDestroy,
+                                           ResGameObjectRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeGameObject, "goc", dmGameObject::RegisterResourceTypeGameObject, 0);

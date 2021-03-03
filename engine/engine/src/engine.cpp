@@ -218,6 +218,7 @@ namespace dmEngine
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
+        m_ResourceTypeContexts.SetCapacity(31, 64);
 
         m_PhysicsContext.m_Context3D = 0x0;
         m_PhysicsContext.m_Debug = false;
@@ -248,6 +249,11 @@ namespace dmEngine
         dmHttpClient::ShutdownConnectionPool();
 
         dmLiveUpdate::Finalize();
+
+        // Reregister the types before the rest of the contexts are deleted
+        if (engine->m_Factory) {
+            dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
+        }
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
@@ -1015,6 +1021,15 @@ namespace dmEngine
 
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+
+        engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
+
+        fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
+        if (fact_result != dmResource::RESULT_OK)
+            goto bail;
 
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
         if (fact_result != dmResource::RESULT_OK)
