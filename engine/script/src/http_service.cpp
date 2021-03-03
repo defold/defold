@@ -224,6 +224,7 @@ namespace dmHttpService
             params.m_HttpCache = request->m_IgnoreCache ? 0 : worker->m_Service->m_HttpCache;
             params.m_DNSChannel = worker->m_DNSChannel;
             params.m_RequestTimeout = request->m_Timeout;
+            params.m_TrustCache = request->m_TrustCache;
 
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
