@@ -1133,16 +1133,6 @@ namespace dmGameObject
     };
 
     /**
-     * Register all resource types in resource factory
-     * @param factory Resource factory
-     * @param regist Register
-     * @param script_context Script context
-     * @param module_context Module context, must be persistent throughout the application
-     * @return dmResource::Result
-     */
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context);
-
-    /**
      * Register all component types in collection
      * @param factory Resource factory
      * @param regist Register

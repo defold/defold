@@ -31,8 +31,6 @@
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
 
-#include "res_anim.h"
-
 #include "../proto/gameobject/gameobject_ddf.h"
 
 namespace dmGameObject
@@ -549,16 +547,6 @@ namespace dmGameObject
         std::sort(regist->m_ComponentTypesOrder, regist->m_ComponentTypesOrder + regist->m_ComponentTypeCount, ComponentTypeSortPred(regist));
     }
 
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
-    {
-        dmResource::Result ret = dmResource::RESULT_OK;
-
-        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        return ret;
-    }
 
     static void EraseSwapLevelIndex(Collection* collection, HInstance instance)
     {

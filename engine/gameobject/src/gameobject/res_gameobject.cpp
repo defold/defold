@@ -206,7 +206,6 @@ namespace dmGameObject
         return r;
     }
 
-
     static dmResource::Result RegisterResourceTypeGameObject(dmResource::ResourceTypeRegisterContext& ctx)
     {
         // The engine.cpp creates the contexts for our built in types.

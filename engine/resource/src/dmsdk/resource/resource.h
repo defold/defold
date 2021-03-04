@@ -25,6 +25,7 @@
 
 
 #include <stdint.h>
+#include <dmsdk/dlib/align.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/hashtable.h>
 
