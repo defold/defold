@@ -31,8 +31,6 @@
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
 
-#include "res_script.h"
-#include "res_lua.h"
 #include "res_anim.h"
 
 #include "../proto/gameobject/gameobject_ddf.h"
@@ -554,14 +552,6 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
 
         ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0);
         if (ret != dmResource::RESULT_OK)

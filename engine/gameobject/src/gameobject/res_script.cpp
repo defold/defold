@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,7 +12,8 @@
 
 #include <string.h>
 #include <script/script.h>
-#include "res_script.h"
+
+#include <dmsdk/resource/resource.h>
 #include "res_lua.h"
 #include "../proto/gameobject/lua_ddf.h"
 #include "gameobject_script.h"
@@ -20,7 +21,7 @@
 
 namespace dmGameObject
 {
-    dmResource::Result ResScriptPreload(const dmResource::ResourcePreloadParams& params)
+    static dmResource::Result ResScriptPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
@@ -44,7 +45,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResScriptCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResScriptCreate(const dmResource::ResourceCreateParams& params)
     {
         dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*) params.m_PreloadData;
 
@@ -77,7 +78,7 @@ namespace dmGameObject
         }
     }
 
-    dmResource::Result ResScriptDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResScriptDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HScript script = (HScript)params.m_Resource->m_Resource;
         UnloadPropertyResources(params.m_Factory, script->m_PropertyResources);
@@ -86,7 +87,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResScriptRecreate(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResScriptRecreate(const dmResource::ResourceRecreateParams& params)
     {
         HScript script = (HScript) params.m_Resource->m_Resource;
 
@@ -123,4 +124,21 @@ namespace dmGameObject
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
+
+    static dmResource::Result RegisterResourceTypeScript(dmResource::ResourceTypeRegisterContext& ctx)
+    {
+        // The engine.cpp creates the contexts for our built in types.
+        void** context = ctx.m_Contexts->Get(ctx.m_NameHash);
+        assert(context);
+        return dmResource::RegisterType(ctx.m_Factory,
+                                           ctx.m_Name,
+                                           *context,
+                                           ResScriptPreload,
+                                           ResScriptCreate,
+                                           0,
+                                           ResScriptDestroy,
+                                           ResScriptRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeScript, "scriptc", dmGameObject::RegisterResourceTypeScript, 0);
