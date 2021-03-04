@@ -10,6 +10,10 @@ def build(bld):
     if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
+    additional_libs = []
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-darwin'):
+        additional_libs += ['UNWIND']
+
     graphics_lib = 'GRAPHICS_NULL'
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
@@ -18,7 +22,7 @@ def build(bld):
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
-        uselib = 'TESTMAIN RECORD CRASH UNWIND VPX PROFILEREXT GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES',
+        uselib = 'TESTMAIN RECORD CRASH VPX PROFILEREXT GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES'.split() + additional_libs,
         exported_symbols = exported_symbols + resource_type_symbols,
         uselib_local = 'engine engine_service',
         web_libs = ['library_sys.js', 'library_script.js'],
