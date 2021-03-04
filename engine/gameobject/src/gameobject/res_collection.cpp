@@ -10,8 +10,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "res_collection.h"
-
+#include <dmsdk/resource/resource.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
@@ -210,7 +209,7 @@ bail:
         return res;
     }
 
-    dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params)
+    static dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameObjectDDF::CollectionDesc* collection_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
@@ -250,7 +249,7 @@ bail:
         return size;
     }
 
-    dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params)
     {
         Register* regist = (Register*) params.m_Context;
         dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params.m_PreloadData;
@@ -269,7 +268,7 @@ bail:
         return res;
     }
 
-    dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HCollection hcollection = (HCollection) params.m_Resource->m_Resource;
         UnloadPropertyResources(params.m_Factory, hcollection->m_Collection->m_PropertyResources);
@@ -277,7 +276,7 @@ bail:
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params)
     {
         dmGameObjectDDF::CollectionDesc* collection_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
@@ -352,5 +351,20 @@ bail:
         return res;
     }
 
-
+    static dmResource::Result RegisterResourceTypeCollection(dmResource::ResourceTypeRegisterContext& ctx)
+    {
+        // The engine.cpp creates the contexts for our built in types.
+        void** context = ctx.m_Contexts->Get(ctx.m_NameHash);
+        assert(context);
+        return dmResource::RegisterType(ctx.m_Factory,
+                                           ctx.m_Name,
+                                           *context,
+                                           ResCollectionPreload,
+                                           ResCollectionCreate,
+                                           0,
+                                           ResCollectionDestroy,
+                                           ResCollectionRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeCollection, "collectionc", dmGameObject::RegisterResourceTypeCollection, 0);

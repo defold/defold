@@ -1838,7 +1838,7 @@ void RegisterTypeCreatorDesc(struct TypeCreatorDesc* desc,
     desc->m_Name = name;
     desc->m_RegisterFn = register_fn;
     desc->m_DeregisterFn = deregister_fn;
-    desc->m_Next = 0;
+    desc->m_Next = g_ResourceTypeCreatorDescFirst;
     g_ResourceTypeCreatorDescFirst = desc;
 }
 
@@ -1871,7 +1871,7 @@ Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
             return result;
         }
 
-        dmLogError("Registered type '%s'", desc->m_Name);
+        dmLogDebug("Registered type '%s'", desc->m_Name);
         desc = desc->m_Next;
     }
     return RESULT_OK;
@@ -1896,7 +1896,7 @@ Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
                 dmLogError("Failed to deregister type '%s': %s", desc->m_Name, ResultToString(result));
                 return result;
             }
-            dmLogError("Deregistered type '%s'", desc->m_Name);
+            dmLogDebug("Deregistered type '%s'", desc->m_Name);
         }
 
         desc = desc->m_Next;

@@ -31,8 +31,6 @@
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
 
-#include "res_collection.h"
-#include "res_gameobject.h"
 #include "res_script.h"
 #include "res_lua.h"
 #include "res_anim.h"
@@ -562,10 +560,6 @@ namespace dmGameObject
             return ret;
 
         ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, &ResCollectionRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
