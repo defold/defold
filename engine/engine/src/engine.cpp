@@ -169,6 +169,11 @@ namespace dmEngine
     static void OnWindowIconify(void* user_data, uint32_t iconify)
     {
         Engine* engine = (Engine*)user_data;
+
+        // We reset the time on both events because
+        // on some platforms both events will arrive when regaining focus
+        engine->m_PreviousFrameTime = dmTime::GetTime(); // we might have stalled for a long time
+
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
         params.m_L          = 0;
@@ -1320,6 +1325,10 @@ bail:
             if (dt > max) {
                 dt = max;
             }
+        }
+
+        if (engine->m_WasIconified && !engine->m_RunWhileIconified && dt > 0.5f) {
+            dt = fixed_dt;
         }
         engine->m_PreviousFrameTime = time;
 
