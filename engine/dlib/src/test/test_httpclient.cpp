@@ -848,6 +848,53 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+TEST_P(dmHttpClientTest, TrustCache)
+{
+    dmHttpClient::Delete(m_Client);
+
+    // Reinit client with http-cache
+    dmHttpClient::NewParams params;
+    params.m_Userdata = this;
+    params.m_HttpContent = dmHttpClientTest::HttpContent;
+    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
+    params.m_TrustCache = true;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = "tmp/cache";
+    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0);
+    ASSERT_NE((void*) 0, m_Client);
+
+    dmHttpClient::Result r;
+    r = dmHttpClient::Get(m_Client, "/max-age-cached");
+    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
+    std::string val = m_Content;
+
+    // The web-server is returning System.currentTimeMillis()
+    // Ensure next ms
+    dmTime::Sleep(1U);
+
+    m_Content = "";
+    r = dmHttpClient::Get(m_Client, "/max-age-cached");
+    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
+    ASSERT_STREQ(m_Content.c_str(), val.c_str());
+
+    // max-age is 1 second
+    dmTime::Sleep(1000000U);
+
+    // The cached response has expired since it is older than max-age but
+    // we have told the client to trust the cache and use a cached response
+    // if it exists
+    m_Content = "";
+    r = dmHttpClient::Get(m_Client, "/max-age-cached");
+    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
+    ASSERT_STREQ(m_Content.c_str(), val.c_str());
+
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+}
+
 TEST_P(dmHttpClientTest, PathWithSpaces)
 {
     char buf[128], uri[128];
