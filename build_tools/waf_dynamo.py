@@ -347,7 +347,7 @@ def default_flags(self):
             if "osx" == build_util.get_target_os():
                 self.env.append_value(f, ['-stdlib=libc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
-                self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
+                self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
                 if 'linux' in self.env['BUILD_PLATFORM']:
                     self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
@@ -457,6 +457,12 @@ def default_flags(self):
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     platform_setup_vars(self, build_util)
+
+    if Options.options.with_iwyu and 'IWYU' in self.env:
+        wrapper = build_util.get_dynamo_home('..', '..', 'scripts', 'iwyu-clang.sh')
+        for f in ['CC', 'CXX']:
+            self.env[f] = [wrapper, self.env[f][0]]
+
 
 # Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
 @feature('remove_flags')
@@ -1798,11 +1804,6 @@ def detect(conf):
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
-
-    if Options.options.with_iwyu:
-        if 'IWYU' in conf.env:
-            conf.env['CC'] = conf.env['IWYU']
-            conf.env['CXX'] = conf.env['IWYU']
 
 def configure(conf):
     detect(conf)
