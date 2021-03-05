@@ -1456,6 +1456,9 @@ def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
 
+    if Options.options.with_iwyu:
+        conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
+
     platform = None
     if getattr(Options.options, 'platform', None):
         platform=getattr(Options.options, 'platform')
@@ -1790,6 +1793,10 @@ def detect(conf):
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
 
+    if Options.options.with_iwyu:
+        if 'IWYU' in conf.env:
+            conf.env['CC'] = conf.env['IWYU']
+            conf.env['CXX'] = conf.env['IWYU']
 
 def configure(conf):
     detect(conf)
@@ -1815,6 +1822,7 @@ def set_options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
