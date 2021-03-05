@@ -575,6 +575,8 @@ namespace dmEngine
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
         const char renderdoc_support_arg[] = "--renderdoc";
         const char validation_layers_support_arg[] = "--use-validation-layers";
+        const char verbose_long[] = "--verbose";
+        const char verbose_short[] = "-v";
         for (int i = 0; i < argc; ++i)
         {
             const char* arg = argv[i];
@@ -596,6 +598,11 @@ namespace dmEngine
             else if (strncmp(validation_layers_support_arg, arg, sizeof(validation_layers_support_arg)-1) == 0)
             {
                 use_validation_layers = true;
+            }
+            else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
+                     strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
+            {
+                dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
             }
         }
 
