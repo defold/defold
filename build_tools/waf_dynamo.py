@@ -303,6 +303,12 @@ def default_flags(self):
     if Options.options.ndebug:
         flags += [self.env.CXXDEFINES_ST % 'NDEBUG']
 
+    if Options.options.show_includes:
+        if 'win' == build_util.get_target_os():
+            flags += ['/showIncludes']
+        else:
+            flags += ['-H']
+
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
@@ -1823,6 +1829,7 @@ def set_options(opt):
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
+    opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
