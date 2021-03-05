@@ -878,7 +878,7 @@ TEST_P(dmHttpClientTest, TrustCache)
     m_Content = "";
     r = dmHttpClient::Get(m_Client, "/max-age-cached");
     ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
-    ASSERT_STREQ(m_Content.c_str(), val.c_str());
+    ASSERT_STREQ(val.c_str(), m_Content.c_str());
 
     // max-age is 1 second
     dmTime::Sleep(1000000U);
@@ -889,7 +889,7 @@ TEST_P(dmHttpClientTest, TrustCache)
     m_Content = "";
     r = dmHttpClient::Get(m_Client, "/max-age-cached");
     ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
-    ASSERT_STREQ(m_Content.c_str(), val.c_str());
+    ASSERT_STREQ(val.c_str(), m_Content.c_str());
 
     cache_r = dmHttpCache::Close(params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
