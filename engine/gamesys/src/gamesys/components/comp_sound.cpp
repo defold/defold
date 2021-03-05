@@ -25,6 +25,8 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"
+#include "comp_private.h"
+
 
 namespace dmGameSystem
 {
@@ -61,6 +63,7 @@ namespace dmGameSystem
     static const dmhash_t SOUND_PROP_GAIN   = dmHashString64("gain");
     static const dmhash_t SOUND_PROP_PAN    = dmHashString64("pan");
     static const dmhash_t SOUND_PROP_SPEED  = dmHashString64("speed");
+    static const dmhash_t SOUND_PROP_SOUND  = dmHashString64("sound");
 
     dmGameObject::CreateResult CompSoundNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -466,12 +469,15 @@ namespace dmGameSystem
         uint32_t index = *params.m_UserData;
         SoundComponent* component = &world->m_Components.Get(index);
 
-        dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
-        if (parameter == dmSound::PARAMETER_MAX) {
-            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        if (params.m_PropertyId == SOUND_PROP_SOUND) {
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundData, out_value);
+        } else {
+            dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
+            if (parameter == dmSound::PARAMETER_MAX) {
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            }
+            return SoundGetParameter(world, params.m_Instance, component, parameter, out_value);
         }
-
-        return SoundGetParameter(world, params.m_Instance, component, parameter, out_value);
     }
 
     dmGameObject::PropertyResult CompSoundSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

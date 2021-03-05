@@ -474,6 +474,41 @@ static int SetTexture(lua_State* L)
     return 0;
 }
 
+/*# Update internal sound resource
+ * Update internal sound resource (wavc/oggc) with new data
+ *
+ * @name resource.set_sound
+ *
+ * @param path [type:hash|string] The path to the resource
+ * @param table [type:table] A table containing info about the sound. No relevant info yet.
+ */
+static int SetSound(lua_State* L) {
+    DM_LUA_STACK_CHECK(L, 0);
+
+    dmLogError("IN SetSound");
+
+    // get resource path as hash
+    const dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    // get the sound buffer
+    luaL_checktype(L, 2, LUA_TSTRING);
+    size_t buffer_size;
+    const char* buffer = lua_tolstring(L, 2, &buffer_size);
+    dmLogInfo("buffer size: %zu", buffer_size);
+    dmLogInfo("buffer itself: %s", buffer);
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) buffer, buffer_size);
+
+    if( r != dmResource::RESULT_OK )
+    {
+        // assert(top == lua_gettop(L));
+        return ReportPathError(L, r, path_hash);
+    }
+
+    // assert(top == lua_gettop(L));
+    return 0;
+}
+
+
 /*# get resource buffer
  * gets the buffer from a resource
  *
@@ -667,6 +702,7 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
+    {"set_sound", SetSound},
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},
 
