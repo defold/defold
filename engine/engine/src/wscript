@@ -47,6 +47,7 @@ def build(bld):
     additional_libs = ['CRASH']
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript']
     exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
@@ -105,7 +106,7 @@ def build(bld):
         uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
-        exported_symbols = exported_symbols + resource_type_symbols,
+        exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',
@@ -133,7 +134,7 @@ def build(bld):
         uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
-        exported_symbols = exported_symbols + resource_type_symbols,
+        exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX DM_RELEASE=1',
@@ -158,7 +159,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CARES CRASH'.split() + graphics_lib.split() + additional_libs,
-        exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'] + resource_type_symbols,
+        exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         includes = '../build ../proto . ..',

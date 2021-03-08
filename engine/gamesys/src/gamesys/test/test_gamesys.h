@@ -16,12 +16,12 @@
 #include <hid/hid.h>
 
 #include <sound/sound.h>
-#include <gameobject/gameobject.h>
+#include <gameobject/component.h>
 #include <rig/rig.h>
 
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
-#include "../components/comp_gui.h"
+#include "../components/comp_gui_private.h" // BoxVertex
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -254,14 +254,13 @@ void GamesysTest<T>::SetUp()
     dmScript::Initialize(m_ScriptContext);
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
+
     m_Contexts.SetCapacity(7,16);
     m_Contexts.Put(dmHashString64("goc"), m_Register);
     m_Contexts.Put(dmHashString64("collectionc"), m_Register);
     m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
     m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
-
-    dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
 
     dmGraphics::Initialize();
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
@@ -343,9 +342,18 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
+    dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+    component_create_ctx.m_Script = m_ScriptContext;
+    component_create_ctx.m_Register = m_Register;
+    component_create_ctx.m_Factory = m_Factory;
+    dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
                                                                                                     &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
+
+    // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
+    //dmGameObject::SortComponentTypes(m_Register);
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

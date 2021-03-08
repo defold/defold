@@ -19,8 +19,8 @@
 #include <dlib/easing.h>
 #include <dlib/time.h>
 
-#include "../gameobject.h"
-#include "../gameobject_private.h"
+#include "../../gameobject.h"
+#include "../../gameobject_private.h"
 
 using namespace Vectormath::Aos;
 
@@ -47,7 +47,13 @@ protected:
         m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
         dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
+        dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+        component_create_ctx.m_Script = m_ScriptContext;
+        component_create_ctx.m_Register = m_Register;
+        component_create_ctx.m_Factory = m_Factory;
+        dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+        dmGameObject::SortComponentTypes(m_Register);
+
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
         m_FinishCount = 0;
         m_CancelCount = 0;

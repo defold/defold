@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -13,29 +13,12 @@
 #ifndef DM_GAMESYS_COMP_TILEGRID_H
 #define DM_GAMESYS_COMP_TILEGRID_H
 
-#include <gameobject/gameobject.h>
+#include <gameobject/component.h>
+// for scripting
+#include <stdint.h>
 
 namespace dmGameSystem
 {
-    struct TileGridComponent;
-
-    // Script support
-    uint32_t CalculateCellIndex(uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t column_count, uint32_t row_count);
-
-    uint32_t GetLayerIndex(const TileGridComponent* component, dmhash_t layer_id);
-
-    void GetTileGridBounds(const TileGridComponent* component, int32_t* x, int32_t* y, int32_t* w, int32_t* h);
-
-    void GetTileGridCellCoord(const TileGridComponent* component, int32_t x, int32_t y, int32_t& cell_x, int32_t& cell_y);
-
-    uint16_t GetTileGridTile(const TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y);
-
-    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v);
-
-    uint16_t GetTileCount(const TileGridComponent* component);
-
-    void SetLayerVisible(TileGridComponent* component, uint32_t layer, bool visible);
-
     // Component api functions
     dmGameObject::CreateResult CompTileGridNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
@@ -58,6 +41,25 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompTileGridGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    // Script support
+    struct TileGridComponent;
+
+    uint32_t CalculateCellIndex(uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t column_count, uint32_t row_count);
+
+    uint32_t GetLayerIndex(const TileGridComponent* component, dmhash_t layer_id);
+
+    void GetTileGridBounds(const TileGridComponent* component, int32_t* x, int32_t* y, int32_t* w, int32_t* h);
+
+    void GetTileGridCellCoord(const TileGridComponent* component, int32_t x, int32_t y, int32_t& cell_x, int32_t& cell_y);
+
+    uint16_t GetTileGridTile(const TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y);
+
+    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v);
+
+    uint16_t GetTileCount(const TileGridComponent* component);
+
+    void SetLayerVisible(TileGridComponent* component, uint32_t layer, bool visible);
 }
 
 #endif

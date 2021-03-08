@@ -73,6 +73,7 @@ protected:
         dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
+
         m_Contexts.SetCapacity(7,16);
         m_Contexts.Put(dmHashString64("goc"), m_Register);
         m_Contexts.Put(dmHashString64("collectionc"), m_Register);
@@ -80,7 +81,13 @@ protected:
         m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
         dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
+        dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+        component_create_ctx.m_Script = m_ScriptContext;
+        component_create_ctx.m_Register = m_Register;
+        component_create_ctx.m_Factory = m_Factory;
+        dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+        dmGameObject::SortComponentTypes(m_Register);
+
         dmMessage::Result result = dmMessage::NewSocket("@system", &m_Socket);
         assert(result == dmMessage::RESULT_OK);
 

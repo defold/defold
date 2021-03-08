@@ -28,7 +28,6 @@
  * @path engine/gameobject/src/dmsdk/gameobject/gameobject.h
  */
 
-
 namespace dmMessage
 {
     struct URL;
@@ -171,6 +170,36 @@ namespace dmGameObject
         PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10
     };
 
+    /*# Create result enum
+     *
+     * Create result enum.
+     *
+     * @enum
+     * @name Result
+     * @member dmGameObject::CREATE_RESULT_OK
+     * @member dmGameObject::CREATE_RESULT_UNKNOWN_ERROR
+     */
+    enum CreateResult
+    {
+        CREATE_RESULT_OK = 0,
+        CREATE_RESULT_UNKNOWN_ERROR = -1000,
+    };
+
+
+    /*# Update result enum
+     *
+     * Update result enum.
+     *
+     * @enum
+     * @name Result
+     * @member dmGameObject::UPDATE_RESULT_OK
+     * @member dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR
+     */
+    enum UpdateResult
+    {
+        UPDATE_RESULT_OK = 0,
+        UPDATE_RESULT_UNKNOWN_ERROR = -1000,
+    };
 
     /*# property variant
      * Property variant that holds the data for a variable
@@ -601,3 +630,4 @@ namespace dmGameObject
 }
 
 #endif // DMSDK_GAMEOBJECT_H
+

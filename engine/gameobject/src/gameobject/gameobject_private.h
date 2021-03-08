@@ -22,6 +22,7 @@
 
 #include "gameobject.h"
 #include "gameobject_props.h"
+#include "component.h"
 
 extern "C"
 {
@@ -185,6 +186,7 @@ namespace dmGameObject
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
     #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
+
     struct Register
     {
         uint32_t                    m_ComponentTypeCount;
