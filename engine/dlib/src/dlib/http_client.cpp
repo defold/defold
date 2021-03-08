@@ -964,11 +964,7 @@ bail:
             // Non-cached response
             if (client->m_HttpCache && response.m_Status == 200 /* OK */)
             {
-                if (response.m_ETag[0] != '\0') {
-                    dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, &response.m_CacheCreator);
-                } else if (response.m_MaxAge > 0) {
-                    dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_MaxAge, &response.m_CacheCreator);
-                }
+                dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
             }
 
             r = HandleResponse(client, path, method, &response);
