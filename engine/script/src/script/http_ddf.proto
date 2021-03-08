@@ -31,9 +31,6 @@ message HttpRequest
     // Explicitly ignore the http cache.
     // It's for 304 requests where we just want to confirm the 304 (e.g. for liveupdate).
     optional bool   ignore_cache   = 9;
-
-    // Trust the http cache and avoid network round-trips to check etags
-    optional bool   trust_cache    = 10;
 }
 
 message HttpResponse
