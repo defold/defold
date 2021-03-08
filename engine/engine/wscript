@@ -164,15 +164,10 @@ def build(bld):
         srcPath = os.path.join('build', 'default', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
-            filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
-            if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
-            filePath = os.path.join(srcPath, 'dmengine' + build + '.js.symbols')
-            if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
-            filePath = os.path.join(srcPath, 'dmengine' + build + '.wasm')
-            if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
+            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map'):
+                filePath = os.path.join(srcPath, 'dmengine' + build + suffix)
+                if (os.path.exists(filePath)):
+                    bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
 
 def shutdown():
     # unit tests disabled on win32 for now
