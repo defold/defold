@@ -17,6 +17,7 @@
 #include "gamesys.h"
 #include "../gamesys_private.h" // dmGameObject::CheckGoInstance
 #include "../components/comp_spine_model.h"
+#include "../resources/res_spine_model.h"
 
 extern "C"
 {

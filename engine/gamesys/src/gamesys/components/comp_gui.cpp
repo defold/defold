@@ -27,7 +27,9 @@
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 
 #include "comp_gui.h"
+#include "comp_gui_private.h"
 #include "comp_spine_model.h"
+#include "comp_private.h"
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"

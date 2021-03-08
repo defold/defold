@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -62,7 +62,7 @@
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture
       :user-data {:content-generator content-generator
-                  :compress? (:compress? build-settings false)
+                  :compress? (:compress-textures? build-settings false)
                   :texture-profile texture-profile}})])
 
 (defn- generate-gpu-texture [{:keys [texture-image]} request-id params unit]
@@ -77,7 +77,7 @@
 
   (input build-settings g/Any)
   (input texture-profiles g/Any)
-  
+
   ;; we never modify ImageNode, save-data and source-value can be trivial and not cached
   (output save-data g/Any (g/constantly nil))
   (output source-value g/Any (g/constantly nil))
@@ -114,7 +114,7 @@
   (output gpu-texture-generator g/Any :cached (g/fnk [texture-image :as args]
                                                      {:f    generate-gpu-texture
                                                       :args args}))
-  
+
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-image
