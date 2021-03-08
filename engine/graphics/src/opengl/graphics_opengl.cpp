@@ -697,7 +697,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-        
+
 #if defined(ANDROID)
         // Seems to work fine anyway with out any hints
         // which is good, since we want to fallback from OpenGLES 3 to 2
@@ -722,7 +722,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         if (is_desktop) {
             glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-            //glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         }
 
         int mode = GLFW_WINDOW;
