@@ -69,17 +69,6 @@ and add the "BETA" tag to the headline
 
     This will push the tags to GitHub, which is then used later in the release step. Add `-f` to force update the tags.
 
- 1. Merge `master` into `editor-dev`
-
-        $ git checkout editor-dev
-        $ git pull
-        $ git merge master
-        $ git push
-
-    This will trigger a build of the engines and editors for editor-alpha.
-
- 1. When the `editor-dev` is built, all channels have been updated
-
 ### Publishing Stable Release
 
 1. If everything is OK, time to release stable
@@ -92,7 +81,18 @@ and add the "BETA" tag to the headline
         $ ./scripts/build.py release --channel=stable
     Important: *Make sure the SHA1 and channel is correct!*
 
-1. Verify release by updating an old editor, OSX, Win and Linux. (Currently a bit deprecated workflow, since no one uses editor-stable)
+1. Merge `master` into `editor-dev`
+
+    $ git checkout editor-dev
+    $ git pull
+    $ git merge master
+    $ git push
+
+This will trigger a build of the engines and editors for editor-alpha.
+
+1. When the `editor-dev` is built, all channels have been updated
+
+1. Verify release by updating an old editor, OSX, Win and Linux.
 
 1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes. From the `defold/defold.github.io` repo:
 
