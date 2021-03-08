@@ -42,6 +42,8 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
+#include <gameobject/gameobject.h>
+#include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 #include <hid/hid.h>
@@ -1022,6 +1024,12 @@ namespace dmEngine
             engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
         }
 
+        dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+        component_create_ctx.m_Config = engine->m_Config;
+        component_create_ctx.m_Script = engine->m_GOScriptContext;
+        component_create_ctx.m_Register = engine->m_Register;
+        component_create_ctx.m_Factory = engine->m_Factory;
+
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
 
@@ -1035,13 +1043,15 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext) != dmGameObject::RESULT_OK)
-            goto bail;
-
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
                                                                                                 &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
+        if (go_result != dmGameObject::RESULT_OK)
+            goto bail;
+
+        // register the component extensions
+        go_result = dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -1164,6 +1174,8 @@ namespace dmEngine
             }
         }
 
+        // Tbh, I have never heard of this feature of reordering the component types being utilized.
+        // I vote for removing it. /MAWE
         if (update_order)
         {
             char* tmp = strdup(update_order);

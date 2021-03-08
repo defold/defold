@@ -24,6 +24,8 @@
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 
+#include <resource/resource.h>
+
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 

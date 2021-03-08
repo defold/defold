@@ -13,9 +13,7 @@
 #ifndef DM_GAMEOBJECT_COMP_SCRIPT_H
 #define DM_GAMEOBJECT_COMP_SCRIPT_H
 
-#include <stdint.h>
-
-#include "gameobject.h"
+#include "component.h"
 
 namespace dmGameObject
 {
