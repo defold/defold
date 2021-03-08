@@ -187,8 +187,6 @@ namespace dmHttpClient
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
-
-        bool                m_TrustCache;
     };
 
     Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
@@ -240,7 +238,6 @@ namespace dmHttpClient
         params->m_HttpCache = 0;
         params->m_MaxGetRetries = 1;
         params->m_RequestTimeout = 0;
-        params->m_TrustCache = false;
     }
 
     HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
@@ -291,7 +288,6 @@ namespace dmHttpClient
         client->m_Secure = secure;
         client->m_Port = port;
         client->m_DNSChannel = params->m_DNSChannel;
-        client->m_TrustCache = params->m_TrustCache;
 
         return client;
     }
@@ -1093,7 +1089,7 @@ bail:
             dmHttpCache::Result cache_r = dmHttpCache::GetInfo(client->m_HttpCache, client->m_URI, &info);
             if (cache_r == dmHttpCache::RESULT_OK) {
                 bool ok_etag = info.m_Verified && policy == dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE;
-                if ((ok_etag || info.m_Valid || client->m_TrustCache)) {
+                if ((ok_etag || info.m_Valid)) {
                     // We have a cache and trust the content of the cache
                     // OR
                     // the entry is valid in terms of max-age

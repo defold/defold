@@ -148,9 +148,6 @@ namespace dmHttpClient
         /// Request timeout in us
         int m_RequestTimeout;
 
-        /// Trust the http cache
-        bool m_TrustCache;
-
         NewParams()
         {
             SetDefaultParams(this);
