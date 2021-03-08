@@ -25,11 +25,13 @@
 #include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <graphics/graphics.h>
+#include <rig/rig.h>
 #include <render/render.h>
 #include <gameobject/gameobject_ddf.h>
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include "../resources/res_model.h"
 #include "comp_private.h"
 
 #include "gamesys_ddf.h"
