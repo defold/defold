@@ -706,7 +706,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
 #elif defined(_WIN32)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
             #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
