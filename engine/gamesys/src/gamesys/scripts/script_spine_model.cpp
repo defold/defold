@@ -10,21 +10,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <float.h>
-#include <stdio.h>
 #include <assert.h>
 
 #include <dlib/hash.h>
-#include <dlib/log.h>
-#include <dlib/math.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
-#include "../gamesys_private.h"
+#include "../gamesys_private.h" // dmGameObject::CheckGoInstance
 #include "../components/comp_spine_model.h"
 #include "../resources/res_spine_model.h"
-
-#include "script_spine_model.h"
 
 extern "C"
 {
