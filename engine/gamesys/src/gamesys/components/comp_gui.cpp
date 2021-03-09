@@ -21,12 +21,10 @@
 #include <dlib/dstrings.h>
 #include <dlib/trig_lookup.h>
 #include <graphics/graphics.h>
-#include <graphics/graphics_util.h>
 #include <render/render.h>
 #include <render/display_profiles.h>
 #include <render/font_renderer.h>
-#include <gameobject/gameobject_ddf.h>
-#include <render/render_ddf.h>
+#include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"

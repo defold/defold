@@ -27,6 +27,8 @@
 
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
+
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompSpineModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
