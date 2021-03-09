@@ -1601,7 +1601,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetShaderInfoLog(s, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
+                dmLogError("%s\n", log);
                 free(log);
             }
 #endif

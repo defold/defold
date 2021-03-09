@@ -73,13 +73,21 @@ protected:
         dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+
+        m_Contexts.SetCapacity(7,16);
+        m_Contexts.Put(dmHashString64("goc"), m_Register);
+        m_Contexts.Put(dmHashString64("collectionc"), m_Register);
+        m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
+        m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
+        dmResource::RegisterTypes(m_Factory, &m_Contexts);
+
         dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
         component_create_ctx.m_Script = m_ScriptContext;
         component_create_ctx.m_Register = m_Register;
         component_create_ctx.m_Factory = m_Factory;
         dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         dmGameObject::SortComponentTypes(m_Register);
+
         dmMessage::Result result = dmMessage::NewSocket("@system", &m_Socket);
         assert(result == dmMessage::RESULT_OK);
 
@@ -92,7 +100,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    dmResource::ResourceType resource_type;
+        dmResource::ResourceType resource_type;
         dmGameObject::Result go_result;
 
         // A has component_user_data
@@ -148,6 +156,7 @@ public:
     dmMessage::HSocket m_Socket;
     dmScript::HContext m_ScriptContext;
     dmGameObject::ModuleContext m_ModuleContext;
+    dmHashTable64<void*> m_Contexts;
 
     std::map<uint64_t, uint32_t> m_ComponentInitCountMap;
     std::map<uint64_t, uint32_t> m_ComponentFinalCountMap;

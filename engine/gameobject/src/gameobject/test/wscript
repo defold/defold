@@ -353,11 +353,12 @@ def script_file(self, node):
 
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
+        exported_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim','ComponentTypeScript', 'ComponentTypeAnim']
         test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                          includes = '../../../src . .. ../../../proto',
+                                         exported_symbols = exported_symbols,
                                          uselib = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG CARES',
                                          uselib_local = 'gameobject',
-                                         exported_symbols = ['ComponentTypeScript', 'ComponentTypeAnim'],
                                          web_libs = ['library_sys.js', 'library_script.js'],
                                          proto_gen_py = True,
                                          target = 'test_gameobject_%s' % dir)

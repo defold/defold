@@ -38,13 +38,21 @@ protected:
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+
+        m_Contexts.SetCapacity(7,16);
+        m_Contexts.Put(dmHashString64("goc"), m_Register);
+        m_Contexts.Put(dmHashString64("collectionc"), m_Register);
+        m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
+        m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
+        dmResource::RegisterTypes(m_Factory, &m_Contexts);
+
         dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
         component_create_ctx.m_Script = m_ScriptContext;
         component_create_ctx.m_Register = m_Register;
         component_create_ctx.m_Factory = m_Factory;
         dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         dmGameObject::SortComponentTypes(m_Register);
+
         dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
@@ -86,6 +94,7 @@ public:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmGameObject::ModuleContext m_ModuleContext;
+    dmHashTable64<void*> m_Contexts;
     dmResource::HFactory m_Factory;
 };
 
