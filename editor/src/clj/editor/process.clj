@@ -16,7 +16,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn start! ^Process [^String command args {:keys [directory env redirect-error-stream?]
+(defn start! ^Process [^String command args {:keys [directory env removeenv redirect-error-stream?]
                                              :or {redirect-error-stream? false}
                                              :as opts}]
   (let [pb (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String (list* command args)))]
@@ -25,9 +25,11 @@
     (when env
       (let [environment (.environment pb)]
         (doseq [[k v] env]
-          (.put environment k v))
-        (.remove environment "MESA_GL_VERSION_OVERRIDE")
-        (.remove environment "MESA_LOADER_DRIVER_OVERRIDE")))
+          (.put environment k v))))
+    (when removeenv
+      (let [environment (.environment pb)]
+        (doseq [k removeenv]
+          (.remove environment k))))
     (when (some? redirect-error-stream?)
       (.redirectErrorStream pb (boolean redirect-error-stream?)))
     (.start pb)))
