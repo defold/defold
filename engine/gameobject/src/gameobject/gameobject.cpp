@@ -31,12 +31,6 @@
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
 
-#include "res_collection.h"
-#include "res_prototype.h"
-#include "res_script.h"
-#include "res_lua.h"
-#include "res_anim.h"
-
 #include "../proto/gameobject/gameobject_ddf.h"
 
 namespace dmGameObject
@@ -553,31 +547,6 @@ namespace dmGameObject
         std::sort(regist->m_ComponentTypesOrder, regist->m_ComponentTypesOrder + regist->m_ComponentTypeCount, ComponentTypeSortPred(regist));
     }
 
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
-    {
-        dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, &ResPrototypeRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, &ResCollectionRecreate);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0);
-        if (ret != dmResource::RESULT_OK)
-            return ret;
-
-        return ret;
-    }
 
     static void EraseSwapLevelIndex(Collection* collection, HInstance instance)
     {
