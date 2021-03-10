@@ -123,27 +123,16 @@ namespace dmHttpCache
     Result Flush(HCache cache);
 
     /**
-     * Begin creation of cache entry with etag
+     * Begin creation of cache entry with etag and/or max-age time
      * @param cache cache
      * @param uri uri
      * @param etag etag
-     * @param cache_creator cache creator handle (out)
-     * @return RESULT_OK on success
-     */
-    Result Begin(HCache cache, const char* uri, const char* etag, HCacheCreator* cache_creator);
-
-    /**
-     * Begin creation of cache entry with max-age time
-     * @param cache cache
-     * @param uri uri
      * @param max_age max-age from http-header "Cache-Control"
      * @param cache_creator cache creator handle (out)
      * @return RESULT_OK on success
      */
-    Result Begin(HCache cache, const char* uri, uint32_t max_age, HCacheCreator* cache_creator);
-
     Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age, HCacheCreator* cache_creator);
-        
+
     /**
      * Add data to cache entry
      * @param cache cache
