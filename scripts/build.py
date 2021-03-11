@@ -1407,7 +1407,7 @@ class Configuration(object):
             model['releases'] = s3.get_tagged_releases(self.get_archive_path())
             model['has_releases'] = True
         else:
-            model['releases'] = s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())
+            model['releases'] = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
             model['has_releases'] = True
 
         if not model['releases']:
