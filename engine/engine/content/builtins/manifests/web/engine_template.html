@@ -114,6 +114,8 @@
 
 	var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 	var buttonHeight = 0;
+	var prevInnerWidth = -1;
+	var prevInnerHeight = -1;
 {{#html5.show_made_with_defold}}
 	buttonHeight = 42;
 {{/html5.show_made_with_defold}}
@@ -131,6 +133,12 @@
 		var game_canvas = document.getElementById('canvas');
 		var innerWidth = window.innerWidth;
 		var innerHeight = window.innerHeight - buttonHeight;
+		if (prevInnerWidth == innerWidth && prevInnerHeight == innerHeight)
+		{
+			return;
+		}
+		prevInnerWidth = innerWidth;
+		prevInnerHeight = innerHeight;
 		var width = {{display.width}};
 		var height = {{display.height}};
 		var targetRatio = width / height;
@@ -193,6 +201,7 @@
 	resize_game_canvas();
 	window.addEventListener('resize', resize_game_canvas, false);
 	window.addEventListener('orientationchange', resize_game_canvas, false);
+	window.addEventListener('focus', resize_game_canvas, false);
 	</script>
 
 	<script id='engine-start' type='text/javascript'>
