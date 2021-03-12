@@ -717,9 +717,6 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_PreviousFrameTime = dmTime::GetTime();
-        engine->m_FlipTime = dmTime::GetTime();
-        engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
@@ -1236,6 +1233,15 @@ namespace dmEngine
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
 
+        // Since these belong to the Step() mechanics, we need them to capure
+        // the time as close to the next frame as possible. Otherwise we'll get an unnecessarily
+        // large time step. Better err on a smaller one.
+
+        // since it will be close to zero, we guess at a framerate (60 is probably a good guess)
+        engine->m_PreviousFrameTime = dmTime::GetTime() - 1000000/60;
+        engine->m_FlipTime = dmTime::GetTime();
+        engine->m_PreviousRenderTime = 0;
+
         return true;
 
 bail:
@@ -1346,6 +1352,7 @@ bail:
 
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
+
         float dt = fixed_dt;
         bool variable_dt = engine->m_UseVariableDt;
         if (variable_dt && time > engine->m_PreviousFrameTime) {
