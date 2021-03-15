@@ -379,9 +379,20 @@ jobs:
         run: 'python -m pip install --upgrade pip && pip install -r ci/pip_requirements.txt'
       },
       {
+        name: 'Get Channel',
+        id: 'channel',
+        run: 'CHANNEL=$(python ./ci/ci_helper.py get_engine_channel ${GITHUB_REF##*/}) && echo "::set-output name=CHANNEL::$CHANNEL"'
+      },
+      {
         name: 'Publish release to releases.md',
         run: 'ci/ci.sh release_to_github_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-target-repo=defold/defold-switch-releases'
       },
+      {
+        name: 'Move to channel=${{steps.channel.outputs.CHANNEL}}',
+        if: steps.channel.outputs.CHANNEL == 'stable',
+        run: './scripts/move_s3_release.py move_release --sha1=${GITHUB_SHA} --to-channel=${{steps.channel.outputs.CHANNEL}}'
+      },
+
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,

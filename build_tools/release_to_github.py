@@ -174,6 +174,9 @@ def release_markdown(config):
     if not release_sha:
         release_sha = get_git_sha1()
 
+    channel = config.channel
+    log("Using channel %s" % channel)
+
     # get the release on S3
     log("Getting S3 release for version %s with sha %s" % (config.version, release_sha))
     s3_release = s3.get_single_release(config.archive_path, config.version, release_sha)
@@ -196,6 +199,9 @@ def release_markdown(config):
         download_url = base_url + file.get("path")
         if not test_path(download_url):
             continue
+
+        if channel:
+            download_url = channel + "/" + download_url
 
         if download_url.endswith('bob.jar'):
             release_info['url_bob'] = download_url

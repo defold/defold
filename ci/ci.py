@@ -19,6 +19,7 @@ import platform
 import os
 import base64
 from argparse import ArgumentParser
+import ci_helper
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
@@ -324,7 +325,7 @@ def release(channel):
     cmd = ' '.join(args + opts)
     call(cmd)
 
-def release_to_github_markdown(token = None, repo = None, sha1 = None):
+def release_to_github_markdown(token = None, repo = None, sha1 = None, branch = None):
     args = "python scripts/build.py release_to_github_markdown".split()
     opts = []
 
@@ -336,6 +337,10 @@ def release_to_github_markdown(token = None, repo = None, sha1 = None):
 
     if sha1:
         opts.append("--github-sha1=%s" % sha1)
+
+    if branch:
+        channel = ci_helper.get_engine_channel(branch)
+        opts.append("--channel=%s" % channel)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -499,8 +504,9 @@ def main(argv):
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         elif command == "release_to_github_markdown":
             release_to_github_markdown(token = args.github_token,
-                                repo = args.github_target_repo,
-                                sha1 = args.github_sha1)
+                                    repo = args.github_target_repo,
+                                    sha1 = args.github_sha1,
+                                    branch = branch)
         else:
             print("Unknown command {0}".format(command))
 
