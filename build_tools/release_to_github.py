@@ -196,12 +196,14 @@ def release_markdown(config):
     base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
     for file in s3_release.get("files", None):
         # download file
-        download_url = base_url + file.get("path")
-        if not test_path(download_url):
-            continue
+        file_path = file.get("path")
 
-        if channel:
-            download_url = channel + "/" + download_url
+        download_url = base_url + file_path
+        if channel is not None:
+            download_url = base_url + "/" channel + "/" + file_path
+
+        if not test_path(file_path):
+            continue
 
         if download_url.endswith('bob.jar'):
             release_info['url_bob'] = download_url

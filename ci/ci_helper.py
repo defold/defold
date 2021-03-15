@@ -14,9 +14,9 @@ def get_engine_channel(args):
     t.append('dev')
     branch_to_channel={'dev':'alpha','beta':'beta','master':'stable'}
     channel=branch_to_channel.get(t[2],'alpha')
-    print(channel);
+    return channel
 
 if __name__ == '__main__':
     command = sys.argv[1]
     if command == 'get_engine_channel':
-        get_engine_channel(sys.argv[2:])
+        print get_engine_channel(sys.argv[2:])
