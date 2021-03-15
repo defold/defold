@@ -1,0 +1,9 @@
+function init(self)
+end
+
+function update(self, dt)
+    local c  = "01234567890123"
+    local path = go.get("/go#dynamic-sound", "sound")
+    --assert(path == hash("/sound/valid.wavc"))
+    resource.set_sound(path, c);
+end

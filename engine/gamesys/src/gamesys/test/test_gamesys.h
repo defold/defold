@@ -235,6 +235,12 @@ public:
     virtual ~CursorTest() {}
 };
 
+class SoundTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~SoundTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
