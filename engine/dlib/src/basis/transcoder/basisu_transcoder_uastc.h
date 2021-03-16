@@ -2,6 +2,14 @@
 #pragma once
 #include "basisu_transcoder_internal.h"
 
+#if defined(__GNUC__)
+#define DM_BASIS_ALIGNED(a) __attribute__ ((aligned (a)))
+#elif defined(_MSC_VER)
+#define DM_BASIS_ALIGNED(a) __declspec(align(a))
+#else
+#error "Unsupported compiler"
+#endif
+
 namespace basist
 {
 	struct color_quad_u8
@@ -90,7 +98,7 @@ namespace basist
 		return k >> 8;
 	}
 
-	struct astc_block_desc
+	struct DM_BASIS_ALIGNED(4) astc_block_desc
 	{
 		int m_weight_range;	// weight BISE range
 
@@ -198,8 +206,8 @@ namespace basist
 #ifdef _DEBUG
 	int astc_compute_texel_partition(int seed, int x, int y, int z, int partitioncount, bool small_block);
 #endif
-		
-	struct uastc_block
+
+	struct DM_BASIS_ALIGNED(4) uastc_block
 	{
 		union
 		{
@@ -212,7 +220,7 @@ namespace basist
 		};
 	};
 
-	struct unpacked_uastc_block
+	struct DM_BASIS_ALIGNED(4) unpacked_uastc_block
 	{
 		astc_block_desc m_astc;
 
