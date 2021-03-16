@@ -49,6 +49,7 @@
             <arg value="-n1" />
         </exec>
     </target>
+
     <target name="compile-bob-light" depends="git.revision">
         <mkdir dir="${classes.dir}"/>
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
@@ -301,6 +302,11 @@
             <zipfileset src="${bob.dir}/tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
+
+            <zipfileset src="${env.DYNAMO_HOME}/share/java/fmt-spine.jar">
+              <exclude name="**/META-INF/**"/>
+            </zipfileset>
+
             <fileset dir="${bob.dir}">
                 <include name="lib/luajit-share.zip"/>
             </fileset>
@@ -349,6 +355,9 @@
             </fileset>
             <zipfileset src="${bob.dir}/lib/builtins.zip"/>
             <zipfileset src="${bob.dir}/tmp/external-libs-builtins.jar">
+              <exclude name="**/META-INF/**"/>
+            </zipfileset>
+            <zipfileset src="${env.DYNAMO_HOME}/share/java/fmt-spine.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
             <fileset dir="${bob.dir}">
