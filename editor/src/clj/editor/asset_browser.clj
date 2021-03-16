@@ -430,13 +430,16 @@
                 {:title "Delete Files?"
                  :icon :icon/circle-question
                  :header "Are you sure you want to delete these files?"
-                 :content {:fx/type fxui/label
+                 :content {:fx/type :v-box
                            :style-class "dialog-content-padding"
-                           :text (format "You are about to delete: \n%s"
-                                         (->> selection
-                                              (map #(str "\u00A0\u00A0\u2022\u00A0"
-                                                         (resource/resource-name %)))
-                                              (string/join "\n")))}
+                           :children [{:fx/type fxui/label
+                                       :text "You are about to delete:"}
+                                      {:fx/type fxui/text-area
+                                       :text (format "%s"
+                                                     (->> selection
+                                                           (map #(str "\u00A0\u00A0\u2022\u00A0"
+                                                                      (resource/resource-name %)))
+                                                           (string/join "\n")))}]}
                  :buttons [{:text "Cancel"
                             :cancel-button true
                             :default-button true
