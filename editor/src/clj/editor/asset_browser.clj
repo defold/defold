@@ -435,11 +435,10 @@
                            :children [{:fx/type fxui/label
                                        :text "You are about to delete:"}
                                       {:fx/type fxui/text-area
-                                       :text (format "%s"
-                                                     (->> selection
-                                                           (map #(str "\u00A0\u00A0\u2022\u00A0"
-                                                                      (resource/resource-name %)))
-                                                           (string/join "\n")))}]}
+                                       :text (->> selection
+                                                    (map #(str "\u00A0\u00A0\u2022\u00A0"
+                                                              (resource/resource-name %)))
+                                                    (string/join "\n"))}]}
                  :buttons [{:text "Cancel"
                             :cancel-button true
                             :default-button true
