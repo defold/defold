@@ -1,9 +1,19 @@
 function init(self)
+    self.updated = false
 end
 
 function update(self, dt)
-    local c  = "01234567890123"
-    local path = go.get("/go#dynamic-sound", "sound")
-    --assert(path == hash("/sound/valid.wavc"))
-    resource.set_sound(path, c);
+    -- update sound only once
+    if not self.updated then
+        local f = io.open("src/gamesys/test/sound_ext/replacement.wav")
+        local c  = f:read("*all")
+        f:close()
+        --print("data size: ", #c)
+
+        local path = go.get("/go#dynamic-sound", "sound")
+        --assert(path == hash("/sound/valid.wav"))
+        resource.set_sound(path, c);
+
+        self.updated = true;
+    end
 end

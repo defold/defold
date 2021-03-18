@@ -3,6 +3,6 @@ components {
   component: "/sound/valid.sound"
 }
 components {
-  id: "script"
+  id: "set-sound-script"
   component: "/sound/set_sound.script"
 }
