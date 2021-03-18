@@ -303,13 +303,14 @@
               <exclude name="**/META-INF/**"/>
             </zipfileset>
 
-            <zipfileset src="${env.DYNAMO_HOME}/share/java/fmt-spine.jar">
-              <exclude name="**/META-INF/**"/>
-            </zipfileset>
-
             <fileset dir="${bob.dir}">
                 <include name="lib/luajit-share.zip"/>
             </fileset>
+
+            <fileset dir="${env.DYNAMO_HOME}">
+                <include name="share/java/fmt-spine.jar"/>
+            </fileset>
+
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
                 <attribute name="is-bob-light" value="true"/>
@@ -357,13 +358,13 @@
             <zipfileset src="${bob.dir}/tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-            <zipfileset src="${env.DYNAMO_HOME}/share/java/fmt-spine.jar">
-              <exclude name="**/META-INF/**"/>
-            </zipfileset>
             <fileset dir="${bob.dir}">
                 <include name="lib/android.jar"/>
                 <include name="lib/classes.dex"/>
                 <include name="lib/*.zip"/>
+            </fileset>
+            <fileset dir="${env.DYNAMO_HOME}">
+                <include name="share/java/fmt-spine.jar"/>
             </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
