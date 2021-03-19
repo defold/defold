@@ -885,7 +885,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             for (GLint i = 0; i < n; i++)
             {
                 char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
-                max_len += (int) strlen((const char*)ext) + 1;
+                max_len += (int) strlen((const char*)ext) + 1; // name + space
             }
 
             extensions_ptr = (char*) malloc(max_len);
@@ -902,6 +902,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
                 cursor += 1;
             }
+
+            extensions_ptr[max_len-1] = 0;
         }
         const GLubyte* extensions = (const GLubyte*) extensions_ptr;
 #else
