@@ -21,7 +21,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.spine.proto.Spine.SpineModelDesc;
 
-@ProtoParams(messageClass = SpineModelDesc.class)
+@ProtoParams(srcClass = SpineModelDesc.class, messageClass = SpineModelDesc.class)
 @BuilderParams(name="SpineModel", inExts=".spinemodel", outExt=".spinemodelc")
 public class SpineModelBuilder extends ProtoBuilder<SpineModelDesc.Builder> {
 

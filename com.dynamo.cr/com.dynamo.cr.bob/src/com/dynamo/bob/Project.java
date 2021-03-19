@@ -224,10 +224,22 @@ public class Project {
             if (!skip) {
                 try {
                     Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
-                    BuilderParams params = klass.getAnnotation(BuilderParams.class);
-                    if (params != null) {
-                        for (String inExt : params.inExts()) {
+                    BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
+                    if (builderParams != null) {
+                        for (String inExt : builderParams.inExts()) {
                             extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+                        }
+
+                        ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
+                        if (protoParams != null) {
+                            ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
+
+                            for (String ext : builderParams.inExts()) {
+                                Class<?> inputKlass = protoParams.srcClass();
+                                if (inputKlass != null) {
+                                    ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
+                                }
+                            }
                         }
                     }
                 } catch (Exception e) {

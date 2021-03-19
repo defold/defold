@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.lang.reflect.Method;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -52,10 +53,11 @@ import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.TextFormat;
 
 
-@ProtoParams(messageClass = SceneDesc.class)
+@ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
@@ -86,7 +88,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 taskBuilder.addInput(this.project.getResource(f.getSpineScene()));
             }
         }
-        
+
         List<String> particlefxSceneList = new ArrayList<>();
         for (ParticleFXDesc p : builder.getParticlefxsList()) {
             if (!p.getParticlefx().isEmpty() && particlefxSceneList.contains(p.getParticlefx())) {
@@ -375,7 +377,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 spineSceneNames.add(f.getName());
                 newSpineSceneList.add(SpineSceneDesc.newBuilder().mergeFrom(f).setSpineScene(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".rigscenec")).build());
             }
-            
+
             for (ParticleFXDesc f : sceneBuilder.getParticlefxsList()) {
                 if (particlefxNames.contains(f.getName())) {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_PARTICLEFX,
@@ -573,11 +575,29 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     }
 
                     // Need to parse the spine JSON
-                    com.dynamo.spine.proto.Spine.SpineSceneDesc.Builder spineSceneBuilder = com.dynamo.spine.proto.Spine.SpineSceneDesc.newBuilder();
+                    GeneratedMessage.Builder<?> spineSceneBuilder = ProtoBuilder.newBuilder(".spinescene");
                     IResource spineSceneRes = builder.project.getResource(spineScenePath);
                     TextFormat.merge(new InputStreamReader(new ByteArrayInputStream(spineSceneRes.getContent()), "ASCII"), spineSceneBuilder);
 
-                    IResource jsonRes = builder.project.getResource(spineSceneBuilder.getSpineJson());
+                    // since we are using a plugin system for this particular class
+                    // we need to use reflection to get spineSceneBuilder.getSpineJson()
+                    String spineJson;
+                    try {
+                        Method getSpineJson = spineSceneBuilder.getClass().getDeclaredMethod("getSpineJson");
+                        if (getSpineJson == null) {
+                            System.out.printf("getSpineJson returned null\n");
+                        }
+
+                        spineJson = (String) getSpineJson.invoke(spineSceneBuilder);
+                    } catch (NoSuchMethodException e) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "No method SpineSceneDesc.Builder.getSpineJson() found!", e);
+                    } catch (Exception e) {
+                        e.printStackTrace(System.out);
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Failed to get the spine json data", e);
+                    }
+
+                    IResource jsonRes = builder.project.getResource(spineJson);
+
                     try {
                         SpineSceneUtil rigScene = SpineSceneUtil.loadJson(new ByteArrayInputStream(jsonRes.getContent()), new UVTransformProvider() {
                             @Override
@@ -650,7 +670,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         sceneBuilder.clearSpineScenes();
         sceneBuilder.addAllSpineScenes(newSpineSceneList);
-        
+
         sceneBuilder.clearParticlefxs();
         sceneBuilder.addAllParticlefxs(newParticleFXList);
 
