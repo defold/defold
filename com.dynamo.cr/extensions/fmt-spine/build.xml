@@ -12,6 +12,8 @@
         <fileset dir="${ext.dir}" includes="protobuf-java*.jar"/>
         <fileset dir="${ext.dir}" includes="commons*.jar"/>
         <fileset dir="${ext.dir}" includes="vecmath.jar"/>
+        <fileset dir="${ext.dir}" includes="jackson-core-asl-1.9.2.jar"/>
+        <fileset dir="${ext.dir}" includes="jackson-mapper-asl-1.9.2.jar"/>
         <pathelement location="${bobclasses.dir}" />
     </path>
 

@@ -61,6 +61,7 @@ public class Bob {
 
     private static boolean verbose = false;
     private static File rootFolder = null;
+    private static ClassLoaderScanner scanner = null;
 
     public Bob() {
     }
@@ -470,12 +471,20 @@ public class Bob {
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
+    public static Class<?> getClass(String className) {
+        try {
+            return Class.forName(className, true, scanner.getClassLoader());
+        } catch(ClassNotFoundException e) {
+            return null;
+        }
+    }
+
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
 
         // Find the jar file in the built-in resources
         String jar = Bob.getJarFile("fmt-spine.jar");
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        scanner = new ClassLoaderScanner();
         scanner.addUrl(new File(jar));
 
         project.scan(scanner, "com.dynamo.bob");

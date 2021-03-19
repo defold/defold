@@ -40,8 +40,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.SpineSceneUtil;
-import com.dynamo.bob.util.SpineSceneUtil.LoadException;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.UVTransformProvider;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
@@ -433,7 +431,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             out.close();
             task.output(3).setContent(out.toByteArray());
 
-        } catch (LoadException e) {
+        } catch (SpineSceneUtil.LoadException e) {
             throw new CompileExceptionError(task.input(1), -1, e.getMessage());
         }
 
