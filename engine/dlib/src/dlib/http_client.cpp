@@ -184,6 +184,7 @@ namespace dmHttpClient
 
         bool                m_Secure;
         uint16_t            m_Port;
+        uint16_t            m_IgnoreCache:1;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
@@ -307,6 +308,9 @@ namespace dmHttpClient
                 break;
             case OPTION_REQUEST_TIMEOUT:
                 client->m_RequestTimeout = (int) value;
+                break;
+            case OPTION_REQUEST_IGNORE_CACHE:
+                client->m_IgnoreCache = value != 0 ? 1 : 0;
                 break;
             default:
                 return RESULT_INVAL_ERROR;
@@ -570,7 +574,7 @@ if (sock_res != dmSocket::RESULT_OK)\
                 goto bail;
             }
         }
-        if (client->m_HttpCache)
+        if (!client->m_IgnoreCache && client->m_HttpCache)
         {
             char etag[64];
             dmHttpCache::Result cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, etag, sizeof(etag));
@@ -744,6 +748,10 @@ bail:
     static Result HandleCached(HClient client, const char* path, Response* response)
     {
         client->m_Statistics.m_CachedResponses++;
+        if (client->m_IgnoreCache)
+        {
+            return RESULT_OK;
+        }
 
         if (client->m_HttpCache == 0)
         {
@@ -958,7 +966,7 @@ bail:
         else
         {
             // Non-cached response
-            if (client->m_HttpCache && response.m_Status == 200 /* OK */)
+            if (!client->m_IgnoreCache && client->m_HttpCache && response.m_Status == 200 /* OK */)
             {
                 dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
             }
@@ -1082,7 +1090,7 @@ bail:
 
         Result r;
 
-        if (client->m_HttpCache)
+        if (!client->m_IgnoreCache && client->m_HttpCache)
         {
             dmHttpCache::ConsistencyPolicy policy = dmHttpCache::GetConsistencyPolicy(client->m_HttpCache);
             dmHttpCache::EntryInfo info;
