@@ -100,7 +100,7 @@ namespace dmHttpClient
      */
     enum Option
     {
-        /// Maximum number of retries for GET-request. Default is 4.
+        /// Maximum number of retries for GET-request. Default is 1.
         OPTION_MAX_GET_RETRIES,
         /// Request timeout in us
         OPTION_REQUEST_TIMEOUT,
