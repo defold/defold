@@ -1025,12 +1025,13 @@ bail:
             r = DoDoRequest(client, response, path, method);
             if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
 
+                response.m_CloseConnection = 1;
+
                 if( HasRequestTimedOut(client) )
                 {
                     return r;
                 }
 
-                response.m_CloseConnection = 1;
                 uint32_t count = dmConnectionPool::GetReuseCount(response.m_Pool, response.m_Connection);
 
                 if (count > 0 && response.m_TotalReceived == 0) {
