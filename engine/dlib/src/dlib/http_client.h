@@ -104,6 +104,8 @@ namespace dmHttpClient
         OPTION_MAX_GET_RETRIES,
         /// Request timeout in us
         OPTION_REQUEST_TIMEOUT,
+        /// DOn't use the http cache
+        OPTION_REQUEST_IGNORE_CACHE,
     };
 
     /**
