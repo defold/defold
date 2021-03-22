@@ -39,7 +39,7 @@ public:
         dmConnectionPool::Params params;
         params.m_MaxConnections = MAX_CONNECTIONS;
         dmConnectionPool::Result result_pool = dmConnectionPool::New(&params, &pool);
-        dmDNS::Result result_channel = dmDNS::NewChannel(&channel);
+        dmDNS::Result result_channel = dmDNS::NewChannel(&channel, 0);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, result_pool);
         ASSERT_EQ(dmDNS::RESULT_OK, result_channel);
     }

@@ -312,6 +312,18 @@
    :help "http timeout in seconds. zero to disable timeout",
    :default 0.0,
    :path ["network" "http_timeout"]}
+  {:type :number,
+   :help "number of worker threads for the http service",
+   :default 4,
+   :path ["network" "http_thread_count"]}
+  {:type :boolean,
+   :help "Should the downloaded data persist for faster retrieval next time",
+   :default 0.0,
+   :path ["network" "http_cache_enabled"]}
+  {:type :string,
+   :help "comma separated list of name servers, empty for network defaults",
+   :default "",
+   :path ["network" "dns_servers"]}
   {:type :integer,
    :help "max number of instances per collection, 1024 by default",
    :default 1024,

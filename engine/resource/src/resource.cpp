@@ -467,7 +467,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     }
 
     dmDNS::HChannel dns_channel;
-    dmDNS::NewChannel(&dns_channel);
+    dmDNS::NewChannel(&dns_channel, 0);
 
     factory->m_HttpBuffer = 0;
     factory->m_HttpClient = 0;

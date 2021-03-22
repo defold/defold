@@ -50,7 +50,7 @@ public:
     dmDNS::HChannel channel;
     virtual void SetUp()
     {
-        dmDNS::Result result_channel = dmDNS::NewChannel(&channel);
+        dmDNS::Result result_channel = dmDNS::NewChannel(&channel, 0);
         ASSERT_EQ(dmDNS::RESULT_OK, result_channel);
     }
 
@@ -181,7 +181,7 @@ TEST(DNS, GetHostByName_Threaded_Cancel)
     ctx.started          = false;
     ctx.request.hostname = "localhost";
 
-    dmDNS::Result result_channel = dmDNS::NewChannel(&ctx.channel);
+    dmDNS::Result result_channel = dmDNS::NewChannel(&ctx.channel, 0);
     ASSERT_EQ(dmDNS::RESULT_OK, result_channel);
 
     dmThread::Thread thread = dmThread::New(&ThreadRunner, 0x80000, (void *) &ctx, "runner");
