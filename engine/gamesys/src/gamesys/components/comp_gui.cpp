@@ -21,15 +21,15 @@
 #include <dlib/dstrings.h>
 #include <dlib/trig_lookup.h>
 #include <graphics/graphics.h>
-#include <graphics/graphics_util.h>
 #include <render/render.h>
 #include <render/display_profiles.h>
 #include <render/font_renderer.h>
-#include <gameobject/gameobject_ddf.h>
-#include <render/render_ddf.h>
+#include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 
 #include "comp_gui.h"
+#include "comp_gui_private.h"
 #include "comp_spine_model.h"
+#include "comp_private.h"
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
@@ -1904,7 +1904,7 @@ namespace dmGameSystem
                 write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
                 write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
                 write_ptr->m_BatchKey = lastEnd;
-                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(gro.m_RenderObject.m_Material);
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(gro.m_RenderObject.m_Material);
                 write_ptr->m_Dispatch = dispatch;
                 write_ptr++;
                 lastEnd++;

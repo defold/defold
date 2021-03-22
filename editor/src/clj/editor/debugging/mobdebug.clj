@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -326,7 +326,7 @@
   (try
     (doto (Socket.)
       (.connect (InetSocketAddress. ^String address (int port)) 2000))
-    (catch java.net.ConnectException _ nil)))
+    (catch java.lang.Exception _ nil)))
 
 (defn connect!
   [address port on-connected on-closed]
@@ -348,7 +348,7 @@
    (when-some [^Socket socket (.socket debug-session)]
      (try
        (.close socket)
-       (catch IOException _))) 
+       (catch IOException _)))
    (-state! debug-session end-state)
    (when-some [on-closed (.on-closed debug-session)]
      (on-closed debug-session))))
@@ -426,7 +426,7 @@
                                                 (assert (= :running (-state debug-session)))
                                                 (-state! debug-session :suspended)
                                                 (-pop-suspend-callback! debug-session))]
-                                  (f debug-session suspend-event)))) 
+                                  (f debug-session suspend-event))))
                       (when on-resumed (on-resumed debug-session)))))
           (catch Throwable t
             (close! debug-session :error)))))))

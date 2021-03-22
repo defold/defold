@@ -2,7 +2,9 @@
 
 Defold is created and distributed under the developer-friendly Defold License. The Defold License is derived from the popular Apache 2.0 license. The license in its entirety can be [read here](/license.txt) with additional information to help you understand the [difference from the standard Apache 2.0 license here](https://defold.com/license/).
 
-Defold itself contains software written by third parties. Some of the software also requires the inclusion of their respective license in derivative work.
+Defold itself contains software written by third parties. Some of the software is used in the Defold editor and command line tools ([learn more](/TOOLS_LICENSES.md)) and some of the software is used in the Defold engine. The software included in the Defold engine will be included in the games and applications created using Defold and require the inclusion of their respective license in derivative work.
+
+**If you use Defold to create games and applications it is your responsibility to include the required licenses in your work.**
 
 
 ## How to include required licenses in your work
@@ -24,6 +26,7 @@ The following software has licenses which require inclusion of their respective 
     * Defold
   * Apache 2.0
     * mbedTLS
+    * Basis Universal
   * MIT
     * jsmn
     * xxtea-c
@@ -32,10 +35,10 @@ The following software has licenses which require inclusion of their respective 
     * LuaSocket
     * jctest
     * XHR2
+    * wslay
   * Simplified BSD license (2-clause license)
     * LZ4
   * BSD 2.0 license (3-clause license)
-    * WebP
     * vpx/vp8
     * Tremolo
     * Sony Vector Math library
@@ -98,6 +101,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
+#### Basis Universal
+
+```
+Copyright 2019-2020 Binomial LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
 
 #### jsmn
 
@@ -301,6 +321,34 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+#### Wslay
+
+Used when using [extension-websocket](https://github.com/defold/extension-websocket)
+
+```
+The MIT License
+
+Copyright (c) 2011, 2012, 2015 Tatsuhiro Tsujikawa
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
 
 #### LZ4
 
@@ -319,30 +367,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 ```
 
 
-#### WebP
-Used for texture compression in the engine. Included in all builds.
-
-```
-BSD License 2.0 (3-clause license)
-
-Copyright (c) 2010, Google Inc
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-
-* Neither the name of Google nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
-
-
 #### VPX/VP8
 
-Used by the game play recorder. Included in all builds, but can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest).
+Used by the game play recorder. Only included in debug builds by default, but can be added [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest).
 
 ```
 BSD License 2.0 (3-clause license)
@@ -364,7 +391,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #### Tremolo
 
-Used for decoding of Ogg sound files. Included in all builds, but can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest).
+Used for decoding of Ogg sound files. Not used on Nintendo Switch, Win32 or HTML5. Included in all builds, but can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest).
 
 ```
 BSD License 2.0 (3-clause license)

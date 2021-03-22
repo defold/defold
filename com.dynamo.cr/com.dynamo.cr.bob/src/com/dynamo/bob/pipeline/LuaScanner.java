@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,36 +25,9 @@ import javax.vecmath.Vector4d;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
+import com.dynamo.bob.pipeline.DefoldLuaParser.PropertyAndLine;
 
 public class LuaScanner {
-
-    private static Pattern multiLineCommentPattern = Pattern.compile("--\\[\\[.*?--\\]\\]",
-            Pattern.DOTALL | Pattern.MULTILINE);
-
-    private static String comment = "\\s*?(-{2,}.*?)?$";
-    private static String identifier = "[_\\p{L}][_\\p{L}0-9]*";
-    private static String beforeRequire = ".*?";
-    private static String afterRequire = "\\s*(,{0,1}|\\." + identifier + ",{0,1})" + comment;
-    
-    
-    private static Pattern requirePattern1 = Pattern.compile(beforeRequire + "require\\s*?\"(.*?)\"" + afterRequire,
-             Pattern.DOTALL | Pattern.MULTILINE);
-
-    private static Pattern requirePattern2 = Pattern.compile(beforeRequire + "require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)" + afterRequire,
-             Pattern.DOTALL | Pattern.MULTILINE);
-
-    private static Pattern requirePattern3 = Pattern.compile(beforeRequire + "require\\s*?'(.*?)'" + afterRequire,
-             Pattern.DOTALL | Pattern.MULTILINE);
-
-    /**
-     * Note: we need four different patterns here to match the same beginning and ending character for
-     * a string (eg " or '). We can't match on [\"']. If we do we'd have a false positive for the
-     * following line:
-     * 
-     * local s = 'require "should_not_match"'
-     */
-    private static Pattern requirePattern4 = Pattern.compile(beforeRequire + "require\\s*?\\(\\s*?'(.*?)'\\s*?\\)" + afterRequire,
-             Pattern.DOTALL | Pattern.MULTILINE);
 
     private static Pattern propertyDeclPattern = Pattern.compile("go.property\\s*?\\((.*?)\\);?(\\s*?--.*?)?$");
     private static Pattern propertyArgsPattern = Pattern.compile("[\"'](.*?)[\"']\\s*,(.*)");
@@ -72,61 +45,11 @@ public class LuaScanner {
             vec3Pattern, vec4Pattern, quatPattern, boolPattern, resourcePattern};
 
 
-    private static String stripSingleLineComments(String str) {
-        str = str.replace("\r", "");
-        StringBuffer sb = new StringBuffer();
-        String[] lines = str.split("\n");
-        for (String line : lines) {
-            String lineTrimmed = line.trim();
-            // Strip single line comments but preserve "pure" multi-line comments
-            // Note that ---[[ is a single line comment
-            // You can enable a block in Lua by adding a hyphen, e.g.
-            /*
-             ---[[
-             The block is enabled
-             --]]
-             */
-            if (!lineTrimmed.startsWith("--") || lineTrimmed.startsWith("--[[") || lineTrimmed.startsWith("--]]")) {
-                sb.append(line);
-            }
-            sb.append("\n");
-        }
-        return sb.toString();
-    }
-
-    private static String stripComments(String str) {
-        str = stripSingleLineComments(str);
-        Matcher matcher = multiLineCommentPattern.matcher(str);
-
-        StringBuffer sb = new StringBuffer();
-        while (matcher.find()) {
-            // Replace comment with n lines in order to preserve line indices
-            int n = matcher.group().split("\n").length;
-            StringBuffer lines = new StringBuffer(n);
-            for (int i = 0; i < n-1; ++i) lines.append('\n');
-            matcher.appendReplacement(sb, lines.toString());
-        }
-        matcher.appendTail(sb);
-        return sb.toString();
-    }
-
     public static List<String> scan(String str) {
-        String strStripped = stripComments(str);
-        List<Pattern> requirePatterns = Arrays.asList(requirePattern1, requirePattern2, requirePattern3, requirePattern4);
-
-        ArrayList<String> modules = new ArrayList<String>();
-        String[] lines = strStripped.split("\n");
-        for (String line : lines) {
-            line = line.trim();
-            // NOTE: At some point we should have a proper lua parser
-            for(Pattern requirePattern : requirePatterns) {
-                Matcher propMatcher = requirePattern.matcher(line);
-                if (propMatcher.matches()) {
-                    modules.add(propMatcher.group(1));
-                }
-            }
-        }
-        return modules;
+        DefoldLuaParser luaParser = new DefoldLuaParser();
+        luaParser.setStripComments(true);
+        String out = luaParser.parse(str);
+        return luaParser.getModules();
     }
 
     public static class Property {
@@ -155,55 +78,52 @@ public class LuaScanner {
     }
 
     public static String stripProperties(String str) {
-        str = stripComments(str);
-        str = str.replace("\r", "");
-        StringBuffer sb = new StringBuffer();
-        String[] lines = str.split("\n");
-        for (String line : lines) {
-            Matcher propDeclMatcher = propertyDeclPattern.matcher(line.trim());
-            if (!propDeclMatcher.matches()) {
-                sb.append(line);
-            } else {
-                for (int i = 0; i < line.length(); ++i) {
-                    sb.append(" ");
-                }
-            }
-            sb.append("\n");
-        }
-        return sb.toString();
+        DefoldLuaParser luaParser = new DefoldLuaParser();
+        luaParser.setStripComments(true);
+        luaParser.setStripProperties(true);
+        return luaParser.parse(str);
     }
 
     public static List<Property> scanProperties(String str) {
-        String strStripped = stripComments(str);
+        DefoldLuaParser luaParser = new DefoldLuaParser();
+        luaParser.setStripComments(true);
+        luaParser.parse(str);
 
         List<Property> properties = new ArrayList<Property>();
-        String[] lines = strStripped.split("\n");
-        int l = 0; // 0-based line number
-        for (String line : lines) {
-            line = line.trim();
-            Matcher propDeclMatcher = propertyDeclPattern.matcher(line);
-            if (propDeclMatcher.matches()) {
-                Property property = new Property(l);
-                Matcher propArgsMatcher = propertyArgsPattern.matcher(propDeclMatcher.group(1).trim());
-                if (!propArgsMatcher.matches()) {
-                    property.status = Status.INVALID_ARGS;
-                } else {
-                    property.name = propArgsMatcher.group(1).trim();
-                    property.rawValue = propArgsMatcher.group(2).trim();
-                    if (parseProperty(property.rawValue, property)) {
-                        property.status = Status.OK;
-                    } else {
-                        property.status = Status.INVALID_VALUE;
-                    }
-                }
+        for(PropertyAndLine p : luaParser.getProperties()) {
+            Property property = parseProperty(p.property, p.line);
+            if (property != null) {
                 properties.add(property);
             }
-            ++l;
         }
         return properties;
     }
 
-    private static boolean parseProperty(String rawValue, Property property) {
+
+    private static Property parseProperty(String propString, int line) {
+        Matcher propDeclMatcher = propertyDeclPattern.matcher(propString);
+        if (!propDeclMatcher.matches()) {
+            return null;
+        }
+        Property property = new Property(line);
+        Matcher propArgsMatcher = propertyArgsPattern.matcher(propDeclMatcher.group(1).trim());
+        if (!propArgsMatcher.matches()) {
+            property.status = Status.INVALID_ARGS;
+        } else {
+            property.name = propArgsMatcher.group(1).trim();
+            property.rawValue = propArgsMatcher.group(2).trim();
+            if (parsePropertyValue(property.rawValue, property)) {
+                property.status = Status.OK;
+            } else {
+                property.status = Status.INVALID_VALUE;
+            }
+        }
+
+        return property;
+    }
+
+
+    private static boolean parsePropertyValue(String rawValue, Property property) {
         boolean result = false;
         for (Pattern pattern : patterns) {
             Matcher matcher = pattern.matcher(property.rawValue);

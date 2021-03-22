@@ -1,22 +1,24 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/dstrings.h>
+
+#include <dmsdk/resource/resource.h>
 #include "res_lua.h"
 #include "gameobject_script.h"
 
 namespace dmGameObject
 {
-    dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams& params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
@@ -29,7 +31,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResLuaDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResLuaDestroy(const dmResource::ResourceDestroyParams& params)
     {
         LuaScript* script = (LuaScript*) params.m_Resource->m_Resource;
         dmDDF::FreeMessage(script->m_LuaModule);
@@ -37,7 +39,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResLuaRecreate(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResLuaRecreate(const dmResource::ResourceRecreateParams& params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
@@ -56,4 +58,21 @@ namespace dmGameObject
         lua_script->m_LuaModule = lua_module;
         return dmResource::RESULT_OK;
     }
+
+    static dmResource::Result RegisterResourceTypeLua(dmResource::ResourceTypeRegisterContext& ctx)
+    {
+        // The engine.cpp creates the contexts for our built in types.
+        void** context = ctx.m_Contexts->Get(ctx.m_NameHash);
+        assert(context);
+        return dmResource::RegisterType(ctx.m_Factory,
+                                           ctx.m_Name,
+                                           *context,
+                                           0,
+                                           ResLuaCreate,
+                                           0,
+                                           ResLuaDestroy,
+                                           ResLuaRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeLua, "luac", dmGameObject::RegisterResourceTypeLua, 0);

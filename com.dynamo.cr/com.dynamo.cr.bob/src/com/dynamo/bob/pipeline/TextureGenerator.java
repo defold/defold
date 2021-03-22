@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -60,8 +60,12 @@ public class TextureGenerator {
     private static HashMap<TextureImage.CompressionType, Integer> compressionTypeLUT = new HashMap<TextureImage.CompressionType, Integer>();
     static {
         compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, CompressionType.CT_DEFAULT);
-        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP, CompressionType.CT_WEBP);
-        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY, CompressionType.CT_WEBP_LOSSY);
+        // For backwards compatibility, we automatically convert the WEBP to either DEFAULT, or UASTC
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP, CompressionType.CT_DEFAULT);
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY, CompressionType.CT_BASIS_UASTC);
+
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC, CompressionType.CT_BASIS_UASTC);
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_ETC1S, CompressionType.CT_BASIS_ETC1S);
     }
 
     private static HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<TextureFormat, Integer>();
@@ -78,13 +82,13 @@ public class TextureGenerator {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP, PixelFormat.R4G4B4A4);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA, PixelFormat.L8A8);
 
-        /*
-        JIRA issue: DEF-994
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB_DXT1, PixelFormat.RGB_DXT1);
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_DXT1, PixelFormat.RGBA_DXT1);
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_DXT3, PixelFormat.RGBA_DXT3);
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_DXT5, PixelFormat.RGBA_DXT5);
-        */
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ETC2, PixelFormat.RGBA_ETC2);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, PixelFormat.RGBA_ASTC_4x4);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB_BC1, PixelFormat.RGB_BC1);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_BC3, PixelFormat.RGBA_BC3);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_R_BC4, PixelFormat.R_BC4);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RG_BC5, PixelFormat.RG_BC5);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_BC7, PixelFormat.RGBA_BC7);
     }
 
     private static BufferedImage convertImage(BufferedImage origImage, int type) {
@@ -105,7 +109,7 @@ public class TextureGenerator {
             case TEXTURE_FORMAT_RGB: {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
-                if (componentCount == 2)
+                else if (componentCount == 2)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA;
                 return TextureFormat.TEXTURE_FORMAT_RGB;
             }
@@ -113,7 +117,7 @@ public class TextureGenerator {
             case TEXTURE_FORMAT_RGBA: {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
-                if (componentCount == 2)
+                else if (componentCount == 2)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA;
                 else if (componentCount == 3)
                     return TextureFormat.TEXTURE_FORMAT_RGB;
@@ -134,17 +138,40 @@ public class TextureGenerator {
                 return TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             }
 
-            // DXT
-            /*
-            JIRA issue: DEF-994
-
-            case TEXTURE_FORMAT_RGBA_DXT1: {
+            case TEXTURE_FORMAT_RGBA_16BPP: {
                 if (componentCount < 4)
-                    return TextureFormat.TEXTURE_FORMAT_RGB_DXT1;
-
-                return targetFormat;
+                    return TextureFormat.TEXTURE_FORMAT_RGB_16BPP;
+                return TextureFormat.TEXTURE_FORMAT_RGBA_16BPP;
             }
-            */
+
+
+            case TEXTURE_FORMAT_RGBA_ETC2: {
+                if (componentCount < 4)
+                    return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
+                return TextureFormat.TEXTURE_FORMAT_RGBA_ETC2;
+            }
+
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4: {
+                if (componentCount < 4)
+                    return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
+                return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4;
+            }
+
+            case TEXTURE_FORMAT_RGBA_BC3: {
+                if (componentCount < 4)
+                    return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
+                return TextureFormat.TEXTURE_FORMAT_RGBA_BC3;
+            }
+
+            case TEXTURE_FORMAT_RGBA_BC7: {
+                if (componentCount == 1)
+                    return TextureFormat.TEXTURE_FORMAT_R_BC4;
+                else if (componentCount == 2)
+                    return TextureFormat.TEXTURE_FORMAT_RG_BC5;
+                else if (componentCount == 3)
+                    return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
+                return TextureFormat.TEXTURE_FORMAT_RGBA_BC7;
+            }
         }
 
         return targetFormat;
@@ -176,10 +203,16 @@ public class TextureGenerator {
         }
 
         buffer.flip();
-        Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, buffer);
 
         // convert from protobuf specified compressionlevel to texc int
         texcCompressionLevel = compressionLevelLUT.get(compressionLevel);
+
+        // convert compression type from WebP to something else
+        if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP)
+            compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
+        else
+        if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY)
+            compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
 
         // convert from protobuf specified compressionType to texc int
         texcCompressionType = compressionTypeLUT.get(compressionType);
@@ -187,6 +220,7 @@ public class TextureGenerator {
         if (!compress) {
             texcCompressionLevel = CompressionLevel.CL_FAST;
             texcCompressionType = CompressionType.CT_DEFAULT;
+            compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
 
             // If pvrtc or etc1, set these as rgba instead. Since these formats will take some time to compress even
             // with "fast" setting and we don't want to increase the build time more than we have to.
@@ -203,11 +237,17 @@ public class TextureGenerator {
             throw new TextureGeneratorException("Invalid texture format.");
         }
 
+        Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, texcCompressionType, buffer);
+        if (texture == null) {
+            throw new TextureGeneratorException("Failed to create texture");
+        }
+
         try {
 
             int newWidth  = image.getWidth();
             int newHeight = image.getHeight();
 
+            // For pvrtc textures
             newWidth = TextureUtil.closestPOT(newWidth);
             newHeight = TextureUtil.closestPOT(newHeight);
 
@@ -248,12 +288,6 @@ public class TextureGenerator {
                 }
             }
 
-            if (generateMipMaps) {
-                if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
-                    throw new TextureGeneratorException("could not generate mip-maps");
-                }
-            }
-
             // Loop over all axis that should be flipped.
             for (FlipAxis flip : flipAxis) {
                 if (!TexcLibrary.TEXC_Flip(texture, flip.getValue())) {
@@ -261,8 +295,15 @@ public class TextureGenerator {
                 }
             }
 
-            if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, DitherType.DT_DEFAULT)) {
-                throw new TextureGeneratorException("could not transcode");
+            if (generateMipMaps) {
+                if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
+                    throw new TextureGeneratorException("could not generate mip-maps");
+                }
+            }
+
+            int max_threads = 8;
+            if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, max_threads)) {
+                throw new TextureGeneratorException("could not encode");
             }
 
             int bufferSize = TexcLibrary.TEXC_GetTotalDataSize(texture);
@@ -272,6 +313,14 @@ public class TextureGenerator {
 
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
+
+            // If we're writing a .basis file, we don't actually store each mip map separately
+            // In this case, we pretend that there's only one mip level
+            if (texcCompressionType == CompressionType.CT_BASIS_UASTC ||
+                texcCompressionType == CompressionType.CT_BASIS_ETC1S )
+            {
+                generateMipMaps = false;
+            }
 
             int w = newWidth;
             int h = newHeight;
@@ -345,6 +394,7 @@ public class TextureGenerator {
     }
 
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.
+    // Used by the editor
     public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc

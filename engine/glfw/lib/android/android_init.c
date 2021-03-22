@@ -196,6 +196,12 @@ void computeIconifiedState()
     // A good detailed overview over the recommended app flow is found here:
     //   https://developer.nvidia.com/fixing-common-android-lifecycle-issues-games
     _glfwWin.iconified = !(g_AppResumed && g_AppFocused && _glfwWinAndroid.surface != EGL_NO_SURFACE);
+
+    LOGV("iconified: %s    (resume: %s, focus: %s, surface: %s)",
+        _glfwWin.iconified?"YES":"no",
+        g_AppResumed?"YES":"no",
+        g_AppFocused?"YES":"no",
+        (_glfwWinAndroid.surface != EGL_NO_SURFACE )?"YES":"no");
 }
 
 GLFWAPI int32_t glfwAndroidWindowOpened()

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,239 +12,86 @@
 
 #include "texc.h"
 #include "texc_private.h"
+#include "texc_enc_basis.h"
+#include "texc_enc_default.h"
 
 #include <assert.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
 
-#include <PVRTexture.h>
-#include <PVRTextureUtilities.h>
-
 namespace dmTexc
 {
-    static pvrtexture::PixelType ConvertPixelFormat(PixelFormat pixel_format)
+    static bool GetEncoder(CompressionType compression_type, Encoder* encoder)
     {
-        switch (pixel_format)
+        switch(compression_type)
         {
-        // Raw
-        case PF_L8:
-            return pvrtexture::PixelType('l', 0, 0, 0, 8, 0, 0, 0);
-        case PF_L8A8:
-            return pvrtexture::PixelType('l', 'a', 0, 0, 8, 8, 0, 0);
-        case PF_R8G8B8:
-            return pvrtexture::PixelType('r', 'g', 'b', 0, 8, 8, 8, 0);
-        case PF_R8G8B8A8:
-            return pvrtexture::PixelType('r', 'g', 'b', 'a', 8, 8, 8, 8);
-        case PF_R5G6B5:
-            return pvrtexture::PixelType('r', 'g', 'b', 0, 5, 6, 5, 0);
-        case PF_R4G4B4A4:
-            return pvrtexture::PixelType('r', 'g', 'b', 'a', 4, 4, 4, 4);
-
-        // PVRTC
-        case PF_RGB_PVRTC_2BPPV1:
-            return ePVRTPF_PVRTCI_2bpp_RGB;
-        case PF_RGB_PVRTC_4BPPV1:
-            return ePVRTPF_PVRTCI_4bpp_RGB;
-        case PF_RGBA_PVRTC_2BPPV1:
-            return ePVRTPF_PVRTCI_2bpp_RGBA;
-        case PF_RGBA_PVRTC_4BPPV1:
-            return ePVRTPF_PVRTCI_4bpp_RGBA;
-
-        // ETC
-        case PF_RGB_ETC1:
-            return ePVRTPF_ETC1;
-
-        // DXT
-        /*
-        JIRA issue: DEF-994
-        case PF_RGB_DXT1:
-        case PF_RGBA_DXT1:
-            return ePVRTPF_DXT1;
-        case PF_RGBA_DXT3:
-            return ePVRTPF_DXT3;
-        case PF_RGBA_DXT5:
-            return ePVRTPF_DXT5;
-            break;
-        */
+            case dmTexc::CT_BASIS_UASTC:
+            case dmTexc::CT_BASIS_ETC1S:    GetEncoderBasis(encoder); return true;
+            case dmTexc::CT_DEFAULT:        GetEncoderDefault(encoder); return true;
             default:
-                break;
+                return false;
         }
-        // Should never get here
-        assert(false);
-        return pvrtexture::PixelType();
     }
 
-    static pvrtexture::ECompressorQuality ConvertCompressionLevel(CompressionLevel compression_level)
+    HTexture Create(uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
     {
-        switch (compression_level)
+        Texture* t = new Texture;
+        if (!GetEncoder(compression_type, &t->m_Encoder))
         {
-            case CL_FAST:
-                return pvrtexture::ePVRTCFast;
-            case CL_NORMAL:
-                return pvrtexture::ePVRTCNormal;
-            case CL_HIGH:
-                return pvrtexture::ePVRTCHigh;
-            case CL_BEST:
-                return pvrtexture::ePVRTCBest;
-            default:
-                dmLogError("Unknown compression level (%d). Using normal level", (uint32_t) compression_level);
-                break;
+            dmLogError("Failed to get an encoder for compression type: %d", (int)compression_type);
+            delete t;
+            return 0;
+
         }
 
-        return pvrtexture::ePVRTCNormal;
-    }
-
-    static EPVRTColourSpace ConvertColorSpace(ColorSpace color_space)
-    {
-        switch (color_space)
+        t->m_CompressionType = compression_type;
+        if (!t->m_Encoder.m_FnCreate(t, width, height, pixel_format, color_space, compression_type, data))
         {
-        case CS_LRGB:
-            return ePVRTCSpacelRGB;
-        case CS_SRGB:
-            return ePVRTCSpacesRGB;
-        }
-        // Should never get here
-        assert(false);
-        return ePVRTCSpacesRGB;
-    }
-
-    static EPVRTAxis ConvertFlipAxis(FlipAxis flip_axis)
-    {
-        switch (flip_axis)
-        {
-            case FLIP_AXIS_X:
-                return ePVRTAxisX;
-            case FLIP_AXIS_Y:
-                return ePVRTAxisY;
-            case FLIP_AXIS_Z:
-                return ePVRTAxisZ;
-        }
-
-        // Should never get here
-        assert(false);
-        return ePVRTAxisX;
-    }
-
-    HTexture Create(uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, void* data)
-    {
-        pvrtexture::PixelType pf = ConvertPixelFormat(pixel_format);
-        EPVRTColourSpace cs = ConvertColorSpace(color_space);
-        uint32_t depth = 1;
-        uint32_t num_mip_maps = 1;
-        uint32_t num_array_members = 1;
-        uint32_t num_faces = 1;
-        EPVRTVariableType var_type = ePVRTVarTypeUnsignedByteNorm;
-        bool pre_multiplied = false;
-        pvrtexture::CPVRTextureHeader header(pf.PixelTypeID, height, width, depth, num_mip_maps,
-                num_array_members, num_faces, cs, var_type, pre_multiplied);
-
-        pvrtexture::CPVRTexture* pvrt_tex = (pvrtexture::CPVRTexture*) new pvrtexture::CPVRTexture(header, data);
-        if(!pvrt_tex)
-        {
-            dmLogError("Failed to create PVRTTexture");
+            delete t;
+            dmLogError("Create failed");
             return 0;
         }
-
-        Texture* t = new Texture;
-        t->m_CompressedMips.SetCapacity(16); //  counts for 64kpix textures
-        t->m_PVRTexture = pvrt_tex;
-        t->m_CompressionFlags = 0;
         return t;
     }
 
     void Destroy(HTexture texture)
     {
         Texture* t = (Texture *) texture;
-        for(size_t i = 0; i < t->m_CompressedMips.Size(); ++i)
-        {
-            delete[] t->m_CompressedMips[i].m_Data;
-        }
-        if(t->m_PVRTexture)
-        {
-            delete t->m_PVRTexture;
-        }
+        t->m_Encoder.m_FnDestroy(t);
         delete t;
     }
 
+    // For testing
     bool GetHeader(HTexture texture, Header* out_header)
     {
         Texture* t = (Texture*) texture;
-        if (t != dmTexc::INVALID_TEXTURE && t->m_PVRTexture != 0x0 && out_header != 0x0)
-        {
-            PVRTextureHeaderV3 src = t->m_PVRTexture->getFileHeader();
-            out_header->m_Version = src.u32Version;
-            out_header->m_Flags = src.u32Flags;
-            out_header->m_PixelFormat = src.u64PixelFormat;
-            out_header->m_ColourSpace = src.u32ColourSpace;
-            out_header->m_ChannelType = src.u32ChannelType;
-            out_header->m_Height = src.u32Height;
-            out_header->m_Width = src.u32Width;
-            out_header->m_Depth = src.u32Depth;
-            out_header->m_NumSurfaces = src.u32NumSurfaces;
-            out_header->m_NumFaces = src.u32NumFaces;
-            out_header->m_MipMapCount = src.u32MIPMapCount;
-            out_header->m_MetaDataSize = src.u32MetaDataSize;
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return t->m_Encoder.m_FnGetHeader(t, out_header);
     }
 
     uint32_t GetDataSizeCompressed(HTexture texture, uint32_t mip_map)
     {
         Texture* t = (Texture*) texture;
-        return mip_map < t->m_CompressedMips.Size() ? t->m_CompressedMips[mip_map].m_ByteSize : 0;
+        return mip_map < t->m_Mips.Size() ? t->m_Mips[mip_map].m_ByteSize : 0;
     }
 
     uint32_t GetDataSizeUncompressed(HTexture texture, uint32_t mip_map)
     {
-        Texture* t = (Texture*) texture;
-        return mip_map < t->m_PVRTexture->getNumMIPLevels() ? t->m_PVRTexture->getDataSize(mip_map) : 0;
+        // Since we don't add any extra compression on top of the resource, the
+        // amount of memory required to store the
+        return GetDataSizeCompressed(texture, mip_map);
     }
 
     uint32_t GetTotalDataSize(HTexture texture)
     {
         Texture* t = (Texture*) texture;
-        size_t size = 0;
-        size_t mip_maps = t->m_PVRTexture->getNumMIPLevels();
-        for (size_t mip_map = 0; mip_map < mip_maps; ++mip_map)
-        {
-            size += mip_map < t->m_CompressedMips.Size() ? t->m_CompressedMips[mip_map].m_ByteSize : t->m_PVRTexture->getDataSize(mip_map);
-        }
-        return size;
+        return t->m_Encoder.m_FnGetTotalDataSize(t);
     }
 
     uint32_t GetData(HTexture texture, void* out_data, uint32_t out_data_size)
     {
         Texture* t = (Texture*) texture;
-        uint32_t offset = 0;
-        uint8_t* out = (uint8_t*)out_data;
-        uint32_t mip_maps = t->m_PVRTexture->getNumMIPLevels();
-        for (uint32_t mip_map = 0; mip_map < mip_maps; ++mip_map)
-        {
-            uint32_t size;
-            void* data;
-            if(mip_map < t->m_CompressedMips.Size())
-            {
-                size = t->m_CompressedMips[mip_map].m_ByteSize;
-                data = t->m_CompressedMips[mip_map].m_Data;
-            }
-            else
-            {
-                size = t->m_PVRTexture->getDataSize(mip_map);
-                data = t->m_PVRTexture->getDataPtr(mip_map);
-            }
-            dmMath::Min(size, out_data_size - offset);
-            memcpy(out, data, size);
-            offset += size;
-            out += size;
-            if (offset >= out_data_size)
-                break;
-        }
-        return offset;
+        return t->m_Encoder.m_FnGetData(t, out_data, out_data_size);
     }
 
     uint64_t GetCompressionFlags(HTexture texture)
@@ -256,63 +103,53 @@ namespace dmTexc
     bool Resize(HTexture texture, uint32_t width, uint32_t height)
     {
         Texture* t = (Texture*) texture;
-        return pvrtexture::Resize(*t->m_PVRTexture, width, height, t->m_PVRTexture->getDepth(), pvrtexture::eResizeLinear);
+        return t->m_Encoder.m_FnResize(t, width, height);
     }
 
     bool PreMultiplyAlpha(HTexture texture)
     {
         Texture* t = (Texture*) texture;
-        return pvrtexture::PreMultiplyAlpha(*t->m_PVRTexture);
+        return t->m_Encoder.m_FnPreMultiplyAlpha(t);
     }
 
     bool GenMipMaps(HTexture texture)
     {
         Texture* t = (Texture*) texture;
-        return pvrtexture::GenerateMIPMaps(*t->m_PVRTexture, pvrtexture::eResizeLinear);
+        return t->m_Encoder.m_FnGenMipMaps(t);
     }
 
     bool Flip(HTexture texture, FlipAxis flip_axis)
     {
+        if (flip_axis == FLIP_AXIS_Z)
+        {
+            dmLogWarning("FLIP_AXIS_Z not supported");
+            return true;
+        }
         Texture* t = (Texture*) texture;
-        return pvrtexture::Flip(*t->m_PVRTexture, ConvertFlipAxis(flip_axis));
+        return t->m_Encoder.m_FnFlip(t, flip_axis);
     }
 
-    bool Transcode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space, CompressionLevel compression_level, CompressionType compression_type, DitherType dither_type)
+    static uint32_t GetNumThreads(int max_threads)
+    {
+        uint32_t num_threads = max_threads;
+        if (max_threads > 1)
+        {
+            num_threads = std::thread::hardware_concurrency();
+            if (num_threads < 1)
+                num_threads = 1;
+            if (num_threads > max_threads)
+                num_threads = max_threads;
+        }
+        return num_threads;
+    }
+
+    bool Encode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space,
+                CompressionLevel compression_level, CompressionType compression_type, bool mipmaps, int max_threads)
     {
         Texture* t = (Texture*) texture;
-        pvrtexture::PixelType pf = ConvertPixelFormat(pixel_format);
-        EPVRTVariableType var_type = ePVRTVarTypeUnsignedByteNorm;
-        EPVRTColourSpace cs = ConvertColorSpace(color_space);
-        pvrtexture::ECompressorQuality quality = ConvertCompressionLevel(compression_level);
-        if(!pvrtexture::Transcode(*t->m_PVRTexture, pf, var_type, cs, quality, dither_type == DT_DEFAULT))
-        {
-            dmLogError("Failed to transcode texture");
-            return false;
-        }
 
-        if(!t->m_CompressedMips.Empty())
-        {
-            for(size_t i = 0; i < t->m_CompressedMips.Size(); ++i)
-            {
-                delete[] t->m_CompressedMips[i].m_Data;
-            }
-            t->m_CompressedMips.SetSize(0);
-        }
-
-        switch(compression_type)
-        {
-            case CT_WEBP:
-            case CT_WEBP_LOSSY:
-                 if(!CompressWebP(texture, pixel_format, color_space, compression_level, compression_type))
-                 {
-                     dmLogError("Failed to compress texture with WebP compression");
-                     return false;
-                 }
-                 break;
-            default:
-                break;
-        }
-        return true;
+        uint32_t num_threads = GetNumThreads(max_threads);
+        return t->m_Encoder.m_FnEncode(t, num_threads, pixel_format, compression_type, compression_level);
     }
 
 #define DM_TEXC_TRAMPOLINE1(ret, name, t1) \
@@ -351,15 +188,20 @@ namespace dmTexc
         return name(a1, a2, a3, a4, a5, a6);\
     }\
 
+#define DM_TEXC_TRAMPOLINE7(ret, name, t1, t2, t3, t4, t5, t6, t7) \
+    ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7);\
+    }\
+
 #define DM_TEXC_TRAMPOLINE8(ret, name, t1, t2, t3, t4, t5, t6, t7, t8) \
     ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8)\
     {\
         return name(a1, a2, a3, a4, a5, a6, a7, a8);\
     }\
 
-    DM_TEXC_TRAMPOLINE5(HTexture, Create, uint32_t, uint32_t, PixelFormat, ColorSpace, void*);
+    DM_TEXC_TRAMPOLINE6(HTexture, Create, uint32_t, uint32_t, PixelFormat, ColorSpace, CompressionType, void*);
     DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
-    DM_TEXC_TRAMPOLINE2(bool, GetHeader, HTexture, Header*);
     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeCompressed, HTexture, uint32_t);
     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeUncompressed, HTexture, uint32_t);
     DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalDataSize, HTexture);
@@ -369,8 +211,8 @@ namespace dmTexc
     DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);
     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
     DM_TEXC_TRAMPOLINE2(bool, Flip, HTexture, FlipAxis);
-    DM_TEXC_TRAMPOLINE6(bool, Transcode, HTexture, PixelFormat, ColorSpace, CompressionLevel, CompressionType, DitherType);
-    DM_TEXC_TRAMPOLINE8(HBuffer, CompressWebPBuffer, uint32_t, uint32_t, uint32_t, void*, uint32_t, PixelFormat, CompressionLevel, CompressionType);
+    DM_TEXC_TRAMPOLINE7(bool, Encode, HTexture, PixelFormat, ColorSpace, CompressionLevel, CompressionType, bool, int);
+    DM_TEXC_TRAMPOLINE2(HBuffer, CompressBuffer, void*, uint32_t);
     DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalBufferDataSize, HBuffer);
     DM_TEXC_TRAMPOLINE3(uint32_t, GetBufferData, HBuffer, void*, uint32_t);
     DM_TEXC_TRAMPOLINE1(void, DestroyBuffer, HBuffer);

@@ -66,26 +66,26 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 c-ares-1.16.1 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.7 c-ares-1.17.1 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1".split()
-PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1".split()
-PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1 MoltenVK-1.0.41".split()
-PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 MoltenVK-1.0.41".split()
-PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 c-ares-1.16.1 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.16.1".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.16.1".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1".split()
+PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1".split()
+PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1 MoltenVK-1.0.41".split()
+PACKAGES_DARWIN="protobuf-2.3.0 webp-0.5.0 vpx-1.7.0".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.17.1 MoltenVK-1.0.41".split()
+PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 c-ares-1.17.1 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.17.1 vulkan-1.1.108".split()
+PACKAGES_LINUX_64="webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.17.1 vulkan-1.1.108".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.17.1".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.17.1".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
-CDN_UPLOAD_URL="s3://d.defold.com/archive"
+DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
 
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
@@ -111,7 +111,7 @@ SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
-EXTERNAL_LIBS = "bullet3d".split()
+EXTERNAL_LIBS = "bullet3d cares".split()
 
 def is_64bit_machine():
     return platform.machine().endswith('64')
@@ -250,7 +250,7 @@ class Configuration(object):
                  skip_bob_light = False,
                  disable_ccache = False,
                  no_colors = False,
-                 archive_path = None,
+                 archive_domain = None,
                  package_path = None,
                  set_version = None,
                  channel = None,
@@ -291,7 +291,8 @@ class Configuration(object):
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
-        self.archive_path = archive_path
+        self.archive_path = "s3://%s/archive" % (archive_domain)
+        self.archive_domain = archive_domain
         self.package_path = package_path
         self.set_version = set_version
         self.channel = channel
@@ -614,7 +615,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-30-30.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
@@ -1109,9 +1110,9 @@ class Configuration(object):
                 luajit_exe_64 = format_exes('luajit-64', plf[1])[0]
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
-        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
-        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
-        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
+        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
+        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
+        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
         android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
@@ -1280,6 +1281,7 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
                'bundle']
         self.run_editor_script(cmd)
 
@@ -1382,93 +1384,9 @@ class Configuration(object):
 
 
     def release(self):
-        page = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Defold Downloads</title>
-        <link href='//fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-        <link rel="stylesheet" href="//d.defold.com/static/bootstrap/css/bootstrap.min.css">
-        <style>
-            body {
-                padding-top: 50px;
-            }
-            .starter-template {
-                padding: 40px 15px;
-                text-align: center;
-            }
-        </style>
-
-    </head>
-    <body>
-    <div class="navbar navbar-fixed-top">
-        <div class="navbar-inner">
-            <div class="container">
-                <a class="brand" href="/">Defold Downloads</a>
-                <ul class="nav">
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <div class="container">
-
-        <div id="releases"></div>
-        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="//d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
-        <script id="templ-releases" type="text/html">
-            <h2>{{release.channel}} {{release.version}}</h2>
-            {{#release.editor}}
-                <p>
-                    <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
-                </p>
-            {{/release.editor}}
-
-            {{#has_releases}}
-                <h2>Releases</h2>
-            {{/has_releases}}
-
-            {{#releases}}
-                <div class="panel-group" id="accordion">
-                  <div class="panel panel-default">
-                    <div class="panel-heading">
-                      <h4 class="panel-title">
-                        <a data-toggle="collapse" data-parent="#accordion" href="#{{sha1}}">
-                          <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
-                        </a>
-                      </h4>
-                    </div>
-                    <div id="{{sha1}}" class="panel-collapse collapse ">
-                      <div class="panel-body">
-                        <table class="table table-striped">
-                          <tbody>
-                            {{#files}}
-                            <tr><td><a href="{{path}}">{{name}}</a></td></tr>
-                            {{/files}}
-                            {{^files}}
-                            <i>No files</i>
-                            {{/files}}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-            {{/releases}}
-        </script>
-
-        <script>
-            var model = %(model)s
-            var output = Mustache.render($('#templ-releases').html(), model);
-            $("#releases").html(output);
-        </script>
-      </body>
-</html>
-"""
+        page = None;
+        with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
+            page = file.read()
 
         if run.shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.
@@ -1489,7 +1407,7 @@ class Configuration(object):
             model['releases'] = s3.get_tagged_releases(self.get_archive_path())
             model['has_releases'] = True
         else:
-            model['releases'] = s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())
+            model['releases'] = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
             model['has_releases'] = True
 
         if not model['releases']:
@@ -2034,10 +1952,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'No color output. Default is color output')
 
-    default_archive_path = CDN_UPLOAD_URL
-    parser.add_option('--archive-path', dest='archive_path',
-                      default = default_archive_path,
-                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path)
+    default_archive_domain = DEFAULT_ARCHIVE_DOMAIN
+    parser.add_option('--archive-domain', dest='archive_domain',
+                      default = default_archive_domain,
+                      help = 'Domain where builds will be archived. Default is %s' % default_archive_domain)
 
     default_package_path = CDN_PACKAGES_URL
     parser.add_option('--package-path', dest='package_path',
@@ -2123,7 +2041,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
-                      archive_path = options.archive_path,
+                      archive_domain = options.archive_domain,
                       package_path = options.package_path,
                       set_version = options.set_version,
                       channel = options.channel,

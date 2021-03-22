@@ -18,6 +18,7 @@
 #include "gamesys_ddf.h"
 #include "../gamesys_private.h"
 #include "../components/comp_model.h"
+#include "../resources/res_model.h"
 
 #include "script_model.h"
 

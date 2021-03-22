@@ -20,7 +20,6 @@
 #include <sys/stat.h>
 #include "math.h"
 #include "http_client.h"
-#include "http_client_private.h"
 #include "log.h"
 #include "sys.h"
 #include "dstrings.h"
@@ -185,6 +184,7 @@ namespace dmHttpClient
 
         bool                m_Secure;
         uint16_t            m_Port;
+        uint16_t            m_IgnoreCache:1;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
@@ -308,6 +308,9 @@ namespace dmHttpClient
                 break;
             case OPTION_REQUEST_TIMEOUT:
                 client->m_RequestTimeout = (int) value;
+                break;
+            case OPTION_REQUEST_IGNORE_CACHE:
+                client->m_IgnoreCache = value != 0 ? 1 : 0;
                 break;
             default:
                 return RESULT_INVAL_ERROR;
@@ -476,9 +479,9 @@ namespace dmHttpClient
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
             client->m_Buffer[response->m_TotalReceived] = '\0';
 
-            dmHttpClientPrivate::ParseResult parse_res;
-            parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, recv_bytes == 0, &HandleVersion, &HandleHeader, &HandleContent);
-            if (parse_res == dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA)
+            dmHttpClient::ParseResult parse_res;
+            parse_res = dmHttpClient::ParseHeader(client->m_Buffer, response, recv_bytes == 0, &HandleVersion, &HandleHeader, &HandleContent);
+            if (parse_res == dmHttpClient::PARSE_RESULT_NEED_MORE_DATA)
             {
                 if (recv_bytes == 0)
                 {
@@ -487,11 +490,11 @@ namespace dmHttpClient
                 }
                 continue;
             }
-            else if (parse_res == dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR)
+            else if (parse_res == dmHttpClient::PARSE_RESULT_SYNTAX_ERROR)
             {
                 return RESULT_HTTP_HEADERS_ERROR;
             }
-            else if (parse_res == dmHttpClientPrivate::PARSE_RESULT_OK)
+            else if (parse_res == dmHttpClient::PARSE_RESULT_OK)
             {
                 break;
             }
@@ -571,7 +574,7 @@ if (sock_res != dmSocket::RESULT_OK)\
                 goto bail;
             }
         }
-        if (client->m_HttpCache)
+        if (!client->m_IgnoreCache && client->m_HttpCache)
         {
             char etag[64];
             dmHttpCache::Result cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, etag, sizeof(etag));
@@ -745,6 +748,10 @@ bail:
     static Result HandleCached(HClient client, const char* path, Response* response)
     {
         client->m_Statistics.m_CachedResponses++;
+        if (client->m_IgnoreCache)
+        {
+            return RESULT_OK;
+        }
 
         if (client->m_HttpCache == 0)
         {
@@ -924,7 +931,7 @@ bail:
 
         if (response.m_Status == 204 /* No Content*/)
         {
-            assert(response.m_ContentLength == -1);
+            // assume content length is zero. No need to complain if an invalid response non empty content is received.
             response.m_ContentLength = 0;
         }
 
@@ -959,13 +966,9 @@ bail:
         else
         {
             // Non-cached response
-            if (client->m_HttpCache && response.m_Status == 200 /* OK */)
+            if (!client->m_IgnoreCache && client->m_HttpCache && response.m_Status == 200 /* OK */)
             {
-                if (response.m_ETag[0] != '\0') {
-                    dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, &response.m_CacheCreator);
-                } else if (response.m_MaxAge > 0) {
-                    dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_MaxAge, &response.m_CacheCreator);
-                }
+                dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
             }
 
             r = HandleResponse(client, path, method, &response);
@@ -1022,12 +1025,13 @@ bail:
             r = DoDoRequest(client, response, path, method);
             if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
 
+                response.m_CloseConnection = 1;
+
                 if( HasRequestTimedOut(client) )
                 {
                     return r;
                 }
 
-                response.m_CloseConnection = 1;
                 uint32_t count = dmConnectionPool::GetReuseCount(response.m_Pool, response.m_Connection);
 
                 if (count > 0 && response.m_TotalReceived == 0) {
@@ -1087,7 +1091,7 @@ bail:
 
         Result r;
 
-        if (client->m_HttpCache)
+        if (!client->m_IgnoreCache && client->m_HttpCache)
         {
             dmHttpCache::ConsistencyPolicy policy = dmHttpCache::GetConsistencyPolicy(client->m_HttpCache);
             dmHttpCache::EntryInfo info;
@@ -1205,4 +1209,89 @@ bail:
     }
     #undef DM_HTTPCLIENT_RESULT_TO_STRING_CASE
 
+    ParseResult ParseHeader(char* header_str,
+                            void* user_data,
+                            bool end_of_receive,
+                            void (*version)(void* user_data, int major, int minor, int status, const char* status_str),
+                            void (*header)(void* user_data, const char* key, const char* value),
+                            void (*body)(void* user_data, int offset))
+    {
+        // Check if we have a body section by searching for two new-lines, do this before parsing version since we do destructive string termination
+        char* body_start = strstr(header_str, "\r\n\r\n");
+
+        // Always try to parse version and status
+        char* version_str = header_str;
+        char* end_version = strstr(header_str, "\r\n");
+        if (end_version == 0)
+            return PARSE_RESULT_NEED_MORE_DATA;
+
+        char store_end_version = *end_version;
+        *end_version = '\0';
+
+        int major, minor, status;
+        int count = sscanf(version_str, "HTTP/%d.%d %d", &major, &minor, &status);
+        if (count != 3)
+        {
+            return PARSE_RESULT_SYNTAX_ERROR;
+        }
+
+        if (body_start != 0)
+        {
+            // Skip \r\n\r\n
+            body_start += 4;
+        }
+        else
+        {
+            // According to the HTTP spec, all responses should end with double line feed to indicate end of headers
+            // Unfortunately some server implementations only end with one linefeed if the response is '204 No Content' so we take special measures
+            // to force parsing of headers if we have received no more data and the we get a 204 status
+            if(end_of_receive && status == 204)
+            {
+                // Treat entire input as just headers
+                body_start = (end_version + 1) + strlen(end_version + 1);
+            }
+            else
+            {
+                // Restore string termination since we need more data and will likely try again
+                *end_version = store_end_version;
+                return PARSE_RESULT_NEED_MORE_DATA;
+            }
+        }
+
+        // Find status string, ie "OK" in "HTTP/1.1 200 OK"
+        char* status_string = strchr(version_str, ' ');
+        status_string = status_string ? strchr(status_string + 1, ' ') : 0;
+        if (status_string == 0)
+            return PARSE_RESULT_SYNTAX_ERROR;
+
+        version(user_data, major, minor, status, status_string + 1);
+
+        char store_body_start = *body_start;
+        *body_start = '\0'; // Terminate headers (up to body)
+        char* tok;
+        char* last;
+        tok = dmStrTok(end_version + 2, "\r\n", &last);
+        while (tok)
+        {
+            char* colon = strstr(tok, ":");
+            if (!colon)
+                return PARSE_RESULT_SYNTAX_ERROR;
+
+            char* value = colon + 1;
+            while (*value == ' ') {
+                value++;
+            }
+
+            int c = *colon;
+            *colon = '\0';
+            header(user_data, tok, value);
+            *colon = c;
+            tok = dmStrTok(0, "\r\n", &last);
+        }
+        *body_start = store_body_start;
+
+        body(user_data, (int) (body_start - header_str));
+
+        return PARSE_RESULT_OK;
+    }
 } // namespace dmHttpClient

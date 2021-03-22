@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -53,6 +54,7 @@ public class TextureBuilder extends Builder<Void> {
             IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
+        Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         ByteArrayInputStream is = new ByteArrayInputStream(task.input(0).getContent());
         TextureImage texture;
@@ -61,12 +63,6 @@ public class TextureBuilder extends Builder<Void> {
             texture = TextureGenerator.generate(is, texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
-        }
-
-        for(TextureImage.Image img  : texture.getAlternativesList()) {
-            if(img.getCompressionType() != TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
-                this.project.addOutputFlags(task.output(0).getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
-            }
         }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);

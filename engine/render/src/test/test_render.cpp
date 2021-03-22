@@ -298,7 +298,7 @@ TEST_F(dmRenderTest, TestRenderListDraw)
         entry.m_WorldPosition = Point3(0,0,orders[i]);
         entry.m_MajorOrder = majors[i % 3];
         entry.m_MinorOrder = 0;
-        entry.m_TagMask = 0;
+        entry.m_TagListKey = 0;
         entry.m_Order = orders[i];
         entry.m_BatchKey = i & 3; // no particular system
         entry.m_Dispatch = dispatch;
@@ -395,7 +395,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
         entry.m_WorldPosition = Point3(0,0,orders[i]);
         entry.m_MajorOrder = major_orders[i];
         entry.m_MinorOrder = 0;
-        entry.m_TagMask = 0;
+        entry.m_TagListKey = 0;
         entry.m_Order = orders[i];
         entry.m_BatchKey = 0;
         entry.m_Dispatch = dispatch;
@@ -421,7 +421,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
         entry.m_WorldPosition = Point3(0,0,orders[i]);
         entry.m_MajorOrder = major_orders[i];
         entry.m_MinorOrder = minor_orders[i];
-        entry.m_TagMask = 0;
+        entry.m_TagListKey = 0;
         entry.m_Order = orders[i];
         entry.m_BatchKey = 0;
         entry.m_Dispatch = dispatch;
@@ -671,7 +671,7 @@ struct SRangeCtx
     dmRender::RenderListRange m_Ranges[16];
 };
 
-static void CollectRenderEntryRange(void* _ctx, uint32_t tag_mask, size_t start, size_t count)
+static void CollectRenderEntryRange(void* _ctx, uint32_t tag_list_key, size_t start, size_t count)
 {
     SRangeCtx* ctx = (SRangeCtx*)_ctx;
     if (ctx->m_NumRanges >= sizeof(ctx->m_Ranges)/sizeof(ctx->m_Ranges[0]))
@@ -679,7 +679,7 @@ static void CollectRenderEntryRange(void* _ctx, uint32_t tag_mask, size_t start,
         return;
     }
     dmRender::RenderListRange& range = ctx->m_Ranges[ctx->m_NumRanges++];
-    range.m_TagMask = tag_mask;
+    range.m_TagListKey = tag_list_key;
     range.m_Start = start;
     range.m_Count = count;
 }
@@ -693,7 +693,7 @@ TEST_F(dmRenderTest, FindRanges)
     for( uint32_t i = 0; i < count; ++i) {
         indices[i] = i;
         entries[i].m_Order = i;
-        entries[i].m_TagMask = i % 5;
+        entries[i].m_TagListKey = i % 5;
     }
 
     // Sort the entries
@@ -704,17 +704,17 @@ TEST_F(dmRenderTest, FindRanges)
     // Make sure it's sorted
     bool sorted = true;
     uint32_t last_idx = 0;
-    uint32_t tag_mask = entries[0].m_TagMask;
+    uint32_t tag_list_key = entries[0].m_TagListKey;
     for( uint32_t i = 0; i < count; ++i)
     {
         uint32_t idx = indices[i];
 
-        if (entries[idx].m_TagMask < tag_mask)
+        if (entries[idx].m_TagListKey < tag_list_key)
         {
             sorted = false;
             break;
         }
-        else if(entries[idx].m_TagMask > tag_mask)
+        else if(entries[idx].m_TagListKey > tag_list_key)
         {
             last_idx = idx;
         }
@@ -725,7 +725,7 @@ TEST_F(dmRenderTest, FindRanges)
             break;
         }
 
-        tag_mask = entries[idx].m_TagMask;
+        tag_list_key = entries[idx].m_TagListKey;
         last_idx = idx;
     }
     ASSERT_TRUE(sorted);
@@ -740,24 +740,24 @@ TEST_F(dmRenderTest, FindRanges)
     ASSERT_EQ(5, ctx.m_NumRanges);
 
     dmRender::RenderListRange range;
-    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 0, range));
-    ASSERT_EQ(0, range.m_TagMask);
+    ASSERT_TRUE(dmRender::FindTagListRange(ctx.m_Ranges, ctx.m_NumRanges, 0, range));
+    ASSERT_EQ(0, range.m_TagListKey);
     ASSERT_EQ(0, range.m_Start);
     ASSERT_EQ(7, range.m_Count);
-    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 1, range));
-    ASSERT_EQ(1, range.m_TagMask);
+    ASSERT_TRUE(dmRender::FindTagListRange(ctx.m_Ranges, ctx.m_NumRanges, 1, range));
+    ASSERT_EQ(1, range.m_TagListKey);
     ASSERT_EQ(7, range.m_Start);
     ASSERT_EQ(7, range.m_Count);
-    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 2, range));
-    ASSERT_EQ(2, range.m_TagMask);
+    ASSERT_TRUE(dmRender::FindTagListRange(ctx.m_Ranges, ctx.m_NumRanges, 2, range));
+    ASSERT_EQ(2, range.m_TagListKey);
     ASSERT_EQ(14, range.m_Start);
     ASSERT_EQ(6, range.m_Count);
-    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 3, range));
-    ASSERT_EQ(3, range.m_TagMask);
+    ASSERT_TRUE(dmRender::FindTagListRange(ctx.m_Ranges, ctx.m_NumRanges, 3, range));
+    ASSERT_EQ(3, range.m_TagListKey);
     ASSERT_EQ(20, range.m_Start);
     ASSERT_EQ(6, range.m_Count);
-    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 4, range));
-    ASSERT_EQ(4, range.m_TagMask);
+    ASSERT_TRUE(dmRender::FindTagListRange(ctx.m_Ranges, ctx.m_NumRanges, 4, range));
+    ASSERT_EQ(4, range.m_TagListKey);
     ASSERT_EQ(26, range.m_Start);
     ASSERT_EQ(6, range.m_Count);
 }

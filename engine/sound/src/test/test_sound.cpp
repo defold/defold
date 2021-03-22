@@ -266,6 +266,10 @@ class dmSoundTestGroupRampTest : public dmSoundTest
 {
 };
 
+class dmSoundTestLoopingTest :  public dmSoundTest
+{
+};
+
 class dmSoundMixerTest : public dmSoundTest2
 {
 };
@@ -397,6 +401,60 @@ void DeviceLoopbackStop(dmSound::HDevice device)
 {
 
 }
+
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+TEST_P(dmSoundTestLoopingTest, Loopcount)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    printf("tone: %d, rate: %d, frames: %d\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    int8_t loopcount = 5;
+    r = dmSound::SetLooping(instance, 1, loopcount);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    printf("Playing: %d\n", dmSound::IsPlaying(instance));
+
+    do {
+        r = dmSound::Update();
+    } while (dmSound::IsPlaying(instance));
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // This is set up by observation: after first iteration, m_Time is 164.
+    // For each loop done afterwards, another 172 is added. 
+    ASSERT_EQ(g_LoopbackDevice->m_Time, 164 + 172*loopcount); 
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams params_looping_test[] = {
+    TestParams("loopback",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048,
+            0.0f,
+            2.0f)
+};
+INSTANTIATE_TEST_CASE_P(dmSoundTestLoopingTest, dmSoundTestLoopingTest, jc_test_values_in(params_looping_test));
+#endif
+
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundVerifyTest, Mix)
@@ -738,6 +796,7 @@ TEST_P(dmSoundTestSpeedTest, Speed)
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        ASSERT_LT(g_LoopbackDevice->m_NumWrites, 500); // probably will never end
     } while (dmSound::IsPlaying(instance));
 
     // The loop back device will have time to write out another output buffer while the
@@ -804,6 +863,16 @@ const TestParams params_speed_test[] = {
             2048,
             0.0f,
             0.5f),
+	TestParams("loopback",
+			MONO_TONE_440_44100_88200_WAV,		// sound
+            MONO_TONE_440_44100_88200_WAV_SIZE,	// uint32_t sound_size
+            dmSound::SOUND_DATA_TYPE_WAV,		// SoundDataType type
+            440,								// uint32_t tone_rate
+            44100,								// uint32_t mix_rate
+            88200,								// uint32_t frame_count
+            1999,								// uint32_t buffer_frame_count
+            0.0f,								// float pan
+            3.999909297f),						// float speed - this strange number will result in having remainder frames at the end of mixing
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
 #endif

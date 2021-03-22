@@ -43,6 +43,12 @@ namespace dmCrash
         (void)enable;
     }
 
+    void SetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
+    {
+        (void)cbk;
+        (void)ctx;
+    }
+
     void SetFilePath(const char* filepath)
     {
         (void)filepath;

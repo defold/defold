@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -907,7 +907,9 @@
     MouseButton/NONE nil
     MouseButton/PRIMARY :primary
     MouseButton/SECONDARY :secondary
-    MouseButton/MIDDLE :middle))
+    MouseButton/MIDDLE :middle
+    MouseButton/BACK :back
+    MouseButton/FORWARD :forward))
 
 (defn- operation-sequence-tx-data [view-node undo-grouping]
   (if (nil? undo-grouping)
@@ -1762,6 +1764,7 @@
 (defonce ^:private ^SimpleBooleanProperty find-case-sensitive-property (SimpleBooleanProperty. false))
 (defonce ^:private ^SimpleBooleanProperty find-wrap-property (SimpleBooleanProperty. true))
 (defonce ^:private ^SimpleDoubleProperty font-size-property (SimpleDoubleProperty. default-font-size))
+(defonce ^:private ^SimpleStringProperty font-name-property (SimpleStringProperty. ""))
 (defonce ^:private ^SimpleBooleanProperty visible-indentation-guides-property (SimpleBooleanProperty. true))
 (defonce ^:private ^SimpleBooleanProperty visible-minimap-property (SimpleBooleanProperty. true))
 (defonce ^:private ^SimpleBooleanProperty visible-whitespace-property (SimpleBooleanProperty. true))
@@ -1783,9 +1786,12 @@
   (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
   (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true)
   (init-property-and-bind-preference! font-size-property prefs "code-editor-font-size" default-font-size)
+  (init-property-and-bind-preference! font-name-property prefs "code-editor-font-name" "")
   (init-property-and-bind-preference! visible-indentation-guides-property prefs "code-editor-visible-indentation-guides" true)
   (init-property-and-bind-preference! visible-minimap-property prefs "code-editor-visible-minimap" true)
-  (init-property-and-bind-preference! visible-whitespace-property prefs "code-editor-visible-whitespace" true))
+  (init-property-and-bind-preference! visible-whitespace-property prefs "code-editor-visible-whitespace" true)
+  (when (clojure.string/blank? (.getValue font-name-property))
+    (.setValue font-name-property "Dejavu Sans Mono")))
 
 ;; -----------------------------------------------------------------------------
 ;; View Settings
@@ -2433,6 +2439,7 @@
                                              :canvas canvas
                                              :color-scheme code-color-scheme
                                              :font-size (.getValue font-size-property)
+                                             :font-name  (.getValue font-name-property)
                                              :grammar (:grammar opts)
                                              :gutter-view (CodeEditorGutterView.)
                                              :highlighted-find-term (.getValue highlighted-find-term-property)

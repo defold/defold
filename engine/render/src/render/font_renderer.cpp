@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,7 +24,7 @@
 #include <dlib/profile.h>
 #include <dlib/hashtable.h>
 #include <dlib/utf8.h>
-#include <dlib/webp.h>
+#include <dlib/zlib.h>
 #include <graphics/graphics_util.h>
 
 #include "font_renderer.h"
@@ -38,6 +38,18 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
+    // https://en.wikipedia.org/wiki/Delta_encoding
+    static void delta_decode(uint8_t* buffer, int length)
+    {
+        uint8_t last = 0;
+        for (int i = 0; i < length; i++)
+        {
+            uint8_t delta = buffer[i];
+            buffer[i] = delta + last;
+            last = buffer[i];
+        }
+    }
+
     enum RenderLayerMask
     {
         FACE    = 0x1,
@@ -385,6 +397,7 @@ namespace dmRender
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
         text_context.m_Frame = 0;
+        text_context.m_PreviousFrame = ~0;
         text_context.m_TextEntriesFlushed = 0;
 
         dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context.m_ClientBuffer, 16, buffer_size);
@@ -504,7 +517,7 @@ namespace dmRender
         uint32_t text_len = strlen(params.m_Text);
         uint32_t offset = text_context->m_TextBuffer.Size();
         if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
-            dmLogWarning("Out of text-render buffer");
+            dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
             return;
         }
 
@@ -556,6 +569,19 @@ namespace dmRender
         return g;
     }
 
+    struct FontGlyphInflaterContext {
+        uint32_t m_Cursor;
+        uint8_t* m_Output;
+    };
+
+    static bool FontGlyphInflater(void* context, const void* data, uint32_t data_len)
+    {
+        FontGlyphInflaterContext* ctx = (FontGlyphInflaterContext*)context;
+        memcpy(ctx->m_Output + ctx->m_Cursor, data, data_len);
+        ctx->m_Cursor += data_len;
+        return true;
+    }
+
     void AddGlyphToCache(HFontMap font_map, TextContext& text_context, Glyph* g, int16_t g_offset_y) {
         uint32_t prev_cache_cursor = font_map->m_CacheCursor;
         dmGraphics::TextureParams tex_params;
@@ -591,34 +617,34 @@ namespace dmRender
 
                 uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
                 uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
-                uint8_t is_compressed = *glyph_data++;
+                uint8_t compression_type = *glyph_data++;
 
-                if (is_compressed) {
+                if (compression_type) {
 
-                    uint32_t bytes_per_pixel;
-                    dmWebP::TextureEncodeFormat encode_format;
-                    switch (font_map->m_CacheFormat) {
-                        case dmGraphics::TEXTURE_FORMAT_RGB:        bytes_per_pixel = 3;
-                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGB888;
-                                                                    break;
-                        case dmGraphics::TEXTURE_FORMAT_RGBA:       bytes_per_pixel = 4;
-                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGBA8888;
-                                                                    break;
-                        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:
-                        default:                                    bytes_per_pixel = 1;
-                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_L8;
-                    };
+                    // When if came to choosing between the different algorithms, here are some speed/compression tests
+                    // Decoding 100 glyphs
+                    // lz4:     0.1060 ms  compression: 72%
+                    // deflate: 0.2190 ms  compression: 66%
+                    // png:     0.6930 ms  compression: 67%
+                    // webp:    1.5170 ms  compression: 55%
+                    // further improvements (different test, Android, 92 glyphs)
+                    // webp          2.9440 ms  compression: 55%
+                    // deflate       0.7110 ms  compression: 66%
+                    // deflate+delta 0.7680 ms  compression: 62%
 
-                    dmWebP::Result result = dmWebP::DecodeCompressedTexture(glyph_data,
-                                                glyph_data_size,
-                                                font_map->m_CellTempData,
-                                                font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4, // the max size
-                                                tex_params.m_Width*bytes_per_pixel,
-                                                encode_format);
-
-                    if (result != dmWebP::RESULT_OK) {
-                        dmLogWarning("Failed to decompress glyph: %d", result);
+                    FontGlyphInflaterContext deflate_context;
+                    deflate_context.m_Output = font_map->m_CellTempData;
+                    deflate_context.m_Cursor = 0;
+                    dmZlib::Result zlib_result = dmZlib::InflateBuffer(glyph_data, glyph_data_size, &deflate_context, FontGlyphInflater);
+                    if (zlib_result != dmZlib::RESULT_OK)
+                    {
+                        dmLogError("Failed to decompress glyph (%c)", g->m_Character);
+                        return;
                     }
+
+                    uint32_t uncompressed_size = deflate_context.m_Cursor;
+                    delta_decode(font_map->m_CellTempData, uncompressed_size);
+
                     tex_params.m_Data = font_map->m_CellTempData;
                 } else {
                     tex_params.m_Data = glyph_data;
@@ -1012,25 +1038,43 @@ namespace dmRender
         HRenderContext render_context = (HRenderContext)params.m_UserData;
         TextContext& text_context = render_context->m_TextContext;
 
+        // This function is called for both game object text (labels) and gui
+        // Once the sprites are done rendering, it is ok to reuse/reset the state
+        // and the gui can start rendering its text
+        // See also ClearRenderObjects() in render.cpp for clearing the text entries
+        if (text_context.m_Frame != text_context.m_PreviousFrame)
+        {
+            text_context.m_PreviousFrame = text_context.m_Frame;
+
+            text_context.m_RenderObjectIndex = 0;
+            text_context.m_VertexIndex = 0;
+            text_context.m_VerticesFlushed = 0;
+            text_context.m_TextEntriesFlushed = 0;
+        }
+
         switch (params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
-                text_context.m_RenderObjectIndex = 0;
-                text_context.m_VertexIndex = 0;
-                text_context.m_TextEntriesFlushed = 0;
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
                     uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+                    uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
-                    DM_COUNTER("FontVertexBuffer", buffer_size);
+
+                    DM_COUNTER("FontCharacterCount", num_vertices / 6); // each quad is two triangles
+                    DM_COUNTER("FontVertexBuffer", num_vertices * sizeof(GlyphVertex));
                 }
                 break;
-            default:
-                assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
+            case dmRender::RENDER_LIST_OPERATION_BATCH:
                 CreateFontRenderBatch(render_context, params.m_Buf, params.m_Begin, params.m_End);
+                break;
+            default:
+                break;
         }
     }
 
@@ -1059,7 +1103,7 @@ namespace dmRender
                     write_ptr->m_Order = render_order;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
                     write_ptr->m_BatchKey = te.m_BatchKey;
-                    write_ptr->m_TagMask = GetMaterialTagMask(te.m_Material);
+                    write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(te.m_Material);
                     write_ptr->m_Dispatch = dispatch;
                     write_ptr++;
                 }

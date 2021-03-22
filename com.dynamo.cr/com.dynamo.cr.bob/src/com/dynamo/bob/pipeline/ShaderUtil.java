@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -183,7 +183,7 @@ public class ShaderUtil {
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
         private static final Pattern regexUniformKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
 
-        private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}};
+        private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"textureCube", "texture"}};
         private static final String[][] fsKeywordReps = {{"varying", "in"}, {"texture2D", "texture"}, {"textureCube", "texture"}};
 
         private static final String dmEngineGeneratedRep = "_DMENGINE_GENERATED_";
@@ -195,7 +195,7 @@ public class ShaderUtil {
         private static final String glFragColorAttrRep = "\nout vec4 " + glFragColorRep + ";\n";
         private static final String floatPrecisionAttrRep = "precision mediump float;\n";
 
-        public static Result transform(String input, ShaderType shaderType, String targetProfile) throws CompileExceptionError {
+        public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
 
             // Remove comments, early bail if zero code
@@ -208,17 +208,25 @@ public class ShaderUtil {
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
-            int patchLineIndex = 0;
 
             // Try get version and profile. Override targetProfile if version is set in shader
             Matcher versionMatcher = regexVersionStringPattern.matcher(input.substring(0, Math.min(input.length(), 128)));
             if (versionMatcher.find()) {
-                patchLineIndex = 1;
                 result.shaderVersion = versionMatcher.group("version");
                 result.shaderProfile = versionMatcher.group("profile");
                 result.shaderProfile = result.shaderProfile == null ? "" : result.shaderProfile;
                 // override targetProfile if version is set in shader
                 targetProfile = result.shaderProfile;
+            } else {
+                String versionPrefix = String.format("#version %d", targetVersion);
+                if (!targetProfile.isEmpty())
+                    versionPrefix += String.format(" %s", targetProfile);
+                versionPrefix += "\n";
+                input = versionPrefix + input;
+            }
+
+            if (!result.shaderVersion.isEmpty()) {
+                targetVersion = Integer.parseInt(result.shaderVersion);
             }
 
             // Patch qualifiers (reserved keywords so word boundary replacement is safe)
@@ -227,24 +235,40 @@ public class ShaderUtil {
                 input = input.replaceAll("\\b" + keywordRep[0] + "\\b", keywordRep[1]);
             }
 
-            // on ES shaders, replace glFragColor if exists
-            if(targetProfile.equals("es")) {
+            boolean output_glFragColor = input.contains(glFragColorKeyword);
+            boolean output_glFragData = input.contains(glFragDataKeyword);
+            if (output_glFragColor)
                 input = input.replaceAll("\\b" + glFragColorKeyword + "\\b", glFragColorRep);
+            if (output_glFragData)
                 input = input.replaceAll("\\b" + glFragDataKeyword + "\\b", glFragColorRep);
-            }
 
             // Split into slices separated by semicolon, curly bracket scopes and preprocessor definition lines: ";", "{", "}" and "#..<\n>"
             // This to reduce parsing complexity
             String[] inputLines = regexLineBreakPattern.split(input);
 
-           // Preallocate array of resulting slices. This makes patching in specific positions less complex
-           ArrayList<String> output = new ArrayList<String>(input.length());
+            // Find the first non directive line
+            Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
+            int patchLineIndex = 0;
+            for(String line : inputLines) {
+                line = line.trim();
+                if (line.startsWith("#line")) { // The next line is where the used code starts
+                    break;
+                }
+                if (line.isEmpty() || directiveLinePattern.matcher(line).find()) {
+                    patchLineIndex++;
+                    continue;
+                }
+                break;
+            }
+
+            // Preallocate array of resulting slices. This makes patching in specific positions less complex
+            ArrayList<String> output = new ArrayList<String>(input.length());
 
             // Multi-instance patching
             int ubIndex = 0;
-            for(String line : inputLines ) {
+            for(String line : inputLines) {
 
-                if(line.contains("uniform") && !line.contains("{"))
+                if(line.contains("uniform") && !line.contains("{") && useLatestFeatures)
                 {
                     // Transform non-opaque uniforms into uniform blocks (UB's). Do not process existing UB's
                     Matcher uniformMatcher = regexUniformKeywordPattern.matcher(line);
@@ -283,28 +307,23 @@ public class ShaderUtil {
                     Matcher precisionMatcher = regexPrecisionKeywordPattern.matcher(line);
                     if(precisionMatcher.find()) {
                         if(precisionMatcher.group("type").equals("float")) {
-                            patchLineIndex = output.size();
                             floatPrecisionIndex = output.size();
                         }
                     }
                 }
-
                 output.add(line);
             }
 
             // Post patching
-            if(targetProfile.equals("es")) {
-                // Currently only required on fragment shaders for ES profiles..
-                if (shaderType == ShaderType.FRAGMENT_SHADER) {
-                    // if we have patched glFragColor
-                    if(input.contains(glFragColorRep)) {
-                        // insert precision if not found, as it is mandatory for out attributes
-                        if(floatPrecisionIndex < 0) {
-                            output.add(patchLineIndex++, floatPrecisionAttrRep);
-                        }
-                        // insert fragcolor out attr
-                        output.add(patchLineIndex++, glFragColorAttrRep);
+            if (shaderType == ShaderType.FRAGMENT_SHADER) {
+                // if we have patched glFragColor
+                if(output_glFragColor || output_glFragData) {
+                    // insert precision if not found, as it is mandatory for out attributes
+                    if(floatPrecisionIndex < 0 && targetProfile.equals("es")) {
+                        output.add(patchLineIndex++, floatPrecisionAttrRep);
                     }
+                    // insert fragcolor out attr
+                    output.add(patchLineIndex++, glFragColorAttrRep);
                 }
             }
 

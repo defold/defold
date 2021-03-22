@@ -688,6 +688,11 @@ static int SetBuffer(lua_State* L)
         buffer_resource->m_ElementCount = src_count;
     }
 
+    // Update the content version
+    dmBuffer::UpdateContentVersion(dst_buffer);
+    dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
+    buffer_resource->m_NameHash = path_hash;
+
     assert(top == lua_gettop(L));
     return 0;
 }
@@ -811,12 +816,14 @@ static void LuaInit(lua_State* L)
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_ETC1);
-    /* DEF-994 We don't support these internally yet
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_DXT1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT3);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT5);
-    */
+
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_ETC2);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_BC1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_BC3);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_R_BC4);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RG_BC5);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_BC7);
 
 #undef SETGRAPHICSCONSTANT
 

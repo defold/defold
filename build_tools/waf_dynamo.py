@@ -44,7 +44,7 @@ except:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['win32', 'x86_64-win32', 'x86<-64-linux', 'js-web', 'wasm-web']
+        return platform not in ['js-web', 'wasm-web']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -59,11 +59,11 @@ def transform_runnable_path(platform, path):
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 ANDROID_ROOT=SDK_ROOT
-ANDROID_BUILD_TOOLS_VERSION = '29.0.3'
+ANDROID_BUILD_TOOLS_VERSION = '30.0.3'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
 ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
-ANDROID_TARGET_API_LEVEL='29' # Android 10.0
+ANDROID_TARGET_API_LEVEL='30' # Android 11.0
 ANDROID_MIN_API_LEVEL='14'
 ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
@@ -303,8 +303,19 @@ def default_flags(self):
     if Options.options.ndebug:
         flags += [self.env.CXXDEFINES_ST % 'NDEBUG']
 
+    if Options.options.show_includes:
+        if 'win' == build_util.get_target_os():
+            flags += ['/showIncludes']
+        else:
+            flags += ['-H']
+
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
+
+    use_cl_exe = build_util.get_target_platform() in ['win32', 'x86_64-win32']
+
+    if not use_cl_exe:
+        self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -334,9 +345,9 @@ def default_flags(self):
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
-                self.env.append_value(f, ['-stdlib=libc++'])
+                self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
-                self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
+                self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
                 if 'linux' in self.env['BUILD_PLATFORM']:
                     self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
@@ -404,7 +415,7 @@ def default_flags(self):
 
         emflags = ['DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
                    'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=268435456', 'LLD_REPORT_UNDEFINED']
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2']
 
         if 'wasm' == build_util.get_target_architecture():
             emflags += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -414,13 +425,21 @@ def default_flags(self):
         emflags = zip(['-s'] * len(emflags), emflags)
         emflags =[j for i in emflags for j in i]
 
+        flags = []
+        linkflags = []
+        if int(opt_level) < 2:
+            flags = ['-g4']
+            linkflags = ['-g4']
+
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-O%s' % opt_level, '-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+            self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
                                         '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS'])
             self.env.append_value(f, emflags)
+            self.env.append_value(f, flags)
 
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', ['-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
         self.env.append_value('LINKFLAGS', emflags)
+        self.env.append_value('LINKFLAGS', linkflags)
 
     elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -446,6 +465,12 @@ def default_flags(self):
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     platform_setup_vars(self, build_util)
+
+    if Options.options.with_iwyu and 'IWYU' in self.env:
+        wrapper = build_util.get_dynamo_home('..', '..', 'scripts', 'iwyu-clang.sh')
+        for f in ['CC', 'CXX']:
+            self.env[f] = [wrapper, self.env[f][0]]
+
 
 # Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
 @feature('remove_flags')
@@ -1451,6 +1476,9 @@ def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
 
+    if Options.options.with_iwyu:
+        conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
+
     platform = None
     if getattr(Options.options, 'platform', None):
         platform=getattr(Options.options, 'platform')
@@ -1749,8 +1777,9 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STATICLIB_GRAPHICS']          = 'graphics'
-    conf.env['STATICLIB_GRAPHICS_VULKAN']   = 'graphics_vulkan'
+    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
@@ -1784,7 +1813,6 @@ def detect(conf):
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
 
-
 def configure(conf):
     detect(conf)
 
@@ -1809,6 +1837,8 @@ def set_options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
+    opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')

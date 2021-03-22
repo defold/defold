@@ -13,8 +13,7 @@
 #ifndef DM_GAMESYS_COLLECTION_PROXY_H
 #define DM_GAMESYS_COLLECTION_PROXY_H
 
-#include <gameobject/gameobject.h>
-#include <dlib/index_pool.h>
+#include <gameobject/component.h>
 
 namespace dmGameSystem
 {

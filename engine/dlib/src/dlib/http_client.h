@@ -17,6 +17,7 @@
 #include <dlib/socket.h>
 #include <dlib/http_cache.h>
 #include <dlib/dns.h>
+#include <dmsdk/dlib/http_client.h>
 
 namespace dmHttpClient
 {
@@ -99,10 +100,12 @@ namespace dmHttpClient
      */
     enum Option
     {
-        /// Maximum number of retries for GET-request. Default is 4.
+        /// Maximum number of retries for GET-request. Default is 1.
         OPTION_MAX_GET_RETRIES,
         /// Request timeout in us
         OPTION_REQUEST_TIMEOUT,
+        /// Don't use the http cache
+        OPTION_REQUEST_IGNORE_CACHE,
     };
 
     /**

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,7 +52,7 @@ class dmCrashTest : public jc_test_base_class
 
         virtual void TearDown()
         {
-
+            dmCrash::Purge();
         }
         char m_EngineHash[40];
 };
@@ -134,6 +134,70 @@ TEST_F(dmCrashTest, TestPurgeDefaultPath)
     dmCrash::Purge();
     ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
+
+/*
+//Not supported by jc_test.h yet (uses jc_test_use_signal_handlers())
+static void VerifyCallstackSize(dmCrash::HDump d, uint32_t expected_count)
+{
+    uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
+
+    const char* data = dmCrash::GetExtraData(d);
+    printf("CALLSTACK:\n%s\n", data?data:"<null>");//////////
+
+    ASSERT_GE(addresses, expected_count);
+    for (uint32_t i=0;i!=addresses;i++)
+    {
+        if (i != addresses-1 )
+        {
+            ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
+        }
+    }
+}
+
+static void VerifyCallstackString(dmCrash::HDump d, const char* str)
+{
+    const char* data = dmCrash::GetExtraData(d);
+    const char* result = data != 0 ? strstr(data, str) : 0;
+    ASSERT_STREQ(str, result);
+}
+
+TEST_F(dmCrashTest, TestSIGABRT)
+{
+    jc_test_use_signal_handlers(1);
+
+    ASSERT_DEATH(assert(false && "Test abort"),"");
+
+    jc_test_use_signal_handlers(0);
+
+    dmCrash::HDump d = dmCrash::LoadPrevious();
+    VerifyCallstackSize(d, 11);
+    VerifyCallstackString(d, "assert.cpp");
+}
+
+
+void TestSegv()
+{
+    int* p = 0;
+    *p = 17;
+    printf("segv: %d\n", *p); // to not allow it to be optimized out
+}
+
+TEST_F(dmCrashTest, TestSIGSEGV) // using the signal handler, not the exception handler
+{
+    dmCrash::Purge();
+    jc_test_use_signal_handlers(1);
+
+    ASSERT_DEATH(TestSegv(),"");
+
+    jc_test_use_signal_handlers(0);
+
+    dmCrash::HDump d = dmCrash::LoadPrevious();
+    ASSERT_NE(d, 0);
+    VerifyCallstackSize(d, 8);
+    VerifyCallstackString(d, "TestSegv");
+}
+*/
+
 #endif
 
 
