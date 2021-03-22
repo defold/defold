@@ -428,9 +428,6 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     return dmGameObject::SetProperty(instance, comp_name, prop_name, prop_var);
 }
 
-/*
- *
- */
 TEST_F(SoundTest, UpdateSoundResource)
 {
     // import 'resource' lua api among others

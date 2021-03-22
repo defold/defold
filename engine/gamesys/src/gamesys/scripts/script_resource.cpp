@@ -480,7 +480,7 @@ static int SetTexture(lua_State* L)
  * @name resource.set_sound
  *
  * @param path [type:hash|string] The path to the resource
- * @param table [type:table] A table containing info about the sound. No relevant info yet.
+ * @param buffer [type:string] A lua string containing the binary sound data
  */
 static int SetSound(lua_State* L) {
     DM_LUA_STACK_CHECK(L, 0);
