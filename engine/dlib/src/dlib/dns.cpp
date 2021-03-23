@@ -309,7 +309,7 @@ namespace dmDNS
         {
             Channel* dns_channel = (Channel*) channel;
             ares_destroy(dns_channel->m_Handle);
-            free dns_channel->m_Servers;
+            free(dns_channel->m_Servers);
             delete dns_channel;
         }
     }
