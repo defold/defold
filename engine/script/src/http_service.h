@@ -23,12 +23,13 @@ namespace dmHttpService
     {
         Params() :
             m_ThreadCount(4),
-            m_UseHttpCache(1),
-            m_DNSServers(0)
-    	{}
+            m_UseHttpCache(1)
+    	{
+            m_DNSServers = 0;
+        }
     	uint32_t m_ThreadCount:4;
         uint32_t m_UseHttpCache:1;
-        const char* m_DNSServers:0;
+        const char* m_DNSServers;
     };
     HHttpService New(const Params* params);
     dmMessage::HSocket GetSocket(HHttpService http_service);
