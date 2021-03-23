@@ -55,7 +55,7 @@ namespace dmDNS
     /*# create a new channel
      * Creates a new channel that can be used for DNS queries.
      * @param channel [type:dmDNS::HChannel*] Pointer to the created channel if successful, will be left alone otherwise
-     * @param servers [type:char*] Comma separated list of DNS servers to use. 0 or empty string to use network default.
+     * @param servers [type:char*] Comma separated list of DNS servers to use, null or empty string to use network default.
      * @name dmDNS::NewChannel
      * @return RESULT_OK on succcess
      */

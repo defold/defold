@@ -28,10 +28,6 @@
     #include <netdb.h>
 #endif
 
-#if defined(__APPLE__)
-    #include <resolv.h>
-#endif
-
 namespace dmDNS
 {
     struct RequestInfo
@@ -46,7 +42,7 @@ namespace dmDNS
     {
         ares_channel    m_Handle;
         int32_atomic_t  m_Running;
-        char*           m_Servers;
+        const char*     m_Servers;
     };
 
     // These servers will be used if ares can't find any dns servers
@@ -201,54 +197,60 @@ namespace dmDNS
         ares_freeaddrinfo(info);
     }
 
+    /**
+     * Use the DNS servers provided when the channel was created. If this fails
+     * or if no channels were provided we use the network defaults. Finally, if
+     * there are no network defaults we fall back to use a set of default
+     * channels (Google DNS).
+     */
     static void ConfigureChannel(Channel* channel)
     {
-        dmLogInfo("ConfigureChannel %s", channel->m_Servers);
-        //
-        // if (strlen(channel->m_Servers) > 0)
-        // {
-        //     if (ares_set_servers_csv(channel->m_Handle, channel->m_Servers) == ARES_SUCCESS)
-        //     {
-        //         return;
-        //     }
-        // }
-        //
-        // struct ares_addr_port_node* servers = 0;
-        // ares_get_servers_ports(channel->m_Handle, &servers);
-        //
-        // if (servers)
-        // {
-        //     uint16_t server_count = 1;
-        //     struct ares_addr_port_node* next = servers->next;
-        //     struct in_addr ch_addr = servers->addr.addr4;
-        //
-        //     while(next)
-        //     {
-        //         server_count++;
-        //         next = next->next;
-        //     }
-        //
-        //     // Check if we got the default configuration, i.e no servers found
-        //     // when ares configured the channel. We can't send in default channels
-        //     // as option when initializing the channel since in that case ares
-        //     // won't look for system dns severs on certain platforms..
-        //     //
-        //     // These options are specified in init_by_defaults(..) in ares_init.c
-        //     if (server_count      == 1 &&
-        //         servers->family   == AF_INET &&
-        //         ch_addr.s_addr    == dmEndian::ToNetwork((uint32_t)INADDR_LOOPBACK) &&
-        //         servers->udp_port == 0 &&
-        //         servers->tcp_port == 0)
-        //     {
-        //         ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
-        //     }
-        //
-        //     ares_free_data(servers);
-        // }
-        // else
-        // {
-        //     ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
-        // }
+        // Use servers provided when the channel was created
+        if ((channel->m_Servers != 0) && (channel->m_Servers[0] != '\0'))
+        {
+            if (ares_set_servers_csv(channel->m_Handle, channel->m_Servers) == ARES_SUCCESS)
+            {
+                return;
+            }
+        }
+
+        // Check if we have network defaults
+        struct ares_addr_port_node* servers = 0;
+        ares_get_servers_ports(channel->m_Handle, &servers);
+
+        if (servers)
+        {
+            uint16_t server_count = 1;
+            struct ares_addr_port_node* next = servers->next;
+            struct in_addr ch_addr = servers->addr.addr4;
+
+            while(next)
+            {
+                server_count++;
+                next = next->next;
+            }
+
+            // Check if we got the default configuration, i.e no servers found
+            // when ares configured the channel. We can't send in default channels
+            // as option when initializing the channel since in that case ares
+            // won't look for system dns severs on certain platforms..
+            //
+            // These options are specified in init_by_defaults(..) in ares_init.c
+            if (server_count      == 1 &&
+                servers->family   == AF_INET &&
+                ch_addr.s_addr    == dmEndian::ToNetwork((uint32_t)INADDR_LOOPBACK) &&
+                servers->udp_port == 0 &&
+                servers->tcp_port == 0)
+            {
+                ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
+            }
+
+            ares_free_data(servers);
+        }
+        else
+        {
+            ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
+        }
     }
 
     Result Initialize()
@@ -284,7 +286,7 @@ namespace dmDNS
 
         Channel* dns_channel = new Channel();
         dns_channel->m_Handle = handle;
-        dns_channel->m_Servers = strdup(servers);
+        dns_channel->m_Servers = (servers != 0) ? strdup(servers) : 0;
         ConfigureChannel(dns_channel);
 
         dns_channel->m_Running = 1;
