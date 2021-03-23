@@ -41,7 +41,7 @@ namespace dmDNS
     {
         return RESULT_OK;
     }
-    Result NewChannel(HChannel* channel, const char* servers)
+    Result NewChannel(HChannel* channel)
     {
         *channel = 0; // so it evaluates to false
         return RESULT_OK;
@@ -50,6 +50,7 @@ namespace dmDNS
     {
         return RESULT_OK;
     }
+    void SetChannelServers(HChannel* channel, const char* servers) {}
     void StopChannel(HChannel channel) {}
     void DeleteChannel(HChannel channel) {}
     Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, int timeout, bool ipv4, bool ipv6)

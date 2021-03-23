@@ -276,7 +276,7 @@ namespace dmDNS
         return RESULT_OK;
     }
 
-    Result NewChannel(HChannel* channel, const char* servers)
+    Result NewChannel(HChannel* channel)
     {
         ares_channel handle;
         if (ares_init(&handle) != ARES_SUCCESS)
@@ -286,7 +286,6 @@ namespace dmDNS
 
         Channel* dns_channel = new Channel();
         dns_channel->m_Handle = handle;
-        dns_channel->m_Servers = (servers != 0) ? strdup(servers) : 0;
         ConfigureChannel(dns_channel);
 
         dns_channel->m_Running = 1;
@@ -310,7 +309,10 @@ namespace dmDNS
         {
             Channel* dns_channel = (Channel*) channel;
             ares_destroy(dns_channel->m_Handle);
-            free(dns_channel->m_Servers);
+            if (dns_channel->m_Servers != 0)
+            {
+                free(dns_channel->m_Servers);
+            }
             delete dns_channel;
         }
     }
@@ -325,6 +327,20 @@ namespace dmDNS
         }
 
         return RESULT_INIT_ERROR;
+    }
+
+    void SetChannelServers(HChannel* channel, const char* servers)
+    {
+        if (channel)
+        {
+            Channel* dns_channel = (Channel*) channel;
+            if (dns_channel->m_Servers != 0)
+            {
+                free(dns_channel->m_Servers);
+            }
+            dns_channel->m_Servers = (servers != 0) ? strdup(servers) : 0;
+            ConfigureChannel(dns_channel);
+        }
     }
 
     // Note: This function should ultimately replace the dmSocket::GetHostByName, but there's a few places

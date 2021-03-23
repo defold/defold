@@ -137,7 +137,7 @@ public:
 #endif
         ASSERT_EQ(0, ret);
 
-        dmDNS::NewChannel(&m_DNSChannel, 0);
+        dmDNS::NewChannel(&m_DNSChannel);
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = dmHttpClientTest::HttpContent;
@@ -403,7 +403,7 @@ struct HttpStressHelper
     {
         bool secure = strcmp(uri.m_Scheme, "https") == 0;
         m_StatusCode = 0;
-        dmDNS::NewChannel(&m_DNSChannel, 0);
+        dmDNS::NewChannel(&m_DNSChannel);
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
@@ -1121,7 +1121,7 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_va
 TEST(dmHttpClient, HostNotFound)
 {
     dmHttpClient::NewParams params;
-    dmDNS::NewChannel(&params.m_DNSChannel, 0);
+    dmDNS::NewChannel(&params.m_DNSChannel);
     dmHttpClient::HClient client = dmHttpClient::New(&params, "host_not_found", g_HttpPort);
     ASSERT_EQ((void*) 0, client);
     dmDNS::DeleteChannel(params.m_DNSChannel);
@@ -1130,7 +1130,7 @@ TEST(dmHttpClient, HostNotFound)
 TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
-    dmDNS::NewChannel(&params.m_DNSChannel, 0);
+    dmDNS::NewChannel(&params.m_DNSChannel);
     dmHttpClient::HClient client = dmHttpClient::New(&params, "0.0.0.0", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");

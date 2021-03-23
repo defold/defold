@@ -393,9 +393,13 @@ namespace dmHttpService
             worker->m_Run = true;
             service->m_Workers.Push(worker);
 
-            if (dmDNS::NewChannel(&worker->m_DNSChannel, params->m_DNSServers) != dmDNS::RESULT_OK)
+            if (dmDNS::NewChannel(&worker->m_DNSChannel) != dmDNS::RESULT_OK)
             {
                 worker->m_DNSChannel = 0;
+            }
+            if (worker->m_DNSChannel != 0)
+            {
+                dmDNS::SetChannelServers(&worker->m_DNSChannel, params->m_DNSServers);
             }
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");

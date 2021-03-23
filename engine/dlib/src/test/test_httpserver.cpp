@@ -160,7 +160,7 @@ public:
         params.m_HttpHeader = dmHttpServerTest::HttpHeader;
         params.m_HttpResponse = dmHttpServerTest::HttpResponse;
         dmHttpServer::Result result_server = dmHttpServer::New(&params, 8500, &m_Server);
-        dmDNS::Result result_dns = dmDNS::NewChannel(&m_DNSChannel, 0);
+        dmDNS::Result result_dns = dmDNS::NewChannel(&m_DNSChannel);
         ASSERT_EQ(dmHttpServer::RESULT_OK, result_server);
         ASSERT_EQ(dmDNS::RESULT_OK, result_dns);
     }
