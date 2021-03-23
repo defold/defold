@@ -22,6 +22,7 @@
 #define CARES_STATICLIB
 #include <c-ares/ares.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #if defined(__linux__) || defined(__MACH__)
     #include <netdb.h>
@@ -41,7 +42,7 @@ namespace dmDNS
     {
         ares_channel    m_Handle;
         int32_atomic_t  m_Running;
-        const char*     m_Servers;
+        char*           m_Servers;
     };
 
     // These servers will be used if ares can't find any dns servers
