@@ -491,8 +491,6 @@ static int SetSound(lua_State* L) {
     luaL_checktype(L, 2, LUA_TSTRING);
     size_t buffer_size;
     const char* buffer = lua_tolstring(L, 2, &buffer_size);
-    // dmLogInfo("buffer size: %zu", buffer_size);
-    // dmLogInfo("buffer itself: %s", buffer);
 
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) buffer, buffer_size);
 
