@@ -907,7 +907,9 @@
     MouseButton/NONE nil
     MouseButton/PRIMARY :primary
     MouseButton/SECONDARY :secondary
-    MouseButton/MIDDLE :middle))
+    MouseButton/MIDDLE :middle
+    MouseButton/BACK :back
+    MouseButton/FORWARD :forward))
 
 (defn- operation-sequence-tx-data [view-node undo-grouping]
   (if (nil? undo-grouping)

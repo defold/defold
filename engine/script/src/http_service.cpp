@@ -221,7 +221,7 @@ namespace dmHttpService
             params.m_HttpWrite = &HttpWrite;
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
-            params.m_HttpCache = request->m_IgnoreCache ? 0 : worker->m_Service->m_HttpCache;
+            params.m_HttpCache = worker->m_Service->m_HttpCache;
             params.m_DNSChannel = worker->m_DNSChannel;
             params.m_RequestTimeout = request->m_Timeout;
 
@@ -237,6 +237,9 @@ namespace dmHttpService
 
         if (worker->m_Client) {
             worker->m_Request = request;
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_IGNORE_CACHE, request->m_IgnoreCache);
+
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
                 SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);

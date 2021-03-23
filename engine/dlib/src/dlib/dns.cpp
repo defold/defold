@@ -441,6 +441,7 @@ namespace dmDNS
             if ((dmTime::GetTime() - request_started) > request_timeout)
             {
                 req.m_Status = ARES_ETIMEOUT;
+                ares_cancel(dns_channel->m_Handle);
                 break;
             }
 
