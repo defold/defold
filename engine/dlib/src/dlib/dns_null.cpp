@@ -41,7 +41,7 @@ namespace dmDNS
     {
         return RESULT_OK;
     }
-    Result NewChannel(HChannel* channel)
+    Result NewChannel(HChannel* channel, const char* servers)
     {
         *channel = 0; // so it evaluates to false
         return RESULT_OK;
