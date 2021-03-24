@@ -40,6 +40,10 @@ namespace dmDNS
 
     struct Channel
     {
+        Channel()
+        {
+            m_Servers = 0;
+        }
         ares_channel    m_Handle;
         int32_atomic_t  m_Running;
         char*           m_Servers;
