@@ -333,7 +333,7 @@ namespace dmDNS
         return RESULT_INIT_ERROR;
     }
 
-    void SetChannelServers(HChannel* channel, const char* servers)
+    void SetChannelServers(HChannel channel, const char* servers)
     {
         if (channel)
         {

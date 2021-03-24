@@ -400,9 +400,9 @@ namespace dmHttpService
             {
                 worker->m_DNSChannel = 0;
             }
-            if (worker->m_DNSChannel != 0)
+            else
             {
-                dmDNS::SetChannelServers(&worker->m_DNSChannel, params->m_DNSServers);
+                dmDNS::SetChannelServers(worker->m_DNSChannel, params->m_DNSServers);
             }
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");

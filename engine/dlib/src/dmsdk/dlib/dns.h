@@ -89,7 +89,7 @@ namespace dmDNS
      * @param servers [type:char*] Comma separated list of DNS servers to use, null or empty string to use network default.
      * @name dmDNS::SetChannelServers
      */
-    void SetChannelServers(HChannel* channel, const char* servers);
+    void SetChannelServers(HChannel channel, const char* servers);
 }
 
 #endif // DMSDK_DNS_H
