@@ -15,7 +15,7 @@
    :tab-triggers {:select ["cond" "-- do things" "end"]}}
   {:name "while",
    :display-string "while                             while cond",
-   :insert-string "while cond\n\t-- do things\nend",
+   :insert-string "while cond do\n\t-- do things\nend",
    :doc "",
    :tab-triggers {:select ["cond" "-- do things"], :exit "end"}}
   {:name "repeat",
