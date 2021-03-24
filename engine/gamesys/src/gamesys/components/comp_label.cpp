@@ -399,6 +399,11 @@ namespace dmGameSystem
                 params.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
+            case dmGameSystemDDF::LabelDesc::BLEND_MODE_SCREEN:
+                params.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                params.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+            break;
+
             default:
                 dmLogError("Label: Unknown blend mode: %d\n", ddf->m_BlendMode);
                 assert(0);
