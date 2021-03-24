@@ -66,13 +66,14 @@ namespace dmGameSystem
 
     static struct BlendModeParticleToGui
     {
-    	dmGui::BlendMode m_Table[4];
+    	dmGui::BlendMode m_Table[5];
     	BlendModeParticleToGui()
     	{
     		m_Table[dmParticleDDF::BLEND_MODE_ALPHA]		= dmGui::BLEND_MODE_ALPHA;
     		m_Table[dmParticleDDF::BLEND_MODE_MULT]			= dmGui::BLEND_MODE_MULT;
     		m_Table[dmParticleDDF::BLEND_MODE_ADD]			= dmGui::BLEND_MODE_ADD;
     		m_Table[dmParticleDDF::BLEND_MODE_ADD_ALPHA]	= dmGui::BLEND_MODE_ADD_ALPHA;
+            m_Table[dmParticleDDF::BLEND_MODE_SCREEN]       = dmGui::BLEND_MODE_SCREEN;
     	}
     } ddf_blendmode_map;
 
@@ -719,6 +720,11 @@ namespace dmGameSystem
             case dmGui::BLEND_MODE_MULT:
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmGui::BLEND_MODE_SCREEN:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
             default:

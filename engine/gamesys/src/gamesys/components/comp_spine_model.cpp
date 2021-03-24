@@ -491,6 +491,11 @@ namespace dmGameSystem
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
+            case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_SCREEN:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+            break;
+
             default:
                 dmLogError("Unknown blend mode: %d\n", blend_mode);
                 assert(0);
