@@ -416,7 +416,6 @@ namespace dmHttpCache
         *cache_creator = 0;
 
         if (etag[0] == '\0' && max_age == 0) {
-            dmLogError("Trying to cache an entry with no tag and max-age set to 0");
             return RESULT_INVAL;
         }
 
