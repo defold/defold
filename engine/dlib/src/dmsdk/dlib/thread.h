@@ -105,11 +105,23 @@ namespace dmThread
 
     /*# join thread
      *
-     * Join thread
+     * Join thread. Waits for the thread specified by thread to terminate.  If
+     * that thread has already terminated, then Join() returns immediately.  The
+     * thread specified by thread must be joinable (see Detach()).
      * @name dmThread::Join
      * @param thread Thread to join
      */
     void Join(Thread thread);
+
+    /*# detach thread
+     *
+     * Detach thread. When a detached thread terminates, its resources are
+     * automatically released back to the system without the need for another
+     * thread to join with the terminated thread.
+     * @name dmThread::Join
+     * @param thread Thread to join
+     */
+    void Detach(Thread thread);
 
     /*# allocate thread local storage key
      * Allocate thread local storage key
