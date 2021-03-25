@@ -405,7 +405,7 @@ namespace dmHttpService
 // This will trigger the Network Security popup since c-ares communicates with
 // the router over the local network.
 // getaddrinfo on the other hand seems to be whitelisted in iOS.
-#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if !defined(DM_PLATFORM_IOS)
             dmDNS::NewChannel(&worker->m_DNSChannel);
 #endif
 
@@ -413,7 +413,7 @@ namespace dmHttpService
 // Detach the thread on iOS
 // DNS lookups on iOS are using getaddrinfo which may block for an undefined
 // amount of time. We do not wish to wait for the thread during shutdown
-#if defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
             dmThread::Detach(t);
 #endif
             worker->m_Thread = t;
@@ -443,7 +443,7 @@ namespace dmHttpService
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
 // On iOS we detach() the thread on creation so that we don't have to wait for
 // it during shutdown (see above for reason why)
-#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if !defined(DM_PLATFORM_IOS)
             dmThread::Join(worker->m_Thread);
 #endif
             dmMessage::DeleteSocket(worker->m_Socket);
