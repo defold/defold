@@ -1353,6 +1353,20 @@ namespace dmPhysics
                     joint = world->m_World.CreateJoint(&jointDef);
                 }
                 break;
+            case dmPhysics::JOINT_TYPE_WELD:
+                {
+                    b2WeldJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    jointDef.referenceAngle   = params.m_WeldJointParams.m_ReferenceAngle;
+                    jointDef.frequencyHz      = params.m_WeldJointParams.m_FrequencyHz;
+                    jointDef.dampingRatio     = params.m_WeldJointParams.m_DampingRatio;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
             default:
                 return 0x0;
         }
@@ -1398,6 +1412,13 @@ namespace dmPhysics
                     typed_joint->EnableMotor(params.m_SliderJointParams.m_EnableMotor);
                     typed_joint->SetMaxMotorForce(params.m_SliderJointParams.m_MaxMotorForce * scale);
                     typed_joint->SetMotorSpeed(params.m_SliderJointParams.m_MotorSpeed);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WELD:
+                {
+                    b2WeldJoint* typed_joint = (b2WeldJoint*)joint;
+                    typed_joint->SetFrequency(params.m_WeldJointParams.m_FrequencyHz);
+                    typed_joint->SetDampingRatio(params.m_WeldJointParams.m_DampingRatio);
                 }
                 break;
             default:
@@ -1466,6 +1487,16 @@ namespace dmPhysics
                     // Read only properties
                     params.m_SliderJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
                     params.m_SliderJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WELD:
+                {
+                    b2WeldJoint* typed_joint = (b2WeldJoint*)joint;
+                    params.m_WeldJointParams.m_FrequencyHz = typed_joint->GetFrequency();
+                    params.m_WeldJointParams.m_DampingRatio = typed_joint->GetDampingRatio();
+
+                    // Read only properties
+                    params.m_WeldJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
                 }
                 break;
             default:
