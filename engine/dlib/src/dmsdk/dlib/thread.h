@@ -88,7 +88,7 @@ namespace dmThread
      *     Context ctx;
      *     ctx.m_DoWork = true;
      *     ctx.m_Work = 0;
-     *     dmThread::HThread thread = dmThread::New(dmLogThread, 0x80000, (void*)&ctx, "my_thread");
+     *     dmThread::Thread thread = dmThread::New(Worker, 0x80000, (void*)&ctx, "my_thread");
      *
      *     // do other work...
      *     // ..eventually stop the thread:
@@ -105,11 +105,23 @@ namespace dmThread
 
     /*# join thread
      *
-     * Join thread
+     * Join thread. Waits for the thread specified by thread to terminate.  If
+     * that thread has already terminated, then Join() returns immediately.  The
+     * thread specified by thread must be joinable (see Detach()).
      * @name dmThread::Join
      * @param thread Thread to join
      */
     void Join(Thread thread);
+
+    /*# detach thread
+     *
+     * Detach thread. When a detached thread terminates, its resources are
+     * automatically released back to the system without the need for another
+     * thread to join with the terminated thread.
+     * @name dmThread::Join
+     * @param thread Thread to join
+     */
+    void Detach(Thread thread);
 
     /*# allocate thread local storage key
      * Allocate thread local storage key
@@ -135,7 +147,7 @@ namespace dmThread
 
     /*# get thread specific data
      * Get thread specific data
-     * @name dmThread::GetTlsVAlue
+     * @name dmThread::GetTlsValue
      * @param key Key
      */
     void* GetTlsValue(TlsKey key);

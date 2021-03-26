@@ -14,10 +14,13 @@
 
 #include "gamesys_private.h"
 
-#include <dlib/dstrings.h>
-#include <dlib/hash.h>
-#include <dlib/log.h>
-#include <dlib/message.h>
+#include <dmsdk/dlib/log.h>
+#include <dlib/static_assert.h>
+#include <gameobject/gameobject.h>
+#include <graphics/graphics.h>
+#include <input/input.h>
+#include <render/render.h>
+#include <resource/resource.h>
 
 #include "resources/res_collection_proxy.h"
 #include "resources/res_collision_object.h"
@@ -71,11 +74,6 @@
 #include "components/comp_tilegrid.h"
 #include "components/comp_spine_model.h"
 #include "components/comp_label.h"
-
-#include "camera_ddf.h"
-#include "physics_ddf.h"
-#include "tile_ddf.h"
-#include "sprite_ddf.h"
 
 namespace dmGameSystem
 {
@@ -149,7 +147,7 @@ namespace dmGameSystem
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                 dmGameObject::HRegister regist,
-                                                dmRender::RenderContext* render_context,
+                                                dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
                                                 ParticleFXContext* particlefx_context,
                                                 GuiContext* gui_context,

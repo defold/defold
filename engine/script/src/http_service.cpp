@@ -221,7 +221,7 @@ namespace dmHttpService
             params.m_HttpWrite = &HttpWrite;
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
-            params.m_HttpCache = request->m_IgnoreCache ? 0 : worker->m_Service->m_HttpCache;
+            params.m_HttpCache = worker->m_Service->m_HttpCache;
             params.m_DNSChannel = worker->m_DNSChannel;
             params.m_RequestTimeout = request->m_Timeout;
 
@@ -237,6 +237,9 @@ namespace dmHttpService
 
         if (worker->m_Client) {
             worker->m_Request = request;
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_IGNORE_CACHE, request->m_IgnoreCache);
+
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
                 SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
@@ -391,14 +394,28 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
+            worker->m_DNSChannel = 0;
             service->m_Workers.Push(worker);
 
-            if (dmDNS::NewChannel(&worker->m_DNSChannel) != dmDNS::RESULT_OK)
-            {
-                worker->m_DNSChannel = 0;
-            }
+// Do not create a c-ares DNS channel on iOS
+// If we have no DNS channel we will fall back to POSIX getaddrinfo
+// c-ares DNS resolution will trigger a Network Security popup on most
+// residential WiFi setups since the WiFi router will act as a DNS and forward
+// DNS queries to the DNS of the ISP.
+// This will trigger the Network Security popup since c-ares communicates with
+// the router over the local network.
+// getaddrinfo on the other hand seems to be whitelisted in iOS.
+#if !defined(DM_PLATFORM_IOS)
+            dmDNS::NewChannel(&worker->m_DNSChannel);
+#endif
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
+// Detach the thread on iOS
+// DNS lookups on iOS are using getaddrinfo which may block for an undefined
+// amount of time. We do not wish to wait for the thread during shutdown
+#if defined(DM_PLATFORM_IOS)
+            dmThread::Detach(t);
+#endif
             worker->m_Thread = t;
         }
 
@@ -424,7 +441,11 @@ namespace dmHttpService
             url.m_Socket = worker->m_Socket;
             dmDNS::StopChannel(http_service->m_Workers[i]->m_DNSChannel);
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
+// On iOS we detach() the thread on creation so that we don't have to wait for
+// it during shutdown (see above for reason why)
+#if !defined(DM_PLATFORM_IOS)
             dmThread::Join(worker->m_Thread);
+#endif
             dmMessage::DeleteSocket(worker->m_Socket);
             dmDNS::DeleteChannel(worker->m_DNSChannel);
             if (worker->m_Client)

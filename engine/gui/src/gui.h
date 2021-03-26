@@ -318,6 +318,7 @@ namespace dmGui
         BLEND_MODE_ADD       = 1,
         BLEND_MODE_ADD_ALPHA = 2,
         BLEND_MODE_MULT      = 3,
+        BLEND_MODE_SCREEN    = 4,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)

@@ -21,15 +21,15 @@
 #include <dlib/dstrings.h>
 #include <dlib/trig_lookup.h>
 #include <graphics/graphics.h>
-#include <graphics/graphics_util.h>
 #include <render/render.h>
 #include <render/display_profiles.h>
 #include <render/font_renderer.h>
-#include <gameobject/gameobject_ddf.h>
-#include <render/render_ddf.h>
+#include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 
 #include "comp_gui.h"
+#include "comp_gui_private.h"
 #include "comp_spine_model.h"
+#include "comp_private.h"
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
@@ -66,13 +66,14 @@ namespace dmGameSystem
 
     static struct BlendModeParticleToGui
     {
-    	dmGui::BlendMode m_Table[4];
+    	dmGui::BlendMode m_Table[5];
     	BlendModeParticleToGui()
     	{
     		m_Table[dmParticleDDF::BLEND_MODE_ALPHA]		= dmGui::BLEND_MODE_ALPHA;
     		m_Table[dmParticleDDF::BLEND_MODE_MULT]			= dmGui::BLEND_MODE_MULT;
     		m_Table[dmParticleDDF::BLEND_MODE_ADD]			= dmGui::BLEND_MODE_ADD;
     		m_Table[dmParticleDDF::BLEND_MODE_ADD_ALPHA]	= dmGui::BLEND_MODE_ADD_ALPHA;
+            m_Table[dmParticleDDF::BLEND_MODE_SCREEN]       = dmGui::BLEND_MODE_SCREEN;
     	}
     } ddf_blendmode_map;
 
@@ -719,6 +720,11 @@ namespace dmGameSystem
             case dmGui::BLEND_MODE_MULT:
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmGui::BLEND_MODE_SCREEN:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
             default:

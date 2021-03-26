@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn start! ^Process [^String command args {:keys [directory env redirect-error-stream?]
+(defn start! ^Process [^String command args {:keys [directory env removeenv redirect-error-stream?]
                                              :or {redirect-error-stream? false}
                                              :as opts}]
   (let [pb (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String (list* command args)))]
@@ -26,6 +26,12 @@
       (let [environment (.environment pb)]
         (doseq [[k v] env]
           (.put environment k v))))
+    (when removeenv
+      (let [environment (.environment pb)]
+        (doseq [k removeenv]
+          (.remove environment k))))
+    (prn "MAWE debug command: " command args)
+    (prn "MAWE debug print env:" (.environment pb))
     (when (some? redirect-error-stream?)
       (.redirectErrorStream pb (boolean redirect-error-stream?)))
     (.start pb)))
