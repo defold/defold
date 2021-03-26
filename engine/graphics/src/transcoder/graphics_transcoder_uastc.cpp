@@ -152,7 +152,7 @@ namespace dmGraphics
         }
 
 #if defined(TEX_TRANSCODE_DEBUG)
-        dmLogInfo("MAWE: Transcoding: %p from %d to %d (%s -> %s)", path, format, transcoder_format, ToString(format), ToString(transcoder_format));
+        dmLogInfo("Transcoding: %p from %d to %d (%s -> %s)", path, format, transcoder_format, ToString(format), ToString(transcoder_format));
 #endif
 
         tr.start_transcoding(ptr, size);
