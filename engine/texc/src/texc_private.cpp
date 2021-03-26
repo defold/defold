@@ -315,6 +315,74 @@ namespace dmTexc
         }
     }
 
+    static inline float fract(float v)
+    {
+        float f = v - (int32_t)v;
+        return f;
+    }
+
+    //note: returns [-intensity;intensity[, magnitude of 2x intensity
+    //note: from "NEXT GENERATION POST PROCESSING IN CALL OF DUTY: ADVANCED WARFARE"
+    //      http://advances.realtimerendering.com/s2014/index.html
+    static inline float InterleavedGradientNoise(float u, float v)
+    {
+        const float magic[3] = { 0.06711056f, 0.00583715f, 52.9829189f };
+        return fract( magic[2] * fract( u * magic[0] + v * magic[1] ) );
+    }
+
+    static inline uint8_t addNoise(uint8_t v_in, int8_t noise)
+    {
+        int16_t v = v_in + noise;
+        if (v > 255)
+            v = 255;
+        else if(v < 0)
+            v = 0;
+        return v;
+    }
+
+    void DitherRGBA4444(uint8_t* data, uint32_t width, uint32_t height)
+    {
+        // Since we are going to convert this data to rgba4444 we the minimal value for a
+        // color change is 2^8 / 2^4 = 16
+        uint8_t bpp_mul = 16;
+        uint8_t bpp_bias = bpp_mul / 2;
+
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float rnd = InterleavedGradientNoise(x, y);
+                data[0] = addNoise(data[0], rnd * bpp_mul - bpp_bias);
+                data[1] = addNoise(data[1], (1.0f - rnd) * bpp_mul - bpp_bias); // As seen in the shadertoy by Mikkel Gjoel
+                data[2] = addNoise(data[2], rnd * bpp_mul - bpp_bias);
+                data[3] = addNoise(data[3], rnd * bpp_mul - bpp_bias);
+                data+=4;
+            }
+        }
+    }
+
+    void DitherRGBx565(uint8_t* data, uint32_t width, uint32_t height)
+    {
+        // Since we are going to convert this data to rgba4444 we the minimal value for a color change is
+        uint8_t bpp_mul_5 = 8; // (1<<8)/(1<<5)
+        uint8_t bpp_bias_5 = bpp_mul_5 / 2;
+        uint8_t bpp_mul_6 = 4; // (1<<8)/(1<<6)
+        uint8_t bpp_bias_6 = bpp_mul_6 / 2;
+
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float rnd = InterleavedGradientNoise(x, y);
+                data[0] = addNoise(data[0], rnd * bpp_mul_5 - bpp_bias_5);
+                data[1] = addNoise(data[1], (1.0f - rnd) * bpp_mul_6 - bpp_bias_6); // As seen in the shadertoy by Mikkel Gjoel
+                data[2] = addNoise(data[2], rnd * bpp_mul_5 - bpp_bias_5);
+                // the alpha channel is ignored in this case
+                data+=4;
+            }
+        }
+    }
+
     void DebugPrint(uint8_t* p, uint32_t width, uint32_t height, uint32_t num_channels)
     {
         for (uint32_t y = 0; y < height; ++y)
