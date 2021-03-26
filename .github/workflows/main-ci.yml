@@ -305,21 +305,31 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Download editor',
+        shell: bash,
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
       },
       {
         name: 'Install dependencies',
+        shell: bash,
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+      },
+      {
+        name: 'Install ext dependencies',
+        shell: bash,
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh install_ext --platform=${{ matrix.platform }}'
       },
       {
         name: 'Sign editor',
+        shell: bash,
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh sign-editor --windows-cert="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
+        shell: bash,
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       },
