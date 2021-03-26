@@ -615,7 +615,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-30-30.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
@@ -1407,7 +1407,7 @@ class Configuration(object):
             model['releases'] = s3.get_tagged_releases(self.get_archive_path())
             model['has_releases'] = True
         else:
-            model['releases'] = s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())
+            model['releases'] = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
             model['has_releases'] = True
 
         if not model['releases']:

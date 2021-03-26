@@ -59,3 +59,10 @@ local t = {
     ["foo12"] = require('foo12').foo, -- comment
     ["foo13"] = require('foo13')
 }
+
+-- REQUIRE USING A VARIABLE SHOULD NOT BE INCLUDED
+local modname = "foo.bar"
+local module = require(modname)
+
+-- FROM the jumper pathfinding library. SHOULD NOT BE INCLUDED
+local Heuristic = require ((...):gsub('%.path$','.heuristics'))

@@ -13,7 +13,7 @@
 #ifndef DM_GAMESYS_COMP_SPRITE_H
 #define DM_GAMESYS_COMP_SPRITE_H
 
-#include <gameobject/gameobject.h>
+#include <gameobject/component.h>
 
 namespace dmGameSystem
 {

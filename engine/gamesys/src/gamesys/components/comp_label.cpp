@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,6 +28,7 @@
 #include <dlib/math.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
+#include <render/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
 
 #include "../resources/res_label.h"
@@ -396,6 +397,11 @@ namespace dmGameSystem
             case dmGameSystemDDF::LabelDesc::BLEND_MODE_MULT:
                 params.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
                 params.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmGameSystemDDF::LabelDesc::BLEND_MODE_SCREEN:
+                params.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                params.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
             default:

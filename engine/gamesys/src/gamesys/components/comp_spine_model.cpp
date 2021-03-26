@@ -11,6 +11,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "comp_spine_model.h"
+#include "comp_private.h"
 
 #include <string.h>
 #include <float.h>
@@ -27,10 +28,12 @@
 #include <dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
+#include <rig/rig.h>
 #include <gameobject/gameobject_ddf.h>
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include "../resources/res_spine_model.h"
 
 #include "spine_ddf.h"
 #include "sprite_ddf.h"
@@ -49,7 +52,7 @@ namespace dmGameSystem
     static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
-    static void DestroyComponent(SpineModelWorld* world, uint32_t index);
+    static void DestroyComponent(struct SpineModelWorld* world, uint32_t index);
 
     // Translation table to translate from dmGameObject playback mode into dmRig playback mode.
     static struct PlaybackGameObjectToRig
@@ -486,6 +489,11 @@ namespace dmGameSystem
             case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_MULT:
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_SCREEN:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
             default:

@@ -117,6 +117,7 @@ namespace dmEngine
         dmGameObject::HRegister                     m_Register;
         dmGameObject::HCollection                   m_MainCollection;
         dmArray<dmGameObject::InputAction>          m_InputBuffer;
+        dmHashTable64<void*>                        m_ResourceTypeContexts;
 
         uint32_t                                    m_LastReloadMTime;
 

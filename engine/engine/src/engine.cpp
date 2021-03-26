@@ -42,6 +42,8 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
+#include <gameobject/gameobject.h>
+#include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 #include <hid/hid.h>
@@ -223,6 +225,7 @@ namespace dmEngine
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
+        m_ResourceTypeContexts.SetCapacity(31, 64);
 
         m_PhysicsContext.m_Context3D = 0x0;
         m_PhysicsContext.m_Debug = false;
@@ -253,6 +256,11 @@ namespace dmEngine
         dmHttpClient::ShutdownConnectionPool();
 
         dmLiveUpdate::Finalize();
+
+        // Reregister the types before the rest of the contexts are deleted
+        if (engine->m_Factory) {
+            dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
+        }
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
@@ -574,6 +582,8 @@ namespace dmEngine
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
         const char renderdoc_support_arg[] = "--renderdoc";
         const char validation_layers_support_arg[] = "--use-validation-layers";
+        const char verbose_long[] = "--verbose";
+        const char verbose_short[] = "-v";
         for (int i = 0; i < argc; ++i)
         {
             const char* arg = argv[i];
@@ -595,6 +605,11 @@ namespace dmEngine
             else if (strncmp(validation_layers_support_arg, arg, sizeof(validation_layers_support_arg)-1) == 0)
             {
                 use_validation_layers = true;
+            }
+            else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
+                     strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
+            {
+                dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
             }
         }
 
@@ -702,9 +717,6 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_PreviousFrameTime = dmTime::GetTime();
-        engine->m_FlipTime = dmTime::GetTime();
-        engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
@@ -1015,26 +1027,40 @@ namespace dmEngine
             engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
         }
 
+        dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+        component_create_ctx.m_Config = engine->m_Config;
+        component_create_ctx.m_Script = engine->m_GOScriptContext;
+        component_create_ctx.m_Register = engine->m_Register;
+        component_create_ctx.m_Factory = engine->m_Factory;
+
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
 
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
 
-        fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
-        if (fact_result != dmResource::RESULT_OK)
-            goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
+
+        fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext) != dmGameObject::RESULT_OK)
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
+        if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
                                                                                                 &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
+        if (go_result != dmGameObject::RESULT_OK)
+            goto bail;
+
+        // register the component extensions
+        go_result = dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -1157,6 +1183,8 @@ namespace dmEngine
             }
         }
 
+        // Tbh, I have never heard of this feature of reordering the component types being utilized.
+        // I vote for removing it. /MAWE
         if (update_order)
         {
             char* tmp = strdup(update_order);
@@ -1204,6 +1232,15 @@ namespace dmEngine
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
+
+        // Since these belong to the Step() mechanics, we need them to capure
+        // the time as close to the next frame as possible. Otherwise we'll get an unnecessarily
+        // large time step. Better err on a smaller one.
+
+        // since it will be close to zero, we guess at a framerate (60 is probably a good guess)
+        engine->m_PreviousFrameTime = dmTime::GetTime() - 1000000/60;
+        engine->m_FlipTime = dmTime::GetTime();
+        engine->m_PreviousRenderTime = 0;
 
         return true;
 
@@ -1315,6 +1352,7 @@ bail:
 
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
+
         float dt = fixed_dt;
         bool variable_dt = engine->m_UseVariableDt;
         if (variable_dt && time > engine->m_PreviousFrameTime) {

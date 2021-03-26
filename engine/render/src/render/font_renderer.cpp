@@ -397,6 +397,7 @@ namespace dmRender
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
         text_context.m_Frame = 0;
+        text_context.m_PreviousFrame = ~0;
         text_context.m_TextEntriesFlushed = 0;
 
         dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context.m_ClientBuffer, 16, buffer_size);
@@ -516,7 +517,7 @@ namespace dmRender
         uint32_t text_len = strlen(params.m_Text);
         uint32_t offset = text_context->m_TextBuffer.Size();
         if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
-            dmLogWarning("Out of text-render buffer");
+            dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
             return;
         }
 
@@ -1037,25 +1038,43 @@ namespace dmRender
         HRenderContext render_context = (HRenderContext)params.m_UserData;
         TextContext& text_context = render_context->m_TextContext;
 
+        // This function is called for both game object text (labels) and gui
+        // Once the sprites are done rendering, it is ok to reuse/reset the state
+        // and the gui can start rendering its text
+        // See also ClearRenderObjects() in render.cpp for clearing the text entries
+        if (text_context.m_Frame != text_context.m_PreviousFrame)
+        {
+            text_context.m_PreviousFrame = text_context.m_Frame;
+
+            text_context.m_RenderObjectIndex = 0;
+            text_context.m_VertexIndex = 0;
+            text_context.m_VerticesFlushed = 0;
+            text_context.m_TextEntriesFlushed = 0;
+        }
+
         switch (params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
-                text_context.m_RenderObjectIndex = 0;
-                text_context.m_VertexIndex = 0;
-                text_context.m_TextEntriesFlushed = 0;
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
                     uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+                    uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
-                    DM_COUNTER("FontVertexBuffer", buffer_size);
+
+                    DM_COUNTER("FontCharacterCount", num_vertices / 6); // each quad is two triangles
+                    DM_COUNTER("FontVertexBuffer", num_vertices * sizeof(GlyphVertex));
                 }
                 break;
-            default:
-                assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
+            case dmRender::RENDER_LIST_OPERATION_BATCH:
                 CreateFontRenderBatch(render_context, params.m_Buf, params.m_Begin, params.m_End);
+                break;
+            default:
+                break;
         }
     }
 
