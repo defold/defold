@@ -11,6 +11,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "sound.h"
+#include "sound_null_private.h"
 
 #include <string.h>
 
@@ -20,12 +21,6 @@ namespace dmSound
 {
     using namespace Vectormath::Aos;
     dmArray<SoundInstance*>* g_Instances = 0x0;
-
-    struct SoundData
-    {
-        char* m_Buffer;
-        uint32_t m_BufferSize;
-    };
 
     struct SoundInstance
     {
