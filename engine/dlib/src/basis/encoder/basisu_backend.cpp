@@ -1,5 +1,5 @@
 // basisu_backend.cpp
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,11 @@
 // TODO: This code originally supported full ETC1 and ETC1S, so there's some legacy stuff in here.
 //
 #include "basisu_backend.h"
+
+#if BASISU_SUPPORT_SSE
+#define CPPSPMD_NAME(a) a##_sse41
+#include "basisu_kernels_declares.h"
+#endif
 
 #define BASISU_FASTER_SELECTOR_REORDERING 0
 #define BASISU_BACKEND_VERIFY(c) verify(c, __LINE__);
@@ -178,9 +183,10 @@ namespace basisu
 		basisu_frontend& r = *m_pFront_end;
 		//const bool is_video = r.get_params().m_tex_type == basist::cBASISTexTypeVideoFrames;
 
-		if ((total_block_endpoints_remapped) && (m_params.m_compression_level > 0))
+		//if ((total_block_endpoints_remapped) && (m_params.m_compression_level > 0))
+		if ((total_block_endpoints_remapped) && (m_params.m_compression_level > 1))
 		{
-			// We're changed the block endpoint indices, so we need to go and adjust the endpoint codebook (remove unused entries, optimize existing entries that have changed)
+			// We've changed the block endpoint indices, so we need to go and adjust the endpoint codebook (remove unused entries, optimize existing entries that have changed)
 			uint_vec new_block_endpoints(get_total_blocks());
 
 			for (uint32_t slice_index = 0; slice_index < m_slices.size(); slice_index++)
@@ -393,6 +399,7 @@ namespace basisu
 
 		BASISU_BACKEND_VERIFY(total_invalid_crs == 0);
 	}
+
 	void basisu_backend::create_encoder_blocks()
 	{
 		basisu_frontend& r = *m_pFront_end;
@@ -662,7 +669,7 @@ namespace basisu
 		histogram selector_histogram(r.get_total_selector_clusters() + basist::MAX_SELECTOR_HISTORY_BUF_SIZE + 1);
 		histogram selector_history_buf_rle_histogram(1 << basist::SELECTOR_HISTORY_BUF_RLE_COUNT_BITS);
 
-		std::vector<uint_vec> selector_syms(m_slices.size());
+		basisu::vector<uint_vec> selector_syms(m_slices.size());
 
 		const uint32_t SELECTOR_HISTORY_BUF_FIRST_SYMBOL_INDEX = r.get_total_selector_clusters();
 		const uint32_t SELECTOR_HISTORY_BUF_RLE_SYMBOL_INDEX = SELECTOR_HISTORY_BUF_FIRST_SYMBOL_INDEX + basist::MAX_SELECTOR_HISTORY_BUF_SIZE;
@@ -672,7 +679,7 @@ namespace basisu
 		histogram delta_endpoint_histogram(r.get_total_endpoint_clusters());
 
 		histogram endpoint_pred_histogram(basist::ENDPOINT_PRED_TOTAL_SYMBOLS);
-		std::vector<uint_vec> endpoint_pred_syms(m_slices.size());
+		basisu::vector<uint_vec> endpoint_pred_syms(m_slices.size());
 
 		uint32_t total_endpoint_indices_remapped = 0;
 
@@ -884,23 +891,32 @@ namespace basisu
 						{
 							const pixel_block& src_pixels = r.get_source_pixel_block(block_index);
 
-							etc_block etc_blk(r.get_output_block(block_index));
+							const etc_block& etc_blk = r.get_output_block(block_index);
 
 							color_rgba etc_blk_unpacked[16];
 							unpack_etc1(etc_blk, etc_blk_unpacked);
 
 							uint64_t cur_err = 0;
-							for (uint32_t p = 0; p < 16; p++)
-								cur_err += color_distance(r.get_params().m_perceptual, src_pixels.get_ptr()[p], etc_blk_unpacked[p], false);
-
+							if (r.get_params().m_perceptual)
+							{
+								for (uint32_t p = 0; p < 16; p++)
+									cur_err += color_distance(true, src_pixels.get_ptr()[p], etc_blk_unpacked[p], false);
+							}
+							else
+							{
+								for (uint32_t p = 0; p < 16; p++)
+									cur_err += color_distance(false, src_pixels.get_ptr()[p], etc_blk_unpacked[p], false);
+							}
+														
 							uint64_t best_trial_err = UINT64_MAX;
 							int best_trial_idx = 0;
 							uint32_t best_trial_history_buf_idx = 0;
 
-
 							const float selector_remap_thresh = maximum(1.0f, m_params.m_selector_rdo_quality_thresh); //2.5f;
 							const bool use_strict_search = (m_params.m_compression_level == 0) && (selector_remap_thresh == 1.0f);
 
+							const uint64_t limit_err = (uint64_t)ceilf(cur_err * selector_remap_thresh);
+							
 							for (uint32_t j = 0; j < selector_history_buf.size(); j++)
 							{
 								const int trial_idx = selector_history_buf[j];
@@ -917,30 +933,42 @@ namespace basisu
 								}
 								else
 								{
-									for (uint32_t sy = 0; sy < 4; sy++)
-										for (uint32_t sx = 0; sx < 4; sx++)
-											etc_blk.set_selector(sx, sy, m_selector_palette[m_selector_remap_table_new_to_old[trial_idx]](sx, sy));
-
-									// TODO: Optimize this
-									unpack_etc1(etc_blk, etc_blk_unpacked);
-
 									uint64_t trial_err = 0;
-									const uint64_t thresh_err = minimum((uint64_t)ceilf(cur_err * selector_remap_thresh), best_trial_err);
-									for (uint32_t p = 0; p < 16; p++)
+									const uint64_t thresh_err = minimum(limit_err, best_trial_err);
+
+									color_rgba block_colors[4];
+									etc_blk.get_block_colors(block_colors, 0);
+
+									const uint8_t* pSelectors = &m_selector_palette[m_selector_remap_table_new_to_old[trial_idx]](0, 0);
+									
+									if (r.get_params().m_perceptual)
 									{
-										trial_err += color_distance(r.get_params().m_perceptual, src_pixels.get_ptr()[p], etc_blk_unpacked[p], false);
-										if (trial_err > thresh_err)
-											break;
+										for (uint32_t p = 0; p < 16; p++)
+										{
+											uint32_t sel = pSelectors[p];
+											trial_err += color_distance(true, src_pixels.get_ptr()[p], block_colors[sel], false);
+											if (trial_err > thresh_err)
+												break;
+										}
+									}
+									else
+									{
+										for (uint32_t p = 0; p < 16; p++)
+										{
+											uint32_t sel = pSelectors[p];
+											trial_err += color_distance(false, src_pixels.get_ptr()[p], block_colors[sel], false);
+											if (trial_err > thresh_err)
+												break;
+										}
 									}
 
-									if (trial_err <= cur_err * selector_remap_thresh)
+									if ((trial_err < best_trial_err) && (trial_err <= thresh_err))
 									{
-										if (trial_err < best_trial_err)
-										{
-											best_trial_err = trial_err;
-											best_trial_idx = trial_idx;
-											best_trial_history_buf_idx = j;
-										}
+										assert(trial_err <= limit_err);
+										
+										best_trial_err = trial_err;
+										best_trial_idx = trial_idx;
+										best_trial_history_buf_idx = j;
 									}
 								}
 							}
@@ -1086,7 +1114,8 @@ namespace basisu
 			total_selector_indices_remapped, total_selector_indices_remapped * 100.0f / get_total_blocks(),
 			total_used_selector_history_buf, total_used_selector_history_buf * 100.0f / get_total_blocks());
 
-		if ((total_endpoint_indices_remapped) && (m_params.m_compression_level > 0))
+		//if ((total_endpoint_indices_remapped) && (m_params.m_compression_level > 0))
+		if ((total_endpoint_indices_remapped) && (m_params.m_compression_level > 1))
 		{
 			int_vec unused;
 			r.reoptimize_remapped_endpoints(block_endpoint_indices, unused, false, &block_selector_indices);

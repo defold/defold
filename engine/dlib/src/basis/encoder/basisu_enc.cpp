@@ -1,5 +1,5 @@
 // basisu_enc.cpp
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "basisu_bc7enc.h"
 #include "apg_bmp.h"
 #include "jpgd.h"
+#include <vector>
 
 #if defined(_WIN32)
 // For QueryPerformanceCounter/QueryPerformanceFrequency
@@ -33,6 +34,9 @@ namespace basisu
 {
 	uint64_t interval_timer::g_init_ticks, interval_timer::g_freq;
 	double interval_timer::g_timer_freq;
+#if BASISU_SUPPORT_SSE
+	bool g_cpu_supports_sse41;
+#endif
 
 	uint8_t g_hamming_dist[256] =
 	{
@@ -53,10 +57,12 @@ namespace basisu
 		3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
 		4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8
 	};
-
+			
 	// Encoder library initialization (just call once at startup)
 	void basisu_encoder_init()
 	{
+		detect_sse41();
+
 		basist::basisu_transcoder_init();
 		pack_etc1_solid_color_init();
 		//uastc_init();
@@ -400,6 +406,8 @@ namespace basisu
 			if ((!has_alpha) || ((image_save_flags & cImageSaveIgnoreAlpha) != 0))
 			{
 				const uint64_t total_bytes = (uint64_t)img.get_width() * 3U * (uint64_t)img.get_height();
+				if (total_bytes > INT_MAX)
+					return false;
 				uint8_vec rgb_pixels(static_cast<size_t>(total_bytes));
 				uint8_t *pDst = &rgb_pixels[0];
 								
@@ -464,7 +472,11 @@ namespace basisu
 			}
 		}
 
-		data.resize((size_t)filesize);
+		if (!data.try_resize((size_t)filesize))
+		{
+			fclose(pFile);
+			return false;
+		}
 
 		if (filesize)
 		{

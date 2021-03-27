@@ -205,23 +205,34 @@ def build(bld):
                             includes = ['basis'],
                             target = 'basis_encoder',
                             remove_flags = remove_flags,
-                            defines = ['DM_BASIS_ENCODER'])
+                            defines = ['DM_BASIS_ENCODER', "BASISU_SUPPORT_SSE=0"])
     basis_encoder.find_sources_in_dirs(["basis/encoder", "basis/transcoder"], ['.cpp'])
     basis_encoder.env.append_unique('CXXFLAGS', ['-std=c++11'])
     if remove_flags:
         basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
 
     # For the runtime
-    basis_transcoder = bld.new_task_gen(features = 'cxx cstaticlib remove_flags',
+    basis_transcoder_uastc = bld.new_task_gen(features = 'cxx cstaticlib remove_flags',
                             includes = ['basis'],
-                            target = 'basis_transcoder',
+                            target = 'basis_transcoder_uastc',
                             remove_flags = remove_flags,
                             defines = ['DM_BASIS_TRANSCODER_UASTC'],
                             uselib = 'DLIB')
-    basis_transcoder.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])
-    basis_transcoder.env.append_unique('CXXFLAGS', ['-std=c++11'])
+    basis_transcoder_uastc.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])
+    basis_transcoder_uastc.env.append_unique('CXXFLAGS', ['-std=c++11'])
     if remove_flags:
-        basis_transcoder.env.append_unique('CXXFLAGS', ['-Os'])
+        basis_transcoder_uastc.env.append_unique('CXXFLAGS', ['-Os'])
+
+    basis_transcoder_etc1s = bld.new_task_gen(features = 'cxx cstaticlib remove_flags',
+                            includes = ['basis'],
+                            target = 'basis_transcoder_etc1s',
+                            remove_flags = remove_flags,
+                            defines = ['DM_BASIS_TRANSCODER_UASTC'],
+                            uselib = 'DLIB')
+    basis_transcoder_etc1s.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])
+    basis_transcoder_etc1s.env.append_unique('CXXFLAGS', ['-std=c++11'])
+    if remove_flags:
+        basis_transcoder_etc1s.env.append_unique('CXXFLAGS', ['-Os'])
 
     # Java
 

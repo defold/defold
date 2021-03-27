@@ -1,5 +1,5 @@
 // basisu_comp.h
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,8 +41,8 @@ namespace basisu
 
 	const uint32_t BASISU_MAX_SLICES = 0xFFFFFF;
 
-	const int BASISU_RDO_UASTC_DICT_SIZE_DEFAULT = 32768;
-	const int BASISU_RDO_UASTC_DICT_SIZE_MIN = 256;
+	const int BASISU_RDO_UASTC_DICT_SIZE_DEFAULT = 4096; // 32768;
+	const int BASISU_RDO_UASTC_DICT_SIZE_MIN = 64;
 	const int BASISU_RDO_UASTC_DICT_SIZE_MAX = 65536;
 
 	struct image_stats
@@ -202,10 +202,13 @@ namespace basisu
 			m_max_selector_clusters(512),
 			m_quality_level(-1),
 			m_pack_uastc_flags(cPackUASTCLevelDefault),
-			m_rdo_uastc_quality_scalar(1.0f, 0.001f, 10.0f),
+			m_rdo_uastc_quality_scalar(1.0f, 0.001f, 50.0f),
 			m_rdo_uastc_dict_size(BASISU_RDO_UASTC_DICT_SIZE_DEFAULT, BASISU_RDO_UASTC_DICT_SIZE_MIN, BASISU_RDO_UASTC_DICT_SIZE_MAX),
+			m_rdo_uastc_max_smooth_block_error_scale(UASTC_RDO_DEFAULT_SMOOTH_BLOCK_MAX_ERROR_SCALE, 1.0f, 300.0f),
+			m_rdo_uastc_smooth_block_max_std_dev(UASTC_RDO_DEFAULT_MAX_SMOOTH_BLOCK_STD_DEV, .01f, 65536.0f),
 			m_rdo_uastc_max_allowed_rms_increase_ratio(UASTC_RDO_DEFAULT_MAX_ALLOWED_RMS_INCREASE_RATIO, .01f, 100.0f),
 			m_rdo_uastc_skip_block_rms_thresh(UASTC_RDO_DEFAULT_SKIP_BLOCK_RMS_THRESH, .01f, 100.0f),
+			m_resample_factor(0.0f, .00125f, 100.0f),
 			m_pJob_pool(nullptr)
 		{
 			clear();
@@ -262,6 +265,7 @@ namespace basisu
 			m_mip_premultiplied.clear();
 			m_mip_renormalize.clear();
 			m_mip_wrapping.clear();
+			m_mip_fast.clear();
 			m_mip_smallest_dimension.clear();
 
 			m_max_endpoint_clusters = 0;
@@ -276,8 +280,14 @@ namespace basisu
 			m_pack_uastc_flags = cPackUASTCLevelDefault;
 			m_rdo_uastc.clear();
 			m_rdo_uastc_quality_scalar.clear();
+			m_rdo_uastc_max_smooth_block_error_scale.clear();
+			m_rdo_uastc_smooth_block_max_std_dev.clear();
 			m_rdo_uastc_max_allowed_rms_increase_ratio.clear();
 			m_rdo_uastc_skip_block_rms_thresh.clear();
+			m_rdo_uastc_favor_simpler_modes_in_rdo_mode.clear();
+			m_rdo_uastc_multithreading.clear();
+
+			m_resample_factor.clear();
 
 			m_pJob_pool = nullptr;
 		}
@@ -290,10 +300,10 @@ namespace basisu
 
 		// If m_read_source_images is true, m_source_filenames (and optionally m_source_alpha_filenames) contains the filenames of PNG images to read. 
 		// Otherwise, the compressor processes the images in m_source_images.
-		std::vector<std::string> m_source_filenames;
-		std::vector<std::string> m_source_alpha_filenames;
+		basisu::vector<std::string> m_source_filenames;
+		basisu::vector<std::string> m_source_alpha_filenames;
 		
-		std::vector<image> m_source_images;
+		basisu::vector<image> m_source_images;
 		// TODO: Allow caller to supply their own mipmaps
 						
 		// Filename of the output basis file
@@ -368,6 +378,7 @@ namespace basisu
 		bool_param<true> m_mip_premultiplied; // not currently supported
 		bool_param<false> m_mip_renormalize; 
 		bool_param<true> m_mip_wrapping;
+		bool_param<true> m_mip_fast;
 		param<int> m_mip_smallest_dimension;
 				
 		// Codebook size (quality) control. 
@@ -388,8 +399,14 @@ namespace basisu
 		bool_param<false> m_rdo_uastc;
 		param<float> m_rdo_uastc_quality_scalar;
 		param<int> m_rdo_uastc_dict_size;
+		param<float> m_rdo_uastc_max_smooth_block_error_scale;
+		param<float> m_rdo_uastc_smooth_block_max_std_dev;
 		param<float> m_rdo_uastc_max_allowed_rms_increase_ratio;
 		param<float> m_rdo_uastc_skip_block_rms_thresh;
+		bool_param<true> m_rdo_uastc_favor_simpler_modes_in_rdo_mode;
+		bool_param<true> m_rdo_uastc_multithreading;
+
+		param<float> m_resample_factor;
 
 		job_pool *m_pJob_pool;
 	};
@@ -421,23 +438,23 @@ namespace basisu
 
 		const uint8_vec &get_output_basis_file() const { return m_output_basis_file; }
 		
-		const std::vector<image_stats> &get_stats() const { return m_stats; }
+		const basisu::vector<image_stats> &get_stats() const { return m_stats; }
 
 		uint32_t get_basis_file_size() const { return m_basis_file_size; }
 		double get_basis_bits_per_texel() const { return m_basis_bits_per_texel; }
-
+		
 		bool get_any_source_image_has_alpha() const { return m_any_source_image_has_alpha; }
 				
 	private:
 		basis_compressor_params m_params;
 		
-		std::vector<image> m_slice_images;
+		basisu::vector<image> m_slice_images;
 
-		std::vector<image_stats> m_stats;
+		basisu::vector<image_stats> m_stats;
 
 		uint32_t m_basis_file_size;
 		double m_basis_bits_per_texel;
-		
+						
 		basisu_backend_slice_desc_vec m_slice_descs;
 
 		uint32_t m_total_blocks;
@@ -446,23 +463,23 @@ namespace basisu
 		basisu_frontend m_frontend;
 		pixel_block_vec m_source_blocks;
 
-		std::vector<gpu_image> m_frontend_output_textures;
+		basisu::vector<gpu_image> m_frontend_output_textures;
 
-		std::vector<gpu_image> m_best_etc1s_images;
-		std::vector<image> m_best_etc1s_images_unpacked;
+		basisu::vector<gpu_image> m_best_etc1s_images;
+		basisu::vector<image> m_best_etc1s_images_unpacked;
 
 		basisu_backend m_backend;
 
 		basisu_file m_basis_file;
 
-		std::vector<gpu_image> m_decoded_output_textures;
-		std::vector<image> m_decoded_output_textures_unpacked;
-		std::vector<gpu_image> m_decoded_output_textures_bc7;
-		std::vector<image> m_decoded_output_textures_unpacked_bc7;
+		basisu::vector<gpu_image> m_decoded_output_textures;
+		basisu::vector<image> m_decoded_output_textures_unpacked;
+		basisu::vector<gpu_image> m_decoded_output_textures_bc7;
+		basisu::vector<image> m_decoded_output_textures_unpacked_bc7;
 
 		uint8_vec m_output_basis_file;
 		
-		std::vector<gpu_image> m_uastc_slice_textures;
+		basisu::vector<gpu_image> m_uastc_slice_textures;
 		basisu_backend_output m_uastc_backend_output;
 
 		bool m_any_source_image_has_alpha;
@@ -475,7 +492,7 @@ namespace basisu
 		bool create_basis_file_and_transcode();
 		bool write_output_files_and_compute_stats();
 		error_code encode_slices_to_uastc();
-		bool generate_mipmaps(const image &img, std::vector<image> &mips, bool has_alpha);
+		bool generate_mipmaps(const image &img, basisu::vector<image> &mips, bool has_alpha);
 		bool validate_texture_type_constraints();
 	};
 

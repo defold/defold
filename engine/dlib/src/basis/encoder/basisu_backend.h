@@ -1,5 +1,5 @@
 // basisu_backend.h
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ namespace basisu
 		}
 	};
 
-	typedef std::vector<encoder_block> encoder_block_vec;
+	typedef basisu::vector<encoder_block> encoder_block_vec;
 	typedef vector2D<encoder_block> encoder_block_vec2D;
 
 	struct etc1_endpoint_palette_entry
@@ -69,7 +69,7 @@ namespace basisu
 		}
 	};
 
-	typedef std::vector<etc1_endpoint_palette_entry> etc1_endpoint_palette_entry_vec;
+	typedef basisu::vector<etc1_endpoint_palette_entry> etc1_endpoint_palette_entry_vec;
 
 	struct basisu_backend_params
 	{
@@ -135,7 +135,7 @@ namespace basisu
 		bool m_iframe;
 	};
 
-	typedef std::vector<basisu_backend_slice_desc> basisu_backend_slice_desc_vec;
+	typedef basisu::vector<basisu_backend_slice_desc> basisu_backend_slice_desc_vec;
 
 	struct basisu_backend_output
 	{
@@ -152,7 +152,7 @@ namespace basisu
 		basisu_backend_slice_desc_vec m_slice_desc;
 
 		uint8_vec m_slice_image_tables;
-		std::vector<uint8_vec> m_slice_image_data;
+		basisu::vector<uint8_vec> m_slice_image_data;
 		uint16_vec m_slice_image_crcs;
 
 		basisu_backend_output()
@@ -219,11 +219,11 @@ namespace basisu
 			bool m_was_used;
 		};
 
-		typedef std::vector<etc1_global_selector_cb_entry_desc> etc1_global_selector_cb_entry_desc_vec;
+		typedef basisu::vector<etc1_global_selector_cb_entry_desc> etc1_global_selector_cb_entry_desc_vec;
 
 		etc1_global_selector_cb_entry_desc_vec m_global_selector_palette_desc;
 
-		std::vector<encoder_block_vec2D> m_slice_encoder_blocks;
+		basisu::vector<encoder_block_vec2D> m_slice_encoder_blocks;
 
 		// Maps OLD to NEW endpoint/selector indices
 		uint_vec m_endpoint_remap_table_old_to_new;

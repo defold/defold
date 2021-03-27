@@ -1,5 +1,5 @@
 // basis_etc.cpp
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "basisu_etc.h"
+
+#if BASISU_SUPPORT_SSE
+#define CPPSPMD_NAME(a) a##_sse41
+#include "basisu_kernels_declares.h"
+#endif
 
 #define BASISU_DEBUG_ETC_ENCODER 0
 #define BASISU_DEBUG_ETC_ENCODER_DEEPER 0
@@ -756,9 +761,11 @@ namespace basisu
 	{
 		assert(m_pResult->m_pSelectors);
 
-		if ((m_pParams->m_pForce_selectors) || (m_pParams->m_pEval_solution_override))
+		if (m_pParams->m_pForce_selectors)
 		{
 			assert(m_pParams->m_quality >= cETCQualitySlow);
+			if (m_pParams->m_quality < cETCQualitySlow)
+				return false;
 		}
 
 		const uint32_t n = m_pParams->m_num_src_pixels;
@@ -768,7 +775,7 @@ namespace basisu
 			if (m_pParams->m_quality == cETCQualityFast)
 				compute_internal_cluster_fit(4);
 			else if (m_pParams->m_quality == cETCQualityMedium)
-				compute_internal_cluster_fit(32);
+				compute_internal_cluster_fit(16);
 			else if (m_pParams->m_quality == cETCQualitySlow)
 				compute_internal_cluster_fit(64);
 			else
@@ -783,23 +790,27 @@ namespace basisu
 			return false;
 		}
 
-		const uint8_t* pSelectors = &m_best_solution.m_selectors[0];
+		//const uint8_t* pSelectors = &m_best_solution.m_selectors[0];
+		const uint8_t* pSelectors = m_pParams->m_pForce_selectors ? m_pParams->m_pForce_selectors : &m_best_solution.m_selectors[0];
 
-#ifdef BASISU_BUILD_DEBUG
-		if (m_pParams->m_pEval_solution_override == nullptr)
+#if defined(DEBUG) || defined(_DEBUG)
 		{
+			// sanity check the returned error
 			color_rgba block_colors[4];
 			m_best_solution.m_coords.get_block_colors(block_colors);
 
 			const color_rgba* pSrc_pixels = m_pParams->m_pSrc_pixels;
 			uint64_t actual_error = 0;
+			
+			bool perceptual;
+			if (m_pParams->m_quality >= cETCQualityMedium)
+				perceptual = m_pParams->m_perceptual;
+			else
+				perceptual = (m_pParams->m_quality == cETCQualityFast) ? false : m_pParams->m_perceptual;
+						
 			for (uint32_t i = 0; i < n; i++)
-			{
-				if ((m_pParams->m_perceptual) && (m_pParams->m_quality >= cETCQualitySlow))
-					actual_error += color_distance(true, pSrc_pixels[i], block_colors[pSelectors[i]], false);
-				else
-					actual_error += color_distance(pSrc_pixels[i], block_colors[pSelectors[i]], false);
-			}
+				actual_error += color_distance(perceptual, pSrc_pixels[i], block_colors[pSelectors[i]], false);
+
 			assert(actual_error == m_best_solution.m_error);
 		}
 #endif      
@@ -988,9 +999,21 @@ namespace basisu
 		m_sorted_luma_indices.resize(n);
 		m_sorted_luma.resize(n);
 		
+		int min_r = 255, min_g = 255, min_b = 255;
+		int max_r = 0, max_g = 0, max_b = 0;
+		
 		for (uint32_t i = 0; i < n; i++)
 		{
 			const color_rgba& c = m_pParams->m_pSrc_pixels[i];
+
+			min_r = std::min<int>(min_r, c.r);
+			min_g = std::min<int>(min_g, c.g);
+			min_b = std::min<int>(min_b, c.b);
+
+			max_r = std::max<int>(max_r, c.r);
+			max_g = std::max<int>(max_g, c.g);
+			max_b = std::max<int>(max_b, c.b);
+
 			const vec3F fc(c.r, c.g, c.b);
 
 			avg_color += fc;
@@ -1000,7 +1023,8 @@ namespace basisu
 		}
 		avg_color /= static_cast<float>(n);
 		m_avg_color = avg_color;
-
+		m_max_comp_spread = std::max(std::max(max_r - min_r, max_g - min_g), max_b - min_b);
+		
 		m_br = clamp<int>(static_cast<uint32_t>(m_avg_color[0] * m_limit / 255.0f + .5f), 0, m_limit);
 		m_bg = clamp<int>(static_cast<uint32_t>(m_avg_color[1] * m_limit / 255.0f + .5f), 0, m_limit);
 		m_bb = clamp<int>(static_cast<uint32_t>(m_avg_color[2] * m_limit / 255.0f + .5f), 0, m_limit);
@@ -1009,7 +1033,7 @@ namespace basisu
 		printf("Avg block color: %u %u %u\n", m_br, m_bg, m_bb);
 #endif
 
-		if (m_pParams->m_quality <= cETCQualityMedium)
+		if (m_pParams->m_quality == cETCQualityFast)
 		{
 			indirect_sort(n, &m_sorted_luma_indices[0], &m_luma[0]);
 
@@ -1024,13 +1048,45 @@ namespace basisu
 		m_best_solution.m_valid = false;
 		m_best_solution.m_error = UINT64_MAX;
 
-		m_solutions_tried.clear();
+		clear_obj(m_solutions_tried);
 	}
+
+	// Return false if we've probably already tried this solution, true if we have definitely not.
+	bool etc1_optimizer::check_for_redundant_solution(const etc1_solution_coordinates& coords)
+	{
+		// Hash first 3 bytes of color (RGB)
+		uint32_t kh = hash_hsieh((uint8_t*)&coords.m_unscaled_color.r, 3);
+
+		uint32_t h0 = kh & cSolutionsTriedHashMask;
+		uint32_t h1 = (kh >> cSolutionsTriedHashBits) & cSolutionsTriedHashMask;
+
+		// Simple Bloom filter lookup with k=2
+		if ( ((m_solutions_tried[h0 >> 3] & (1 << (h0 & 7))) != 0) &&
+		     ((m_solutions_tried[h1 >> 3] & (1 << (h1 & 7))) != 0) )
+			return false;
+
+		m_solutions_tried[h0 >> 3] |= (1 << (h0 & 7));
+		m_solutions_tried[h1 >> 3] |= (1 << (h1 & 7));
+
+		return true;
+	}
+		
+	static uint8_t g_eval_dist_tables[8][256] =
+	{
+		// 99% threshold
+		{ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,},
+		{ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,},
+		{ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,},
+		{ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,},
+		{ 1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,1,},
+		{ 1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,0,0,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,},
+		{ 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,},
+		{ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,}
+	};
 
 	bool etc1_optimizer::evaluate_solution_slow(const etc1_solution_coordinates& coords, potential_solution& trial_solution, potential_solution* pBest_solution)
 	{
-		uint32_t k = coords.m_unscaled_color.r | (coords.m_unscaled_color.g << 8) | (coords.m_unscaled_color.b << 16);
-		if (!m_solutions_tried.insert(k).second)
+		if (!check_for_redundant_solution(coords))
 			return false;
 
 #if BASISU_DEBUG_ETC_ENCODER_DEEPER
@@ -1059,12 +1115,39 @@ namespace basisu
 		const uint32_t n = m_pParams->m_num_src_pixels;
 		assert(trial_solution.m_selectors.size() == n);
 
-		trial_solution.m_error = UINT64_MAX;
+		trial_solution.m_error = INT64_MAX;
 
 		const uint8_t *pSelectors_to_use = m_pParams->m_pForce_selectors;
 
 		for (uint32_t inten_table = 0; inten_table < cETC1IntenModifierValues; inten_table++)
 		{
+			if (m_pParams->m_quality <= cETCQualityMedium)
+			{
+				if (!g_eval_dist_tables[inten_table][m_max_comp_spread])
+					continue;
+			}
+#if 0
+			if (m_pParams->m_quality <= cETCQualityMedium)
+			{
+				// For tables 5-7, if the max component spread falls within certain ranges, skip the inten table. Statistically they are extremely unlikely to result in lower error.
+				if (inten_table == 7)
+				{
+					if (m_max_comp_spread < 42)
+						continue;
+				}
+				else if (inten_table == 6)
+				{
+					if ((m_max_comp_spread >= 12) && (m_max_comp_spread <= 31))
+						continue;
+				}
+				else if (inten_table == 5)
+				{
+					if ((m_max_comp_spread >= 13) && (m_max_comp_spread <= 21))
+						continue;
+				}
+			}
+#endif
+
 			const int* pInten_table = g_etc1_inten_tables[inten_table];
 
 			color_rgba block_colors[4];
@@ -1077,55 +1160,72 @@ namespace basisu
 			uint64_t total_error = 0;
 
 			const color_rgba* pSrc_pixels = m_pParams->m_pSrc_pixels;
-			for (uint32_t c = 0; c < n; c++)
+
+			if (!g_cpu_supports_sse41)
 			{
-				const color_rgba& src_pixel = *pSrc_pixels++;
+				for (uint32_t c = 0; c < n; c++)
+				{
+					const color_rgba& src_pixel = *pSrc_pixels++;
 
-				uint32_t best_selector_index = 0;
-				uint32_t best_error = 0;
+					uint32_t best_selector_index = 0;
+					uint32_t best_error = 0;
 
+					if (pSelectors_to_use)
+					{
+						best_selector_index = pSelectors_to_use[c];
+						best_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[best_selector_index], false);
+					}
+					else
+					{
+						best_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[0], false);
+
+						uint32_t trial_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[1], false);
+						if (trial_error < best_error)
+						{
+							best_error = trial_error;
+							best_selector_index = 1;
+						}
+
+						trial_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[2], false);
+						if (trial_error < best_error)
+						{
+							best_error = trial_error;
+							best_selector_index = 2;
+						}
+
+						trial_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[3], false);
+						if (trial_error < best_error)
+						{
+							best_error = trial_error;
+							best_selector_index = 3;
+						}
+					}
+
+					m_temp_selectors[c] = static_cast<uint8_t>(best_selector_index);
+
+					total_error += best_error;
+					if (total_error >= trial_solution.m_error)
+						break;
+				}
+			}
+			else
+			{
+#if BASISU_SUPPORT_SSE
 				if (pSelectors_to_use)
 				{
-					best_selector_index = pSelectors_to_use[c];
-					best_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[best_selector_index], false);
+					if (m_pParams->m_perceptual)
+						perceptual_distance_rgb_4_N_sse41((int64_t*)&total_error, pSelectors_to_use, block_colors, pSrc_pixels, n, trial_solution.m_error);
+					else
+						linear_distance_rgb_4_N_sse41((int64_t*)&total_error, pSelectors_to_use, block_colors, pSrc_pixels, n, trial_solution.m_error);
 				}
 				else
 				{
-					best_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[0], false);
-
-					uint32_t trial_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[1], false);
-					if (trial_error < best_error)
-					{
-						best_error = trial_error;
-						best_selector_index = 1;
-					}
-
-					trial_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[2], false);
-					if (trial_error < best_error)
-					{
-						best_error = trial_error;
-						best_selector_index = 2;
-					}
-
-					trial_error = color_distance(m_pParams->m_perceptual, src_pixel, block_colors[3], false);
-					if (trial_error < best_error)
-					{
-						best_error = trial_error;
-						best_selector_index = 3;
-					}
+					if (m_pParams->m_perceptual)
+						find_selectors_perceptual_rgb_4_N_sse41((int64_t*)&total_error, &m_temp_selectors[0], block_colors, pSrc_pixels, n, trial_solution.m_error);
+					else
+						find_selectors_linear_rgb_4_N_sse41((int64_t*)&total_error, &m_temp_selectors[0], block_colors, pSrc_pixels, n, trial_solution.m_error);
 				}
-
-				m_temp_selectors[c] = static_cast<uint8_t>(best_selector_index);
-
-				total_error += best_error;
-				if ((m_pParams->m_pEval_solution_override == nullptr) && (total_error >= trial_solution.m_error))
-					break;
-			}
-
-			if (m_pParams->m_pEval_solution_override)
-			{
-				if (!(*m_pParams->m_pEval_solution_override)(total_error, *m_pParams, block_colors, &m_temp_selectors[0], coords))
-					return false;
+#endif
 			}
 
 			if (total_error < trial_solution.m_error)
@@ -1138,7 +1238,7 @@ namespace basisu
 		}
 		trial_solution.m_coords.m_unscaled_color = coords.m_unscaled_color;
 		trial_solution.m_coords.m_color4 = m_pParams->m_use_color4;
-
+				
 #if BASISU_DEBUG_ETC_ENCODER_DEEPER
 		printf("Eval done: %u error: %I64u best error so far: %I64u\n", (trial_solution.m_error < pBest_solution->m_error), trial_solution.m_error, pBest_solution->m_error);
 #endif
@@ -1152,14 +1252,13 @@ namespace basisu
 				success = true;
 			}
 		}
-
+				
 		return success;
 	}
 
 	bool etc1_optimizer::evaluate_solution_fast(const etc1_solution_coordinates& coords, potential_solution& trial_solution, potential_solution* pBest_solution)
 	{
-		uint32_t k = coords.m_unscaled_color.r | (coords.m_unscaled_color.g << 8) | (coords.m_unscaled_color.b << 16);
-		if (!m_solutions_tried.insert(k).second)
+		if (!check_for_redundant_solution(coords))
 			return false;
 
 #if BASISU_DEBUG_ETC_ENCODER_DEEPER
@@ -1184,12 +1283,14 @@ namespace basisu
 		}
 
 		const color_rgba base_color(coords.get_scaled_color());
-
+		
 		const uint32_t n = m_pParams->m_num_src_pixels;
 		assert(trial_solution.m_selectors.size() == n);
 
 		trial_solution.m_error = UINT64_MAX;
-
+								
+		const bool perceptual = (m_pParams->m_quality == cETCQualityFast) ? false : m_pParams->m_perceptual;
+				
 		for (int inten_table = cETC1IntenModifierValues - 1; inten_table >= 0; --inten_table)
 		{
 			const int* pInten_table = g_etc1_inten_tables[inten_table];
@@ -1209,57 +1310,147 @@ namespace basisu
 			// 0   1   2   3
 			//   01  12  23
 			const uint32_t block_inten_midpoints[3] = { block_inten[0] + block_inten[1], block_inten[1] + block_inten[2], block_inten[2] + block_inten[3] };
-
+															
 			uint64_t total_error = 0;
 			const color_rgba* pSrc_pixels = m_pParams->m_pSrc_pixels;
-			if ((m_pSorted_luma[n - 1] * 2) < block_inten_midpoints[0])
+						
+			if (perceptual)
 			{
-				if (block_inten[0] > m_pSorted_luma[n - 1])
+				if ((m_pSorted_luma[n - 1] * 2) < block_inten_midpoints[0])
 				{
-					const uint32_t min_error = iabs((int)block_inten[0] - (int)m_pSorted_luma[n - 1]);
-					if (min_error >= trial_solution.m_error)
-						continue;
+					if (block_inten[0] > m_pSorted_luma[n - 1])
+					{
+						const uint32_t min_error = iabs((int)block_inten[0] - (int)m_pSorted_luma[n - 1]);
+						if (min_error >= trial_solution.m_error)
+							continue;
+					}
+
+					memset(&m_temp_selectors[0], 0, n);
+
+					for (uint32_t c = 0; c < n; c++)
+						total_error += color_distance(true, block_colors[0], pSrc_pixels[c], false);
 				}
-
-				memset(&m_temp_selectors[0], 0, n);
-
-				for (uint32_t c = 0; c < n; c++)
-					total_error += color_distance(block_colors[0], pSrc_pixels[c], false);
-			}
-			else if ((m_pSorted_luma[0] * 2) >= block_inten_midpoints[2])
-			{
-				if (m_pSorted_luma[0] > block_inten[3])
+				else if ((m_pSorted_luma[0] * 2) >= block_inten_midpoints[2])
 				{
-					const uint32_t min_error = iabs((int)m_pSorted_luma[0] - (int)block_inten[3]);
-					if (min_error >= trial_solution.m_error)
-						continue;
+					if (m_pSorted_luma[0] > block_inten[3])
+					{
+						const uint32_t min_error = iabs((int)m_pSorted_luma[0] - (int)block_inten[3]);
+						if (min_error >= trial_solution.m_error)
+							continue;
+					}
+
+					memset(&m_temp_selectors[0], 3, n);
+
+					for (uint32_t c = 0; c < n; c++)
+						total_error += color_distance(true, block_colors[3], pSrc_pixels[c], false);
 				}
+				else
+				{
+					if (!g_cpu_supports_sse41)
+					{
+						uint32_t cur_selector = 0, c;
+						for (c = 0; c < n; c++)
+						{
+							const uint32_t y = m_pSorted_luma[c];
+							while ((y * 2) >= block_inten_midpoints[cur_selector])
+								if (++cur_selector > 2)
+									goto done;
+							const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
+							m_temp_selectors[sorted_pixel_index] = static_cast<uint8_t>(cur_selector);
+							total_error += color_distance(true, block_colors[cur_selector], pSrc_pixels[sorted_pixel_index], false);
+						}
+					done:
+						while (c < n)
+						{
+							const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
+							m_temp_selectors[sorted_pixel_index] = 3;
+							total_error += color_distance(true, block_colors[3], pSrc_pixels[sorted_pixel_index], false);
+							++c;
+						}
+					}
+					else
+					{
+#if BASISU_SUPPORT_SSE
+						uint32_t cur_selector = 0, c;
 
-				memset(&m_temp_selectors[0], 3, n);
+						for (c = 0; c < n; c++)
+						{
+							const uint32_t y = m_pSorted_luma[c];
+							while ((y * 2) >= block_inten_midpoints[cur_selector])
+							{
+								if (++cur_selector > 2)
+									goto done3;
+							}
+							const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
+							m_temp_selectors[sorted_pixel_index] = static_cast<uint8_t>(cur_selector);
+						}
+					done3:
 
-				for (uint32_t c = 0; c < n; c++)
-					total_error += color_distance(block_colors[3], pSrc_pixels[c], false);
+						while (c < n)
+						{
+							const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
+							m_temp_selectors[sorted_pixel_index] = 3;
+							++c;
+						}
+
+						int64_t block_error;
+						perceptual_distance_rgb_4_N_sse41(&block_error, &m_temp_selectors[0], block_colors, pSrc_pixels, n, INT64_MAX);
+						total_error += block_error;
+#endif
+					}
+				}
 			}
 			else
 			{
-				uint32_t cur_selector = 0, c;
-				for (c = 0; c < n; c++)
+				if ((m_pSorted_luma[n - 1] * 2) < block_inten_midpoints[0])
 				{
-					const uint32_t y = m_pSorted_luma[c];
-					while ((y * 2) >= block_inten_midpoints[cur_selector])
-						if (++cur_selector > 2)
-							goto done;
-					const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
-					m_temp_selectors[sorted_pixel_index] = static_cast<uint8_t>(cur_selector);
-					total_error += color_distance(block_colors[cur_selector], pSrc_pixels[sorted_pixel_index], false);
+					if (block_inten[0] > m_pSorted_luma[n - 1])
+					{
+						const uint32_t min_error = iabs((int)block_inten[0] - (int)m_pSorted_luma[n - 1]);
+						if (min_error >= trial_solution.m_error)
+							continue;
+					}
+
+					memset(&m_temp_selectors[0], 0, n);
+
+					for (uint32_t c = 0; c < n; c++)
+						total_error += color_distance(block_colors[0], pSrc_pixels[c], false);
 				}
-			done:
-				while (c < n)
+				else if ((m_pSorted_luma[0] * 2) >= block_inten_midpoints[2])
 				{
-					const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
-					m_temp_selectors[sorted_pixel_index] = 3;
-					total_error += color_distance(block_colors[3], pSrc_pixels[sorted_pixel_index], false);
-					++c;
+					if (m_pSorted_luma[0] > block_inten[3])
+					{
+						const uint32_t min_error = iabs((int)m_pSorted_luma[0] - (int)block_inten[3]);
+						if (min_error >= trial_solution.m_error)
+							continue;
+					}
+
+					memset(&m_temp_selectors[0], 3, n);
+
+					for (uint32_t c = 0; c < n; c++)
+						total_error += color_distance(block_colors[3], pSrc_pixels[c], false);
+				}
+				else
+				{
+					uint32_t cur_selector = 0, c;
+					for (c = 0; c < n; c++)
+					{
+						const uint32_t y = m_pSorted_luma[c];
+						while ((y * 2) >= block_inten_midpoints[cur_selector])
+							if (++cur_selector > 2)
+								goto done2;
+						const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
+						m_temp_selectors[sorted_pixel_index] = static_cast<uint8_t>(cur_selector);
+						total_error += color_distance(block_colors[cur_selector], pSrc_pixels[sorted_pixel_index], false);
+					}
+				done2:
+					while (c < n)
+					{
+						const uint32_t sorted_pixel_index = m_pSorted_luma_indices[c];
+						m_temp_selectors[sorted_pixel_index] = 3;
+						total_error += color_distance(block_colors[3], pSrc_pixels[sorted_pixel_index], false);
+						++c;
+					}
 				}
 			}
 

@@ -1,5 +1,5 @@
 // basisu_gpu_texture.cpp
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1302,7 +1302,7 @@ namespace basisu
 	};
 
 	// Input is a texture array of mipmapped gpu_image's: gpu_images[array_index][level_index]
-	bool create_ktx_texture_file(uint8_vec &ktx_data, const std::vector<gpu_image_vec>& gpu_images, bool cubemap_flag)
+	bool create_ktx_texture_file(uint8_vec &ktx_data, const basisu::vector<gpu_image_vec>& gpu_images, bool cubemap_flag)
 	{
 		if (!gpu_images.size())
 		{
@@ -1545,7 +1545,7 @@ namespace basisu
 		return true;
 	}
 
-	bool write_compressed_texture_file(const char* pFilename, const std::vector<gpu_image_vec>& g, bool cubemap_flag)
+	bool write_compressed_texture_file(const char* pFilename, const basisu::vector<gpu_image_vec>& g, bool cubemap_flag)
 	{
 		std::string extension(string_tolower(string_get_extension(pFilename)));
 
@@ -1577,7 +1577,7 @@ namespace basisu
 
 	bool write_compressed_texture_file(const char* pFilename, const gpu_image& g)
 	{
-		std::vector<gpu_image_vec> v;
+		basisu::vector<gpu_image_vec> v;
 		enlarge_vector(v, 1)->push_back(g);
 		return write_compressed_texture_file(pFilename, v, false);
 	}
