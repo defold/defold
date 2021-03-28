@@ -1824,7 +1824,7 @@ namespace basisu
 						}
 					}
 
-					const uint32_t n = std::min<uint32_t>(pixels_remaining, run_remaining);
+					const uint32_t n = basisu::min<uint32_t>(pixels_remaining, run_remaining);
 					pixels_remaining -= n;
 					run_remaining -= n;
 

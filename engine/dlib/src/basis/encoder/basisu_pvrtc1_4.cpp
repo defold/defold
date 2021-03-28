@@ -529,7 +529,7 @@ namespace basisu
 
 		uint64_t e03_err_1 = remap_pixels_influenced_by_endpoint(bx, by, orig_img, perceptual, false);
 
-		if (initial_error < std::min(e03_err_0, e03_err_1))
+		if (initial_error < basisu::min(e03_err_0, e03_err_1))
 		{
 			for (int y = -1; y <= 1; y++)
 			{

@@ -1630,7 +1630,7 @@ namespace basisu
 		else if (estimate_partition_list_size > 0)
 		{
 			assert(estimate_partition_list_size <= MAX_PARTS);
-			estimate_partition_list_size = std::min(estimate_partition_list_size, MAX_PARTS);
+			estimate_partition_list_size = basisu::min(estimate_partition_list_size, MAX_PARTS);
 
 			estimate_partition2_list(4, 4, g_bc7_weights2, (const color_rgba(*)[4])pBlock, parts, estimate_partition_list_size, weights);
 
@@ -2817,13 +2817,13 @@ namespace basisu
 						avg_color[1] += p.g;
 						avg_color[2] += p.b;
 
-						min_r[subset] = std::min<uint32_t>(min_r[subset], p.r);
-						min_g[subset] = std::min<uint32_t>(min_g[subset], p.g);
-						min_b[subset] = std::min<uint32_t>(min_b[subset], p.b);
-						
-						max_r[subset] = std::max<uint32_t>(max_r[subset], p.r);
-						max_g[subset] = std::max<uint32_t>(max_g[subset], p.g);
-						max_b[subset] = std::max<uint32_t>(max_b[subset], p.b);
+						min_r[subset] = basisu::min<uint32_t>(min_r[subset], p.r);
+						min_g[subset] = basisu::min<uint32_t>(min_g[subset], p.g);
+						min_b[subset] = basisu::min<uint32_t>(min_b[subset], p.b);
+
+						max_r[subset] = basisu::max<uint32_t>(max_r[subset], p.r);
+						max_g[subset] = basisu::max<uint32_t>(max_g[subset], p.g);
+						max_b[subset] = basisu::max<uint32_t>(max_b[subset], p.b);
 					} // j
 
 					unbiased_block_colors[subset][0] = (uint8_t)((avg_color[0] * mul + 1020) / (8 * 255));
@@ -3769,7 +3769,7 @@ namespace basisu
 			dist_cost += g_tdefl_small_dist_extra[dist & 511];
 		else
 		{
-			dist_cost += g_tdefl_large_dist_extra[std::min<uint32_t>(dist, 32767) >> 8];
+			dist_cost += g_tdefl_large_dist_extra[basisu::min<uint32_t>(dist, 32767) >> 8];
 			while (dist >= 32768)
 			{
 				dist_cost++;
@@ -3839,7 +3839,7 @@ namespace basisu
 	{
 		debug_printf("uastc_rdo_blocks: Processing blocks %u to %u\n", first_index, last_index);
 
-		const int total_blocks_to_check = std::max<uint32_t>(1U, params.m_lz_dict_size / sizeof(basist::uastc_block));
+		const int total_blocks_to_check = basisu::max<uint32_t>(1U, params.m_lz_dict_size / sizeof(basist::uastc_block));
 		const bool perceptual = false;
 
 		std::unordered_map<selector_bitsequence, uint32_t, selector_bitsequence_hash> selector_history;
@@ -3867,8 +3867,7 @@ namespace basisu
 				a_stats.update(pPixels[i].a);
 			}
 
-			const float max_std_dev = std::max<float>(std::max<float>(std::max(r_stats.get_std_dev(), g_stats.get_std_dev()), b_stats.get_std_dev()), a_stats.get_std_dev());
-									
+			const float max_std_dev = basisu::max<float>(basisu::max<float>(basisu::max(r_stats.get_std_dev(), g_stats.get_std_dev()), b_stats.get_std_dev()), a_stats.get_std_dev());
 			float yl = clamp<float>(max_std_dev / params.m_max_smooth_block_std_dev, 0.0f, 1.0f);
 			yl = yl * yl;
 			const float smooth_block_error_scale = lerp<float>(params.m_smooth_block_max_error_scale, 1.0f, yl);
@@ -3910,8 +3909,7 @@ namespace basisu
 			assert(total_sel_bits > 0);
 
 			uint32_t cur_bit_offset = first_sel_bit;
-			uint64_t cur_sel_bits = read_bits((const uint8_t*)&blk, cur_bit_offset, std::min(64U, total_sel_bits));
-									
+			uint64_t cur_sel_bits = read_bits((const uint8_t*)&blk, cur_bit_offset, basisu::min(64U, total_sel_bits));
 			if (cur_rms_err >= params.m_skip_block_rms_thresh)
 			{
 				auto cur_search_res = selector_history.insert(std::make_pair(selector_bitsequence(first_sel_bit, cur_sel_bits), block_index));
@@ -3940,7 +3938,7 @@ namespace basisu
 				cur_bits = compute_match_cost_estimate(block_dist_in_bytes);
 			}
 
-			int first_block_to_check = std::max<int>(first_index, block_index - total_blocks_to_check);
+			int first_block_to_check = basisu::max<int>(first_index, block_index - total_blocks_to_check);
 			int last_block_to_check = block_index - 1;
 
 			basist::uastc_block best_block(blk);
@@ -3955,7 +3953,7 @@ namespace basisu
 				const basist::uastc_block& prev_blk = pBlocks[prev_block_index];
 
 				uint32_t bit_offset = first_sel_bit;
-				uint64_t sel_bits = read_bits((const uint8_t*)&prev_blk, bit_offset, std::min(64U, total_sel_bits));
+				uint64_t sel_bits = read_bits((const uint8_t*)&prev_blk, bit_offset, basisu::min(64U, total_sel_bits));
 
 				int match_block_index = prev_block_index;
 				auto res = selector_history.find(selector_bitsequence(first_sel_bit, sel_bits));
@@ -3971,13 +3969,13 @@ namespace basisu
 
 				basist::uastc_block trial_blk(blk);
 
-				set_block_bits((uint8_t*)&trial_blk, sel_bits, std::min(64U, total_sel_bits), first_sel_bit);
+				set_block_bits((uint8_t*)&trial_blk, sel_bits, basisu::min(64U, total_sel_bits), first_sel_bit);
 
 				if (total_sel_bits > 64)
 				{
 					sel_bits = read_bits((const uint8_t*)&prev_blk, bit_offset, total_sel_bits - 64U);
 
-					set_block_bits((uint8_t*)&trial_blk, sel_bits, total_sel_bits - 64U, first_sel_bit + std::min(64U, total_sel_bits));
+					set_block_bits((uint8_t*)&trial_blk, sel_bits, total_sel_bits - 64U, first_sel_bit + basisu::min(64U, total_sel_bits));
 				}
 
 				unpacked_uastc_block unpacked_trial_blk;
@@ -4102,7 +4100,7 @@ namespace basisu
 
 			{
 				uint32_t bit_offset = first_sel_bit;
-				uint64_t sel_bits = read_bits((const uint8_t*)&best_block, bit_offset, std::min(64U, total_sel_bits));
+				uint64_t sel_bits = read_bits((const uint8_t*)&best_block, bit_offset, basisu::min(64U, total_sel_bits));
 
 				auto res = selector_history.insert(std::make_pair(selector_bitsequence(first_sel_bit, sel_bits), block_index));
 				if (!res.second)

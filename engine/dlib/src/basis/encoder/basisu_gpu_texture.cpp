@@ -399,7 +399,7 @@ namespace basisu
 
 		if (mode)
 		{
-			c[1].set(std::max(0, c[0].r - (c[3].r >> 2)), std::max(0, c[0].g - (c[3].g >> 2)), std::max(0, c[0].b - (c[3].b >> 2)), 255);
+			c[1].set(basisu::max(0, c[0].r - (c[3].r >> 2)), basisu::max(0, c[0].g - (c[3].g >> 2)), basisu::max(0, c[0].b - (c[3].b >> 2)), 255);
 			c[2] = c[0];
 			c[0].set(0, 0, 0, 255);
 		}

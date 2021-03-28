@@ -267,7 +267,7 @@ namespace basisu
 								
 				bool status = uastc_rdo(tex.get_total_blocks(), (basist::uastc_block*)tex.get_ptr(),
 					(const color_rgba *)m_source_blocks[slice_desc.m_first_block_index].m_pixels, rdo_params, m_params.m_pack_uastc_flags, m_params.m_rdo_uastc_multithreading ? m_params.m_pJob_pool : nullptr,
-					(m_params.m_rdo_uastc_multithreading && m_params.m_pJob_pool) ? std::min<uint32_t>(4, (uint32_t)m_params.m_pJob_pool->get_total_threads()) : 0);
+					(m_params.m_rdo_uastc_multithreading && m_params.m_pJob_pool) ? basisu::min<uint32_t>(4, (uint32_t)m_params.m_pJob_pool->get_total_threads()) : 0);
 				if (!status)
 				{
 					return cECFailedUASTCRDOPostProcess;
@@ -489,8 +489,8 @@ namespace basisu
 
 			if (m_params.m_resample_factor > 0.0f)
 			{
-				int new_width = std::min<int>(std::max(1, (int)ceilf(file_image.get_width() * m_params.m_resample_factor)), BASISU_MAX_SUPPORTED_TEXTURE_DIMENSION);
-				int new_height = std::min<int>(std::max(1, (int)ceilf(file_image.get_height() * m_params.m_resample_factor)), BASISU_MAX_SUPPORTED_TEXTURE_DIMENSION);
+				int new_width = basisu::min<int>(basisu::max(1, (int)ceilf(file_image.get_width() * m_params.m_resample_factor)), BASISU_MAX_SUPPORTED_TEXTURE_DIMENSION);
+				int new_height = basisu::min<int>(basisu::max(1, (int)ceilf(file_image.get_height() * m_params.m_resample_factor)), BASISU_MAX_SUPPORTED_TEXTURE_DIMENSION);
 
 				debug_printf("Resampling to %ix%i\n", new_width, new_height);
 

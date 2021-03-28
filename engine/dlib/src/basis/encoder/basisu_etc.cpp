@@ -1006,13 +1006,13 @@ namespace basisu
 		{
 			const color_rgba& c = m_pParams->m_pSrc_pixels[i];
 
-			min_r = std::min<int>(min_r, c.r);
-			min_g = std::min<int>(min_g, c.g);
-			min_b = std::min<int>(min_b, c.b);
+			min_r = basisu::min<int>(min_r, c.r);
+			min_g = basisu::min<int>(min_g, c.g);
+			min_b = basisu::min<int>(min_b, c.b);
 
-			max_r = std::max<int>(max_r, c.r);
-			max_g = std::max<int>(max_g, c.g);
-			max_b = std::max<int>(max_b, c.b);
+			max_r = basisu::max<int>(max_r, c.r);
+			max_g = basisu::max<int>(max_g, c.g);
+			max_b = basisu::max<int>(max_b, c.b);
 
 			const vec3F fc(c.r, c.g, c.b);
 
@@ -1023,8 +1023,8 @@ namespace basisu
 		}
 		avg_color /= static_cast<float>(n);
 		m_avg_color = avg_color;
-		m_max_comp_spread = std::max(std::max(max_r - min_r, max_g - min_g), max_b - min_b);
 		
+		m_max_comp_spread = basisu::max(basisu::max(max_r - min_r, max_g - min_g), max_b - min_b);
 		m_br = clamp<int>(static_cast<uint32_t>(m_avg_color[0] * m_limit / 255.0f + .5f), 0, m_limit);
 		m_bg = clamp<int>(static_cast<uint32_t>(m_avg_color[1] * m_limit / 255.0f + .5f), 0, m_limit);
 		m_bb = clamp<int>(static_cast<uint32_t>(m_avg_color[2] * m_limit / 255.0f + .5f), 0, m_limit);

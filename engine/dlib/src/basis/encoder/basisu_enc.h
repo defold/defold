@@ -206,8 +206,8 @@ namespace basisu
 				m_new_s = m_old_s + (x - m_old_m) * (x - m_new_m);
 				m_old_m = m_new_m;
 				m_old_s = m_new_s;
-				m_min = std::min(x, m_min);
-				m_max = std::max(x, m_max);
+				m_min = basisu::min(x, m_min);
+				m_max = basisu::max(x, m_max);
 			}
 		}
 		uint32_t get_num() const
@@ -753,8 +753,8 @@ namespace basisu
 			return basist::color32(r, g, b, a);
 		}
 
-		static color_rgba comp_min(const color_rgba& a, const color_rgba& b) { return color_rgba(std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2]), std::min(a[3], b[3])); }
-		static color_rgba comp_max(const color_rgba& a, const color_rgba& b) { return color_rgba(std::max(a[0], b[0]), std::max(a[1], b[1]), std::max(a[2], b[2]), std::max(a[3], b[3])); }
+		static color_rgba comp_min(const color_rgba& a, const color_rgba& b) { return color_rgba(basisu::min(a[0], b[0]), basisu::min(a[1], b[1]), basisu::min(a[2], b[2]), basisu::min(a[3], b[3])); }
+		static color_rgba comp_max(const color_rgba& a, const color_rgba& b) { return color_rgba(basisu::max(a[0], b[0]), basisu::max(a[1], b[1]), basisu::max(a[2], b[2]), basisu::max(a[3], b[3])); }
 	};
 
 	typedef basisu::vector<color_rgba> color_rgba_vec;

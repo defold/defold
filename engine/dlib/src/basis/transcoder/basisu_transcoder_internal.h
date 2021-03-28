@@ -686,8 +686,8 @@ namespace basist
 
 		bool operator== (const color32&rhs) const { return m == rhs.m; }
 
-		static color32 comp_min(const color32& a, const color32& b) { return color32(cNoClamp, std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2]), std::min(a[3], b[3])); }
-		static color32 comp_max(const color32& a, const color32& b) { return color32(cNoClamp, std::max(a[0], b[0]), std::max(a[1], b[1]), std::max(a[2], b[2]), std::max(a[3], b[3])); }
+		static color32 comp_min(const color32& a, const color32& b) { return color32(cNoClamp, basisu::min(a[0], b[0]), basisu::min(a[1], b[1]), basisu::min(a[2], b[2]), basisu::min(a[3], b[3])); }
+		static color32 comp_max(const color32& a, const color32& b) { return color32(cNoClamp, basisu::max(a[0], b[0]), basisu::max(a[1], b[1]), basisu::max(a[2], b[2]), basisu::max(a[3], b[3])); }
 	};
 
 	struct endpoint
