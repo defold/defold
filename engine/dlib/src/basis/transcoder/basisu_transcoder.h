@@ -510,4 +510,8 @@ namespace basist
 	uint32_t get_debug_flags();
 	void set_debug_flags(uint32_t f);
 
+	// DEFOLD ADDITION
+	bool SupportsUastc();
+	// END DEFOLD ADDITION
+
 } // namespace basisu

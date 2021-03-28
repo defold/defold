@@ -111,6 +111,59 @@
 #define BASISD_SUPPORT_PVRTC2 1
 #endif
 
+// Defold addition
+
+#if !defined(DM_BASIS_ENCODER)
+
+    #if defined(DM_BASIS_TRANSCODER_UASTC)
+    	#define BASISD_SUPPORT_UASTC 1
+
+	    #undef BASISD_SUPPORT_ATC
+	    #undef BASISD_SUPPORT_ASTC
+	    #undef BASISD_SUPPORT_UASTC
+	    #undef BASISD_SUPPORT_ETC2_EAC_RG11
+	    #undef BASISD_SUPPORT_ETC2_EAC_A8
+	    #undef BASISD_SUPPORT_PVRTC1
+	    #undef BASISD_SUPPORT_PVRTC2
+	    #undef BASISD_SUPPORT_BC7_MODE5
+	    #undef BASISD_SUPPORT_DXT5A
+	    #undef BASISD_SUPPORT_DXT1
+	    #undef BASISD_SUPPORT_FXT1
+
+	    #define BASISD_SUPPORT_DXT5A 0
+	    #define BASISD_SUPPORT_ATC 0 // depends on BASISD_SUPPORT_DXT5A
+	    #define BASISD_SUPPORT_ASTC 0
+
+	    #define BASISD_SUPPORT_ETC2_EAC_RG11 0
+	    #define BASISD_SUPPORT_ETC2_EAC_A8 0
+	    #define BASISD_SUPPORT_PVRTC1 0
+	    #define BASISD_SUPPORT_PVRTC2 0 // depends on BASISD_SUPPORT_ATC
+	    #define BASISD_SUPPORT_BC7_MODE5 0
+	    #define BASISD_SUPPORT_DXT1 0
+	    #define BASISD_SUPPORT_FXT1 0
+
+		namespace basist {
+			bool SupportsUastc() {
+				return true;
+			}
+		}
+	#endif
+
+    #if defined(DM_BASIS_TRANSCODER_ETC1S)
+    	#define BASISD_SUPPORT_UASTC 0
+		namespace basist {
+			bool SupportsUastc() {
+				return false;
+			}
+		}
+	#endif
+
+#endif // DM_BASIS_ENCODER
+
+
+// <- end Defold addition
+
+
 #if BASISD_SUPPORT_PVRTC2
 #if !BASISD_SUPPORT_ATC
 #error BASISD_SUPPORT_ATC must be 1 if BASISD_SUPPORT_PVRTC2 is 1

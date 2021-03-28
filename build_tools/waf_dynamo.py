@@ -1778,8 +1778,14 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_uastc', 'basis_transcoder']
-    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_uastc', 'basis_transcoder']
+    with_image_transcoder = getattr(Options.options, 'with_image_transcoder', '')
+
+    image_transcoder_lib = 'basis_transcoder_uastc'
+    if with_image_transcoder:
+        image_transcoder_lib = 'basis_transcoder_%s' % with_image_transcoder
+
+    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', image_transcoder_lib]
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', image_transcoder_lib]
     conf.env['STATICLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
@@ -1843,3 +1849,4 @@ def set_options(opt):
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
+    opt.add_option('--with-image-transcoder', default='full', dest='with_image_transcoder', choices=['uastc','etc1s','full','null'], help='Choose which image transcoder lib to use')

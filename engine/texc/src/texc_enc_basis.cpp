@@ -26,15 +26,31 @@ namespace dmTexc
 {
     static void SetCompressionLevel(CompressionType compression_type, CompressionLevel compression_level, basisu::basis_compressor_params& comp_params)
     {
+        // The order of the enum (since the names are extremely confusing/subjective)
+        // CL_FAST    = 0;
+        // CL_NORMAL  = 1;
+        // CL_HIGH    = 2;
+        // CL_BEST    = 3;
+
         if (compression_type == CT_BASIS_ETC1S)
         {
+            // Tests: % of original .png, psnr
+            // quality=96,  comp_level=5 -> 8.541663 %, 36.705 dB
+            // quality=128, comp_level=5 -> 9.822941 %, 37.346 dB
+            // quality=160, comp_level=5 -> 11.901549 %, 38.054 dB
+            // quality=196, comp_level=5 -> 13.591924 %, 38.320 dB
+            // quality=224, comp_level=5 -> 15.319630 %, 38.407 dB
+            // quality=256, comp_level=5 -> 16.339599 %, 38.428 dB
+
+            comp_params.m_compression_level = 5;
+
             switch(compression_level)
             {
-                case CL_FAST:   comp_params.m_compression_level = 0; break;
-                case CL_HIGH:   comp_params.m_compression_level = 3;
-                case CL_BEST:   comp_params.m_compression_level = basisu::BASISU_MAX_COMPRESSION_LEVEL; break;
-                case CL_NORMAL:
-                default:        comp_params.m_compression_level = basisu::BASISU_DEFAULT_COMPRESSION_LEVEL; break;
+                case CL_FAST:   comp_params.m_quality_level = 128; break;
+                case CL_NORMAL: comp_params.m_quality_level = 160; break;
+                case CL_HIGH:   comp_params.m_quality_level = 196; break;
+                case CL_BEST:   comp_params.m_quality_level = 256; break;
+                default:        comp_params.m_quality_level = 160; break;
             }
         }
         else {

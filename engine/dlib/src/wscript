@@ -234,6 +234,18 @@ def build(bld):
     if remove_flags:
         basis_transcoder_etc1s.env.append_unique('CXXFLAGS', ['-Os'])
 
+    basis_transcoder_full = bld.new_task_gen(features = 'cxx cstaticlib remove_flags',
+                            includes = ['basis'],
+                            target = 'basis_transcoder_full',
+                            remove_flags = remove_flags,
+                            defines = [],
+                            uselib = 'DLIB')
+    basis_transcoder_full.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])
+    basis_transcoder_full.env.append_unique('CXXFLAGS', ['-std=c++11'])
+    if remove_flags:
+        basis_transcoder_full.env.append_unique('CXXFLAGS', ['-Os'])
+
+
     # Java
 
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]

@@ -23,7 +23,7 @@ def configure(conf):
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DLIB_NOASAN'] = 'dlib_noasan'
     conf.env['STATICLIB_BASIS_ENCODER'] = 'basis_encoder'
-    conf.env['STATICLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
+    conf.env['STATICLIB_BASIS_TRANSCODER'] = 'basis_transcoder_full'
 
     platform = conf.env['PLATFORM']
 
