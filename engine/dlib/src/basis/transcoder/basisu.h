@@ -119,7 +119,7 @@ namespace basisu
 
 	void enable_debug_printf(bool enabled);
 	void debug_printf(const char *pFmt, ...);
-		
+
 	template <typename T> inline void clear_obj(T& obj) { memset(&obj, 0, sizeof(obj)); }
 
 	template <typename T0, typename T1> inline T0 lerp(T0 a, T0 b, T1 c) { return a + (b - a) * c; }
@@ -127,7 +127,7 @@ namespace basisu
 	template <typename S> inline S maximum(S a, S b) { return (a > b) ? a : b; }
 	template <typename S> inline S maximum(S a, S b, S c) { return maximum(maximum(a, b), c); }
 	template <typename S> inline S maximum(S a, S b, S c, S d) { return maximum(maximum(maximum(a, b), c), d); }
-	
+
 	template <typename S> inline S minimum(S a, S b) {	return (a < b) ? a : b; }
 	template <typename S> inline S minimum(S a, S b, S c) {	return minimum(minimum(a, b), c); }
 	template <typename S> inline S minimum(S a, S b, S c, S d) { return minimum(minimum(minimum(a, b), c), d); }
@@ -151,7 +151,7 @@ namespace basisu
 	inline uint32_t iabs(int32_t i) { return (i < 0) ? static_cast<uint32_t>(-i) : static_cast<uint32_t>(i);	}
 	inline uint64_t iabs64(int64_t i) {	return (i < 0) ? static_cast<uint64_t>(-i) : static_cast<uint64_t>(i); }
 
-	template<typename T> inline void clear_vector(T &vec) { vec.erase(vec.begin(), vec.end()); }		
+	template<typename T> inline void clear_vector(T &vec) { vec.erase(vec.begin(), vec.end()); }
 	template<typename T> inline typename T::value_type *enlarge_vector(T &vec, size_t n) { size_t cs = vec.size(); vec.resize(cs + n); return &vec[cs]; }
 
 	inline bool is_pow2(uint32_t x) { return x && ((x & (x - 1U)) == 0U); }
@@ -164,8 +164,8 @@ namespace basisu
 
 	template<typename T> inline T saturate(T val) { return clamp(val, 0.0f, 1.0f); }
 
-	template<typename T, typename R> inline void append_vector(T &vec, const R *pObjs, size_t n) 
-	{ 
+	template<typename T, typename R> inline void append_vector(T &vec, const R *pObjs, size_t n)
+	{
 		if (n)
 		{
 			const size_t cur_s = vec.size();
@@ -211,7 +211,7 @@ namespace basisu
 		for (size_t i = 0; i < vec.size(); i++)
 			vec[i] = obj;
 	}
-		
+
 	inline uint64_t read_be64(const void *p)
 	{
 		uint64_t val = 0;
@@ -259,12 +259,12 @@ namespace basisu
 		if ((ha <= lb) || (la >= hb)) return false;
 		return true;
 	}
-		
+
 	// Always little endian 2-4 byte unsigned int
 	template<uint32_t NumBytes>
 	struct packed_uint
 	{
-		uint8_t m_bytes[NumBytes];
+		uint8_t m_bytes[4];
 
 		inline packed_uint() { static_assert(NumBytes <= 4, "NumBytes <= 4"); }
 		inline packed_uint(uint32_t v) { *this = v; }
@@ -287,14 +287,14 @@ namespace basisu
 
 	enum eZero { cZero };
 	enum eNoClamp { cNoClamp };
-	
+
 	// Rice/Huffman entropy coding
-		
+
 	// This is basically Deflate-style canonical Huffman, except we allow for a lot more symbols.
 	enum
 	{
-		cHuffmanMaxSupportedCodeSize = 16, cHuffmanMaxSupportedInternalCodeSize = 31, 
-		cHuffmanFastLookupBits = 10, 
+		cHuffmanMaxSupportedCodeSize = 16, cHuffmanMaxSupportedInternalCodeSize = 31,
+		cHuffmanFastLookupBits = 10,
 		cHuffmanMaxSymsLog2 = 14, cHuffmanMaxSyms = 1 << cHuffmanMaxSymsLog2,
 
 		// Small zero runs
@@ -320,13 +320,13 @@ namespace basisu
 	enum class texture_format
 	{
 		cInvalidTextureFormat = -1,
-		
+
 		// Block-based formats
 		cETC1,			// ETC1
 		cETC1S,			// ETC1 (subset: diff colors only, no subblocks)
 		cETC2_RGB,		// ETC2 color block (basisu doesn't support ETC2 planar/T/H modes - just basic ETC1)
 		cETC2_RGBA,		// ETC2 EAC alpha block followed by ETC2 color block
-		cETC2_ALPHA,	// ETC2 EAC alpha block 
+		cETC2_ALPHA,	// ETC2 EAC alpha block
 		cBC1,				// DXT1
 		cBC3,				// DXT5 (BC4/DXT5A block followed by a BC1/DXT1 block)
 		cBC4,				// DXT5A
@@ -341,10 +341,10 @@ namespace basisu
 		cPVRTC2_4_RGBA,
 		cETC2_R11_EAC,
 		cETC2_RG11_EAC,
-		cUASTC4x4,		
+		cUASTC4x4,
 		cBC1_NV,
 		cBC1_AMD,
-		
+
 		// Uncompressed/raw pixels
 		cRGBA32,
 		cRGB565,
@@ -402,6 +402,6 @@ namespace basisu
 		BASISU_NOTE_UNUSED(fmt);
 		return 4;
 	}
-							
+
 } // namespace basisu
 
