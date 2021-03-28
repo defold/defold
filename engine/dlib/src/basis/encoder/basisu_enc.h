@@ -155,18 +155,6 @@ namespace basisu
 		 return seed;
 	}
 
-	template<class T>
-	const T& min(const T& a, const T& b)
-	{
-	    return (b < a) ? b : a;
-	}
-
-	template<class T>
-	const T& max(const T& a, const T& b)
-	{
-	    return (a < b) ? b : a;
-	}
-
 	uint32_t hash_hsieh(const uint8_t* pBuf, size_t len);
 
 	template <typename Key>

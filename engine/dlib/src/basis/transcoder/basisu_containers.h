@@ -26,6 +26,8 @@ namespace basisu
    {
       inline bool is_power_of_2(uint32_t x) { return x && ((x & (x - 1U)) == 0U); }
       inline bool is_power_of_2(uint64_t x) { return x && ((x & (x - 1U)) == 0U); }
+      template<class T> const T& min(const T& a, const T& b) { return (b < a) ? b : a; }
+      template<class T> const T& max(const T& a, const T& b) { return (a < b) ? b : a; }
 
       inline uint32_t floor_log2i(uint32_t v)
       {
@@ -408,7 +410,7 @@ namespace basisu
             // Must work around the lack of a "decrease_capacity()" method.
             // This case is rare enough in practice that it's probably not worth implementing an optimized in-place resize.
             vector tmp;
-            tmp.increase_capacity(basisu::max(m_size, new_capacity), false);
+            tmp.increase_capacity(helpers::max(m_size, new_capacity), false);
             tmp = *this;
             swap(tmp);
          }
@@ -735,7 +737,7 @@ namespace basisu
 
       inline bool operator< (const vector& rhs) const
       {
-         const uint32_t min_size = basisu::min(m_size, rhs.m_size);
+         const uint32_t min_size = helpers::min(m_size, rhs.m_size);
 
          const T* pSrc = m_p;
          const T* pSrc_end = m_p + min_size;
@@ -1193,16 +1195,16 @@ namespace basisu
 
       inline void reserve(uint32_t new_capacity)
       {
-         uint64_t new_hash_size = basisu::max(1U, new_capacity);
+         uint64_t new_hash_size = helpers::max(1U, new_capacity);
 
          new_hash_size = new_hash_size * 2ULL;
 
          if (!helpers::is_power_of_2(new_hash_size))
             new_hash_size = helpers::next_pow2(new_hash_size);
 
-         new_hash_size = basisu::max<uint64_t>(cMinHashSize, new_hash_size);
+         new_hash_size = helpers::max<uint64_t>(cMinHashSize, new_hash_size);
 
-         new_hash_size = basisu::min<uint64_t>(0x80000000UL, new_hash_size);
+         new_hash_size = helpers::min<uint64_t>(0x80000000UL, new_hash_size);
 
          if (new_hash_size > m_values.size())
             rehash((uint32_t)new_hash_size);
@@ -1649,7 +1651,7 @@ namespace basisu
          if (n > 0x80000000UL)
             n = 0x80000000UL;
 
-         rehash(basisu::max<uint32_t>(cMinHashSize, (uint32_t)n));
+         rehash(helpers::max(cMinHashSize, (uint32_t)n));
       }
 
       inline void rehash(uint32_t new_hash_size)
