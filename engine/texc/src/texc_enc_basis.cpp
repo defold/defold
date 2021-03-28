@@ -88,6 +88,17 @@ namespace dmTexc
         comp_params.m_debug = false;
         basisu::enable_debug_printf(false);
 
+        uint32_t w = texture->m_BasisImage.get_width();
+        uint32_t h = texture->m_BasisImage.get_height();
+        basisu::color_rgba* pixels = texture->m_BasisImage.get_ptr();
+
+        if (pixel_format == PF_R4G4B4A4) {
+            DitherRGBA4444((uint8_t*)pixels, w, h);
+        }
+        else if(pixel_format == PF_R5G6B5) {
+            DitherRGBx565((uint8_t*)pixels, w, h);
+        }
+
         comp_params.m_source_images.push_back(texture->m_BasisImage);
 
         SetCompressionLevel(compression_type, compression_level, comp_params);
