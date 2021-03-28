@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <algorithm>
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(ANDROID)
 // Only for malloc_usable_size() in basisu_containers_impl.h
 #include <malloc.h>
 #define HAS_MALLOC_USABLE_SIZE 1
