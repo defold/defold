@@ -20,7 +20,9 @@ def build(bld):
                                    target = 'texc_shared',
                                    uselib = 'BASIS_ENCODER DLIB_NOASAN')
     texc_shared.find_sources_in_dirs(["."], ['.cpp'])
-    texc_shared.env.append_unique('CXXFLAGS', '-std=c++11')
+
+    if bld.env['PLATFORM'] not in ['win32', 'x86_64-win32']:
+        texc_shared.env.append_unique('CXXFLAGS', '-std=c++11')
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
