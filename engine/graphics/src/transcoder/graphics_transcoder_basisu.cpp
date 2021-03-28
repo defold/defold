@@ -77,21 +77,21 @@ namespace dmGraphics
         {
             switch(format)
             {
-                case basist::cTFRGBA32: return "cTFRGBA32";
-                case basist::cTFRGB565: return "cTFRGB565";
-                case basist::cTFRGBA4444: return "cTFRGBA4444";
-                case basist::cTFPVRTC1_4_RGB: return "cTFPVRTC1_4_RGB";
-                case basist::cTFPVRTC1_4_RGBA: return "cTFPVRTC1_4_RGBA";
-                case basist::cTFETC1_RGB: return "cTFETC1_RGB";
-                case basist::cTFETC2_RGBA: return "cTFETC2_RGBA";
-                case basist::cTFETC2_EAC_R11: return "cTFETC2_EAC_R11";
-                case basist::cTFETC2_EAC_RG11: return "cTFETC2_EAC_RG11";
-                case basist::cTFASTC_4x4_RGBA: return "cTFASTC_4x4_RGBA";
-                case basist::cTFBC1_RGB: return "cTFBC1_RGB";
-                case basist::cTFBC3_RGBA: return "cTFBC3_RGBA";
-                case basist::cTFBC4_R: return "cTFBC4_R";
-                case basist::cTFBC5_RG: return "cTFBC5_RG";
-                case basist::cTFBC7_RGBA: return "cTFBC7_RGBA";
+                case basist::transcoder_texture_format::cTFRGBA32: return "cTFRGBA32";
+                case basist::transcoder_texture_format::cTFRGB565: return "cTFRGB565";
+                case basist::transcoder_texture_format::cTFRGBA4444: return "cTFRGBA4444";
+                case basist::transcoder_texture_format::cTFPVRTC1_4_RGB: return "cTFPVRTC1_4_RGB";
+                case basist::transcoder_texture_format::cTFPVRTC1_4_RGBA: return "cTFPVRTC1_4_RGBA";
+                case basist::transcoder_texture_format::cTFETC1_RGB: return "cTFETC1_RGB";
+                case basist::transcoder_texture_format::cTFETC2_RGBA: return "cTFETC2_RGBA";
+                case basist::transcoder_texture_format::cTFETC2_EAC_R11: return "cTFETC2_EAC_R11";
+                case basist::transcoder_texture_format::cTFETC2_EAC_RG11: return "cTFETC2_EAC_RG11";
+                case basist::transcoder_texture_format::cTFASTC_4x4_RGBA: return "cTFASTC_4x4_RGBA";
+                case basist::transcoder_texture_format::cTFBC1_RGB: return "cTFBC1_RGB";
+                case basist::transcoder_texture_format::cTFBC3_RGBA: return "cTFBC3_RGBA";
+                case basist::transcoder_texture_format::cTFBC4_R: return "cTFBC4_R";
+                case basist::transcoder_texture_format::cTFBC5_RG: return "cTFBC5_RG";
+                case basist::transcoder_texture_format::cTFBC7_RGBA: return "cTFBC7_RGBA";
                 default: return "";
             }
         }
@@ -190,7 +190,7 @@ namespace dmGraphics
 
                 // If we wanted a Luminance, LuminanceAlpha or RGB
                 // let's convert back to those formats
-                if (transcoder_format == basist::cTFRGBA32 && format != dmGraphics::TEXTURE_FORMAT_RGBA)
+                if (transcoder_format == basist::transcoder_texture_format::cTFRGBA32 && format != dmGraphics::TEXTURE_FORMAT_RGBA)
                 {
                     int num_channels = 0;
                     if (format == dmGraphics::TEXTURE_FORMAT_LUMINANCE)
