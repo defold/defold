@@ -94,6 +94,12 @@ namespace dmTexc
     bool        ConvertToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, PixelFormat pf, uint8_t* out);
     void        ConvertRGBA8888ToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
 
+    // Dithers an image where the target format is RGBA4444
+    // Input/output image is RGBA8888
+    void        DitherRGBA4444(uint8_t* data, uint32_t width, uint32_t height);
+    // Dithers an image where the target format is RGB565
+    // Input/output image is RGBA8888
+    void        DitherRGBx565(uint8_t* data, uint32_t width, uint32_t height);
 
     void        DebugPrint(uint8_t* p, uint32_t width, uint32_t height, uint32_t num_channels);
 }

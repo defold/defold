@@ -860,9 +860,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         if (params->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: OpenGL");
-            dmLogInfo("Renderer: %s\n", (char *) glGetString(GL_RENDERER));
-            dmLogInfo("Version: %s\n", (char *) glGetString(GL_VERSION));
-            dmLogInfo("Vendor: %s\n", (char *) glGetString(GL_VENDOR));
+            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
         }
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
@@ -915,7 +915,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (params->m_PrintDeviceInfo && extensions != 0)
         {
-            dmLogInfo("Extensions: %s\n", extensions);
+            dmLogInfo("Extensions: %s", extensions);
         }
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
@@ -956,7 +956,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
-        if (IsExtensionSupported("GL_ARB_texture_compression_bptc", extensions))
+        if (IsExtensionSupported("GL_ARB_texture_compression_bptc", extensions) ||
+            IsExtensionSupported("GL_EXT_texture_compression_bptc", extensions) ||
+            IsExtensionSupported("EXT_texture_compression_bptc", extensions) )
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
         }
