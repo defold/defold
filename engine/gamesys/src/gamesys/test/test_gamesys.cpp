@@ -14,7 +14,6 @@
 
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../resource/src/resource_private.h"
-#include "../../../../sound/src/sound_null_private.h"
 
 #include "gamesys/resources/res_textureset.h"
 
@@ -456,7 +455,8 @@ TEST_F(SoundTest, UpdateSoundResource)
     dmhash_t soundata_hash = 0;
     GetResourceProperty(go, comp_name, prop_name, &soundata_hash);
     dmResource::SResourceDescriptor* descp = dmResource::FindByHash(m_Factory, soundata_hash);
-    ASSERT_EQ(98510+sizeof(dmSound::SoundData), descp->m_ResourceSize);  // 98510 is the actual file size on disk
+    dmLogInfo("size: %i", descp->m_ResourceSize);
+    ASSERT_EQ(98510+16, descp->m_ResourceSize);  // size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
