@@ -585,10 +585,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     String spineJson;
                     try {
                         Method getSpineJson = spineSceneBuilder.getClass().getDeclaredMethod("getSpineJson");
-                        if (getSpineJson == null) {
-                            System.out.printf("getSpineJson returned null\n");
-                        }
-
                         spineJson = (String) getSpineJson.invoke(spineSceneBuilder);
                     } catch (NoSuchMethodException e) {
                         throw new CompileExceptionError(builder.project.getResource(input), 0, "No method SpineSceneDesc.Builder.getSpineJson() found!", e);

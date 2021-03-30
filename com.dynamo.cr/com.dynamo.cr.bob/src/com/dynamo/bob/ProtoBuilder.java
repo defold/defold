@@ -38,7 +38,6 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
 
     static public void addMessageClass(String ext, Class<? extends GeneratedMessage> klass) {
         extToMessageClass.put(ext, klass);
-        System.out.printf("addMessageClass ext: '%s'  class: '%s'\n", ext, klass.getName());
     }
 
     static public Class<? extends GeneratedMessage> getMessageClassFromExt(String ext) {

@@ -112,8 +112,6 @@ public class ClassLoaderScanner implements IClassScanner {
 
     @Override
     public Set<String> scan(String pkg) {
-        System.out.printf("ClassLoaderScanner: scan() packageName: %s\n", pkg);
-
         Set<String> classes = new HashSet<String>();
 
         ClassLoader classLoader = getClassLoader();
