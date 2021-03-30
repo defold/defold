@@ -42,7 +42,7 @@ namespace dmTexc
             // quality=224, comp_level=5 -> 15.319630 %, 38.407 dB
             // quality=256, comp_level=5 -> 16.339599 %, 38.428 dB
 
-            comp_params.m_compression_level = 5;
+            comp_params.m_compression_level = basisu::BASISU_DEFAULT_COMPRESSION_LEVEL;
 
             switch(compression_level)
             {
