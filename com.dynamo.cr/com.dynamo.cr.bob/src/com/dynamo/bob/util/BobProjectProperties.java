@@ -24,9 +24,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
@@ -270,35 +271,36 @@ public class BobProjectProperties {
         return dst;
     }
 
-    static private String splitLeft(String s, String sep) {
-        int index = line.indexOf(sep);
-        if (index == -1) {
-            return null;
-        }
-        return s.substring(0, index).trim();
-    }
-    static private String splitRight(String s, String sep) {
-        int index = line.indexOf(sep);
-        if (index == -1) {
-            return null;
-        }
-        return s.substring(index + 1).trim();
-    }
-
     static private void mergeMultilineKey(Map<String, Map<String, String>> properties, String group, String keyToMerge) {
         Map<String, String> propGroup = properties.get(group);
         if (propGroup == null) {
             return;
         }
-        List<String> keys = new ArrayList<String>();
+        // TreeMap implements SortedMap which give us values sorted by key
+        // find all matching keys and add them based on their indices, ie foo.0,
+        // foo.1, foo.123 etc
+        // a key without an index in the key name is treated as having index 0
+        Map<Integer, String> values = new TreeMap<Integer, String>();
         for(String key : propGroup.keySet().stream().collect(Collectors.toList())) {
             if (key.startsWith(keyToMerge)) {
-                String keyIndex = splitRight(key, ".");
-                int index = Integer.parseInt(keyIndex);
-                keys.add(index, propGroup.get(key));
+                int index = 0;
+                int keyIndex = key.indexOf(".");
+                if (keyIndex != -1) {
+                    try {
+                        index = Integer.parseInt(key.substring(keyIndex + 1).trim());
+                    }
+                    catch(Exception e) {
+                        continue;
+                    }
+                }
+                String value = propGroup.get(key);
+                values.put(index, value);
                 propGroup.remove(key);
             }
         }
+        // merge the individual values back to a single long comma separated list in memory
+        String mergedValues = values.values().stream().collect(Collectors.joining(","));
+        propGroup.put(keyToMerge, mergedValues);
     }
 
     static private Map<String, Map<String, String>> doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
