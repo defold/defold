@@ -428,6 +428,46 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     return dmGameObject::SetProperty(instance, comp_name, prop_name, prop_var);
 }
 
+TEST_F(SoundTest, UpdateSoundResource)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/sound/updated_sound.goc";
+
+    // Create gameobject
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    // Update sound component with custom buffer from lua. See set_sound.script:update()
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Check the size of the updated resource
+
+    dmhash_t comp_name = dmHashString64("dynamic-sound"); // id of soundc component
+    dmhash_t prop_name = dmHashString64("sound"); // property of sound data resource within a sound component
+    // Get hash of the sounddata resource
+    dmhash_t soundata_hash = 0;
+    GetResourceProperty(go, comp_name, prop_name, &soundata_hash);
+    dmResource::SResourceDescriptor* descp = dmResource::FindByHash(m_Factory, soundata_hash);
+    dmLogInfo("size: %i", descp->m_ResourceSize);
+    ASSERT_EQ(98510+16, descp->m_ResourceSize);  // size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    // release GO
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+
 TEST_P(ResourcePropTest, ResourceRefCounting)
 {
     const char* go_path = "/resource/res_getset_prop.goc";
