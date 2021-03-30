@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collector;
 
 import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
@@ -268,6 +270,37 @@ public class BobProjectProperties {
         return dst;
     }
 
+    static private String splitLeft(String s, String sep) {
+        int index = line.indexOf(sep);
+        if (index == -1) {
+            return null;
+        }
+        return s.substring(0, index).trim();
+    }
+    static private String splitRight(String s, String sep) {
+        int index = line.indexOf(sep);
+        if (index == -1) {
+            return null;
+        }
+        return s.substring(index + 1).trim();
+    }
+
+    static private void mergeMultilineKey(Map<String, Map<String, String>> properties, String group, String keyToMerge) {
+        Map<String, String> propGroup = properties.get(group);
+        if (propGroup == null) {
+            return;
+        }
+        List<String> keys = new ArrayList<String>();
+        for(String key : propGroup.keySet().stream().collect(Collectors.toList())) {
+            if (key.startsWith(keyToMerge)) {
+                String keyIndex = splitRight(key, ".");
+                int index = Integer.parseInt(keyIndex);
+                keys.add(index, propGroup.get(key));
+                propGroup.remove(key);
+            }
+        }
+    }
+
     static private Map<String, Map<String, String>> doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
         Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
@@ -409,6 +442,7 @@ public class BobProjectProperties {
     public void load(InputStream in) throws IOException, ParseException {
         try {
             Map<String, Map<String, String>> props = doLoad(in, null);
+            mergeMultilineKey(props, "project", "dependencies");
             // remove any properties in props from defaults
             removeProperties(defaults, props);
             // merge into properties
