@@ -55,14 +55,45 @@ namespace dmTexc
         }
         else {
 
-            switch(compression_level)
+            // # Best first, fast last
+            // test_uastc(image, uastc_level=2, uastc_rdo_l=0.25, uastc_rdo_d=16384)   # 64.88%, 47.977 dB, 3.139894 s
+            // test_uastc(image, uastc_level=1, uastc_rdo_l=1, uastc_rdo_d=16384)      # 52.31%, 45.047 dB, 2.310900 s
+            // test_uastc(image, uastc_level=1, uastc_rdo_l=2, uastc_rdo_d=8192)       # 49.82%, 42.927 dB, 1.243244 s
+            // test_uastc(image, uastc_level=0, uastc_rdo_l=3, uastc_rdo_d=8192)       # 43.79%, 40.481 dB, 0.778897 s
+
+            int uastc_level;
+            int uastc_rdo_d;
+            float uastc_rdo_l;
+            if (compression_level == CL_BEST)
             {
-                case CL_FAST:   comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelFastest; break;
-                case CL_HIGH:   comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelSlower; break;
-                case CL_BEST:   comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelSlower; break;
-                case CL_NORMAL:
-                default:        comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelDefault; break;
+                uastc_level = 2;
+                uastc_rdo_l = 0.25;
+                uastc_rdo_d = 16384;
             }
+            else if (compression_level == CL_HIGH)
+            {
+                uastc_level = 1;
+                uastc_rdo_l = 1;
+                uastc_rdo_d = 16384;
+            }
+            else if (compression_level == CL_NORMAL)
+            {
+                uastc_level = 1;
+                uastc_rdo_l = 2;
+                uastc_rdo_d = 8192;
+            }
+            else // CL_FAST
+            {
+                uastc_level = 0;
+                uastc_rdo_l = 3;
+                uastc_rdo_d = 8192;
+            }
+
+            // See basisu_comp.h
+            comp_params.m_rdo_uastc = true;
+            comp_params.m_pack_uastc_flags = uastc_level;
+            comp_params.m_rdo_uastc_quality_scalar = uastc_rdo_l;
+            comp_params.m_rdo_uastc_dict_size = uastc_rdo_d;
         }
     }
 
