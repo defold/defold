@@ -832,9 +832,13 @@ class Configuration(object):
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # protoc
-            if platform in ('x86_64-linux',): # needed for the linux build server
+            if platform in ('x86_64-darwin','x86_64-linux','x86_64-win32'): # needed for the linux build server
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
-                self._add_files_to_zip(zip, [protoc], self.dynamo_home, topfolder)
+                ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
+                ddfc_cxx = os.path.join(self.dynamo_home, 'bin/ddfc_cxx')
+                ddfc_cxx_bat = os.path.join(self.dynamo_home, 'bin/ddfc_cxx.bat')
+                ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat], self.dynamo_home, topfolder)
 
             # For logging, print all paths in zip:
             for x in zip.namelist():
