@@ -778,6 +778,14 @@ class Configuration(object):
                 paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
                 return paths
 
+            def _findfiles(directory, exts):
+                paths = []
+                for root, dirs, files in os.walk(directory):
+                    for f in files:
+                        if os.path.splitext(f)[1] in exts:
+                            paths.append(os.path.join(root, f))
+                return paths
+
             # Dynamo libs
             libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
             paths = _findlibs(libdir)
@@ -818,6 +826,15 @@ class Configuration(object):
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
+            # .proto files
+            protodir = os.path.join(self.dynamo_home, 'share/proto/')
+            paths = _findfiles(protodir, ('.proto',))
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # protoc
+            if platform in ('x86_64-linux',): # needed for the linux build server
+                protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
+                self._add_files_to_zip(zip, [protoc], self.dynamo_home, topfolder)
 
             # For logging, print all paths in zip:
             for x in zip.namelist():
