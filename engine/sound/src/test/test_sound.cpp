@@ -1156,6 +1156,16 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             0.5f),
+    TestParams("default",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048,
+            0.0f,
+            1.259f),						// float speed - this would result in crackling sounds in #5613
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 #endif

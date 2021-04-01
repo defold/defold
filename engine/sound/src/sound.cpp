@@ -780,11 +780,11 @@ namespace dmSound
 
     uint32_t GetAndIncreasePlayCounter()
     {
-    	if (g_SoundSystem->m_PlayCounter == dmSound::INVALID_PLAY_ID)
-    	{
-    		g_SoundSystem->m_PlayCounter = 0;
-    	}
-        return g_SoundSystem->m_PlayCounter++;
+       if (g_SoundSystem->m_PlayCounter == dmSound::INVALID_PLAY_ID)
+       {
+           g_SoundSystem->m_PlayCounter = 0;
+       }
+       return g_SoundSystem->m_PlayCounter++;
     }
 
     bool IsPlaying(HSoundInstance sound_instance)
@@ -1133,7 +1133,7 @@ namespace dmSound
         if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
-            uint32_t n = sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount;
+            uint32_t n = ceil(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount);
 
             if (!is_muted)
             {
@@ -1179,12 +1179,12 @@ namespace dmSound
                     instance->m_FrameCount += decoded / stride;
 
                 } else {
-					
-					if  (instance->m_FrameCount < instance->m_Speed) {
-						// since this is the last mix and no more frames will be added, trailing frames will linger on forever
-						// if they are less than m_Speed. We will truncate them to avoid this. 
-						instance->m_FrameCount = 0;
-					}
+
+                    if  (instance->m_FrameCount < instance->m_Speed) {
+                        // since this is the last mix and no more frames will be added, trailing frames will linger on forever
+                        // if they are less than m_Speed. We will truncate them to avoid this.
+                        instance->m_FrameCount = 0;
+                    }
                     instance->m_EndOfStream = 1;
                 }
             }
