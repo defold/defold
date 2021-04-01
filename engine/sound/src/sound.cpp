@@ -833,6 +833,14 @@ namespace dmSound
         *right_scale = sinf(theta);
     }
 
+    /*
+     * 
+     * Template parameters
+     * 
+     * offset:  determines the value around which the audio samples are oscillating in the source audio data. if 0, samples are 
+     *          both positive and negative.
+     * scale: changes the scale of the samples when mixed by multiplying their values with the 'scale' template param.
+     */ 
     template <typename T, int offset, int scale>
     static void MixResampleUpMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
@@ -857,7 +865,7 @@ namespace dmSound
         {
             float gain = gain_ramp.GetValue(i);
             float pan = pan_ramp.GetValue(i);
-            float mix = frac * range_recip;
+            float mix = frac * range_recip; // determines the bias between two consecutive samples in the sound instance. It ranges from 0-1. A mix of 0, makes only the first sample count while a mix of 0.5 will count equally both samples.
             T s1 = frames[index];
             T s2 = frames[index + 1];
             s1 = (s1 - offset) * scale;
@@ -866,21 +874,22 @@ namespace dmSound
             float left_scale, right_scale;
             GetPanScale(pan, &left_scale, &right_scale);
 
-            float s = (1.0f - mix) * s1 + mix * s2;
+            float s = (1.0f - mix) * s1 + mix * s2; // resulting destination sample value is a mix two source samples since a kind of franctional indexing is used
             mix_buffer[2 * i] += s * gain * left_scale;
             mix_buffer[2 * i + 1] += s * gain * right_scale;
-
-            prev_index = index;
+            
+            prev_index = index; // keep old index for assertion
             frac += delta;
 
             index += (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
 
-            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U);
+            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U); // clear bits higher than 33
         }
         instance->m_FrameFraction = frac;
 
         assert(prev_index <= instance->m_FrameCount);
 
+        // copy any remaining frames not mixed to the start of m_Frames
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T), (instance->m_FrameCount - index) * sizeof(T));
         instance->m_FrameCount -= index;
     }
