@@ -5,7 +5,7 @@ end
 function update(self, dt)
     -- update sound only once
     if not self.updated then
-        local f = io.open("src/gamesys/test/sound_ext/replacement.wav")
+        local f = io.open("src/gamesys/test/sound_ext/replacement.wav", "rb")
         local c  = f:read("*all")
         f:close()
 
