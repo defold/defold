@@ -235,8 +235,8 @@ public class Project {
                             ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
 
                             for (String ext : builderParams.inExts()) {
-                                Class<?> inputKlass = protoParams.srcClass();
-                                if (inputKlass != null) {
+                                Class<?> inputClass = protoParams.srcClass();
+                                if (inputClass != null) {
                                     ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
                                 }
                             }
