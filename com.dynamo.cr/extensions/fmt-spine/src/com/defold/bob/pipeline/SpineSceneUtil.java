@@ -158,6 +158,18 @@ public class SpineSceneUtil {
         return getAttachmentsForSkin("");
     }
 
+    public List<Bone> getBones() {
+        return this.bones;
+    }
+
+    public Map<String, Animation> getAnimations() {
+        return this.animations;
+    }
+
+    public List<BaseSlot> getBaseSlots() {
+        return this.baseSlots;
+    }
+
     private static void loadTransform(JsonNode node, Transform t) {
         t.position.set(JsonUtil.get(node, "x", 0.0), JsonUtil.get(node, "y", 0.0), 0.0);
         t.setZAngleDeg(JsonUtil.get(node, "rotation", 0.0));
