@@ -23,7 +23,6 @@
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
 
-#define JC_TEST_USE_COLORS 1
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
