@@ -58,6 +58,9 @@ def build(bld):
                                      source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
                                      embed_source = 'resources.arci resources.arcd resources.dmanifest')
 
+    if bld.env['PLATFORM'] in ('x86_64-win32','win32'):
+        test_resource.env.append_value('LINKFLAGS', ['dbghelp.lib', 'psapi.lib'])
+
     test_resource.install_path = None
 
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
@@ -69,6 +72,8 @@ def build(bld):
                                              source = 'test_resource_archive.cpp',
                                              embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
 
+    if bld.env['PLATFORM'] in ('x86_64-win32','win32'):
+        test_resource_archive.env.append_value('LINKFLAGS', ['dbghelp.lib', 'psapi.lib'])
     test_resource_archive.install_path = None
 
     test_block_allocator = bld.new_task_gen(features = 'cxx cprogram test',

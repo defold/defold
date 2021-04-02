@@ -1813,6 +1813,7 @@ def detect(conf):
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+        conf.env['LINKFLAGS_RESOURCE'] = ['dbghelp.lib', 'psapi.lib']
 
 def configure(conf):
     detect(conf)

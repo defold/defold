@@ -6,6 +6,8 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
+    return
+
     if options.skip_build_tests:
        return
     libs = 'TESTMAIN SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT CARES'

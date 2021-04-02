@@ -27,9 +27,10 @@
 
 #if defined(_WIN32)
 #include <malloc.h> // alloca
+#include <dmsdk/dlib/safe_windows.h>
+#include <Dbghelp.h>
 #endif
 
-#include <crash/crash.h>
 #include <dlib/dstrings.h>
 #include <dlib/crypt.h>
 #include <dlib/hash.h>
@@ -441,13 +442,136 @@ void DeleteManifest(Manifest* manifest)
     delete manifest;
 }
 
+#if defined(_WIN32)
+
+static uint32_t GetCallstackPointers(EXCEPTION_POINTERS* pep, void** ptrs, uint32_t num_ptrs)
+{
+    if (!pep)
+    {
+        // The API only accepts 62 or less
+        uint32_t max = dmMath::Min(num_ptrs, (uint32_t)62);
+        num_ptrs = CaptureStackBackTrace(0, max, ptrs, 0);
+    } else
+    {
+        HANDLE process = ::GetCurrentProcess();
+        HANDLE thread = ::GetCurrentThread();
+        uint32_t count = 0;
+
+        // Initialize stack walking.
+        STACKFRAME64 stack_frame;
+        memset(&stack_frame, 0, sizeof(stack_frame));
+        #if defined(_WIN64)
+            int machine_type = IMAGE_FILE_MACHINE_AMD64;
+            stack_frame.AddrPC.Offset = pep->ContextRecord->Rip;
+            stack_frame.AddrFrame.Offset = pep->ContextRecord->Rbp;
+            stack_frame.AddrStack.Offset = pep->ContextRecord->Rsp;
+        #else
+            int machine_type = IMAGE_FILE_MACHINE_I386;
+            stack_frame.AddrPC.Offset = pep->ContextRecord->Eip;
+            stack_frame.AddrFrame.Offset = pep->ContextRecord->Ebp;
+            stack_frame.AddrStack.Offset = pep->ContextRecord->Esp;
+        #endif
+        stack_frame.AddrPC.Mode = AddrModeFlat;
+        stack_frame.AddrFrame.Mode = AddrModeFlat;
+        stack_frame.AddrStack.Mode = AddrModeFlat;
+        while (StackWalk64(machine_type,
+            process,
+            thread,
+            &stack_frame,
+            pep->ContextRecord,
+            NULL,
+            &SymFunctionTableAccess64,
+            &SymGetModuleBase64,
+            NULL) &&
+            count < num_ptrs) {
+            ptrs[count++] = reinterpret_cast<void*>(stack_frame.AddrPC.Offset);
+        }
+        num_ptrs = count;
+    }
+    return num_ptrs;
+}
+
+static bool g_DebugSymbolsInitialized = false;
+static void DebugSymbolsInitialize()
+{
+    if (!g_DebugSymbolsInitialized)
+    {
+        HANDLE process = ::GetCurrentProcess();
+        ::SymSetOptions(SYMOPT_DEBUG);
+        ::SymInitialize(process, 0, TRUE);
+        g_DebugSymbolsInitialized = true;
+    }
+}
+
+static void PrintBacktrace()
+{
+    DebugSymbolsInitialize();
+
+    bool is_debug_mode = dLib::IsDebugMode();
+    dLib::SetDebugMode(true);
+
+    void* ptrs[48];
+
+    uint32_t ptr_count = GetCallstackPointers(0, &ptrs[0], 48);
+
+    // Get a nicer printout as well
+    const int name_length = 1024;
+
+    char symbolbuffer[sizeof(SYMBOL_INFO) + name_length * sizeof(char)*2];
+    SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolbuffer;
+    symbol->MaxNameLen = name_length;
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+    DWORD displacement;
+    IMAGEHLP_LINE64 line;
+    line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+
+    HANDLE process = ::GetCurrentProcess();
+
+    uint32_t offset = 0;
+    for (uint32_t i = 0; i < ptr_count; ++i)
+    {
+        DWORD64 address = (DWORD64)(ptrs[i]);
+
+        const char* symbolname = "<unknown symbol>";
+        DWORD64 symboladdress = address;
+
+        DWORD64 symoffset = 0;
+
+        if (::SymFromAddr(process, address, &symoffset, symbol))
+        {
+            symbolname = symbol->Name;
+            symboladdress = symbol->Address;
+        }
+
+        const char* filename = "<unknown>";
+        int line_number = 0;
+        if (::SymGetLineFromAddr64(process, address, &displacement, &line))
+        {
+            filename = line.FileName;
+            line_number = line.LineNumber;
+        }
+
+        dmLogError("    %2d 0x%0llX %s %s:%d", i, symboladdress, symbolname, filename, line_number);
+    }
+
+    dLib::SetDebugMode(is_debug_mode);
+}
+
+#else
+
+static void PrintBacktrace() {}
+
+#endif
+
+
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
     printf("MAWE: %s %d  (printf)\n", __FUNCTION__, __LINE__);
     dmLogInfo("MAWE: %s %d", __FUNCTION__, __LINE__);
 
     dmLogInfo("MAWE: callstack");
-    dmCrash::PrintBacktrace();
+    PrintBacktrace();
 
     dmMessage::HSocket socket = 0;
 
