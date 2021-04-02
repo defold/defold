@@ -570,8 +570,8 @@ namespace dmGameSystem
         gui_component->m_AddedToUpdate = 0;
 
         dmGui::NewSceneParams scene_params;
-        // 1024 is a hard cap since the render key has 10 bits for node index
-        assert(scene_desc->m_MaxNodes <= 1024);
+        // This is a hard cap since the render key has 13 bits for node index (see gui.cpp)
+        assert(scene_desc->m_MaxNodes <= 2^13);
         scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
