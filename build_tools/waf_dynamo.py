@@ -1767,6 +1767,9 @@ def detect(conf):
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'
 
+    if platform in ('x86_64-win32','win32'):
+        conf.env['LINKFLAGS_CRASH'] = ['dbghelp.lib', 'psapi.lib']
+
     if ('record' not in Options.options.disable_features):
         conf.env['STATICLIB_RECORD'] = 'record_null'
     else:
@@ -1812,7 +1815,7 @@ def detect(conf):
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-win32','win32'):
-        conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+        conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib', 'psapi.lib']
 
 def configure(conf):
     detect(conf)

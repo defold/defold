@@ -109,7 +109,7 @@ EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 
-ENGINE_LIBS = "testmain ddf extension crash particle glfw graphics lua hid input physics resource script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics extension crash resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
 EXTERNAL_LIBS = "bullet3d cares".split()
 
