@@ -133,8 +133,4 @@ namespace dmCrash
         InstallOnSignal(SIGILL);
         InstallOnSignal(SIGABRT);
     }
-
-    void PrintBacktrace()
-    {
-    }
 }

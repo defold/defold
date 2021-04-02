@@ -287,8 +287,4 @@ namespace dmCrash
         InstallOnSignal(SIGTRAP);
         InstallOnSignal(SIGILL);
     }
-
-    void PrintBacktrace()
-    {
-    }
 }

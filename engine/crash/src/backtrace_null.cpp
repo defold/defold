@@ -37,9 +37,6 @@ namespace dmCrash
     {
     }
 
-    void PrintBacktrace()
-    {
-    }
 }
 
 #if defined(__EMSCRIPTEN__)
