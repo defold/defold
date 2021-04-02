@@ -182,6 +182,11 @@ namespace dmCrash
      * @return address of the module, null if there are no more
      */
     void* GetModuleAddr(HDump dump, uint32_t index);
+
+    /**
+     *
+     */
+    void PrintBacktrace();
 }
 
 #endif

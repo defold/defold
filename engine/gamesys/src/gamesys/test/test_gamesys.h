@@ -23,6 +23,7 @@
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
 
+#define JC_TEST_USE_COLORS 1
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -209,6 +210,8 @@ class ResourcePropTest : public GamesysTest<ResourcePropParams>
 protected:
     void SetUp()
     {
+    printf("MAWE: %s %d  (printf)\n", __FUNCTION__, __LINE__);
+    dmLogInfo("MAWE: %s %d", __FUNCTION__, __LINE__);
         GamesysTest::SetUp();
     }
 public:
@@ -255,6 +258,10 @@ void GamesysTest<T>::SetUp()
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+    printf("MAWE: %s %d  (printf)\n", __FUNCTION__, __LINE__);
+    dmLogInfo("MAWE: %s %d", __FUNCTION__, __LINE__);
+
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
     dmScript::Initialize(m_ScriptContext);

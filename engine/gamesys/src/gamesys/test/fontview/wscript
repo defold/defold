@@ -21,4 +21,5 @@ def build(bld):
                                     uselib_local = 'gamesys',
                                     includes = ['../../../src', '../../../build'],
                                     target = 'fontview')
+    font_viewer.env.append_value('LINKFLAGS', ['dbghelp.lib', 'psapi.lib'])
     font_viewer.install_path = None

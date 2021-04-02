@@ -27,6 +27,7 @@ namespace dmCrash
 {
     static char g_MiniDumpPath[AppState::FILEPATH_MAX];
     static bool g_CrashDumpEnabled = true;
+    static bool g_CrashDumpinitialized = false;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
@@ -126,6 +127,17 @@ namespace dmCrash
         return num_ptrs;
     }
 
+    static void Initialize()
+    {
+        if (!g_CrashDumpinitialized)
+        {
+            HANDLE process = ::GetCurrentProcess();
+            ::SymSetOptions(SYMOPT_DEBUG);
+            ::SymInitialize(process, 0, TRUE);
+            g_CrashDumpinitialized = true;
+        }
+    }
+
     static void GenerateCallstack(EXCEPTION_POINTERS* pep)
     {
         if (!g_CrashDumpEnabled)
@@ -135,9 +147,6 @@ namespace dmCrash
         fflush(stderr);
 
         HANDLE process = ::GetCurrentProcess();
-
-        ::SymSetOptions(SYMOPT_DEBUG);
-        ::SymInitialize(process, 0, TRUE);
 
         g_AppState.m_PtrCount = GetCallstackPointers(pep, &g_AppState.m_Ptr[0], AppState::PTRS_MAX);
 
@@ -203,6 +212,8 @@ namespace dmCrash
 
     void WriteDump()
     {
+        Initialize();
+
         // The test write signum
         g_AppState.m_Signum = 0xDEAD;
         GenerateCallstack(0);
@@ -210,6 +221,8 @@ namespace dmCrash
 
     LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS *ptr)
     {
+        Initialize();
+
         g_AppState.m_Signum = 0xDEAD;
         GenerateCallstack(ptr);
         WriteMiniDump(g_MiniDumpPath, ptr);
@@ -229,6 +242,7 @@ namespace dmCrash
         // be stuck in a signal-handler loop forever.
         signal(signum, 0);
         GenerateCallstack(0);
+        WriteMiniDump(g_MiniDumpPath, 0);
     }
 
     static void InstallOnSignal(int signum)
@@ -240,6 +254,8 @@ namespace dmCrash
     {
         ::SetUnhandledExceptionFilter(ExceptionHandler);
 
+        Initialize();
+
         InstallOnSignal(SIGABRT);
         InstallOnSignal(SIGINT);
         InstallOnSignal(SIGTERM);
@@ -249,5 +265,60 @@ namespace dmCrash
     void PlatformPurge()
     {
         dmSys::Unlink(g_MiniDumpPath);
+    }
+
+    void PrintBacktrace()
+    {
+        Initialize();
+
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+
+        void* ptrs[AppState::PTRS_MAX];
+
+        uint32_t ptr_count = GetCallstackPointers(0, &ptrs[0], AppState::PTRS_MAX);
+
+        // Get a nicer printout as well
+        const int name_length = 1024;
+
+        char symbolbuffer[sizeof(SYMBOL_INFO) + name_length * sizeof(char)*2];
+        SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolbuffer;
+        symbol->MaxNameLen = name_length;
+        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+        DWORD displacement;
+        IMAGEHLP_LINE64 line;
+        line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+
+        HANDLE process = ::GetCurrentProcess();
+
+        uint32_t offset = 0;
+        for (uint32_t i = 0; i < ptr_count; ++i)
+        {
+            DWORD64 address = (DWORD64)(ptrs[i]);
+
+            const char* symbolname = "<unknown symbol>";
+            DWORD64 symboladdress = address;
+
+            DWORD64 symoffset = 0;
+
+            if (::SymFromAddr(process, address, &symoffset, symbol))
+            {
+                symbolname = symbol->Name;
+                symboladdress = symbol->Address;
+            }
+
+            const char* filename = "<unknown>";
+            int line_number = 0;
+            if (::SymGetLineFromAddr64(process, address, &displacement, &line))
+            {
+                filename = line.FileName;
+                line_number = line.LineNumber;
+            }
+
+            dmLogError("    %2d 0x%0llX %s %s:%d", i, symboladdress, symbolname, filename, line_number);
+        }
+
+        dLib::SetDebugMode(is_debug_mode);
     }
 }

@@ -116,7 +116,7 @@ TEST_P(ResourceTest, TestPreload)
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
 
-    uint64_t stop_time = dmTime::GetTime() + 30*10e6;
+    uint64_t stop_time = dmTime::GetTime() + 30*10000000;
     while (dmTime::GetTime() < stop_time)
     {
         // Simulate running at 30fps
@@ -307,6 +307,8 @@ TEST_P(InvalidVertexSpaceTest, InvalidVertexSpace)
 // Test for input consuming in collection proxy
 TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 {
+    printf("MAWE: %s %d  (printf)\n", __FUNCTION__, __LINE__);
+    dmLogInfo("MAWE: %s %d", __FUNCTION__, __LINE__);
     /* Setup:
     ** go_consume_no
     ** - [script] input_consume_sink.script
@@ -430,6 +432,9 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
 
 TEST_F(SoundTest, UpdateSoundResource)
 {
+    printf("MAWE: %s %d  (printf)\n", __FUNCTION__, __LINE__);
+    dmLogInfo("MAWE: %s %d", __FUNCTION__, __LINE__);
+
     // import 'resource' lua api among others
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory = m_Factory;
@@ -803,7 +808,7 @@ TEST_P(FactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
+        uint64_t stop_time = dmTime::GetTime() + 30*10000000;
         while (dmTime::GetTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
@@ -980,7 +985,7 @@ TEST_P(CollectionFactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
+        uint64_t stop_time = dmTime::GetTime() + 30*10000000;
         while (dmTime::GetTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);

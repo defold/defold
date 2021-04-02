@@ -26,10 +26,10 @@
 #endif
 
 #if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
+#include <malloc.h> // alloca
 #endif
 
+#include <crash/crash.h>
 #include <dlib/dstrings.h>
 #include <dlib/crypt.h>
 #include <dlib/hash.h>
@@ -443,6 +443,12 @@ void DeleteManifest(Manifest* manifest)
 
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
+    printf("MAWE: %s %d  (printf)\n", __FUNCTION__, __LINE__);
+    dmLogInfo("MAWE: %s %d", __FUNCTION__, __LINE__);
+
+    dmLogInfo("MAWE: callstack");
+    dmCrash::PrintBacktrace();
+
     dmMessage::HSocket socket = 0;
 
     dmMessage::Result mr = dmMessage::NewSocket(RESOURCE_SOCKET_NAME, &socket);
