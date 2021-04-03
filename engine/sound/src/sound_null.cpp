@@ -27,7 +27,7 @@ namespace dmSound
         uint32_t m_BufferSize;
 
         // make sure it's the same size for both 32/64 bit. Makes it easier for tests
-        #if !(defined(_WIN64) || defined(__x86_64__) || defined(__ppc64__))
+        #if defined(DM_PLATFORM_32BIT)
         uint64_t _pad;
         #endif
     };

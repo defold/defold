@@ -452,6 +452,13 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
+
+    for f in ['CCFLAGS', 'CXXFLAGS']:
+        if '64' == build_util.get_target_architecture():
+            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
+        else:
+            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
+
     libpath = build_util.get_library_path()
 
     # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
