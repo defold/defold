@@ -250,8 +250,6 @@ bool UnlinkResource(const char* name);
 template<typename T>
 void GamesysTest<T>::SetUp()
 {
-    fflush(stdout);
-    fflush(stderr);
     dmSound::Initialize(0x0, 0x0);
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -391,9 +389,6 @@ void GamesysTest<T>::TearDown()
     dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
     dmBuffer::DeleteContext();
-
-    fflush(stdout);
-    fflush(stderr);
 }
 
 // Specific test class for testing dmBuffers in scripts
