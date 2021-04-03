@@ -320,6 +320,7 @@ def default_flags(self):
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CCFLAGS', 'CXXFLAGS']:
            self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
+           self.env.append_value(f, self.env.CXXDEFINES_ST % "JC_TEST_USE_COLORS=1")
 
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
@@ -450,6 +451,13 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
+
+
+    for f in ['CCFLAGS', 'CXXFLAGS']:
+        if '64' in build_util.get_target_architecture():
+            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
+        else:
+            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
 
     libpath = build_util.get_library_path()
 
