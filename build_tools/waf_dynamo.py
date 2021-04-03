@@ -454,7 +454,7 @@ def default_flags(self):
 
 
     for f in ['CCFLAGS', 'CXXFLAGS']:
-        if '64' == build_util.get_target_architecture():
+        if '64' in build_util.get_target_architecture():
             self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
         else:
             self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
