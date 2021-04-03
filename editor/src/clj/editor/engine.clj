@@ -282,7 +282,9 @@
                (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
-                                "1" "0")}
+                                "1" "0")
+             ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
+             "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))}
         opts {:directory project-directory
               :redirect-error-stream? true
               :env env}]
