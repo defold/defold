@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -208,6 +208,25 @@
       (fs/set-executable! engine-file)
       engine-file)))
 
+(defn- zip-entries! [zipfile]
+  (enumeration-seq (.entries zipfile)))
+
+(defn- unpack-build-zip!
+  [^File engine-archive dir]
+  (with-open [zip-file (ZipFile. engine-archive)]
+    (doseq [entry (zip-entries! zip-file)]
+      (let [savePath (str dir File/separatorChar (.getName entry))
+            saveFile (File. savePath)]
+        (if (.isDirectory entry)
+          (if-not (.exists saveFile)
+            (.mkdirs saveFile))
+          (let [parentDir (File. (.substring savePath 0 (.lastIndexOf savePath (int File/separatorChar))))
+                stream (.getInputStream zip-file entry)]
+            (if-not (.exists parentDir) (.mkdirs parentDir))
+            (clojure.java.io/copy stream saveFile)))
+      ))))
+
+
 (def ^:private dmengine-dependencies
   {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
    "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
@@ -243,7 +262,9 @@
           engine-dir (.getParentFile engine-file)]
       (fs/delete-directory! engine-dir {:missing :ignore})
       (fs/create-directories! engine-dir)
-      (unpack-dmengine! engine-archive (dmengine-filename (current-platform)) engine-file)
+      ;;(unpack-dmengine! engine-archive (dmengine-filename (current-platform)) engine-file)
+      (unpack-build-zip! engine-archive engine-dir)
+      (fs/set-executable! engine-file)
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
@@ -261,7 +282,9 @@
                (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
-                                "1" "0")}
+                                "1" "0")
+             ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
+             "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))}
         opts {:directory project-directory
               :redirect-error-stream? true
               :env env}]
