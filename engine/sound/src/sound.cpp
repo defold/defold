@@ -874,7 +874,7 @@ namespace dmSound
             float left_scale, right_scale;
             GetPanScale(pan, &left_scale, &right_scale);
 
-            float s = (1.0f - mix) * s1 + mix * s2; // resulting destination sample value is a mix two source samples since a kind of franctional indexing is used
+            float s = (1.0f - mix) * s1 + mix * s2; // resulting destination sample value is a mix of two source samples since a kind of fractional indexing is used
             mix_buffer[2 * i] += s * gain * left_scale;
             mix_buffer[2 * i + 1] += s * gain * right_scale;
             
@@ -883,13 +883,14 @@ namespace dmSound
 
             index += (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
 
-            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U); // clear bits higher than 33
+            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U); // Keep lower RESAMPLE_FRACTION_BITS bits. Clear higher.
         }
         instance->m_FrameFraction = frac;
 
         assert(prev_index <= instance->m_FrameCount);
 
         // copy any remaining frames not mixed to the start of m_Frames
+        assert( instance->m_FrameCount >= index);
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T), (instance->m_FrameCount - index) * sizeof(T));
         instance->m_FrameCount -= index;
     }
@@ -1142,7 +1143,7 @@ namespace dmSound
         if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
-            uint32_t n = ceil(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount);
+            uint32_t n = ceilf(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount); // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
             if (!is_muted)
             {
@@ -1169,7 +1170,7 @@ namespace dmSound
                         instance->m_Loopcounter --;
                     }
 
-                    uint32_t n = sound->m_FrameCount - instance->m_FrameCount;
+                    uint32_t n = sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount;
                     if (!is_muted)
                     {
                         r = dmSoundCodec::Decode(sound->m_CodecContext,
