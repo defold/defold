@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -772,7 +772,7 @@ union SaveLoadBuffer
 
             lua_pushstring(L, ifa->m_Name);
             lua_setfield(L, -2, "name");
-            
+
             if (ifa->m_Flags & dmSocket::FLAGS_INET)
             {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
@@ -1072,7 +1072,7 @@ union SaveLoadBuffer
     * This setting may be overridden by driver settings.
     *
     * @name sys.set_vsync_swap_interval
-    * @param swap_interval target swap interval.
+    * @param swap_interval [type:number] target swap interval.
     * @examples
     *
     * Setting the swap intervall to swap every v-blank
@@ -1105,7 +1105,7 @@ union SaveLoadBuffer
     * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
     *
     * @name sys.set_update_frequency
-    * @param frequency target frequency. 60 for 60 fps
+    * @param frequency [type:number] target frequency. 60 for 60 fps
     * @examples
     *
     * Setting the update frequency to 60 frames per second
