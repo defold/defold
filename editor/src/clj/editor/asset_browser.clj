@@ -426,17 +426,14 @@
                            {:text "Delete"
                             :variant :danger
                             :result true}]})
-              (dialogs/make-confirmation-dialog
+              (dialogs/make-info-dialog
                 {:title "Delete Files?"
                  :icon :icon/circle-question
                  :header "Are you sure you want to delete these files?"
-                 :content {:fx/type fxui/label
-                           :style-class "dialog-content-padding"
-                           :text (format "You are about to delete: \n%s"
-                                         (->> selection
-                                              (map #(str "\u00A0\u00A0\u2022\u00A0"
-                                                         (resource/resource-name %)))
-                                              (string/join "\n")))}
+                 :content {:text (str "You are about to delete:\n" (->> selection
+                                                    (map #(str "\u00A0\u00A0\u2022\u00A0"
+                                                              (resource/resource-name %)))
+                                                    (string/join "\n")))}
                  :buttons [{:text "Cancel"
                             :cancel-button true
                             :default-button true

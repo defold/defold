@@ -21,6 +21,7 @@ message SpineModelDesc
         BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
         BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
         BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
+        BLEND_MODE_SCREEN    = 4 [(displayName) = "Screen"];
     }
 
     required string spine_scene         = 1 [(resource)=true];

@@ -50,8 +50,8 @@ namespace dmGui
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
-    const uint64_t LAYER_RANGE = 4;
-    const uint64_t INDEX_RANGE = 10;
+    const uint64_t LAYER_RANGE = 4; // 16 layers
+    const uint64_t INDEX_RANGE = 13; // 8192 nodes
     const uint64_t CLIPPER_RANGE = 8;
 
     const uint64_t SUB_INDEX_SHIFT = 0;
@@ -59,6 +59,7 @@ namespace dmGui
     const uint64_t CLIPPER_SHIFT = SUB_LAYER_SHIFT + LAYER_RANGE;
     const uint64_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
+
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
@@ -328,14 +329,14 @@ namespace dmGui
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));
-        // 1024 is a hard cap for max nodes since only 10 bits is available in the render key.
+        // The default max value for a scene is 512 (same as in gui_ddf.proto). Absolute max value is 2^INDEX_RANGE.
         params->m_MaxNodes = 512;
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
         params->m_MaxSpineScenes = 8;
         params->m_MaxParticlefxs = 128;
-        // 16 is hard cap for the same reason as above
+        // 16 is a hard cap for max layers since only 4 bits is available in the render key (see LAYER_RANGE above)
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
 

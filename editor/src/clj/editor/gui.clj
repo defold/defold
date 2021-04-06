@@ -2196,7 +2196,7 @@
           :deps dep-build-targets})])))
 
 (defn- validate-max-nodes [_node-id max-nodes node-ids]
-    (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 1024]) max-nodes "Max Nodes")
+    (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 8192]) max-nodes "Max Nodes")
         (validation/prop-error :fatal _node-id :max-nodes (fn [v] (let [c (count node-ids)]
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))

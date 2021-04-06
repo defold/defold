@@ -155,12 +155,23 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 		if (text.startsWith("require")) {
 			List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
 			// token 0 is the require function
-			// token 1 is either the string or parenthesis
-			// if it is a parenthesis we instead get token 2
-			String module = tokens.get(1).getText();
-			if (module.equals("(")) {
-				module = tokens.get(2).getText();
+			// token 1 is either the first token of the require argument or the
+			// parenthesis
+			// if it is a parenthesis we make sure to skip over both the start
+			// and end parenthesis
+			int startIndex = 1;
+			int endIndex = tokens.size() - 1;
+			if (tokens.get(startIndex).getText().equals("(")) {
+				startIndex++;
+				endIndex--;
 			}
+
+			// get the module name from the individual tokens
+			String module = "";
+			for (int i=startIndex; i<=endIndex; i++) {
+				module += tokens.get(i).getText();
+			}
+
 			// check that it is a string and not a variable
 			// remove the single or double quotes around the string
 			if (module.startsWith("\"") || module.startsWith("'")) {

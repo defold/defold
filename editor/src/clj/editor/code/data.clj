@@ -2256,6 +2256,10 @@
       (begin-box-selection lines layout button click-count x y))
 
     :secondary
+    nil
+    :back
+    nil
+    :forward
     nil))
 
 (defn- mouse-gesture [lines cursor-ranges ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start x y]

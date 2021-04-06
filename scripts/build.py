@@ -66,7 +66,7 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.7 c-ares-1.17.1 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 c-ares-1.17.1 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1".split()
@@ -778,6 +778,14 @@ class Configuration(object):
                 paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
                 return paths
 
+            def _findfiles(directory, exts):
+                paths = []
+                for root, dirs, files in os.walk(directory):
+                    for f in files:
+                        if os.path.splitext(f)[1] in exts:
+                            paths.append(os.path.join(root, f))
+                return paths
+
             # Dynamo libs
             libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
             paths = _findlibs(libdir)
@@ -818,6 +826,19 @@ class Configuration(object):
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
+            # .proto files
+            protodir = os.path.join(self.dynamo_home, 'share/proto/')
+            paths = _findfiles(protodir, ('.proto',))
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # protoc
+            if platform in ('x86_64-darwin','x86_64-linux','x86_64-win32'): # needed for the linux build server
+                protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
+                ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
+                ddfc_cxx = os.path.join(self.dynamo_home, 'bin/ddfc_cxx')
+                ddfc_cxx_bat = os.path.join(self.dynamo_home, 'bin/ddfc_cxx.bat')
+                ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat], self.dynamo_home, topfolder)
 
             # For logging, print all paths in zip:
             for x in zip.namelist():
@@ -1442,7 +1463,7 @@ class Configuration(object):
             model['releases'] = s3.get_tagged_releases(self.get_archive_path())
             model['has_releases'] = True
         else:
-            model['releases'] = s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())
+            model['releases'] = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
             model['has_releases'] = True
 
         if not model['releases']:

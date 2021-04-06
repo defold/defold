@@ -2,6 +2,8 @@
 ![CI - Editor Only](https://github.com/defold/defold/workflows/CI%20-%20Editor%20Only/badge.svg)
 ![CI - Engine nightly](https://github.com/defold/defold/workflows/CI%20-%20Engine%20nightly/badge.svg)
 
+[![Join the chat at https://discord.gg/cHBde7J](https://img.shields.io/discord/250018174974689280?color=%237289DA&label=defold&logo=discord&logoColor=white)](https://discord.gg/cHBde7J) 
+
 # Defold
 
 Repository for the Defold engine, editor and command line tools.

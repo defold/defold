@@ -252,7 +252,6 @@ namespace dmGraphics
         if (IsFormatRGBA(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC3);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);

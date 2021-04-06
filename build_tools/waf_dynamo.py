@@ -320,6 +320,7 @@ def default_flags(self):
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CCFLAGS', 'CXXFLAGS']:
            self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
+           self.env.append_value(f, self.env.CXXDEFINES_ST % "JC_TEST_USE_COLORS=1")
 
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
@@ -345,7 +346,7 @@ def default_flags(self):
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
-                self.env.append_value(f, ['-stdlib=libc++'])
+                self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
                 if 'linux' in self.env['BUILD_PLATFORM']:
@@ -384,6 +385,7 @@ def default_flags(self):
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
                                             '-isysroot', sys_root, '-isysroot', sys_root])
 
+            self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
@@ -449,6 +451,13 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
+
+
+    for f in ['CCFLAGS', 'CXXFLAGS']:
+        if '64' in build_util.get_target_architecture():
+            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
+        else:
+            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
 
     libpath = build_util.get_library_path()
 

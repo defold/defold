@@ -701,9 +701,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #if defined(ANDROID)
         // Seems to work fine anyway with out any hints
         // which is good, since we want to fallback from OpenGLES 3 to 2
-#elif defined(_WIN32) || defined(__linux__)
+#elif defined(__linux__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+#elif defined(_WIN32)
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
             #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
@@ -719,7 +722,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         if (is_desktop) {
             glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         }
 
         int mode = GLFW_WINDOW;
@@ -858,9 +860,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         if (params->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: OpenGL");
-            dmLogInfo("Renderer: %s\n", (char *) glGetString(GL_RENDERER));
-            dmLogInfo("Version: %s\n", (char *) glGetString(GL_VERSION));
-            dmLogInfo("Vendor: %s\n", (char *) glGetString(GL_VENDOR));
+            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
         }
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
@@ -885,7 +887,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             for (GLint i = 0; i < n; i++)
             {
                 char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
-                max_len += (int) strlen((const char*)ext) + 1;
+                max_len += (int) strlen((const char*)ext) + 1; // name + space
             }
 
             extensions_ptr = (char*) malloc(max_len);
@@ -902,6 +904,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
                 cursor += 1;
             }
+
+            extensions_ptr[max_len-1] = 0;
         }
         const GLubyte* extensions = (const GLubyte*) extensions_ptr;
 #else
@@ -911,7 +915,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (params->m_PrintDeviceInfo && extensions != 0)
         {
-            dmLogInfo("Extensions: %s\n", extensions);
+            dmLogInfo("Extensions: %s", extensions);
         }
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
@@ -952,7 +956,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
-        if (IsExtensionSupported("GL_ARB_texture_compression_bptc", extensions))
+        if (IsExtensionSupported("GL_ARB_texture_compression_bptc", extensions) ||
+            IsExtensionSupported("GL_EXT_texture_compression_bptc", extensions) ||
+            IsExtensionSupported("EXT_texture_compression_bptc", extensions) )
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
         }

@@ -66,13 +66,14 @@ namespace dmGameSystem
 
     static struct BlendModeParticleToGui
     {
-    	dmGui::BlendMode m_Table[4];
+    	dmGui::BlendMode m_Table[5];
     	BlendModeParticleToGui()
     	{
     		m_Table[dmParticleDDF::BLEND_MODE_ALPHA]		= dmGui::BLEND_MODE_ALPHA;
     		m_Table[dmParticleDDF::BLEND_MODE_MULT]			= dmGui::BLEND_MODE_MULT;
     		m_Table[dmParticleDDF::BLEND_MODE_ADD]			= dmGui::BLEND_MODE_ADD;
     		m_Table[dmParticleDDF::BLEND_MODE_ADD_ALPHA]	= dmGui::BLEND_MODE_ADD_ALPHA;
+            m_Table[dmParticleDDF::BLEND_MODE_SCREEN]       = dmGui::BLEND_MODE_SCREEN;
     	}
     } ddf_blendmode_map;
 
@@ -569,8 +570,8 @@ namespace dmGameSystem
         gui_component->m_AddedToUpdate = 0;
 
         dmGui::NewSceneParams scene_params;
-        // 1024 is a hard cap since the render key has 10 bits for node index
-        assert(scene_desc->m_MaxNodes <= 1024);
+        // This is a hard cap since the render key has 13 bits for node index (see gui.cpp)
+        assert(scene_desc->m_MaxNodes <= 2^13);
         scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
@@ -719,6 +720,11 @@ namespace dmGameSystem
             case dmGui::BLEND_MODE_MULT:
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmGui::BLEND_MODE_SCREEN:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
             default:
