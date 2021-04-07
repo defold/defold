@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,16 +39,29 @@
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.rig :as rig]
+            [editor.system :as system]
             [service.log :as log]
             [internal.util :as util])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
            [com.dynamo.bob.util BezierUtil RigUtil$Transform]
-           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
            [com.jogamp.opengl GL GL2]
            [java.util HashSet]
+           [java.net URL]
            [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector3d Vector4d Tuple3d Tuple4d]))
+
+; TODO: Centralize this code so it can be updated when plugins are added or rebuilt
+(def dcl
+  (let [loader (clojure.lang.DynamicClassLoader. (.getContextClassLoader (Thread/currentThread)))
+        url (URL. (format "file://%s/shared/java/fmt-spine.jar" (system/defold-unpack-path)))]
+    (.addURL loader url)
+    loader))
+
+(defn dynamically-load-class!
+  [class-loader class-name]
+  (Class/forName class-name true class-loader))
+
 
 (set! *warn-on-reflection* true)
 
@@ -1023,7 +1036,7 @@
 (defn- build-spine-model [resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
+    {:resource resource :content (protobuf/map->bytes (dynamically-load-class! dcl "com.dynamo.spine.proto.Spine$SpineModelDesc") pb)}))
 
 (g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets]
   (g/precluding-errors own-build-errors
@@ -1057,8 +1070,8 @@
             (dynamic error (g/fnk [_node-id spine-scene]
                              (validate-model-spine-scene _node-id spine-scene))))
   (property blend-mode g/Any (default :blend-mode-alpha)
-            (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
+            (dynamic tip (validation/blend-mode-tip blend-mode (dynamically-load-class! dcl "com.dynamo.spine.proto.Spine$SpineModelDesc$BlendMode")))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox (dynamically-load-class! dcl "com.dynamo.spine.proto.Spine$SpineModelDesc$BlendMode")))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -1142,7 +1155,7 @@
       :build-ext "rigscenec"
       :label "Spine Scene"
       :node-type SpineSceneNode
-      :ddf-type Spine$SpineSceneDesc
+      :ddf-type (dynamically-load-class! dcl "com.dynamo.spine.proto.Spine$SpineSceneDesc")
       :load-fn load-spine-scene
       :icon spine-scene-icon
       :view-types [:scene :text]
@@ -1151,7 +1164,7 @@
       :ext spine-model-ext
       :label "Spine Model"
       :node-type SpineModelNode
-      :ddf-type Spine$SpineModelDesc
+      :ddf-type (dynamically-load-class! dcl "com.dynamo.spine.proto.Spine$SpineModelDesc")
       :load-fn load-spine-model
       :icon spine-model-icon
       :view-types [:scene :text]

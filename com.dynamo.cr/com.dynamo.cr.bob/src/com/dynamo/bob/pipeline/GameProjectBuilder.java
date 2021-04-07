@@ -45,6 +45,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
@@ -85,7 +86,6 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.sound.proto.Sound.SoundDesc;
-import com.dynamo.spine.proto.Spine.SpineModelDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile.TileGrid;
@@ -97,47 +97,9 @@ import com.google.protobuf.Message;
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
 
-    private static Map<String, Class<? extends GeneratedMessage>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessage>>();
     private static Set<String> leafResourceTypes = new HashSet<String>();
 
     static {
-        extToMessageClass.put(".collectionc", CollectionDesc.class);
-        extToMessageClass.put(".collectionproxyc", CollectionProxyDesc.class);
-        extToMessageClass.put(".goc", PrototypeDesc.class);
-        extToMessageClass.put(".texturesetc", TextureSet.class);
-        extToMessageClass.put(".guic", Gui.SceneDesc.class);
-        extToMessageClass.put(".scriptc", LuaModule.class);
-        extToMessageClass.put(".gui_scriptc", LuaModule.class);
-        extToMessageClass.put(".render_scriptc", LuaModule.class);
-        extToMessageClass.put(".luac", LuaModule.class);
-        extToMessageClass.put(".tilemapc", TileGrid.class);
-        extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
-        extToMessageClass.put(".spritec", SpriteDesc.class);
-        extToMessageClass.put(".factoryc", FactoryDesc.class);
-        extToMessageClass.put(".collectionfactoryc", CollectionFactoryDesc.class);
-        extToMessageClass.put(".materialc", MaterialDesc.class);
-        extToMessageClass.put(".fontc", FontMap.class);
-        extToMessageClass.put(".soundc", SoundDesc.class);
-        extToMessageClass.put(".labelc", LabelDesc.class);
-        extToMessageClass.put(".modelc", Model.class);
-        extToMessageClass.put(".fpc", ShaderDesc.class);
-        extToMessageClass.put(".vpc", ShaderDesc.class);
-        extToMessageClass.put(".input_bindingc", InputBinding.class);
-        extToMessageClass.put(".gamepadsc", GamepadMaps.class);
-        extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
-        extToMessageClass.put(".particlefxc", ParticleFX.class);
-        extToMessageClass.put(".spinemodelc", SpineModelDesc.class);
-        extToMessageClass.put(".rigscenec", RigScene.class);
-        extToMessageClass.put(".skeletonc", Skeleton.class);
-        extToMessageClass.put(".meshsetc", MeshSet.class);
-        extToMessageClass.put(".animationsetc", MeshSet.class);
-        extToMessageClass.put(".cubemapc", Cubemap.class);
-        extToMessageClass.put(".camerac", CameraDesc.class);
-        extToMessageClass.put(".meshc", MeshDesc.class);
-        extToMessageClass.put(".lightc", LightDesc.class);
-        extToMessageClass.put(".gamepadsc", GamepadMaps.class);
-        extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
-
         leafResourceTypes.add(".texturec");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
@@ -300,26 +262,19 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
-        Class<? extends GeneratedMessage> klass = extToMessageClass.get(ext);
-        if (klass != null) {
-            GeneratedMessage.Builder<?> builder;
-            try {
-                Method newBuilder = klass.getDeclaredMethod("newBuilder");
-                builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
-                final byte[] content = resource.output().getContent();
-                if(content == null) {
-                    throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
-                }
-                builder.mergeFrom(content);
-                Object message = builder.build();
-                findResources(project, (Message) message, resources);
-            } catch(CompileExceptionError e) {
-                throw e;
-            } catch(Exception e) {
-                throw new RuntimeException(e);
+        GeneratedMessage.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        try {
+            final byte[] content = resource.output().getContent();
+            if(content == null) {
+                throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
             }
-        } else {
-            throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
+            builder.mergeFrom(content);
+            Object message = builder.build();
+            findResources(project, (Message) message, resources);
+        } catch(CompileExceptionError e) {
+            throw e;
+        } catch(Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -377,26 +332,19 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
-        Class<? extends GeneratedMessage> klass = extToMessageClass.get(ext);
-        if (klass != null) {
-            GeneratedMessage.Builder<?> builder;
-            try {
-                Method newBuilder = klass.getDeclaredMethod("newBuilder");
-                builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
-                final byte[] content = resource.output().getContent();
-                if(content == null) {
-                    throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
-                }
-                builder.mergeFrom(content);
-                Object message = builder.build();
-                buildResourceGraph(project, (Message) message, currentNode, visitedNodes);
-            } catch(CompileExceptionError e) {
-                throw e;
-            } catch(Exception e) {
-                throw new RuntimeException(e);
+        GeneratedMessage.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        try {
+            final byte[] content = resource.output().getContent();
+            if(content == null) {
+                throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
             }
-        } else {
-            throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
+            builder.mergeFrom(content);
+            Object message = builder.build();
+            buildResourceGraph(project, (Message) message, currentNode, visitedNodes);
+        } catch(CompileExceptionError e) {
+            throw e;
+        } catch(Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

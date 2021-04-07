@@ -1,0 +1,94 @@
+<project default="dist" name="fmt-spine">
+    <property environment="env"/>
+    <property name="bobclasses.dir" value="${env.DM_BOB_CLASS_DIR}"/>
+    <property name="ext.dir" value="${env.DM_BOB_EXT_LIB_DIR}"/>
+    <property name="src.dir" value="./src"/>
+    <property name="build.dir" value="./build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="generated.dir" value="${build.dir}/generated"/>
+    <property name="install.dir" value="${env.DYNAMO_HOME}/share/java"/>
+
+    <path id="classpath">
+        <fileset dir="${ext.dir}" includes="protobuf-java*.jar"/>
+        <fileset dir="${ext.dir}" includes="commons*.jar"/>
+        <fileset dir="${ext.dir}" includes="vecmath.jar"/>
+        <fileset dir="${ext.dir}" includes="jackson-core-asl-1.9.2.jar"/>
+        <fileset dir="${ext.dir}" includes="jackson-mapper-asl-1.9.2.jar"/>
+        <pathelement location="${bobclasses.dir}" />
+    </path>
+
+    <macrodef name="proto">
+        <attribute name="dir"/>
+        <attribute name="file"/>
+
+        <sequential>
+            <mkdir dir="${generated.dir}"/>
+            <exec executable="protoc" failonerror="true">
+                <arg value="--java_out=${generated.dir}"/>
+                <arg value="-I@{dir}"/>
+                <arg value="-I${env.DYNAMO_HOME}/ext/include"/>
+                <arg value="-I${env.DYNAMO_HOME}/../../engine/gameobject/proto" />
+                <arg value="-I${env.DYNAMO_HOME}/../../engine/script/src" />
+                <arg value="-I${env.DYNAMO_HOME}/../../engine/ddf/src"/>
+                <arg value="@{dir}/@{file}"/>
+            </exec>
+        </sequential>
+    </macrodef>
+
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+    </target>
+
+    <target name="compile" >
+        <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${generated.dir}"/>
+
+        <parallel threadCount="2">
+            <!-- These need to be available via the dmsdk -->
+            <proto dir="${env.DYNAMO_HOME}/../../engine/ddf/src" file="ddf/ddf_extensions.proto"/>
+            <proto dir="${env.DYNAMO_HOME}/../../engine/ddf/src" file="ddf/ddf_math.proto"/>
+            <proto dir="${env.DYNAMO_HOME}/../../engine/script/src" file="script/ddf_script.proto"/>
+
+            <!-- This needs to be moved into this plugin -->
+            <proto dir="${env.DYNAMO_HOME}/../../engine/gamesys/proto/" file="spine_ddf.proto"/>
+
+        </parallel>
+
+        <javac srcdir="${generated.dir}"
+               destdir="${classes.dir}"
+               includeantruntime="false"
+               encoding="UTF-8">
+            <classpath>
+                <path refid="classpath"/>
+            </classpath>
+            <compilerarg value="-g"/>
+        </javac>
+
+        <javac srcdir="${src.dir}"
+               destdir="${classes.dir}"
+               includeantruntime="false"
+               debug="true"
+               encoding="UTF-8">
+            <include name="com/**"/>
+            <classpath>
+                <path refid="classpath"/>
+            </classpath>
+            <compilerarg value="-g"/>
+        </javac>
+    </target>
+
+    <target name="dist" depends="compile">
+        <jar destfile="${build.dir}/fmt-spine.jar">
+            <fileset dir="${classes.dir}"/>
+
+            <manifest>
+                <!-- <attribute name="Main-Class" value="com.dynamo.bob.Bob"/> -->
+            </manifest>
+        </jar>
+    </target>
+
+    <target name="install" depends="dist">
+        <copy file="${build.dir}/fmt-spine.jar" todir="${install.dir}"/>
+    </target>
+
+</project>
