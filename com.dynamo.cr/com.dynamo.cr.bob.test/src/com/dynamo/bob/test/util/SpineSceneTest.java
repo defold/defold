@@ -83,16 +83,9 @@ public class SpineSceneTest {
 
     private Class<?> getClass(String className) {
         try {
-            Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
-
-            System.out.printf("Found class '%s':\n", klass.getName());
-            Method[] methods = klass.getDeclaredMethods();
-            for(int i = 0; i < methods.length; i++) {
-                System.out.printf("The method is: '%s'\n", methods[i].toString());
-            }
-            return klass;
-
+            return Class.forName(className, true, scanner.getClassLoader());
         } catch(ClassNotFoundException e) {
+            System.err.printf("Class not found '%s':\n", className);
             return null;
         }
     }
