@@ -1170,7 +1170,7 @@ namespace dmSound
                         instance->m_Loopcounter --;
                     }
 
-                    uint32_t n = sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount;
+                    uint32_t n = ceilf(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount);
                     if (!is_muted)
                     {
                         r = dmSoundCodec::Decode(sound->m_CodecContext,
