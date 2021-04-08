@@ -1136,7 +1136,8 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             2.0f,
-            1), // loop once
+            0       // loopcount. Increase it to stress the mix algorithm when testing by listening.
+    ), 
     TestParams("default",
             MONO_TONE_440_32000_64000_WAV,
             MONO_TONE_440_32000_64000_WAV_SIZE,
@@ -1147,7 +1148,8 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             2.0f,
-            1),
+            0
+    ),
     TestParams("default",
             STEREO_TONE_440_32000_64000_WAV,
             STEREO_TONE_440_32000_64000_WAV_SIZE,
@@ -1158,7 +1160,8 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             2.0f,
-            1),
+            0
+    ),
     TestParams("default",
             MONO_TONE_440_44100_88200_WAV,
             MONO_TONE_440_44100_88200_WAV_SIZE,
@@ -1169,7 +1172,8 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             0.5f,
-            1),
+            0
+    ),
     TestParams("default",
             STEREO_TONE_440_32000_64000_WAV,
             STEREO_TONE_440_32000_64000_WAV_SIZE,
@@ -1180,7 +1184,8 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             0.5f,
-            1),
+            0
+    ),
     TestParams("default",
             MONO_TONE_440_44100_88200_WAV,
             MONO_TONE_440_44100_88200_WAV_SIZE,
@@ -1191,7 +1196,8 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             2.159f,     // float speed - this would result in crackling sounds in #5613
-            5),        // loop 10 times
+            5           // loop 5 times
+    ),        
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 #endif
