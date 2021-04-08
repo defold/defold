@@ -843,8 +843,9 @@ class Configuration(object):
                 shsuffix = {'x86_64-darwin': '.dylib', 'x86_64-linux': '.so', 'x86_64-win32': '.dll'}
                 dlib_shared = os.path.join(self.dynamo_home, 'lib/%s/libdlib_shared%s' % (platform, shsuffix[platform]))
                 dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
+                protobuf_egg = os.path.join(self.dynamo_home, 'ext/lib/python/protobuf-2.3.0-py2.5.egg')
 
-                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, dlib_shared, dlib_init], self.dynamo_home, topfolder)
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, dlib_shared, dlib_init, protobuf_egg], self.dynamo_home, topfolder)
 
             # For logging, print all paths in zip:
             for x in zip.namelist():
