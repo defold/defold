@@ -1191,7 +1191,7 @@ const TestParams params_test_play_speed_test[] = {
             2048,
             0.0f,
             2.159f,     // float speed - this would result in crackling sounds in #5613
-            10),        // loop 10 times
+            5),        // loop 10 times
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 #endif
