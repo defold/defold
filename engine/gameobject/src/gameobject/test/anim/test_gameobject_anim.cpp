@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,8 @@
 #include <dlib/easing.h>
 #include <dlib/time.h>
 
-#include "../gameobject.h"
-#include "../gameobject_private.h"
+#include "../../gameobject.h"
+#include "../../gameobject_private.h"
 
 using namespace Vectormath::Aos;
 
@@ -39,8 +39,21 @@ protected:
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
+
+        m_Contexts.SetCapacity(7,16);
+        m_Contexts.Put(dmHashString64("goc"), m_Register);
+        m_Contexts.Put(dmHashString64("collectionc"), m_Register);
+        m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
+        m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
+        dmResource::RegisterTypes(m_Factory, &m_Contexts);
+
+        dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+        component_create_ctx.m_Script = m_ScriptContext;
+        component_create_ctx.m_Register = m_Register;
+        component_create_ctx.m_Factory = m_Factory;
+        dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+        dmGameObject::SortComponentTypes(m_Register);
+
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
         m_FinishCount = 0;
         m_CancelCount = 0;
@@ -63,6 +76,7 @@ public:
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
+    dmHashTable64<void*> m_Contexts;
     uint32_t m_FinishCount;
     uint32_t m_CancelCount;
 };

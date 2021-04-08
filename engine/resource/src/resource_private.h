@@ -90,6 +90,16 @@ namespace dmResource
         HPreloader m_Preloader;
         int32_t m_Parent;
     };
+
+    struct TypeCreatorDesc
+    {
+        const char* m_Name;
+        FResourceTypeRegister m_RegisterFn;
+        FResourceTypeRegister m_DeregisterFn;
+        TypeCreatorDesc* m_Next;
+    };
+
+    const TypeCreatorDesc* GetFirstTypeCreatorDesc();
 }
 
 #endif

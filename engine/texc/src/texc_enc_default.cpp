@@ -39,6 +39,13 @@ namespace dmTexc
             uint32_t size = GetDataSize(pixel_format, mip_level->m_Width, mip_level->m_Height);
             uint8_t* packed_data = new uint8_t[size];
 
+            if (pixel_format == PF_R4G4B4A4) {
+                DitherRGBA4444(mip_level->m_Data, mip_level->m_Width, mip_level->m_Height);
+            }
+            else if(pixel_format == PF_R5G6B5) {
+                DitherRGBx565(mip_level->m_Data, mip_level->m_Width, mip_level->m_Height);
+            }
+
             ConvertRGBA8888ToPf(mip_level->m_Data, mip_level->m_Width, mip_level->m_Height, pixel_format, packed_data);
 
             uint8_t* old_data = mip_level->m_Data;

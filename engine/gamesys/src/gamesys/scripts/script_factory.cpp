@@ -22,6 +22,7 @@
 #include "gamesys_ddf.h"
 #include "../gamesys_private.h"
 #include "../components/comp_factory.h"
+#include "resources/res_factory.h"
 
 #include "script_factory.h"
 

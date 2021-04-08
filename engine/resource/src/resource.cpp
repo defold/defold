@@ -662,6 +662,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     return factory;
 }
 
+static void ResourceIteratorCallback(void*, const dmhash_t* id, SResourceDescriptor* resource)
+{
+    dmLogError("Resource: %s  ref count: %u", dmHashReverseSafe64(*id), resource->m_ReferenceCount);
+}
+
 void DeleteFactory(HFactory factory)
 {
     if (factory->m_Socket)
@@ -695,6 +700,12 @@ void DeleteFactory(HFactory factory)
     }
 
     ReleaseBuiltinsManifest(factory);
+
+    if (!factory->m_Resources->Empty())
+    {
+        dmLogError("Leaked resources:");
+        factory->m_Resources->Iterate<>(&ResourceIteratorCallback, (void*)0);
+    }
 
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
@@ -1786,6 +1797,111 @@ const char* ResultToString(Result r)
     }
     #undef DM_RESOURCE_RESULT_TO_STRING_CASE
     return "RESULT_UNDEFINED";
+}
+
+
+dmhash_t GetNameHash(HResourceDescriptor desc)
+{
+    return desc->m_NameHash;
+}
+
+void* GetResource(HResourceDescriptor desc)
+{
+    return desc->m_Resource;
+}
+
+void* GetPreviousResource(HResourceDescriptor desc)
+{
+    return desc->m_PrevResource;
+}
+
+void SetResource(HResourceDescriptor desc, void* resource)
+{
+    desc->m_Resource = resource;
+}
+
+void SetResourceSize(HResourceDescriptor desc, uint32_t size)
+{
+    desc->m_ResourceSize = size;
+}
+
+
+TypeCreatorDesc* g_ResourceTypeCreatorDescFirst = 0;
+
+void RegisterTypeCreatorDesc(struct TypeCreatorDesc* desc,
+                            uint32_t desc_size,
+                            const char *name,
+                            FResourceTypeRegister register_fn,
+                            FResourceTypeRegister deregister_fn)
+{
+    DM_STATIC_ASSERT(dmResource::s_ResourceTypeCreatorDescBufferSize >= sizeof(struct TypeCreatorDesc), Invalid_Struct_Size);
+    desc->m_Name = name;
+    desc->m_RegisterFn = register_fn;
+    desc->m_DeregisterFn = deregister_fn;
+    desc->m_Next = g_ResourceTypeCreatorDescFirst;
+    g_ResourceTypeCreatorDescFirst = desc;
+}
+
+const TypeCreatorDesc* GetFirstTypeCreatorDesc()
+{
+    return g_ResourceTypeCreatorDescFirst;
+}
+
+
+// add already registered types
+Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
+{
+    const TypeCreatorDesc* desc = GetFirstTypeCreatorDesc();
+    while (desc)
+    {
+        if (contexts->Full()) {
+            uint32_t capacity = contexts->Capacity() + 8;
+            contexts->SetCapacity(capacity/2, capacity);
+        }
+
+        ResourceTypeRegisterContext ctx;
+        ctx.m_Factory = factory;
+        ctx.m_Contexts = contexts;
+        ctx.m_Name = desc->m_Name;
+        ctx.m_NameHash = dmHashString64(desc->m_Name);
+        Result result = desc->m_RegisterFn(ctx);
+        if (result != RESULT_OK)
+        {
+            dmLogError("Failed to register type '%s': %s", desc->m_Name, ResultToString(result));
+            return result;
+        }
+
+        dmLogDebug("Registered type '%s'", desc->m_Name);
+        desc = desc->m_Next;
+    }
+    return RESULT_OK;
+}
+
+Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
+{
+    const TypeCreatorDesc* desc = GetFirstTypeCreatorDesc();
+    while (desc)
+    {
+        if (desc->m_DeregisterFn)
+        {
+            ResourceTypeRegisterContext ctx;
+            ctx.m_Factory = factory;
+            ctx.m_Contexts = contexts;
+            ctx.m_Name = desc->m_Name;
+            ctx.m_NameHash = dmHashString64(desc->m_Name);
+
+            Result result = desc->m_DeregisterFn(ctx);
+            if (result != RESULT_OK)
+            {
+                dmLogError("Failed to deregister type '%s': %s", desc->m_Name, ResultToString(result));
+                return result;
+            }
+            dmLogDebug("Deregistered type '%s'", desc->m_Name);
+        }
+
+        desc = desc->m_Next;
+    }
+    return RESULT_OK;
 }
 
 }
