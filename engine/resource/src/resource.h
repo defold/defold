@@ -13,9 +13,11 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
 
+#include <dmsdk/resource/resource.h>
 #include <ddf/ddf.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <dlib/mutex.h>
 #include "liveupdate_ddf.h"
 #include "resource_archive.h"
@@ -57,44 +59,6 @@ namespace dmResource
      */
     #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE    (1 << 3)
 
-    /**
-     * Result
-     */
-    enum Result
-    {
-        RESULT_OK                        = 0,    //!< RESULT_OK
-        RESULT_INVALID_DATA              = -1,   //!< RESULT_INVALID_DATA
-        RESULT_DDF_ERROR                 = -2,   //!< RESULT_DDF_ERROR
-        RESULT_RESOURCE_NOT_FOUND        = -3,   //!< RESULT_RESOURCE_NOT_FOUND
-        RESULT_MISSING_FILE_EXTENSION    = -4,   //!< RESULT_MISSING_FILE_EXTENSION
-        RESULT_ALREADY_REGISTERED        = -5,   //!< RESULT_ALREADY_REGISTERED
-        RESULT_INVAL                     = -6,   //!< RESULT_INVAL
-        RESULT_UNKNOWN_RESOURCE_TYPE     = -7,   //!< RESULT_UNKNOWN_RESOURCE_TYPE
-        RESULT_OUT_OF_MEMORY             = -8,   //!< RESULT_OUT_OF_MEMORY
-        RESULT_IO_ERROR                  = -9,   //!< RESULT_IO_ERROR
-        RESULT_NOT_LOADED                = -10,  //!< RESULT_NOT_LOADED
-        RESULT_OUT_OF_RESOURCES          = -11,  //!< RESULT_OUT_OF_RESOURCES
-        RESULT_STREAMBUFFER_TOO_SMALL    = -12,  //!< RESULT_STREAMBUFFER_TOO_SMALL
-        RESULT_FORMAT_ERROR              = -13,  //!< RESULT_FORMAT_ERROR
-        RESULT_CONSTANT_ERROR            = -14,  //!< RESULT_CONSTANT_ERROR
-        RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
-        RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
-        RESULT_PENDING                   = -17,  //!< RESULT_PENDING
-        RESULT_INVALID_FILE_EXTENSION    = -18,  //!< RESULT_INVALID_FILE_EXTENSION
-        RESULT_VERSION_MISMATCH          = -19,  //!< RESULT_VERSION_MISMATCH
-        RESULT_SIGNATURE_MISMATCH        = -20,  //!< RESULT_SIGNATURE_MISMATCH
-        RESULT_UNKNOWN_ERROR             = -21,  //!< RESULT_UNKNOWN_ERROR
-    };
-
-    /**
-     * Resource kind
-     */
-    enum Kind
-    {
-        KIND_DDF_DATA,//!< KIND_DDF_DATA
-        KIND_POINTER, //!< KIND_POINTER
-    };
-
     struct Manifest
     {
         Manifest()
@@ -118,191 +82,20 @@ namespace dmResource
         /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
         void*    m_PrevResource;
 
-        /// Resource size in memory. The payload of m_Resource
+        /// Resource size in memory. I.e. the payload of m_Resource
         uint32_t m_ResourceSize;
 
-        /// Resource size on disc
+        // private members
         uint32_t m_ResourceSizeOnDisc;
-
-        /// For internal use only
-        void*    m_ResourceType;        // For internal use.
-
-        /// Reference count
+        void*    m_ResourceType;
         uint32_t m_ReferenceCount;
-
-        /// Resource kind
-        Kind     m_ResourceKind;
     };
-
-    /**
-     * Factory handle
-     */
-    typedef struct SResourceFactory* HFactory;
-
-    /**
-     * Preloader handle
-     */
-    typedef struct ResourcePreloader* HPreloader;
-    typedef struct PreloadHintInfo* HPreloadHintInfo;
 
     typedef uintptr_t ResourceType;
 
-    /**
-     * Parameters to ResourcePreload callback.
-     */
-    struct ResourcePreloadParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// Resource context
-        void* m_Context;
-        /// File name of the loaded file
-        const char* m_Filename;
-        /// Buffer containing the loaded file
-        const void* m_Buffer;
-        /// Size of data buffer
-        uint32_t m_BufferSize;
-        /// Hinter info. Use this when calling PreloadHint
-        HPreloadHintInfo m_HintInfo;
-        /// Writable user data that will be passed on to ResourceCreate function
-        void** m_PreloadData;
-    };
 
-    /**
-     * Resource preloading function. This may be called from a separate loading thread
-     * but will not keep any mutexes held while executing the call. During this call
-     * PreloadHint can be called with the supplied hint_info handle.
-     * If RESULT_OK is returned, the resource Create function is guaranteed to be called
-     * with the preload_data value supplied.
-     * @param param Resource preloading parameters
-     * @return RESULT_OK on success
-     */
-    typedef Result (*FResourcePreload)(const ResourcePreloadParams& params);
-
-    /**
-     * Parameters to ResourceCreate callback.
-     */
-    struct ResourceCreateParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// Resource context
-        void* m_Context;
-        /// File name of the loaded file
-        const char* m_Filename;
-        /// Buffer containing the loaded file
-        const void* m_Buffer;
-        /// Size of the data buffer
-        uint32_t m_BufferSize;
-        /// Preloaded data from Preload phase
-        void* m_PreloadData;
-        /// Resource descriptor to fill in
-        SResourceDescriptor* m_Resource;
-    };
-
-    /**
-     * Resource create function
-     * @param params Resource creation arguments
-     * @return CREATE_RESULT_OK on success
-     */
-    typedef Result (*FResourceCreate)(const ResourceCreateParams& params);
-
-    /**
-     * Parameters to ResourcePostCreate callback.
-     */
-    struct ResourcePostCreateParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// Resource context
-        void* m_Context;
-        /// Preloaded data from Preload phase
-        void* m_PreloadData;
-        /// Resource descriptor passed from create function
-        SResourceDescriptor* m_Resource;
-    };
-
-    /**
-     * Resource postcreate function
-     * @param params Resource postcreation arguments
-     * @return CREATE_RESULT_OK on success or CREATE_RESULT_PENDING when pending
-     * @note returning CREATE_RESULT_PENDING will result in a repeated callback the following update.
-     */
-    typedef Result (*FResourcePostCreate)(const ResourcePostCreateParams& params);
-
-    /**
-     * Parameters to ResourceDestroy callback.
-     */
-    struct ResourceDestroyParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// Resource context
-        void* m_Context;
-        /// Resource descriptor for resource to destroy
-        SResourceDescriptor* m_Resource;
-    };
-
-    /**
-     * Resource destroy function
-     * @param params Resource destruction arguments
-     * @return CREATE_RESULT_OK on success
-     */
-    typedef Result (*FResourceDestroy)(const ResourceDestroyParams& params);
-
-    /**
-     * Parameters to ResourceRecreate callback.
-     */
-    struct ResourceRecreateParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// Resource context
-        void* m_Context;
-        /// File name hash of the data
-        uint64_t m_NameHash;
-        /// File name of the loaded file
-        const char* m_Filename;
-        /// Data buffer containing the loaded file
-        const void* m_Buffer;
-        /// Size of data buffer
-        uint32_t m_BufferSize;
-        /// Pointer holding a precreated message
-        const void* m_Message;
-        /// Resource descriptor to write into
-        SResourceDescriptor* m_Resource;
-    };
-
-    /**
-     * Resource recreate function. Recreate resource in-place.
-     * @params params Parameters for resource creation
-     * @return CREATE_RESULT_OK on success
-     */
-    typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
-
-    /**
-     * Parameters to ResourceReloaded callback.
-     */
-    struct ResourceReloadedParams
-    {
-        /// User data supplied when the callback was registered
-        void* m_UserData;
-        /// Descriptor of the reloaded resource
-        SResourceDescriptor* m_Resource;
-        /// Name of the resource, same as provided to Get() when the resource was obtained
-        const char* m_Name;
-        /// Hashed name of the resource
-        uint64_t m_NameHash;
-    };
-
-    /**
-     * Function called when a resource has been reloaded.
-     * @param params Parameters
-     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
-     * @see RegisterResourceReloadedCallback
-     * @see Get
-     */
-    typedef void (*ResourceReloadedCallback)(const ResourceReloadedParams& params);
+    Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
+    Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
 
     /**
      * Parameters to PreloaderCompleteCallback.
@@ -385,27 +178,6 @@ namespace dmResource
      * @param factory Factory handle
      */
     void UpdateFactory(HFactory factory);
-
-    /**
-     * Register a resource type
-     * @param factory Factory handle
-     * @param extension File extension for resource
-     * @param context User context
-     * @param preload_function Preload function. Optional, 0 if no preloading is used
-     * @param create_function Create function pointer
-     * @param post_create_function Post create function pointer
-     * @param destroy_function Destroy function pointer
-     * @param recreate_function Recreate function pointer. Optional, 0 if recreate is not supported.
-     * @return RESULT_OK on success
-     */
-    Result RegisterType(HFactory factory,
-                               const char* extension,
-                               void* context,
-                               FResourcePreload preload_function,
-                               FResourceCreate create_function,
-                               FResourcePostCreate post_create_function,
-                               FResourceDestroy destroy_function,
-                               FResourceRecreate recreate_function);
 
     /**
      * Get a resource from factory
@@ -523,26 +295,6 @@ namespace dmResource
      * @param resource Resource
      */
     void Release(HFactory factory, void* resource);
-
-    /**
-     * Register a callback function that will be called with the specified user data when a resource has been reloaded.
-     * The callbacks will not necessarily be called in the order they were registered.
-     * This has only effect when reloading is supported.
-     * @param factory Handle of the factory to which the callback will be registered
-     * @param callback Callback function to register
-     * @param user_data User data that will be supplied to the callback when it is called
-     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
-     */
-    void RegisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data);
-
-    /**
-     * Remove a registered callback function, O(n).
-     * @param factory Handle of the factory from which the callback will be removed
-     * @param callback Callback function to remove
-     * @param user_data User data that was supplied when the callback was registered
-     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
-     */
-    void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data);
 
     /**
      * Create a new preloader
