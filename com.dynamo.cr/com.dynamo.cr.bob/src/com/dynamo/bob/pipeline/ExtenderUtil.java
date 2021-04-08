@@ -504,6 +504,8 @@ public class ExtenderUtil {
             sources.add( new FSExtenderResource( resource ) );
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
+            sources.addAll( listFilesRecursive( project, extension + "/commonsrc/") );
+            sources.addAll( listFilesRecursive( project, extension + "/pluginsrc/") );
 
             // Get "lib" and "manifest" folders; branches of into sub folders such as "common" and platform specifics
             for (String platformAlt : platformFolderAlternatives) {
