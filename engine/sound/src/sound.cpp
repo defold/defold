@@ -1139,11 +1139,12 @@ namespace dmSound
         bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
+        uint32_t mixed_instance_FrameCount = ceilf(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
 
-        if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
+        if (instance->m_FrameCount < mixed_instance_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
-            uint32_t n = ceilf(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount); // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
+            uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
             if (!is_muted)
             {
@@ -1162,7 +1163,7 @@ namespace dmSound
             assert(decoded % stride == 0);
             instance->m_FrameCount += decoded / stride;
 
-            if (instance->m_FrameCount < sound->m_FrameCount) {
+            if (instance->m_FrameCount < mixed_instance_FrameCount) {
 
                 if (instance->m_Looping && instance->m_Loopcounter != 0) {
                     dmSoundCodec::Reset(sound->m_CodecContext, instance->m_Decoder);
@@ -1170,7 +1171,7 @@ namespace dmSound
                         instance->m_Loopcounter --;
                     }
 
-                    uint32_t n = ceilf(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount);
+                    uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount;
                     if (!is_muted)
                     {
                         r = dmSoundCodec::Decode(sound->m_CodecContext,
