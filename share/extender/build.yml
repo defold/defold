@@ -69,6 +69,19 @@ main: |
 
 
 platforms:
+
+  common:
+    env:
+      PYTHONPATH:    '{{env.DYNAMO_HOME}}/lib/python'
+    context:
+      protoIncludes: ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
+
+    # Generates the ddf format files for use in the engine
+    protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
+    # Generates the language specific (cpp, jaba and python) format bindings for use in the pipeline plugins
+    protoPipelineCmd:       '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --{{language}}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
+    protoPipelineOutputRe:  '*.pb.h|*.pb.cc|*_pb2.py'
+
   x86_64-osx:
     env:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
