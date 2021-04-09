@@ -615,7 +615,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-30-30.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
@@ -1012,17 +1012,33 @@ class Configuration(object):
     def build_bob_light(self):
         self._log('Building bob light')
 
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+
+        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
+        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
 
         env = self._form_env()
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
+        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
-        run.command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light'] + ant_args),
+        run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
+
+        self._log('Building extensions')
+        extension_dir = join(self.defold_root, 'com.dynamo.cr/extensions')
+        for d in os.listdir(extension_dir):
+            cwd = os.path.join(extension_dir, d)
+            if os.path.isdir(cwd):
+                self._log('Building %s' % d)
+                run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
+
+        run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
     def build_engine(self):
         self.check_sdk()
@@ -1183,11 +1199,17 @@ class Configuration(object):
 
     def build_bob(self):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+
+
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
         else:
             self.copy_local_bob_artefacts()
+
 
         env = self._form_env()
 
@@ -1195,9 +1217,22 @@ class Configuration(object):
         ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        args = [ant, 'clean', 'install'] + ant_args
-        run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+        env = self._form_env()
+        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
+        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
+
+        run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
+
+        self._log('Building extensions')
+        extension_dir = join(self.defold_root, 'com.dynamo.cr/extensions')
+        for d in os.listdir(extension_dir):
+            cwd = os.path.join(extension_dir, d)
+            if os.path.isdir(cwd):
+                self._log('Building %s' % d)
+                run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
+
+        run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
         if not self.skip_tests:
             cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')

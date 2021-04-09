@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,6 +12,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -20,12 +21,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.lang.reflect.Method;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
@@ -39,7 +42,6 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.LoadException;
 import com.dynamo.bob.util.RigUtil.UVTransformProvider;
-import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
@@ -52,10 +54,11 @@ import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.TextFormat;
 
 
-@ProtoParams(messageClass = SceneDesc.class)
+@ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
@@ -86,7 +89,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 taskBuilder.addInput(this.project.getResource(f.getSpineScene()));
             }
         }
-        
+
         List<String> particlefxSceneList = new ArrayList<>();
         for (ParticleFXDesc p : builder.getParticlefxsList()) {
             if (!p.getParticlefx().isEmpty() && particlefxSceneList.contains(p.getParticlefx())) {
@@ -375,7 +378,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 spineSceneNames.add(f.getName());
                 newSpineSceneList.add(SpineSceneDesc.newBuilder().mergeFrom(f).setSpineScene(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".rigscenec")).build());
             }
-            
+
             for (ParticleFXDesc f : sceneBuilder.getParticlefxsList()) {
                 if (particlefxNames.contains(f.getName())) {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_PARTICLEFX,
@@ -573,55 +576,76 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     }
 
                     // Need to parse the spine JSON
-                    com.dynamo.spine.proto.Spine.SpineSceneDesc.Builder spineSceneBuilder = com.dynamo.spine.proto.Spine.SpineSceneDesc.newBuilder();
+                    GeneratedMessage.Builder<?> spineSceneBuilder = ProtoBuilder.newBuilder(".spinescene");
                     IResource spineSceneRes = builder.project.getResource(spineScenePath);
                     TextFormat.merge(new InputStreamReader(new ByteArrayInputStream(spineSceneRes.getContent()), "ASCII"), spineSceneBuilder);
 
-                    IResource jsonRes = builder.project.getResource(spineSceneBuilder.getSpineJson());
+                    // since we are using a plugin system for this particular class
+                    // we need to use reflection to get spineSceneBuilder.getSpineJson()
+                    String spineJson;
                     try {
-                        SpineSceneUtil rigScene = SpineSceneUtil.loadJson(new ByteArrayInputStream(jsonRes.getContent()), new UVTransformProvider() {
-                            @Override
-                            public UVTransform getUVTransform(String animId) {
-                                return new UVTransform();
-                            }
-                        });
-
-                        Vector4 oneV4 = Vector4.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).setW(0.0f).build();
-                        Vector4 zeroV4 = Vector4.newBuilder().setX(0.0f).setY(0.0f).setZ(0.0f).setW(0.0f).build();
-
-                        HashMap<RigUtil.Bone,String> boneToId = new HashMap<RigUtil.Bone, String>();
-                        for (int b = 0; b < rigScene.bones.size(); b++) {
-                            RigUtil.Bone bone = rigScene.bones.get(b);
-                            NodeDesc.Builder boneNodeBuilder = NodeDesc.newBuilder();
-
-                            String id = spineNodeId + "/" + bone.name;
-                            boneToId.put(bone, id);
-
-                            boneNodeBuilder.setId(id);
-                            boneNodeBuilder.setSpineNodeChild(true);
-                            boneNodeBuilder.setSize(zeroV4);
-                            boneNodeBuilder.setPosition(zeroV4);
-                            boneNodeBuilder.setType(Type.TYPE_BOX);
-                            boneNodeBuilder.setAdjustMode(node.getAdjustMode());
-                            boneNodeBuilder.setScale(oneV4);
-
-                            String parentId = boneToId.get(bone.parent);
-                            if (b == 0) {
-                                parentId = spineNodeId;
-                            }
-                            boneNodeBuilder.setParent(parentId);
-
-                            NodeDesc boneNode = boneNodeBuilder.build();
-                            newScene.get("").add(boneNode);
-                            for(LayoutDesc layout : sceneBuilder.getLayoutsList()) {
-                                newScene.get(layout.getName()).add(boneNode);
-                            }
-                        }
-
-                    } catch (SpineSceneUtil.LoadException e) {
-                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Error while loading spine scene when building GUI: " + e.getLocalizedMessage());
+                        Method getSpineJson = spineSceneBuilder.getClass().getDeclaredMethod("getSpineJson");
+                        spineJson = (String) getSpineJson.invoke(spineSceneBuilder);
+                    } catch (NoSuchMethodException e) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "No method SpineSceneDesc.Builder.getSpineJson() found!", e);
+                    } catch (Exception e) {
+                        e.printStackTrace(System.out);
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Failed to get the spine json data", e);
                     }
 
+                    IResource jsonRes = builder.project.getResource(spineJson);
+
+                    Class<?> spineSceneUtilClass = Bob.getClass("com.dynamo.bob.pipeline.SpineSceneUtil");
+                    if (spineSceneUtilClass == null) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Failed to find SpineSceneUtil class!");
+                    }
+                    Class<?> loadExceptionClass = Bob.getClass("com.dynamo.bob.pipeline.SpineSceneUtil$LoadException");
+                    if (loadExceptionClass == null) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Failed to find SpineSceneUtil.LoadException class!");
+                    }
+
+                    List<RigUtil.Bone> bones;
+                    try {
+                        Method getBones = spineSceneUtilClass.getDeclaredMethod("getBones", InputStream.class);
+                        bones = (List<RigUtil.Bone>) getBones.invoke(null, new ByteArrayInputStream(jsonRes.getContent()));
+                    } catch(Exception e) {
+                        if (loadExceptionClass.isInstance(e)) {
+                            throw new CompileExceptionError(builder.project.getResource(input), 0, "Error while loading spine scene when building GUI: " + e.getLocalizedMessage());
+                        }
+                        throw new RuntimeException(e);
+                    }
+
+                    Vector4 oneV4 = Vector4.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).setW(0.0f).build();
+                    Vector4 zeroV4 = Vector4.newBuilder().setX(0.0f).setY(0.0f).setZ(0.0f).setW(0.0f).build();
+
+                    HashMap<RigUtil.Bone,String> boneToId = new HashMap<RigUtil.Bone, String>();
+                    for (int b = 0; b < bones.size(); b++) {
+                        RigUtil.Bone bone = bones.get(b);
+                        NodeDesc.Builder boneNodeBuilder = NodeDesc.newBuilder();
+
+                        String id = spineNodeId + "/" + bone.name;
+                        boneToId.put(bone, id);
+
+                        boneNodeBuilder.setId(id);
+                        boneNodeBuilder.setSpineNodeChild(true);
+                        boneNodeBuilder.setSize(zeroV4);
+                        boneNodeBuilder.setPosition(zeroV4);
+                        boneNodeBuilder.setType(Type.TYPE_BOX);
+                        boneNodeBuilder.setAdjustMode(node.getAdjustMode());
+                        boneNodeBuilder.setScale(oneV4);
+
+                        String parentId = boneToId.get(bone.parent);
+                        if (b == 0) {
+                            parentId = spineNodeId;
+                        }
+                        boneNodeBuilder.setParent(parentId);
+
+                        NodeDesc boneNode = boneNodeBuilder.build();
+                        newScene.get("").add(boneNode);
+                        for(LayoutDesc layout : sceneBuilder.getLayoutsList()) {
+                            newScene.get(layout.getName()).add(boneNode);
+                        }
+                    }
                 }
             }
         }
@@ -650,7 +674,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         sceneBuilder.clearSpineScenes();
         sceneBuilder.addAllSpineScenes(newSpineSceneList);
-        
+
         sceneBuilder.clearParticlefxs();
         sceneBuilder.addAllParticlefxs(newParticleFXList);
 
