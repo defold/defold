@@ -252,7 +252,7 @@ namespace dmBuffer
      * @param stream [type:void**] Where to store the stream
      * @param count [type:uint32_t*] Where to store the count (e.g. vertex count). May be null.
      * @param components [type:uint32_t*] Where to store the number of components (e.g. 3 for a Vector3). May be null.
-     * @param stride [type:uint32_t*] Where to store the stride. The stride can be added to the value pointer. May be null.
+     * @param stride [type:uint32_t*] Where to store the (struct) stride. The stride can be added to the value pointer. May be null.
                     E.g. for a float array, the stride is (sizeof(Struct) / sizeof(float))
      * @return result [type:dmBuffer::Result] BUFFER_OK if the stream was successfully accessed
      * @examples
@@ -375,6 +375,24 @@ namespace dmBuffer
      * @return result [type:const char*] The value type as a string
     */
     const char* GetValueTypeString(ValueType value);
+
+    /*# Gets the current update number
+     *
+     * @name dmBuffer::GetContentVersion
+     * @param type [type:dmBuffer::HBuffer] The value type
+     * @param version [type:uint32_t*] The current version number
+     * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
+     */
+    Result GetContentVersion(HBuffer hbuffer, uint32_t* version);
+
+    /*# Update the internal frame counter.
+     * Used to know if a buffer has been updated.
+     *
+     * @name dmBuffer::UpdateContentVersion
+     * @param type [type:dmBuffer::HBuffer] The value type
+     * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
+     */
+    Result UpdateContentVersion(HBuffer hbuffer);
 }
 
 #endif // DMSDK_BUFFER_H

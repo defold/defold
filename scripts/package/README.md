@@ -90,12 +90,12 @@ Run the script
 
 	./scripts/package/package_xcode_and_sdks.sh
 
-and it will output files in `new_packages`:
+and it will output files in `local_sdks`:
 
-	./new_packages/MacOSX10.14.sdk.tar.gz
-	./new_packages/XcodeDefault10.2.1.xctoolchain.tar.gz
-	./new_packages/iPhoneOS12.2.sdk.tar.gz
-	./new_packages/iPhoneSimulator12.2.sdk.tar.gz
+	./local_sdks/MacOSX10.14.sdk.tar.gz
+	./local_sdks/XcodeDefault10.2.1.xctoolchain.tar.gz
+	./local_sdks/iPhoneOS12.2.sdk.tar.gz
+	./local_sdks/iPhoneSimulator12.2.sdk.tar.gz
 
 ## Windows
 

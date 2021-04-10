@@ -501,11 +501,11 @@ public class IOSBundler implements IBundler {
             // Sign any .dylib files in the Frameworks folder
             if (frameworksDir.exists()) {
                 logger.log(Level.INFO, "Signing ./Frameworks folder");
-                for (File file : frameworksDir.listFiles(File::isFile)) {
+                for (File file : frameworksDir.listFiles()) {
 
                     BundleHelper.throwIfCanceled(canceled);
 
-                    if (!file.getName().endsWith(".dylib"))
+                    if (!file.getName().endsWith(".dylib") && !file.getName().endsWith(".framework"))
                         continue;
 
                     ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());

@@ -374,7 +374,6 @@ dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams& par
     if (e == dmDDF::RESULT_OK)
     {
         params.m_Resource->m_Resource = (void*) resource_foo;
-        params.m_Resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
         return dmResource::RESULT_OK;
     }
     else
@@ -865,7 +864,6 @@ dmResource::Result RecreateResourceCreate(const dmResource::ResourceCreateParams
         tmp[params.m_BufferSize] = '\0';
         int* recreate_resource = new int(atoi(tmp));
         params.m_Resource->m_Resource = (void*) recreate_resource;
-        params.m_Resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
         return dmResource::RESULT_OK;
     } else {
         return dmResource::RESULT_OUT_OF_MEMORY;
@@ -1240,6 +1238,68 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
     dmResource::Release(factory, resource);
+    dmResource::DeleteFactory(factory);
+}
+
+
+
+static dmResource::Result RegisterResourceTypeCustom(dmResource::ResourceTypeRegisterContext& ctx)
+{
+    int* context = new int;
+    *context = 1;
+    ctx.m_Contexts->Put(ctx.m_NameHash, context);
+    ctx.m_Contexts->Put(dmHashString64("register_called"), 0);
+
+    // we're not actually invoking them, they just need to be non null
+    dmResource::FResourceCreate create_fn = (dmResource::FResourceCreate)1;
+    dmResource::FResourceDestroy destroy_fn = (dmResource::FResourceDestroy)1;
+    return dmResource::RegisterType(ctx.m_Factory,
+                                    ctx.m_Name,
+                                    context,
+                                    0,
+                                    create_fn,
+                                    0,
+                                    destroy_fn,
+                                    0);
+}
+
+static dmResource::Result DeregisterResourceTypeCustom(dmResource::ResourceTypeRegisterContext& ctx)
+{
+    int** context = (int**)ctx.m_Contexts->Get(ctx.m_NameHash);
+    delete *context;
+    ctx.m_Contexts->Erase(ctx.m_NameHash);
+    ctx.m_Contexts->Put(dmHashString64("deregister_called"), 0);
+    return dmResource::RESULT_OK;
+}
+
+TEST(ResourceExtension, CustomType)
+{
+    uint8_t DM_ALIGNED(16) desc[dmResource::s_ResourceTypeCreatorDescBufferSize];
+
+    dmResource::RegisterTypeCreatorDesc((struct dmResource::TypeCreatorDesc*)desc, sizeof(desc),
+                                        "custom", RegisterResourceTypeCustom, DeregisterResourceTypeCustom);
+
+    dmResource::Result e;
+    dmResource::NewFactoryParams params;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
+
+    dmResource::ResourceType type;
+    e = dmResource::GetTypeFromExtension(factory, "custom", &type);
+    ASSERT_EQ(dmResource::RESULT_UNKNOWN_RESOURCE_TYPE, e);
+
+    dmHashTable64<void*> contexts;
+    contexts.SetCapacity(7, 14);
+
+    dmResource::RegisterTypes(factory, &contexts);
+    ASSERT_EQ(2u, contexts.Size());
+
+    dmResource::DeregisterTypes(factory, &contexts);
+    ASSERT_EQ(2u, contexts.Size());
+
+
+    void** context = (void**)contexts.Get(dmHashString64("deregister_called"));
+    ASSERT_NE(0u, (uintptr_t)context);
+
     dmResource::DeleteFactory(factory);
 }
 

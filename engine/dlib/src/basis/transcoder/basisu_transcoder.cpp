@@ -30,8 +30,10 @@
 	#ifdef __EMSCRIPTEN__
 		// Can't use unaligned loads/stores with WebAssembly.
 		#define BASISD_USE_UNALIGNED_WORD_READS (0)
-	#else
+	#elif defined(_M_AMD64) || defined(_M_IX86) || defined(__i386__) || defined(__x86_64__)
 		#define BASISD_USE_UNALIGNED_WORD_READS (1)
+	#else
+		#define BASISD_USE_UNALIGNED_WORD_READS (0)
 	#endif
 #endif
 

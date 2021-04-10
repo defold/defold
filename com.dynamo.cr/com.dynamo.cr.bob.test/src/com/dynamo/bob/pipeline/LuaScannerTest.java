@@ -73,6 +73,7 @@ public class LuaScannerTest {
         assertEquals("foo11", modules.get(20));
         assertEquals("foo12", modules.get(21));
         assertEquals("foo13", modules.get(22));
+        assertTrue(modules.size() == 23);
 
         // test require detection with a trailing comment
         assertValidRequire("require \"foo.bar\" -- some comment", "foo.bar");

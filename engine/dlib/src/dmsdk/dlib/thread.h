@@ -88,7 +88,7 @@ namespace dmThread
      *     Context ctx;
      *     ctx.m_DoWork = true;
      *     ctx.m_Work = 0;
-     *     dmThread::HThread thread = dmThread::New(dmLogThread, 0x80000, (void*)&ctx, "my_thread");
+     *     dmThread::Thread thread = dmThread::New(Worker, 0x80000, (void*)&ctx, "my_thread");
      *
      *     // do other work...
      *     // ..eventually stop the thread:
@@ -135,7 +135,7 @@ namespace dmThread
 
     /*# get thread specific data
      * Get thread specific data
-     * @name dmThread::GetTlsVAlue
+     * @name dmThread::GetTlsValue
      * @param key Key
      */
     void* GetTlsValue(TlsKey key);
