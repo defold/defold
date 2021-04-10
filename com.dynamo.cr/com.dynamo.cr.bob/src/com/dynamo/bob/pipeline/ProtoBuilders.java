@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -74,7 +74,7 @@ public class ProtoBuilders {
         return out;
     }
 
-    @ProtoParams(messageClass = CollectionProxyDesc.class)
+    @ProtoParams(srcClass = CollectionProxyDesc.class, messageClass = CollectionProxyDesc.class)
     @BuilderParams(name="CollectionProxy", inExts=".collectionproxy", outExt=".collectionproxyc")
     public static class CollectionProxyBuilder extends ProtoBuilder<CollectionProxyDesc.Builder> {
         @Override
@@ -95,11 +95,11 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = ConvexShape.class)
+    @ProtoParams(srcClass = ConvexShape.class, messageClass = ConvexShape.class)
     @BuilderParams(name="ConvexShape", inExts=".convexshape", outExt=".convexshapec")
     public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {}
 
-    @ProtoParams(messageClass = CollisionObjectDesc.class)
+    @ProtoParams(srcClass = CollisionObjectDesc.class, messageClass = CollisionObjectDesc.class)
     @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobjectc")
     public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
@@ -149,19 +149,19 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = CameraDesc.class)
+    @ProtoParams(srcClass = CameraDesc.class, messageClass = CameraDesc.class)
     @BuilderParams(name="Camera", inExts=".camera", outExt=".camerac")
     public static class CameraBuilder extends ProtoBuilder<CameraDesc.Builder> {}
 
-    @ProtoParams(messageClass = InputBinding.class)
+    @ProtoParams(srcClass = InputBinding.class, messageClass = InputBinding.class)
     @BuilderParams(name="InputBinding", inExts=".input_binding", outExt=".input_bindingc")
     public static class InputBindingBuilder extends ProtoBuilder<InputBinding.Builder> {}
 
-    @ProtoParams(messageClass = GamepadMaps.class)
+    @ProtoParams(srcClass = GamepadMaps.class, messageClass = GamepadMaps.class)
     @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
     public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {}
 
-    @ProtoParams(messageClass = FactoryDesc.class)
+    @ProtoParams(srcClass = FactoryDesc.class, messageClass = FactoryDesc.class)
     @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")
     public static class FactoryBuilder extends ProtoBuilder<FactoryDesc.Builder> {
         @Override
@@ -172,7 +172,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = CollectionFactoryDesc.class)
+    @ProtoParams(srcClass = CollectionFactoryDesc.class, messageClass = CollectionFactoryDesc.class)
     @BuilderParams(name="CollectionFactory", inExts=".collectionfactory", outExt=".collectionfactoryc")
     public static class CollectionFactoryBuilder extends ProtoBuilder<CollectionFactoryDesc.Builder> {
         @Override
@@ -183,11 +183,11 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = LightDesc.class)
+    @ProtoParams(srcClass = LightDesc.class, messageClass = LightDesc.class)
     @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
     public static class LightBuilder extends ProtoBuilder<LightDesc.Builder> {}
 
-    @ProtoParams(messageClass = RenderPrototypeDesc.class)
+    @ProtoParams(srcClass = RenderPrototypeDesc.class, messageClass = RenderPrototypeDesc.class)
     @BuilderParams(name="Render", inExts=".render", outExt=".renderc")
     public static class RenderPrototypeBuilder extends ProtoBuilder<RenderPrototypeDesc.Builder> {
         @Override
@@ -209,7 +209,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = SpriteDesc.class)
+    @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
         @Override
@@ -224,7 +224,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = LabelDesc.class)
+    @ProtoParams(srcClass = LabelDesc.class, messageClass = LabelDesc.class)
     @BuilderParams(name="LabelDesc", inExts=".label", outExt=".labelc")
     public static class LabelDescBuilder extends ProtoBuilder<LabelDesc.Builder> {
         @Override
@@ -238,7 +238,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = TileGrid.class)
+    @ProtoParams(srcClass = TileGrid.class, messageClass = TileGrid.class)
     @BuilderParams(name="TileGrid", inExts={".tilegrid", ".tilemap"}, outExt=".tilemapc")
     public static class TileGridBuilder extends ProtoBuilder<TileGrid.Builder> {
         @Override
@@ -253,7 +253,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = ParticleFX.class)
+    @ProtoParams(srcClass = ParticleFX.class, messageClass = ParticleFX.class)
     @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
     public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
         @Override
@@ -289,7 +289,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = MaterialDesc.class)
+    @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
     @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
     public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         @Override
@@ -303,7 +303,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = SoundDesc.class)
+    @ProtoParams(srcClass = SoundDesc.class, messageClass = SoundDesc.class)
     @BuilderParams(name="SoundDesc", inExts=".sound", outExt=".soundc")
     public static class SoundDescBuilder extends ProtoBuilder<SoundDesc.Builder> {
         @Override
@@ -316,7 +316,7 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(messageClass = DisplayProfiles.class)
+    @ProtoParams(srcClass = DisplayProfiles.class, messageClass = DisplayProfiles.class)
     @BuilderParams(name="DisplayProfiles", inExts=".display_profiles", outExt=".display_profilesc")
     public static class DisplayProfilesBuilder extends ProtoBuilder<DisplayProfiles.Builder> {}
 

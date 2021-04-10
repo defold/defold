@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,7 +23,11 @@ import java.io.IOException;
 import java.io.ByteArrayInputStream;
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.Map;
+import java.util.List;
 import java.security.CodeSource;
+import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 
 import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
@@ -36,13 +40,14 @@ import javax.vecmath.Vector3d;
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.BaseSlot;
 import com.dynamo.bob.util.RigUtil.SlotAnimationTrack;
-import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.bob.util.RigUtil.Animation;
 import com.dynamo.bob.util.RigUtil.AnimationCurve;
 import com.dynamo.bob.util.RigUtil.AnimationTrack;
@@ -58,8 +63,9 @@ import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 public class SpineSceneTest {
     private static final double EPSILON = 0.000001;
     private ZipMountPoint mp;
+    private ClassLoaderScanner scanner = null;
 
-    public SpineSceneTest() {
+    public SpineSceneTest() throws IOException {
         try {
             CodeSource src = getClass().getProtectionDomain().getCodeSource();
             String jarPath = new File(src.getLocation().toURI()).getAbsolutePath();
@@ -68,6 +74,19 @@ public class SpineSceneTest {
         } catch (Exception e) {
             // let the tests fail later on
             System.err.printf("Failed mount the .jar file");
+        }
+
+        String jar = Bob.getJarFile("fmt-spine.jar");
+        this.scanner = new ClassLoaderScanner();
+        this.scanner.addUrl(new File(jar));
+    }
+
+    private Class<?> getClass(String className) {
+        try {
+            return Class.forName(className, true, scanner.getClassLoader());
+        } catch(ClassNotFoundException e) {
+            System.err.printf("Class not found '%s':\n", className);
+            return null;
         }
     }
 
@@ -176,29 +195,133 @@ public class SpineSceneTest {
         assertTuple3(1.0, 1.0, 1.0, identity.scale);
     }
 
-    private SpineSceneUtil load(String filename) throws IOException, SpineSceneUtil.LoadException {
+    private Object load(String filename) throws IOException {
         IResource resource = this.mp.get("test/" + filename);
         if (resource != null) {
             byte[] data = resource.getContent();
-            return SpineSceneUtil.loadJson(new ByteArrayInputStream(data), new TestUVTProvider());
+
+            Object spineSceneUtil;
+            try {
+                Class<?> spineSceneUtilClass = this.getClass("com.dynamo.bob.pipeline.SpineSceneUtil");
+                Method loadJson = spineSceneUtilClass.getDeclaredMethod("loadJson", java.io.InputStream.class, UVTransformProvider.class);
+                spineSceneUtil = (Object) loadJson.invoke(null, new ByteArrayInputStream(data), new TestUVTProvider());
+            } catch (NoSuchMethodException e) {
+                System.err.printf("No method com.dynamo.bob.pipeline.SpineSceneUtil.%s() found!", "loadJson");
+                e.printStackTrace(System.err);
+                return null;
+            } catch (Exception e) {
+                e.printStackTrace(System.err);
+                return null;
+            }
+
+            return spineSceneUtil;
         }
         return null;
     }
 
+    private Object load(InputStream input) throws IOException {
+        Object spineSceneUtil;
+        try {
+            Class<?> spineSceneUtilClass = this.getClass("com.dynamo.bob.pipeline.SpineSceneUtil");
+            Method loadJson = spineSceneUtilClass.getDeclaredMethod("loadJson", java.io.InputStream.class, UVTransformProvider.class);
+            spineSceneUtil = (Object) loadJson.invoke(null, input, new TestUVTProvider());
+        } catch (NoSuchMethodException e) {
+            System.err.printf("No method com.dynamo.bob.pipeline.SpineSceneUtil.%s() found!", "loadJson");
+            e.printStackTrace(System.err);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+        return spineSceneUtil;
+    }
+
+    private static Object callFunction(Object instance, String functionName) {
+        try {
+            Method function = instance.getClass().getDeclaredMethod(functionName);
+            return function.invoke(instance);
+        } catch (NoSuchMethodException e) {
+            System.err.printf("No method %s.%s() found!", instance.getClass().getName(), functionName);
+            e.printStackTrace(System.err);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    private static Object callFunction(Object instance, String functionName, Class klass1, Object arg1) {
+        try {
+            Method function = instance.getClass().getDeclaredMethod(functionName, klass1);
+            return function.invoke(instance, arg1);
+        } catch (NoSuchMethodException e) {
+            System.err.printf("No method %s.%s() found!", instance.getClass().getName(), functionName);
+            e.printStackTrace(System.err);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    private static List<MeshAttachment> getDefaultAttachments(Object spineSceneUtil) {
+        return (List<MeshAttachment>)callFunction(spineSceneUtil, "getDefaultAttachments");
+    }
+
+    private static Map<String, Animation> getAnimations(Object spineSceneUtil) {
+        return (Map<String, Animation>)callFunction(spineSceneUtil, "getAnimations");
+    }
+
+    private static Animation getAnimation(Object spineSceneUtil, String arg1) {
+        return (Animation)callFunction(spineSceneUtil, "getAnimation", String.class, arg1);
+    }
+
+    private static List<BaseSlot> getBaseSlots(Object spineSceneUtil) {
+        return (List<BaseSlot>)callFunction(spineSceneUtil, "getBaseSlots");
+    }
+
+    private static List<Bone> getBones(Object spineSceneUtil) {
+        return (List<Bone>)callFunction(spineSceneUtil, "getBones");
+    }
+
+    private static Bone getBone(Object spineSceneUtil, int index) {
+        return (Bone)callFunction(spineSceneUtil, "getBone", int.class, index);
+    }
+    private static Bone getBone(Object spineSceneUtil, String name) {
+        return (Bone)callFunction(spineSceneUtil, "getBone", String.class, name);
+    }
+
+    private static Object getField(Class<?> klass, Object instance, String fieldName) {
+        try {
+            Field field = klass.getField(fieldName);
+            return field.get(instance);
+        } catch (NoSuchFieldException e) {
+            System.err.printf("No field %s.%s found!", klass.getName(), fieldName);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    private static int getSlotSignalUnchanged(Object spineSceneUtil) {
+        return (int) getField(spineSceneUtil.getClass(), null, "slotSignalUnchanged");
+    }
+
     @Test
     public void testLoadingBones() throws Exception {
-        SpineSceneUtil scene = load("skeleton.json");
-        assertEquals(9, scene.bones.size());
-        Bone root = scene.getBone("root");
-        Bone animated = scene.getBone("bone_animated");
-        Bone scale = scene.getBone("bone_scale");
-        Bone noScale = scene.getBone("bone_noscale");
-        Bone rotated = scene.getBone("bone_rotated");
-        assertEquals(scene.getBone(0), root);
-        assertEquals(scene.getBone(1), animated);
-        assertEquals(scene.getBone(2), noScale);
-        assertEquals(scene.getBone(3), rotated);
-        assertEquals(scene.getBone(4), scale);
+        Object scene = load("skeleton.json");
+        assertEquals(9, getBones(scene).size());
+        Bone root = getBone(scene, "root");
+        Bone animated = getBone(scene, "bone_animated");
+        Bone scale = getBone(scene, "bone_scale");
+        Bone noScale = getBone(scene, "bone_noscale");
+        Bone rotated = getBone(scene, "bone_rotated");
+        assertEquals(getBone(scene, 0), root);
+        assertEquals(getBone(scene, 1), animated);
+        assertEquals(getBone(scene, 2), noScale);
+        assertEquals(getBone(scene, 3), rotated);
+        assertEquals(getBone(scene, 4), scale);
         assertEquals(2, noScale.index);
         assertTrue(scale.inheritScale);
         assertFalse(noScale.inheritScale);
@@ -228,9 +351,9 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingMeshes() throws Exception {
-        SpineSceneUtil scene = load("skeleton.json");
-        assertEquals(3, scene.getDefaultAttachments().size());
-        assertMesh(scene.getDefaultAttachments().get(0), "test_sprite",
+        Object scene = load("skeleton.json");
+        assertEquals(3, getDefaultAttachments(scene).size());
+        assertMesh(getDefaultAttachments(scene).get(0), "test_sprite",
                 new float[] {
                     100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
                     100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
@@ -254,7 +377,7 @@ public class SpineSceneTest {
                     1.0f, 0.0f, 0.0f, 0.0f,
                 }
         );
-        assertMesh(scene.getDefaultAttachments().get(1), "test_sprite",
+        assertMesh(getDefaultAttachments(scene).get(1), "test_sprite",
                 new float[] {
                     100.0f, 0.0f, 0.0f, 0.5f, 1.0f,
                     -100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
@@ -278,7 +401,7 @@ public class SpineSceneTest {
                     1.0f, 0.0f, 0.0f, 0.0f,
                 }
         );
-        assertMesh(scene.getDefaultAttachments().get(2), "test_sprite",
+        assertMesh(getDefaultAttachments(scene).get(2), "test_sprite",
                 new float[] {
                     100.0f, 100.0f, 0.0f, 0.5f, 1.0f,
                     -100.0f, 100.0f, 0.0f, 0.0f, 1.0f,
@@ -304,12 +427,12 @@ public class SpineSceneTest {
         );
     }
 
-    private static void assertSimpleAnim(SpineSceneUtil scene, String name, Property property, float[][] values) {
-        Animation anim = scene.getAnimation(name);
+    private static void assertSimpleAnim(Object scene, String name, Property property, float[][] values) {
+        Animation anim = getAnimation(scene, name);
         assertEquals(1.0, anim.duration, EPSILON);
         assertEquals(1, anim.tracks.size());
         AnimationTrack track = anim.tracks.get(0);
-        assertEquals(scene.getBone("bone_animated"), track.bone);
+        assertEquals(getBone(scene, "bone_animated"), track.bone);
         assertEquals(property, track.property);
         assertEquals(2, track.keys.size());
         for (int i = 0; i < values.length; ++i) {
@@ -317,8 +440,8 @@ public class SpineSceneTest {
         }
     }
 
-    private static void assertEvents(SpineSceneUtil scene, String name, String eventId, Object[] values) {
-        Animation anim = scene.getAnimation(name);
+    private static void assertEvents(Object scene, String name, String eventId, Object[] values) {
+        Animation anim = getAnimation(scene, name);
         assertEquals(1, anim.eventTracks.size());
         EventTrack track = anim.eventTracks.get(0);
         assertEquals(eventId, track.name);
@@ -338,14 +461,14 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingAnims() throws Exception {
-        SpineSceneUtil scene = load("skeleton.json");
-        assertEquals(8, scene.animations.size());
+        Object scene = load("skeleton.json");
+        assertEquals(8, getAnimations(scene).size());
 
         assertSimpleAnim(scene, "anim_pos", Property.POSITION, new float[][] {new float[] {0.0f, 0.0f, 0.0f}, new float[] {100.0f, 0.0f, 0.0f}});
         assertSimpleAnim(scene, "anim_rot", Property.ROTATION, new float[][] {new float[] {0.0f}, new float[] {90.0f}});
         assertSimpleAnim(scene, "anim_scale", Property.SCALE, new float[][] {new float[] {1.0f, 1.0f, 1.0f}, new float[] {2.0f, 1.0f, 1.0f}});
 
-        Animation animCurve = scene.getAnimation("anim_curve");
+        Animation animCurve = getAnimation(scene, "anim_curve");
         AnimationCurve curve = animCurve.tracks.get(0).keys.get(0).curve;
         assertFloatArrays(new float[] {
                 0.0f, 0.0f, 1.0f, 1.0f
@@ -353,11 +476,11 @@ public class SpineSceneTest {
                 curve.x0, curve.y0, curve.x1, curve.y1
         });
 
-        Animation animMulti = scene.getAnimation("anim_multi");
+        Animation animMulti = getAnimation(scene, "anim_multi");
         assertEquals(3, animMulti.tracks.size());
         assertEquals(1.0, animMulti.duration, EPSILON);
 
-        Animation animStepped = scene.getAnimation("anim_stepped");
+        Animation animStepped = getAnimation(scene, "anim_stepped");
         assertTrue(animStepped.tracks.get(0).keys.get(0).stepped);
 
         assertEvents(scene, "anim_event", "test_event", new Object[] {1, 0.5f, "test_string"});
@@ -365,8 +488,8 @@ public class SpineSceneTest {
 
     @Test
     public void testSampleRotAnim() throws Exception {
-        SpineSceneUtil scene = load("simple_spine.json");
-        Animation idle2 = scene.getAnimation("idle2");
+        Object scene = load("simple_spine.json");
+        Animation idle2 = getAnimation(scene, "idle2");
         AnimationTrack track = idle2.tracks.get(0);
 
         double sampleRate = 30.0;
@@ -389,8 +512,8 @@ public class SpineSceneTest {
 
     @Test
     public void testSamplePosAnim() throws Exception {
-        SpineSceneUtil scene = load("curve_skeleton.json");
-        Animation anim = scene.getAnimation("animation");
+        Object scene = load("curve_skeleton.json");
+        Animation anim = getAnimation(scene, "animation");
         AnimationTrack track = anim.tracks.get(0);
 
         double sampleRate = 30.0;
@@ -412,8 +535,8 @@ public class SpineSceneTest {
 
     @Test
     public void testSamplePosSteppedAnim() throws Exception {
-        SpineSceneUtil scene = load("step_skeleton.json");
-        Animation anim = scene.getAnimation("animation");
+        Object scene = load("step_skeleton.json");
+        Animation anim = getAnimation(scene, "animation");
         AnimationTrack track = anim.tracks.get(0);
 
         double sampleRate = 30.0;
@@ -447,10 +570,10 @@ public class SpineSceneTest {
 
     @Test
     public void testSampleVisibilityAnim() throws Exception {
-        SpineSceneUtil scene = load("visibility_skeleton.json");
-        Animation anim = scene.getAnimation("animation");
+        Object scene = load("visibility_skeleton.json");
+        Animation anim = getAnimation(scene, "animation");
         SlotAnimationTrack track = anim.slotTracks.get(0);
-        BaseSlot slot = scene.baseSlots.get(track.slot);
+        BaseSlot slot = getBaseSlots(scene).get(track.slot);
 
         double sampleRate = 30.0;
         double spf = 1.0/sampleRate;
@@ -477,8 +600,8 @@ public class SpineSceneTest {
 
     @Test
     public void testSampleDrawOrderAnim() throws Exception {
-        SpineSceneUtil scene = load("draw_order_skeleton.json");
-        Animation anim = scene.getAnimation("animation");
+        Object scene = load("draw_order_skeleton.json");
+        Animation anim = getAnimation(scene, "animation");
 
         assertEquals(3, anim.slotTracks.size()); // should only contain 3 draw_order slot tracks
 
@@ -498,44 +621,44 @@ public class SpineSceneTest {
 
         // Mesh "_3" [0, 2, 1, 0, 0, 0]
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_3, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, getSlotSignalUnchanged(scene), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(0));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(2));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(5));
         trackBuilder.clear();
 
         // Mesh "_4" [0, 2, 1, 0, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, getSlotSignalUnchanged(scene), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(0));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(2));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(5));
         trackBuilder.clear();
 
         // Mesh "_5" [0, 0, 4, 4, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_5, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, getSlotSignalUnchanged(scene), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(1));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(2));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(5));
     }
 
     @Test
     public void testSampleDrawOrderResetKey() throws Exception {
-        SpineSceneUtil scene = load("draw_order_skeleton_sparse_duplicates.json");
-        Animation anim = scene.getAnimation("animation");
+        Object scene = load("draw_order_skeleton_sparse_duplicates.json");
+        Animation anim = getAnimation(scene, "animation");
 
         assertEquals(3, anim.slotTracks.size());
 
@@ -553,11 +676,11 @@ public class SpineSceneTest {
 
         // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0xDEAD, 0xDEAD, 0xDEAD, 0, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, getSlotSignalUnchanged(scene), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(2));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
@@ -567,16 +690,16 @@ public class SpineSceneTest {
         assertEquals(0, drawOrderBuilder.GetOrderOffset(9));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(10));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(14));
         trackBuilder.clear();
     }
 
     @Test
     public void testSampleSparseDrawOrderAnim() throws Exception {
-        SpineSceneUtil scene = load("draw_order_skeleton_sparse.json");
-        Animation anim = scene.getAnimation("animation");
+        Object scene = load("draw_order_skeleton_sparse.json");
+        Animation anim = getAnimation(scene, "animation");
 
         assertEquals(3, anim.slotTracks.size());
 
@@ -596,65 +719,65 @@ public class SpineSceneTest {
 
         // Mesh "_3" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_3, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, getSlotSignalUnchanged(scene), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(2));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(9));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(10));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(14));
         trackBuilder.clear();
 
         // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, getSlotSignalUnchanged(scene), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(2));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(9));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(10));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(14));
         trackBuilder.clear();
 
         // Mesh "_5" [0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_5, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, getSlotSignalUnchanged(scene), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(5));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(8));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(9));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(10));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
-        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(getSlotSignalUnchanged(scene), drawOrderBuilder.GetOrderOffset(14));
     }
 
     @Test
@@ -662,10 +785,10 @@ public class SpineSceneTest {
         InputStream input = null;
         try {
             input = getClass().getResourceAsStream("empty.json");
-            SpineSceneUtil scene = SpineSceneUtil.loadJson(input, new TestUVTProvider());
-            assertEquals(1, scene.bones.size());
-            assertEquals(0, scene.getDefaultAttachments().size());
-            assertEquals(0, scene.animations.size());
+            Object scene = load(input);
+            assertEquals(1, getBones(scene).size());
+            assertEquals(0, getDefaultAttachments(scene).size());
+            assertEquals(0, getAnimations(scene).size());
         } finally {
             IOUtils.closeQuietly(input);
         }
@@ -677,10 +800,10 @@ public class SpineSceneTest {
             InputStream input = null;
             try {
                 input = getClass().getResourceAsStream(String.format("sample%d.json", i));
-                SpineSceneUtil scene = SpineSceneUtil.loadJson(input, new TestUVTProvider());
-                assertTrue(0 < scene.bones.size());
-                assertTrue(0 < scene.getDefaultAttachments().size());
-                assertTrue(0 < scene.animations.size());
+                Object scene = load(input);
+                assertTrue(0 < getBones(scene).size());
+                assertTrue(0 < getDefaultAttachments(scene).size());
+                assertTrue(0 < getAnimations(scene).size());
             } finally {
                 IOUtils.closeQuietly(input);
             }

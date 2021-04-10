@@ -25,6 +25,11 @@ namespace dmSound
     {
         char* m_Buffer;
         uint32_t m_BufferSize;
+
+        // make sure it's the same size for both 32/64 bit. Makes it easier for tests
+        #if defined(DM_PLATFORM_32BIT)
+        uint64_t _pad;
+        #endif
     };
 
     struct SoundInstance
