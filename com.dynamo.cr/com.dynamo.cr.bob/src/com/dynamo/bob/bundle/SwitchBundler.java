@@ -151,8 +151,7 @@ public class SwitchBundler implements IBundler {
 
         // The application meta file refers to this relative path, next to the meta file itself
         // (Needed since we might refer to a file within a zip file)
-        IResource iconResource = helper.getResource("switch", "icon");
-
+        IResource iconResource = helper.getResource("switch", "icon", true);
         File icon = new File(tmpResourceDir, "icon.bmp");
         helper.writeResourceToFile(iconResource, icon);
 

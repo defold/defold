@@ -207,8 +207,12 @@ public class BundleHelper {
     }
 
     public void writeResourceToFile(IResource resource, File out) throws IOException {
+        byte[] content = resource.getContent();
+        if (content == null) {
+            throw new IOException(String.format("Resource is empty: '%s'", resource.getAbsPath()));
+        }
         java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
-        fo.write(resource.getContent());
+        fo.write(content);
         fo.close();
     }
 
