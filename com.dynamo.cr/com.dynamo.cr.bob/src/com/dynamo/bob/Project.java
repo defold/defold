@@ -180,7 +180,7 @@ public class Project {
      */
     public void scan(IClassScanner scanner, String pkg) {
         Set<String> classNames = scanner.scan(pkg);
-        doScan(classNames);
+        doScan(scanner, classNames);
     }
 
     private static String getManifestInfo(String attribute) {
@@ -211,7 +211,7 @@ public class Project {
     }
 
     @SuppressWarnings("unchecked")
-    private void doScan(Set<String> classNames) {
+    private void doScan(IClassScanner scanner, Set<String> classNames) {
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
 
         for (String className : classNames) {
@@ -224,11 +224,23 @@ public class Project {
                     (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
             if (!skip) {
                 try {
-                    Class<?> klass = Class.forName(className);
-                    BuilderParams params = klass.getAnnotation(BuilderParams.class);
-                    if (params != null) {
-                        for (String inExt : params.inExts()) {
+                    Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
+                    BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
+                    if (builderParams != null) {
+                        for (String inExt : builderParams.inExts()) {
                             extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+                        }
+
+                        ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
+                        if (protoParams != null) {
+                            ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
+
+                            for (String ext : builderParams.inExts()) {
+                                Class<?> inputClass = protoParams.srcClass();
+                                if (inputClass != null) {
+                                    ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
+                                }
+                            }
                         }
                     }
                 } catch (Exception e) {

@@ -29,7 +29,7 @@
  */
 
 
-/** hashtable
+/*# hashtable
  * Hashtable with chaining for collision resolution, memcpy-copy semantics (POD types) and 32-bit indicies instead of pointers. (NUMA-friendly)
  * @note The key type needs to support == and % operators
  * @type class
@@ -510,12 +510,29 @@ private:
     uint16_t m_State : 1;
 };
 
+
+/*#
+ * Specialized hash table with [type:uint16_t] as keys
+ * @type class
+ * @name dmHashTable16
+ */
 template <typename T>
 class dmHashTable16 : public dmHashTable<uint16_t, T> {};
 
+
+/*#
+ * Specialized hash table with [type:uint32_t] as keys
+ * @type class
+ * @name dmHashTable32
+ */
 template <typename T>
 class dmHashTable32 : public dmHashTable<uint32_t, T> {};
 
+/*#
+ * Specialized hash table with [type:uint64_t] as keys
+ * @type class
+ * @name dmHashTable64
+ */
 template <typename T>
 class dmHashTable64 : public dmHashTable<uint64_t, T> {};
 

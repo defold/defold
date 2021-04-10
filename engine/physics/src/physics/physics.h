@@ -42,6 +42,7 @@ namespace dmPhysics
         JOINT_TYPE_FIXED,
         JOINT_TYPE_HINGE,
         JOINT_TYPE_SLIDER,
+        JOINT_TYPE_WELD,
         JOINT_TYPE_COUNT
     };
 
@@ -1259,6 +1260,13 @@ namespace dmPhysics
                 float m_MaxMotorForce;
                 float m_MotorSpeed;
             } m_SliderJointParams;
+
+            struct
+            {
+                float m_ReferenceAngle;
+                float m_FrequencyHz;
+                float m_DampingRatio;
+            } m_WeldJointParams;
         };
 
         ConnectJointParams()
@@ -1299,6 +1307,11 @@ namespace dmPhysics
                     m_SliderJointParams.m_EnableMotor = false;
                     m_SliderJointParams.m_MaxMotorForce = 0.0f;
                     m_SliderJointParams.m_MotorSpeed = 0.0f;
+                    break;
+                case JOINT_TYPE_WELD:
+                    m_WeldJointParams.m_ReferenceAngle = 0.0f;
+                    m_WeldJointParams.m_FrequencyHz = 0.0f;
+                    m_WeldJointParams.m_DampingRatio = 0.0f;
                     break;
                 default:
                     break;

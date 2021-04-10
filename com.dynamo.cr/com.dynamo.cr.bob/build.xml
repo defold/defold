@@ -49,6 +49,7 @@
             <arg value="-n1" />
         </exec>
     </target>
+
     <target name="compile-bob-light" depends="git.revision">
         <mkdir dir="${classes.dir}"/>
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
@@ -71,7 +72,6 @@
             <proto dir="../../engine/gamesys/proto/" file="label_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="texture_set_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
-            <proto dir="../../engine/gamesys/proto/" file="spine_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="mesh_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="buffer_ddf.proto"/>
             <proto dir="../../engine/rig/proto/rig" file="rig_ddf.proto"/>
@@ -324,9 +324,15 @@
             <zipfileset src="${bob.dir}/tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
+
             <fileset dir="${bob.dir}">
                 <include name="lib/luajit-share.zip"/>
             </fileset>
+
+            <fileset dir="${env.DYNAMO_HOME}">
+                <include name="share/java/fmt-spine.jar"/>
+            </fileset>
+
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
                 <attribute name="is-bob-light" value="true"/>
@@ -378,6 +384,9 @@
                 <include name="lib/android.jar"/>
                 <include name="lib/classes.dex"/>
                 <include name="lib/*.zip"/>
+            </fileset>
+            <fileset dir="${env.DYNAMO_HOME}">
+                <include name="share/java/fmt-spine.jar"/>
             </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
