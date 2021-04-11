@@ -95,18 +95,24 @@ public class BundlerTest {
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
 
-        data.add(new Platform[]{Platform.X86Win32});
-        data.add(new Platform[]{Platform.X86_64Win32});
-        data.add(new Platform[]{Platform.X86_64Darwin});
-        data.add(new Platform[]{Platform.X86_64Linux});
-        data.add(new Platform[]{Platform.Armv7Android});
-        data.add(new Platform[]{Platform.JsWeb});
+        String skipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        if (skipTest != null) {
+            data.add(new Platform[]{Platform.getHostPlatform()});
+        }
+        else {
+            data.add(new Platform[]{Platform.X86Win32});
+            data.add(new Platform[]{Platform.X86_64Win32});
+            data.add(new Platform[]{Platform.X86_64Darwin});
+            data.add(new Platform[]{Platform.X86_64Linux});
+            data.add(new Platform[]{Platform.Armv7Android});
+            data.add(new Platform[]{Platform.JsWeb});
 
-        // Can only do this on OSX machines currently
-        if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
-            data.add(new Platform[]{Platform.Armv7Darwin});
-            data.add(new Platform[]{Platform.Arm64Darwin});
-            data.add(new Platform[]{Platform.X86_64Ios});
+            // Can only do this on OSX machines currently
+            if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+                data.add(new Platform[]{Platform.Armv7Darwin});
+                data.add(new Platform[]{Platform.Arm64Darwin});
+                data.add(new Platform[]{Platform.X86_64Ios});
+            }
         }
         return data;
     }
