@@ -14,8 +14,8 @@ var LibraryScript = {
           if (xhr.status != 0) {
               // ALLOC_NORMAL - allocation uses _malloc (see preamble.js)
               var ab = new Uint8Array(xhr.response);
-              var b = allocate(ab, 'i8', ALLOC_NORMAL);
-              var resp_headers_buffer = allocate(intArrayFromString(resp_headers), 'i8', ALLOC_NORMAL);
+              var b = allocate(ab, ALLOC_NORMAL);
+              var resp_headers_buffer = allocate(intArrayFromString(resp_headers), ALLOC_NORMAL);
               {{{ makeDynCall('viiiii', 'onload') }}}(arg, xhr.status, b, ab.length, resp_headers_buffer);
               _free(b);
           } else {
