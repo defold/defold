@@ -19,6 +19,18 @@
 
 (set! *warn-on-reflection* true)
 
+(defn setting-index [settings path]
+  (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
+
+(defn get-setting [settings path]
+  (when-let [index (setting-index settings path)]
+    (:value (nth settings index))))
+
+(defn set-setting [settings path value]
+  (if-let [index (setting-index settings path)]
+    (assoc-in settings [index :value] value)
+    (conj settings {:path path :value value})))
+
 (defn- non-blank [vals]
   (remove s/blank? vals))
 
@@ -46,8 +58,11 @@
 
 (defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
   (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
-    (when-let [setting-path (seq (non-blank (s/split key #"\.")))]
-      (update parse-state :settings conj {:path (into [current-category] setting-path) :value val}))))
+    (when-let [setting-path (conj [current-category] (first (seq (non-blank (s/split key #"\.")))))]
+      (let [settings (get-in parse-state [:settings])]
+        (if-let [existing-value (get-setting settings setting-path)]
+          (set-setting settings setting-path (str existing-value "," val))
+          (update parse-state :settings conj {:path setting-path :value val}))))))
 
 (defn- parse-error [line]
   (throw (Exception. (format "Invalid setting line: %s" line))))
@@ -221,18 +236,6 @@
 
 (defn make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))
-
-(defn setting-index [settings path]
-  (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
-
-(defn get-setting [settings path]
-  (when-let [index (setting-index settings path)]
-    (:value (nth settings index))))
-
-(defn set-setting [settings path value]
-  (if-let [index (setting-index settings path)]
-    (assoc-in settings [index :value] value)
-    (conj settings {:path path :value value})))
 
 (defn clear-setting [settings path]
   (if-let [index (setting-index settings path)]
