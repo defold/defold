@@ -71,20 +71,14 @@
 (defn- parse-state->settings [{:keys [settings]}]
   (vec (reverse settings)))
 
-(defn combine-multiline-settings [settings category key]
-  (println "combine-multiline-settings" settings category key)
-    settings)
-
 (defn parse-settings [reader]
-  (println "settings_core parse-settings")
-  (let [settings (parse-state->settings (reduce
+  (parse-state->settings (reduce
                           (fn [parse-state line]
                             (or (parse-category-line parse-state line)
                                 (parse-setting-line parse-state line)
                                 (parse-error line)))
                           (empty-parse-state)
-                          (read-setting-lines reader)))]
-    (combine-multiline-settings settings "project" "dependencies")))
+                          (read-setting-lines reader)))
 
 (defmulti parse-setting-value (fn [type ^String raw] type))
 
