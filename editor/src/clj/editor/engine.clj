@@ -262,7 +262,6 @@
           engine-dir (.getParentFile engine-file)]
       (fs/delete-directory! engine-dir {:missing :ignore})
       (fs/create-directories! engine-dir)
-      ;;(unpack-dmengine! engine-archive (dmengine-filename (current-platform)) engine-file)
       (unpack-build-zip! engine-archive engine-dir)
       (fs/set-executable! engine-file)
       (copy-dmengine-dependencies! engine-dir extender-platform)
