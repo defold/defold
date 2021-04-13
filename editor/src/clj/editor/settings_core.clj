@@ -58,11 +58,12 @@
 
 (defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
   (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
-    (when-let [setting-path (conj [current-category] (first (seq (non-blank (s/split key #"\.")))))]
-      (let [settings (get-in parse-state [:settings])]
-        (if-let [existing-value (get-setting settings setting-path)]
-          (set-setting settings setting-path (str existing-value "," val))
-          (update parse-state :settings conj {:path setting-path :value val}))))))
+    (when-let [setting-path (seq (non-blank (s/split key #"\.")))]
+      (let [settings (get-in parse-state [:settings])
+            full-path (seq (conj [current-category] (first setting-path)))]
+        (if-let [existing-value (get-setting settings full-path)]
+          (update parse-state :settings set-setting full-path (str existing-value "," val))
+          (update parse-state :settings conj {:path full-path :value val}))))))
 
 (defn- parse-error [line]
   (throw (Exception. (format "Invalid setting line: %s" line))))
