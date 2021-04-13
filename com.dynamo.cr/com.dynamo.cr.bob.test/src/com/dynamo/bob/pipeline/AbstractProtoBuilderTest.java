@@ -17,6 +17,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -44,12 +46,15 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.test.util.MockFileSystem;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
+
 
 public abstract class AbstractProtoBuilderTest {
     private MockFileSystem fileSystem;
     private Project project;
     private ZipMountPoint mp;
+    private ClassLoaderScanner scanner = null;
 
     @After
     public void tearDown() {
@@ -72,11 +77,19 @@ public abstract class AbstractProtoBuilderTest {
             throw new RuntimeException(e);
         }
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        scanner = new ClassLoaderScanner();
         scanner.addUrl(new File(jar));
 
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        final Class<?> spineModelDescClass = this.getClass("com.dynamo.spine.proto.Spine$SpineModelDesc");
+        ParseUtil.addParser("spinemodelc", new ParseUtil.IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return (Message)callStaticFunction1(spineModelDescClass, "parseFrom", content.getClass(), content);
+            }
+        });
 
         try {
             CodeSource src = getClass().getProtectionDomain().getCodeSource();
@@ -86,6 +99,71 @@ public abstract class AbstractProtoBuilderTest {
         } catch (Exception e) {
             // let the tests fail later on
             System.err.printf("Failed mount the .jar file");
+        }
+    }
+
+    protected Class<?> getClass(String className) {
+        try {
+            return Class.forName(className, true, scanner.getClassLoader());
+        } catch(ClassNotFoundException e) {
+            System.err.printf("Class not found '%s':\n", className);
+            return null;
+        }
+    }
+
+    protected static Object callFunction(Object instance, String functionName) {
+        try {
+            Method function = instance.getClass().getDeclaredMethod(functionName);
+            return function.invoke(instance);
+        } catch (NoSuchMethodException e) {
+            System.err.printf("No method %s.%s() found!", instance.getClass().getName(), functionName);
+            e.printStackTrace(System.err);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    protected static Object callStaticFunction0(Class<?> klass, String functionName) {
+        try {
+            Method function = klass.getDeclaredMethod(functionName);
+            return function.invoke(null);
+        } catch (NoSuchMethodException e) {
+            System.err.printf("No method %s.%s() found!", klass.getName(), functionName);
+            e.printStackTrace(System.err);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    protected static Object callStaticFunction1(Class<?> klass, String functionName, Class<?> cls1, Object arg1) {
+        try {
+            Method function = klass.getDeclaredMethod(functionName, cls1);
+            return function.invoke(null, arg1);
+        } catch (NoSuchMethodException e) {
+            System.err.printf("No method %s.%s() found!", klass.getName(), functionName);
+            e.printStackTrace(System.err);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+
+    protected static Object getField(Class<?> klass, Object instance, String fieldName) {
+        try {
+            Field field = klass.getField(fieldName);
+            return field.get(instance);
+        } catch (NoSuchFieldException e) {
+            System.err.printf("No field %s.%s found!", klass.getName(), fieldName);
+            return null;
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
         }
     }
 

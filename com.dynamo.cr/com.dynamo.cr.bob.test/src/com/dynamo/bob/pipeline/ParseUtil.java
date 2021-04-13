@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,7 +28,6 @@ import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.model.proto.ModelProto;
 import com.dynamo.render.proto.Font;
 import com.dynamo.rig.proto.Rig;
-import com.dynamo.spine.proto.Spine;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -38,7 +37,7 @@ import com.google.protobuf.TextFormat.ParseException;
 
 public class ParseUtil {
 
-    private interface IParser {
+    public interface IParser {
         Message parse(byte[] content) throws InvalidProtocolBufferException;
     }
 
@@ -153,12 +152,6 @@ public class ParseUtil {
                 return Graphics.ShaderDesc.parseFrom(content);
             }
         });
-        parseMap.put("spinemodelc", new IParser() {
-            @Override
-            public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return Spine.SpineModelDesc.parseFrom(content);
-            }
-        });
         parseMap.put("fontc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
@@ -171,6 +164,10 @@ public class ParseUtil {
                 return Gui.SceneDesc.parseFrom(content);
             }
         });
+    }
+
+    public static void addParser(String extension, IParser parser) {
+        parseMap.put(extension, parser);
     }
 
     public static Message parse(IResource resource) throws IOException, InvalidProtocolBufferException {

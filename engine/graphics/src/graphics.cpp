@@ -245,7 +245,7 @@ namespace dmGraphics
 
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
-    dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format)
+    dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
     {
         #define TEST_AND_RETURN(_TYPEN_ENUM) if (dmGraphics::IsTextureFormatSupported(context, (_TYPEN_ENUM))) return (_TYPEN_ENUM);
 
@@ -254,7 +254,9 @@ namespace dmGraphics
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+            if (width == height) {
+                TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+            }
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_RGBA;
         }
@@ -263,7 +265,9 @@ namespace dmGraphics
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_BC1);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_ETC1);
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            if (width == height) {
+                TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            }
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_RGB;
         }
