@@ -78,7 +78,7 @@
                                 (parse-setting-line parse-state line)
                                 (parse-error line)))
                           (empty-parse-state)
-                          (read-setting-lines reader)))
+                          (read-setting-lines reader))))
 
 (defmulti parse-setting-value (fn [type ^String raw] type))
 
