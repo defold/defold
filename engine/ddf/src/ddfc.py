@@ -607,7 +607,7 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     for d in file_desc.dependency:
         if not 'ddf_extensions' in d:
             pp_h.p('#include "%s"', d.replace(".proto", ".h"))
-    pp_h.p('#include <dlib/align.h>')
+    pp_h.p('#include <dmsdk/dlib/align.h>')
 
     for i in includes:
         pp_h.p('#include "%s"', i)

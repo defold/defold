@@ -742,7 +742,7 @@ class Configuration(object):
             # proto _ddf.h
             for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
                 for file in files:
-                    if file.endswith('.h') and (file.endswith('_ddf.h') or file.startswith('ddf_')):
+                    if file.endswith('.h') and 'ddf' in file:
                         includes.append(os.path.join(root, file))
 
             self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
@@ -825,9 +825,10 @@ class Configuration(object):
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # .proto files
-            protodir = os.path.join(self.dynamo_home, 'share/proto/')
-            paths = _findfiles(protodir, ('.proto',))
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            for d in ['share/proto/', 'ext/include/google/protobuf']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.proto',))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # pipeline tools
             if platform in ('x86_64-darwin','x86_64-linux','x86_64-win32'): # needed for the linux build server
@@ -839,10 +840,14 @@ class Configuration(object):
                 ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
 
                 # protoc plugin (ddfc.py) needs our dlib_shared too
+                plugin_pb2 = os.path.join(self.dynamo_home, 'lib/python/plugin_pb2.py')
+                ddf_init = os.path.join(self.dynamo_home, 'lib/python/ddf/__init__.py')
+                ddf_extensions_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_extensions_pb2.py')
+                ddf_math_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_math_pb2.py')
                 dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
                 protobuf_egg = os.path.join(self.dynamo_home, 'ext/lib/python/protobuf-2.3.0-py2.5.egg')
 
-                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, dlib_init, protobuf_egg], self.dynamo_home, topfolder)
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init, protobuf_egg], self.dynamo_home, topfolder)
 
                 # bob pipeline classes
                 bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
