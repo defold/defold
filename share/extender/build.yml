@@ -1,5 +1,5 @@
 context:
-    includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include']
+    includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include', '{{dynamo_home}}/ext/include']
     symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt", "GraphicsAdapterOpenGL",
                 "ResourceTypeGameObject", "ResourceTypeCollection", "ResourceTypeScript", "ResourceTypeLua", "ResourceTypeAnim",
                 "ComponentTypeScript", "ComponentTypeAnim"]
@@ -74,13 +74,35 @@ platforms:
     env:
       PYTHONPATH:    '{{env.DYNAMO_HOME}}/lib/python:{{env.DYNAMO_HOME}}/ext/lib/python'
     context:
-      protoIncludes: ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
+      protoIncludes:    ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
+
+      # C++
+      cxxFlags:         ''
+      cxxShFlags:       ''
+      cxxLinkFlags:     ''
+      cxxLinkShFlags:   ''
+      cxxLibs:          []
+      cxxShLibs:        [] #"dlib_shared" # not shared libs, but libs used for linking a shared library
+      # Java
+      javaFlags:        []
+      javaPipelineClasspath: ['{{dynamo_home}}/share/java/bob-light.jar']
 
     # Generates the ddf format files for use in the engine
     protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
     # Generates the language specific (cpp, jaba and python) format bindings for use in the pipeline plugins
-    protoPipelineCmd:       '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --{{language}}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
+    protoPipelineCmd:       '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --proto_path={{proto_path}} --{{language}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
     protoPipelineOutputRe:  '*.pb.h|*.pb.cc|*_pb2.py'
+
+    # C++
+    compileCmdCXX:      'clang++ -c {{#defines}}-D{{{.}}} {{/defines}} {{#cxxFlags}}{{{.}}} {{/cxxFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    compileCmdCXXSh:    'clang++ -c {{#defines}}-D{{{.}}} {{/defines}} {{#cxxShFlags}}{{{.}}} {{/cxxShFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmdCXX:         'clang++ -o {{tgt}} {{#cxxLinkFlags}}{{{.}}} {{/cxxLinkFlags}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
+    linkCmdCXXSh:       'clang++ -o {{tgt}} {{#cxxLinkShFlags}}{{{.}}} {{/cxxLinkShFlags}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
+
+    # Java
+    javaSourceRe:   '(?i).+(\.java)$'
+    javacCmd:       'javac -d {{classesDir}} {{#javaFlags}}{{{.}}} {{/javaFlags}} -classpath {{classPath}} @{{sourcesListFile}}'
+    jarCmd:         'jar cf {{outputJar}} -C {{classesDir}} .'
 
   x86_64-osx:
     env:
