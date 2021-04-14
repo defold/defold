@@ -734,16 +734,18 @@ class Configuration(object):
 
             # Includes
             includes = []
-            cwd = os.getcwd()
-            os.chdir(self.dynamo_home)
-            for root, dirs, files in os.walk("sdk/include"):
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "sdk/include")):
                 for file in files:
                     if file.endswith('.h'):
                         includes.append(os.path.join(root, file))
 
-            os.chdir(cwd)
-            includes = [os.path.join(self.dynamo_home, x) for x in includes]
-            self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
+            # proto _ddf.h
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
+                for file in files:
+                    if file.endswith('.h') and (file.endswith('_ddf.h') or file.startswith('ddf_')):
+                        includes.append(os.path.join(root, file))
+
+            self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
             # Configs
             configs = ['extender/build.yml']
@@ -752,15 +754,11 @@ class Configuration(object):
 
             # Variants
             variants = []
-            cwd = os.getcwd()
-            os.chdir(self.dynamo_home)
-            for root, dirs, files in os.walk("extender/variants"):
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "extender/variants")):
                 for file in files:
                     if file.endswith('.appmanifest'):
                         variants.append(os.path.join(root, file))
 
-            os.chdir(cwd)
-            variants = [os.path.join(self.dynamo_home, x) for x in variants]
             self._add_files_to_zip(zip, variants, self.dynamo_home, topfolder)
 
             def _findlibs(libdir):
@@ -831,8 +829,9 @@ class Configuration(object):
             paths = _findfiles(protodir, ('.proto',))
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            # protoc
+            # pipeline tools
             if platform in ('x86_64-darwin','x86_64-linux','x86_64-win32'): # needed for the linux build server
+                # protoc
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
                 ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
                 ddfc_cxx = os.path.join(self.dynamo_home, 'bin/ddfc_cxx')
@@ -840,12 +839,15 @@ class Configuration(object):
                 ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
 
                 # protoc plugin (ddfc.py) needs our dlib_shared too
-                shsuffix = {'x86_64-darwin': '.dylib', 'x86_64-linux': '.so', 'x86_64-win32': '.dll'}
-                dlib_shared = os.path.join(self.dynamo_home, 'lib/%s/libdlib_shared%s' % (platform, shsuffix[platform]))
                 dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
                 protobuf_egg = os.path.join(self.dynamo_home, 'ext/lib/python/protobuf-2.3.0-py2.5.egg')
 
-                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, dlib_shared, dlib_init, protobuf_egg], self.dynamo_home, topfolder)
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, dlib_init, protobuf_egg], self.dynamo_home, topfolder)
+
+                # bob pipeline classes
+                bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
+                self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
+
 
             # For logging, print all paths in zip:
             for x in zip.namelist():
