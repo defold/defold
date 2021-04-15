@@ -18,6 +18,7 @@
 
 namespace dmGraphics
 {
+    /*
 	Texture::Texture()
         : m_Type(TEXTURE_TYPE_2D)
         , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
@@ -31,6 +32,22 @@ namespace dmGraphics
         , m_Destroyed(0)
     {
         memset(&m_Handle, 0, sizeof(m_Handle));
+    }
+    */
+
+    void InitializeVulkanTexture(Texture* t)
+    {
+        t->m_Type                = TEXTURE_TYPE_2D;
+        t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
+        t->m_DeviceBuffer        = VK_IMAGE_USAGE_SAMPLED_BIT;
+        t->m_Width               = 0;
+        t->m_Height              = 0;
+        t->m_OriginalWidth       = 0;
+        t->m_OriginalHeight      = 0;
+        t->m_MipMapCount         = 0;
+        t->m_TextureSamplerIndex = 0;
+        t->m_Destroyed           = 0;
+        memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
     RenderTarget::RenderTarget(const uint32_t rtId)
