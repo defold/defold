@@ -907,15 +907,6 @@ public class Project {
                         fileHTMLWriter = new FileWriter(reportHTMLFile);
                     }
 
-                    IProgress m = monitor.subProgress(99);
-                    BundleHelper.throwIfCanceled(monitor);
-                    m.beginTask("Building...", newTasks.size());
-                    result = runTasks(m);
-                    m.done();
-                    if (anyFailing(result)) {
-                        break loop;
-                    }
-                    BundleHelper.throwIfCanceled(monitor);
 
                     final Boolean withSymbols = this.hasOption("with-symbols");
                     final String[] platforms = getPlatformStrings();
@@ -950,6 +941,16 @@ public class Project {
                         }
                     }
 
+                    BundleHelper.throwIfCanceled(monitor);
+
+                    IProgress m = monitor.subProgress(99);
+                    BundleHelper.throwIfCanceled(monitor);
+                    m.beginTask("Building...", newTasks.size());
+                    result = runTasks(m);
+                    m.done();
+                    if (anyFailing(result)) {
+                        break loop;
+                    }
                     BundleHelper.throwIfCanceled(monitor);
 
                     // Generate and save build report
