@@ -22,6 +22,11 @@
 (defn setting-index [settings path]
   (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
 
+(defn clear-setting [settings path]
+  (if-let [index (setting-index settings path)]
+    (update settings index dissoc :value)
+    settings))
+
 (defn get-setting [settings path]
   (when-let [index (setting-index settings path)]
     (:value (nth settings index))))
@@ -204,9 +209,24 @@
 (defn- category->str [category settings]
   (s/join "\n" (cons (str "[" category "]") (map setting->str settings))))
 
+(defn split-multi-line-setting [category key settings]
+  (let [path (seq [category key])]
+    (if-let [comma-separated-setting (get-setting settings path)]
+      (let [comma-separated-setting-parts (seq (non-blank (s/split comma-separated-setting #",")))
+            comma-separated-setting-count (count comma-separated-setting-parts)
+            cleared-settings (clear-setting settings path)]
+        (reduce
+          (fn [settings i]
+            (set-setting settings (seq [category (str key "." i)]) (nth comma-separated-setting-parts i)))
+          cleared-settings
+          (range 0 comma-separated-setting-count)))
+      settings)))
+
 (defn settings->str [settings]
-  (let [cat-order (category-order settings)
-        cat-grouped-settings (category-grouped-settings settings)]
+  (let [split-settings (split-multi-line-setting "project" "dependencies" (vec settings))
+        cat-order (category-order split-settings)
+        cat-grouped-settings (category-grouped-settings split-settings)]
+
     ;; Here we interleave categories with \n\n rather than join to make sure the file also ends with
     ;; two consecutive newlines. This is purely to avoid whitespace diffs when loading a project
     ;; created in the old editor and saving.
@@ -231,11 +251,6 @@
 
 (defn make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))
-
-(defn clear-setting [settings path]
-  (if-let [index (setting-index settings path)]
-    (update settings index dissoc :value)
-    settings))
 
 (defn get-default-setting [meta-settings path]
   (when-let [index (setting-index meta-settings path)]
