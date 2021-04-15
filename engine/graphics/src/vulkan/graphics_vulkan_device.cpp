@@ -18,23 +18,6 @@
 
 namespace dmGraphics
 {
-    /*
-	Texture::Texture()
-        : m_Type(TEXTURE_TYPE_2D)
-        , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
-        , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
-        , m_Width(0)
-        , m_Height(0)
-        , m_OriginalWidth(0)
-        , m_OriginalHeight(0)
-        , m_MipMapCount(0)
-        , m_TextureSamplerIndex(0)
-        , m_Destroyed(0)
-    {
-        memset(&m_Handle, 0, sizeof(m_Handle));
-    }
-    */
-
     void InitializeVulkanTexture(Texture* t)
     {
         t->m_Type                = TEXTURE_TYPE_2D;
