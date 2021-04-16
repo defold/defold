@@ -79,8 +79,6 @@ public class ClassLoaderScanner implements IClassScanner {
             URL url = file.toURI().toURL();
             extraJars.add(0, url);
             dirty = true;
-
-            System.out.printf("Added plugin: %s\n", file);
         } catch (Exception e) {
             throw new RuntimeException(String.format("Couldn't add '%s' to list of jars", file), e);
         }

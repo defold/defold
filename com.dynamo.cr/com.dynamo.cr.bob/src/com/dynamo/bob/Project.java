@@ -1018,7 +1018,6 @@ public class Project {
                             state.removeSignature(path);
                             f.delete();
                             m.worked(1);
-                            System.out.printf("Deleted %s", path);
                             BundleHelper.throwIfCanceled(monitor);
                         }
                     }
