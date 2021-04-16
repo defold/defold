@@ -22,6 +22,11 @@
 (defn setting-index [settings path]
   (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
 
+(defn remove-setting [settings path]
+  (if-let [index (setting-index settings path)]
+    (vec (concat (subvec settings 0 index) (subvec settings (inc index))))
+    settings))
+
 (defn clear-setting [settings path]
   (if-let [index (setting-index settings path)]
     (update settings index dissoc :value)
@@ -61,14 +66,14 @@
   (when-let [[_ new-category] (re-find #"^\s*\[([^\]]*)\]" line)]
     (assoc parse-state :current-category new-category)))
 
- (defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
-   (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
-     (when-let [setting-path (seq (non-blank (s/split key #"\.")))]
-       (let [settings (get-in parse-state [:settings])
-             full-path (seq (conj [current-category] (first setting-path)))]
-         (if-let [existing-value (get-setting settings full-path)]
-           (update parse-state :settings set-setting full-path (str existing-value "," val))
-           (update parse-state :settings conj {:path full-path :value val}))))))
+(defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
+  (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
+    (let [cleaned-path (first (seq (non-blank (s/split key #"\#"))))]
+      (when-let [setting-path (seq (non-blank (s/split cleaned-path #"\.")))]
+        (let [full-path (into [current-category] setting-path)]
+          (if-let [existing-value (get-setting settings full-path)]
+            (update parse-state :settings set-setting full-path (str existing-value "," val))
+            (update parse-state :settings conj {:path full-path :value val})))))))
 
 (defn- parse-error [line]
   (throw (Exception. (format "Invalid setting line: %s" line))))
@@ -210,15 +215,15 @@
   (s/join "\n" (cons (str "[" category "]") (map setting->str settings))))
 
 (defn split-multi-line-setting [category key settings]
-  (let [path (seq [category key])]
+  (let [path [category key]]
     (if-let [comma-separated-setting (get-setting settings path)]
-      (let [comma-separated-setting-parts (seq (non-blank (s/split comma-separated-setting #",")))
+      (let [comma-separated-setting-parts (non-blank (s/split comma-separated-setting #","))
             comma-separated-setting-count (count comma-separated-setting-parts)
-            cleared-settings (clear-setting settings path)]
+            cleaned-settings (remove-setting settings path)]
         (reduce
           (fn [settings i]
-            (set-setting settings (seq [category (str key "." i)]) (nth comma-separated-setting-parts i)))
-          cleared-settings
+            (set-setting settings [category (str key "#" i)] (nth comma-separated-setting-parts i)))
+          cleaned-settings
           (range 0 comma-separated-setting-count)))
       settings)))
 

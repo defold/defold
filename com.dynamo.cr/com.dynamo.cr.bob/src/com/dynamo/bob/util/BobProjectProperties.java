@@ -284,7 +284,7 @@ public class BobProjectProperties {
         for(String key : propGroup.keySet().stream().collect(Collectors.toList())) {
             if (key.startsWith(keyToMerge)) {
                 int index = 0;
-                int keyIndex = key.indexOf(".");
+                int keyIndex = key.indexOf("#");
                 if (keyIndex != -1) {
                     try {
                         index = Integer.parseInt(key.substring(keyIndex + 1).trim());
