@@ -298,9 +298,11 @@ public class BobProjectProperties {
                 propGroup.remove(key);
             }
         }
-        // merge the individual values back to a single long comma separated list in memory
-        String mergedValues = values.values().stream().collect(Collectors.joining(","));
-        propGroup.put(keyToMerge, mergedValues);
+        if (!values.isEmpty()) {
+            // merge the individual values back to a single long comma separated list in memory
+            String mergedValues = values.values().stream().collect(Collectors.joining(","));
+            propGroup.put(keyToMerge, mergedValues);
+        }
     }
 
     static private Map<String, Map<String, String>> doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
