@@ -1026,7 +1026,7 @@ public class Project {
                 }
                 case "distclean": {
                     IProgress m = monitor.subProgress(1);
-                    m.beginTask("Cleaning...", newTasks.size());
+                    m.beginTask("Cleaning...", 1);
                     BundleHelper.throwIfCanceled(monitor);
                     FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                     m.worked(1);

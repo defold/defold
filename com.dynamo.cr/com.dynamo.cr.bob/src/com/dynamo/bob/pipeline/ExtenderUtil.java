@@ -372,6 +372,8 @@ public class ExtenderUtil {
     }
 
     public static List<File> listFilesRecursive(File baseDir, String pattern) {
+        if (!baseDir.exists())
+            return new ArrayList<File>();
         return new ArrayList(FileUtils.listFiles(baseDir, new RegexFileFilter(pattern), DirectoryFileFilter.DIRECTORY));
     }
 
