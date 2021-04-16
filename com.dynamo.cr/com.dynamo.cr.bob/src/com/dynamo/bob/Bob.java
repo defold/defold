@@ -490,11 +490,16 @@ public class Bob {
         return scanner;
     }
 
-    private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
-        createClassLoaderScanner();
+    public void addScannerUrl(File file) {
+        scanner.addUrl(file);
+    }
+
+    public static void rescanClasses(Project project) {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
+    }
 
+    private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
         BobProjectProperties projectProperties = project.getProjectProperties();
         String dependencies = projectProperties.getStringValue("project", "dependencies", "");
 

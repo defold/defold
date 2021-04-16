@@ -54,6 +54,7 @@ public class ExtenderUtil {
 
     public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
     public static final String proguardPath = "_app/app.pro";
+    public static final String JAR_RE = "(.+\\.jar)";
 
     private static class FSExtenderResource implements ExtenderResource {
 
@@ -370,6 +371,10 @@ public class ExtenderUtil {
         return resources;
     }
 
+    public static List<File> listFilesRecursive(File baseDir, String pattern) {
+        return new ArrayList(FileUtils.listFiles(baseDir, new RegexFileFilter(pattern), DirectoryFileFilter.DIRECTORY));
+    }
+
     private static List<String> trimExcludePaths(List<String> excludes) {
         List<String> trimmedExcludes = new ArrayList<String>();
         for (String path : excludes) {
@@ -414,6 +419,24 @@ public class ExtenderUtil {
             }
         }
         return folders;
+    }
+
+    public static boolean hasExtensionPipelinePlugins(Project project) {
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            List<ExtenderResource> files = listFilesRecursive( project, extension + "/pluginsrc/");
+            if (!files.isEmpty())
+                return true;
+        }
+        return false;
+    }
+
+    public static List<File> getPipelinePlugins(Project project) {
+        String outputDir = project.getBinaryOutputDirectory();
+        Platform hostPlatform = Platform.getHostPlatform();
+        File buildDir = new File(FilenameUtils.concat(outputDir, hostPlatform.getExtenderPair()));
+        List<File> files = listFilesRecursive(buildDir, JAR_RE);
+        return files;
     }
 
     private static boolean hasPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) {

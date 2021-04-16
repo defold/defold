@@ -337,7 +337,7 @@ public class Project {
 
     private void createTasks() throws CompileExceptionError {
         newTasks = new ArrayList<Task<?>>();
-        List<String> sortedInputs = sortInputs();
+        List<String> sortedInputs = sortInputs(); // from findSources
 
         // To currently know the output resources, we need to parse the main.collectionc
         // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
@@ -872,12 +872,21 @@ public class Project {
         }
     }
 
+    private void registerPipelinePlugins() {
+        // Find the plugins and register them now, before we're building the content
+        List<File> plugins = ExtenderUtil.getPipelinePlugins(this);
+        for (File plugin : plugins) {
+            Bob.getClassLoaderScanner().addUrl(plugin);
+            logInfo("Using plugin %s", plugin);
+        }
+        Bob.rescanClasses(this);
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
-        createTasks();
-        validateBuildResourceMapping();
+
         List<TaskResult> result = new ArrayList<TaskResult>();
 
         BundleHelper.throwIfCanceled(monitor);
@@ -924,6 +933,14 @@ public class Project {
                         // We default to the default architectures for the platform, and take the option value
                         // only if it has been set.
                         Platform platform = this.getPlatform();
+                        if (platform != Platform.getHostPlatform() && ExtenderUtil.hasExtensionPipelinePlugins(this)) {
+                            logInfo("Building plugins for host platform");
+
+                            String[] architectures = Platform.getHostPlatform().getArchitectures().getDefaultArchitectures();
+                            buildEngine(monitor, architectures, appmanifestOptions);
+
+                        }
+
                         String[] architectures = platform.getArchitectures().getDefaultArchitectures();
                         String customArchitectures = this.option("architectures", null);
                         if (customArchitectures != null) {
@@ -944,6 +961,20 @@ public class Project {
                     BundleHelper.throwIfCanceled(monitor);
 
                     IProgress m = monitor.subProgress(99);
+
+                    m.beginTask("Reading classes...", 1);
+                    Bob.createClassLoaderScanner();
+                    registerPipelinePlugins();
+                    this.scan(Bob.getClassLoaderScanner(), "com.dynamo.bob");
+                    this.scan(Bob.getClassLoaderScanner(), "com.dynamo.bob.pipeline");
+                    m.done();
+
+                    m.beginTask("Reading tasks...", 1);
+                    pruneSources();
+                    createTasks();
+                    validateBuildResourceMapping();
+                    m.done();
+
                     BundleHelper.throwIfCanceled(monitor);
                     m.beginTask("Building...", newTasks.size());
                     result = runTasks(m);
@@ -979,13 +1010,16 @@ public class Project {
                 }
                 case "clean": {
                     IProgress m = monitor.subProgress(1);
-                    m.beginTask("Cleaning...", newTasks.size());
-                    for (Task<?> t : newTasks) {
-                        List<IResource> outputs = t.getOutputs();
-                        for (IResource r : outputs) {
-                            BundleHelper.throwIfCanceled(monitor);
-                            r.remove();
+                    List<String> paths = state.getPaths();
+                    m.beginTask("Cleaning...", paths.size());
+                    for (String path : paths) {
+                        File f = new File(path);
+                        if (f.exists()) {
+                            state.removeSignature(path);
+                            f.delete();
                             m.worked(1);
+                            System.out.printf("Deleted %s", path);
+                            BundleHelper.throwIfCanceled(monitor);
                         }
                     }
                     m.done();
@@ -1396,10 +1430,8 @@ run:
                 include = false;
             }
             if (include) {
-                String ext = "." + FilenameUtils.getExtension(path);
-                Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
-                if (builderClass != null)
-                    results.add(path);
+                // We'll add all files, and prune them later, when we know what file formats we support (after th eplugins are built)
+                results.add(path);
             }
         }
 
@@ -1442,6 +1474,19 @@ run:
         Walker walker = new Walker(skipDirs);
         List<String> results = new ArrayList<String>(1024);
         fileSystem.walk(path, walker, results);
+        inputs = results;
+    }
+
+    private void pruneSources() {
+        List<String> results = new ArrayList<>();
+        for (String path : inputs) {
+            String ext = "." + FilenameUtils.getExtension(path);
+            Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
+            if (builderClass != null)
+            {
+                results.add(path);
+            }
+        }
         inputs = results;
     }
 

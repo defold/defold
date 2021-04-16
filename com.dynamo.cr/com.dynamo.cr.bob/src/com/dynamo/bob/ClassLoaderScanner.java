@@ -33,6 +33,7 @@ public class ClassLoaderScanner implements IClassScanner {
 
     private List<URL> extraJars = new ArrayList<>();
     URLClassLoader classLoader = null;
+    private boolean dirty = true;
 
     private static void scanDir(File dir, String packageName, Set<String> classes) {
         File[] files = dir.listFiles();
@@ -70,10 +71,16 @@ public class ClassLoaderScanner implements IClassScanner {
         return url;
     }
 
+    // Implemented as a stack
+    // The last inserted file takes precedence
+    @Override
     public void addUrl(File file) {
         try {
             URL url = file.toURI().toURL();
-            extraJars.add(url);
+            extraJars.add(0, url);
+            dirty = true;
+
+            System.out.printf("Added plugin: %s\n", file);
         } catch (Exception e) {
             throw new RuntimeException(String.format("Couldn't add '%s' to list of jars", file), e);
         }
@@ -81,13 +88,14 @@ public class ClassLoaderScanner implements IClassScanner {
 
     @Override
     public ClassLoader getClassLoader() {
-        if (classLoader == null) {
+        if (classLoader == null || dirty) {
             try {
                 URL[] urls = extraJars.toArray(new URL[0]);
                 classLoader = new URLClassLoader(urls, this.getClass().getClassLoader());
             } catch (Exception e) {
                 throw new RuntimeException(String.format("Couldn't create custom class loader"), e);
             }
+            dirty = false;
         }
         return classLoader;
     }
