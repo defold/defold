@@ -105,6 +105,7 @@ This will trigger a build of the engines and editors for editor-alpha.
 
 1. Merge `master` into dev
 
+        $ cd defold
         $ git checkout dev
         $ git pull
         $ git merge master

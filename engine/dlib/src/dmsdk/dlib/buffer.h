@@ -379,7 +379,7 @@ namespace dmBuffer
     /*# Gets the current update number
      *
      * @name dmBuffer::GetContentVersion
-     * @param type [type:dmBuffer::ValueType] The value type
+     * @param type [type:dmBuffer::HBuffer] The value type
      * @param version [type:uint32_t*] The current version number
      * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
      */
@@ -389,7 +389,7 @@ namespace dmBuffer
      * Used to know if a buffer has been updated.
      *
      * @name dmBuffer::UpdateContentVersion
-     * @param type [type:dmBuffer::ValueType] The value type
+     * @param type [type:dmBuffer::HBuffer] The value type
      * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
      */
     Result UpdateContentVersion(HBuffer hbuffer);

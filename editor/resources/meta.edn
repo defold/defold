@@ -191,8 +191,8 @@
    :path ["physics" "scale"]}
   {:type :boolean,
    :help
-   "If set, allows for setting scale, position and rotation of dynamic bodies (default is false)",
-   :default false,
+   "If set, allows for setting scale, position and rotation of dynamic bodies (default is true)",
+   :default true,
    :path ["physics" "allow_dynamic_transforms"]}
   {:type :integer,
    :help
@@ -602,7 +602,7 @@
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 30,
+   :default 29,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",

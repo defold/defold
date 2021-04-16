@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -40,8 +40,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.SpineSceneUtil;
-import com.dynamo.bob.util.SpineSceneUtil.LoadException;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.UVTransformProvider;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
@@ -60,11 +58,12 @@ import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigAnimation;
+import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 
-@ProtoParams(messageClass = SpineSceneDesc.class)
+@ProtoParams(srcClass = SpineSceneDesc.class, messageClass = RigScene.class)
 @BuilderParams(name="SpineScene", inExts=".spinescene", outExt=".rigscenec")
 public class SpineSceneBuilder extends Builder<Void> {
 
@@ -391,7 +390,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                                 uv.get(i) == uv.get(i+6)) );
         }
 
-        Rig.RigScene.Builder b = Rig.RigScene.newBuilder();
+        RigScene.Builder b = RigScene.newBuilder();
         try {
             SpineSceneUtil scene = SpineSceneUtil.loadJson(new ByteArrayInputStream(task.input(1).getContent()), new UVTransformProvider() {
                 @Override
@@ -432,7 +431,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             out.close();
             task.output(3).setContent(out.toByteArray());
 
-        } catch (LoadException e) {
+        } catch (SpineSceneUtil.LoadException e) {
             throw new CompileExceptionError(task.input(1), -1, e.getMessage());
         }
 

@@ -1,16 +1,16 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.bob.util;
+package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -156,6 +156,18 @@ public class SpineSceneUtil {
 
     public List<MeshAttachment> getDefaultAttachments() {
         return getAttachmentsForSkin("");
+    }
+
+    public List<Bone> getBones() {
+        return this.bones;
+    }
+
+    public Map<String, Animation> getAnimations() {
+        return this.animations;
+    }
+
+    public List<BaseSlot> getBaseSlots() {
+        return this.baseSlots;
     }
 
     private static void loadTransform(JsonNode node, Transform t) {
@@ -820,6 +832,28 @@ public class SpineSceneUtil {
         }
 
         return defaultNode;
+    }
+
+    public static List<Bone> getBones(InputStream is) throws LoadException {
+        SpineSceneUtil scene = new SpineSceneUtil();
+        ObjectMapper m = new ObjectMapper();
+        try {
+            JsonNode node = m.readValue(new InputStreamReader(is, "UTF-8"), JsonNode.class);
+            Iterator<JsonNode> boneIt = node.get("bones").getElements();
+            while (boneIt.hasNext()) {
+                JsonNode boneNode = boneIt.next();
+                scene.loadBone(boneNode);
+            }
+            return scene.bones;
+        } catch (JsonParseException e) {
+            throw new LoadException(e.getMessage());
+        } catch (JsonMappingException e) {
+            throw new LoadException(e.getMessage());
+        } catch (UnsupportedEncodingException e) {
+            throw new LoadException(e.getMessage());
+        } catch (IOException e) {
+            throw new LoadException(e.getMessage());
+        }
     }
 
     public static SpineSceneUtil loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {

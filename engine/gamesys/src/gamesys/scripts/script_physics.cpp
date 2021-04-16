@@ -109,6 +109,17 @@ namespace dmGameSystem
      * @variable
      */
 
+    /*# weld joint type
+     *
+     * The following properties are available when connecting a joint of `JOINT_TYPE_WELD` type:
+     * @param reference_angle [type:number] [mark:READ ONLY]The bodyB angle minus bodyA angle in the reference state (radians).
+     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. Rotation only. Disable softness with a value of 0.
+     * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
+     *
+     * @name physics.JOINT_TYPE_WELD
+     * @variable
+     */
+
     struct PhysicsScriptContext
     {
         dmMessage::HSocket m_Socket;
@@ -603,6 +614,12 @@ namespace dmGameSystem
                 }
                 break;
 
+            case dmPhysics::JOINT_TYPE_WELD:
+                UnpackFloatParam(L, table_index, "reference_angle", params.m_WeldJointParams.m_ReferenceAngle);
+                UnpackFloatParam(L, table_index, "frequency", params.m_WeldJointParams.m_FrequencyHz);
+                UnpackFloatParam(L, table_index, "damping", params.m_WeldJointParams.m_DampingRatio);
+                break;
+
             default:
                 DM_LUA_ERROR("property table not implemented for joint type %d", type)
                 return;
@@ -781,6 +798,13 @@ namespace dmGameSystem
 
                     lua_pushnumber(L, joint_params.m_SliderJointParams.m_JointTranslation); lua_setfield(L, -2, "joint_translation");
                     lua_pushnumber(L, joint_params.m_SliderJointParams.m_JointSpeed); lua_setfield(L, -2, "joint_speed");
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WELD:
+                {
+                    lua_pushnumber(L, joint_params.m_WeldJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
+                    lua_pushnumber(L, joint_params.m_WeldJointParams.m_FrequencyHz); lua_setfield(L, -2, "frequency");
+                    lua_pushnumber(L, joint_params.m_WeldJointParams.m_DampingRatio); lua_setfield(L, -2, "damping");
                 }
                 break;
             default:
@@ -1095,6 +1119,7 @@ namespace dmGameSystem
         SETCONSTANT(JOINT_TYPE_FIXED)
         SETCONSTANT(JOINT_TYPE_HINGE)
         SETCONSTANT(JOINT_TYPE_SLIDER)
+        SETCONSTANT(JOINT_TYPE_WELD)
 
  #undef SETCONSTANT
 

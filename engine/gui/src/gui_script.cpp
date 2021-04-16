@@ -4049,7 +4049,7 @@ namespace dmGui
      * This is only useful for spine nodes. Gets the normalized cursor of the animation on a spine node.
      *
      * @name gui.get_spine_cursor
-     * @param node spine node to get the cursor for (node)
+     * @param node [type:node] spine node to get the cursor for (node)
      * @return cursor value [type:number] cursor value
      */
     int LuaGetSpineCursor(lua_State* L)
@@ -4075,7 +4075,7 @@ namespace dmGui
      * This is only useful nodes with flipbook animations. Gets the normalized cursor of the flipbook animation on a node.
      *
      * @name gui.get_flipbook_cursor
-     * @param node node to get the cursor for (node)
+     * @param node [type:node] node to get the cursor for (node)
      * @return cursor value [type:number] cursor value
      */
     static int LuaGetFlipbookCursor(lua_State* L)

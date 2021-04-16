@@ -66,7 +66,7 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.7 c-ares-1.17.1 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 c-ares-1.17.1 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1".split()
@@ -522,7 +522,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python eggs")
-        run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pip'])
+        run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pip==19.3.1'])
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
@@ -615,7 +615,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-30-30.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
@@ -778,6 +778,14 @@ class Configuration(object):
                 paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
                 return paths
 
+            def _findfiles(directory, exts):
+                paths = []
+                for root, dirs, files in os.walk(directory):
+                    for f in files:
+                        if os.path.splitext(f)[1] in exts:
+                            paths.append(os.path.join(root, f))
+                return paths
+
             # Dynamo libs
             libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
             paths = _findlibs(libdir)
@@ -818,6 +826,19 @@ class Configuration(object):
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
+            # .proto files
+            protodir = os.path.join(self.dynamo_home, 'share/proto/')
+            paths = _findfiles(protodir, ('.proto',))
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # protoc
+            if platform in ('x86_64-darwin','x86_64-linux','x86_64-win32'): # needed for the linux build server
+                protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
+                ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
+                ddfc_cxx = os.path.join(self.dynamo_home, 'bin/ddfc_cxx')
+                ddfc_cxx_bat = os.path.join(self.dynamo_home, 'bin/ddfc_cxx.bat')
+                ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat], self.dynamo_home, topfolder)
 
             # For logging, print all paths in zip:
             for x in zip.namelist():
@@ -991,17 +1012,33 @@ class Configuration(object):
     def build_bob_light(self):
         self._log('Building bob light')
 
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+
+        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
+        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
 
         env = self._form_env()
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
+        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
-        run.command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light'] + ant_args),
+        run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
+
+        self._log('Building extensions')
+        extension_dir = join(self.defold_root, 'com.dynamo.cr/extensions')
+        for d in os.listdir(extension_dir):
+            cwd = os.path.join(extension_dir, d)
+            if os.path.isdir(cwd):
+                self._log('Building %s' % d)
+                run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
+
+        run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
     def build_engine(self):
         self.check_sdk()
@@ -1162,11 +1199,17 @@ class Configuration(object):
 
     def build_bob(self):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+
+
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
         else:
             self.copy_local_bob_artefacts()
+
 
         env = self._form_env()
 
@@ -1174,9 +1217,22 @@ class Configuration(object):
         ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        args = [ant, 'clean', 'install'] + ant_args
-        run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+        env = self._form_env()
+        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
+        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
+
+        run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
+
+        self._log('Building extensions')
+        extension_dir = join(self.defold_root, 'com.dynamo.cr/extensions')
+        for d in os.listdir(extension_dir):
+            cwd = os.path.join(extension_dir, d)
+            if os.path.isdir(cwd):
+                self._log('Building %s' % d)
+                run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
+
+        run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
         if not self.skip_tests:
             cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
