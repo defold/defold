@@ -699,14 +699,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
 
 #if defined(ANDROID)
-        // Seems to work fine anyway with out any hints
+        // Seems to work fine anyway without any hints
         // which is good, since we want to fallback from OpenGLES 3 to 2
 #elif defined(__linux__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(_WIN32)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
             #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
@@ -722,6 +722,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         if (is_desktop) {
             glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         }
 
         int mode = GLFW_WINDOW;
@@ -729,7 +730,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             mode = GLFW_FULLSCREEN;
         if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            if (is_desktop) {
+                dmLogWarning("Trying OpenGL 3.1 compat mode");
+
+                // Try a second time, this time without core profile, and lower the minor version
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1); // We currently cannot go lower since we support shader model 140
+                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+
+                if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
+                {
+                    return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+                }
+            }
+            else {
+                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            }
         }
 
 #if defined (_WIN32)
@@ -857,6 +872,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #endif
 #endif
 
+        params->m_PrintDeviceInfo = 1;
         if (params->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: OpenGL");
