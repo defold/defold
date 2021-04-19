@@ -238,6 +238,8 @@
                  (.setConnectTimeout (int connect-timeout-ms))
                  (.setReadTimeout (int read-timeout-ms)))
         api-root (.resource client (URI. server-url))
+        extender-username (System/getenv "DM_EXTENDER_USERNAME")
+        extender-password (System/getenv "DM_EXTENDER_PASSWORD")
         user-info (.getUserInfo (URI. server-url))
         build-resource (.path api-root (build-url extender-platform sdk-version))
         builder (.getRequestBuilder build-resource)
@@ -246,6 +248,8 @@
     (.accept builder #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
     (if (not-empty user-info)
         (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
+    (if (and (not-empty extender-username) (not-empty extender-password))
+        (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
     (with-open [form (FormDataMultiPart.)]
       ; upload the file to the server, basically telling it what we are sending (and what we aren't)
       (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
