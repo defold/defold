@@ -10,12 +10,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_SCRIPT_H
-#define DMSDK_SCRIPT_H
+#ifndef DMSDK_SCRIPT_SCRIPT_H
+#define DMSDK_SCRIPT_SCRIPT_H
 
 #include <stdint.h>
 #include <stdarg.h>
-#include <dmsdk/dlib/buffer.h>
 
 extern "C"
 {
@@ -242,89 +241,6 @@ namespace dmScript
      * ```
      */
     lua_State* GetMainThread(lua_State* L);
-
-
-    enum LuaBufferOwnership
-    {
-        OWNER_C   = 0,
-        OWNER_LUA = 1,
-        OWNER_RES = 2,
-    };
-
-    /*# Lua wrapper for a dmBuffer::HBuffer
-     *
-     * Holds info about the buffer and who owns it.
-     *
-     * @struct
-     * @name dmScript::LuaHBuffer
-     * @member m_Buffer [type:dmBuffer::HBuffer]            The buffer (or resource)
-     * @member m_Owner  [type:dmScript::LuaBufferOwnership] What ownership the pointer has
-     */
-    struct LuaHBuffer
-    {
-        union {
-            dmBuffer::HBuffer   m_Buffer;
-            void*               m_BufferRes;
-        };
-
-        /// Specifies the owner of the buffer.
-        /// OWNER_C   - m_Buffer is owned by C side, should not be destroyed when GCed
-        /// OWNER_LUA - m_Buffer is owned by Lua side, will be destroyed when GCed
-        /// OWNER_RES - m_Buffer not used, has a reference to a buffer resource instead. m_BufferRes is owned by C side, will be released when GCed
-        union {
-            bool                m_UseLuaGC; // Deprecated
-            LuaBufferOwnership  m_Owner;
-        };
-    };
-
-    /*# check if the value is a dmScript::LuaHBuffer
-     *
-     * Check if the value is a dmScript::LuaHBuffer
-     *
-     * @name dmScript::IsBuffer
-     * @param L [type:lua_State*] lua state
-     * @param index [type:int] Index of the value
-     * @return boolean [type:boolean] True if value at index is a LuaHBuffer
-     */
-    bool IsBuffer(lua_State* L, int index);
-
-    /*# push a LuaHBuffer onto the supplied lua state
-     *
-     * Will increase the stack by 1.
-     *
-     * @name dmScript::PushBuffer
-     * @param L [type:lua_State*] lua state
-     * @param buffer [type:dmScript::LuaHBuffer] buffer to push
-     * @examples
-     *
-     * How to push a buffer and give Lua ownership of the buffer (GC)
-     *
-     * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_LUA };
-     * PushBuffer(L, luabuf);
-     * ```
-     *
-     * How to push a buffer and keep ownership in C++
-     *
-     * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_C };
-     * PushBuffer(L, luabuf);
-     * ```
-     */
-    void PushBuffer(lua_State* L, const LuaHBuffer& buffer);
-
-    /*# retrieve a HBuffer from the supplied lua state
-     *
-     * Check if the value in the supplied index on the lua stack is a HBuffer and returns it.
-     *
-     * @name dmScript::CheckBuffer
-     * @param L [type:lua_State*] lua state
-     * @param index [type:int] Index of the value
-     * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
-     */
-    LuaHBuffer* CheckBuffer(lua_State* L, int index);
-
-    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index);
 
     /*# get the value at index as a Vectormath::Aos::Vector3*
      * Get the value at index as a Vectormath::Aos::Vector3*
@@ -587,4 +503,4 @@ namespace dmScript
     int PCall(lua_State* L, int nargs, int nresult);
 }
 
-#endif // DMSDK_SCRIPT_H
+#endif // DMSDK_SCRIPT_SCRIPT_H
