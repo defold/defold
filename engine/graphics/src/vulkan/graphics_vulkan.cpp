@@ -478,7 +478,7 @@ namespace dmGraphics
             // multisampling enabled.
             VkImageView& vk_image_view_swap      = swapChain->m_ImageViews[i];
             VkImageView& vk_image_view_depth     = context->m_MainTextureDepthStencil.m_Handle.m_ImageView;
-            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture.m_Handle.m_ImageView;
+            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture->m_Handle.m_ImageView;
             VkImageView  vk_image_attachments[3];
             uint8_t num_attachments;
 
@@ -875,6 +875,7 @@ namespace dmGraphics
 
         uint16_t validation_layers_count;
         const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
+        Texture* resolveTexture = new Texture;
 
         if (selected_device == NULL)
         {
@@ -929,8 +930,9 @@ namespace dmGraphics
         vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
         // Create swap chain
+        InitializeVulkanTexture(resolveTexture);
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family);
+        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, resolveTexture);
 
         res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
@@ -2948,7 +2950,9 @@ bail:
 
     static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params)
     {
-        Texture* tex       = new Texture;
+        Texture* tex = new Texture;
+        InitializeVulkanTexture(tex);
+
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
