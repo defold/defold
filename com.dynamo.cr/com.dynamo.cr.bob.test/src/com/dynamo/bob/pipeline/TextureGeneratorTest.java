@@ -377,8 +377,10 @@ public class TextureGeneratorTest {
         assertEquals(1, texture.getAlternativesCount());
         assertEquals(128, texture.getAlternatives(0).getWidth());
         assertEquals(64, texture.getAlternatives(0).getHeight());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_ETC1, texture.getAlternatives(0).getFormat());
 
+        // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
+        //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_ETC1, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
     }
 
     @Test
@@ -404,7 +406,6 @@ public class TextureGeneratorTest {
 
         assertEquals(16, texture.getAlternatives(0).getWidth());
         assertEquals(8, texture.getAlternatives(0).getHeight());
-
     }
 
 
@@ -446,19 +447,24 @@ public class TextureGeneratorTest {
         assertEquals(3, texture.getAlternativesCount());
 
         // PVR will result in square textures
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+
+        // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
+
+        //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
         assertEquals(16, texture.getAlternatives(0).getWidth());
-        assertEquals(16, texture.getAlternatives(0).getHeight());
+        assertEquals(8, texture.getAlternatives(0).getHeight());
 
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, texture.getAlternatives(1).getFormat());
+        //assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, texture.getAlternatives(1).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(1).getFormat());
         assertEquals(16, texture.getAlternatives(1).getWidth());
-        assertEquals(16, texture.getAlternatives(1).getHeight());
+        assertEquals(8, texture.getAlternatives(1).getHeight());
 
 
+        //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(2).getFormat());
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(2).getFormat());
         assertEquals(128, texture.getAlternatives(2).getWidth());
         assertEquals(64, texture.getAlternatives(2).getHeight());
-
     }
 
 
@@ -485,9 +491,11 @@ public class TextureGeneratorTest {
 
         // PVR will result in square textures
         assertEquals(128, texture.getAlternatives(0).getWidth());
-        assertEquals(128, texture.getAlternatives(0).getHeight());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+        assertEquals(64, texture.getAlternatives(0).getHeight());
 
+        // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
+        //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
     }
 
 
@@ -512,9 +520,10 @@ public class TextureGeneratorTest {
 
         TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build(), true);
 
+        // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
         // If input has less channels than target format, it should use a format in the same family with fewer channels (if available).
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
-
+        //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
     }
 
 
