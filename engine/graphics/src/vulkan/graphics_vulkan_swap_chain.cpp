@@ -66,13 +66,15 @@ namespace dmGraphics
     }
 
     SwapChain::SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
-        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily)
-        : m_Surface(surface)
+        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily, Texture* resolveTexture)
+        : m_ResolveTexture(resolveTexture)
+        , m_Surface(surface)
         , m_QueueFamily(queueFamily)
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
         , m_SwapChain(VK_NULL_HANDLE)
         , m_SampleCountFlag(vk_sample_flag)
-    {}
+    {
+    }
 
     VkResult SwapChain::Advance(VkDevice vk_device, VkSemaphore vk_image_available)
     {
@@ -218,7 +220,7 @@ namespace dmGraphics
         if (vk_old_swap_chain != VK_NULL_HANDLE)
         {
             DestroyVkSwapChain(vk_device, vk_old_swap_chain, swapChain->m_ImageViews);
-            DestroyTexture(vk_device, &swapChain->m_ResolveTexture.m_Handle);
+            DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
         }
 
         vkGetSwapchainImagesKHR(vk_device, swapChain->m_SwapChain, &swap_chain_image_count, 0);
@@ -240,14 +242,14 @@ namespace dmGraphics
                 vk_extent.width, vk_extent.height, 1,
                 swapChain->m_SampleCountFlag, swapChain->m_SurfaceFormat.format, VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, &swapChain->m_ResolveTexture);
+                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, swapChain->m_ResolveTexture);
             if (res != VK_SUCCESS)
             {
                 return res;
             }
 
             res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
-                swapChain->m_ResolveTexture.m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                swapChain->m_ResolveTexture->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             if (res != VK_SUCCESS)
             {
                 return res;
@@ -288,7 +290,7 @@ namespace dmGraphics
     {
         assert(swapChain);
         DestroyVkSwapChain(vk_device, swapChain->m_SwapChain, swapChain->m_ImageViews);
-        DestroyTexture(vk_device, &swapChain->m_ResolveTexture.m_Handle);
+        DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
 
         swapChain->m_SwapChain = VK_NULL_HANDLE;
     }
