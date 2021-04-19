@@ -1008,19 +1008,28 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_DepthBufferBits = 16;
 #else
 
+#if defined(__MACH__)
+        context->m_PackedDepthStencil = 1;
+#endif
+
         if ((IsExtensionSupported("GL_OES_packed_depth_stencil", extensions)) || (IsExtensionSupported("GL_EXT_packed_depth_stencil", extensions)))
         {
             context->m_PackedDepthStencil = 1;
         }
         GLint depth_buffer_bits;
         glGetIntegerv( GL_DEPTH_BITS, &depth_buffer_bits );
+        if (GL_INVALID_ENUM == glGetError())
+        {
+            depth_buffer_bits = 24;
+        }
+
         context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
 #endif
 
         GLint gl_max_texture_size = 1024;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
         context->m_MaxTextureSize = gl_max_texture_size;
-        CLEAR_GL_ERROR
+        CLEAR_GL_ERROR;
 
 #if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
@@ -1035,14 +1044,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
         }
         context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
-        CLEAR_GL_ERROR
+        CLEAR_GL_ERROR;
 
         GLint gl_max_elem_indices = 65536;
         if (!legacy) {
             glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
         }
         context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
-        CLEAR_GL_ERROR
+        CLEAR_GL_ERROR;
 #endif
 
         if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
@@ -1894,7 +1903,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
 #ifdef GL_DEPTH_STENCIL_ATTACHMENT
             // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
+            glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
             CHECK_GL_ERROR;
             if(!update_current)
             {
@@ -2000,6 +2009,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 }
             }
             OpenGLSetDepthStencilRenderBuffer(rt);
+            CHECK_GL_FRAMEBUFFER_ERROR;
         }
 
         // Disable color buffer
@@ -2016,7 +2026,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         }
 
-        CHECK_GL_FRAMEBUFFER_ERROR
+        CHECK_GL_FRAMEBUFFER_ERROR;
         glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR;
 
@@ -2076,7 +2086,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
-        CHECK_GL_FRAMEBUFFER_ERROR
+        CHECK_GL_FRAMEBUFFER_ERROR;
     }
 
     static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
