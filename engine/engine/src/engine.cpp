@@ -671,8 +671,8 @@ namespace dmEngine
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
-        graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
+        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
 
         graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
