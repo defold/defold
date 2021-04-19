@@ -872,7 +872,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #endif
 #endif
 
-        params->m_PrintDeviceInfo = 1;
         if (params->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: OpenGL");
