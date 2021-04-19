@@ -216,7 +216,7 @@
 
 (defn split-multi-line-setting [category key settings]
   (let [path [category key]]
-    (if-let [comma-separated-setting (get-setting settings path)]
+    (if-let [comma-separated-setting (not-empty (get-setting settings path))]
       (let [comma-separated-setting-parts (non-blank (s/split comma-separated-setting #","))
             comma-separated-setting-count (count comma-separated-setting-parts)
             cleaned-settings (remove-setting settings path)]
