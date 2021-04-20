@@ -62,7 +62,7 @@ namespace dmBuffer
         // Realloc when it grows
         Buffer** m_Buffers;
         uint32_t m_Capacity;
-        uint32_t m_Version;
+        uint16_t m_Version;
     };
 
     static BufferContext* g_BufferContext = 0;
@@ -136,10 +136,14 @@ namespace dmBuffer
     {
         assert( index < ctx->m_Capacity );
         assert( ctx->m_Buffers[index] == 0 );
-        if( ctx->m_Version == 0 ) {
-            ctx->m_Version++;
+        ctx->m_Version++;
+        if (ctx->m_Version == 0)
+        {
+            ctx->m_Version = 1; // Don't allow it to be 0, to avoid potentially getting a 0 buffer handle out
         }
-        uint16_t version = ctx->m_Version++;
+
+        uint16_t version = ctx->m_Version;
+
         ctx->m_Buffers[index] = buffer;
         buffer->m_Version = version;
         return version << 16 | index;
@@ -364,6 +368,7 @@ namespace dmBuffer
             return RESULT_BUFFER_SIZE_ERROR;
         }
 
+        // TODO: Perhaps implement as an index pool
         uint32_t index = FindEmptySlot(ctx);
         if( index == 0xFFFFFFFF )
         {
