@@ -172,6 +172,14 @@ public class Project {
         return this.publisher;
     }
 
+    public static ClassLoaderScanner createClassLoaderScanner() throws IOException {
+        // Find the jar file in the built-in resources
+        String jar = Bob.getJarFile("fmt-spine.jar");
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        scanner.addUrl(new File(jar));
+        return scanner;
+    }
+
     /**
      * Scan package for builder classes
      * @param scanner class scanner
