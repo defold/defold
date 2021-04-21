@@ -479,19 +479,13 @@ public class Bob {
         }
     }
 
-    public static void createClassLoaderScanner() throws IOException {
-        // Find the jar file in the built-in resources
-        String jar = Bob.getJarFile("fmt-spine.jar");
-        scanner = new ClassLoaderScanner();
-        scanner.addUrl(new File(jar));
-    }
-
     public static ClassLoaderScanner getClassLoaderScanner() {
         return scanner;
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
-        createClassLoaderScanner();
+        scanner = Project.createClassLoaderScanner();
+
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
