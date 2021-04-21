@@ -30,7 +30,7 @@ var FileLoader = {
                         return;
                     }
                     currentAttempt = currentAttempt + 1;
-                    setTimeout(obj.send, FileLoader.options.retryInterval);
+                    setTimeout(obj.send.bind(obj), FileLoader.options.retryInterval);
                 };
                 xhr.onload = function(e) {
                     if (onload) onload(xhr, e);
