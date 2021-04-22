@@ -2492,6 +2492,8 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     message->m_Id = dmHashString64("amessage");
     message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;
     message->m_DataSize = sizeof(dmTestGuiDDF::AMessage);
+    message->m_UserData1 = 0;
+    message->m_UserData2 = 0;
     dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)message->m_Data;
     amessage->m_A = 123;
     r = dmGui::DispatchMessage(m_Scene, message);
@@ -2522,7 +2524,8 @@ TEST_F(dmGuiTest, PostMessageToGuiEmptyLuaTable)
     message->m_Receiver = dmMessage::URL();
     message->m_Id = dmHashString64("amessage");
     message->m_Descriptor = 0;
-
+    message->m_UserData1 = 0;
+    message->m_UserData2 = 0;
     message->m_DataSize = 0;
 
     r = dmGui::DispatchMessage(m_Scene, message);
@@ -2553,6 +2556,8 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     message->m_Receiver = dmMessage::URL();
     message->m_Id = dmHashString64("amessage");
     message->m_Descriptor = 0;
+    message->m_UserData1 = 0;
+    message->m_UserData2 = 0;
 
     lua_State* L = lua_open();
     lua_newtable(L);
@@ -2821,6 +2826,8 @@ TEST_F(dmGuiTest, Bug352)
     message->m_Receiver = dmMessage::URL();
     message->m_Id = dmHashString64("inc_score");
     message->m_Descriptor = 0;
+    message->m_UserData1 = 0;
+    message->m_UserData2 = 0;
 
     lua_State* L = lua_open();
     lua_newtable(L);
@@ -3088,6 +3095,8 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     message->m_DataSize = 0;
     message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;
     message->m_Next = 0;
+    message->m_UserData1 = 0;
+    message->m_UserData2 = 0;
     dmTestGuiDDF::AMessage* data = (dmTestGuiDDF::AMessage*)message->m_Data;
     data->m_A = 0;
     data->m_B = 0;

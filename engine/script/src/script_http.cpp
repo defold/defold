@@ -127,12 +127,11 @@ namespace dmScript
                 return luaL_error(L, "http.request does not support request methods longer than %d characters.", max_method_len);
             }
 
-            // The callback is called from HttpResponseDecoder
+            // The callback is called from CompScriptOnMessage in comp_script.cpp
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
-            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
             int callback = dmScript::RefInInstance(L) - LUA_NOREF;
-            sender.m_FunctionRef = callback;
 
             char* headers = 0;
             int headers_length = 0;
@@ -229,7 +228,7 @@ namespace dmScript
             dmMessage::ResetURL(receiver);
             receiver.m_Socket = dmHttpService::GetSocket(g_Service);
 
-            dmMessage::Result r = dmMessage::Post(&sender, &receiver, dmHttpDDF::HttpRequest::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor, buf, post_len, 0);
+            dmMessage::Result r = dmMessage::Post(&sender, &receiver, dmHttpDDF::HttpRequest::m_DDFHash, 0, (uintptr_t)callback, (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor, buf, post_len, 0);
             if (r != dmMessage::RESULT_OK) {
                 dmLogError("Failed to create HTTP request");
             }

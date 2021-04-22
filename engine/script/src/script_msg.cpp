@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -602,7 +602,7 @@ namespace dmScript
 
         // Make sure that m_FunctionRef is 0. A value != 0 is probably a bug due to
         // reused PropertyVar (union) or use of char-buffers with uninitialized data
-        assert(out_url->m_FunctionRef == 0);
+        assert(out_url->_reserved == 0);
         dmMessage::StringURL string_url;
         dmMessage::Result result = dmMessage::ParseURL(url, &string_url);
         if (result != dmMessage::RESULT_OK)

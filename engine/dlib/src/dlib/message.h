@@ -50,20 +50,9 @@ namespace dmMessage
         }
         /// Socket
         HSocket     m_Socket;
-        /// Lua function reference for callback dispatching.
-        /// The value is ref - LUA_NOREF as LUA_NOREF is defined as -2
-        /// and we have the convention of zero for default values.
-        /// To get the actual ref, do ref + LUA_NOREF
-        /// It's unfortunate that we have to add lua related
-        /// functionality here though.
-        ///
-        /// This is a ref done in the instance local context table
-        /// using dmScript::RefInInstance() so when the corresponding
-        /// script instance dies it will be automatically cleaned up
-        /// if the cleanup callback is not called
-        int         m_FunctionRef;
 
-        int         _padding;
+        /// Reserved for sub component path
+        dmhash_t    _reserved;
 
         /// Path of the receiver
         dmhash_t    m_Path;
