@@ -310,7 +310,7 @@ namespace dmHttpService
             dmMessage::Post(&message->m_Sender,
                             &r,
                             message->m_Id,
-                            message->m_UserData,
+                            message->m_UserData1,
                             message->m_Descriptor,
                             message->m_Data,
                             message->m_DataSize, 0);

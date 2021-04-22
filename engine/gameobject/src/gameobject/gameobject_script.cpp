@@ -298,7 +298,6 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         Instance* instance = i->m_Instance;
         dmMessage::URL url;
-        url.m_FunctionRef = 0;
         url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
