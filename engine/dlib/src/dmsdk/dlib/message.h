@@ -111,12 +111,14 @@ namespace dmMessage
     /*#
      * Resets the given URL to default values.
      * @note Previously the URL wasn't reset in the constructor and certain calls to ResetURL might currently be redundant
+     * @name ResetUrl
      * @param url [type: dmMessage::URL] URL to reset
      */
     void ResetURL(URL* url);
 
     /*#
      * Get the message socket
+     * @name GetSocket
      * @param url [type: dmMessage::URL] url
      * @return socket [type: dmMessage::HSocket]
      */
@@ -124,6 +126,7 @@ namespace dmMessage
 
     /*#
      * Set the socket
+     * @name SetSocket
      * @param url [type: dmMessage::URL] url
      * @param socket [type: dmMessage::HSocket]
      */
@@ -131,6 +134,7 @@ namespace dmMessage
 
     /*#
      * Get the message path
+     * @name GetPath
      * @param url [type: dmMessage::URL] url
      * @return path [type: dmhash_t]
      */
@@ -138,6 +142,7 @@ namespace dmMessage
 
     /*#
      * Set the message path
+     * @name SetPath
      * @param url [type: dmMessage::URL] url
      * @param path [type: dmhash_t]
      */
@@ -145,6 +150,7 @@ namespace dmMessage
 
     /*#
      * Get the message fragment
+     * @name GetFragment
      * @param url [type: dmMessage::URL] url
      * @return fragment [type: dmhash_t]
      */
@@ -152,12 +158,17 @@ namespace dmMessage
 
     /*#
      * Set the message fragment
+     * @name SetFragment
      * @param url [type: dmMessage::URL] url
      * @param fragment [type: dmhash_t]
      */
     void SetFragment(URL* url, dmhash_t fragment);
 
 
+    /*#
+     * @struct
+     * @name Message
+     */
     struct Message;
 
     /*#
@@ -172,6 +183,7 @@ namespace dmMessage
     /**
      * Post an message to a socket
      * @note Message data is copied by value
+     * @name Post
      * @param sender [type: dmMessage::URL*] The sender URL if the receiver wants to respond. 0x0 is accepted
      * @param receiver [type: dmMessage::URL*] The receiver URL, must not be 0x0
      * @param message_id [type: dmhash_t] Message id
@@ -186,13 +198,10 @@ namespace dmMessage
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
                 uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
 
-    // Internal legacy function
-    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t descriptor,
-                    const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
-
     /*#
      * Convert a string to a URL struct
      * @note No allocation occurs, thus no cleanup is needed.
+     * @name ParseUrl
      * @param uri [type: const char*] string of the format [socket:][path][#fragment]
      * @param out [type: dmMessage::StringUrl] url in string format, must not be 0x0
      * @return

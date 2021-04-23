@@ -95,14 +95,6 @@ namespace dmMessage
      */
     bool HasMessages(HSocket socket);
 
-    /**
-     * Resets the given URL to default values.
-     * @note Previously the URL wasn't reset in the constructor and certain calls
-     *       to ResetURL might currently be redundant
-     * @param url URL to reset
-     */
-    void ResetURL(const URL& url);
-
     // Internal legacy function
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
 
