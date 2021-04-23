@@ -4,6 +4,7 @@ import os
 import Task
 import TaskGen
 from TaskGen import extension
+from Options import options
 
 Task.simple_task_type('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
                       color='PINK',
@@ -23,6 +24,8 @@ def pf_file(self, node):
         self.env['proto_type'] = self.proto_type
 
 def build(bld):
+    if options.skip_build_tests:
+       return
     bld.new_task_gen(features = 'cxx cprogram ddf test',
                     source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
                     uselib = 'TESTMAIN PROTOBUF DLIB PTHREAD',

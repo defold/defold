@@ -595,11 +595,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
                     IResource jsonRes = builder.project.getResource(spineJson);
 
-                    Class<?> spineSceneUtilClass = Bob.getClass("com.dynamo.bob.pipeline.SpineSceneUtil");
+                    Class<?> spineSceneUtilClass = builder.project.getClass("com.dynamo.bob.pipeline.SpineSceneUtil");
                     if (spineSceneUtilClass == null) {
                         throw new CompileExceptionError(builder.project.getResource(input), 0, "Failed to find SpineSceneUtil class!");
                     }
-                    Class<?> loadExceptionClass = Bob.getClass("com.dynamo.bob.pipeline.SpineSceneUtil$LoadException");
+                    Class<?> loadExceptionClass = builder.project.getClass("com.dynamo.bob.pipeline.SpineSceneUtil$LoadException");
                     if (loadExceptionClass == null) {
                         throw new CompileExceptionError(builder.project.getResource(input), 0, "Failed to find SpineSceneUtil.LoadException class!");
                     }
