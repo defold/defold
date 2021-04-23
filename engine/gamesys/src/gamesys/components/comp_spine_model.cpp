@@ -168,7 +168,7 @@ namespace dmGameSystem
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
                 dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                dmMessage::ResetURL(component->m_Listener);
+                dmMessage::ResetURL(&component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send animation_done to listener.");
@@ -339,7 +339,7 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
-        dmMessage::ResetURL(component->m_Listener);
+        dmMessage::ResetURL(&component->m_Listener);
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;

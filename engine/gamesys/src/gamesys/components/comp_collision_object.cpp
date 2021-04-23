@@ -517,9 +517,9 @@ namespace dmGameSystem
         uintptr_t descriptor = (uintptr_t)DDFMessage::m_DDFDescriptor;
         uint32_t data_size = sizeof(DDFMessage);
         dmMessage::URL sender;
-        dmMessage::ResetURL(sender);
+        dmMessage::ResetURL(&sender);
         dmMessage::URL receiver;
-        dmMessage::ResetURL(receiver);
+        dmMessage::ResetURL(&receiver);
         receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
         receiver.m_Path = instance_id;
         // sender is the same as receiver, but with the specific collision object as fragment

@@ -331,7 +331,7 @@ namespace dmScript
         int top = lua_gettop(L);
         (void)top;
         dmMessage::URL url;
-        dmMessage::ResetURL(url);
+        dmMessage::ResetURL(&url);
         if (top < 2)
         {
             ResolveURL(L, 1, &url, 0x0);
@@ -341,7 +341,7 @@ namespace dmScript
             dmMessage::URL source;
             if (lua_isnil(L, 1))
             {
-                dmMessage::ResetURL(source);
+                dmMessage::ResetURL(&source);
                 GetURL(L, &source);
             }
             if (!lua_isnil(L, 1))
@@ -385,7 +385,7 @@ namespace dmScript
                         else
                         {
                             dmMessage::URL default_url;
-                            dmMessage::ResetURL(default_url);
+                            dmMessage::ResetURL(&default_url);
                             GetURL(L, &default_url);
                             url.m_Path = default_url.m_Path;
                         }
@@ -661,7 +661,7 @@ namespace dmScript
             *out_url = *(dmMessage::URL*)lua_touserdata(L, index);
             if (out_default_url != 0x0)
             {
-                dmMessage::ResetURL(*out_default_url);
+                dmMessage::ResetURL(out_default_url);
                 GetURL(L, out_default_url);
             }
         }
@@ -704,7 +704,7 @@ namespace dmScript
                                 out_url->m_Fragment = dmHashBuffer64(string_url.m_Fragment, string_url.m_FragmentSize);
                                 if (out_default_url != 0x0)
                                 {
-                                    dmMessage::ResetURL(*out_default_url);
+                                    dmMessage::ResetURL(out_default_url);
                                     GetURL(L, out_default_url);
                                 }
                                 return 0;
@@ -718,7 +718,7 @@ namespace dmScript
             }
             // Fetch default URL from the lua state
             dmMessage::URL default_url;
-            dmMessage::ResetURL(default_url);
+            dmMessage::ResetURL(&default_url);
             GetURL(L, &default_url);
             if (out_default_url != 0x0)
             {
@@ -731,7 +731,7 @@ namespace dmScript
             }
             else if (url != 0)
             {
-                dmMessage::ResetURL(*out_url);
+                dmMessage::ResetURL(out_url);
                 dmMessage::Result result = parse_url_result;
                 if (parse_url_result == dmMessage::RESULT_OK)
                 {

@@ -225,7 +225,7 @@ namespace dmScript
 
             uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1;
             dmMessage::URL receiver;
-            dmMessage::ResetURL(receiver);
+            dmMessage::ResetURL(&receiver);
             receiver.m_Socket = dmHttpService::GetSocket(g_Service);
 
             dmMessage::Result r = dmMessage::Post(&sender, &receiver, dmHttpDDF::HttpRequest::m_DDFHash, 0, (uintptr_t)callback, (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor, buf, post_len, 0);
