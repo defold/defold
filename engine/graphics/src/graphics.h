@@ -17,8 +17,8 @@
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
+#include <dlib/hash.h>
 #include <ddf/ddf.h>
-#include <graphics/graphics_ddf.h>
 #include <graphics/graphics_ddf.h>
 
 namespace dmGraphics
