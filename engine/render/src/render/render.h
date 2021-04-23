@@ -10,12 +10,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RENDER_H
-#define RENDER_H
+#ifndef DM_RENDER_H
+#define DM_RENDER_H
 
 #include <string.h>
 #include <stdint.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/render/render.h>
+
 #include <dlib/hash.h>
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
@@ -36,7 +38,6 @@ namespace dmRender
     typedef struct NamedConstantBuffer*     HNamedConstantBuffer;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
-    typedef struct Material*                HMaterial;
     typedef struct Predicate*               HPredicate;
 
     /**
@@ -341,7 +342,6 @@ namespace dmRender
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
-    dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
     uint64_t                        GetMaterialUserData1(HMaterial material);
@@ -365,4 +365,4 @@ namespace dmRender
 
 }
 
-#endif /* RENDER_H */
+#endif /* DM_RENDER_H */
