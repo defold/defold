@@ -67,9 +67,6 @@ namespace dmMessage
      * @note This struct is a part of the save file APi (see script_table.cpp)
      * @struct
      * @name dmMessage::URL
-     * @member m_Socket      [type: dmMessage::HSocket] E.g. the collection name
-     * @member m_Path        [type: dmhash_t]   The gameobject path
-     * @member m_Fragment    [type: dmhash_t]   The component name
      */
     struct URL
     {
