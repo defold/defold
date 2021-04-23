@@ -781,7 +781,7 @@ namespace dmGameSystem
             if (descriptor == dmPhysicsDDF::RequestRayCast::m_DDFDescriptor)
             {
                 dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData1;
                 uint16_t component_index;
                 dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
                 if (go_result != dmGameObject::RESULT_OK)

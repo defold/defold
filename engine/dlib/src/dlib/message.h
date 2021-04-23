@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -50,20 +50,9 @@ namespace dmMessage
         }
         /// Socket
         HSocket     m_Socket;
-        /// Lua function reference for callback dispatching.
-        /// The value is ref - LUA_NOREF as LUA_NOREF is defined as -2
-        /// and we have the convention of zero for default values.
-        /// To get the actual ref, do ref + LUA_NOREF
-        /// It's unfortunate that we have to add lua related
-        /// functionality here though.
-        ///
-        /// This is a ref done in the instance local context table
-        /// using dmScript::RefInInstance() so when the corresponding
-        /// script instance dies it will be automatically cleaned up
-        /// if the cleanup callback is not called
-        int         m_FunctionRef;
 
-        int         _padding;
+        /// Reserved for sub component path
+        dmhash_t    _reserved;
 
         /// Path of the receiver
         dmhash_t    m_Path;
@@ -110,7 +99,8 @@ namespace dmMessage
         URL                    m_Sender;            //! Sender uri
         URL                    m_Receiver;          //! Receiver uri
         dmhash_t               m_Id;                //! Unique id of message
-        uintptr_t              m_UserData;          //! User data pointer
+        uintptr_t              m_UserData1;         //! User data pointer
+        uintptr_t              m_UserData2;         //! User data pointer
         uintptr_t              m_Descriptor;        //! User specified descriptor of the message data
         uint32_t               m_DataSize;          //! Size of message data in bytes
         struct Message*        m_Next;              //! Ptr to next message (or 0 if last)
@@ -188,14 +178,18 @@ namespace dmMessage
      * @param sender The sender URL if the receiver wants to respond. 0x0 is accepted
      * @param receiver The receiver URL, must not be 0x0
      * @param message_id Message id
-     * @param user_data User data that can be used when both the sender and receiver are known
+     * @param user_data2 User data that can be used when both the sender and receiver are known
+     * @param user_data2 User data that can be used when both the sender and receiver are known
      * @param descriptor User specified descriptor of the message data
      * @param message_data Message data reference
      * @param message_data_size Message data size in bytes
      * @param destroy_callback if set, will be called after each message dispatch
      * @return RESULT_OK if the message was posted
      */
-    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
+
+    // Internal legacy function
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
 
     /**
      * Dispatch messages

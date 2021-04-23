@@ -451,14 +451,15 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
+        int functionref = 0;
         if (top > 2) // completed cb
         {
             if (lua_isfunction(L, 3))
             {
                 lua_pushvalue(L, 3);
                 play_id = dmSound::GetAndIncreasePlayCounter();
-                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
+                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 
@@ -469,7 +470,7 @@ namespace dmGameSystem
         msg.m_Speed = speed;
         msg.m_PlayId = play_id;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
         lua_pushnumber(L, (double) msg.m_PlayId);
 

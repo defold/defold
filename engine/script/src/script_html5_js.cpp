@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -68,7 +68,7 @@ namespace dmScript
         char* result = (char*)EM_ASM_INT({
             var jsResult;
             var isSuccess = 1;
-            try 
+            try
             {
                 jsResult = eval(UTF8ToString($0));
             }
@@ -78,15 +78,15 @@ namespace dmScript
                 jsResult = err;
             }
             _dmScript_Html5ReportOperationSuccess(isSuccess);
-            jsResult += '';
-            var lengthBytes = lengthBytesUTF8(jsResult) + 1; 
+            jsResult += "";
+            var lengthBytes = lengthBytesUTF8(jsResult) + 1;
             var stringOnWasmHeap = _malloc(lengthBytes);
             stringToUTF8(jsResult, stringOnWasmHeap, lengthBytes);
             return stringOnWasmHeap;
         }, code);
         if (!isOperationSuccessful)
         {
-            luaL_error(L, result);
+            luaL_error(L, "%s", result);
             free(result);
             return 0;
         }

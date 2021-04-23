@@ -2047,11 +2047,11 @@ namespace dmGameObject
         Instance* instance = 0x0;
         // Start by looking for the instance in the user-data,
         // which is the case when an instance sends to itself.
-        if (message->m_UserData != 0
+        if (message->m_UserData1 != 0
                 && message->m_Sender.m_Socket == message->m_Receiver.m_Socket
                 && message->m_Sender.m_Path == message->m_Receiver.m_Path)
         {
-            Instance* user_data_instance = (Instance*)message->m_UserData;
+            Instance* user_data_instance = (Instance*)message->m_UserData1;
             if (message->m_Receiver.m_Path == user_data_instance->m_Identifier)
             {
                 instance = user_data_instance;
@@ -2105,7 +2105,7 @@ namespace dmGameObject
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
                 if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
                 {
-                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size, 0);
+                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData1, gotr_descriptor, &response, data_size, 0);
                     if (message_result != dmMessage::RESULT_OK)
                     {
                         dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name, message_result);
