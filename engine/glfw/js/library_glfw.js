@@ -505,7 +505,7 @@ var LibraryGLFW = {
                   GLFW.disconnectJoystick(joy);
                 }
                 GLFW.joys[joy] = {
-                  id: allocate(intArrayFromString(gamepad.id), 'i8', ALLOC_NORMAL),
+                  id: allocate(intArrayFromString(gamepad.id), ALLOC_NORMAL),
                   id_string: gamepad.id,
                   axesCount: gamepad.axes.length,
                   buttonsCount: gamepad.buttons.length

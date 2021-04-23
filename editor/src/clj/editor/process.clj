@@ -30,8 +30,6 @@
       (let [environment (.environment pb)]
         (doseq [k removeenv]
           (.remove environment k))))
-    (prn "MAWE debug command: " command args)
-    (prn "MAWE debug print env:" (.environment pb))
     (when (some? redirect-error-stream?)
       (.redirectErrorStream pb (boolean redirect-error-stream?)))
     (.start pb)))

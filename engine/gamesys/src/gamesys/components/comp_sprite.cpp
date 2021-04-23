@@ -133,7 +133,7 @@ namespace dmGameSystem
         }
 
         if (sprite_world->m_VertexBuffer == 0)
-            sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
         {
             uint32_t memsize = sizeof(SpriteVertex) * num_vertices_per_sprite * max_sprite_count;
@@ -163,7 +163,7 @@ namespace dmGameSystem
                 sprite_world->m_IndexBuffer = 0;
             }
 
-            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         }
 
         sprite_world->m_ReallocBuffers = 0;
@@ -857,16 +857,25 @@ namespace dmGameSystem
                 world->m_RenderObjects.SetSize(0);
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData),
-                                                world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                {
+                    uint32_t vertex_size = sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData);
+                    if (vertex_size)
+                    {
+                        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_size,
+                                                        world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
-                DM_COUNTER("SpriteVertexBuffer", (world->m_VertexBufferWritePtr - world->m_VertexBufferData) * sizeof(SpriteVertex));
+                        DM_COUNTER("SpriteVertexBuffer", vertex_size);
+                    }
+                }
 
                 if (world->m_UseGeometries)
                 {
                     uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
-                    dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                    DM_COUNTER("SpriteIndexBuffer", index_size);
+                    if (index_size)
+                    {
+                        dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                        DM_COUNTER("SpriteIndexBuffer", index_size);
+                    }
                 }
                 break;
             default:

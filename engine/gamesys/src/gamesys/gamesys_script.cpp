@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,11 +35,63 @@
 #include "scripts/script_buffer.h"
 #include <liveupdate/liveupdate.h>
 
+#include <dmsdk/gamesys/script.h>
+
 extern "C"
 {
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
 }
+
+namespace dmScript {
+    dmGameObject::HInstance CheckGOInstance(lua_State* L) {
+        dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
+        if (instance == 0) {
+            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
+            if (scene != 0) {
+                instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
+            }
+        }
+        // No instance for render scripts, ignored
+        if (instance == 0) {
+            luaL_error(L, "no instance could be found in the current script environment");
+        }
+        return instance;
+    }
+
+    // Inspired by the internal function dmGameObject::ResolveInstance
+    // Modified to support both gameobject/gui scripts
+    dmGameObject::HInstance CheckGOInstance(lua_State* L, int instance_arg)
+    {
+        dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
+        if (instance == 0) {
+            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
+            if (scene != 0) {
+                instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
+            }
+        }
+
+        if (!lua_isnil(L, instance_arg)) {
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(collection))
+            {
+                luaL_error(L, "function called can only access instances within the same collection.");
+            }
+
+            instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver.m_Path);
+            if (!instance)
+            {
+                luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
+                return 0; // Actually never reached
+            }
+        }
+        return instance;
+    }
+}
+
 
 namespace dmGameSystem
 {
@@ -87,18 +139,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {
-        dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-        if (instance == 0) {
-            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
-            if (scene != 0) {
-                instance = (dmGameObject::HInstance)GuiGetUserDataCallback(scene);
-            }
-        }
-        // No instance for render scripts, ignored
-        if (instance == 0) {
-            luaL_error(L, "no instance could be found in the current script environment");
-        }
-        return instance;
+        return dmScript::CheckGOInstance(L);
     }
 
 

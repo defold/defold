@@ -671,8 +671,8 @@ namespace dmEngine
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
-        graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
+        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
 
         graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
@@ -948,7 +948,7 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
-        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 0) ? 1 : 0;
+        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 1) ? 1 : 0;
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;

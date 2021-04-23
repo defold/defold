@@ -96,6 +96,7 @@ public class Project {
 
     public final static String LIB_DIR = ".internal/lib";
     public final static String CACHE_DIR = ".internal/cache";
+    private static ClassLoaderScanner scanner = null;
 
     public enum OutputFlags {
         NONE,
@@ -170,6 +171,22 @@ public class Project {
 
     public Publisher getPublisher() {
         return this.publisher;
+    }
+
+    public static ClassLoaderScanner createClassLoaderScanner() throws IOException {
+        // Find the jar file in the built-in resources
+        String jar = Bob.getJarFile("fmt-spine.jar");
+        scanner = new ClassLoaderScanner();
+        scanner.addUrl(new File(jar));
+        return scanner;
+    }
+
+    public static Class<?> getClass(String className) {
+        try {
+            return Class.forName(className, true, scanner.getClassLoader());
+        } catch(ClassNotFoundException e) {
+            return null;
+        }
     }
 
     /**
@@ -876,10 +893,9 @@ public class Project {
         // Find the plugins and register them now, before we're building the content
         List<File> plugins = ExtenderUtil.getPipelinePlugins(this);
         for (File plugin : plugins) {
-            Bob.getClassLoaderScanner().addUrl(plugin);
+            scanner.addUrl(plugin);
             logInfo("Using plugin %s", plugin);
         }
-        Bob.rescanClasses(this);
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
@@ -962,18 +978,20 @@ public class Project {
 
                     IProgress m = monitor.subProgress(99);
 
-                    m.beginTask("Reading classes...", 1);
-                    Bob.createClassLoaderScanner();
+                    IProgress mrep = m.subProgress(1);
+                    mrep.beginTask("Reading classes...", 1);
+                    createClassLoaderScanner();
                     registerPipelinePlugins();
-                    this.scan(Bob.getClassLoaderScanner(), "com.dynamo.bob");
-                    this.scan(Bob.getClassLoaderScanner(), "com.dynamo.bob.pipeline");
-                    m.done();
+                    scan(scanner, "com.dynamo.bob");
+                    scan(scanner, "com.dynamo.bob.pipeline");
+                    mrep.done();
 
-                    m.beginTask("Reading tasks...", 1);
+                    mrep = m.subProgress(1);
+                    mrep.beginTask("Reading tasks...", 1);
                     pruneSources();
                     createTasks();
                     validateBuildResourceMapping();
-                    m.done();
+                    mrep.done();
 
                     BundleHelper.throwIfCanceled(monitor);
                     m.beginTask("Building...", newTasks.size());
@@ -986,7 +1004,7 @@ public class Project {
 
                     // Generate and save build report
                     if (generateReport) {
-                        IProgress mrep = monitor.subProgress(1);
+                        mrep = monitor.subProgress(1);
                         mrep.beginTask("Generating report...", 1);
                         ReportGenerator rg = new ReportGenerator(this);
                         String reportJSON = rg.generateJSON();

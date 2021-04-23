@@ -424,6 +424,10 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
+            // Check the buffer version
+            BufferResource* br = GetVerticesBuffer(&component, component.m_Resource);
+            dmBuffer::GetContentVersion(br->m_Buffer, &br->m_Version);
+
             if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
                 ReHash(&component);
