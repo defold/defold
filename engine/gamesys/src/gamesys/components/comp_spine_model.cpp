@@ -182,7 +182,6 @@ namespace dmGameSystem
                 {
                     return;
                 }
-                receiver.m_FunctionRef = 0;
 
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {
@@ -206,7 +205,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size, 0);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, 0, descriptor, &event, data_size, 0);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send spine_event to listener.");

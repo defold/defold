@@ -166,7 +166,7 @@ namespace dmHttpService
         free((void*) response->m_Response);
     }
 
-    static void SendResponse(const dmMessage::URL* requester, int status,
+    static void SendResponse(const dmMessage::URL* requester, uintptr_t userdata1, uintptr_t userdata2, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length,
                              const char* filepath)
@@ -182,7 +182,7 @@ namespace dmHttpService
         memcpy((void*) resp.m_Response, response, response_length);
         resp.m_Path = filepath;
 
-        if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
+        if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, userdata1, userdata2, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
         {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
@@ -190,7 +190,7 @@ namespace dmHttpService
         }
     }
 
-    void HandleRequest(Worker* worker, const dmMessage::URL* requester, dmHttpDDF::HttpRequest* request)
+    void HandleRequest(Worker* worker, const dmMessage::URL* requester, uintptr_t userdata1, uintptr_t userdata2, dmHttpDDF::HttpRequest* request)
     {
         dmURI::Parts url;
         request->m_Method = (const char*) ((uintptr_t) request + (uintptr_t) request->m_Method);
@@ -198,7 +198,7 @@ namespace dmHttpService
         dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
-            SendResponse(requester, 0, 0, 0, 0, 0, 0);
+            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, 0);
             return;
         }
         if (url.m_Path[0] == '\0') {
@@ -242,15 +242,15 @@ namespace dmHttpService
 
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
-                SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             } else {
                 // TODO: Error codes to lua?
                 dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
-                SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             }
         } else {
             // TODO: Error codes to lua?
-            SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             dmLogError("Unable to create HTTP connection to '%s'. No route to host?", request->m_Url);
         }
     }
@@ -269,7 +269,7 @@ namespace dmHttpService
             if (message->m_Descriptor == (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor)
             {
                 dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) &message->m_Data[0];
-                HandleRequest(worker, &message->m_Sender, request);
+                HandleRequest(worker, &message->m_Sender, 0, message->m_UserData2, request);
                 free((void*) request->m_Headers);
                 free((void*) request->m_Request);
             }
@@ -310,7 +310,8 @@ namespace dmHttpService
             dmMessage::Post(&message->m_Sender,
                             &r,
                             message->m_Id,
-                            message->m_UserData,
+                            message->m_UserData1,
+                            message->m_UserData2,
                             message->m_Descriptor,
                             message->m_Data,
                             message->m_DataSize, 0);

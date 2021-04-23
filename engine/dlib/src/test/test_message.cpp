@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -403,7 +403,7 @@ TEST(dmMessage, Integrity)
 
 void HandleUserDataMessage(dmMessage::Message *message_object, void *user_ptr)
 {
-    *((uint32_t*)user_ptr) = *((uint32_t*)message_object->m_UserData);
+    *((uint32_t*)user_ptr) = *((uint32_t*)message_object->m_UserData1);
 }
 
 TEST(dmMessage, UserData)
@@ -435,7 +435,7 @@ uint32_t g_PostDistpatchCalled = 0;
 
 void CustomMessageDestroyCallback(dmMessage::Message* message)
 {
-    g_PostDistpatchCalled = *((uint32_t*)message->m_UserData);
+    g_PostDistpatchCalled = *((uint32_t*)message->m_UserData1) + *((uint32_t*)message->m_UserData2);
 }
 
 TEST(dmMessage, MessagePostDispatch)
@@ -443,21 +443,23 @@ TEST(dmMessage, MessagePostDispatch)
     dmMessage::URL receiver;
     dmMessage::ResetURL(receiver);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
-    uint32_t sent = 42;
+    uint32_t sent1 = 42;
+    uint32_t sent2 = 17;
     uint32_t received = 0;
 
     // Make sure we get a call after the dispatch
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent, 0x0, 0x0, 0, CustomMessageDestroyCallback));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent1, (uintptr_t)&sent2, 0x0, 0x0, 0, CustomMessageDestroyCallback));
     ASSERT_EQ(1u, dmMessage::Dispatch(receiver.m_Socket, HandleUserDataMessage, (void*)&received));
-    ASSERT_EQ(42, g_PostDistpatchCalled);
+    ASSERT_EQ(59, g_PostDistpatchCalled);
 
     g_PostDistpatchCalled = 0;
-    sent = 7011;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent, 0x0, 0x0, 0, CustomMessageDestroyCallback));
+    sent1 = 7011;
+    sent2 = 1100;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent1, (uintptr_t)&sent2, 0x0, 0x0, 0, CustomMessageDestroyCallback));
 
     // Make sure we get a call when the socket is destroyed
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
-    ASSERT_EQ(7011, g_PostDistpatchCalled);
+    ASSERT_EQ(8111, g_PostDistpatchCalled);
 }
 
 
