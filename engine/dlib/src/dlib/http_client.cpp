@@ -27,7 +27,6 @@
 #include "path.h"
 #include "time.h"
 #include "connection_pool.h"
-#include <dlib/dns.h>
 #include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sslsocket.h>
@@ -180,7 +179,6 @@ namespace dmHttpClient
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
-        dmDNS::HChannel     m_DNSChannel;
 
         bool                m_Secure;
         uint16_t            m_Port;
@@ -193,7 +191,7 @@ namespace dmHttpClient
     Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
     {
         m_Pool = g_PoolCreator.GetPool();
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, m_Client->m_DNSChannel, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
 
         if (r == dmConnectionPool::RESULT_OK) {
 
@@ -244,30 +242,9 @@ namespace dmHttpClient
     HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
     {
         dmSocket::Address address;
-
-
-        if (params->m_DNSChannel)
+        if (dmSocket::GetHostByName(hostname, &address) != dmSocket::RESULT_OK)
         {
-            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
-            {
-                // If the DNS request failed, we refresh the DNS configuration and try again.
-                // This is needed if we first perform an HTTP request when there's no network available,
-                // and then later on do more requests once we have gained connectivity.
-                dmDNS::RefreshChannel(params->m_DNSChannel);
-                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
-                {
-                    return 0;
-                }
-            }
-        }
-        else
-        {
-            // Fallback to socket implementation of GetHostByNamea
-            // in case we couldn't create a proper channel
-            if (dmSocket::GetHostByName(hostname, &address) != dmSocket::RESULT_OK)
-            {
-                return 0;
-            }
+            return 0;
         }
 
         Client* client = new Client();
@@ -288,7 +265,6 @@ namespace dmHttpClient
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = secure;
         client->m_Port = port;
-        client->m_DNSChannel = params->m_DNSChannel;
 
         return client;
     }
@@ -1158,11 +1134,6 @@ bail:
     dmHttpCache::HCache GetHttpCache(HClient client)
     {
         return client->m_HttpCache;
-    }
-
-    dmDNS::HChannel GetDNSChannel(HClient client)
-    {
-        return client->m_DNSChannel;
     }
 
     uint32_t ShutdownConnectionPool()
