@@ -61,7 +61,6 @@ public class Bob {
 
     private static boolean verbose = false;
     private static File rootFolder = null;
-    private static ClassLoaderScanner scanner = null;
 
     public Bob() {
     }
@@ -471,20 +470,8 @@ public class Bob {
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
-    public static Class<?> getClass(String className) {
-        try {
-            return Class.forName(className, true, scanner.getClassLoader());
-        } catch(ClassNotFoundException e) {
-            return null;
-        }
-    }
-
-    public static ClassLoaderScanner getClassLoaderScanner() {
-        return scanner;
-    }
-
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
-        scanner = Project.createClassLoaderScanner();
+        ClassLoaderScanner scanner = Project.createClassLoaderScanner();
 
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
