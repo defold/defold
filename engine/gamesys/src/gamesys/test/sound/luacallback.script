@@ -1,0 +1,25 @@
+local function sound_done(self, message_id, message, sender)
+    if message_id == hash("sound_done") then
+        self.sound_done = 1
+        print("sound done!", self.count)
+    end
+end
+
+
+function init(self)
+    self.sound_done = 0
+    self.count = 0
+    sound.play("#sound", nil, sound_done)
+end
+
+function final(self)
+    assert(self.sound_done == 1)
+end
+
+function update(self, dt)
+    print("update")
+    self.count = self.count + 1
+    if self.count == 1 then
+        sound.stop("#sound")
+    end
+end
