@@ -30,7 +30,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.dynamo.gui.proto.Gui;
 import com.google.protobuf.Message;
-import com.dynamo.bob.Bob;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
@@ -42,8 +42,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
 
     public GuiBuilderTest() throws IOException {
-        Bob.createClassLoaderScanner();
-        this.scanner = Bob.getClassLoaderScanner();
+        this.scanner = Project.createClassLoaderScanner();
 
         registerProtoBuilderNames();
     }
