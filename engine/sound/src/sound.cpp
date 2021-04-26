@@ -401,6 +401,8 @@ namespace dmSound
     Result Finalize()
     {
         SoundSystem* sound = g_SoundSystem;
+        if (!sound)
+            return RESULT_OK;
 
         sound->m_IsRunning = false;
         if (sound->m_Thread)
@@ -773,6 +775,8 @@ namespace dmSound
 
     Result Pause(HSoundInstance sound_instance, bool pause)
     {
+        if (!g_SoundSystem)
+            return RESULT_OK;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         sound_instance->m_Playing = (uint8_t)!pause;
         return RESULT_OK;
@@ -834,13 +838,13 @@ namespace dmSound
     }
 
     /*
-     * 
+     *
      * Template parameters
-     * 
-     * offset:  determines the value around which the audio samples are oscillating in the source audio data. if 0, samples are 
+     *
+     * offset:  determines the value around which the audio samples are oscillating in the source audio data. if 0, samples are
      *          both positive and negative.
      * scale: changes the scale of the samples when mixed by multiplying their values with the 'scale' template param.
-     */ 
+     */
     template <typename T, int offset, int scale>
     static void MixResampleUpMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
@@ -877,7 +881,7 @@ namespace dmSound
             float s = (1.0f - mix) * s1 + mix * s2; // resulting destination sample value is a mix of two source samples since a kind of fractional indexing is used
             mix_buffer[2 * i] += s * gain * left_scale;
             mix_buffer[2 * i + 1] += s * gain * right_scale;
-            
+
             prev_index = index; // keep old index for assertion
             frac += delta;
 
@@ -1456,6 +1460,9 @@ namespace dmSound
     Result Update()
     {
         SoundSystem* sound = g_SoundSystem;
+        if (!sound)
+            return RESULT_OK;
+
         if (!sound->m_Thread)
             return UpdateInternal(sound);
         return sound->m_Status;
@@ -1464,7 +1471,7 @@ namespace dmSound
     Result Pause(bool pause)
     {
         SoundSystem* sound = g_SoundSystem;
-        if (sound->m_Thread)
+        if (sound && sound->m_Thread)
         {
             sound->m_IsPaused = pause;
         }
