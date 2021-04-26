@@ -111,7 +111,7 @@ SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
-EXTERNAL_LIBS = "bullet3d cares".split()
+EXTERNAL_LIBS = "bullet3d".split()
 
 def is_64bit_machine():
     return platform.machine().endswith('64')
