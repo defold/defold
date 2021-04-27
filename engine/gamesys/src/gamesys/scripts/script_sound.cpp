@@ -44,6 +44,86 @@ namespace dmGameSystem
      * @namespace sound
      */
 
+
+    /*# [type:number] sound gain
+     *
+     * The gain on the sound-component. Note that gain is in linear scale,
+     * between 0 and 1.
+     *
+     * @name gain
+     * @property
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *   local gain = go.get("#sound", "gain")
+     *   go.set("#sound", "gain", gain * 1.5)
+     * end
+     * ```
+     */
+
+    /*# [type:number] sound pan
+     *
+     * The pan on the sound-component. The valid range is from -1.0 to 1.0,
+     * representing -45 degrees left, to +45 degrees right.
+     *
+     * @name pan
+     * @property
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *   local pan = go.get("#sound", "pan")
+     *   go.set("#sound", "pan", pan * -1)
+     * end
+     * ```
+     */
+
+    /*# [type:number] sound speed
+     *
+     * The speed on the sound-component where 1.0 is normal speed, 0.5 is half
+     * speed and 2.0 is double speed.
+     *
+     * @name speed
+     * @property
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *   local speed = go.get("#sound", "speed")
+     *   go.set("#sound", "speed", speed * 0.5)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] sound data
+     *
+     * The sound data used when playing the sound. The type of the property is hash.
+     *
+     * @name sound
+     * @property
+     *
+     * @examples
+     *
+     * How to change the sound:
+     *
+     * ```lua
+     * function init(self)
+     *   -- load a wav file bundled as a custom resource
+     *   local wav = sys.load_resource("foo.wav")
+     *   -- get resource path to the sound component
+     *   local resource_path = go.get("#sound", "sound")
+     *   -- update the resource with the loaded wav file
+     *   resource.set_sound(resource_path, wav)
+     *   -- play the updated sound
+     *   sound.play("#sound")
+     * end
+     * ```
+     */
+
     /*# check if background music is playing
      * Checks if background music is playing, e.g. from iTunes.
      *
