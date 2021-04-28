@@ -105,7 +105,7 @@ namespace dmConnectionPool
             }
 
             if (in_use > 0) {
-                dmLogError("Leaking %d connections from connection pool", in_use);
+                dmLogWarning("Leaking %d connections from connection pool", in_use);
             }
 
             dmMutex::Delete(m_Mutex);

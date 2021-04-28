@@ -183,6 +183,7 @@ namespace dmHttpClient
         bool                m_Secure;
         uint16_t            m_Port;
         uint16_t            m_IgnoreCache:1;
+        uint16_t            m_Canceled:1;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
@@ -265,6 +266,8 @@ namespace dmHttpClient
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = secure;
         client->m_Port = port;
+        client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;
+        client->m_Canceled = 0;
 
         return client;
     }
@@ -294,6 +297,11 @@ namespace dmHttpClient
         return RESULT_OK;
     }
 
+    void Cancel(HClient client)
+    {
+        client->m_Canceled = 1;
+    }
+
     void Delete(HClient client)
     {
         free(client->m_Hostname);
@@ -307,6 +315,8 @@ namespace dmHttpClient
 
     static bool HasRequestTimedOut(HClient client)
     {
+        if (client->m_Canceled)
+            return true;
         if( client->m_RequestTimeout == 0 )
             return false;
         uint64_t currenttime = dmTime::GetTime();
@@ -988,6 +998,8 @@ bail:
             client->m_Statistics.m_Responses++;
 
             client->m_SocketResult = dmSocket::RESULT_OK;
+
+            // This call wraps the dmSocket::GetHostByName() (one for each ipv4/ipv6)
             Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure, client->m_RequestTimeout);
             if (r != RESULT_OK) {
                 return r;
@@ -1094,6 +1106,10 @@ bail:
                                           || client->m_SocketResult == dmSocket::RESULT_WOULDBLOCK
                                           || client->m_SocketResult == dmSocket::RESULT_PIPE)))
             {
+                if (HasRequestTimedOut(client)) {
+                    return r;
+                }
+
                 // Try again
                 if (i < client->m_MaxGetRetries - 1) {
                     client->m_Statistics.m_Reconnections++;

@@ -261,6 +261,12 @@ namespace dmHttpClient
     dmHttpCache::HCache GetHttpCache(HClient client);
 
     /**
+     * Cancel current job
+     * @param client Client handle
+     */
+    void Cancel(HClient client);
+
+    /**
      * Delete HTTP client
      * @param client Client handle
      */

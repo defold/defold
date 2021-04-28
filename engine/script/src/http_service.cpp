@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -57,6 +58,7 @@ namespace dmHttpService
         const HttpService*    m_Service;
         bool                  m_CacheFlusher;
         volatile bool         m_Run;
+        int32_atomic_t        m_Finished;
     };
 
     struct HttpService
@@ -317,7 +319,7 @@ namespace dmHttpService
         }
     }
 
-    void Loop(void* arg)
+    static void Loop(void* arg)
     {
         Worker* worker = (Worker*) arg;
 
@@ -326,10 +328,23 @@ namespace dmHttpService
         while (worker->m_Run)
         {
             dmMessage::DispatchBlocking(worker->m_Socket, &Dispatch, worker);
-            if (worker->m_CacheFlusher &&  dmTime::GetTime() > next_flush) {
+            if (!worker->m_Run)
+                break;
+
+            if (worker->m_CacheFlusher && dmTime::GetTime() > next_flush) {
                 dmHttpCache::Flush(worker->m_Service->m_HttpCache);
                 next_flush = dmTime::GetTime() + flush_period;
             }
+        }
+
+        // If this thread finishes last, it's detached, and we need to release the memory
+        if (dmAtomicIncrement32(&worker->m_Finished)+1 == 2)
+        {
+            if (worker->m_Client)
+            {
+                dmHttpClient::Delete(worker->m_Client);
+            }
+            delete worker;
         }
     }
 
@@ -393,15 +408,10 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
+            worker->m_Finished = 0;
             service->m_Workers.Push(worker);
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
-
-            // Detach the thread
-            // DNS lookups using dmSocket::GetHostByName are using getaddrinfo which may block for an undefined
-            // amount of time. We do not wish to wait for the thread during shutdown
-            dmThread::Detach(t);
-
             worker->m_Thread = t;
         }
 
@@ -424,19 +434,38 @@ namespace dmHttpService
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
-            url.m_Socket = worker->m_Socket;
+
+            dmMessage::HSocket socket = worker->m_Socket;
+
+            if (worker->m_Client)
+                dmHttpClient::Cancel(worker->m_Client);
+
+            url.m_Socket = socket;
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
 
-            // We now use detach() on the thread on creation so that we don't have to wait for
-            // it during shutdown (see above for reason why)
+            // After this point, the client thread might no longer run
 
-            dmMessage::DeleteSocket(worker->m_Socket);
-            if (worker->m_Client)
+            // DNS lookups using dmSocket::GetHostByName are using getaddrinfo which may block for an undefined
+            // amount of time. We do not wish to wait for the thread during shutdown
+            // We now use detach() on the thread on creation so that we don't have to wait for the thread
+            if (worker->m_Thread)
             {
-                dmHttpClient::Delete(worker->m_Client);
+                dmThread::Detach(worker->m_Thread);
             }
-            delete worker;
+
+            // If the thread already finished we need to release the memory
+            if (dmAtomicIncrement32(&worker->m_Finished)+1 == 2)
+            {
+                if (worker->m_Client)
+                {
+                    dmHttpClient::Delete(worker->m_Client);
+                }
+                delete worker;
+            }
+
+            dmMessage::DeleteSocket(socket);
         }
+
         dmThread::Join(http_service->m_Balancer);
         dmMessage::DeleteSocket(http_service->m_Socket);
         if (http_service->m_HttpCache)
