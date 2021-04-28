@@ -146,7 +146,7 @@ namespace dmHttpClient
             m_Socket = 0;
             m_SSLSocket = 0;
         }
-        Result Connect(const char* host, uint16_t port, bool secure, int timeout);
+        Result Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled);
         ~Response();
     };
 
@@ -183,16 +183,16 @@ namespace dmHttpClient
         bool                m_Secure;
         uint16_t            m_Port;
         uint16_t            m_IgnoreCache:1;
-        uint16_t            m_Canceled:1;
+        int*                m_CancelFlag;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
     };
 
-    Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
+    Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled)
     {
         m_Pool = g_PoolCreator.GetPool();
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, canceled, &m_Connection, &m_Client->m_SocketResult);
 
         if (r == dmConnectionPool::RESULT_OK) {
 
@@ -240,10 +240,10 @@ namespace dmHttpClient
         params->m_RequestTimeout = 0;
     }
 
-    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
+    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure, int* cancelflag)
     {
         dmSocket::Address address;
-        if (dmSocket::GetHostByName(hostname, &address) != dmSocket::RESULT_OK)
+        if (dmSocket::GetHostByNameT(hostname, &address, params->m_RequestTimeout, cancelflag) != dmSocket::RESULT_OK)
         {
             return 0;
         }
@@ -267,14 +267,14 @@ namespace dmHttpClient
         client->m_Secure = secure;
         client->m_Port = port;
         client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;
-        client->m_Canceled = 0;
+        client->m_CancelFlag = cancelflag;
 
         return client;
     }
 
     HClient New(const NewParams* params, const char* hostname, uint16_t port)
     {
-        return New(params, hostname, port, false);
+        return New(params, hostname, port, false, 0);
     }
 
     Result SetOptionInt(HClient client, Option option, int64_t value)
@@ -297,11 +297,6 @@ namespace dmHttpClient
         return RESULT_OK;
     }
 
-    void Cancel(HClient client)
-    {
-        client->m_Canceled = 1;
-    }
-
     void Delete(HClient client)
     {
         free(client->m_Hostname);
@@ -315,7 +310,7 @@ namespace dmHttpClient
 
     static bool HasRequestTimedOut(HClient client)
     {
-        if (client->m_Canceled)
+        if (client->m_CancelFlag && *client->m_CancelFlag)
             return true;
         if( client->m_RequestTimeout == 0 )
             return false;
@@ -1000,7 +995,7 @@ bail:
             client->m_SocketResult = dmSocket::RESULT_OK;
 
             // This call wraps the dmSocket::GetHostByName() (one for each ipv4/ipv6)
-            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure, client->m_RequestTimeout);
+            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure, client->m_RequestTimeout, client->m_CancelFlag);
             if (r != RESULT_OK) {
                 return r;
             }

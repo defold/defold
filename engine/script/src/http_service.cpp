@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <dlib/array.h>
-#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -58,7 +57,7 @@ namespace dmHttpService
         const HttpService*    m_Service;
         bool                  m_CacheFlusher;
         volatile bool         m_Run;
-        int32_atomic_t        m_Finished;
+        int                   m_Canceled;
     };
 
     struct HttpService
@@ -225,7 +224,13 @@ namespace dmHttpService
             params.m_HttpCache = worker->m_Service->m_HttpCache;
             params.m_RequestTimeout = request->m_Timeout;
 
-            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
+//dmLogInfo("NEW REQUEST enter  thread: %p  run: %d  time: %llu\n", worker->m_Thread, worker->m_Run? 1 : 0, dmTime::GetTime());
+
+            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0, &worker->m_Canceled);
+
+//dmLogInfo("NEW REQUEST: client: %p  thread: %p  run: %d  time: %llu\n", worker->m_Client, worker->m_Thread, worker->m_Run? 1 : 0, dmTime::GetTime());
+//fflush(stdout);
+
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
 
@@ -269,6 +274,8 @@ namespace dmHttpService
             if (message->m_Descriptor == (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor)
             {
                 dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) &message->m_Data[0];
+                dmLogInfo("Worker handle request! worker->m_Run: %d   time: %llu", (int)worker->m_Run, dmTime::GetTime());
+
                 HandleRequest(worker, &message->m_Sender, 0, message->m_UserData2, request);
                 free((void*) request->m_Headers);
                 free((void*) request->m_Request);
@@ -303,6 +310,7 @@ namespace dmHttpService
     {
         HttpService* service = (HttpService*) user_ptr;
         if (message->m_Descriptor == (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor) {
+            dmLogInfo("STOPPED HTTP SERVICE!");
             service->m_Run = false;
         } else {
             dmMessage::URL r = message->m_Receiver;
@@ -335,16 +343,6 @@ namespace dmHttpService
                 dmHttpCache::Flush(worker->m_Service->m_HttpCache);
                 next_flush = dmTime::GetTime() + flush_period;
             }
-        }
-
-        // If this thread finishes last, it's detached, and we need to release the memory
-        if (dmAtomicIncrement32(&worker->m_Finished)+1 == 2)
-        {
-            if (worker->m_Client)
-            {
-                dmHttpClient::Delete(worker->m_Client);
-            }
-            delete worker;
         }
     }
 
@@ -408,6 +406,7 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
+            worker->m_Canceled = 0;
             worker->m_Finished = 0;
             service->m_Workers.Push(worker);
 
@@ -431,42 +430,35 @@ namespace dmHttpService
         dmMessage::URL url;
         url.m_Socket = http_service->m_Socket;
         dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
+
+        // Stop the balancer first, so we don't accept any new requests
+        dmThread::Join(http_service->m_Balancer);
+
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
 
-            dmMessage::HSocket socket = worker->m_Socket;
-
-            if (worker->m_Client)
-                dmHttpClient::Cancel(worker->m_Client);
-
-            url.m_Socket = socket;
+            url.m_Socket = worker->m_Socket;
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
 
-            // After this point, the client thread might no longer run
+            worker->m_Canceled = 1;
 
             // DNS lookups using dmSocket::GetHostByName are using getaddrinfo which may block for an undefined
             // amount of time. We do not wish to wait for the thread during shutdown
             // We now use detach() on the thread on creation so that we don't have to wait for the thread
             if (worker->m_Thread)
             {
-                dmThread::Detach(worker->m_Thread);
+                dmThread::Join(worker->m_Thread);
             }
 
-            // If the thread already finished we need to release the memory
-            if (dmAtomicIncrement32(&worker->m_Finished)+1 == 2)
+            dmMessage::DeleteSocket(worker->m_Socket);
+            if (worker->m_Client)
             {
-                if (worker->m_Client)
-                {
-                    dmHttpClient::Delete(worker->m_Client);
-                }
-                delete worker;
+                dmHttpClient::Delete(worker->m_Client);
             }
-
-            dmMessage::DeleteSocket(socket);
+            delete worker;
         }
 
-        dmThread::Join(http_service->m_Balancer);
         dmMessage::DeleteSocket(http_service->m_Socket);
         if (http_service->m_HttpCache)
             dmHttpCache::Close(http_service->m_HttpCache);

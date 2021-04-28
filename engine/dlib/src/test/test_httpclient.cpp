@@ -144,7 +144,7 @@ public:
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
         bool secure = strcmp(m_URI.m_Scheme, "https") == 0;
-        m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, secure);
+        m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, secure, 0);
         ASSERT_NE((void*) 0, m_Client);
 
         m_XScale = 1;
@@ -401,7 +401,7 @@ struct HttpStressHelper
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
-        m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure);
+        m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure, 0);
     }
 
     ~HttpStressHelper()
@@ -767,7 +767,7 @@ TEST_P(dmHttpClientTest, Cache)
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
     ASSERT_NE((void*) 0, m_Client);
 
     for (int i = 0; i < 100; ++i)
@@ -809,7 +809,7 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
     ASSERT_NE((void*) 0, m_Client);
 
     dmHttpClient::Result r;

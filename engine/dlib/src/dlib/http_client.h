@@ -183,9 +183,10 @@ namespace dmHttpClient
      * @param hostname Hostname
      * @param port Port number
      * @param secure TLS/SSL or not
+     * @param if non null and set, aborts the call as soon as possible
      * @return HTTP-client handle on success. 0 on failure.
      */
-    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure);
+    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure, int* cancelflag);
 
     /**
      * Set HTTP client option
@@ -259,12 +260,6 @@ namespace dmHttpClient
      * @return dmHttpCache::HCache handle
      */
     dmHttpCache::HCache GetHttpCache(HClient client);
-
-    /**
-     * Cancel current job
-     * @param client Client handle
-     */
-    void Cancel(HClient client);
 
     /**
      * Delete HTTP client
