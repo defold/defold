@@ -857,6 +857,8 @@ namespace dmEngine
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
             dmLogInfo("Initialised sound device '%s'", sound_params.m_OutputDevice);
+        } else {
+            dmLogWarning("Failed to initialize sound system.");
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
