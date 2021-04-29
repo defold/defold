@@ -58,6 +58,8 @@ These two lists are of the same length, are in fact a 1:1 match. This makes it e
 
 The hashes are a 64bit hash (using [dmHashString64()](https://defold.com/ref/stable/dmHash/?q=dmhashstring64#dmHashString64:string)) of the relative file path of the resource.
 
+The resource entry contains the resource size, and compressed size (if it is compressed). It also has a set of flags with meta data, such as if the resource is compressed and/or obfuscated.
+
 <pre>
 HEADER:
   header.version
@@ -85,10 +87,7 @@ CHECKSUM
 The data file itself contains an array of `resources`.
 Each resource is found at the offset specified by its index entry (`entry.resource_offset`)
 
-The resource also has the information about the resource size, and also the compressed size if it is compressed.
-It also has a set of flags with meta data, such as if the resource is compressed and/or obfuscated.
-
-At runtime, we look at the flags reverse the compression/obfuscation as necessary. We currently use LZ4 for compression, due to it's decompression speed. We don't compress the archive file itself, since each resource is individually compressed.
+At runtime, we reverse the compression/obfuscation as necessary. We currently use LZ4 for compression, due to it's decompression speed. We don't compress the archive file itself, since each resource is individually compressed.
 
 We also make sure each resource starts at a good address by padding out the file accordingly between each entry.
 
@@ -108,7 +107,7 @@ PAD
 The manifest file contains cryptographic checksums of both the entire data set, as well as the individual files.
 The manifest file is mainly used for Live Update content on the platforms that support this feature.
 
-See [ManifestBuilder.java](https://github.com/defold/defold/blob/dev/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/archive/ManifestBuilder.java) for mor detailed information.
+See [ManifestBuilder.java](https://github.com/defold/defold/blob/dev/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/archive/ManifestBuilder.java) for more detailed information.
 
 
 ### The public key `.public.der`
