@@ -986,7 +986,7 @@ namespace dmSocket
 #if defined(__EMSCRIPTEN__)
     Result GetHostByNameT(const char* name, Address* address, uint64_t timeout, int* cancelflag, bool ipv4, bool ipv6)
     {
-        return GetHostByName(const char* name, Address* address, bool ipv4, bool ipv6);
+        return GetHostByName(name, address, ipv4, ipv6);
     }
 #else
     Result GetHostByNameT(const char* name, Address* address, uint64_t timeout, int* cancelflag, bool ipv4, bool ipv6)
