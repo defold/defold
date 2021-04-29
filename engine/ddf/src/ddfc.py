@@ -604,6 +604,7 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
 
     pp_h.p('#include <stdint.h>')
     pp_h.p('#include <assert.h>')
+    pp_h.p('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
         if not 'ddf_extensions' in d:
             pp_h.p('#include "%s"', d.replace(".proto", ".h"))
