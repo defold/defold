@@ -2,7 +2,7 @@
 
 import os, sys
 import waf_graphics, waf_dynamo
-from waf_dynamo import apidoc_extract_task
+from waf_dynamo import apidoc_extract_task, dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -21,6 +21,7 @@ def build(bld):
     #obj.source.append('../proto/render_ddf.proto')
 
     bld.add_subdirs('test')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
     bld.install_files('${PREFIX}/include/render', 'render/display_profiles.h')
