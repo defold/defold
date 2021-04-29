@@ -224,12 +224,7 @@ namespace dmHttpService
             params.m_HttpCache = worker->m_Service->m_HttpCache;
             params.m_RequestTimeout = request->m_Timeout;
 
-//dmLogInfo("NEW REQUEST enter  thread: %p  run: %d  time: %llu\n", worker->m_Thread, worker->m_Run? 1 : 0, dmTime::GetTime());
-
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0, &worker->m_Canceled);
-
-//dmLogInfo("NEW REQUEST: client: %p  thread: %p  run: %d  time: %llu\n", worker->m_Client, worker->m_Thread, worker->m_Run? 1 : 0, dmTime::GetTime());
-//fflush(stdout);
 
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
@@ -274,8 +269,6 @@ namespace dmHttpService
             if (message->m_Descriptor == (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor)
             {
                 dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) &message->m_Data[0];
-                dmLogInfo("Worker handle request! worker->m_Run: %d   time: %llu", (int)worker->m_Run, dmTime::GetTime());
-
                 HandleRequest(worker, &message->m_Sender, 0, message->m_UserData2, request);
                 free((void*) request->m_Headers);
                 free((void*) request->m_Request);
@@ -310,7 +303,6 @@ namespace dmHttpService
     {
         HttpService* service = (HttpService*) user_ptr;
         if (message->m_Descriptor == (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor) {
-            dmLogInfo("STOPPED HTTP SERVICE!");
             service->m_Run = false;
         } else {
             dmMessage::URL r = message->m_Receiver;
@@ -432,7 +424,6 @@ namespace dmHttpService
 
         // Stop the balancer first, so we don't accept any new requests
         dmThread::Join(http_service->m_Balancer);
-
 
         // Cancel them all first, as opposed to one-by-one
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
