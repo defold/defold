@@ -407,7 +407,6 @@ namespace dmHttpService
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
             worker->m_Canceled = 0;
-            worker->m_Finished = 0;
             service->m_Workers.Push(worker);
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
@@ -434,6 +433,8 @@ namespace dmHttpService
         // Stop the balancer first, so we don't accept any new requests
         dmThread::Join(http_service->m_Balancer);
 
+
+        // Cancel them all first, as opposed to one-by-one
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
@@ -442,6 +443,11 @@ namespace dmHttpService
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
 
             worker->m_Canceled = 1;
+        }
+
+        for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
+        {
+            dmHttpService::Worker* worker = http_service->m_Workers[i];
 
             // DNS lookups using dmSocket::GetHostByName are using getaddrinfo which may block for an undefined
             // amount of time. We do not wish to wait for the thread during shutdown
