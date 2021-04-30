@@ -23,7 +23,6 @@
 #include <crash/crash.h>
 #include <dlib/buffer.h>
 #include <dlib/dlib.h>
-#include <dlib/dns.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/http_client.h>
@@ -1887,7 +1886,6 @@ void dmEngineInitialize()
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
-    dmDNS::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmLogParams params;
@@ -1910,7 +1908,6 @@ void dmEngineFinalize()
     dmLogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
-    dmDNS::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
 }
