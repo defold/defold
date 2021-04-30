@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -82,7 +82,7 @@ public class ArchiveTest {
 
         return 0;
     }
-    
+
     private ResourceNode addEntryToManifest(String filename, ResourceNode parent) throws IOException {
         ResourceNode current = new ResourceNode(filename, FilenameUtils.concat(contentRoot, filename));
         parent.addChild(current);
@@ -122,7 +122,7 @@ public class ArchiveTest {
     public void testBuilderAndReader() throws IOException
     {
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder);
+        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, true);
         ab.add(createDummyFile(contentRoot, "a.txt", "abc123".getBytes()));
         ab.add(createDummyFile(contentRoot, "b.txt", "apaBEPAc e p a".getBytes()));
         ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()));
@@ -146,7 +146,7 @@ public class ArchiveTest {
     public void testEntriesOrder() throws IOException {
 
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main/a.txt", "abc123".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main2/a.txt", "apaBEPAc e p a".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())));
@@ -181,16 +181,16 @@ public class ArchiveTest {
 
         ar.close();
     }
-    
+
     @Test
     public void testArchiveIndexAlignment() throws IOException {
-    	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+    	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
     	for (int i = 1; i < 50; ++i) {
 			String filename = "dummy" + Integer.toString(i);
 			String content  = "dummy" + Integer.toString(i);
 			byte[] archiveIndexMD5 = new byte[16];
 			instance.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, filename, content.getBytes())));
-    		
+
     		RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "rw");
 	        RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
 	        archiveIndex.setLength(0);
@@ -198,9 +198,9 @@ public class ArchiveTest {
 	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
 	        archiveIndex.close();
 	        archiveData.close();
-	        
+
 	        archiveIndex = new RandomAccessFile(outputIndex, "r");
-	        
+
 	        archiveIndex.readInt();  					// Version
 	        archiveIndex.readInt();  					// Padding
 	        archiveIndex.readLong(); 					// UserData
@@ -210,7 +210,7 @@ public class ArchiveTest {
 	        archiveIndex.readInt();						// HashSize
 	        archiveIndex.read(archiveIndexMD5);         // Archive index MD5 identifier
 	        archiveIndex.close();
-	        
+
 	        assertEquals(48, hashOffset);
 	        assertEquals(48 + entrySize * ArchiveBuilder.HASH_MAX_LENGTH, entryOffset);
 	        assertTrue(entryOffset % 4 == 0);
@@ -222,7 +222,7 @@ public class ArchiveTest {
     public void testLoadResourceData() throws Exception {
         byte[] content = "Hello, world".getBytes();
         String filepath = FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "resource.tmp", content));
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         byte[] actual = instance.loadResourceData(filepath);
 
@@ -232,7 +232,7 @@ public class ArchiveTest {
     @Test
     public void testCompressResourceData() throws Exception {
         byte[] content = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".getBytes();
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         byte[] expected = { 31, 65, 1, 0, 75, 80, 65, 65, 65, 65, 65 };
         byte[] actual = instance.compressResourceData(content);
@@ -242,7 +242,7 @@ public class ArchiveTest {
 
     @Test
     public void testShouldUseCompressedResourceData() throws Exception {
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         byte[] original = { 10, 10, 10, 10, 10 };
         byte[] compressed = { 10, 10, 10, 10 };
@@ -263,7 +263,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -291,7 +291,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -323,7 +323,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -355,7 +355,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -380,14 +380,14 @@ public class ArchiveTest {
         assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
         assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
     }
-    
+
     @SuppressWarnings("unused")
     @Test
     public void testExcludeResource() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntryToManifest("main.collectionc", root);
         ResourceNode collectionproxy1 = addEntryToManifest("level1.collectionproxyc", collection1);
@@ -400,7 +400,7 @@ public class ArchiveTest {
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level2.collectionproxyc");
-        
+
         byte[] buffer = "level 2 content".getBytes();
         String normalisedPath = FilenameUtils.separatorsToUnix("/level2.goc");
         manifestBuilder.addResourceEntry(normalisedPath, buffer, (byte) ResourceEntryFlag.EXCLUDED.getNumber());
@@ -412,14 +412,14 @@ public class ArchiveTest {
         assertFalse(instance.excludeResource("/level1.goc", excludedResources));
         assertTrue(instance.excludeResource("/level2.goc", excludedResources));
     }
-    
+
     @SuppressWarnings("unused")
     @Test
     public void testWriteArchive_ResourceInBundledAndExcludedProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
-        
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
         ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
@@ -427,22 +427,22 @@ public class ArchiveTest {
         ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
         ResourceNode gameobject12 = addEntry("level1.goc", "gamma", instance, collectionproxy2);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
-        
+
         manifestBuilder.setDependencies(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level2.collectionproxyc");
-        
+
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
-        
+
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
         assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
         assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4 
+        assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
     @SuppressWarnings("unused")
@@ -451,7 +451,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
