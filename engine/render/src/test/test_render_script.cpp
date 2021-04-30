@@ -246,10 +246,10 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
     uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
     dmMessage::URL sender;
-    dmMessage::ResetURL(sender);
+    dmMessage::ResetURL(&sender);
     sender.m_Path = dmHashString64("test_path");
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &window_resize, data_size, 0));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));

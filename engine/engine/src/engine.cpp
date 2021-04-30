@@ -120,7 +120,7 @@ namespace dmEngine
         window_resized.m_Height = height;
 
         dmMessage::URL receiver;
-        dmMessage::ResetURL(receiver);
+        dmMessage::ResetURL(&receiver);
         dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
         if (result != dmMessage::RESULT_OK)
         {

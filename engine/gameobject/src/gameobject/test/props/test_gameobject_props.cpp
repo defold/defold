@@ -229,7 +229,7 @@ TEST_F(PropsTest, PropsSpawn)
     dmScript::PushHash(L, dmHashString64("hash"));
     lua_rawset(L, -3);
     dmMessage::URL url;
-    dmMessage::ResetURL(url);
+    dmMessage::ResetURL(&url);
     url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     url.m_Path = dmHashString64("/path");
     lua_pushliteral(L, "url");

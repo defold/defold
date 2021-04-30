@@ -193,8 +193,8 @@ namespace dmGameSystem
                                 }
                             }
 
-                            dmMessage::ResetURL(entry.m_Receiver);
-                            dmMessage::ResetURL(entry.m_Listener);
+                            dmMessage::ResetURL(&entry.m_Receiver);
+                            dmMessage::ResetURL(&entry.m_Listener);
                         }
                     }
                     else if (entry.m_StopRequested)
@@ -375,7 +375,7 @@ namespace dmGameSystem
                 entry.m_Receiver = params.m_Message->m_Receiver;
                 entry.m_Delay = play_sound->m_Delay;
                 entry.m_PlayId = play_sound->m_PlayId;
-                dmMessage::ResetURL(entry.m_Listener);
+                dmMessage::ResetURL(&entry.m_Listener);
                 entry.m_LuaCallback = 0;
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)

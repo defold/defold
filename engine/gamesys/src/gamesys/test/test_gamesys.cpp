@@ -653,7 +653,7 @@ TEST_F(CursorTest, GuiFlipbookCursor)
     ASSERT_NE((void*)0x0, go);
 
     dmMessage::URL msg_url;
-    dmMessage::ResetURL(msg_url);
+    dmMessage::ResetURL(&msg_url);
     msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     msg_url.m_Path = go_id;
     msg_url.m_Fragment = gui_comp_id;
@@ -704,7 +704,7 @@ TEST_P(CursorTest, Cursor)
 
     // Dummy URL, just needed to kick flipbook animation on sprite
     dmMessage::URL msg_url;
-    dmMessage::ResetURL(msg_url);
+    dmMessage::ResetURL(&msg_url);
     msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     msg_url.m_Path = go_id;
     msg_url.m_Fragment = sprite_comp_id;

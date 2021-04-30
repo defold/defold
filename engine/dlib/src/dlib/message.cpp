@@ -354,12 +354,43 @@ namespace dmMessage
         return false;
     }
 
-    void ResetURL(const URL& url)
+    void ResetURL(URL* url)
     {
-        memset((void*)&url, 0, sizeof(URL));
+        memset((void*)url, 0, sizeof(URL));
     }
 
-    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
+    HSocket GetSocket(const URL* url)
+    {
+        return url->m_Socket;
+    }
+
+    void SetSocket(URL* url, HSocket socket)
+    {
+        url->m_Socket = socket;
+    }
+
+    dmhash_t GetPath(const URL* url)
+    {
+        return url->m_Path;
+    }
+
+    void SetPath(URL* url, dmhash_t path)
+    {
+        url->m_Path = path;
+    }
+
+    dmhash_t GetFragment(const URL* url)
+    {
+        return url->m_Fragment;
+    }
+
+    void SetFragment(URL* url, dmhash_t fragment)
+    {
+        url->m_Fragment = fragment;
+    }
+
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
+                    uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER("Messages", 1)
@@ -386,7 +417,7 @@ namespace dmMessage
         }
         else
         {
-            ResetURL(new_message->m_Sender);
+            ResetURL(&new_message->m_Sender);
         }
         new_message->m_Receiver = *receiver;
         new_message->m_Id = message_id;

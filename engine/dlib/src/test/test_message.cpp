@@ -66,7 +66,7 @@ TEST(dmMessage, Post)
 {
     const uint32_t max_message_count = 16;
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -132,7 +132,7 @@ TEST(dmMessage, Bench)
 {
     const uint32_t iter_count = 1024 * 16;
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -250,7 +250,7 @@ TEST(dmMessage, PostDuringDispatch)
 {
     const uint32_t max_message_count = 16;
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -295,7 +295,7 @@ void PostThread(void* arg)
 TEST(dmMessage, ThreadTest1)
 {
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -327,7 +327,7 @@ TEST(dmMessage, ThreadTest1)
 TEST(dmMessage, ThreadTest2)
 {
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -364,7 +364,7 @@ void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 TEST(dmMessage, Integrity)
 {
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -409,7 +409,7 @@ void HandleUserDataMessage(dmMessage::Message *message_object, void *user_ptr)
 TEST(dmMessage, UserData)
 {
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
     uint32_t sent = 1;
     uint32_t received = 0;
@@ -422,7 +422,7 @@ TEST(dmMessage, UserData)
 TEST(dmMessage, MemLeaks)
 {
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
     for (uint32_t i = 0; i < 10000; ++i)
     {
@@ -441,7 +441,7 @@ void CustomMessageDestroyCallback(dmMessage::Message* message)
 TEST(dmMessage, MessagePostDispatch)
 {
     dmMessage::URL receiver;
-    dmMessage::ResetURL(receiver);
+    dmMessage::ResetURL(&receiver);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
     uint32_t sent1 = 42;
     uint32_t sent2 = 17;

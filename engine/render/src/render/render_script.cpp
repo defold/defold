@@ -212,7 +212,7 @@ namespace dmRender
     {
         RenderScript* script = (RenderScript*)lua_touserdata(L, 1);
         dmMessage::URL url;
-        dmMessage::ResetURL(url);
+        dmMessage::ResetURL(&url);
         url.m_Socket = script->m_RenderContext->m_Socket;
         dmScript::PushURL(L, url);
         return 1;
@@ -309,7 +309,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, 1);
         dmMessage::URL url;
-        dmMessage::ResetURL(url);
+        dmMessage::ResetURL(&url);
         url.m_Socket = i->m_RenderContext->m_Socket;
         dmScript::PushURL(L, url);
         return 1;
