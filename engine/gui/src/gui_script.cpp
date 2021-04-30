@@ -73,7 +73,7 @@ namespace dmGui
     static int GuiScriptGetURL(lua_State* L)
     {
         dmMessage::URL url;
-        dmMessage::ResetURL(url);
+        dmMessage::ResetURL(&url);
         dmScript::PushURL(L, url);
         return 1;
     }
