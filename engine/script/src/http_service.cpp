@@ -46,7 +46,6 @@ namespace dmHttpService
     struct Worker
     {
         dmThread::Thread      m_Thread;
-        dmDNS::HChannel       m_DNSChannel;
         dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
@@ -58,6 +57,7 @@ namespace dmHttpService
         const HttpService*    m_Service;
         bool                  m_CacheFlusher;
         volatile bool         m_Run;
+        int                   m_Canceled;
     };
 
     struct HttpService
@@ -222,10 +222,10 @@ namespace dmHttpService
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
             params.m_HttpCache = worker->m_Service->m_HttpCache;
-            params.m_DNSChannel = worker->m_DNSChannel;
             params.m_RequestTimeout = request->m_Timeout;
 
-            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
+            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0, &worker->m_Canceled);
+
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
 
@@ -319,7 +319,7 @@ namespace dmHttpService
         }
     }
 
-    void Loop(void* arg)
+    static void Loop(void* arg)
     {
         Worker* worker = (Worker*) arg;
 
@@ -328,7 +328,10 @@ namespace dmHttpService
         while (worker->m_Run)
         {
             dmMessage::DispatchBlocking(worker->m_Socket, &Dispatch, worker);
-            if (worker->m_CacheFlusher &&  dmTime::GetTime() > next_flush) {
+            if (!worker->m_Run)
+                break;
+
+            if (worker->m_CacheFlusher && dmTime::GetTime() > next_flush) {
                 dmHttpCache::Flush(worker->m_Service->m_HttpCache);
                 next_flush = dmTime::GetTime() + flush_period;
             }
@@ -395,28 +398,10 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
-            worker->m_DNSChannel = 0;
+            worker->m_Canceled = 0;
             service->m_Workers.Push(worker);
 
-// Do not create a c-ares DNS channel on iOS
-// If we have no DNS channel we will fall back to POSIX getaddrinfo
-// c-ares DNS resolution will trigger a Network Security popup on most
-// residential WiFi setups since the WiFi router will act as a DNS and forward
-// DNS queries to the DNS of the ISP.
-// This will trigger the Network Security popup since c-ares communicates with
-// the router over the local network.
-// getaddrinfo on the other hand seems to be whitelisted in iOS.
-#if !defined(DM_PLATFORM_IOS)
-            dmDNS::NewChannel(&worker->m_DNSChannel);
-#endif
-
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
-// Detach the thread on iOS
-// DNS lookups on iOS are using getaddrinfo which may block for an undefined
-// amount of time. We do not wish to wait for the thread during shutdown
-#if defined(DM_PLATFORM_IOS)
-            dmThread::Detach(t);
-#endif
             worker->m_Thread = t;
         }
 
@@ -436,26 +421,41 @@ namespace dmHttpService
         dmMessage::URL url;
         url.m_Socket = http_service->m_Socket;
         dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
+
+        // Stop the balancer first, so we don't accept any new requests
+        dmThread::Join(http_service->m_Balancer);
+
+        // Cancel them all first, as opposed to one-by-one
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
+
             url.m_Socket = worker->m_Socket;
-            dmDNS::StopChannel(http_service->m_Workers[i]->m_DNSChannel);
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
-// On iOS we detach() the thread on creation so that we don't have to wait for
-// it during shutdown (see above for reason why)
-#if !defined(DM_PLATFORM_IOS)
-            dmThread::Join(worker->m_Thread);
-#endif
+
+            worker->m_Canceled = 1;
+        }
+
+        for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
+        {
+            dmHttpService::Worker* worker = http_service->m_Workers[i];
+
+            // DNS lookups using dmSocket::GetHostByName are using getaddrinfo which may block for an undefined
+            // amount of time. We do not wish to wait for the thread during shutdown
+            // We now use detach() on the thread on creation so that we don't have to wait for the thread
+            if (worker->m_Thread)
+            {
+                dmThread::Join(worker->m_Thread);
+            }
+
             dmMessage::DeleteSocket(worker->m_Socket);
-            dmDNS::DeleteChannel(worker->m_DNSChannel);
             if (worker->m_Client)
             {
                 dmHttpClient::Delete(worker->m_Client);
             }
             delete worker;
         }
-        dmThread::Join(http_service->m_Balancer);
+
         dmMessage::DeleteSocket(http_service->m_Socket);
         if (http_service->m_HttpCache)
             dmHttpCache::Close(http_service->m_HttpCache);

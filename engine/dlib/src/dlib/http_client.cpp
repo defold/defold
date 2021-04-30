@@ -27,7 +27,6 @@
 #include "path.h"
 #include "time.h"
 #include "connection_pool.h"
-#include <dlib/dns.h>
 #include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sslsocket.h>
@@ -147,7 +146,7 @@ namespace dmHttpClient
             m_Socket = 0;
             m_SSLSocket = 0;
         }
-        Result Connect(const char* host, uint16_t port, bool secure, int timeout);
+        Result Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled);
         ~Response();
     };
 
@@ -180,20 +179,20 @@ namespace dmHttpClient
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
-        dmDNS::HChannel     m_DNSChannel;
 
         bool                m_Secure;
         uint16_t            m_Port;
         uint16_t            m_IgnoreCache:1;
+        int*                m_CancelFlag;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
     };
 
-    Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
+    Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled)
     {
         m_Pool = g_PoolCreator.GetPool();
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, m_Client->m_DNSChannel, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, canceled, &m_Connection, &m_Client->m_SocketResult);
 
         if (r == dmConnectionPool::RESULT_OK) {
 
@@ -241,33 +240,12 @@ namespace dmHttpClient
         params->m_RequestTimeout = 0;
     }
 
-    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
+    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure, int* cancelflag)
     {
         dmSocket::Address address;
-
-
-        if (params->m_DNSChannel)
+        if (dmSocket::GetHostByNameT(hostname, &address, params->m_RequestTimeout, cancelflag) != dmSocket::RESULT_OK)
         {
-            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
-            {
-                // If the DNS request failed, we refresh the DNS configuration and try again.
-                // This is needed if we first perform an HTTP request when there's no network available,
-                // and then later on do more requests once we have gained connectivity.
-                dmDNS::RefreshChannel(params->m_DNSChannel);
-                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel, params->m_RequestTimeout) != dmDNS::RESULT_OK)
-                {
-                    return 0;
-                }
-            }
-        }
-        else
-        {
-            // Fallback to socket implementation of GetHostByNamea
-            // in case we couldn't create a proper channel
-            if (dmSocket::GetHostByName(hostname, &address) != dmSocket::RESULT_OK)
-            {
-                return 0;
-            }
+            return 0;
         }
 
         Client* client = new Client();
@@ -288,14 +266,15 @@ namespace dmHttpClient
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = secure;
         client->m_Port = port;
-        client->m_DNSChannel = params->m_DNSChannel;
+        client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;
+        client->m_CancelFlag = cancelflag;
 
         return client;
     }
 
     HClient New(const NewParams* params, const char* hostname, uint16_t port)
     {
-        return New(params, hostname, port, false);
+        return New(params, hostname, port, false, 0);
     }
 
     Result SetOptionInt(HClient client, Option option, int64_t value)
@@ -331,6 +310,8 @@ namespace dmHttpClient
 
     static bool HasRequestTimedOut(HClient client)
     {
+        if (client->m_CancelFlag && *client->m_CancelFlag)
+            return true;
         if( client->m_RequestTimeout == 0 )
             return false;
         uint64_t currenttime = dmTime::GetTime();
@@ -1012,7 +993,9 @@ bail:
             client->m_Statistics.m_Responses++;
 
             client->m_SocketResult = dmSocket::RESULT_OK;
-            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure, client->m_RequestTimeout);
+
+            // This call wraps the dmSocket::GetHostByName() (one for each ipv4/ipv6)
+            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure, client->m_RequestTimeout, client->m_CancelFlag);
             if (r != RESULT_OK) {
                 return r;
             }
@@ -1118,6 +1101,10 @@ bail:
                                           || client->m_SocketResult == dmSocket::RESULT_WOULDBLOCK
                                           || client->m_SocketResult == dmSocket::RESULT_PIPE)))
             {
+                if (HasRequestTimedOut(client)) {
+                    return r;
+                }
+
                 // Try again
                 if (i < client->m_MaxGetRetries - 1) {
                     client->m_Statistics.m_Reconnections++;
@@ -1158,11 +1145,6 @@ bail:
     dmHttpCache::HCache GetHttpCache(HClient client)
     {
         return client->m_HttpCache;
-    }
-
-    dmDNS::HChannel GetDNSChannel(HClient client)
-    {
-        return client->m_DNSChannel;
     }
 
     uint32_t ShutdownConnectionPool()
