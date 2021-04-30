@@ -1766,12 +1766,6 @@ def detect(conf):
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STATICLIB_DDF'] = 'ddf'
 
-    conf.env['STATICLIB_CARES'] = []
-    if platform not in ('js-web', 'wasm-web'):
-        conf.env['STATICLIB_CARES'].append('cares')
-    if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
-        conf.env['STATICLIB_CARES'].append('resolv')
-
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'
 

@@ -46,7 +46,6 @@
 struct android_app* g_AndroidApp;
 
 extern int main(int argc, char** argv);
-extern void ares_library_init_jvm(JavaVM *jvm);
 
 extern int g_KeyboardActive;
 extern int g_autoCloseKeyboard;
@@ -860,8 +859,6 @@ void _glfwPreMain(struct android_app* state)
     g_AndroidApp = state;
 
     _glfwWin.opened = 0;
-
-    ares_library_init_jvm(g_AndroidApp->activity->vm);
 
     char* argv[] = {0};
     argv[0] = strdup("defold-app");

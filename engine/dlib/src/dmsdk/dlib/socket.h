@@ -372,6 +372,20 @@ namespace dmSocket
      */
     Result GetHostByName(const char* name, Address* address, bool ipv4 = true, bool ipv6 = true);
 
+    /*# get host by name with timeout and cancelability
+     * Get host by name with timeout and cancelability
+     * @note On HTML5, this function is a wrapper for dmSocket::GetHostByName
+     * @name GetHostByName
+     * @param name [type:const char*] Hostname to resolve
+     * @param address [type:Address*] Host address result
+     * @param timeout [type:uint64_t] Timeout in microseconds
+     * @param cancelflag [type:int*] if non null and set, will abort the call
+     * @param ipv4 [type:bool] Whether or not to search for IPv4 addresses
+     * @param ipv6 [type:bool] Whether or not to search for IPv6 addresses
+     * @return [type:Result] RESULT_OK on success
+     */
+    Result GetHostByNameT(const char* name, Address* address, uint64_t timeout, int* cancelflag, bool ipv4 = true, bool ipv6 = true);
+
     /*# Convert result value to string
      * @name ResultToString
      * @param result [type:Result] Result to convert
