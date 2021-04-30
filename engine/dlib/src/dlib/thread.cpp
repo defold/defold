@@ -184,6 +184,11 @@ namespace dmThread
         assert(ret == WAIT_OBJECT_0);
     }
 
+    void Detach(Thread thread)
+    {
+        CloseHandle(thread);
+    }
+
     TlsKey AllocTls()
     {
         return TlsAlloc();

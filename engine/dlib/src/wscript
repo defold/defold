@@ -35,7 +35,6 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-        source_dirs.append('dlib/android')
     elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin')
     elif 'win32' in bld.env.PLATFORM:
@@ -75,7 +74,6 @@ def build(bld):
 
     lib_features = {
                     'CONDITIONVARIABLE':    os.path.join('dlib', 'condition_variable.cpp'),
-                    'DNS':                  os.path.join('dlib', 'dns.cpp'),
                     'MUTEX':                os.path.join('dlib', 'mutex.cpp'),
                     'SYS':                  os.path.join('dlib', 'sys.cpp'),
                     'TIME':                 os.path.join('dlib', 'time.cpp'),
@@ -98,10 +96,6 @@ def build(bld):
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
-
-    # This "null" version uses dmSocket::GetHostByName()
-    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'arm64-nx64']:
-        lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
 
     if is_platform_private(bld.env.PLATFORM):
         # Replace with any specialized sources that the private platform uses
@@ -257,7 +251,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_as('${PREFIX}/include/dlib/endian.h', _get_native_file(build_util.get_target_os(), 'endian.h'))

@@ -30,7 +30,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
-
 #endif
 
 #if defined(_WIN32)
@@ -41,6 +40,9 @@ typedef int socklen_t;
 
 #include "log.h"
 #include "socket_private.h"
+#include "thread.h"
+#include "atomic.h"
+#include "time.h"
 
 // Helper and utility functions
 namespace dmSocket
@@ -953,6 +955,81 @@ namespace dmSocket
 
             freeaddrinfo(res); // Free the head of the linked list
         }
+
+        return result;
+    }
+#endif
+
+    struct GetHostByNameThreadContext
+    {
+        int32_atomic_t m_Finished;
+        const char* m_Name;
+        Address m_Address;
+        Result m_Result;
+        bool m_Ipv4;
+        bool m_Ipv6;
+    };
+
+    static void GetHostByNameThreadWorker(void* arg)
+    {
+        GetHostByNameThreadContext* ctx = (GetHostByNameThreadContext*)arg;
+        ctx->m_Result = GetHostByName(ctx->m_Name, &ctx->m_Address, ctx->m_Ipv4, ctx->m_Ipv6);
+
+        if (dmAtomicIncrement32(&ctx->m_Finished)+1 == 2)
+        {
+            // The calling thread was already finished, waiting for this thread.
+            free((void*)ctx->m_Name);
+            delete ctx;
+        }
+    }
+
+#if defined(__EMSCRIPTEN__)
+    Result GetHostByNameT(const char* name, Address* address, uint64_t timeout, int* cancelflag, bool ipv4, bool ipv6)
+    {
+        return GetHostByName(name, address, ipv4, ipv6);
+    }
+#else
+    Result GetHostByNameT(const char* name, Address* address, uint64_t timeout, int* cancelflag, bool ipv4, bool ipv6)
+    {
+        const uint32_t THREAD_STACK_SIZE = 0x20000;
+
+        GetHostByNameThreadContext* ctx = new GetHostByNameThreadContext;
+        ctx->m_Name = strdup(name);
+        ctx->m_Ipv4 = ipv4;
+        ctx->m_Ipv6 = ipv6;
+        ctx->m_Result = RESULT_HOSTUNREACH;
+        ctx->m_Finished = 0;
+
+        dmThread::Thread t = dmThread::New(&GetHostByNameThreadWorker, THREAD_STACK_SIZE, ctx, "GetHostByName");
+        uint64_t tend = timeout ? dmTime::GetTime() + timeout : 0xFFFFFFFFFFFFFFFF;
+        while (tend > dmTime::GetTime())
+        {
+            if (dmAtomicAdd32(&ctx->m_Finished, 0) == 1) // the thread has finished
+            {
+                break;
+            }
+
+            if (cancelflag && *cancelflag)
+            {
+                break;
+            }
+
+            dmTime::Sleep(2000);
+        }
+
+        // if the thread hasn't finished, we let the thread clean up
+        if (dmAtomicIncrement32(&ctx->m_Finished)+1 == 1)
+        {
+            dmThread::Detach(t);
+            return RESULT_TIMEDOUT;
+        }
+
+        dmThread::Join(t);
+
+        Result result = ctx->m_Result;
+        *address = ctx->m_Address;
+        free((void*)ctx->m_Name);
+        delete ctx;
 
         return result;
     }
