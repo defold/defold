@@ -72,7 +72,7 @@ platforms:
 
   common:
     env:
-      PYTHONPATH:    '{{env.DYNAMO_HOME}}/lib/python:{{env.DYNAMO_HOME}}/ext/lib/python:{{env.DYNAMO_HOME}}/ext/lib/python/protobuf-2.3.0-py2.5.egg'
+      PYTHONPATH:    '{{dynamo_home}}/lib/python:{{dynamo_home}}/ext/lib/python:{{dynamo_home}}/ext/lib/python/protobuf-2.3.0-py2.5.egg'
     context:
       protoIncludes:    ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
 
