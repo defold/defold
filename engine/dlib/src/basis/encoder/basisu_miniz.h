@@ -3,7 +3,7 @@
   
    Forked from the public domain/unlicense version at: https://code.google.com/archive/p/miniz/ 
    
-   Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+   Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -81,9 +81,7 @@
 #define MINIZ_HAS_64BIT_REGISTERS 1
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace buminiz {
 
 // ------------------- zlib-style API Definitions.
 
@@ -588,9 +586,7 @@ mz_uint32 tdefl_get_adler32(tdefl_compressor *d);
 mz_uint tdefl_create_comp_flags_from_zip_params(int level, int window_bits, int strategy);
 #endif // #ifndef MINIZ_NO_ZLIB_APIS
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace buminiz
 
 #endif // MINIZ_HEADER_INCLUDED
 
@@ -598,12 +594,14 @@ mz_uint tdefl_create_comp_flags_from_zip_params(int level, int window_bits, int 
 
 #ifndef MINIZ_HEADER_FILE_ONLY
 
+#include <string.h>
+#include <assert.h>
+
+namespace buminiz {
+
 typedef unsigned char mz_validate_uint16[sizeof(mz_uint16)==2 ? 1 : -1];
 typedef unsigned char mz_validate_uint32[sizeof(mz_uint32)==4 ? 1 : -1];
 typedef unsigned char mz_validate_uint64[sizeof(mz_uint64)==8 ? 1 : -1];
-
-#include <string.h>
-#include <assert.h>
 
 #define MZ_ASSERT(x) assert(x)
 
@@ -635,10 +633,6 @@ typedef unsigned char mz_validate_uint64[sizeof(mz_uint64)==8 ? 1 : -1];
   #define MZ_FORCEINLINE inline __attribute__((__always_inline__))
 #else
   #define MZ_FORCEINLINE inline
-#endif
-
-#ifdef __cplusplus
-  extern "C" {
 #endif
 
 // ------------------- zlib-style API's
@@ -678,7 +672,7 @@ void mz_free(void *p)
 
 static void *def_alloc_func(void *opaque, size_t items, size_t size) { (void)opaque, (void)items, (void)size; return MZ_MALLOC(items * size); }
 static void def_free_func(void *opaque, void *address) { (void)opaque, (void)address; MZ_FREE(address); }
-static void *def_realloc_func(void *opaque, void *address, size_t items, size_t size) { (void)opaque, (void)address, (void)items, (void)size; return MZ_REALLOC(address, items * size); }
+//static void *def_realloc_func(void *opaque, void *address, size_t items, size_t size) { (void)opaque, (void)address, (void)items, (void)size; return MZ_REALLOC(address, items * size); }
 
 const char *mz_version(void)
 {
@@ -794,7 +788,14 @@ mz_ulong mz_deflateBound(mz_streamp pStream, mz_ulong source_len)
 {
   (void)pStream;
   // This is really over conservative. (And lame, but it's actually pretty tricky to compute a true upper bound given the way tdefl's blocking works.)
-  return MZ_MAX(128 + (source_len * 110) / 100, 128 + source_len + ((source_len / (31 * 1024)) + 1) * 5);
+  mz_uint64 a = 128ULL + (source_len * 110ULL) / 100ULL;
+  mz_uint64 b = 128ULL + (mz_uint64)source_len + ((source_len / (31 * 1024)) + 1ULL) * 5ULL;
+  
+  mz_uint64 t = MZ_MAX(a, b);
+  if (((mz_ulong)t) != t)
+     t = (mz_ulong)(-1);
+
+  return (mz_ulong)t;
 }
 
 int mz_compress2(unsigned char *pDest, mz_ulong *pDest_len, const unsigned char *pSource, mz_ulong source_len, int level)
@@ -2507,9 +2508,7 @@ void *tdefl_write_image_to_png_file_in_memory(const void *pImage, int w, int h, 
 #pragma warning (pop)
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace buminiz
 
 #endif // MINIZ_HEADER_FILE_ONLY
 

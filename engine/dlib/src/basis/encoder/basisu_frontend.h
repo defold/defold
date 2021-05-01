@@ -1,5 +1,5 @@
 // basisu_frontend.h
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "basisu_gpu_texture.h"
 #include "basisu_global_selector_palette_helpers.h"
 #include "../transcoder/basisu_file_headers.h"
+#include "../transcoder/basisu_transcoder.h"
 
 namespace basisu
 {
@@ -34,8 +35,8 @@ namespace basisu
 		uint32_t &operator[] (uint32_t i) { assert(i < 2); return m_comps[i]; }
 	};
 
-	const uint32_t BASISU_DEFAULT_COMPRESSION_LEVEL = 1;
-	const uint32_t BASISU_MAX_COMPRESSION_LEVEL = 5;
+	const uint32_t BASISU_DEFAULT_COMPRESSION_LEVEL = 2;
+	const uint32_t BASISU_MAX_COMPRESSION_LEVEL = 6;
 
 	class basisu_frontend
 	{
@@ -83,6 +84,7 @@ namespace basisu
 				m_use_hybrid_selector_codebooks(false),
 				m_hybrid_codebook_quality_thresh(0.0f),
 				m_tex_type(basist::cBASISTexType2D),
+				m_pGlobal_codebooks(nullptr),
 				
 				m_pJob_pool(nullptr)
 			{
@@ -110,6 +112,7 @@ namespace basisu
 			bool m_use_hybrid_selector_codebooks;
 			float m_hybrid_codebook_quality_thresh;
 			basist::basis_texture_type m_tex_type;
+			const basist::basisu_lowlevel_etc1s_transcoder *m_pGlobal_codebooks;
 			
 			job_pool *m_pJob_pool;
 		};
@@ -144,7 +147,7 @@ namespace basisu
 		bool get_endpoint_cluster_color_is_used(uint32_t cluster_index, bool individual_mode) const { return m_endpoint_cluster_etc_params[cluster_index].m_color_used[individual_mode]; }
 
 		// Selector clusters
-		uint32_t get_total_selector_clusters() const { return static_cast<uint32_t>(m_selector_cluster_indices.size()); }
+		uint32_t get_total_selector_clusters() const { return static_cast<uint32_t>(m_selector_cluster_block_indices.size()); }
 		uint32_t get_block_selector_cluster_index(uint32_t block_index) const { return m_block_selector_cluster_index[block_index]; }
 		const etc_block &get_selector_cluster_selector_bits(uint32_t cluster_index) const { return m_optimized_cluster_selectors[cluster_index]; }
 
@@ -152,7 +155,7 @@ namespace basisu
 		const bool_vec &get_selector_cluster_uses_global_cb_vec() const { return m_selector_cluster_uses_global_cb; }
 
 		// Returns block indices using each selector cluster
-		const uint_vec &get_selector_cluster_block_indices(uint32_t selector_cluster_index) const { return m_selector_cluster_indices[selector_cluster_index]; }
+		const uint_vec &get_selector_cluster_block_indices(uint32_t selector_cluster_index) const { return m_selector_cluster_block_indices[selector_cluster_index]; }
 
 		void dump_debug_image(const char *pFilename, uint32_t first_block, uint32_t num_blocks_x, uint32_t num_blocks_y, bool output_blocks);
 		
@@ -190,16 +193,16 @@ namespace basisu
 
 		// For each endpoint cluster: An array of which subblock indices (block_index*2+subblock) are located in that cluster.
 		// Array of block indices for each endpoint cluster
-		std::vector<uint_vec> m_endpoint_clusters; 
+		basisu::vector<uint_vec> m_endpoint_clusters;
 
 		// Array of block indices for each parent endpoint cluster
-		std::vector<uint_vec> m_endpoint_parent_clusters;  
+		basisu::vector<uint_vec> m_endpoint_parent_clusters;
 		
 		// Each block's parent cluster index
 		uint8_vec m_block_parent_endpoint_cluster; 
 
 		// Array of endpoint cluster indices for each parent endpoint cluster
-		std::vector<uint_vec> m_endpoint_clusters_within_each_parent_cluster; 
+		basisu::vector<uint_vec> m_endpoint_clusters_within_each_parent_cluster;
 				
 		struct endpoint_cluster_etc_params
 		{
@@ -269,35 +272,35 @@ namespace basisu
 			}
 		};
 
-		typedef std::vector<endpoint_cluster_etc_params> cluster_subblock_etc_params_vec;
+		typedef basisu::vector<endpoint_cluster_etc_params> cluster_subblock_etc_params_vec;
 		
 		// Each endpoint cluster's ETC1S parameters 
 		cluster_subblock_etc_params_vec m_endpoint_cluster_etc_params;
 
 		// The endpoint cluster index used by each ETC1 subblock.
-		std::vector<vec2U> m_block_endpoint_clusters_indices;
+		basisu::vector<vec2U> m_block_endpoint_clusters_indices;
 				
 		// The block(s) within each selector cluster
 		// Note: If you add anything here that uses selector cluster indicies, be sure to update optimize_selector_codebook()!
-		std::vector<uint_vec> m_selector_cluster_indices;
+		basisu::vector<uint_vec> m_selector_cluster_block_indices;
 
 		// The selector bits for each selector cluster.
-		std::vector<etc_block> m_optimized_cluster_selectors;
+		basisu::vector<etc_block> m_optimized_cluster_selectors;
 
 		// The block(s) within each parent selector cluster.
-		std::vector<uint_vec> m_selector_parent_cluster_indices;
+		basisu::vector<uint_vec> m_selector_parent_cluster_block_indices;
 		
 		// Each block's parent selector cluster
 		uint8_vec m_block_parent_selector_cluster;
 
 		// Array of selector cluster indices for each parent selector cluster
-		std::vector<uint_vec> m_selector_clusters_within_each_parent_cluster; 
+		basisu::vector<uint_vec> m_selector_clusters_within_each_parent_cluster;
 
 		basist::etc1_global_selector_codebook_entry_id_vec m_optimized_cluster_selector_global_cb_ids;
 		bool_vec m_selector_cluster_uses_global_cb;
 
 		// Each block's selector cluster index
-		std::vector<uint32_t> m_block_selector_cluster_index;
+		basisu::vector<uint32_t> m_block_selector_cluster_index;
 
 		struct subblock_endpoint_quant_err
 		{
@@ -323,13 +326,14 @@ namespace basisu
 		};
 
 		// The sorted subblock endpoint quant error for each endpoint cluster
-		std::vector<subblock_endpoint_quant_err> m_subblock_endpoint_quant_err_vec;
+		basisu::vector<subblock_endpoint_quant_err> m_subblock_endpoint_quant_err_vec;
 
 		std::mutex m_lock;
 
 		//-----------------------------------------------------------------------------
 
 		void init_etc1_images();
+		bool init_global_codebooks();
 		void init_endpoint_training_vectors();
 		void dump_endpoint_clusterization_visualization(const char *pFilename, bool vis_endpoint_colors);
 		void generate_endpoint_clusters();

@@ -157,7 +157,7 @@ namespace basisu_astc
 
 		UVec4 asUint() const
 		{
-			return UVec4(std::max(0, m_c[0]), std::max(0, m_c[1]), std::max(0, m_c[2]), std::max(0, m_c[3]));
+			return UVec4(basisu::maximum(0, m_c[0]), basisu::maximum(0, m_c[1]), basisu::maximum(0, m_c[2]), basisu::maximum(0, m_c[3]));
 		}
 
 		int32_t operator[] (uint32_t idx) const { assert(idx < 4);  return m_c[idx]; }
