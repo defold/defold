@@ -129,7 +129,6 @@
 
         #undef BASISD_SUPPORT_ATC
         #undef BASISD_SUPPORT_ASTC
-        #undef BASISD_SUPPORT_UASTC
         #undef BASISD_SUPPORT_ETC2_EAC_RG11
         #undef BASISD_SUPPORT_ETC2_EAC_A8
         #undef BASISD_SUPPORT_PVRTC1
@@ -150,21 +149,10 @@
         #define BASISD_SUPPORT_BC7_MODE5 0
         #define BASISD_SUPPORT_DXT1 0
         #define BASISD_SUPPORT_FXT1 0
-
-        namespace basist {
-            bool SupportsUastc() {
-                return true;
-            }
-        }
     #endif
 
     #if defined(DM_BASIS_TRANSCODER_ETC1S)
         #define BASISD_SUPPORT_UASTC 0
-        namespace basist {
-            bool SupportsUastc() {
-                return false;
-            }
-        }
     #endif
 
 #endif // DM_BASIS_ENCODER
