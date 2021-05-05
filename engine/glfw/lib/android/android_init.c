@@ -30,6 +30,7 @@
 
 #include "internal.h"
 
+#include "android_joystick.h"
 #include "android_log.h"
 #include "android_util.h"
 
@@ -675,6 +676,8 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
 static int32_t addInputEvents(struct android_app* app, const AInputEvent* event, struct InputEvent* out, int* out_count, int max_out_count)
 {
     out->m_Type = AInputEvent_getType(event);
+
+    _glfwUpdateJoystick(event);
 
     if (out->m_Type == AINPUT_EVENT_TYPE_MOTION)
     {
