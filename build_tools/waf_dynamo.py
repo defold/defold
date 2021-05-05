@@ -299,9 +299,11 @@ def default_flags(self):
 
     # Common for all platforms
     flags = []
-    flags += [FLAG_ST % ('O%s' % opt_level)]
     if Options.options.ndebug:
         flags += [self.env.CXXDEFINES_ST % 'NDEBUG']
+
+    for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+        self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
 
     if Options.options.show_includes:
         if 'win' == build_util.get_target_os():
