@@ -294,7 +294,19 @@ namespace dmResource
      */
     void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data);
 
+
+    /*#
+     * Get the canonical path hash for the resource
+     * @param [type: dmResource::HResourceDescriptor] desc
+     * @return [type dmhash_t] the path hash
+     */
     dmhash_t GetNameHash(HResourceDescriptor desc);
+
+    /*#
+     * Get the raw resource from the resource descriptor
+     * @param [type: dmResource::HResourceDescriptor] desc
+     * @return [type dmhash_t] the path hash
+     */
     void*    GetResource(HResourceDescriptor desc);
     void*    GetPreviousResource(HResourceDescriptor desc);
     void     SetResource(HResourceDescriptor desc, void* resource);
@@ -405,9 +417,9 @@ namespace dmResource
      *     return dmResource::RegisterType(ctx.m_Factory,
      *                                        ctx.m_Name,
      *                                        context,
-     *                                        0,
+     *                                        0, // preload
      *                                        ResourceTypeScriptCreate,
-     *                                        0,
+     *                                        0, // post create
      *                                        ResourceTypeScriptDestroy,
      *                                        ResourceTypeScriptRecreate);
      * }
