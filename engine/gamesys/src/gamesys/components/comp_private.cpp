@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -291,9 +291,20 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
     return SetResourceProperty(factory, value, &ext, 1, out_resource);
 }
 
+
+CompRenderConstants* CreateRenderConstants()
+{
+    return new CompRenderConstants;
+}
+
+void DestroyRenderConstants(CompRenderConstants* constants)
+{
+    delete constants;
+}
+
 bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant)
 {
-    uint32_t count = constants->m_ConstantCount;
+    uint32_t count = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < count; ++i)
     {
         dmRender::Constant& c = constants->m_RenderConstants[i];
@@ -309,7 +320,7 @@ bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRen
 void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
 {
     Vector4* v = 0x0;
-    uint32_t count = constants->m_ConstantCount;
+    uint32_t count = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < count; ++i)
     {
         dmRender::Constant& c = constants->m_RenderConstants[i];
@@ -327,13 +338,20 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
             dmLogWarning("Out of component constants (%d)", MAX_COMP_RENDER_CONSTANTS);
             return;
         }
+
+        if (constants->m_RenderConstants.Full())
+        {
+            constants->m_RenderConstants.OffsetCapacity(1);
+            constants->m_PrevRenderConstants.OffsetCapacity(1);
+        }
+        constants->m_RenderConstants.SetSize(count+1);
+        constants->m_PrevRenderConstants.SetSize(count+1);
+
         dmRender::Constant c;
         dmRender::GetMaterialProgramConstant(material, name_hash, c);
         constants->m_RenderConstants[count] = c;
         constants->m_PrevRenderConstants[count] = c.m_Value;
         v = &(constants->m_RenderConstants[count].m_Value);
-        constants->m_ConstantCount++;
-        assert(constants->m_ConstantCount <= MAX_COMP_RENDER_CONSTANTS);
     }
     if (element_index == 0x0)
         *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
@@ -343,14 +361,13 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
 
 int ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash)
 {
-    uint32_t size = constants->m_ConstantCount;
+    uint32_t size = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
         if (constants->m_RenderConstants[i].m_NameHash == name_hash)
         {
-            constants->m_RenderConstants[i] = constants->m_RenderConstants[size - 1];
-            constants->m_PrevRenderConstants[i] = constants->m_PrevRenderConstants[size - 1];
-            constants->m_ConstantCount--;
+            constants->m_RenderConstants.EraseSwap(i);
+            constants->m_PrevRenderConstants.EraseSwap(i);
             return 1;
         }
     }
@@ -359,8 +376,8 @@ int ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash)
 
 void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
 {
-    // Padding in the SetConstant-struct forces us to copy the components by hand
-    uint32_t size = constants->m_ConstantCount;
+    // Padding in the SetConstant-struct forces us to hash the individual fields
+    uint32_t size = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
         dmRender::Constant& c = constants->m_RenderConstants[i];
@@ -370,9 +387,9 @@ void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
     }
 }
 
-int AreRenderConstantsUpdated(CompRenderConstants* constants)
+int AreRenderConstantsUpdated(const CompRenderConstants* constants)
 {
-    uint32_t size = constants->m_ConstantCount;
+    uint32_t size = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
         // TODO: Do a faster check for equality!
@@ -383,5 +400,17 @@ int AreRenderConstantsUpdated(CompRenderConstants* constants)
     }
     return 0;
 }
+
+void EnableRenderObjectConstants(dmRender::RenderObject* ro, const CompRenderConstants* _constants)
+{
+    const dmArray<dmRender::Constant>& constants = _constants->m_RenderConstants;
+    uint32_t size = constants.Size();
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        const dmRender::Constant& c = constants[i];
+        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Value);
+    }
+}
+
 
 }

@@ -303,7 +303,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompMeshCreate(const dmGameObject::ComponentCreateParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
-        MeshContext* context = (MeshContext*)params.m_Context;
 
         if (world->m_Components.Full())
         {
@@ -467,7 +466,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             ro.m_Textures[i] = textures_component[i] ? textures_component[i] : textures_resource[i];
 
-        for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
+        uint32_t size = constants.m_RenderConstants.Size();
+        for (uint32_t i = 0; i < size; ++i)
         {
             const dmRender::Constant& c = constants.m_RenderConstants[i];
             dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);

@@ -619,11 +619,10 @@ namespace dmGameSystem
         ro.m_Material = GetMaterial(first);
         ro.m_Textures[0] = texture_set->m_Texture;
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
-        uint32_t size = first->m_RenderConstants.m_ConstantCount;
+        uint32_t size = first->m_RenderConstants.m_RenderConstants.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
-            const dmRender::Constant& c = constants[i];
+            const dmRender::Constant& c = first->m_RenderConstants.m_RenderConstants[i];
             dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
         }
 

@@ -464,11 +464,10 @@ namespace dmGameSystem
         ro.m_Textures[0] = resource->m_RigScene->m_TextureSet->m_Texture;
         ro.m_Material = GetMaterial(first, resource);
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
-        uint32_t size = first->m_RenderConstants.m_ConstantCount;
+        uint32_t size = first->m_RenderConstants.m_RenderConstants.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
-            const dmRender::Constant& c = constants[i];
+            const dmRender::Constant& c = first->m_RenderConstants.m_RenderConstants[i];
             dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
         }
 
@@ -702,18 +701,10 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstantSpineModel* ddf = (dmGameSystemDDF::ResetConstantSpineModel*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
-                uint32_t size = component->m_RenderConstants.m_ConstantCount;
-                for (uint32_t i = 0; i < size; ++i)
+
+                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    if( constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
-                        component->m_RenderConstants.m_ConstantCount--;
-                        component->m_ReHash = 1;
-                        break;
-                    }
+                    component->m_ReHash = 1;
                 }
             }
         }

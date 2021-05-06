@@ -60,7 +60,7 @@ namespace dmGameSystem
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         LabelResource*              m_Resource;
-        CompRenderConstants         m_RenderConstants;
+        CompRenderConstants*        m_RenderConstants;
         dmRender::HMaterial         m_Material;
         dmRender::HFontMap          m_FontMap;
 
@@ -143,7 +143,9 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &ddf->m_Outline, sizeof(ddf->m_Outline));
         dmHashUpdateBuffer32(&state, &ddf->m_Shadow, sizeof(ddf->m_Shadow));
 
-        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        if (component->m_RenderConstants) {
+            ReHashRenderConstants(component->m_RenderConstants, &state);
+        }
 
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
@@ -224,6 +226,7 @@ namespace dmGameSystem
         component->m_Shadow   = Vector4(ddf->m_Shadow[0], ddf->m_Shadow[1], ddf->m_Shadow[2], ddf->m_Shadow[3]);
         component->m_Resource = resource;
         component->m_Pivot    = ddf->m_Pivot;
+        component->m_RenderConstants = 0;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
@@ -253,6 +256,10 @@ namespace dmGameSystem
         }
         if (component.m_FontMap) {
             dmResource::Release(factory, component.m_FontMap);
+        }
+        if (component.m_RenderConstants)
+        {
+            dmGameSystem::DestroyRenderConstants(component.m_RenderConstants);
         }
         world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
@@ -431,7 +438,7 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
 
-            if (component->m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component->m_RenderConstants))
+            if (component->m_ReHash || (component->m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component->m_RenderConstants)))
             {
                 ReHash(component);
             }
@@ -439,9 +446,12 @@ namespace dmGameSystem
             dmRender::DrawTextParams params;
             CreateDrawTextParams(component, params);
 
-            assert( component->m_RenderConstants.m_ConstantCount <= dmRender::MAX_FONT_RENDER_CONSTANTS );
-            params.m_NumRenderConstants = component->m_RenderConstants.m_ConstantCount;
-            memcpy( params.m_RenderConstants, component->m_RenderConstants.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
+            if (component->m_RenderConstants)
+            {
+                assert( component->m_RenderConstants->m_RenderConstants.Size() <= dmRender::MAX_FONT_RENDER_CONSTANTS );
+                params.m_NumRenderConstants = component->m_RenderConstants->m_RenderConstants.Size();
+                memcpy( params.m_RenderConstants, &component->m_RenderConstants->m_RenderConstants[0], params.m_NumRenderConstants * sizeof(dmRender::Constant));
+            }
 
             LabelResource* resource = component->m_Resource;
             dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, params);
@@ -454,13 +464,16 @@ namespace dmGameSystem
     static bool CompLabelGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         LabelComponent* component = (LabelComponent*)user_data;
-        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
+        return component->m_RenderConstants && GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         LabelComponent* component = (LabelComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        if (!component->m_RenderConstants)
+            component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
         component->m_ReHash = 1;
     }
 

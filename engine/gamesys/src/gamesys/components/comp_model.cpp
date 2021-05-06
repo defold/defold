@@ -479,10 +479,10 @@ namespace dmGameSystem
                 ro.m_Textures[i] = GetTexture(component, mr, i);
             }
 
-            const CompRenderConstants& constants = component->m_RenderConstants;
-            for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
+            uint32_t size = component->m_RenderConstants.m_RenderConstants.Size();
+            for (uint32_t i = 0; i < size; ++i)
             {
-                const dmRender::Constant& c = constants.m_RenderConstants[i];
+                const dmRender::Constant& c = component->m_RenderConstants.m_RenderConstants[i];
                 dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
             }
 
@@ -550,11 +550,10 @@ namespace dmGameSystem
             ro.m_Textures[i] = GetTexture(first, resource, i);
         }
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
-        uint32_t size = first->m_RenderConstants.m_ConstantCount;
+        uint32_t size = first->m_RenderConstants.m_RenderConstants.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
-            const dmRender::Constant& c = constants[i];
+            const dmRender::Constant& c = first->m_RenderConstants.m_RenderConstants[i];
             dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
         }
 
