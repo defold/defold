@@ -372,7 +372,7 @@ public class ArchiveBuilder {
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
 
-        manifestBuilder.setDependencies(rootNode);
+        manifestBuilder.setRoot(rootNode);
 
         RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
         RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");

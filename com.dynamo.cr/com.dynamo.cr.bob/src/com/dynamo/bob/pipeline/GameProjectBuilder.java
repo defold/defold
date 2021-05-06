@@ -39,6 +39,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -188,6 +189,9 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+        Bob.verbose("GameProjectBuilder.createArchive\n");
+        long tstart = System.currentTimeMillis();
+
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
@@ -210,6 +214,9 @@ public class GameProjectBuilder extends Builder<Void> {
                 project.getPublisher().AddEntry(fhandle.getName(), fhandle);
             }
         }
+
+        long tend = System.currentTimeMillis();
+        Bob.verbose("GameProjectBuilder.createArchive took %f\n", (tend-tstart)/1000.0);
     }
 
     private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
@@ -398,7 +405,7 @@ public class GameProjectBuilder extends Builder<Void> {
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
-        manifestBuilder.setDependencies(rootNode);
+        manifestBuilder.setRoot(rootNode);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
