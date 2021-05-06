@@ -53,7 +53,7 @@ namespace dmGameSystem
         dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
         SpriteResource*             m_Resource;
-        CompRenderConstants*        m_RenderConstants;
+        HComponentRenderConstants   m_RenderConstants;
         TextureSetResource*         m_TextureSet;
         dmRender::HMaterial         m_Material;
         /// Currently playing animation

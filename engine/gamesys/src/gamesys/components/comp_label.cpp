@@ -60,7 +60,7 @@ namespace dmGameSystem
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         LabelResource*              m_Resource;
-        CompRenderConstants*        m_RenderConstants;
+        HComponentRenderConstants   m_RenderConstants;
         dmRender::HMaterial         m_Material;
         dmRender::HFontMap          m_FontMap;
 
