@@ -448,9 +448,12 @@ namespace dmGameSystem
 
             if (component->m_RenderConstants)
             {
-                assert( component->m_RenderConstants->m_RenderConstants.Size() <= dmRender::MAX_FONT_RENDER_CONSTANTS );
-                params.m_NumRenderConstants = component->m_RenderConstants->m_RenderConstants.Size();
-                memcpy( params.m_RenderConstants, &component->m_RenderConstants->m_RenderConstants[0], params.m_NumRenderConstants * sizeof(dmRender::Constant));
+                uint32_t size = dmGameSystem::GetRenderConstantCount(component->m_RenderConstants);
+                for (uint32_t i = 0; i < size; ++i)
+                {
+                    dmGameSystem::GetRenderConstant(component->m_RenderConstants, i, &params.m_RenderConstants[i]);
+                }
+                params.m_NumRenderConstants = dmMath::Max<uint32_t>(size, dmRender::MAX_FONT_RENDER_CONSTANTS);
             }
 
             LabelResource* resource = component->m_Resource;
@@ -464,7 +467,7 @@ namespace dmGameSystem
     static bool CompLabelGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         LabelComponent* component = (LabelComponent*)user_data;
-        return component->m_RenderConstants && GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
+        return component->m_RenderConstants && dmGameSystem::GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)

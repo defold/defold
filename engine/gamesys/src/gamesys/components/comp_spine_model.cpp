@@ -425,7 +425,7 @@ namespace dmGameSystem
     {
         DM_PROFILE(SpineModel, "RenderBatch");
 
-        const SpineModelComponent* first = (SpineModelComponent*) buf[*begin].m_UserData;
+        SpineModelComponent* first = (SpineModelComponent*) buf[*begin].m_UserData;
         const SpineModelResource* resource = first->m_Resource;
 
         uint32_t vertex_count = 0;
@@ -464,12 +464,7 @@ namespace dmGameSystem
         ro.m_Textures[0] = resource->m_RigScene->m_TextureSet->m_Texture;
         ro.m_Material = GetMaterial(first, resource);
 
-        uint32_t size = first->m_RenderConstants.m_RenderConstants.Size();
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            const dmRender::Constant& c = first->m_RenderConstants.m_RenderConstants[i];
-            dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
-        }
+        dmGameSystem::EnableRenderObjectConstants(&ro, &first->m_RenderConstants);
 
         dmGameSystemDDF::SpineModelDesc::BlendMode blend_mode = resource->m_Model->m_BlendMode;
         switch (blend_mode)

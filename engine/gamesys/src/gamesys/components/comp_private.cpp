@@ -291,18 +291,29 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
     return SetResourceProperty(factory, value, &ext, 1, out_resource);
 }
 
+// ********************************************************************************************************************************************
 
-CompRenderConstants* CreateRenderConstants()
+HComponentRenderConstants CreateRenderConstants()
 {
     return new CompRenderConstants;
 }
 
-void DestroyRenderConstants(CompRenderConstants* constants)
+void DestroyRenderConstants(HComponentRenderConstants constants)
 {
     delete constants;
 }
 
-bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant)
+uint32_t GetRenderConstantCount(HComponentRenderConstants constants)
+{
+    return constants->m_RenderConstants.Size();
+}
+
+void GetRenderConstant(HComponentRenderConstants constants, uint32_t index, dmRender::Constant* constant)
+{
+    *constant = constants->m_RenderConstants[index];
+}
+
+bool GetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmRender::Constant** out_constant)
 {
     uint32_t count = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < count; ++i)
@@ -317,7 +328,7 @@ bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRen
     return false;
 }
 
-void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
 {
     Vector4* v = 0x0;
     uint32_t count = constants->m_RenderConstants.Size();
@@ -359,7 +370,7 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
         v->setElem(*element_index, (float)var.m_Number);
 }
 
-int ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash)
+int ClearRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash)
 {
     uint32_t size = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < size; ++i)
@@ -374,7 +385,7 @@ int ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash)
     return 0;
 }
 
-void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
+void ReHashRenderConstants(HComponentRenderConstants constants, HashState32* state)
 {
     // Padding in the SetConstant-struct forces us to hash the individual fields
     uint32_t size = constants->m_RenderConstants.Size();
@@ -387,7 +398,7 @@ void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
     }
 }
 
-int AreRenderConstantsUpdated(const CompRenderConstants* constants)
+int AreRenderConstantsUpdated(HComponentRenderConstants constants)
 {
     uint32_t size = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < size; ++i)
@@ -401,7 +412,7 @@ int AreRenderConstantsUpdated(const CompRenderConstants* constants)
     return 0;
 }
 
-void EnableRenderObjectConstants(dmRender::RenderObject* ro, const CompRenderConstants* _constants)
+void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderConstants _constants)
 {
     const dmArray<dmRender::Constant>& constants = _constants->m_RenderConstants;
     uint32_t size = constants.Size();

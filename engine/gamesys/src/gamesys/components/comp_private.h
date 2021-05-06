@@ -101,20 +101,22 @@ namespace dmGameSystem
     {
         CompRenderConstants();
         dmArray<dmRender::Constant> m_RenderConstants;
-        // private
         dmArray<dmVMath::Vector4>   m_PrevRenderConstants;
     };
 
-    CompRenderConstants* CreateRenderConstants();
-    void DestroyRenderConstants(CompRenderConstants* constants);
+    typedef struct CompRenderConstants* HComponentRenderConstants;
 
-    bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant);
-    void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
-    int  ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash);
-    void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state);
-    int  AreRenderConstantsUpdated(const CompRenderConstants* constants);
+    HComponentRenderConstants CreateRenderConstants();
+    void DestroyRenderConstants(HComponentRenderConstants constants);
 
-    void EnableRenderObjectConstants(dmRender::RenderObject* ro, const CompRenderConstants* constants);
+    bool GetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmRender::Constant** out_constant);
+    uint32_t GetRenderConstantCount(HComponentRenderConstants constants);
+    void GetRenderConstant(HComponentRenderConstants constants, uint32_t index, dmRender::Constant* constant);
+    void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+    int  ClearRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash);
+    void ReHashRenderConstants(HComponentRenderConstants constants, HashState32* state);
+    int  AreRenderConstantsUpdated(HComponentRenderConstants constants);
+    void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderConstants constants);
 }
 
 #endif // DM_GAMESYS_COMP_PRIVATE_H

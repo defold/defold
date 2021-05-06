@@ -455,7 +455,7 @@ namespace dmGameSystem
             dmRender::RenderObject& ro = *world->m_RenderObjects.End();
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
-            const ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
+            ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
             const ModelResource* mr = component->m_Resource;
             assert(mr->m_VertexBuffer);
 
@@ -479,12 +479,7 @@ namespace dmGameSystem
                 ro.m_Textures[i] = GetTexture(component, mr, i);
             }
 
-            uint32_t size = component->m_RenderConstants.m_RenderConstants.Size();
-            for (uint32_t i = 0; i < size; ++i)
-            {
-                const dmRender::Constant& c = component->m_RenderConstants.m_RenderConstants[i];
-                dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
-            }
+            dmGameSystem::EnableRenderObjectConstants(&ro, &component->m_RenderConstants);
 
             dmRender::AddToRender(render_context, &ro);
         }
