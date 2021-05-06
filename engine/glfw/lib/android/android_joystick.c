@@ -174,6 +174,7 @@ void _glfwUpdateJoystick(const AInputEvent* event)
     if ((source & AINPUT_SOURCE_GAMEPAD) != 0)
     {
         if (type == AINPUT_EVENT_TYPE_KEY)
+        {
             _glfwUpdateButton(event);
         }
     }
