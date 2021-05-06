@@ -296,7 +296,7 @@ namespace dmGameSystem
             dmGraphics::HashVertexDeclaration(&state, vert_decl);
         }
         if (component->m_RenderConstants)
-            dmGameSystem::ReHashRenderConstants(component->m_RenderConstants, &state);
+            dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }

@@ -385,7 +385,7 @@ int ClearRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash)
     return 0;
 }
 
-void ReHashRenderConstants(HComponentRenderConstants constants, HashState32* state)
+void HashRenderConstants(HComponentRenderConstants constants, HashState32* state)
 {
     // Padding in the SetConstant-struct forces us to hash the individual fields
     uint32_t size = constants->m_RenderConstants.Size();

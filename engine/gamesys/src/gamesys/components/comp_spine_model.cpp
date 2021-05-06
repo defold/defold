@@ -248,7 +248,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        dmGameSystem::HashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }

@@ -144,7 +144,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &ddf->m_Shadow, sizeof(ddf->m_Shadow));
 
         if (component->m_RenderConstants) {
-            ReHashRenderConstants(component->m_RenderConstants, &state);
+            dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
 
         component->m_MixedHash = dmHashFinal32(&state);

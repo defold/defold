@@ -249,7 +249,7 @@ namespace dmGameSystem
             dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
-        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        dmGameSystem::HashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
