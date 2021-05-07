@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -50,6 +52,7 @@ public class ArchiveBuilder {
     private static final List<String> ENCRYPTED_EXTS = Arrays.asList("luac", "scriptc", "gui_scriptc", "render_scriptc");
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
+    private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
@@ -64,6 +67,7 @@ public class ArchiveBuilder {
     private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress, isLiveUpdate);
         if (!contains(e)) {
+            lookup.add(e.relName);
             entries.add(e);
         }
     }
@@ -71,6 +75,7 @@ public class ArchiveBuilder {
     public void add(String fileName, boolean doCompress) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress);
         if (!contains(e)) {
+            lookup.add(e.relName);
             entries.add(e);
         }
     }
@@ -78,12 +83,13 @@ public class ArchiveBuilder {
     public void add(String fileName) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, false);
         if (!contains(e)) {
+            lookup.add(e.relName);
             entries.add(e);
         }
     }
 
     private boolean contains(ArchiveEntry e) {
-        return entries.contains(e);
+        return lookup.contains(e.relName);
     }
 
     public ArchiveEntry getArchiveEntry(int index) {
