@@ -286,6 +286,7 @@ public class ManifestBuilder {
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
     private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
     private HashMap<String, List<String>> pathToDependants = new HashMap<>();
+    private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         private int compare(byte[] left, byte[] right) {
@@ -510,9 +511,19 @@ public class ManifestBuilder {
         }
     }
 
+    private void buildUrlToResourceMap(Set<ResourceEntry> entries) throws IOException {
+        for (ResourceEntry entry : entries) {
+            if (entry.hasHash()) {
+                urlToResource.put(entry.getUrl(), entry);
+            }
+            else {
+                throw new IOException(String.format("Unable to create ManifestData, an incomplete resource was found (missing hash)! %s", entry.getUrl() ));
+            }
+        }
+    }
+
     public ManifestData buildManifestData() throws IOException {
         Bob.verbose("buildManifestData begin\n");
-
         long tstart = System.currentTimeMillis();
 
         ManifestData.Builder builder = ManifestData.newBuilder();
@@ -521,22 +532,22 @@ public class ManifestBuilder {
         builder.setHeader(manifestHeader);
 
         buildPathToNodeMap(getRoot());
+        buildUrlToResourceMap(this.resourceEntries);
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
         for (ResourceEntry entry : this.resourceEntries) {
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
+
             List<String> dependants = this.getDependants(entry.getUrl());
+
             for (String dependant : dependants) {
-                for (ResourceEntry dependantEntry : this.resourceEntries) {
-                    if (dependantEntry.getUrl().equals(dependant)) {
-                        if (dependantEntry.hasHash()) {
-                            resourceEntryBuilder.addDependants(dependantEntry.getHash());
-                        } else {
-                            throw new IOException("Unable to create ManifestData, an incomplete resource was found!");
-                        }
-                    }
+                ResourceEntry resource = urlToResource.get(dependant);
+                if (resource == null) {
+                    continue;
                 }
+                resourceEntryBuilder.addDependants(resource.getHash());
             }
+
             builder.addResources(resourceEntryBuilder.build());
         }
 
