@@ -250,12 +250,15 @@ public class ArchiveBuilder {
         // Write sorted entries to index file
         int entryOffset = (int) archiveIndex.getFilePointer();
         alignBuffer(archiveIndex, 4);
+
+        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * entries.size());
         for (ArchiveEntry entry : entries) {
-            archiveIndex.writeInt(entry.resourceOffset);
-            archiveIndex.writeInt(entry.size);
-            archiveIndex.writeInt(entry.compressedSize);
-            archiveIndex.writeInt(entry.flags);
+            indexBuffer.putInt(entry.resourceOffset);
+            indexBuffer.putInt(entry.size);
+            indexBuffer.putInt(entry.compressedSize);
+            indexBuffer.putInt(entry.flags);
         }
+        archiveIndex.write(indexBuffer.array());
 
         try {
             // Calc index file MD5 hash
