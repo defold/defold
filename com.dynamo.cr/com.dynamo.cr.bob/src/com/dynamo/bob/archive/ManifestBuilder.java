@@ -285,6 +285,7 @@ public class ManifestBuilder {
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
     private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
+    private HashMap<String, List<String>> pathToDependants = new HashMap<>();
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         private int compare(byte[] left, byte[] right) {
@@ -459,27 +460,27 @@ public class ManifestBuilder {
            LiveUpdate) before that CollectionProxy can be loaded.
         */
 
-        List<String> dependants = new ArrayList<String>();
-
         ResourceNode candidate = pathToNode.get(filepath);
 
         if (candidate == null)
+            return new ArrayList<String>();
+
+        List<String> dependants = pathToDependants.get(filepath);
+        if (dependants != null) {
             return dependants;
+        }
 
-// TODO: Q: is the same path called upon twice?
-// TODO: Q: will it help to cache the subtrees?
+        dependants = new ArrayList<String>();
 
-        List<ResourceNode> queue = new LinkedList<ResourceNode>();
-        queue.add(candidate);
-        while (!queue.isEmpty()) {
-            ResourceNode current = queue.remove(0);
-            for (ResourceNode child : current.getChildren()) {
-                dependants.add(child.relativeFilepath);
-                if (!child.relativeFilepath.endsWith("collectionproxyc")) {
-                    queue.add(child);
-                }
+        for (ResourceNode child : candidate.getChildren()) {
+            dependants.add(child.relativeFilepath);
+
+            if (!child.relativeFilepath.endsWith("collectionproxyc")) {
+                dependants.addAll(getDependants(child.relativeFilepath));
             }
         }
+
+        pathToDependants.put(filepath, dependants);
 
         return dependants;
     }
