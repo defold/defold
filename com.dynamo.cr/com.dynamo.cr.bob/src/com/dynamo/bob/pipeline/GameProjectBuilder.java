@@ -398,7 +398,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) throws IOException {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResources) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
@@ -410,7 +410,7 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
-
+        manifestBuilder.setExcludedResources(excludedResources);
 
         // If manifest signing keys are specified, use them instead of generating them.
         if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
@@ -496,12 +496,13 @@ public class GameProjectBuilder extends Builder<Void> {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
-                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode);
 
                 List<String> excludedResources = new ArrayList<String>();
                 for (String excludedResource : project.getExcludedCollectionProxies()) {
                     excludedResources.add(excludedResource);
                 }
+
+                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {

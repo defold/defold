@@ -284,6 +284,7 @@ public class ManifestBuilder {
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
+    private Set<String> excludedResources = new HashSet<>();
     private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
     private HashMap<String, List<String>> pathToDependants = new HashMap<>();
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
@@ -537,6 +538,10 @@ public class ManifestBuilder {
         }
     }
 
+    public void setExcludedResources(List<String> excludedResources) {
+        this.excludedResources.addAll(excludedResources);
+    }
+
     public ManifestData buildManifestData() throws IOException {
         Bob.verbose("buildManifestData begin\n");
         long tstart = System.currentTimeMillis();
@@ -558,15 +563,17 @@ public class ManifestBuilder {
             // TODO: Check if we actually use liveupdate feature (i.e. will we ever need to ask for missing resources?)
             if (url.endsWith("collectionproxyc"))
             {
-                List<String> dependants = this.getDependants(url);
+                if (excludedResources.contains(url)) {
+                    List<String> dependants = this.getDependants(url);
 
-                for (String dependant : dependants) {
-                    ResourceEntry resource = urlToResource.get(dependant);
-                    if (resource == null) {
-                        continue;
+                    for (String dependant : dependants) {
+                        ResourceEntry resource = urlToResource.get(dependant);
+                        if (resource == null) {
+                            continue;
+                        }
+
+                        resourceEntryBuilder.addDependants(resource.getUrlHash());
                     }
-
-                    resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
             }
 
