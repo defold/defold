@@ -551,16 +551,23 @@ public class ManifestBuilder {
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
         for (ResourceEntry entry : this.resourceEntries) {
+            String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
-            List<String> dependants = this.getDependants(entry.getUrl());
+            // Since we'll only ever ask collection proxies, we only store those lists
+            // TODO: Check if we actually use liveupdate feature (i.e. will we ever need to ask for missing resources?)
+            if (url.endsWith("collectionproxyc"))
+            {
+                List<String> dependants = this.getDependants(url);
 
-            for (String dependant : dependants) {
-                ResourceEntry resource = urlToResource.get(dependant);
-                if (resource == null) {
-                    continue;
+                for (String dependant : dependants) {
+                    ResourceEntry resource = urlToResource.get(dependant);
+                    if (resource == null) {
+                        continue;
+                    }
+
+                    resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
-                resourceEntryBuilder.addDependants(resource.getUrlHash());
             }
 
             builder.addResources(resourceEntryBuilder.build());

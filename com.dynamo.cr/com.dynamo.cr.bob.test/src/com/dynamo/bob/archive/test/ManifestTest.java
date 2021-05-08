@@ -449,7 +449,7 @@ public class ManifestTest {
             }
 
             if (current.getUrl().equals("/main/main.collectionc")) {
-                assertEquals(4, current.getDependantsCount());
+                assertEquals(0, current.getDependantsCount());
             }
 
             if (current.getUrl().equals("/main/level1.collectionproxyc")) {
