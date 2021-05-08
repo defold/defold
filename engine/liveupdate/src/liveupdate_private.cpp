@@ -56,9 +56,7 @@ namespace dmLiveUpdate
 
     uint32_t MissingResources(dmResource::Manifest* manifest, const dmhash_t url_hash, uint8_t* entries[], uint32_t entries_size)
     {
-        uint32_t resources = 0;
-
-        if (manifest == 0x0 || entries == 0x0 || entries_size == 0)
+        if (manifest == 0x0)
         {
             return 0;
         }
@@ -67,43 +65,40 @@ namespace dmLiveUpdate
         uint32_t hash_len = dmResource::HashLength(algorithm);
 
         HResourceEntry entry = FindResourceEntry(manifest, url_hash);
-        if (entry != NULL)
+        if (entry == NULL)
         {
-            for (uint32_t i = 0; i < entry->m_Dependants.m_Count; ++i)
+            return 0;
+        }
+
+        // entries may be null if the function is called to find out how many
+        uint32_t count = entry->m_Dependants.m_Count;
+        if (entries == NULL)
+        {
+            return count;
+        }
+
+        uint32_t num_resources = 0;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmhash_t dependant_url_hash = entry->m_Dependants.m_Data[i];
+            HResourceEntry dependant = FindResourceEntry(manifest, dependant_url_hash);
+            if (dependant != NULL) // Not sure in which case it wouldn't exist /MAWE
             {
-                dmhash_t dependant_url_hash = entry->m_Dependants.m_Data[i];
-                HResourceEntry dependant = FindResourceEntry(manifest, dependant_url_hash);
-                if (dependant != NULL)
+                uint8_t* resource_hash = dependant->m_Hash.m_Data.m_Data;
+                dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
+                if (result != dmResourceArchive::RESULT_OK)
                 {
-                    uint8_t* resource_hash = dependant->m_Hash.m_Data.m_Data;
-                    dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
-                    if (result != dmResourceArchive::RESULT_OK)
+                    if (entries != NULL && num_resources < entries_size)
                     {
-                        if (entries != NULL && resources < entries_size)
-                        {
-                            entries[resources] = resource_hash;
-                        }
-
-                        resources += 1;
+                        entries[num_resources] = resource_hash;
                     }
+
+                    num_resources += 1;
                 }
-
-
-                // uint8_t* resource_hash = entry->m_Dependants.m_Data[i].m_Data.m_Data;
-                // dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
-                // if (result != dmResourceArchive::RESULT_OK)
-                // {
-                //     if (entries != NULL && resources < entries_size)
-                //     {
-                //         entries[resources] = resource_hash;
-                //     }
-
-                //     resources += 1;
-                // }
             }
         }
 
-        return resources;
+        return num_resources;
     }
 
     void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, size_t buflen, uint8_t* digest)
