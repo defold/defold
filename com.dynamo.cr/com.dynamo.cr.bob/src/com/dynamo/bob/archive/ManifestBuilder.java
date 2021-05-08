@@ -272,7 +272,7 @@ public class ManifestBuilder {
     }
 
     public static final int CONST_MAGIC_NUMBER = 0x43cb6d06;
-    public static final int CONST_VERSION = 0x03;
+    public static final int CONST_VERSION = 0x04;
 
     private HashAlgorithm resourceHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
     private HashAlgorithm signatureHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
@@ -290,6 +290,7 @@ public class ManifestBuilder {
     private HashMap<String, List<ResourceNode>> pathToOccurrances = null; // We build it at first request
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
+        // We need to make sure the entries are sorted properly in order to do the binary search
         private int compare(byte[] left, byte[] right) {
             for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
                 int a = (left[i] & 0xff);
@@ -559,7 +560,7 @@ public class ManifestBuilder {
                 if (resource == null) {
                     continue;
                 }
-                resourceEntryBuilder.addDependants(resource.getHash());
+                resourceEntryBuilder.addDependants(resource.getUrlHash());
             }
 
             builder.addResources(resourceEntryBuilder.build());
