@@ -560,9 +560,9 @@ public class ManifestBuilder {
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
             // Since we'll only ever ask collection proxies, we only store those lists
-            // TODO: Check if we actually use liveupdate feature (i.e. will we ever need to ask for missing resources?)
             if (url.endsWith("collectionproxyc"))
             {
+                // We'll only store the dependencies for the excluded collection proxies
                 if (excludedResources.contains(url)) {
                     List<String> dependants = this.getDependants(url);
 
