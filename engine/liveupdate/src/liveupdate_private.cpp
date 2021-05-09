@@ -54,6 +54,12 @@ namespace dmLiveUpdate
         return NULL;
     }
 
+    static HResourceEntry FindEntry(const dmResource::Manifest* manifest, uint32_t index)
+    {
+        HResourceEntry entries = manifest->m_DDFData->m_Resources.m_Data;
+        return &entries[index];
+    }
+
     uint32_t MissingResources(dmResource::Manifest* manifest, const dmhash_t url_hash, uint8_t* entries[], uint32_t entries_size)
     {
         if (manifest == 0x0)
@@ -70,7 +76,7 @@ namespace dmLiveUpdate
             return 0;
         }
 
-        // entries may be null if the function is called to find out how many
+        // entries may be null if the function is called to find out how many to allocate for
         uint32_t count = entry->m_Dependants.m_Count;
         if (entries == NULL)
         {
@@ -80,21 +86,19 @@ namespace dmLiveUpdate
         uint32_t num_resources = 0;
         for (uint32_t i = 0; i < count; ++i)
         {
-            dmhash_t dependant_url_hash = entry->m_Dependants.m_Data[i];
-            HResourceEntry dependant = FindResourceEntry(manifest, dependant_url_hash);
-            if (dependant != NULL) // Not sure in which case it wouldn't exist /MAWE
-            {
-                uint8_t* resource_hash = dependant->m_Hash.m_Data.m_Data;
-                dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
-                if (result != dmResourceArchive::RESULT_OK)
-                {
-                    if (entries != NULL && num_resources < entries_size)
-                    {
-                        entries[num_resources] = resource_hash;
-                    }
+            uint32_t index = entry->m_Dependants.m_Data[i];
+            HResourceEntry dependant = FindEntry(manifest, index);
 
-                    num_resources += 1;
+            uint8_t* resource_hash = dependant->m_Hash.m_Data.m_Data;
+            dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
+            if (result != dmResourceArchive::RESULT_OK)
+            {
+                if (entries != NULL && num_resources < entries_size)
+                {
+                    entries[num_resources] = resource_hash;
                 }
+
+                num_resources += 1;
             }
         }
 

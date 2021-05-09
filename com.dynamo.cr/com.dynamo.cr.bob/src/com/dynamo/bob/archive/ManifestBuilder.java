@@ -555,6 +555,14 @@ public class ManifestBuilder {
         buildUrlToResourceMap(this.resourceEntries);
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
+
+        int resourceIndex = 0;
+        HashMap<String, Integer> resourceToIndex = new HashMap<>(); // at what index is the resource stored?
+        for (ResourceEntry entry : this.resourceEntries) {
+            resourceToIndex.put(entry.getUrl(), resourceIndex);
+            resourceIndex++;
+        }
+
         for (ResourceEntry entry : this.resourceEntries) {
             String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
@@ -572,7 +580,9 @@ public class ManifestBuilder {
                             continue;
                         }
 
-                        resourceEntryBuilder.addDependants(resource.getUrlHash());
+
+                        int index = resourceToIndex.get(dependant);
+                        resourceEntryBuilder.addDependants(index);
                     }
                 }
             }
