@@ -938,6 +938,7 @@ public class Project {
                     // Get or build engine binary
                     boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
                     if (buildRemoteEngine) {
+                        logInfo("Build Remote Engine...");
 
                         final String variant = this.option("variant", Bob.VARIANT_RELEASE);
 
@@ -963,7 +964,12 @@ public class Project {
                             architectures = customArchitectures.split(",");
                         }
 
+                        long tstart = System.currentTimeMillis();
+
                         buildEngine(monitor, architectures, appmanifestOptions);
+
+                        long tend = System.currentTimeMillis();
+                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngines(monitor, platforms);
@@ -995,8 +1001,14 @@ public class Project {
 
                     BundleHelper.throwIfCanceled(monitor);
                     m.beginTask("Building...", newTasks.size());
+                    long tstart = System.currentTimeMillis();
+
                     result = runTasks(m);
                     m.done();
+
+                    long tend = System.currentTimeMillis();
+                    Bob.verbose("Content tasks took %f s\n", (tend-tstart)/1000.0);
+
                     if (anyFailing(result)) {
                         break loop;
                     }
@@ -1113,8 +1125,6 @@ run:
                     continue;
                 }
 
-                monitor.worked(1);
-
                 byte[] taskSignature = task.calculateSignature(this);
 
                 // do all output files exist?
@@ -1152,6 +1162,8 @@ run:
                         completedTasks.add(task);
                         completedOutputs.addAll(task.getOutputs());
                     }
+
+                    monitor.worked(1);
                     continue;
                 }
 
@@ -1167,6 +1179,7 @@ run:
                 boolean abort = false;
                 try {
                     builder.build(task);
+                    monitor.worked(1);
                     for (IResource r : task.getOutputs()) {
                         state.putSignature(r.getAbsPath(), taskSignature);
                     }

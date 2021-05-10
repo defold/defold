@@ -81,7 +81,7 @@ public class ManifestTest {
             manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
             manifestBuilder.setProjectIdentifier(projectIdentifier);
             manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
-            manifestBuilder.setDependencies(this.dependencies);
+            manifestBuilder.setRoot(this.dependencies);
 
             for (String supportedEngineVersion : this.supportedEngineVersions) {
                 manifestBuilder.addSupportedEngineVersion(supportedEngineVersion);
