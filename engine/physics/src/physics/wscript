@@ -1,7 +1,5 @@
 import Options
 
-from waf_dynamo import dmsdk_add_files
-
 def configure(conf):
     pass
 
@@ -41,4 +39,3 @@ def build(bld):
     if not Options.options.skip_build_tests:
         bld.add_subdirs('test')
 
-    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
