@@ -189,10 +189,14 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
-        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
-        HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
 
+        // When passing use vanilla lua, we want the Lua code as clear text
+        boolean use_vanilla_lua = project.option("use-vanilla-lua", "false").equals("true");
+
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, use_vanilla_lua ? false : true);
+        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
+
+        HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
         for (String s : resources) {
             EnumSet<Project.OutputFlags> flags = outputs.get(s);
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
