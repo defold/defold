@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,7 @@
 #include <gameobject/gameobject.h>
 #include <render/render.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
@@ -71,14 +72,6 @@ namespace dmGameSystem
         return property.m_Vector == query || property.m_X == query || property.m_Y == query || property.m_Z == query || property.m_W == query;
     }
 
-    struct CompRenderConstants
-    {
-        CompRenderConstants();
-        dmRender::Constant          m_RenderConstants[MAX_COMP_RENDER_CONSTANTS];
-        Vectormath::Aos::Vector4    m_PrevRenderConstants[MAX_COMP_RENDER_CONSTANTS];
-        uint32_t                    m_ConstantCount;
-    };
-
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector3& ref_value, const PropVector3& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector3& set_value, const PropVector3& property);
 
@@ -88,12 +81,6 @@ namespace dmGameSystem
     dmGameObject::PropertyResult GetResourceProperty(dmResource::HFactory factory, void* resource, dmGameObject::PropertyDesc& out_value);
     dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t ext, void** out_resource);
     dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t* exts, uint32_t ext_count, void** out_resource);
-
-    bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant);
-    void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
-    int  ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash);
-    void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state);
-    int  AreRenderConstantsUpdated(CompRenderConstants* constants);
 
 #define DM_GAMESYS_PROP_VECTOR3(var_name, prop_name, readOnly)\
     static const dmGameSystem::PropVector3 var_name(dmHashString64(#prop_name),\
@@ -110,6 +97,13 @@ namespace dmGameSystem
             dmHashString64(#prop_name ".w"),\
             readOnly);
 
+
+    struct CompRenderConstants
+    {
+        CompRenderConstants();
+        dmArray<dmRender::Constant> m_RenderConstants;
+        dmArray<dmVMath::Vector4>   m_PrevRenderConstants;
+    };
 }
 
 #endif // DM_GAMESYS_COMP_PRIVATE_H

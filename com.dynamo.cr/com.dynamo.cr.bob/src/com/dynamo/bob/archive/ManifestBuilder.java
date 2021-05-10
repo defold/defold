@@ -430,7 +430,6 @@ public class ManifestBuilder {
     // Calculate all parent collection paths (to the root) for a resource
     // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
     public List<ArrayList<String>> getParentCollections(String filepath) {
-
         if (pathToOccurrances == null) {
             pathToOccurrances = new HashMap<>();
 
