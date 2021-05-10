@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,6 +32,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -44,6 +45,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.DestroyFailedException;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
@@ -278,10 +280,13 @@ public class ManifestBuilder {
     private String privateKeyFilepath = null;
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
-    private ResourceNode dependencies = null;
+    private ResourceNode root = null;
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
+    private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
+    private HashMap<String, List<String>> pathToDependants = new HashMap<>();
+    private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         private int compare(byte[] left, byte[] right) {
@@ -294,8 +299,10 @@ public class ManifestBuilder {
             }
             return left.length - right.length;
         }
-        
+
         public int compare(ResourceEntry s1, ResourceEntry s2) {
+            // We want a set sorted on hashes, so we can do binary search at runtime
+
             // byte compare, because java does not have unsigned types
             byte[] s1_bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s1.getUrlHash()).array();
             byte[] s2_bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s2.getUrlHash()).array();
@@ -339,8 +346,12 @@ public class ManifestBuilder {
         return this.signatureSignAlgorithm;
     }
 
-    public void setDependencies(ResourceNode dependencies) {
-        this.dependencies = dependencies;
+    public void setRoot(ResourceNode root) {
+        this.root = root;
+    }
+
+    public ResourceNode getRoot() {
+        return this.root;
     }
 
     public void setPrivateKeyFilepath(String filepath) {
@@ -362,7 +373,7 @@ public class ManifestBuilder {
     public void setProjectIdentifier(String projectIdentifier) {
         this.projectIdentifier = projectIdentifier;
     }
-    
+
     public void setArchiveIdentifier(byte[] archiveIdentifier) {
         if (archiveIdentifier.length == ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH) {
             this.archiveIdentifier = archiveIdentifier;
@@ -404,7 +415,7 @@ public class ManifestBuilder {
         List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
         List<ResourceNode> candidates = new LinkedList<ResourceNode>();
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
-        queue.add(this.dependencies);
+        queue.add(getRoot());
         // Find occurences of resource in tree (may be referenced from several collections for example)
         while (!queue.isEmpty()) {
             ResourceNode current = queue.remove(0);
@@ -438,12 +449,7 @@ public class ManifestBuilder {
     }
 
     public List<String> getDependants(String filepath) throws IOException {
-        /* This function first tries to find the correct resource in the
-           dependency tree. Since there is no index we have to iterate over
-           the structure and match the relative filepaths that identifies the
-           resource.
-
-           Once a candidate has been found the children, the children, and so
+        /* Once a candidate has been found the children, the children, and so
            on are added to the list of dependants. If a CollectionProxy is
            found that resource itself is added to the list of dependants, but
            it is seen as a leaf and the Collection that it points to is ignored.
@@ -454,34 +460,28 @@ public class ManifestBuilder {
            and thus create a partial archive that has to be updated (through
            LiveUpdate) before that CollectionProxy can be loaded.
         */
-        ResourceNode candidate = null;
-        List<ResourceNode> queue = new LinkedList<ResourceNode>();
-        queue.add(this.dependencies);
-        while (candidate == null && !queue.isEmpty()) {
-            ResourceNode current = queue.remove(0);
-            if (current.relativeFilepath.equals(filepath)) {
-                candidate = current;
-            } else {
-                for (ResourceNode child : current.getChildren()) {
-                    queue.add(child);
-                }
+
+        ResourceNode candidate = pathToNode.get(filepath);
+
+        if (candidate == null)
+            return new ArrayList<String>();
+
+        List<String> dependants = pathToDependants.get(filepath);
+        if (dependants != null) {
+            return dependants;
+        }
+
+        dependants = new ArrayList<String>();
+
+        for (ResourceNode child : candidate.getChildren()) {
+            dependants.add(child.relativeFilepath);
+
+            if (!child.relativeFilepath.endsWith("collectionproxyc")) {
+                dependants.addAll(getDependants(child.relativeFilepath));
             }
         }
 
-        List<String> dependants = new ArrayList<String>();
-        if (candidate != null) {
-            queue.clear();
-            queue.add(candidate);
-            while (!queue.isEmpty()) {
-                ResourceNode current = queue.remove(0);
-                for (ResourceNode child : current.getChildren()) {
-                    dependants.add(child.relativeFilepath);
-                    if (!child.relativeFilepath.endsWith("collectionproxyc")) {
-                        queue.add(child);
-                    }
-                }
-            }
-        }
+        pathToDependants.put(filepath, dependants);
 
         return dependants;
     }
@@ -504,31 +504,55 @@ public class ManifestBuilder {
         return builder.build();
     }
 
+    private void buildPathToNodeMap(ResourceNode node) {
+        pathToNode.put(node.relativeFilepath, node);
+        for (ResourceNode child : node.getChildren()) {
+            buildPathToNodeMap(child);
+        }
+    }
+
+    private void buildUrlToResourceMap(Set<ResourceEntry> entries) throws IOException {
+        for (ResourceEntry entry : entries) {
+            if (entry.hasHash()) {
+                urlToResource.put(entry.getUrl(), entry);
+            }
+            else {
+                throw new IOException(String.format("Unable to create ManifestData, an incomplete resource was found (missing hash)! %s", entry.getUrl() ));
+            }
+        }
+    }
+
     public ManifestData buildManifestData() throws IOException {
+        Bob.verbose("buildManifestData begin\n");
+        long tstart = System.currentTimeMillis();
+
         ManifestData.Builder builder = ManifestData.newBuilder();
 
         ManifestHeader manifestHeader = this.buildManifestHeader();
         builder.setHeader(manifestHeader);
+
+        buildPathToNodeMap(getRoot());
+        buildUrlToResourceMap(this.resourceEntries);
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
         for (ResourceEntry entry : this.resourceEntries) {
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
             List<String> dependants = this.getDependants(entry.getUrl());
+
             for (String dependant : dependants) {
-                for (ResourceEntry dependantEntry : this.resourceEntries) {
-                    if (dependantEntry.getUrl().equals(dependant)) {
-                        if (dependantEntry.hasHash()) {
-                            resourceEntryBuilder.addDependants(dependantEntry.getHash());
-                        } else {
-                            throw new IOException("Unable to create ManifestData, an incomplete resource was found!");
-                        }
-                    }
+                ResourceEntry resource = urlToResource.get(dependant);
+                if (resource == null) {
+                    continue;
                 }
+                resourceEntryBuilder.addDependants(resource.getHash());
             }
 
             builder.addResources(resourceEntryBuilder.build());
         }
+
+        long tend = System.currentTimeMillis();
+        Bob.verbose("ManifestBuilder.buildManifestData took %f\n", (tend-tstart)/1000.0);
 
         return builder.build();
     }

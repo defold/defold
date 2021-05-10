@@ -270,7 +270,7 @@ public class ArchiveTest {
         ResourceNode collectionproxy1 = addEntry("main.collectionproxyc", "beta", instance, collection1);
         ResourceNode gameobject1 = addEntry("main.goc", "delta", instance, collectionproxy1);
 
-        manifestBuilder.setDependencies(root);
+        manifestBuilder.setRoot(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/main.collectionproxyc");
@@ -300,7 +300,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        manifestBuilder.setDependencies(root);
+        manifestBuilder.setRoot(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level2.collectionproxyc");
@@ -332,7 +332,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("shared.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("shared.goc", "gamma", instance, collectionproxy2);
 
-        manifestBuilder.setDependencies(root);
+        manifestBuilder.setRoot(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level1.collectionproxyc");
@@ -364,7 +364,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        manifestBuilder.setDependencies(root);
+        manifestBuilder.setRoot(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level2.collectionproxyc");
@@ -396,7 +396,7 @@ public class ArchiveTest {
         ResourceNode gameobject11 = addEntryToManifest("level1.goc", collectionproxy1); // should be bundled
         ResourceNode gameobject12 = addEntryToManifest("level1.goc", collectionproxy2);
 
-        manifestBuilder.setDependencies(root);
+        manifestBuilder.setRoot(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level2.collectionproxyc");
@@ -428,7 +428,7 @@ public class ArchiveTest {
         ResourceNode gameobject12 = addEntry("level1.goc", "gamma", instance, collectionproxy2);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
 
-        manifestBuilder.setDependencies(root);
+        manifestBuilder.setRoot(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level2.collectionproxyc");
@@ -460,7 +460,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        manifestBuilder.setDependencies(root);
+        manifestBuilder.setRoot(root);
 
         List<String> excludedResources = new ArrayList<String>();
         excludedResources.add("/level1.collectionproxyc");
