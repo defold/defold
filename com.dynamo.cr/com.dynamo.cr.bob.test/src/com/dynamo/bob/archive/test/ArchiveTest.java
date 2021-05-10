@@ -122,7 +122,7 @@ public class ArchiveTest {
     public void testBuilderAndReader() throws IOException
     {
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder);
+        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, true);
         ab.add(createDummyFile(contentRoot, "a.txt", "abc123".getBytes()));
         ab.add(createDummyFile(contentRoot, "b.txt", "apaBEPAc e p a".getBytes()));
         ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()));
@@ -146,7 +146,7 @@ public class ArchiveTest {
     public void testEntriesOrder() throws IOException {
 
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main/a.txt", "abc123".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main2/a.txt", "apaBEPAc e p a".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())));
@@ -184,7 +184,7 @@ public class ArchiveTest {
 
     @Test
     public void testArchiveIndexAlignment() throws IOException {
-    	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+    	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
     	for (int i = 1; i < 50; ++i) {
 			String filename = "dummy" + Integer.toString(i);
 			String content  = "dummy" + Integer.toString(i);
@@ -222,7 +222,7 @@ public class ArchiveTest {
     public void testLoadResourceData() throws Exception {
         byte[] content = "Hello, world".getBytes();
         String filepath = FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "resource.tmp", content));
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         byte[] actual = instance.loadResourceData(filepath);
 
@@ -232,7 +232,7 @@ public class ArchiveTest {
     @Test
     public void testCompressResourceData() throws Exception {
         byte[] content = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".getBytes();
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         byte[] expected = { 31, 65, 1, 0, 75, 80, 65, 65, 65, 65, 65 };
         byte[] actual = instance.compressResourceData(content);
@@ -242,7 +242,7 @@ public class ArchiveTest {
 
     @Test
     public void testShouldUseCompressedResourceData() throws Exception {
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         byte[] original = { 10, 10, 10, 10, 10 };
         byte[] compressed = { 10, 10, 10, 10 };
@@ -263,7 +263,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -291,7 +291,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -323,7 +323,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -355,7 +355,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
@@ -387,7 +387,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntryToManifest("main.collectionc", root);
         ResourceNode collectionproxy1 = addEntryToManifest("level1.collectionproxyc", collection1);
@@ -419,7 +419,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
         ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
@@ -451,7 +451,7 @@ public class ArchiveTest {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
-        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true);
 
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
