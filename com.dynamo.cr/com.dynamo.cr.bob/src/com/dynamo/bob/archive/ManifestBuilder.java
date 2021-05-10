@@ -287,6 +287,7 @@ public class ManifestBuilder {
     private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
     private HashMap<String, List<String>> pathToDependants = new HashMap<>();
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
+    private HashMap<String, List<ResourceNode>> pathToOccurrances = null; // We build it at first request
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         private int compare(byte[] left, byte[] right) {
@@ -409,27 +410,39 @@ public class ManifestBuilder {
         }
     }
 
+    private void buildResourceOccurrancesMap(ResourceNode node) {
+        // The resource may occur at many instances in the tree
+        // This map contains the mapping url -> occurrances (i.e. nodes)
+
+        String key = node.relativeFilepath;
+        if (!pathToOccurrances.containsKey(key)) {
+            pathToOccurrances.put(key, new ArrayList<ResourceNode>());
+        }
+
+        List<ResourceNode> list = pathToOccurrances.get(key);
+        list.add(node);
+
+        for (ResourceNode child : node.getChildren()) {
+            buildResourceOccurrancesMap(child);
+        }
+    }
+
     // Calculate all parent collection paths (to the root) for a resource
     // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
     public List<ArrayList<String>> getParentCollections(String filepath) {
-        List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
-        List<ResourceNode> candidates = new LinkedList<ResourceNode>();
-        List<ResourceNode> queue = new LinkedList<ResourceNode>();
-        queue.add(getRoot());
-        // Find occurences of resource in tree (may be referenced from several collections for example)
-        while (!queue.isEmpty()) {
-            ResourceNode current = queue.remove(0);
+        if (pathToOccurrances == null) {
+            pathToOccurrances = new HashMap<>();
 
-            if (current != null) {
-                if (current.relativeFilepath.equals(filepath)) {
-                    if (!candidates.contains(current)) {
-                        candidates.add(current);
-                    }
-                } else {
-                    queue.addAll(current.getChildren());
-                }
-            }
+            ResourceNode root = getRoot();
+            if (root != null) // for tests really
+                buildResourceOccurrancesMap(root);
         }
+
+        List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
+
+        List<ResourceNode> candidates = pathToOccurrances.get(filepath);
+        if (candidates == null)
+            return result;
 
         int i = 0;
         while (!candidates.isEmpty()) {
