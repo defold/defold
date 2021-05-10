@@ -272,7 +272,7 @@ public class ManifestBuilder {
     }
 
     public static final int CONST_MAGIC_NUMBER = 0x43cb6d06;
-    public static final int CONST_VERSION = 0x03;
+    public static final int CONST_VERSION = 0x04;
 
     private HashAlgorithm resourceHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
     private HashAlgorithm signatureHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
@@ -284,12 +284,14 @@ public class ManifestBuilder {
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
+    private Set<String> excludedResources = new HashSet<>();
     private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
     private HashMap<String, List<String>> pathToDependants = new HashMap<>();
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
     private HashMap<String, List<ResourceNode>> pathToOccurrances = null; // We build it at first request
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
+        // We need to make sure the entries are sorted properly in order to do the binary search
         private int compare(byte[] left, byte[] right) {
             for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
                 int a = (left[i] & 0xff);
@@ -535,6 +537,10 @@ public class ManifestBuilder {
         }
     }
 
+    public void setExcludedResources(List<String> excludedResources) {
+        this.excludedResources.addAll(excludedResources);
+    }
+
     public ManifestData buildManifestData() throws IOException {
         Bob.verbose("buildManifestData begin\n");
         long tstart = System.currentTimeMillis();
@@ -548,17 +554,36 @@ public class ManifestBuilder {
         buildUrlToResourceMap(this.resourceEntries);
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
+
+        int resourceIndex = 0;
+        HashMap<String, Integer> resourceToIndex = new HashMap<>(); // at what index is the resource stored?
         for (ResourceEntry entry : this.resourceEntries) {
+            resourceToIndex.put(entry.getUrl(), resourceIndex);
+            resourceIndex++;
+        }
+
+        for (ResourceEntry entry : this.resourceEntries) {
+            String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
-            List<String> dependants = this.getDependants(entry.getUrl());
+            // Since we'll only ever ask collection proxies, we only store those lists
+            if (url.endsWith("collectionproxyc"))
+            {
+                // We'll only store the dependencies for the excluded collection proxies
+                if (excludedResources.contains(url)) {
+                    List<String> dependants = this.getDependants(url);
 
-            for (String dependant : dependants) {
-                ResourceEntry resource = urlToResource.get(dependant);
-                if (resource == null) {
-                    continue;
+                    for (String dependant : dependants) {
+                        ResourceEntry resource = urlToResource.get(dependant);
+                        if (resource == null) {
+                            continue;
+                        }
+
+
+                        int index = resourceToIndex.get(dependant);
+                        resourceEntryBuilder.addDependants(index);
+                    }
                 }
-                resourceEntryBuilder.addDependants(resource.getHash());
             }
 
             builder.addResources(resourceEntryBuilder.build());

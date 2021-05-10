@@ -82,6 +82,7 @@ public class ManifestTest {
             manifestBuilder.setProjectIdentifier(projectIdentifier);
             manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
             manifestBuilder.setRoot(this.dependencies);
+            manifestBuilder.setExcludedResources(this.getExcludedResources());
 
             for (String supportedEngineVersion : this.supportedEngineVersions) {
                 manifestBuilder.addSupportedEngineVersion(supportedEngineVersion);
@@ -152,6 +153,12 @@ public class ManifestTest {
             level2_goc.addChild(new ResourceNode("/main/level2.soundc", "/test/main/level2.soundc"));
 
             return root;
+        }
+
+        private List<String> getExcludedResources() {
+            List<String> excluded = new ArrayList<>();
+            excluded.add("/main/level1.collectionproxyc");
+            return excluded;
         }
 
         public HashDigest projectIdentifierHash() {
@@ -449,7 +456,7 @@ public class ManifestTest {
             }
 
             if (current.getUrl().equals("/main/main.collectionc")) {
-                assertEquals(4, current.getDependantsCount());
+                assertEquals(0, current.getDependantsCount());
             }
 
             if (current.getUrl().equals("/main/level1.collectionproxyc")) {
