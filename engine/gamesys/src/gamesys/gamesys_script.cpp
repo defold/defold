@@ -36,6 +36,7 @@
 #include <liveupdate/liveupdate.h>
 
 #include <dmsdk/gamesys/script.h>
+#include <gameobject/script.h>
 
 extern "C"
 {

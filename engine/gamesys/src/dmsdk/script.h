@@ -14,6 +14,7 @@
 #define DMSDK_SCRIPT_H
 
 #include <dmsdk/script/script.h>
+#include <dmsdk/gameobject/script.h>
 #include <dmsdk/gamesys/script.h>
 
 #endif // DMSDK_SCRIPT_H
