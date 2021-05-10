@@ -493,14 +493,14 @@ public class ManifestTest {
         List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
 
         assertEquals(2, parents.size());
-        assertEquals(1, parents.get(0).size());
-        assertEquals(3, parents.get(1).size());
+        assertEquals(3, parents.get(0).size());
+        assertEquals(1, parents.get(1).size());
 
-        assertEquals("/main/main.collectionc",          parents.get(0).get(0));
+        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
+        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
 
-        assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
-        assertEquals("/main/main.collectionc",          parents.get(1).get(2));
+        assertEquals("/main/main.collectionc",          parents.get(1).get(0));
     }
 
     @Test
@@ -510,22 +510,22 @@ public class ManifestTest {
         List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
 
         assertEquals(3, parents.size());
-        assertEquals(2, parents.get(0).size());
-        assertEquals(3, parents.get(1).size());
-        assertEquals(5, parents.get(2).size());
+        assertEquals(3, parents.get(0).size());
+        assertEquals(5, parents.get(1).size());
+        assertEquals(2, parents.get(2).size());
 
-        assertEquals("/main/dynamic.collectionc",       parents.get(0).get(0));
-        assertEquals("/main/main.collectionc",          parents.get(0).get(1));
+        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
+        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
 
-        assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
-        assertEquals("/main/main.collectionc",          parents.get(1).get(2));
+        assertEquals("/main/level2.collectionc",        parents.get(1).get(0));
+        assertEquals("/main/level2.collectionproxyc",   parents.get(1).get(1));
+        assertEquals("/main/level1.collectionc",        parents.get(1).get(2));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(3));
+        assertEquals("/main/main.collectionc",          parents.get(1).get(4));
 
-        assertEquals("/main/level2.collectionc",        parents.get(2).get(0));
-        assertEquals("/main/level2.collectionproxyc",   parents.get(2).get(1));
-        assertEquals("/main/level1.collectionc",        parents.get(2).get(2));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(2).get(3));
-        assertEquals("/main/main.collectionc",          parents.get(2).get(4));
+        assertEquals("/main/dynamic.collectionc",       parents.get(2).get(0));
+        assertEquals("/main/main.collectionc",          parents.get(2).get(1));
     }
 
     @Test
