@@ -428,6 +428,8 @@ void _glfwPlatformPollEvents( void )
        }
     }
 
+    _glfwPlatformDiscoverJoysticks();
+
     glfwAndroidFlushEvents();
 }
 
@@ -700,4 +702,3 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
         g_Listeners[i](env, activity, requestCode, resultCode, data);
     }
 }
-

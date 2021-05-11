@@ -256,41 +256,13 @@ GLFWGLOBAL struct {
 // Joystick information & state
 //------------------------------------------------------------------------
 
-#define GLFW_ANDROID_GAMEPAD_DPAD_CENTER    0
-#define GLFW_ANDROID_GAMEPAD_DPAD_DOWN      1
-#define GLFW_ANDROID_GAMEPAD_DPAD_LEFT      2
-#define GLFW_ANDROID_GAMEPAD_DPAD_RIGHT     3
-#define GLFW_ANDROID_GAMEPAD_DPAD_UP        4
-#define GLFW_ANDROID_GAMEPAD_BUTTON_THUMBL  5
-#define GLFW_ANDROID_GAMEPAD_BUTTON_THUMBR  6
-#define GLFW_ANDROID_GAMEPAD_BUTTON_A       7
-#define GLFW_ANDROID_GAMEPAD_BUTTON_B       8
-#define GLFW_ANDROID_GAMEPAD_BUTTON_C       9
-#define GLFW_ANDROID_GAMEPAD_BUTTON_X       10
-#define GLFW_ANDROID_GAMEPAD_BUTTON_Y       11
-#define GLFW_ANDROID_GAMEPAD_BUTTON_Z       12
-#define GLFW_ANDROID_GAMEPAD_BUTTON_L1      13
-#define GLFW_ANDROID_GAMEPAD_BUTTON_R1      14
-#define GLFW_ANDROID_GAMEPAD_BUTTON_L2      15
-#define GLFW_ANDROID_GAMEPAD_BUTTON_R2      16
-#define GLFW_ANDROID_GAMEPAD_NUMBUTTONS     GLFW_ANDROID_GAMEPAD_BUTTON_R2 + 1
-
-#define GLFW_ANDROID_GAMEPAD_AXIS_X         0
-#define GLFW_ANDROID_GAMEPAD_AXIS_Y         1
-#define GLFW_ANDROID_GAMEPAD_AXIS_Z         2
-#define GLFW_ANDROID_GAMEPAD_AXIS_RZ        3
-#define GLFW_ANDROID_GAMEPAD_NUMAXIS        GLFW_ANDROID_GAMEPAD_AXIS_RZ + 1
-
-#define DEVICE_ID_LENGTH 64
-
 GLFWGLOBAL struct {
-    int           Present;
-    int           fd;
+    int           State;
+    int           DeviceId;
     int           NumAxes;
     int           NumButtons;
     float         *Axis;
     unsigned char *Button;
-    char DeviceId[DEVICE_ID_LENGTH];
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 
@@ -324,5 +296,6 @@ void _glfwSetVideoModeMODE( int screen, int mode, int rate );
 void _glfwSetVideoMode( int screen, int *width, int *height, int *rate );
 void _glfwRestoreVideoMode( void );
 
+void _glfwPlatformDiscoverJoysticks();
 
 #endif // _platform_h_

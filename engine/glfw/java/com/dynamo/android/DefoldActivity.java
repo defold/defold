@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,6 +39,9 @@ import android.view.inputmethod.InputConnection;
 import android.text.InputType;
 import android.view.inputmethod.CompletionInfo;
 import android.view.ViewGroup;
+import android.view.InputDevice;
+
+import java.util.ArrayList;
 
 import android.content.pm.PackageInfo;
 
@@ -72,6 +75,8 @@ public class DefoldActivity extends NativeActivity {
 
     private boolean mImmersiveMode = false;
     private boolean mDisplayCutout = false;
+
+    private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
     /**
      * Update immersive sticky mode based on current setting. This will only
@@ -464,4 +469,30 @@ public class DefoldActivity extends NativeActivity {
     }
 
     public static native void nativeOnActivityResult(Activity activity, int requestCode, int resultCode, Intent data);
+
+    /**
+     * Method to get device ids for any connected gamepads, joysticks etc
+     * Called from glfwAndroid.
+     */
+    public int[] getGameControllerDeviceIds() {
+        mGameControllerDeviceIds.clear();
+        for (int deviceId : InputDevice.getDeviceIds()) {
+            InputDevice dev = InputDevice.getDevice(deviceId);
+            int sources = dev.getSources();
+            // filter out only gamepads, joysticks and things which has a dpad
+             if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
+                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) ||
+                ((sources & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD)) {
+                    mGameControllerDeviceIds.add(deviceId);
+            }
+        }
+
+        // create and copy device ids to an int[]
+        int[] deviceIds = new int[mGameControllerDeviceIds.size()];
+        for(int i = 0; i < mGameControllerDeviceIds.size(); i++) {
+            deviceIds[i] = mGameControllerDeviceIds.get(i);
+        }
+
+        return deviceIds;
+    }
 }

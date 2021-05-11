@@ -14,34 +14,31 @@
 #include "android_joystick.h"
 #include "android_log.h"
 
+#include <jni.h>
+
+extern struct android_app* g_AndroidApp;
+
 static int _glfwJoystickPresent( int joy )
 {
-    if (joy >= 0 && joy <= GLFW_JOYSTICK_LAST && _glfwJoy[joy].Present)
+    if (joy >= 0 && joy <= GLFW_JOYSTICK_LAST && _glfwJoy[joy].State == GLFW_ANDROID_GAMEPAD_CONNECTED)
     {
         return GL_TRUE;
     }
     return GL_FALSE;
 }
 
-int _glfwInitJoystick(int joy)
+int _glfwFindJoystick(const int32_t deviceId)
 {
-    if (joy < 0 || joy > GLFW_JOYSTICK_LAST)
+    int32_t joystickIndex;
+    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
     {
-        return GL_FALSE;
+        if (_glfwJoy[joystickIndex].DeviceId == deviceId)
+        {
+            return joystickIndex;
+        }
     }
-    if (!_glfwJoy[joy].Present)
-    {
-        _glfwJoy[joy].Present = 1;
-        _glfwJoy[joy].fd = 0;
-        _glfwJoy[joy].NumAxes = GLFW_ANDROID_GAMEPAD_NUMAXIS;
-        _glfwJoy[joy].NumButtons = GLFW_ANDROID_GAMEPAD_NUMBUTTONS;
-        _glfwJoy[joy].Axis = (float *)malloc(sizeof(float) * _glfwJoy[joy].NumAxes);
-        _glfwJoy[joy].Button = (unsigned char *)malloc(sizeof(char) * _glfwJoy[joy].NumButtons );
-        _glfwWin.gamepadCallback(joy, 1);
-    }
-    return GL_TRUE;
+    return -1;
 }
-
 
 //========================================================================
 // Update joystick axis
@@ -59,26 +56,22 @@ static int _glfwAndroidMotionToJoystickAxis(int motionAxis)
     }
 }
 
-static void _glfwUpdateAxisValue(const AInputEvent* event, int motionAxis)
+static void _glfwUpdateAxisValue(const int joystickIndex, const AInputEvent* event, int motionAxis)
 {
-    const int32_t deviceId = AInputEvent_getDeviceId(event);
     float axisValue = AMotionEvent_getAxisValue(event, motionAxis, 0);
-    if (axisValue != 0.0f)
-    {
-        int axis = _glfwAndroidMotionToJoystickAxis(motionAxis);
-        _glfwJoy[deviceId].Axis[axis] = axisValue;
-    }
+    int axis = _glfwAndroidMotionToJoystickAxis(motionAxis);
+    _glfwJoy[joystickIndex].Axis[axis] = axisValue;
 }
 
 static void _glfwUpdateAxis(const AInputEvent* event)
 {
-    const int32_t deviceId = AInputEvent_getDeviceId(event);
-    if (_glfwInitJoystick(deviceId))
+    const int32_t joystickIndex = _glfwFindJoystick(AInputEvent_getDeviceId(event));
+    if (joystickIndex >= 0)
     {
-        _glfwUpdateAxisValue(event, AMOTION_EVENT_AXIS_X);
-        _glfwUpdateAxisValue(event, AMOTION_EVENT_AXIS_Y);
-        _glfwUpdateAxisValue(event, AMOTION_EVENT_AXIS_Z);
-        _glfwUpdateAxisValue(event, AMOTION_EVENT_AXIS_RZ);
+        _glfwUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_X);
+        _glfwUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_Y);
+        _glfwUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_Z);
+        _glfwUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RZ);
     }
 }
 
@@ -89,28 +82,28 @@ static void _glfwUpdateAxis(const AInputEvent* event)
 
 static void _glfwUpdateDpad(const AInputEvent* event)
 {
-    const int32_t deviceId = AInputEvent_getDeviceId(event);
+    const int32_t joystickIndex = _glfwFindJoystick(AInputEvent_getDeviceId(event));
     const int32_t action = AMotionEvent_getAction(event);
     const int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
-    if (_glfwInitJoystick(deviceId))
+    if (joystickIndex >= 0)
     {
         float hatX = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_HAT_X, 0);
         if (hatX == 1.0f)
         {
-            _glfwJoy[deviceId].Button[GLFW_ANDROID_GAMEPAD_DPAD_RIGHT] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Button[GLFW_ANDROID_GAMEPAD_DPAD_RIGHT] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
         }
         else if (hatX == -1.0f)
         {
-            _glfwJoy[deviceId].Button[GLFW_ANDROID_GAMEPAD_DPAD_LEFT] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Button[GLFW_ANDROID_GAMEPAD_DPAD_LEFT] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
         }
         float hatY = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_HAT_Y, 0);
         if (hatY == 1.0f)
         {
-            _glfwJoy[deviceId].Button[GLFW_ANDROID_GAMEPAD_DPAD_UP] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Button[GLFW_ANDROID_GAMEPAD_DPAD_UP] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
         }
         else if (hatY == -1.0f)
         {
-            _glfwJoy[deviceId].Button[GLFW_ANDROID_GAMEPAD_DPAD_DOWN] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Button[GLFW_ANDROID_GAMEPAD_DPAD_DOWN] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
         }
     }
 }
@@ -148,14 +141,15 @@ static int _glfwAndroidKeycodeToJoystickButton(int keyCode)
 static void _glfwUpdateButton(const AInputEvent* event)
 {
     const int32_t keyCode = AKeyEvent_getKeyCode(event);
-    const int32_t deviceId = AInputEvent_getDeviceId(event);
+    const int32_t joystickIndex = _glfwFindJoystick(AInputEvent_getDeviceId(event));
     const int32_t action = AKeyEvent_getAction(event);
-    if (_glfwInitJoystick(deviceId))
+    if (joystickIndex >= 0)
     {
         int button = _glfwAndroidKeycodeToJoystickButton(keyCode);
         if (button != -1)
         {
-            _glfwJoy[deviceId].Button[button] = (action == AKEY_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Button[button] = (action == AKEY_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            LOGV("_glfwUpdateButton - keycode: %d button: %d action: %d", keyCode, button, action);
         }
     }
 }
@@ -182,7 +176,6 @@ void _glfwUpdateJoystick(const AInputEvent* event)
     {
         if ((type == AINPUT_EVENT_TYPE_MOTION) && ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_MOVE))
         {
-            LOGV("_glfwUpdateJoystick AINPUT_SOURCE_JOYSTICK");
             _glfwUpdateAxis(event);
         }
     }
@@ -190,7 +183,6 @@ void _glfwUpdateJoystick(const AInputEvent* event)
     {
         if ((type == AINPUT_EVENT_TYPE_MOTION) && ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_MOVE))
         {
-            LOGV("_glfwUpdateJoystick AINPUT_SOURCE_DPAD");
             _glfwUpdateDpad(event);
         }
     }
@@ -314,5 +306,112 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     {
         *device_id = (char*) name;
         return GL_TRUE;
+    }
+}
+
+
+//========================================================================
+// _glfwPlatformDiscoverJoysticks() - Discover connected joysticks
+//========================================================================
+
+void _glfwConnectJoystick(int32_t deviceId)
+{
+    int32_t joystickIndex;
+    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+    {
+        if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_DISCONNECTED)
+        {
+            _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_CONNECTED;
+            _glfwJoy[joystickIndex].DeviceId = deviceId;
+            _glfwJoy[joystickIndex].NumAxes = GLFW_ANDROID_GAMEPAD_NUMAXIS;
+            _glfwJoy[joystickIndex].NumButtons = GLFW_ANDROID_GAMEPAD_NUMBUTTONS;
+            _glfwJoy[joystickIndex].Axis = (float *)malloc(sizeof(float) * _glfwJoy[joystickIndex].NumAxes);
+            _glfwJoy[joystickIndex].Button = (unsigned char *)malloc(sizeof(char) * _glfwJoy[joystickIndex].NumButtons );
+            _glfwWin.gamepadCallback(joystickIndex, 1);
+            return;
+        }
+    }
+}
+
+void _glfwDisconnectJoystick(const int joystickIndex)
+{
+    if (_glfwJoy[joystickIndex].State != GLFW_ANDROID_GAMEPAD_DISCONNECTED)
+    {
+        _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_DISCONNECTED;
+        _glfwJoy[joystickIndex].DeviceId = 0;
+        _glfwJoy[joystickIndex].NumAxes = 0;
+        _glfwJoy[joystickIndex].NumButtons = 0;
+        free(_glfwJoy[joystickIndex].Axis);
+        free(_glfwJoy[joystickIndex].Button);
+        _glfwJoy[joystickIndex].Axis = 0;
+        _glfwJoy[joystickIndex].Button = 0;
+        _glfwWin.gamepadCallback(joystickIndex, 0);
+    }
+}
+
+void _glfwPlatformDiscoverJoysticks()
+{
+    int32_t joystickIndex;
+
+    // prepare all connected gamepads to be refreshed
+    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+    {
+        if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_CONNECTED)
+        {
+            _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_REFRESHING;
+        }
+    }
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    jint result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result != JNI_ERR)
+    {
+        jobject native_activity = g_AndroidApp->activity->clazz;
+        jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+        if (native_activity_class)
+        {
+            jmethodID get_game_controller_device_ids = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getGameControllerDeviceIds", "()[I");
+            if (get_game_controller_device_ids)
+            {
+                jintArray device_ids = (*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_game_controller_device_ids);
+                if (device_ids)
+                {
+                    jsize len = (*lJNIEnv)->GetArrayLength(lJNIEnv, device_ids);
+                    jint *elements = (*lJNIEnv)->GetIntArrayElements(lJNIEnv, device_ids, 0);
+                    for (int i=0; i<len; i++)
+                    {
+                        int32_t deviceId = elements[i];
+                        int deviceIndex = _glfwFindJoystick(deviceId);
+                        if (deviceIndex == -1)
+                        {
+                            _glfwConnectJoystick(deviceId);
+                        }
+                        else
+                        {
+                            _glfwJoy[deviceIndex].State = GLFW_ANDROID_GAMEPAD_CONNECTED;
+                        }
+                    }
+                    (*lJNIEnv)->ReleaseIntArrayElements(lJNIEnv, device_ids, elements, 0);
+                }
+            }
+        }
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    }
+
+    // disconnect gamepads that we failed to refresh
+    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+    {
+        if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_REFRESHING)
+        {
+            _glfwDisconnectJoystick(joystickIndex);
+        }
     }
 }
