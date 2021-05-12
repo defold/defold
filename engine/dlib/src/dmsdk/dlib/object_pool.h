@@ -21,8 +21,6 @@
 
 /*# SDK Object Pool API documentation
  *
- * Aa
- *
  * @document
  * @name ObjectPool
  * @path engine/dlib/src/dmsdk/dlib/object_pool.h

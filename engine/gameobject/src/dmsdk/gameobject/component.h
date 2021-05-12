@@ -14,8 +14,10 @@
 #define DMSDK_GAMEOBJECT_COMPONENT_H
 
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/script/script.h>
+#include <dmsdk/render/render.h>
 
 namespace dmGameObject
 {
@@ -30,7 +32,6 @@ namespace dmGameObject
      */
 
     struct ComponentType;
-    struct UpdateContext;
 
     /*#
      * Parameters to ComponentNewWorld callback.
@@ -424,137 +425,212 @@ namespace dmGameObject
 
     /*#
      * Callback when iterating over the properties for a component.
+     @name
      */
     typedef void (*ComponentIterProperties)(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 
 
     /*# set the new world callback
      * Set the new world callback. Called when a collection (i.e. a "world") is created.
+     * @name ComponentTypeSetNewWorldFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetNewWorldFn(ComponentType* type, ComponentNewWorld fn);
 
     /*# set the world destroy callback
      * Set the world destroy callback. Called when a collection (i.e. a "world") is destroyed.
+     * @name ComponentTypeSetDeleteWorldFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetDeleteWorldFn(ComponentType* type, ComponentDeleteWorld fn);
 
     /*# set the component create callback
      * Set the component create callback. Called when a component instance is created.
+     * @name ComponentTypeSetCreateFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetCreateFn(ComponentType* type, ComponentCreate fn);
 
     /*# set the component destroy callback
      * Set the component destroy callback. Called when a component instance is destroyed.
+     * @name ComponentTypeSetDestroyFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetDestroyFn(ComponentType* type, ComponentDestroy fn);
 
     /*# set the component init callback
      * Set the component init callback. Called on each gameobject's components, during a gameobject's initialization.
+     * @name ComponentTypeSetInitFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetInitFn(ComponentType* type, ComponentInit fn);
 
     /*# set the component finalize callback
      * Set the component finalize callback. Called on each gameobject's components, during a gameobject's finalization.
+     * @name ComponentTypeSetFinalFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetFinalFn(ComponentType* type, ComponentFinal fn);
 
     /*# set the component add-to-update callback
      * Set the component add-to-update callback. Called for each component instal, when the game object is spawned.
+     * @name ComponentTypeSetAddToUpdateFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetAddToUpdateFn(ComponentType* type, ComponentAddToUpdate fn);
 
     /*# set the component get callback
      * Set the component get callback. Called when the scripts want to retrieve the individual component user data given an url.
+     * @name ComponentTypeSetGetFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetGetFn(ComponentType* type, ComponentGet fn);
 
     /*# set the component render callback
      * Set the component render callback. Called when it's time to render all component instances.
+     * @name ComponentTypeSetRenderFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetRenderFn(ComponentType* type, ComponentsRender fn);
 
     /*# set the component update callback
      * Set the component update callback. Called when it's time to update all component instances.
+     * @name ComponentTypeSetUpdateFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn);
 
     /*# set the component post update callback
      * Set the component post update callback. Called for each collection after the update, before the render.
+     * @name ComponentTypeSetPostUpdateFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetPostUpdateFn(ComponentType* type, ComponentsPostUpdate fn);
 
     /*# set the component on-message callback
      * Set the component on-message callback. Called multiple times per frame, to flush messages.
+     * @name ComponentTypeSetOnMessageFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetOnMessageFn(ComponentType* type, ComponentOnMessage fn);
 
     /*# set the component on-input callback
      * Set the component on-input callback. Called once per frame, before the Update function.
+     * @name ComponentTypeSetOnInputFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetOnInputFn(ComponentType* type, ComponentOnInput fn);
 
     /*# set the component on-reload callback
      * Set the component on-reload callback. Called when the resource of a component instance is reloaded.
+     * @name ComponentTypeSetOnReloadFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetOnReloadFn(ComponentType* type, ComponentOnReload fn);
 
     /*# set the component set properties callback
      * Set the component set properties callback. Called when the component instance is being spwned.
+     * @name ComponentTypeSetSetPropertiesFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetSetPropertiesFn(ComponentType* type, ComponentSetProperties fn);
 
     /*# set the component get property callback
      * Set the component get property callback. Called when accessing a property via `go.get()`
+     * @name ComponentTypeSetGetPropertyFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetGetPropertyFn(ComponentType* type, ComponentGetProperty fn);
 
     /*# set the component set property callback
      * Set the component set property callback. Called when accessing a property via `go.set()`
+     * @name ComponentTypeSetSetPropertyFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetSetPropertyFn(ComponentType* type, ComponentSetProperty fn);
 
     /*# set the component type global context
      * Set the component type global context. Usually set when registering the component type.
+     * @name ComponentTypeSetContext
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetContext(ComponentType* type, void* context);
 
     /*# set the component type transform dependency flag
      * Set the component type transform dependency flag.
      * If this flag is set, it might trigger an dmGameObject::UpdateTransforms() (if there are dirty transforms)
+     * @name ComponentTypeSetReadsTransforms
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetReadsTransforms(ComponentType* type, bool reads_transforms);
 
     /*# set the component type prio order
      * Set the component type prio order. Defines the update order of the component types.
+     * @name ComponentTypeSetPrio
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetPrio(ComponentType* type, uint16_t prio);
 
     /*# set the component type need for a per component instance user data
      * Set the component type need for a per component instance user data. Defaults to true.
+     * @name ComponentTypeSetHasUserData
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetHasUserData(ComponentType* type, bool has_user_data);
 
     /*# set the component property iterator function
      * set the component property iterator function. Called during inspection
+     * @name ComponentTypeSetChilldIteratorFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetChilldIteratorFn(ComponentType* type, FIteratorChildren fn);
 
     /*# set the component property iterator function
      * set the component property iterator function. Called during inspection
+     * @name ComponentTypeSetPropertyIteratorFn
+     * @param type [type: ComponentType*] the type
+     * @param
      */
     void ComponentTypeSetPropertyIteratorFn(ComponentType* type, FIteratorProperties fn);
 
     /*#
-     * Register a new component type (Internal)
-     * @param regist Gameobject register
-     * @param type Collection of component type registration data
-     * @return RESULT_OK on success
+     * Context used when registering a new component type
+     * @struct
+     * @name ComponentTypeCreateCtx
+     * @member m_Config [type: dmConfigFile::HConfig] The config file
+     * @member m_Factory [type: dmResource::HFactory] The resource factory
+     * @member m_Register [type: dmGameObject::HRegister] The game object registry
+     * @member m_Script [type: dmScript::HContext] The shared script context
+     * @member m_RenderContext [type: dmRender::HRenderContext] The render context
      */
     struct ComponentTypeCreateCtx {
         dmConfigFile::HConfig    m_Config;
         dmResource::HFactory     m_Factory;
         dmGameObject::HRegister  m_Register;
         dmScript::HContext       m_Script;
+        dmRender::HRenderContext m_RenderContext;
     };
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, ComponentType* type);
