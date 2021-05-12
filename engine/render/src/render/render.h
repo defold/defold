@@ -32,7 +32,6 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
-    typedef struct RenderContext*           HRenderContext;
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
     typedef struct NamedConstantBuffer*     HNamedConstantBuffer;
@@ -85,20 +84,6 @@ namespace dmRender
         static const uint32_t MAX_TAG_COUNT = 32;
         dmhash_t m_Tags[MAX_TAG_COUNT];
         uint32_t m_TagCount;
-    };
-
-    struct Constant
-    {
-        Vectormath::Aos::Vector4                m_Value;
-        dmhash_t                                m_NameHash;
-        dmRenderDDF::MaterialDesc::ConstantType m_Type;
-        int32_t                                 m_Location;
-
-        Constant() {}
-        Constant(dmhash_t name_hash, int32_t location)
-            : m_Value(Vectormath::Aos::Vector4(0)), m_NameHash(name_hash), m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER), m_Location(location)
-        {
-        }
     };
 
     struct StencilTestParams

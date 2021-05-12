@@ -14,6 +14,8 @@
 #define DMSDK_RENDER_H
 
 #include <render/material_ddf.h>
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/vmath.h>
 
 /*# Render API documentation
  * [file:<dmsdk/render/render.h>]
@@ -28,6 +30,13 @@
 namespace dmRender
 {
     /*#
+     * The render context
+     * @typedef
+     * @name HRenderContext
+     */
+    typedef struct RenderContext*           HRenderContext;
+
+    /*#
      * Material instance handle
      * @typedef
      * @name HMaterial
@@ -41,6 +50,24 @@ namespace dmRender
      * @return vertex_space [type: dmRenderDDF::MaterialDesc::VertexSpace] the vertex space
      */
     dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material);
+
+    /*#
+     * URL specifying a sender/receiver of messages
+     * @note Currently has a hard limit of 32 bytes
+     * @struct
+     * @name Constant
+     */
+    struct Constant
+    {
+        dmVMath::Vector4                        m_Value;
+        dmhash_t                                m_NameHash;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
+        int32_t                                 m_Location;
+
+    // Private
+        Constant();
+        Constant(dmhash_t name_hash, int32_t location);
+    };
 }
 
 #endif /* DMSDK_RENDER_H */

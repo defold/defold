@@ -50,6 +50,15 @@ namespace dmRender
         m_Padding = 0;
     }
 
+    Constant::Constant() {}
+    Constant::Constant(dmhash_t name_hash, int32_t location)
+        : m_Value(Vectormath::Aos::Vector4(0))
+        , m_NameHash(name_hash)
+        , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        , m_Location(location)
+    {
+    }
+
     RenderObject::RenderObject()
     {
         Init();
