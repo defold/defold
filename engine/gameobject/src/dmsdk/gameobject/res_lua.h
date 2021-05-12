@@ -10,9 +10,23 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMEOBJECT_RES_LUA_H
-#define DM_GAMEOBJECT_RES_LUA_H
+#ifndef DMSDK_GAMEOBJECT_RES_LUA_H
+#define DMSDK_GAMEOBJECT_RES_LUA_H
 
-#include <dmsdk/gameobject/res_lua.h>
+#include <stdint.h>
 
-#endif // DM_GAMEOBJECT_RES_LUA_H
+#include <ddf/ddf.h>
+#include <gameobject/lua_ddf.h>
+
+namespace dmGameObject
+{
+    struct LuaScript
+    {
+        LuaScript(dmLuaDDF::LuaModule* lua_module) :
+            m_LuaModule(lua_module) {}
+
+        dmLuaDDF::LuaModule* m_LuaModule;
+    };
+}
+
+#endif // DMSDK_GAMEOBJECT_RES_LUA_H
