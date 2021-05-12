@@ -106,7 +106,7 @@ namespace dmGameSystem
      * @param name_hash [type: dmhash_t] the hashed name of the constant
      * @return result [type: int] non zero if the constant was removed
      */
-    int  ClearRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash);
+    int ClearRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash);
 
     /*#
      * Hashes the constants
