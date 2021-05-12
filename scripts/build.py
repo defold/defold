@@ -739,10 +739,10 @@ class Configuration(object):
                     if file.endswith('.h'):
                         includes.append(os.path.join(root, file))
 
-            # proto _ddf.h
+            # proto _ddf.h + "res_*.h"
             for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
                 for file in files:
-                    if file.endswith('.h') and 'ddf' in file:
+                    if file.endswith('.h') and ('ddf' in file or file.startswith('res_')):
                         includes.append(os.path.join(root, file))
 
             self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
