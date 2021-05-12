@@ -21,16 +21,16 @@
 
 #include <stdint.h>
 
-#include <dlib/object_pool.h>
-#include <dlib/hash.h>
-#include <dlib/vmath.h>
-#include <dlib/align.h>
-#include <dlib/transform.h>
+#include <dmsdk/dlib/align.h>
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/object_pool.h>
+#include <dmsdk/dlib/transform.h>
+#include <dmsdk/dlib/vmath.h>
 
-#include <render/render.h>
+#include <dmsdk/render/render.h>
 
 #include <ddf/ddf.h>
-#include "rig/rig_ddf.h"
+#include <rig/rig_ddf.h>
 
 using namespace Vectormath::Aos;
 
