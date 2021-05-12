@@ -49,6 +49,13 @@ namespace dmScript
      * @path engine/dlib/src/dmsdk/script/script.h
      */
 
+    /*#
+     * The script context
+     * @typedef
+     * @name HContext
+     */
+    typedef struct Context* HContext;
+
     /**
     * LuaStackCheck struct. Internal
     *
@@ -412,6 +419,17 @@ namespace dmScript
      * @return The hash value
      */
     dmhash_t CheckHashOrString(lua_State* L, int index);
+
+    /*#
+     * Gets as good as possible printable string from a hash or string
+     * @name GetStringFromHashOrString
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @param buffer [type: char*] buffer receiving the value
+     * @param buffer_length [type: uint32_t] the buffer length
+     * @return string [type: const char*] Returns buffer. If buffer is non null, it will always contain a null terminated string. "<unknown>" if the hash could not be looked up.
+    */
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
     /*# convert a dmJson::Document to a Lua table
      * Convert a dmJson::Document document to Lua table.

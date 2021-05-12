@@ -38,7 +38,6 @@ namespace dmLuaDDF
 
 namespace dmScript
 {
-    typedef struct Context* HContext;
     typedef struct ScriptWorld* HScriptWorld;
     typedef struct ScriptExtension* HScriptExtension;
 
@@ -285,12 +284,6 @@ namespace dmScript
      * @param hash Hash value to release
      */
     void ReleaseHash(lua_State* L, dmhash_t hash);
-
-    /**
-     * Gets as good as possible printable string from a hash or string
-     * @return Always a null terminated string. "<unknown>" if the hash could not be looked up.
-    */
-    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
     /**
      * Check if the value at #index is a FloatVector
