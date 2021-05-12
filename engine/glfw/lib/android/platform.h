@@ -255,10 +255,12 @@ GLFWGLOBAL struct {
 //------------------------------------------------------------------------
 // Joystick information & state
 //------------------------------------------------------------------------
+#define DEVICE_NAME_LENGTH 64
 
 GLFWGLOBAL struct {
     int           State;
     int           DeviceId;
+    char          DeviceName[DEVICE_NAME_LENGTH];
     int           NumAxes;
     int           NumButtons;
     float         *Axis;

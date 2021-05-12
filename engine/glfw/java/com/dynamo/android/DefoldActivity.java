@@ -473,14 +473,15 @@ public class DefoldActivity extends NativeActivity {
     /**
      * Method to get device ids for any connected gamepads, joysticks etc
      * Called from glfwAndroid.
+     * @return Array of device ids
      */
     public int[] getGameControllerDeviceIds() {
         mGameControllerDeviceIds.clear();
         for (int deviceId : InputDevice.getDeviceIds()) {
-            InputDevice dev = InputDevice.getDevice(deviceId);
-            int sources = dev.getSources();
+            InputDevice device = InputDevice.getDevice(deviceId);
+            int sources = device.getSources();
             // filter out only gamepads, joysticks and things which has a dpad
-             if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
+            if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
                 ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) ||
                 ((sources & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD)) {
                     mGameControllerDeviceIds.add(deviceId);
@@ -494,5 +495,20 @@ public class DefoldActivity extends NativeActivity {
         }
 
         return deviceIds;
+    }
+
+    /**
+     * Method to get controller name
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device name
+     */
+    public String getGameControllerDeviceName(int deviceId) {
+        String name = "Android Controller";
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null) {
+            name = device.getName();
+        }
+        return name;
     }
 }

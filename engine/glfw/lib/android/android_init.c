@@ -677,7 +677,7 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
 {
     out->m_Type = AInputEvent_getType(event);
 
-    _glfwUpdateJoystick(event);
+    glfwAndroidUpdateJoystick(event);
 
     if (out->m_Type == AINPUT_EVENT_TYPE_MOTION)
     {

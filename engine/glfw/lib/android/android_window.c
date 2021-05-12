@@ -44,6 +44,7 @@
 
 #include "android_log.h"
 #include "android_util.h"
+#include "android_joystick.h"
 
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
@@ -428,7 +429,7 @@ void _glfwPlatformPollEvents( void )
        }
     }
 
-    _glfwPlatformDiscoverJoysticks();
+    glfwAndroidDiscoverJoysticks();
 
     glfwAndroidFlushEvents();
 }
