@@ -438,6 +438,59 @@ namespace dmResource
         uint8_t DM_ALIGNED(16) DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__)[dmResource::s_ResourceTypeCreatorDescBufferSize]; \
         DM_REGISTER_RESOURCE_TYPE(symbol, DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__)), suffix, register_fn, deregister_fn);
 
+
+    /*#
+     * Resource descriptor
+     * @struct
+     * @name SResourceDescriptor
+     * @member m_NameHash [type: uint64_t] hash of the resource path
+     * @member m_Resource [type: void*] The resource. Must be unique and not be 0
+     * @member m_PrevResource [type: void*] the previous resource if (and only if) it exists (during resource recreate)
+     * @member m_ResourceSize [type: uint32_t] the resource size in memory (i.e. the payload of the m_Resource)
+     */
+    struct SResourceDescriptor
+    {
+        uint64_t m_NameHash;
+        void*    m_Resource;
+        void*    m_PrevResource;
+        uint32_t m_ResourceSize;
+
+        // private members
+        uint32_t m_ResourceSizeOnDisc;
+        void*    m_ResourceType;
+        uint32_t m_ReferenceCount;
+    };
+
+    /*#
+     * Get a resource from factory. Increases the reference count by one.
+     * @name Get
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param name [type: const char*] Resource name
+     * @param resource [type: void**] Pointer that will hold the created resource
+     * @return [type: dmResource::Result] RESULT_OK on success
+     */
+    Result Get(HFactory factory, const char* name, void** resource);
+
+    /*#
+     * Release resource. Decreases the reference cound by one.
+     * When the reference count reaches zero, the resource type's destroy function is called.
+     * @name Release
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param resource [type: void*] Resource
+     */
+    void Release(HFactory factory, void* resource);
+
+    /*#
+     * Hint the preloader what to load before Create is called on the resource.
+     * The resources are not guaranteed to be loaded before Create is called.
+     * This function can be called from a worker thread.
+     * @name PreloadHint
+     * @param hint_ctx [type: dmResource::HPreloadHintInfo] Resource name
+     * @param name [type: const char* ] Resource name
+     * @return result [type: bool] true if successfully invoking preloader.
+     */
+    bool PreloadHint(HPreloadHintInfo hint_ctx, const char *name);
+
 }
 
 #endif // DMSDK_RESOURCE_H
