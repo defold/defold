@@ -27,7 +27,7 @@ static int glfwAndroidJoystickPresent( int joy )
     return GL_FALSE;
 }
 
-int glfwAndroidFindJoystick(const int32_t deviceId)
+static int glfwAndroidFindJoystick(const int32_t deviceId)
 {
     int32_t joystickIndex;
     for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
@@ -52,19 +52,9 @@ static int32_t glfwAndroidConnectJoystick(int32_t deviceId, char* deviceName)
             _glfwJoy[joystickIndex].DeviceId = deviceId;
             _glfwJoy[joystickIndex].NumAxes = GLFW_ANDROID_GAMEPAD_NUMAXIS;
             _glfwJoy[joystickIndex].NumButtons = GLFW_ANDROID_GAMEPAD_NUMBUTTONS;
-            _glfwJoy[joystickIndex].Axis = (float *)malloc(sizeof(float) * _glfwJoy[joystickIndex].NumAxes);
-            _glfwJoy[joystickIndex].Button = (unsigned char *)malloc(sizeof(char) * _glfwJoy[joystickIndex].NumButtons );
             strncpy(&_glfwJoy[joystickIndex].DeviceName, deviceName, DEVICE_NAME_LENGTH);
-
-            // Clear joystick state
-            for(n = 0; n < _glfwJoy[joystickIndex].NumAxes; ++n)
-            {
-                _glfwJoy[joystickIndex].Axis[n] = 0.0f;
-            }
-            for(n = 0; n < _glfwJoy[joystickIndex].NumButtons; ++n)
-            {
-                _glfwJoy[joystickIndex].Button[n] = GLFW_RELEASE;
-            }
+            memset(_glfwJoy[joystickIndex].NumAxes, 0, sizeof(_glfwJoy[joystickIndex].NumAxes));
+            memset(_glfwJoy[joystickIndex].NumButtons, 0, sizeof(_glfwJoy[joystickIndex].NumButtons));
 
             _glfwWin.gamepadCallback(joystickIndex, 1);
             break;
@@ -81,10 +71,6 @@ static void glfwAndroidDisconnectJoystick(const int joystickIndex)
         _glfwJoy[joystickIndex].DeviceId = 0;
         _glfwJoy[joystickIndex].NumAxes = 0;
         _glfwJoy[joystickIndex].NumButtons = 0;
-        free(_glfwJoy[joystickIndex].Axis);
-        free(_glfwJoy[joystickIndex].Button);
-        _glfwJoy[joystickIndex].Axis = 0;
-        _glfwJoy[joystickIndex].Button = 0;
         _glfwWin.gamepadCallback(joystickIndex, 0);
     }
 }

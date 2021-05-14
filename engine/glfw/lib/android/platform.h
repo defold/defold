@@ -256,6 +256,8 @@ GLFWGLOBAL struct {
 // Joystick information & state
 //------------------------------------------------------------------------
 #define DEVICE_NAME_LENGTH 64
+#define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 19
+#define GLFW_ANDROID_GAMEPAD_NUMAXIS 4
 
 GLFWGLOBAL struct {
     int           State;
@@ -263,8 +265,8 @@ GLFWGLOBAL struct {
     char          DeviceName[DEVICE_NAME_LENGTH];
     int           NumAxes;
     int           NumButtons;
-    float         *Axis;
-    unsigned char *Button;
+    float         Axis[GLFW_ANDROID_GAMEPAD_NUMAXIS];
+    unsigned char Button[GLFW_ANDROID_GAMEPAD_NUMBUTTONS];
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 
