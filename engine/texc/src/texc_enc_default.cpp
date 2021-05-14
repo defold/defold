@@ -94,7 +94,7 @@ namespace dmTexc
 
     static void DestroyDefault(Texture* texture)
     {
-        for(size_t i = 0; i < texture->m_Mips.Size(); ++i)
+        for(uint32_t i = 0; i < texture->m_Mips.Size(); ++i)
         {
             delete[] texture->m_Mips[i].m_Data;
         }
