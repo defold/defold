@@ -1,5 +1,5 @@
 // basisu_pvrtc1_4.cpp
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -529,7 +529,7 @@ namespace basisu
 
 		uint64_t e03_err_1 = remap_pixels_influenced_by_endpoint(bx, by, orig_img, perceptual, false);
 
-		if (initial_error < std::min(e03_err_0, e03_err_1))
+		if (initial_error < basisu::minimum(e03_err_0, e03_err_1))
 		{
 			for (int y = -1; y <= 1; y++)
 			{

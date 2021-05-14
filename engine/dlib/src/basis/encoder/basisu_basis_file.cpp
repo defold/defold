@@ -1,5 +1,5 @@
 // basisu_basis_file.cpp
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,10 @@ namespace basisu
 
 		if (y_flipped)
 			m_header.m_flags = m_header.m_flags | basist::cBASISHeaderFlagYFlipped;
+		if (encoder_output.m_uses_global_codebooks)
+			m_header.m_flags = m_header.m_flags | basist::cBASISHeaderFlagUsesGlobalCodebook;
+		if (encoder_output.m_srgb)
+			m_header.m_flags = m_header.m_flags | basist::cBASISHeaderFlagSRGB;
 				
 		for (uint32_t i = 0; i < encoder_output.m_slice_desc.size(); i++)
 		{
@@ -64,12 +68,26 @@ namespace basisu
 		m_header.m_userdata1 = userdata1;
 
 		m_header.m_total_endpoints = encoder_output.m_num_endpoints;
-		m_header.m_endpoint_cb_file_ofs = m_endpoint_cb_file_ofs;
-		m_header.m_endpoint_cb_file_size = (uint32_t)encoder_output.m_endpoint_palette.size();
+		if (!encoder_output.m_uses_global_codebooks)
+		{
+			m_header.m_endpoint_cb_file_ofs = m_endpoint_cb_file_ofs;
+			m_header.m_endpoint_cb_file_size = (uint32_t)encoder_output.m_endpoint_palette.size();
+		}
+		else
+		{
+			assert(!m_endpoint_cb_file_ofs);
+		}
 
 		m_header.m_total_selectors = encoder_output.m_num_selectors;
-		m_header.m_selector_cb_file_ofs = m_selector_cb_file_ofs;
-		m_header.m_selector_cb_file_size = (uint32_t)encoder_output.m_selector_palette.size();
+		if (!encoder_output.m_uses_global_codebooks)
+		{
+			m_header.m_selector_cb_file_ofs = m_selector_cb_file_ofs;
+			m_header.m_selector_cb_file_size = (uint32_t)encoder_output.m_selector_palette.size();
+		}
+		else
+		{
+			assert(!m_selector_cb_file_ofs);
+		}
 
 		m_header.m_tables_file_ofs = m_tables_file_ofs;
 		m_header.m_tables_file_size = (uint32_t)encoder_output.m_slice_image_tables.size();
@@ -134,16 +152,19 @@ namespace basisu
 		assert(m_comp_data.size() == m_slice_descs_file_ofs);
 		append_vector(m_comp_data, reinterpret_cast<const uint8_t*>(&m_images_descs[0]), m_images_descs.size() * sizeof(m_images_descs[0]));
 
-		if (encoder_output.m_endpoint_palette.size())
+		if (!encoder_output.m_uses_global_codebooks)
 		{
-			assert(m_comp_data.size() == m_endpoint_cb_file_ofs);
-			append_vector(m_comp_data, reinterpret_cast<const uint8_t*>(&encoder_output.m_endpoint_palette[0]), encoder_output.m_endpoint_palette.size());
-		}
+			if (encoder_output.m_endpoint_palette.size())
+			{
+				assert(m_comp_data.size() == m_endpoint_cb_file_ofs);
+				append_vector(m_comp_data, reinterpret_cast<const uint8_t*>(&encoder_output.m_endpoint_palette[0]), encoder_output.m_endpoint_palette.size());
+			}
 
-		if (encoder_output.m_selector_palette.size())
-		{
-			assert(m_comp_data.size() == m_selector_cb_file_ofs);
-			append_vector(m_comp_data, reinterpret_cast<const uint8_t*>(&encoder_output.m_selector_palette[0]), encoder_output.m_selector_palette.size());
+			if (encoder_output.m_selector_palette.size())
+			{
+				assert(m_comp_data.size() == m_selector_cb_file_ofs);
+				append_vector(m_comp_data, reinterpret_cast<const uint8_t*>(&encoder_output.m_selector_palette[0]), encoder_output.m_selector_palette.size());
+			}
 		}
 
 		if (encoder_output.m_slice_image_tables.size())
@@ -179,8 +200,17 @@ namespace basisu
 		const basisu_backend_slice_desc_vec &slice_descs = encoder_output.m_slice_desc;
 
 		// The Basis file uses 32-bit fields for lots of stuff, so make sure it's not too large.
-		uint64_t check_size = (uint64_t)sizeof(basist::basis_file_header) + (uint64_t)sizeof(basist::basis_slice_desc) * slice_descs.size() + 
+		uint64_t check_size = 0;
+		if (!encoder_output.m_uses_global_codebooks)
+		{
+			check_size = (uint64_t)sizeof(basist::basis_file_header) + (uint64_t)sizeof(basist::basis_slice_desc) * slice_descs.size() +
 			(uint64_t)encoder_output.m_endpoint_palette.size() + (uint64_t)encoder_output.m_selector_palette.size() + (uint64_t)encoder_output.m_slice_image_tables.size();
+		}
+		else
+		{
+			check_size = (uint64_t)sizeof(basist::basis_file_header) + (uint64_t)sizeof(basist::basis_slice_desc) * slice_descs.size() +
+				(uint64_t)encoder_output.m_slice_image_tables.size();
+		}
 		if (check_size >= 0xFFFF0000ULL)
 		{
 			error_printf("basisu_file::init: File is too large!\n");
@@ -191,9 +221,18 @@ namespace basisu
 		m_slice_descs_file_ofs = sizeof(basist::basis_file_header);
 		if (encoder_output.m_tex_format == basist::basis_tex_format::cETC1S)
 		{
-			m_endpoint_cb_file_ofs = m_slice_descs_file_ofs + sizeof(basist::basis_slice_desc) * (uint32_t)slice_descs.size();
-			m_selector_cb_file_ofs = m_endpoint_cb_file_ofs + (uint32_t)encoder_output.m_endpoint_palette.size();
-			m_tables_file_ofs = m_selector_cb_file_ofs + (uint32_t)encoder_output.m_selector_palette.size();
+			if (encoder_output.m_uses_global_codebooks)
+			{
+				m_endpoint_cb_file_ofs = 0;
+				m_selector_cb_file_ofs = 0;
+				m_tables_file_ofs = m_slice_descs_file_ofs + sizeof(basist::basis_slice_desc) * (uint32_t)slice_descs.size();
+			}
+			else
+			{
+				m_endpoint_cb_file_ofs = m_slice_descs_file_ofs + sizeof(basist::basis_slice_desc) * (uint32_t)slice_descs.size();
+				m_selector_cb_file_ofs = m_endpoint_cb_file_ofs + (uint32_t)encoder_output.m_endpoint_palette.size();
+				m_tables_file_ofs = m_selector_cb_file_ofs + (uint32_t)encoder_output.m_selector_palette.size();
+			}
 			m_first_image_file_ofs = m_tables_file_ofs + (uint32_t)encoder_output.m_slice_image_tables.size();
 		}
 		else

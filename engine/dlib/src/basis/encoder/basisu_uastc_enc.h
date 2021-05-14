@@ -1,5 +1,5 @@
 // basisu_uastc_enc.h
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,6 +57,9 @@ namespace basisu
 		cPackUASTCETC1FasterHints = 64,
 		cPackUASTCETC1FastestHints = 128,
 		cPackUASTCETC1DisableFlipAndIndividual = 256,
+		
+		// Favor UASTC modes 0 and 10 more than the others (this is experimental, it's useful for RDO compression)
+		cPackUASTCFavorSimplerModes = 512, 
 	};
 
 	// pRGBAPixels: Pointer to source 4x4 block of RGBA pixels (R first in memory).
@@ -74,8 +77,19 @@ namespace basisu
 	};
 			  
 	void pack_uastc(basist::uastc_block& blk, const uastc_encode_results& result, const etc_block& etc1_blk, uint32_t etc1_bias, const eac_a8_block& etc_eac_a8_blk, bool bc1_hint0, bool bc1_hint1);
+
+	const uint32_t UASCT_RDO_DEFAULT_LZ_DICT_SIZE = 4096;
+
 	const float UASTC_RDO_DEFAULT_MAX_ALLOWED_RMS_INCREASE_RATIO = 10.0f;
 	const float UASTC_RDO_DEFAULT_SKIP_BLOCK_RMS_THRESH = 8.0f;
+	
+	// The RDO encoder computes a smoothness factor, from [0,1], for each block. To do this it computes each block's maximum component variance, then it divides this by this factor and clamps the result.
+	// Larger values will result in more blocks being protected from too much distortion.
+	const float UASTC_RDO_DEFAULT_MAX_SMOOTH_BLOCK_STD_DEV = 18.0f;
+	
+	// The RDO encoder can artifically boost the error of smooth blocks, in order to suppress distortions on smooth areas of the texture.
+	// The encoder will use this value as the maximum error scale to use on smooth blocks. The larger this value, the better smooth bocks will look. Set to 1.0 to disable this completely.
+	const float UASTC_RDO_DEFAULT_SMOOTH_BLOCK_MAX_ERROR_SCALE = 10.0f;
 
 	struct uastc_rdo_params
 	{
@@ -86,25 +100,23 @@ namespace basisu
 
 		void clear()
 		{
-			m_quality_scaler = 1.0f;
-			m_lz_dict_size = 32768;
-			m_langrangian_multiplier = 0.025f;
+			m_lz_dict_size = UASCT_RDO_DEFAULT_LZ_DICT_SIZE;
+			m_lambda = 0.5f;
 			m_max_allowed_rms_increase_ratio = UASTC_RDO_DEFAULT_MAX_ALLOWED_RMS_INCREASE_RATIO;
 			m_skip_block_rms_thresh = UASTC_RDO_DEFAULT_SKIP_BLOCK_RMS_THRESH;
 			m_endpoint_refinement = true;
 			m_lz_literal_cost = 100;
+						
+			m_max_smooth_block_std_dev = UASTC_RDO_DEFAULT_MAX_SMOOTH_BLOCK_STD_DEV;
+			m_smooth_block_max_error_scale = UASTC_RDO_DEFAULT_SMOOTH_BLOCK_MAX_ERROR_SCALE;
 		}
-
-		// m_quality_scaler: This value controls the overall quality vs. size tradeoff. Smaller values=larger/higher quality, 0=no change, larger values=smaller/lower quality.
-		// Good range to try is .2-2.5.
-		float m_quality_scaler;
-
+				
 		// m_lz_dict_size: Size of LZ dictionary to simulate in bytes. The larger this value, the slower the encoder but the higher the quality per LZ compressed bit.
 		uint32_t m_lz_dict_size;
 
-		// m_langrangian_multiplier: The post-processor tries to reduce rate+distortion*langrangian_mul (rate is approximate LZ bits and distortion is squared error).
-		// Larger values push the postprocessor towards optimizing more for lower distortion, and smaller values more for rate.
-		float m_langrangian_multiplier;
+		// m_lambda: The post-processor tries to reduce distortion+rate*lambda (rate is approximate LZ bits and distortion is scaled MS error).
+		// Larger values push the postprocessor towards optimizing more for lower rate, and smaller values more for distortion. 0=minimal distortion.
+		float m_lambda;
 		
 		// m_max_allowed_rms_increase_ratio: How much the RMS error of a block is allowed to increase before a trial is rejected. 1.0=no increase allowed, 1.05=5% increase allowed, etc.
 		float m_max_allowed_rms_increase_ratio;
@@ -115,6 +127,9 @@ namespace basisu
 		// m_endpoint_refinement: If true, the post-process will attempt to refine the endpoints of blocks with modified selectors. 
 		bool m_endpoint_refinement;
 
+		float m_max_smooth_block_std_dev;
+		float m_smooth_block_max_error_scale;
+		
 		uint32_t m_lz_literal_cost;
 	};
 

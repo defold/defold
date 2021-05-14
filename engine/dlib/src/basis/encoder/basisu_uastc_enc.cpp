@@ -1,5 +1,5 @@
 // basisu_uastc_enc.cpp
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1630,7 +1630,7 @@ namespace basisu
 		else if (estimate_partition_list_size > 0)
 		{
 			assert(estimate_partition_list_size <= MAX_PARTS);
-			estimate_partition_list_size = std::min(estimate_partition_list_size, MAX_PARTS);
+			estimate_partition_list_size = basisu::minimum(estimate_partition_list_size, MAX_PARTS);
 
 			estimate_partition2_list(4, 4, g_bc7_weights2, (const color_rgba(*)[4])pBlock, parts, estimate_partition_list_size, weights);
 
@@ -2817,13 +2817,13 @@ namespace basisu
 						avg_color[1] += p.g;
 						avg_color[2] += p.b;
 
-						min_r[subset] = std::min<uint32_t>(min_r[subset], p.r);
-						min_g[subset] = std::min<uint32_t>(min_g[subset], p.g);
-						min_b[subset] = std::min<uint32_t>(min_b[subset], p.b);
-						
-						max_r[subset] = std::max<uint32_t>(max_r[subset], p.r);
-						max_g[subset] = std::max<uint32_t>(max_g[subset], p.g);
-						max_b[subset] = std::max<uint32_t>(max_b[subset], p.b);
+						min_r[subset] = basisu::minimum<uint32_t>(min_r[subset], p.r);
+						min_g[subset] = basisu::minimum<uint32_t>(min_g[subset], p.g);
+						min_b[subset] = basisu::minimum<uint32_t>(min_b[subset], p.b);
+
+						max_r[subset] = basisu::maximum<uint32_t>(max_r[subset], p.r);
+						max_g[subset] = basisu::maximum<uint32_t>(max_g[subset], p.g);
+						max_b[subset] = basisu::maximum<uint32_t>(max_b[subset], p.b);
 					} // j
 
 					unbiased_block_colors[subset][0] = (uint8_t)((avg_color[0] * mul + 1020) / (8 * 255));
@@ -3095,6 +3095,23 @@ namespace basisu
 
 	const int32_t DEFAULT_BC7_ERROR_WEIGHT = 50;
 	const float UASTC_ERROR_THRESH = 1.3f;
+
+	// TODO: This is a quick hack to favor certain modes when we know we'll be followed up with an RDO postprocess.
+	static inline float get_uastc_mode_weight(uint32_t mode)
+	{
+		const float FAVORED_MODE_WEIGHT = .8f;
+
+		switch (mode)
+		{
+		case 0:
+		case 10:
+			return FAVORED_MODE_WEIGHT;
+		default:
+			break;
+		}
+
+		return 1.0f;
+	}
 
 	void encode_uastc(const uint8_t* pRGBAPixels, uastc_block& output_block, uint32_t flags)
 	{
@@ -3481,9 +3498,13 @@ namespace basisu
 				{
 					for (uint32_t i = 0; i < total_results; i++)
 					{
-						if (total_overall_err[i] < best_err)
+						// TODO: This is a quick hack to favor modes 0 or 10 for better RDO compression.
+						const float err_weight = (flags & cPackUASTCFavorSimplerModes) ? get_uastc_mode_weight(results[i].m_uastc_mode) : 1.0f;
+
+						const uint64_t w = (uint64_t)(total_overall_err[i] * err_weight);
+						if (w  < best_err)
 						{
-							best_err = total_overall_err[i];
+							best_err = w;
 							best_index = i;
 							if (!best_err)
 								break;
@@ -3499,9 +3520,13 @@ namespace basisu
 
 						if (err_delta <= UASTC_ERROR_THRESH)
 						{
-							if (total_overall_err[i] < best_err)
+							// TODO: This is a quick hack to favor modes 0 or 10 for better RDO compression.
+							const float err_weight = (flags & cPackUASTCFavorSimplerModes) ? get_uastc_mode_weight(results[i].m_uastc_mode) : 1.0f;
+
+							const uint64_t w = (uint64_t)(total_overall_err[i] * err_weight);
+							if (w < best_err)
 							{
-								best_err = total_overall_err[i];
+								best_err = w;
 								best_index = i;
 								if (!best_err)
 									break;
@@ -3689,6 +3714,7 @@ namespace basisu
 		pack_uastc(*pBlock, results, etc1_blk, etc1_bias, eac_a8_blk, bc1_hint0, bc1_hint1);
 		return true;
 	}
+
 	static const uint8_t g_uastc_mode_selector_bits[TOTAL_UASTC_MODES][2] =
 	{
 		{ 65, 63 }, { 69, 31 }, { 73, 46 }, { 89, 29 },
@@ -3697,6 +3723,7 @@ namespace basisu
 		{ 81, 47 }, { 94, 30 }, { 92, 31 }, { 62, 63 },
 		{ 98, 30 }, { 61, 62 }, { 49, 79 }
 	};
+
 	static inline uint32_t set_block_bits(uint8_t* pBytes, uint64_t val, uint32_t num_bits, uint32_t cur_ofs)
 	{
 		assert(num_bits <= 64);
@@ -3714,6 +3741,7 @@ namespace basisu
 		}
 		return cur_ofs;
 	}
+
 	static const uint8_t g_tdefl_small_dist_extra[512] =
 	{
 		0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5,
@@ -3725,12 +3753,14 @@ namespace basisu
 		7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
 		7, 7, 7, 7, 7, 7, 7, 7
 	};
+
 	static const uint8_t g_tdefl_large_dist_extra[128] =
 	{
 		0, 0, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
 		12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
 		13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13
 	};
+
 	static inline uint32_t compute_match_cost_estimate(uint32_t dist)
 	{
 		uint32_t len_cost = 7;
@@ -3739,7 +3769,7 @@ namespace basisu
 			dist_cost += g_tdefl_small_dist_extra[dist & 511];
 		else
 		{
-			dist_cost += g_tdefl_large_dist_extra[std::min<uint32_t>(dist, 32767) >> 8];
+			dist_cost += g_tdefl_large_dist_extra[basisu::minimum<uint32_t>(dist, 32767) >> 8];
 			while (dist >= 32768)
 			{
 				dist_cost++;
@@ -3748,6 +3778,7 @@ namespace basisu
 		}
 		return len_cost + dist_cost;
 	}
+
 	struct selector_bitsequence
 	{
 		uint64_t m_sel;
@@ -3777,13 +3808,38 @@ namespace basisu
 			return static_cast<std::size_t>(hash_hsieh((uint8_t *)&s, sizeof(s)) ^ s.m_sel);
 		}
 	};
+
+	class tracked_stat
+	{
+	public:
+		tracked_stat() { clear(); }
+
+		void clear() { m_num = 0; m_total = 0; m_total2 = 0; }
+
+		void update(uint32_t val) { m_num++; m_total += val; m_total2 += val * val; }
+
+		tracked_stat& operator += (uint32_t val) { update(val); return *this; }
+
+		uint32_t get_number_of_values() { return m_num; }
+		uint64_t get_total() const { return m_total; }
+		uint64_t get_total2() const { return m_total2; }
+
+		float get_average() const { return m_num ? (float)m_total / m_num : 0.0f; };
+		float get_std_dev() const { return m_num ? sqrtf((float)(m_num * m_total2 - m_total * m_total)) / m_num : 0.0f; }
+		float get_variance() const { float s = get_std_dev(); return s * s; }
+
+	private:
+		uint32_t m_num;
+		uint64_t m_total;
+		uint64_t m_total2;
+	};
 		
 	static bool uastc_rdo_blocks(uint32_t first_index, uint32_t last_index, basist::uastc_block* pBlocks, const color_rgba* pBlock_pixels, const uastc_rdo_params& params, uint32_t flags, 
-		uint32_t &total_skipped, uint32_t &total_refined, uint32_t &total_modified)
+		uint32_t &total_skipped, uint32_t &total_refined, uint32_t &total_modified, uint32_t &total_smooth)
 	{
 		debug_printf("uastc_rdo_blocks: Processing blocks %u to %u\n", first_index, last_index);
 
-		const int total_blocks_to_check = std::max<uint32_t>(1U, params.m_lz_dict_size / sizeof(basist::uastc_block));
+		const int total_blocks_to_check = basisu::maximum<uint32_t>(1U, params.m_lz_dict_size / sizeof(basist::uastc_block));
 		const bool perceptual = false;
 
 		std::unordered_map<selector_bitsequence, uint32_t, selector_bitsequence_hash> selector_history;
@@ -3800,6 +3856,24 @@ namespace basisu
 			const uint32_t block_mode = unpacked_blk.m_mode;
 			if (block_mode == UASTC_MODE_INDEX_SOLID_COLOR)
 				continue;
+
+			tracked_stat r_stats, g_stats, b_stats, a_stats;
+
+			for (uint32_t i = 0; i < 16; i++)
+			{
+				r_stats.update(pPixels[i].r);
+				g_stats.update(pPixels[i].g);
+				b_stats.update(pPixels[i].b);
+				a_stats.update(pPixels[i].a);
+			}
+
+			const float max_std_dev = basisu::maximum<float>(basisu::maximum<float>(basisu::maximum(r_stats.get_std_dev(), g_stats.get_std_dev()), b_stats.get_std_dev()), a_stats.get_std_dev());
+
+			float yl = clamp<float>(max_std_dev / params.m_max_smooth_block_std_dev, 0.0f, 1.0f);
+			yl = yl * yl;
+			const float smooth_block_error_scale = lerp<float>(params.m_smooth_block_max_error_scale, 1.0f, yl);
+			if (smooth_block_error_scale > 1.0f)
+				total_smooth++;
 
 			color_rgba decoded_uastc_block[4][4];
 			if (!unpack_uastc(unpacked_blk, (basist::color32*)decoded_uastc_block, false))
@@ -3819,7 +3893,7 @@ namespace basisu
 
 			color_rgba decoded_b7_blk[4][4];
 			unpack_block(texture_format::cBC7, &b7_block, &decoded_b7_blk[0][0]);
-
+						
 			uint64_t bc7_err = 0;
 			for (uint32_t i = 0; i < 16; i++)
 				bc7_err += color_distance(perceptual, pPixels[i], ((color_rgba*)decoded_b7_blk)[i], true);
@@ -3827,7 +3901,8 @@ namespace basisu
 			uint64_t cur_err = (uastc_err + bc7_err) / 2;
 
 			// Divide by 16*4 to compute RMS error
-			float cur_rms_err = sqrt((float)cur_err * (1.0f / 64.0f));
+			const float cur_ms_err = (float)cur_err * (1.0f / 64.0f);
+			const float cur_rms_err = sqrt(cur_ms_err);
 
 			const uint32_t first_sel_bit = g_uastc_mode_selector_bits[block_mode][0];
 			const uint32_t total_sel_bits = g_uastc_mode_selector_bits[block_mode][1];
@@ -3835,8 +3910,8 @@ namespace basisu
 			assert(total_sel_bits > 0);
 
 			uint32_t cur_bit_offset = first_sel_bit;
-			uint64_t cur_sel_bits = read_bits((const uint8_t*)&blk, cur_bit_offset, std::min(64U, total_sel_bits));
-									
+			uint64_t cur_sel_bits = read_bits((const uint8_t*)&blk, cur_bit_offset, basisu::minimum(64U, total_sel_bits));
+
 			if (cur_rms_err >= params.m_skip_block_rms_thresh)
 			{
 				auto cur_search_res = selector_history.insert(std::make_pair(selector_bitsequence(first_sel_bit, cur_sel_bits), block_index));
@@ -3865,13 +3940,13 @@ namespace basisu
 				cur_bits = compute_match_cost_estimate(block_dist_in_bytes);
 			}
 
-			int first_block_to_check = std::max<int>(first_index, block_index - total_blocks_to_check);
+			int first_block_to_check = basisu::maximum<int>(first_index, block_index - total_blocks_to_check);
 			int last_block_to_check = block_index - 1;
 
 			basist::uastc_block best_block(blk);
 			uint32_t best_block_index = block_index;
 
-			float best_t = (cur_bits + cur_err * params.m_langrangian_multiplier) * params.m_quality_scaler;
+			float best_t = cur_ms_err * smooth_block_error_scale + cur_bits * params.m_lambda;
 
 			// Now scan through previous blocks, insert their selector bit patterns into the current block, and find 
 			// selector bit patterns which don't increase the overall block error too much.
@@ -3880,7 +3955,7 @@ namespace basisu
 				const basist::uastc_block& prev_blk = pBlocks[prev_block_index];
 
 				uint32_t bit_offset = first_sel_bit;
-				uint64_t sel_bits = read_bits((const uint8_t*)&prev_blk, bit_offset, std::min(64U, total_sel_bits));
+				uint64_t sel_bits = read_bits((const uint8_t*)&prev_blk, bit_offset, basisu::minimum(64U, total_sel_bits));
 
 				int match_block_index = prev_block_index;
 				auto res = selector_history.find(selector_bitsequence(first_sel_bit, sel_bits));
@@ -3896,13 +3971,13 @@ namespace basisu
 
 				basist::uastc_block trial_blk(blk);
 
-				set_block_bits((uint8_t*)&trial_blk, sel_bits, std::min(64U, total_sel_bits), first_sel_bit);
+				set_block_bits((uint8_t*)&trial_blk, sel_bits, basisu::minimum(64U, total_sel_bits), first_sel_bit);
 
 				if (total_sel_bits > 64)
 				{
 					sel_bits = read_bits((const uint8_t*)&prev_blk, bit_offset, total_sel_bits - 64U);
 
-					set_block_bits((uint8_t*)&trial_blk, sel_bits, total_sel_bits - 64U, first_sel_bit + std::min(64U, total_sel_bits));
+					set_block_bits((uint8_t*)&trial_blk, sel_bits, total_sel_bits - 64U, first_sel_bit + basisu::minimum(64U, total_sel_bits));
 				}
 
 				unpacked_uastc_block unpacked_trial_blk;
@@ -3934,15 +4009,16 @@ namespace basisu
 
 				uint64_t trial_err = (trial_uastc_err + trial_bc7_err) / 2;
 
-				float trial_rms_err = sqrtf((float)trial_err * (1.0f / 64.0f));
+				const float trial_ms_err = (float)trial_err * (1.0f / 64.0f);
+				const float trial_rms_err = sqrtf(trial_ms_err);
 
-				if (trial_rms_err > cur_rms_err* params.m_max_allowed_rms_increase_ratio)
+				if (trial_rms_err > cur_rms_err * params.m_max_allowed_rms_increase_ratio)
 					continue;
 
 				const int block_dist_in_bytes = (block_index - match_block_index) * 16;
 				const int match_bits = compute_match_cost_estimate(block_dist_in_bytes);
 
-				float t = match_bits + trial_err * params.m_langrangian_multiplier;
+				float t = trial_ms_err * smooth_block_error_scale + match_bits * params.m_lambda;
 				if (t < best_t)
 				{
 					best_t = t;
@@ -3953,7 +4029,7 @@ namespace basisu
 
 			} // prev_block_index
 
-			if ((params.m_endpoint_refinement) && (best_block_index != block_index))
+			if (best_block_index != block_index)
 			{
 				total_modified++;
 
@@ -3961,7 +4037,7 @@ namespace basisu
 				if (!unpack_uastc(best_block, unpacked_best_blk, false, false))
 					return false;
 
-				if (block_mode == 0)
+				if ((params.m_endpoint_refinement) && (block_mode == 0))
 				{
 					// Attempt to refine mode 0 block's endpoints, using the new selectors. This doesn't help much, but it does help.
 					// TODO: We could do this with the other modes too.
@@ -4013,17 +4089,20 @@ namespace basisu
 
 						total_refined++;
 					}
-				}
+				} // if ((params.m_endpoint_refinement) && (block_mode == 0))
 
+				// The selectors have changed, so go recompute the block hints.
 				if (!uastc_recompute_hints(&best_block, pPixels, flags, &unpacked_best_blk))
 					return false;
 
+				// Write the modified block
 				pBlocks[block_index] = best_block;
-			}
+			
+			} // if (best_block_index != block_index)
 
 			{
 				uint32_t bit_offset = first_sel_bit;
-				uint64_t sel_bits = read_bits((const uint8_t*)&best_block, bit_offset, std::min(64U, total_sel_bits));
+				uint64_t sel_bits = read_bits((const uint8_t*)&best_block, bit_offset, basisu::minimum(64U, total_sel_bits));
 
 				auto res = selector_history.insert(std::make_pair(selector_bitsequence(first_sel_bit, sel_bits), block_index));
 				if (!res.second)
@@ -4043,9 +4122,9 @@ namespace basisu
 	{
 		assert(params.m_max_allowed_rms_increase_ratio > 1.0f);
 		assert(params.m_lz_dict_size > 0);
-		assert(params.m_quality_scaler > 0.0f);
+		assert(params.m_lambda > 0.0f);
 
-		uint32_t total_skipped = 0, total_modified = 0, total_refined = 0;
+		uint32_t total_skipped = 0, total_modified = 0, total_refined = 0, total_smooth = 0;
 
 		uint32_t blocks_per_job = total_jobs ? (num_blocks / total_jobs) : 0;
 
@@ -4055,7 +4134,7 @@ namespace basisu
 
 		if ((!pJob_pool) || (total_jobs <= 1) || (blocks_per_job <= 8))
 		{
-			status = uastc_rdo_blocks(0, num_blocks, pBlocks, pBlock_pixels, params, flags, total_skipped, total_refined, total_modified);
+			status = uastc_rdo_blocks(0, num_blocks, pBlocks, pBlock_pixels, params, flags, total_skipped, total_refined, total_modified, total_smooth);
 		}
 		else
 		{
@@ -4067,12 +4146,12 @@ namespace basisu
 				const uint32_t last_index = minimum<uint32_t>(num_blocks, block_index_iter + blocks_per_job);
 
 #ifndef __EMSCRIPTEN__
-				pJob_pool->add_job([first_index, last_index, pBlocks, pBlock_pixels, &params, flags, &total_skipped, &total_modified, &total_refined, &all_succeeded, &stat_mutex] {
+				pJob_pool->add_job([first_index, last_index, pBlocks, pBlock_pixels, &params, flags, &total_skipped, &total_modified, &total_refined, &total_smooth, &all_succeeded, &stat_mutex] {
 #endif
 
-					uint32_t job_skipped = 0, job_modified = 0, job_refined = 0;
+					uint32_t job_skipped = 0, job_modified = 0, job_refined = 0, job_smooth = 0;
 
-					bool status = uastc_rdo_blocks(first_index, last_index, pBlocks, pBlock_pixels, params, flags, job_skipped, job_refined, job_modified);
+					bool status = uastc_rdo_blocks(first_index, last_index, pBlocks, pBlock_pixels, params, flags, job_skipped, job_refined, job_modified, job_smooth);
 
 					{
 						std::lock_guard<std::mutex> lck(stat_mutex);
@@ -4081,6 +4160,7 @@ namespace basisu
 						total_skipped += job_skipped;
 						total_modified += job_modified;
 						total_refined += job_refined;
+						total_smooth += job_smooth;
 					}
 
 #ifndef __EMSCRIPTEN__
@@ -4097,7 +4177,7 @@ namespace basisu
 			status = all_succeeded;
 		}
 
-		debug_printf("uastc_rdo: Total modified: %3.2f%%, total skipped: %3.2f%%, total refined: %3.2f%%\n", total_modified * 100.0f / num_blocks, total_skipped * 100.0f / num_blocks, total_refined * 100.0f / num_blocks);
+		debug_printf("uastc_rdo: Total modified: %3.2f%%, total skipped: %3.2f%%, total refined: %3.2f%%, total smooth: %3.2f%%\n", total_modified * 100.0f / num_blocks, total_skipped * 100.0f / num_blocks, total_refined * 100.0f / num_blocks, total_smooth * 100.0f / num_blocks);
 				
 		return status;
 	}
