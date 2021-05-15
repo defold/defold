@@ -24,8 +24,6 @@
 
 #include <ddf/ddf.h>
 
-#include <hid/hid.h>
-
 #include <script/script.h>
 
 #include <resource/resource.h>
@@ -40,10 +38,6 @@ namespace dmGameObject
     /// Default max instances in input stack
     const uint32_t DEFAULT_MAX_INPUT_STACK_CAPACITY = 16;
 
-    // Value for an invalid instance index, this must be the same as defined in
-    // gamesys_ddf.proto for Create#index.
-    const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
-
     /// Config key to use for tweaking maximum number of instances in a collection
     extern const char* COLLECTION_MAX_INSTANCES_KEY;
 
@@ -52,84 +46,6 @@ namespace dmGameObject
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
-    /// Prototype handle
-    typedef struct Prototype* HPrototype;
-
-    typedef void* HCollectionDesc;
-
-    /**
-     * Input result enum
-     */
-    enum InputResult
-    {
-        INPUT_RESULT_IGNORED = 0,           //!< INPUT_RESULT_IGNORED
-        INPUT_RESULT_CONSUMED = 1,          //!< INPUT_RESULT_CONSUMED
-        INPUT_RESULT_UNKNOWN_ERROR = -1000  //!< INPUT_RESULT_UNKNOWN_ERROR
-    };
-
-    /**
-     * Update context
-     */
-    struct UpdateContext
-    {
-        /// Time step
-        float m_DT;
-    };
-
-    /**
-     * Container of input related information.
-     */
-    struct InputAction
-    {
-        InputAction();
-
-        /// Action id, hashed action name
-        dmhash_t m_ActionId;
-        /// Value of the input [0,1]
-        float m_Value;
-        /// Cursor X coordinate, in virtual screen space
-        float m_X;
-        /// Cursor Y coordinate, in virtual screen space
-        float m_Y;
-        /// Cursor dx since last frame, in virtual screen space
-        float m_DX;
-        /// Cursor dy since last frame, in virtual screen space
-        float m_DY;
-        /// Cursor X coordinate, in screen space
-        float m_ScreenX;
-        /// Cursor Y coordinate, in screen space
-        float m_ScreenY;
-        /// Cursor dx since last frame, in screen space
-        float m_ScreenDX;
-        /// Cursor dy since last frame, in screen space
-        float m_ScreenDY;
-        float m_AccX, m_AccY, m_AccZ;
-        /// Touch data
-        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
-        /// Number of m_Touch
-        int32_t  m_TouchCount;
-        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
-        char     m_Text[dmHID::MAX_CHAR_COUNT];
-        uint32_t m_TextCount;
-        uint32_t m_GamepadIndex;
-        uint8_t  m_IsGamepad : 1;
-        uint8_t  m_GamepadDisconnected : 1;
-        uint8_t  m_GamepadConnected : 1;
-        /// If input has a text payload (can be true even if text count is 0)
-        uint8_t  m_HasText : 1;
-        /// If the input was 0 last update
-        uint8_t  m_Pressed : 1;
-        /// If the input turned from above 0 to 0 this update
-        uint8_t  m_Released : 1;
-        /// If the input was held enough for the value to be repeated this update
-        uint8_t  m_Repeated : 1;
-        /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
-        uint8_t  m_PositionSet : 1;
-        /// If the accelerometer fields (m_AccX, m_AccY, m_AccZ) were set and valid to read
-        uint8_t  m_AccelerationSet : 1;
-        /// If the input action was consumed in an event dispatch
-        uint8_t  m_Consumed : 1;
-    };
 
     /**
      * Create a new component type register
@@ -197,41 +113,11 @@ namespace dmGameObject
     void* GetWorld(HCollection collection, uint32_t component_index);
 
     /**
-     * Create a new gameobject instance
-     * @note Calling this function during update is not permitted. Use #Spawn instead for deferred creation
-     * @param collection Gameobject collection
-     * @param prototype_name Prototype file name
-     * @return New gameobject instance. NULL if any error occured
-     */
-    HInstance New(HCollection collection, const char* prototype_name);
-
-    /**
-     * Construct a hash of an instance id based on the index provided.
-     * @param index The index to base the id off of.
-     * @return hash of the instance id constructed.
-     */
-    dmhash_t ConstructInstanceId(uint32_t index);
-
-    /**
-     * Retrieve an instance index from the index pool for the collection.
-     * @param collection Collection from which to retrieve the instance index.
-     * @return instance index from the index pool of collection.
-     */
-    uint32_t AcquireInstanceIndex(HCollection collection);
-
-    /**
      * Return an instance index to the index pool for the collection.
      * @param index The index to return.
      * @param collection Collection that the index should be returned to.
      */
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
-
-    /**
-     * Assign an index to the instance, only if the instance is not null.
-     * @param index The index to assign.
-     * @param instance The instance that should be assigned the index.
-     */
-    void AssignInstanceIndex(uint32_t index, HInstance instance);
 
     /**
      * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
@@ -282,14 +168,6 @@ namespace dmGameObject
                              InstanceIdMap *instances);
 
     /**
-     * Delete gameobject instance
-     * @param collection Gameobject collection
-     * @param instance Gameobject instance
-     * @param recursive Delete child hierarchy recursively, child to parent order (leaf first)
-     */
-    void Delete(HCollection collection, HInstance instance, bool recursive);
-
-    /**
      * Delete all gameobject instances in the collection
      * @param collection Gameobject collection
      */
@@ -305,15 +183,6 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
-     * Set instance identifier. Must be unique within the collection.
-     * @param collection Collection
-     * @param instance Instance
-     * @param identifier Identifier
-     * @return RESULT_OK on success
-     */
-    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
-
-    /**
      * Get absolute identifier relative to #instance. The returned identifier is the
      * representation of the qualified name, i.e. the path from root-collection to the sub-collection which the #instance belongs to.
      * Example: if #instance is part of a sub-collection in the root-collection named "sub" and id == "a" the returned identifier represents the path "sub.a"
@@ -325,14 +194,6 @@ namespace dmGameObject
     dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id, uint32_t id_size);
 
     /**
-     * Get instance from identifier
-     * @param collection Collection
-     * @param identifier Identifier
-     * @return Instance. NULL if instance isn't found.
-     */
-    HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
-
-    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id
@@ -340,15 +201,6 @@ namespace dmGameObject
      * @return RESULT_OK if the comopnent was found
      */
     Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
-
-    /**
-     * Get component id from component index.
-     * @param instance Instance
-     * @param component_index Component index
-     * @param component_id Component id as out-argument
-     * @return RESULT_OK if the comopnent was found
-     */
-    Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
     /**
      * Returns whether the scale of the supplied instance should be applied along Z or not.
@@ -368,40 +220,6 @@ namespace dmGameObject
      * Tells the collection that a transform was updated
      */
     void SetDirtyTransforms(HCollection collection);
-
-    /**
-     * Set whether the instance should be flagged as a bone.
-     * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
-     * Used for animated skeletons.
-     * @param instance Instance
-     * @param bone true if the instance is a bone
-     */
-    void SetBone(HInstance instance, bool bone);
-
-    /**
-     * Check whether the instance is flagged as a bone.
-     * @param instance Instance
-     * @return True if flagged as a bone
-     */
-    bool IsBone(HInstance instance);
-
-    /**
-     * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
-     * The order of the transforms is depth-first.
-     * @param instance First Instance of the hierarchy to set
-     * @param component_transform the transform for component root
-     * @param transforms Array of transforms to set depth-first for the bone instances
-     * @param transform_count Size of the transforms array
-     * @return Number of instances found
-     */
-    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
-
-    /**
-     * Recursively delete all instances flagged as bones under the given parent instance.
-     * The order of deletion is depth-first, so that the children are deleted before the parents.
-     * @param parent Parent instance of the hierarchy to set
-     */
-    void DeleteBones(HInstance parent);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -457,13 +275,6 @@ namespace dmGameObject
     void ReleaseInputFocus(HCollection collection, HInstance instance);
 
     /**
-     * Retrieve a collection from the specified instance
-     * @param instance Game object instance
-     * @return The collection the specified instance belongs to
-     */
-    HCollection GetCollection(HInstance instance);
-
-    /**
      * Retrieve a factory from the specified collection
      * @param collection Game object collection
      * @return The resource factory bound to the specified collection
@@ -486,13 +297,6 @@ namespace dmGameObject
     HRegister GetRegister(HCollection collection);
 
     /**
-     * Retrieve the message socket for the specified collection.
-     * @param collection Collection handle
-     * @return The message socket of the specified collection
-     */
-    dmMessage::HSocket GetMessageSocket(HCollection collection);
-
-    /**
      * Retrieve the frame message socket for the specified collection.
      * @param collection Collection handle
      * @return The frame message socket of the specified collection
@@ -505,37 +309,6 @@ namespace dmGameObject
      * @return if the scale should be applied along Z
      */
     bool ScaleAlongZ(HCollection collection);
-
-    /**
-     * Returns whether the scale of the instances in a collection should be applied along Z or not.
-     * @param collection Collection
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HCollection collection);
-
-    /*# get world transform
-     * Get game object instance world transform
-     * @name GetWorldTransform
-     * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmTransform::Transform] World transform
-     */
-    const dmTransform::Transform GetWorldTransform(HInstance instance);
-
-    /**
-     * Set parent instance to child
-     * @note Instances must belong to the same collection
-     * @param child Child instance
-     * @param parent Parent instance. If 0, the child will be detached from its current parent, if any.
-     * @return RESULT_OK on success. RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent at maximal level
-     */
-    Result SetParent(HInstance child, HInstance parent);
-
-    /**
-     * Get parent instance if exists
-     * @param instance Gameobject instance
-     * @return Parent instance. NULL if passed instance is rooted
-     */
-    HInstance GetParent(HInstance instance);
 
     /**
      * Get instance hierarchical depth
@@ -585,18 +358,6 @@ namespace dmGameObject
 
     typedef void (*AnimationStopped)(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2);
-
-    enum Playback
-    {
-        PLAYBACK_NONE          = 0,
-        PLAYBACK_ONCE_FORWARD  = 1,
-        PLAYBACK_ONCE_BACKWARD = 2,
-        PLAYBACK_ONCE_PINGPONG = 3,
-        PLAYBACK_LOOP_FORWARD  = 4,
-        PLAYBACK_LOOP_BACKWARD = 5,
-        PLAYBACK_LOOP_PINGPONG = 6,
-        PLAYBACK_COUNT = 7,
-    };
 
     PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id,

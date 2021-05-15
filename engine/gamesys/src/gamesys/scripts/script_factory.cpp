@@ -17,6 +17,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <gameobject/script.h>
 
 #include "gamesys.h"
 #include "gamesys_ddf.h"

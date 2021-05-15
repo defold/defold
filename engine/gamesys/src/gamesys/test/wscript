@@ -84,8 +84,14 @@ def build(bld):
             'spinescene',
             'spinemodel']
 
-    exported_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim',
-                        'ComponentTypeScript', 'ComponentTypeAnim']
+    exported_symbols = ['ResourceTypeGameObject',
+                        'ResourceTypeCollection',
+                        'ResourceTypeLua',
+                        'ResourceTypeScript',
+                        'ComponentTypeScript',
+                        'ResourceTypeAnim',
+                        'ComponentTypeAnim',
+                        'ResourceTypeAnimationSet']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '../../../src ../../../proto %s' % (dir),
                                      uselib = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB CARES',

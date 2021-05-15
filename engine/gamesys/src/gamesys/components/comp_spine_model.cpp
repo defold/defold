@@ -34,6 +34,10 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_spine_model.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_animationset.h"
+#include "../resources/res_textureset.h"
 
 #include "spine_ddf.h"
 #include "sprite_ddf.h"

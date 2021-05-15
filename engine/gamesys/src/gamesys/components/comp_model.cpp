@@ -32,6 +32,10 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_model.h"
+#include "../resources/res_rig_scene.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_animationset.h"
+#include "../resources/res_meshset.h"
 #include "comp_private.h"
 
 #include "gamesys_ddf.h"

@@ -49,7 +49,6 @@
 #include "resources/res_sprite.h"
 #include "resources/res_textureset.h"
 #include "resources/res_tilegrid.h"
-#include "resources/res_animationset.h"
 #include "resources/res_meshset.h"
 #include "resources/res_skeleton.h"
 #include "resources/res_rig_scene.h"
@@ -133,7 +132,6 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate);
-        REGISTER_RESOURCE_TYPE("animationsetc", 0, ResAnimationSetPreload, ResAnimationSetCreate, 0, ResAnimationSetDestroy, ResAnimationSetRecreate);
         REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, 0, ResMeshSetDestroy, ResMeshSetRecreate);
         REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, 0, ResSkeletonDestroy, ResSkeletonRecreate);
         REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, 0, ResRigSceneDestroy, ResRigSceneRecreate);

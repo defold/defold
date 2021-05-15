@@ -17,6 +17,7 @@
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <script/script.h>
+#include <dmsdk/gameobject/script.h>
 
 
 #include "script_label.h"
@@ -24,14 +25,8 @@
 #include "gamesys_ddf.h"
 #include "label_ddf.h"
 
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#endif
-
 namespace dmGameSystem
 {
-
 /*# Label API documentation
  *
  * Functions to manipulate a label component.
@@ -204,6 +199,12 @@ namespace dmGameSystem
  * end
  * ```
  */
+
+
+    // As seen in gamesys_private.h (which makes it a _lot_ harder to search for)
+    static const char* LABEL_EXT = "labelc";
+    //static const dmhash_t LABEL_EXT_HASH = dmHashString64(LABEL_EXT);
+
 static int SetText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -270,10 +271,9 @@ static int GetTextMetrics(lua_State* L)
     dmMessage::URL sender;
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    dmGameSystem::LabelComponent* component = (dmGameSystem::LabelComponent*)dmGameObject::GetComponentFromURL(receiver);
-    if (!component) {
-        return DM_LUA_ERROR("Could not find instance %s:%s#%s", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(receiver.m_Path), dmHashReverseSafe64(receiver.m_Fragment));
-    }
+    dmGameSystem::LabelComponent* component = 0;
+    dmGameObject::GetComponentFromLua(L, 1, LABEL_EXT, 0, (void**)&component, 0);
+    assert(component != 0);
 
     dmRender::TextMetrics metrics;
     dmGameSystem::CompLabelGetTextMetrics(component, metrics);
@@ -322,10 +322,8 @@ static int GetText(lua_State* L)
     dmMessage::URL sender;
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    dmGameSystem::LabelComponent* component = (dmGameSystem::LabelComponent*)dmGameObject::GetComponentFromURL(receiver);
-    if (!component) {
-        return DM_LUA_ERROR("Could not find instance %s:%s#%s", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(receiver.m_Path), dmHashReverseSafe64(receiver.m_Fragment));
-    }
+    dmGameSystem::LabelComponent* component = 0;
+    dmGameObject::GetComponentFromLua(L, 1, LABEL_EXT, 0, (void**)&component, 0);
 
     const char* value = dmGameSystem::CompLabelGetText(component);
     lua_pushstring(L, value);

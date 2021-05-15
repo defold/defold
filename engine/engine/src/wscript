@@ -46,7 +46,7 @@ def build(bld):
 
     additional_libs = ['CRASH']
 
-    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim']
+    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim', 'ResourceTypeAnimationSet']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript']
     exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 

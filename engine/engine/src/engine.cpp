@@ -1033,6 +1033,9 @@ namespace dmEngine
         component_create_ctx.m_Script = engine->m_GOScriptContext;
         component_create_ctx.m_Register = engine->m_Register;
         component_create_ctx.m_Factory = engine->m_Factory;
+        component_create_ctx.m_Contexts.SetCapacity(3, 8);
+        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
+        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;

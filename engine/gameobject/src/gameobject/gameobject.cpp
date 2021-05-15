@@ -2835,7 +2835,7 @@ namespace dmGameObject
         dmTransform::ToMatrix a dmTransform::Transform from the world transform.
         When this is not possible, nonsense will be returned.
     */
-    const dmTransform::Transform GetWorldTransform(HInstance instance)
+    dmTransform::Transform GetWorldTransform(HInstance instance)
     {
         Matrix4 mtx = instance->m_Collection->m_WorldTransforms[instance->m_Index];
         return dmTransform::ToTransform(mtx);

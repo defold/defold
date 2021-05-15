@@ -16,8 +16,8 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/script/script.h>
-#include <dmsdk/render/render.h>
 
 namespace dmGameObject
 {
@@ -623,14 +623,14 @@ namespace dmGameObject
      * @member m_Factory [type: dmResource::HFactory] The resource factory
      * @member m_Register [type: dmGameObject::HRegister] The game object registry
      * @member m_Script [type: dmScript::HContext] The shared script context
-     * @member m_RenderContext [type: dmRender::HRenderContext] The render context
+     * @member m_Contextx [type: dmHashTable64<void*>] Mappings between names and contextx
      */
     struct ComponentTypeCreateCtx {
         dmConfigFile::HConfig    m_Config;
         dmResource::HFactory     m_Factory;
         dmGameObject::HRegister  m_Register;
         dmScript::HContext       m_Script;
-        dmRender::HRenderContext m_RenderContext;
+        dmHashTable64<void*>     m_Contexts;
     };
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, ComponentType* type);
