@@ -10,21 +10,25 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_SKELETON_H
-#define DM_GAMESYS_RES_SKELETON_H
+#ifndef DMSDK_GAMESYS_RES_BUFFER_H
+#define DMSDK_GAMESYS_RES_BUFFER_H
 
-#include <resource/resource.h>
-#include <dmsdk/gamesys/resources/res_skeleton.h>
+#include <stdint.h>
+
+#include <dmsdk/dlib/buffer.h>
+#include <dmsdk/dlib/hash.h>
+#include <gamesys/buffer_ddf.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);
-
-    dmResource::Result ResSkeletonCreate(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResSkeletonDestroy(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params);
+    struct BufferResource
+    {
+        dmBufferDDF::BufferDesc* m_BufferDDF;
+        dmBuffer::HBuffer        m_Buffer;
+        dmhash_t                 m_NameHash;
+        uint32_t                 m_ElementCount;
+        uint32_t                 m_Version;
+    };
 }
 
-#endif // DM_GAMESYS_RES_SKELETON_H
+#endif // DMSDK_GAMESYS_RES_BUFFER_H

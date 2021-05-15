@@ -12,14 +12,19 @@
 
 #include "res_collision_object.h"
 
-#include <string.h>
+#include <string.h> // memset
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include "../gamesys.h"
+#include "../resources/res_tilegrid.h"
 
 namespace dmGameSystem
 {
+    CollisionObjectResource::CollisionObjectResource()
+    {
+        memset(this, 0, sizeof(CollisionObjectResource));
+    }
 
     static dmPhysics::HCollisionShape2D Create2DShape(dmPhysics::HContext2D context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
     {

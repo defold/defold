@@ -10,21 +10,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_SKELETON_H
-#define DM_GAMESYS_RES_SKELETON_H
+#ifndef DMSDK_GAMESYS_SOUND_DATA_H
+#define DMSDK_GAMESYS_SOUND_DATA_H
 
-#include <resource/resource.h>
-#include <dmsdk/gamesys/resources/res_skeleton.h>
+// resource is an instance of dmSound::HSoundData
 
-namespace dmGameSystem
-{
-    dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);
-
-    dmResource::Result ResSkeletonCreate(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResSkeletonDestroy(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params);
-}
-
-#endif // DM_GAMESYS_RES_SKELETON_H
+#endif

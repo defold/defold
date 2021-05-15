@@ -10,21 +10,25 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_SKELETON_H
-#define DM_GAMESYS_RES_SKELETON_H
+#ifndef DMSDK_GAMESYS_RES_SPRITE_H
+#define DMSDK_GAMESYS_RES_SPRITE_H
 
-#include <resource/resource.h>
-#include <dmsdk/gamesys/resources/res_skeleton.h>
+#include <stdint.h>
+
+#include <gamesys/sprite_ddf.h>
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/render/render.h>
+#include <dmsdk/gamesys/resources/res_textureset.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);
-
-    dmResource::Result ResSkeletonCreate(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResSkeletonDestroy(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params);
+    struct SpriteResource
+    {
+        dmhash_t m_DefaultAnimation;
+        TextureSetResource* m_TextureSet;
+        dmGameSystemDDF::SpriteDesc* m_DDF;
+        dmRender::HMaterial m_Material;
+    };
 }
 
-#endif // DM_GAMESYS_RES_SKELETON_H
+#endif // DMSDK_GAMESYS_RES_SPRITE_H

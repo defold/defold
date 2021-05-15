@@ -10,21 +10,31 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_SKELETON_H
-#define DM_GAMESYS_RES_SKELETON_H
+#ifndef DMSDK_GAMESYS_RES_SOUND_H
+#define DMSDK_GAMESYS_RES_SOUND_H
 
-#include <resource/resource.h>
-#include <dmsdk/gamesys/resources/res_skeleton.h>
+#include <stdint.h>
+#include <dmsdk/dlib/hash.h>
+
+namespace dmSound
+{
+    typedef struct SoundData* HSoundData;
+}
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);
+    struct Sound
+    {
+        Sound();
 
-    dmResource::Result ResSkeletonCreate(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResSkeletonDestroy(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params);
+        dmhash_t            m_GroupHash;
+        dmSound::HSoundData m_SoundData;
+        float               m_Gain;
+        float               m_Pan;
+        float               m_Speed;
+        uint8_t             m_Loopcount;
+        uint8_t             m_Looping:1;
+    };
 }
 
-#endif // DM_GAMESYS_RES_SKELETON_H
+#endif

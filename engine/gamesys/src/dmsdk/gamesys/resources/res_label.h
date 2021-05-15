@@ -10,21 +10,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_SKELETON_H
-#define DM_GAMESYS_RES_SKELETON_H
+#ifndef DMSDK_GAMESYS_RES_LABEL_H
+#define DMSDK_GAMESYS_RES_LABEL_H
 
-#include <resource/resource.h>
-#include <dmsdk/gamesys/resources/res_skeleton.h>
+#include <gamesys/label_ddf.h>
+#include <dmsdk/render/render.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);
-
-    dmResource::Result ResSkeletonCreate(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResSkeletonDestroy(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params);
+    struct LabelResource
+    {
+        dmGameSystemDDF::LabelDesc* m_DDF;
+        dmRender::HMaterial m_Material;
+        dmRender::HFontMap m_FontMap;
+    };
 }
 
-#endif // DM_GAMESYS_RES_SKELETON_H
+#endif // DMSDK_GAMESYS_RES_LABEL_H

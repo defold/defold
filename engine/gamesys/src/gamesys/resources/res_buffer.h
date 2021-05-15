@@ -13,23 +13,11 @@
 #ifndef DM_GAMESYS_RES_BUFFER_H
 #define DM_GAMESYS_RES_BUFFER_H
 
-#include <stdint.h>
-
-#include <resource/resource.h>
-#include <dlib/buffer.h>
-#include "buffer_ddf.h"
+#include <dmsdk/resource/resource.h>
+#include <dmsdk/gamesys/resources/res_buffer.h>
 
 namespace dmGameSystem
 {
-    struct BufferResource
-    {
-        dmBufferDDF::BufferDesc* m_BufferDDF;
-        dmBuffer::HBuffer        m_Buffer;
-        dmhash_t                 m_NameHash;
-        uint32_t                 m_ElementCount;
-        uint32_t                 m_Version;
-    };
-
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams& params);

@@ -10,21 +10,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_SKELETON_H
-#define DM_GAMESYS_RES_SKELETON_H
+#ifndef DMSDK_GAMESYS_RES_COLLECTION_FACTORY_H
+#define DMSDK_GAMESYS_RES_COLLECTION_FACTORY_H
 
-#include <resource/resource.h>
-#include <dmsdk/gamesys/resources/res_skeleton.h>
+#include <dmsdk/dlib/array.h>
+#include <dmsdk/gameobject/gameobject.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);
+    struct CollectionFactoryResource
+    {
+        CollectionFactoryResource& operator=(CollectionFactoryResource& other);
 
-    dmResource::Result ResSkeletonCreate(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResSkeletonDestroy(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params);
+        dmGameObject::HCollectionDesc m_CollectionDesc;
+        dmArray<void*> m_CollectionResources;
+        bool m_LoadDynamically;
+    };
 }
 
-#endif // DM_GAMESYS_RES_SKELETON_H
+#endif // DMSDK_GAMESYS_RES_FACTORY_H
