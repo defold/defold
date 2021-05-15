@@ -47,7 +47,6 @@ namespace dmRender
         m_BufferMask = 0xff;
         m_ColorBufferMask = 0xf;
         m_ClearBuffer = 0;
-        m_Padding = 0;
     }
 
     Constant::Constant() {}
@@ -149,6 +148,7 @@ namespace dmRender
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
 
+        dmLogWarning("NewRenderContext: %p", context);
         return context;
     }
 
