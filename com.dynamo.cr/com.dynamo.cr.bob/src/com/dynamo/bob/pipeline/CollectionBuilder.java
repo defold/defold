@@ -353,8 +353,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
-            //IResource genResource = task.getOutputs().get(embedIndex+1);
-
             byte[] data = desc.getData().getBytes();
             long hash = MurmurHash.hash64(data, data.length);
 
