@@ -1555,5 +1555,15 @@ namespace dmGameSystem
             dmPhysics::FlipV2D(component->m_Object2D);
         component->m_FlippedY = flip;
     }
+    
+    void Wakeup(void* _world, void* _component)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+
+        // TODO - implement for 3D
+        dmPhysics::Wakeup2D(component->m_Object2D);      
+    }
 
 }

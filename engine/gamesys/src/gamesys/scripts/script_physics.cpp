@@ -1084,6 +1084,22 @@ namespace dmGameSystem
     {
         return Physics_SetFlipInternal(L, false);
     }
+    
+    // Wake up a collisionobject component
+    static int Physics_Wakeup(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        //TODO - what is returned ?        
+        dmGameSystem::Wakeup(comp_world, comp);        
+
+        return 0;
+    }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
@@ -1103,6 +1119,7 @@ namespace dmGameSystem
 
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
+        {"wakeup",          Physics_Wakeup},     
         {0, 0}
     };
 
