@@ -105,6 +105,7 @@ public class Project {
 
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
+    private Map<String, String> inextToOutext = new HashMap<>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private ArrayList<Task<?>> newTasks;
@@ -245,6 +246,8 @@ public class Project {
                     if (builderParams != null) {
                         for (String inExt : builderParams.inExts()) {
                             extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+
+                            inextToOutext.put(inExt, builderParams.outExt());
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -264,6 +267,13 @@ public class Project {
                 }
             }
         }
+    }
+
+    public String replaceExt(String inExt) {
+        String outExt = inextToOutext.get(inExt); // Get the output ext, or use the inExt as default
+        if (outExt != null)
+            return outExt;
+        return inExt;
     }
 
     private Task<?> doCreateTask(String input) throws CompileExceptionError {
