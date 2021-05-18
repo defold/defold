@@ -13,6 +13,8 @@
 #ifndef DMSDK_GRAPHICS_H
 #define DMSDK_GRAPHICS_H
 
+#include <stdint.h>
+
 /*# Graphics API documentation
  * [file:<dmsdk/graphics/graphics.h>]
  *

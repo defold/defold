@@ -17,7 +17,9 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/hashtable.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/script/script.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameObject
 {
@@ -82,10 +84,10 @@ namespace dmGameObject
         /// Game object instance
         HInstance m_Instance;
         /// Local component position
-        Point3    m_Position;
+        dmVMath::Point3    m_Position;
         /// Local component rotation
-        Quat      m_Rotation;
-        PropertySet m_PropertySet;
+        dmVMath::Quat      m_Rotation;
+        PropertySet        m_PropertySet;
         /// Component resource
         void* m_Resource;
         /// Component world, as created in the ComponentNewWorld callback
