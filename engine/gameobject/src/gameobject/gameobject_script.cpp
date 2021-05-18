@@ -1100,6 +1100,7 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world position
+     * The function will return the world position calculated at the end of the previous frame.
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
@@ -1127,7 +1128,8 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world rotation
-     * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
+     * The function will return the world rotation calculated at the end of the previous frame.
+     * Use [ref:go.get_rotation] to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the world rotation for, by default the instance of the calling script
@@ -1154,7 +1156,8 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world 3D scale factor
-     * Use <code>go.get_scale</code> to retrieve the 3D scale factor relative to the parent.
+     * The function will return the world 3D scale factor calculated at the end of the previous frame.
+     * Use [ref:go.get_scale] to retrieve the 3D scale factor relative to the parent.
      * This vector is derived by decomposing the transformation matrix and should be used with care.
      * For most cases it should be fine to use [ref:go.get_world_scale_uniform] instead.
      *
@@ -1183,7 +1186,8 @@ namespace dmGameObject
     }
 
     /*# gets the uniform game object instance world scale factor
-     * Use <code>go.get_scale_uniform</code> to retrieve the scale factor relative to the parent.
+     * The function will return the world scale factor calculated at the end of the previous frame.
+     * Use [ref:go.get_scale_uniform] to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale_uniform
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the world scale for, by default the instance of the calling script
@@ -1210,6 +1214,7 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world transform matrix
+     * The function will return the world transform matrix calculated at the end of the previous frame.
      *
      * @name go.get_world_transform
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the world transform for, by default the instance of the calling script
