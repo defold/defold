@@ -1559,11 +1559,15 @@ namespace dmGameSystem
     void Wakeup(void* _world, void* _component)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
-
         CollisionComponent* component = (CollisionComponent*)_component;
 
-        // TODO - implement for 3D
-        dmPhysics::Wakeup2D(component->m_Object2D);      
+        if (world->m_3D) 
+        {
+            dmPhysics::Wakeup3D(component->m_Object3D);
+        } else
+        {
+            dmPhysics::Wakeup2D(component->m_Object2D);
+        }
     }
 
 }

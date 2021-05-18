@@ -914,6 +914,13 @@ namespace dmPhysics
     bool IsSleeping2D(HCollisionObject3D collision_object);
 
     /**
+     * Activate 3D collision object 
+     * 
+     * @param collision_object
+     */
+    void Wakeup3D(HCollisionObject3D collision_object);
+    
+    /**
      * Wake up collision object
      * 
      * @param collision_object
