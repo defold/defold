@@ -33,7 +33,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -78,15 +77,6 @@ import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
-
-    private static Set<String> leafResourceTypes = new HashSet<String>();
-
-    static {
-        leafResourceTypes.add(".texturec");
-        leafResourceTypes.add(".wavc");
-        leafResourceTypes.add(".oggc");
-        leafResourceTypes.add(".bufferc");
-    }
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
         handle.deleteOnExit();
@@ -255,7 +245,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
         String ext = resource.getPath().substring(i);
 
-        if (leafResourceTypes.contains(ext)) {
+        if (!ProtoBuilder.supportsType(ext)) {
             return;
         }
 
@@ -325,7 +315,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
         String ext = resource.getPath().substring(i);
 
-        if (leafResourceTypes.contains(ext)) {
+        if (!ProtoBuilder.supportsType(ext)) {
             return;
         }
 
