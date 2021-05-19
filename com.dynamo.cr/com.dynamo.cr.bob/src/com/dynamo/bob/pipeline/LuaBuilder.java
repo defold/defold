@@ -33,6 +33,7 @@ import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -215,8 +216,17 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         srcBuilder.setFilename(task.input(0).getPath());
 
-        // Mostly used for our CI when we wish to run using ASAN (which doesn't like setjmp)
+        // If for some reason, the project needs to be bundled with regular Lua files (e.g. on iOS)
         boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
+
+        if (use_vanilla_lua) {
+            for(IResource res : task.getOutputs()) {
+                String path = res.getAbsPath();
+                if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
+                    project.addOutputFlags(path, Project.OutputFlags.UNCOMPRESSED);
+                }
+            }
+        }
 
         if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
             srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
@@ -238,8 +248,6 @@ public abstract class LuaBuilder extends Builder<Void> {
         msg.writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
-
-
     }
 
     private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties, Collection<String> propertyResources) throws CompileExceptionError {

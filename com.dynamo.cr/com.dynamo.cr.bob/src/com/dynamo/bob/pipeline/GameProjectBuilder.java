@@ -39,6 +39,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -188,11 +189,18 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
-        String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
-        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
-        HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
+        Bob.verbose("GameProjectBuilder.createArchive\n");
+        long tstart = System.currentTimeMillis();
 
+        String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
+
+        // When passing use vanilla lua, we want the Lua code as clear text
+        boolean use_vanilla_lua = project.option("use-vanilla-lua", "false").equals("true");
+
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, use_vanilla_lua ? false : true);
+        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
+
+        HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
         for (String s : resources) {
             EnumSet<Project.OutputFlags> flags = outputs.get(s);
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
@@ -210,6 +218,9 @@ public class GameProjectBuilder extends Builder<Void> {
                 project.getPublisher().AddEntry(fhandle.getName(), fhandle);
             }
         }
+
+        long tend = System.currentTimeMillis();
+        Bob.verbose("GameProjectBuilder.createArchive took %f\n", (tend-tstart)/1000.0);
     }
 
     private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
@@ -391,19 +402,19 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) throws IOException {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResources) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
-        manifestBuilder.setDependencies(rootNode);
+        manifestBuilder.setRoot(rootNode);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
-
+        manifestBuilder.setExcludedResources(excludedResources);
 
         // If manifest signing keys are specified, use them instead of generating them.
         if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
@@ -489,12 +500,13 @@ public class GameProjectBuilder extends Builder<Void> {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
-                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode);
 
                 List<String> excludedResources = new ArrayList<String>();
                 for (String excludedResource : project.getExcludedCollectionProxies()) {
                     excludedResources.add(excludedResource);
                 }
+
+                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {

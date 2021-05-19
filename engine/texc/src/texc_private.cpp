@@ -337,7 +337,7 @@ namespace dmTexc
             v = 255;
         else if(v < 0)
             v = 0;
-        return v;
+        return (uint8_t)v;
     }
 
     void DitherRGBA4444(uint8_t* data, uint32_t width, uint32_t height)
@@ -351,11 +351,11 @@ namespace dmTexc
         {
             for (uint32_t x = 0; x < width; ++x)
             {
-                float rnd = InterleavedGradientNoise(x, y);
-                data[0] = addNoise(data[0], rnd * bpp_mul - bpp_bias);
-                data[1] = addNoise(data[1], (1.0f - rnd) * bpp_mul - bpp_bias); // As seen in the shadertoy by Mikkel Gjoel
-                data[2] = addNoise(data[2], rnd * bpp_mul - bpp_bias);
-                data[3] = addNoise(data[3], rnd * bpp_mul - bpp_bias);
+                float rnd = InterleavedGradientNoise((float)x, (float)y);
+                data[0] = addNoise(data[0], (uint8_t)(rnd * bpp_mul - bpp_bias));
+                data[1] = addNoise(data[1], (uint8_t)((1.0f - rnd) * bpp_mul - bpp_bias)); // As seen in the shadertoy by Mikkel Gjoel
+                data[2] = addNoise(data[2], (uint8_t)(rnd * bpp_mul - bpp_bias));
+                data[3] = addNoise(data[3], (uint8_t)(rnd * bpp_mul - bpp_bias));
                 data+=4;
             }
         }
@@ -373,10 +373,10 @@ namespace dmTexc
         {
             for (uint32_t x = 0; x < width; ++x)
             {
-                float rnd = InterleavedGradientNoise(x, y);
-                data[0] = addNoise(data[0], rnd * bpp_mul_5 - bpp_bias_5);
-                data[1] = addNoise(data[1], (1.0f - rnd) * bpp_mul_6 - bpp_bias_6); // As seen in the shadertoy by Mikkel Gjoel
-                data[2] = addNoise(data[2], rnd * bpp_mul_5 - bpp_bias_5);
+                float rnd = InterleavedGradientNoise((float)x, (float)y);
+                data[0] = addNoise(data[0], (uint8_t)(rnd * bpp_mul_5 - bpp_bias_5));
+                data[1] = addNoise(data[1], (uint8_t)((1.0f - rnd) * bpp_mul_6 - bpp_bias_6)); // As seen in the shadertoy by Mikkel Gjoel
+                data[2] = addNoise(data[2], (uint8_t)(rnd * bpp_mul_5 - bpp_bias_5));
                 // the alpha channel is ignored in this case
                 data+=4;
             }

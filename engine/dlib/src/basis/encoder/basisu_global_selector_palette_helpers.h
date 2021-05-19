@@ -36,7 +36,7 @@ namespace basisu
 
 		void clear() { clear_obj(*this); }
 	};
-	typedef std::vector<pixel_block> pixel_block_vec;
+	typedef basisu::vector<pixel_block> pixel_block_vec;
 
 	uint64_t etc1_global_selector_codebook_find_best_entry(const basist::etc1_global_selector_codebook &codebook,
 		uint32_t num_src_pixel_blocks, const pixel_block *pSrc_pixel_blocks, const etc_block *pBlock_endpoints,

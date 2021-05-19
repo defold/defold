@@ -81,7 +81,8 @@ public class ManifestTest {
             manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
             manifestBuilder.setProjectIdentifier(projectIdentifier);
             manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
-            manifestBuilder.setDependencies(this.dependencies);
+            manifestBuilder.setRoot(this.dependencies);
+            manifestBuilder.setExcludedResources(this.getExcludedResources());
 
             for (String supportedEngineVersion : this.supportedEngineVersions) {
                 manifestBuilder.addSupportedEngineVersion(supportedEngineVersion);
@@ -152,6 +153,12 @@ public class ManifestTest {
             level2_goc.addChild(new ResourceNode("/main/level2.soundc", "/test/main/level2.soundc"));
 
             return root;
+        }
+
+        private List<String> getExcludedResources() {
+            List<String> excluded = new ArrayList<>();
+            excluded.add("/main/level1.collectionproxyc");
+            return excluded;
         }
 
         public HashDigest projectIdentifierHash() {
@@ -449,7 +456,7 @@ public class ManifestTest {
             }
 
             if (current.getUrl().equals("/main/main.collectionc")) {
-                assertEquals(4, current.getDependantsCount());
+                assertEquals(0, current.getDependantsCount());
             }
 
             if (current.getUrl().equals("/main/level1.collectionproxyc")) {
@@ -493,14 +500,14 @@ public class ManifestTest {
         List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
 
         assertEquals(2, parents.size());
-        assertEquals(1, parents.get(0).size());
-        assertEquals(3, parents.get(1).size());
+        assertEquals(3, parents.get(0).size());
+        assertEquals(1, parents.get(1).size());
 
-        assertEquals("/main/main.collectionc",          parents.get(0).get(0));
+        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
+        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
 
-        assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
-        assertEquals("/main/main.collectionc",          parents.get(1).get(2));
+        assertEquals("/main/main.collectionc",          parents.get(1).get(0));
     }
 
     @Test
@@ -510,22 +517,22 @@ public class ManifestTest {
         List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
 
         assertEquals(3, parents.size());
-        assertEquals(2, parents.get(0).size());
-        assertEquals(3, parents.get(1).size());
-        assertEquals(5, parents.get(2).size());
+        assertEquals(3, parents.get(0).size());
+        assertEquals(5, parents.get(1).size());
+        assertEquals(2, parents.get(2).size());
 
-        assertEquals("/main/dynamic.collectionc",       parents.get(0).get(0));
-        assertEquals("/main/main.collectionc",          parents.get(0).get(1));
+        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
+        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
 
-        assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
-        assertEquals("/main/main.collectionc",          parents.get(1).get(2));
+        assertEquals("/main/level2.collectionc",        parents.get(1).get(0));
+        assertEquals("/main/level2.collectionproxyc",   parents.get(1).get(1));
+        assertEquals("/main/level1.collectionc",        parents.get(1).get(2));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(3));
+        assertEquals("/main/main.collectionc",          parents.get(1).get(4));
 
-        assertEquals("/main/level2.collectionc",        parents.get(2).get(0));
-        assertEquals("/main/level2.collectionproxyc",   parents.get(2).get(1));
-        assertEquals("/main/level1.collectionc",        parents.get(2).get(2));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(2).get(3));
-        assertEquals("/main/main.collectionc",          parents.get(2).get(4));
+        assertEquals("/main/dynamic.collectionc",       parents.get(2).get(0));
+        assertEquals("/main/main.collectionc",          parents.get(2).get(1));
     }
 
     @Test
