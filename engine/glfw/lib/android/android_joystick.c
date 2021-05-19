@@ -53,8 +53,8 @@ static int32_t glfwAndroidConnectJoystick(int32_t deviceId, char* deviceName)
             _glfwJoy[joystickIndex].NumAxes = GLFW_ANDROID_GAMEPAD_NUMAXIS;
             _glfwJoy[joystickIndex].NumButtons = GLFW_ANDROID_GAMEPAD_NUMBUTTONS;
             strncpy(&_glfwJoy[joystickIndex].DeviceName, deviceName, DEVICE_NAME_LENGTH);
-            memset(_glfwJoy[joystickIndex].NumAxes, 0, sizeof(_glfwJoy[joystickIndex].NumAxes));
-            memset(_glfwJoy[joystickIndex].NumButtons, 0, sizeof(_glfwJoy[joystickIndex].NumButtons));
+            memset(_glfwJoy[joystickIndex].Axis, 0, sizeof(_glfwJoy[joystickIndex].Axis) * GLFW_ANDROID_GAMEPAD_NUMAXIS);
+            memset(_glfwJoy[joystickIndex].Button, 0, sizeof(_glfwJoy[joystickIndex].Button) * GLFW_ANDROID_GAMEPAD_NUMBUTTONS);
 
             _glfwWin.gamepadCallback(joystickIndex, 1);
             break;
