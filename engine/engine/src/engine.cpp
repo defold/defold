@@ -233,8 +233,6 @@ namespace dmEngine
         m_GuiContext.m_RenderContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
-        m_SpineModelContext.m_RenderContext = 0x0;
-        m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
         m_MeshContext.m_RenderContext = 0x0;
@@ -998,10 +996,6 @@ namespace dmEngine
         engine->m_MeshContext.m_Factory       = engine->m_Factory;
         engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
 
-        engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpineModelContext.m_Factory = engine->m_Factory;
-        engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
-
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
         engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
@@ -1057,7 +1051,7 @@ namespace dmEngine
             goto bail;
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
-                                                                                                &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
+                                                                                                &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
                                                                                                 &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
         if (go_result != dmGameObject::RESULT_OK)
