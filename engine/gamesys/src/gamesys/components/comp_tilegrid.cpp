@@ -28,11 +28,11 @@
 #include <gameobject/gameobject_ddf.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include "tile_ddf.h"
+#include <gamesys/tile_ddf.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
-#include "../proto/tile_ddf.h"
-#include "../proto/physics_ddf.h"
+#include <gamesys/tile_ddf.h>
+#include <gamesys/physics_ddf.h>
 #include "../resources/res_tilegrid.h"
 
 namespace dmGameSystem

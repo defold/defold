@@ -19,11 +19,11 @@
 #include <script/script.h>
 #include <gameobject/script.h>
 #include "gamesys.h"
-#include "tile_ddf.h"
+#include <gamesys/tile_ddf.h>
+#include <gamesys/physics_ddf.h>
 #include "../gamesys_private.h"
 #include "../resources/res_tilegrid.h"
 #include "../components/comp_tilegrid.h"
-#include "../proto/physics_ddf.h"
 #include "script_tilemap.h"
 
 extern "C"

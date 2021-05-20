@@ -38,8 +38,8 @@
 
 #include "engine.h"
 #include "engine_service.h"
-#include "engine_ddf.h"
 #include "engine.h"
+#include <engine/engine_ddf.h>
 
 namespace dmEngine
 {

@@ -3,7 +3,7 @@ package dmMeshDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
-option java_package = "com.dynamo.mesh.proto";
+option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "MeshProto";
 
 message MeshDesc

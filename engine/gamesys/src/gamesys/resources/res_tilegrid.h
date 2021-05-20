@@ -13,8 +13,6 @@
 #ifndef DM_GAMESYS_RES_TILEGRID_H
 #define DM_GAMESYS_RES_TILEGRID_H
 
-#include <stdint.h>
-
 #include <dmsdk/gamesys/resources/res_tilegrid.h>
 #include <resource/resource.h>
 

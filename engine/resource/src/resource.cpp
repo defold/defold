@@ -49,8 +49,8 @@
 #include <dlib/mutex.h>
 
 #include "resource.h"
-#include "resource_ddf.h"
 #include "resource_private.h"
+#include <resource/resource_ddf.h>
 
 /*
  * TODO:

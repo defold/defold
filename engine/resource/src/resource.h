@@ -19,7 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/mutex.h>
-#include "liveupdate_ddf.h"
+#include <resource/liveupdate_ddf.h>
 #include "resource_archive.h"
 
 namespace dmResource

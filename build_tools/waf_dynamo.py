@@ -176,6 +176,9 @@ def apidoc_extract_task(bld, src):
         # Gather data
         for s in src:
             n = bld.path.find_resource(s)
+            if not n:
+                print("Couldn't find resource: %s" % s)
+                continue
             with open(n.abspath(), 'r') as in_f:
                 source = in_f.read()
                 for k,v in chain(elements.items(), ns_elements(source).items()):

@@ -38,8 +38,8 @@
 #include "../resources/res_meshset.h"
 #include "comp_private.h"
 
-#include "gamesys_ddf.h"
-#include "model_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/model_ddf.h>
 
 using namespace Vectormath::Aos;
 

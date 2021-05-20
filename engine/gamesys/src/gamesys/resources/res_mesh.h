@@ -13,7 +13,10 @@
 #ifndef DM_GAMESYS_RES_MESH_H
 #define DM_GAMESYS_RES_MESH_H
 
+#include <stdint.h>
 #include <dmsdk/resource/resource.h>
+#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/gamesys/resources/res_buffer.h>
 #include <dmsdk/gamesys/resources/res_mesh.h>
 
 namespace dmGameSystem

@@ -115,6 +115,32 @@ namespace dmResource
         void** m_PreloadData;
     };
 
+    /*#
+     * Resource descriptor
+     * @name SResourceDescriptor
+     * @member m_NameHash [type: uint64_t] Hash of resource name
+     * @member m_Resource [type: void*] Resource pointer. Must be unique and not NULL.
+     * @member m_PrevResource [type: void*] Resource pointer. Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
+     * @member m_ResourceSize [type: uint32_t] Resource size in memory. I.e. the payload of m_Resource
+     */
+    struct SResourceDescriptor
+    {
+        /// Hash of resource name
+        uint64_t m_NameHash;
+        /// Resource pointer. Must be unique and not NULL.
+        void*    m_Resource;
+        /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
+        void*    m_PrevResource;
+        /// Resource size in memory. I.e. the payload of m_Resource
+        uint32_t m_ResourceSize;
+
+        // private members
+        uint32_t m_ResourceSizeOnDisc;
+        void*    m_ResourceType;
+        uint32_t m_ReferenceCount;
+    };
+
+
     /**
      * Resource preloading function. This may be called from a separate loading thread
      * but will not keep any mutexes held while executing the call. During this call
@@ -294,19 +320,7 @@ namespace dmResource
      */
     void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data);
 
-
-    /*#
-     * Get the canonical path hash for the resource
-     * @param [type: dmResource::HResourceDescriptor] desc
-     * @return [type dmhash_t] the path hash
-     */
     dmhash_t GetNameHash(HResourceDescriptor desc);
-
-    /*#
-     * Get the raw resource from the resource descriptor
-     * @param [type: dmResource::HResourceDescriptor] desc
-     * @return [type dmhash_t] the path hash
-     */
     void*    GetResource(HResourceDescriptor desc);
     void*    GetPreviousResource(HResourceDescriptor desc);
     void     SetResource(HResourceDescriptor desc, void* resource);
@@ -417,9 +431,9 @@ namespace dmResource
      *     return dmResource::RegisterType(ctx.m_Factory,
      *                                        ctx.m_Name,
      *                                        context,
-     *                                        0, // preload
+     *                                        0,
      *                                        ResourceTypeScriptCreate,
-     *                                        0, // post create
+     *                                        0,
      *                                        ResourceTypeScriptDestroy,
      *                                        ResourceTypeScriptRecreate);
      * }
@@ -440,43 +454,21 @@ namespace dmResource
 
 
     /*#
-     * Resource descriptor
-     * @struct
-     * @name SResourceDescriptor
-     * @member m_NameHash [type: uint64_t] hash of the resource path
-     * @member m_Resource [type: void*] The resource. Must be unique and not be 0
-     * @member m_PrevResource [type: void*] the previous resource if (and only if) it exists (during resource recreate)
-     * @member m_ResourceSize [type: uint32_t] the resource size in memory (i.e. the payload of the m_Resource)
-     */
-    struct SResourceDescriptor
-    {
-        uint64_t m_NameHash;
-        void*    m_Resource;
-        void*    m_PrevResource;
-        uint32_t m_ResourceSize;
-
-        // private members
-        uint32_t m_ResourceSizeOnDisc;
-        void*    m_ResourceType;
-        uint32_t m_ReferenceCount;
-    };
-
-    /*#
-     * Get a resource from factory. Increases the reference count by one.
+     * Get a resource from factory
      * @name Get
-     * @param factory [type: dmResource::HFactory] Factory handle
-     * @param name [type: const char*] Resource name
-     * @param resource [type: void**] Pointer that will hold the created resource
-     * @return [type: dmResource::Result] RESULT_OK on success
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param name [type: const char*] Resource name
+     * @param resource [type: void**] Created resource
+     * @return result [type: dmResource::Result]  RESULT_OK on success
      */
     Result Get(HFactory factory, const char* name, void** resource);
 
+
     /*#
-     * Release resource. Decreases the reference cound by one.
-     * When the reference count reaches zero, the resource type's destroy function is called.
+     * Release resource
      * @name Release
-     * @param factory [type: dmResource::HFactory] Factory handle
-     * @param resource [type: void*] Resource
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param resource [type: void*] Resource pointer
      */
     void Release(HFactory factory, void* resource);
 
@@ -485,12 +477,11 @@ namespace dmResource
      * The resources are not guaranteed to be loaded before Create is called.
      * This function can be called from a worker thread.
      * @name PreloadHint
-     * @param hint_ctx [type: dmResource::HPreloadHintInfo] Resource name
-     * @param name [type: const char* ] Resource name
-     * @return result [type: bool] true if successfully invoking preloader.
+     * @param factory [type: dmResource::HPreloadHintInfo] Preloader handle
+     * @param name [type: const char*] Resource name
+     * @return result [type: bool] if successfully invoking preloader.
      */
-    bool PreloadHint(HPreloadHintInfo hint_ctx, const char *name);
-
+    bool PreloadHint(HPreloadHintInfo preloader, const char *name);
 }
 
 #endif // DMSDK_RESOURCE_H

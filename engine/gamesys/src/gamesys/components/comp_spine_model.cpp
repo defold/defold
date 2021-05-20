@@ -39,9 +39,9 @@
 #include "../resources/res_animationset.h"
 #include "../resources/res_textureset.h"
 
-#include "spine_ddf.h"
-#include "sprite_ddf.h"
-#include "tile_ddf.h"
+#include <gamesys/spine_ddf.h>
+#include <gamesys/sprite_ddf.h>
+#include <gamesys/tile_ddf.h>
 
 using namespace Vectormath::Aos;
 

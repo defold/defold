@@ -16,7 +16,7 @@
 #include <gameobject/script.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 #include "../components/comp_model.h"
 #include "../resources/res_model.h"

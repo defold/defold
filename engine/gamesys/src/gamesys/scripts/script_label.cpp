@@ -22,8 +22,8 @@
 
 #include "script_label.h"
 #include "../components/comp_label.h"
-#include "gamesys_ddf.h"
-#include "label_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/label_ddf.h>
 
 namespace dmGameSystem
 {

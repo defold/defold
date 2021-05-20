@@ -16,7 +16,7 @@
 #include <dlib/math.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 
 namespace dmGameSystem
 {

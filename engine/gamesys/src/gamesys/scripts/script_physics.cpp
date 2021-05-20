@@ -20,8 +20,8 @@
 #include <gameobject/script.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
-#include "physics_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/physics_ddf.h>
 #include "../gamesys_private.h"
 
 #include "components/comp_collision_object.h"

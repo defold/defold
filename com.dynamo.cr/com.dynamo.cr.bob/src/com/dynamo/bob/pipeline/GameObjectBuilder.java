@@ -34,7 +34,7 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-import com.dynamo.sound.proto.Sound.SoundDesc;
+import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")

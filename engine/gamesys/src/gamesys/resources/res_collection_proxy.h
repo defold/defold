@@ -13,7 +13,6 @@
 #ifndef DM_GAMESYS_RES_COLLECTION_PROXY_H
 #define DM_GAMESYS_RES_COLLECTION_PROXY_H
 
-
 #include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_collection_proxy.h>
 

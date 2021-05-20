@@ -13,8 +13,6 @@
 #ifndef DM_GAMESYS_RES_SPRITE_H
 #define DM_GAMESYS_RES_SPRITE_H
 
-#include <stdint.h>
-
 #include <dmsdk/gamesys/resources/res_sprite.h>
 #include <resource/resource.h>
 

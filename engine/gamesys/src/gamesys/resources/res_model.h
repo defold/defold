@@ -13,8 +13,6 @@
 #ifndef DM_GAMESYS_RES_MODEL_H
 #define DM_GAMESYS_RES_MODEL_H
 
-#include <stdint.h>
-
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_model.h>
 

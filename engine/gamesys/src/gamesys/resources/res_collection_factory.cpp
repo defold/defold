@@ -16,7 +16,7 @@
 #include <dmsdk/dlib/log.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject_ddf.h>
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 
 
 namespace dmGameSystem
