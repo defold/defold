@@ -20,6 +20,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -31,9 +33,11 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
@@ -47,6 +51,10 @@ import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 @ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
 public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
+
+    private Map<Long, IResource> uniqueResources = new HashMap<>();
+    private Set<Long> productsOfThisTask = new HashSet<>();
+    private List<Task<?>> embedTasks = new ArrayList<>();
 
     private void collectSubCollections(CollectionDesc.Builder collection, Set<IResource> subCollections) throws CompileExceptionError, IOException {
         for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
@@ -69,9 +77,38 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return count;
     }
 
+    private void createGeneratedResources(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
+        for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
+            byte[] data = desc.getData().getBytes();
+            long hash = MurmurHash.hash64(data, data.length);
+
+            IResource genResource = project.getGeneratedResource(hash, "go");
+            if (genResource == null) {
+                genResource = project.createGeneratedResource(hash, "go");
+
+                // TODO: This is a hack derived from the same problem with embedded gameobjects from collections (see CollectionBuilder.create)!
+                // If the file isn't created here <EmbeddedComponent>#create
+                // can't access generated resource data (embedded component desc)
+                genResource.setContent(data);
+
+                uniqueResources.put(hash, genResource);
+                productsOfThisTask.add(hash);
+            }
+        }
+
+        for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
+            IResource collectionResource = this.project.getResource(c.getCollection());
+            CollectionDesc.Builder subCollectionBuilder = CollectionDesc.newBuilder();
+            ProtoUtil.merge(collectionResource, subCollectionBuilder);
+
+            createGeneratedResources(project, subCollectionBuilder);
+        }
+    }
+
     private int buildEmbedded(IResource input, CollectionDesc.Builder builder, Task<Void> task, int embedIndex) throws IOException, CompileExceptionError {
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             IResource genResource = task.getOutputs().get(embedIndex+1);
+
             // TODO: This is a hack!
             // If the file isn't created here GameObjectBuilder#create
             // can't run as the generated file is loaded in GameObjectBuilder#create
@@ -99,6 +136,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return embedIndex;
     }
 
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -113,16 +151,29 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             taskBuilder.addInput(subCollection);
         }
 
-        String name = FilenameUtils.getBaseName(input.getPath());
-        int embeddedCount = countEmbeddedOutputs(builder);
-        for (int i = 0; i < embeddedCount; ++i) {
-            String embedName = String.format("%s_generated_%d.go", name, i);
-            IResource genResource = input.getResource(embedName).output();
+        createGeneratedResources(this.project, builder);
+
+        for (long hash : uniqueResources.keySet()) {
+            IResource genResource = uniqueResources.get(hash);
+
             taskBuilder.addOutput(genResource);
+
+            if (productsOfThisTask.contains(hash)) {
+
+                Task<?> embedTask = project.buildResource(genResource);
+                if (embedTask == null) {
+                    throw new CompileExceptionError(input,
+                                                    0,
+                                                    String.format("Failed to create build task for component '%s'", genResource.getPath()));
+                }
+                embedTasks.add(embedTask);
+            }
         }
 
         Task<Void> task = taskBuilder.build();
-        buildEmbedded(input, builder, task, 0);
+        for (Task<?> et : embedTasks) {
+            et.setProductOf(task);
+        }
         return task;
     }
 
@@ -302,10 +353,14 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
-            IResource genResource = task.getOutputs().get(embedIndex+1);
+            byte[] data = desc.getData().getBytes();
+            long hash = MurmurHash.hash64(data, data.length);
+
+            IResource genResource = project.getGeneratedResource(hash, "go");
+
             // TODO: We have to set content again here as distclean might have removed everything at this point
             // See comment in create. Should tasks be recreated after distclean (or before actual build?). See Project.java
-            genResource.setContent(desc.getData().getBytes());
+            genResource.setContent(data);
 
             int buildDirLen = project.getBuildDirectory().length();
             String path = genResource.getPath().substring(buildDirLen);
