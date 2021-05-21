@@ -146,7 +146,16 @@ namespace dmEngineVersion
 def build(bld):
     # for the content build
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
-    sys.path.insert(0, os.path.abspath('default/proto'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gamesys'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/graphics'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/input'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/particle'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/render'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/resource'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/rig'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/script'))
+    sys.path.insert(0, os.path.abspath('build/default/proto/engine'))
+    sys.path.insert(0, os.path.abspath('default/proto/engine'))
 
     bld.add_subdirs('content')
     bld.add_group()

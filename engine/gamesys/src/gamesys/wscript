@@ -9,9 +9,9 @@ def configure(conf):
 
 def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
-        includes = '. .. ../../proto',
+        includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
-        protoc_includes = '../../proto/gamesys',
+        protoc_includes = '../../proto',
         target = 'gamesys',
         embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc')
 
@@ -26,7 +26,6 @@ def build(bld):
 
     bld.add_group()
 
-    print os.getcwd()
     proto_files = os.listdir('./proto/gamesys')
     proto_files = [os.path.join('../../proto/gamesys', os.path.basename(x)) for x in proto_files]
 
