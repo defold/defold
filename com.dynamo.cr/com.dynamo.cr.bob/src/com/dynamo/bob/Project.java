@@ -365,14 +365,12 @@ public class Project {
         excludeFolders.addAll(BundleHelper.createArrayFromString(excludeFoldersProjectStr));
 
         for (String input : sortedInputs) {
-            System.out.println("createTasks " + input);
             Task<?> task = doCreateTask(input);
             if (task != null) {
                 boolean skipped = false;
                 for (String excludeFolder : excludeFolders) {
                     if (input.startsWith(excludeFolder)) {
                         skipped = true;
-                        System.out.println("createTasks skipped!");
                         break;
                     }
                 }
