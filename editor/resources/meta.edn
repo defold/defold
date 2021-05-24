@@ -42,11 +42,6 @@
    "A comma separated list of resources that should not be included in the bundle",
    :default "",
    :path ["project" "bundle_exclude_resources"]}
-  {:type :string,
-   :help
-   "A comma separated list of folders that should be excluded from the project",
-   :default "",
-   :path ["project" "exclude_folders"]}
   {:type :resource,
    :filter "collection",
    :help
