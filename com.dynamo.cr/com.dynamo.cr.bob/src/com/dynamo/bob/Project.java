@@ -373,8 +373,8 @@ public class Project {
         // To currently know the output resources, we need to parse the main.collectionc
         // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
         // But the real problem is building/compressing the redundant textures (e.g. .png)
-        String excludeFoldersOptionStr = this.option("exclude-build-folder", "");
-        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersOptionStr);
+        String excludeFoldersStr = this.option("exclude-build-folder", "");
+        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
         excludeFolders.addAll(loadDefoldIgnore());
 
         for (String input : sortedInputs) {
