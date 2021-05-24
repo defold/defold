@@ -304,6 +304,9 @@ TEST_P(InvalidVertexSpaceTest, InvalidVertexSpace)
     ASSERT_NE(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
 }
 
+
+
+
 // Test for input consuming in collection proxy
 TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 {
@@ -1314,6 +1317,41 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ComponentTest, MyTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_sleeping_go = "/collision_object/sleeping_collision_object.goc";
+    dmhash_t hash_sleeping_go = dmHashString64("/sleeping_go");
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_sleeping_go, hash_sleeping_go, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+
+    //ASSERT_TRUE(false);
+    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
 }
 
 /* Physics joints */

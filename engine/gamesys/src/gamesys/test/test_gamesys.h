@@ -17,6 +17,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
+#include <physics/physics.h>
 #include <rig/rig.h>
 
 #include "gamesys/gamesys.h"
