@@ -10,11 +10,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#define _USE_MATH_DEFINES // for C
+#include <math.h>
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/log.h>
 
-#include <math.h>
 #include <../rig.h>
 
 #define RIG_EPSILON_FLOAT 0.0001f
