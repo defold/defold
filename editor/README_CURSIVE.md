@@ -32,11 +32,11 @@ Time to open the Defold Editor project. The first time you open it, you'll need 
 
 4. Select **Edit Configurations...** from the dropdown in the toolbar of the main IntelliJ window to open the Run/Debug Configurations dialog.
 
-5. Click the plus button in the top left of the dialog and select **Clojure REPL > Local**. Name the configuration `local repl` and select `nREPL` for the type of REPL to run. Under the **How to run it** section, select **Run with Leiningen** and type `+local-repl` into the **Profiles** field. Scroll down and uncheck **Activate tool window** at the bottom to prevent the Output panel from opening when we run this. The REPL view will capture standard output, so there is no need for it.
+5. Click the plus button in the top left of the dialog and select **Clojure REPL > Local**. Name the configuration `local repl` and select **nREPL** for the type of REPL to run. Under the **How to run it** section, select **Run with Leiningen** and type `+local-repl` into the **Profiles** field. Scroll down and uncheck **Activate tool window** at the bottom to prevent the Output panel from opening when we run this. The REPL view will capture standard output, so there is no need for it.
 
 6. Optionally you can also create a configuration with a standalone REPL. This lets you run code and tests without starting the editor, and is sometimes useful when fixing failing unit tests. If you don't care about that, you can safely skip this step. Otherwise, click the plus button in the top left of the dialog and select **Clojure REPL > Local**. Name the configuration `standalone repl`. Under the **How to run it** section, select **Run with Leiningen**, and uncheck **Activate tool window** for this one as well.
 
-7. Press **OK** to close the dialog. You should now be able to select the `lein run` configuration and launch the editor from the toolbar. Once you see the Defold Welcome screen, you can select `connect repl` and run that task to connect to the running editor. From the REPL you can evaluate code, redefine functions, or experiment with function calls while the editor is running.
+7. Press **OK** to close the dialog. You should now be able to select the `local repl` configuration and launch the editor from the toolbar by pressing the play button. Launching the editor will also open a REPL window that you can use to evaluate code, redefine functions, or experiment with function calls while the editor is running.
 
 ## Recommended keyboard shortcuts
 
