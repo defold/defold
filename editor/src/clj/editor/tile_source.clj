@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -44,8 +44,8 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
-  (:import [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-           [com.dynamo.tile.proto Tile$TileSet Tile$Playback Tile$SpriteTrimmingMode]
+  (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
+           [com.dynamo.gamesys.proto Tile$TileSet Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL2]
            [editor.types AABB]
            [java.awt.image BufferedImage]
