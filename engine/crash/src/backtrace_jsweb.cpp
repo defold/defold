@@ -74,5 +74,7 @@ extern "C" void JSWriteDump(char* json_stacktrace) {
         }
         dmCrash::WriteCrash(dmCrash::g_FilePath, &dmCrash::g_AppState);
         dmJson::Free(&doc);
+
+        dmCrash::LogCallstack(dmCrash::g_AppState.m_Extra);
     }
 }
