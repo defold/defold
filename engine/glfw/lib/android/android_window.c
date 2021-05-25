@@ -44,6 +44,7 @@
 
 #include "android_log.h"
 #include "android_util.h"
+#include "android_joystick.h"
 
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
@@ -428,6 +429,8 @@ void _glfwPlatformPollEvents( void )
        }
     }
 
+    glfwAndroidDiscoverJoysticks();
+
     glfwAndroidFlushEvents();
 }
 
@@ -700,4 +703,3 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
         g_Listeners[i](env, activity, requestCode, resultCode, data);
     }
 }
-

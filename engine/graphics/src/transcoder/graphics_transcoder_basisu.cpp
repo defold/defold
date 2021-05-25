@@ -22,31 +22,31 @@ namespace dmGraphics
     {
         switch(format)
         {
-        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:          out = basist::cTFRGBA32; return true;
-        case dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA:    out = basist::cTFRGBA32; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGB:                out = basist::cTFRGBA32; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA:               out = basist::cTFRGBA32; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGB_16BPP:          out = basist::cTFRGB565; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_16BPP:         out = basist::cTFRGBA4444; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   out = basist::cTFPVRTC1_4_RGB; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  out = basist::cTFPVRTC1_4_RGBA; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           out = basist::cTFETC1_RGB; return true;
-        case dmGraphics::TEXTURE_FORMAT_R_ETC2:             out = basist::cTFETC2_EAC_R11; return true;
-        case dmGraphics::TEXTURE_FORMAT_RG_ETC2:            out = basist::cTFETC2_EAC_RG11; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          out = basist::cTFETC2_RGBA; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      out = basist::cTFASTC_4x4_RGBA; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            out = basist::cTFBC1_RGB; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           out = basist::cTFBC3_RGBA; return true;
-        case dmGraphics::TEXTURE_FORMAT_R_BC4:              out = basist::cTFBC4_R; return true;
-        case dmGraphics::TEXTURE_FORMAT_RG_BC5:             out = basist::cTFBC5_RG; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:           out = basist::cTFBC7_RGBA; return true;
+        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:          out = basist::transcoder_texture_format::cTFRGBA32; return true;
+        case dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA:    out = basist::transcoder_texture_format::cTFRGBA32; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGB:                out = basist::transcoder_texture_format::cTFRGBA32; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA:               out = basist::transcoder_texture_format::cTFRGBA32; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGB_16BPP:          out = basist::transcoder_texture_format::cTFRGB565; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_16BPP:         out = basist::transcoder_texture_format::cTFRGBA4444; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   out = basist::transcoder_texture_format::cTFPVRTC1_4_RGB; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  out = basist::transcoder_texture_format::cTFPVRTC1_4_RGBA; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           out = basist::transcoder_texture_format::cTFETC1_RGB; return true;
+        case dmGraphics::TEXTURE_FORMAT_R_ETC2:             out = basist::transcoder_texture_format::cTFETC2_EAC_R11; return true;
+        case dmGraphics::TEXTURE_FORMAT_RG_ETC2:            out = basist::transcoder_texture_format::cTFETC2_EAC_RG11; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          out = basist::transcoder_texture_format::cTFETC2_RGBA; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      out = basist::transcoder_texture_format::cTFASTC_4x4_RGBA; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            out = basist::transcoder_texture_format::cTFBC1_RGB; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           out = basist::transcoder_texture_format::cTFBC3_RGBA; return true;
+        case dmGraphics::TEXTURE_FORMAT_R_BC4:              out = basist::transcoder_texture_format::cTFBC4_R; return true;
+        case dmGraphics::TEXTURE_FORMAT_RG_BC5:             out = basist::transcoder_texture_format::cTFBC5_RG; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:           out = basist::transcoder_texture_format::cTFBC7_RGBA; return true;
         default: break;
         }
         return false;
     }
 
 
-#define TEX_TRANSCODE_DEBUG 0
+#define TEX_TRANSCODE_DEBUG 1
     #if defined(TEX_TRANSCODE_DEBUG)
         const char* ToString(dmGraphics::TextureFormat format)
         {
@@ -77,21 +77,21 @@ namespace dmGraphics
         {
             switch(format)
             {
-                case basist::cTFRGBA32: return "cTFRGBA32";
-                case basist::cTFRGB565: return "cTFRGB565";
-                case basist::cTFRGBA4444: return "cTFRGBA4444";
-                case basist::cTFPVRTC1_4_RGB: return "cTFPVRTC1_4_RGB";
-                case basist::cTFPVRTC1_4_RGBA: return "cTFPVRTC1_4_RGBA";
-                case basist::cTFETC1_RGB: return "cTFETC1_RGB";
-                case basist::cTFETC2_RGBA: return "cTFETC2_RGBA";
-                case basist::cTFETC2_EAC_R11: return "cTFETC2_EAC_R11";
-                case basist::cTFETC2_EAC_RG11: return "cTFETC2_EAC_RG11";
-                case basist::cTFASTC_4x4_RGBA: return "cTFASTC_4x4_RGBA";
-                case basist::cTFBC1_RGB: return "cTFBC1_RGB";
-                case basist::cTFBC3_RGBA: return "cTFBC3_RGBA";
-                case basist::cTFBC4_R: return "cTFBC4_R";
-                case basist::cTFBC5_RG: return "cTFBC5_RG";
-                case basist::cTFBC7_RGBA: return "cTFBC7_RGBA";
+                case basist::transcoder_texture_format::cTFRGBA32: return "cTFRGBA32";
+                case basist::transcoder_texture_format::cTFRGB565: return "cTFRGB565";
+                case basist::transcoder_texture_format::cTFRGBA4444: return "cTFRGBA4444";
+                case basist::transcoder_texture_format::cTFPVRTC1_4_RGB: return "cTFPVRTC1_4_RGB";
+                case basist::transcoder_texture_format::cTFPVRTC1_4_RGBA: return "cTFPVRTC1_4_RGBA";
+                case basist::transcoder_texture_format::cTFETC1_RGB: return "cTFETC1_RGB";
+                case basist::transcoder_texture_format::cTFETC2_RGBA: return "cTFETC2_RGBA";
+                case basist::transcoder_texture_format::cTFETC2_EAC_R11: return "cTFETC2_EAC_R11";
+                case basist::transcoder_texture_format::cTFETC2_EAC_RG11: return "cTFETC2_EAC_RG11";
+                case basist::transcoder_texture_format::cTFASTC_4x4_RGBA: return "cTFASTC_4x4_RGBA";
+                case basist::transcoder_texture_format::cTFBC1_RGB: return "cTFBC1_RGB";
+                case basist::transcoder_texture_format::cTFBC3_RGBA: return "cTFBC3_RGBA";
+                case basist::transcoder_texture_format::cTFBC4_R: return "cTFBC4_R";
+                case basist::transcoder_texture_format::cTFBC5_RG: return "cTFBC5_RG";
+                case basist::transcoder_texture_format::cTFBC7_RGBA: return "cTFBC7_RGBA";
                 default: return "";
             }
         }
@@ -147,7 +147,7 @@ namespace dmGraphics
         basist::transcoder_texture_format transcoder_format;
         if (!TextureFormatToBasisFormat(format, transcoder_format))
         {
-            dmLogError("Failed to texture format %d to basis format %d for file '%s'", format, transcoder_format, path);
+            dmLogError("Failed to convert texture format %d to basis format %d for file '%s'", format, transcoder_format, path);
             return false;
         }
 
@@ -190,7 +190,7 @@ namespace dmGraphics
 
                 // If we wanted a Luminance, LuminanceAlpha or RGB
                 // let's convert back to those formats
-                if (transcoder_format == basist::cTFRGBA32 && format != dmGraphics::TEXTURE_FORMAT_RGBA)
+                if (transcoder_format == basist::transcoder_texture_format::cTFRGBA32 && format != dmGraphics::TEXTURE_FORMAT_RGBA)
                 {
                     int num_channels = 0;
                     if (format == dmGraphics::TEXTURE_FORMAT_LUMINANCE)

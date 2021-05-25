@@ -26,27 +26,74 @@ namespace dmTexc
 {
     static void SetCompressionLevel(CompressionType compression_type, CompressionLevel compression_level, basisu::basis_compressor_params& comp_params)
     {
+        // The order of the enum (since the names are extremely confusing/subjective)
+        // CL_FAST    = 0;
+        // CL_NORMAL  = 1;
+        // CL_HIGH    = 2;
+        // CL_BEST    = 3;
+
         if (compression_type == CT_BASIS_ETC1S)
         {
+            // Tests: % of original .png, psnr
+            // quality=96,  comp_level=5 -> 8.541663 %, 36.705 dB
+            // quality=128, comp_level=5 -> 9.822941 %, 37.346 dB
+            // quality=160, comp_level=5 -> 11.901549 %, 38.054 dB
+            // quality=196, comp_level=5 -> 13.591924 %, 38.320 dB
+            // quality=224, comp_level=5 -> 15.319630 %, 38.407 dB
+            // quality=256, comp_level=5 -> 16.339599 %, 38.428 dB
+
+            comp_params.m_compression_level = basisu::BASISU_DEFAULT_COMPRESSION_LEVEL;
+
             switch(compression_level)
             {
-                case CL_FAST:   comp_params.m_compression_level = 0; break;
-                case CL_HIGH:   comp_params.m_compression_level = 3;
-                case CL_BEST:   comp_params.m_compression_level = basisu::BASISU_MAX_COMPRESSION_LEVEL; break;
-                case CL_NORMAL:
-                default:        comp_params.m_compression_level = basisu::BASISU_DEFAULT_COMPRESSION_LEVEL; break;
+                case CL_FAST:   comp_params.m_quality_level = 128; break;
+                case CL_NORMAL: comp_params.m_quality_level = 160; break;
+                case CL_HIGH:   comp_params.m_quality_level = 196; break;
+                case CL_BEST:   comp_params.m_quality_level = 256; break;
+                default:        comp_params.m_quality_level = 160; break;
             }
         }
         else {
 
-            switch(compression_level)
+            // # Best first, fast last
+            // test_uastc(image, uastc_level=2, uastc_rdo_l=0.25, uastc_rdo_d=16384)   # 64.88%, 47.977 dB, 3.139894 s
+            // test_uastc(image, uastc_level=1, uastc_rdo_l=1, uastc_rdo_d=16384)      # 52.31%, 45.047 dB, 2.310900 s
+            // test_uastc(image, uastc_level=1, uastc_rdo_l=2, uastc_rdo_d=8192)       # 49.82%, 42.927 dB, 1.243244 s
+            // test_uastc(image, uastc_level=0, uastc_rdo_l=3, uastc_rdo_d=8192)       # 43.79%, 40.481 dB, 0.778897 s
+
+            int uastc_level;
+            int uastc_rdo_d;
+            float uastc_rdo_l;
+            if (compression_level == CL_BEST)
             {
-                case CL_FAST:   comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelFastest; break;
-                case CL_HIGH:   comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelSlower; break;
-                case CL_BEST:   comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelSlower; break;
-                case CL_NORMAL:
-                default:        comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelDefault; break;
+                uastc_level = 2;
+                uastc_rdo_l = 0.25;
+                uastc_rdo_d = 16384;
             }
+            else if (compression_level == CL_HIGH)
+            {
+                uastc_level = 1;
+                uastc_rdo_l = 1;
+                uastc_rdo_d = 16384;
+            }
+            else if (compression_level == CL_NORMAL)
+            {
+                uastc_level = 1;
+                uastc_rdo_l = 2;
+                uastc_rdo_d = 8192;
+            }
+            else // CL_FAST
+            {
+                uastc_level = 0;
+                uastc_rdo_l = 3;
+                uastc_rdo_d = 8192;
+            }
+
+            // See basisu_comp.h
+            comp_params.m_rdo_uastc = true;
+            comp_params.m_pack_uastc_flags = uastc_level;
+            comp_params.m_rdo_uastc_quality_scalar = uastc_rdo_l;
+            comp_params.m_rdo_uastc_dict_size = uastc_rdo_d;
         }
     }
 
@@ -71,6 +118,17 @@ namespace dmTexc
         comp_params.m_status_output = false;
         comp_params.m_debug = false;
         basisu::enable_debug_printf(false);
+
+        uint32_t w = texture->m_BasisImage.get_width();
+        uint32_t h = texture->m_BasisImage.get_height();
+        basisu::color_rgba* pixels = texture->m_BasisImage.get_ptr();
+
+        if (pixel_format == PF_R4G4B4A4) {
+            DitherRGBA4444((uint8_t*)pixels, w, h);
+        }
+        else if(pixel_format == PF_R5G6B5) {
+            DitherRGBx565((uint8_t*)pixels, w, h);
+        }
 
         comp_params.m_source_images.push_back(texture->m_BasisImage);
 
