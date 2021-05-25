@@ -1796,7 +1796,7 @@ def detect(conf):
     elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
-        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
     elif platform in ('x86_64-linux',):
         conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):
