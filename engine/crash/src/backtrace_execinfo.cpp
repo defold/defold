@@ -42,11 +42,11 @@ namespace dmCrash
     void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
     {
         g_CrashExtraInfoCallback = cbk;
+        g_CrashExtraInfoCallbackCtx = ctx;
     }
 
     void OnCrash(int signo)
     {
-        dmLogInfo("Using libunwind.a");
         if (!g_CrashDumpEnabled)
             return;
 
