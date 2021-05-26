@@ -353,6 +353,20 @@ public class Project {
         return sortedInputs;
     }
 
+    private List<String> loadDefoldIgnore() throws CompileExceptionError {
+        List<String> ignoredFolders = new ArrayList<String>();
+        final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
+        if (defIgnoreFile.isFile()) {
+            try {
+                ignoredFolders = FileUtils.readLines(defIgnoreFile, "UTF-8");
+            }
+            catch(IOException e) {
+                throw new CompileExceptionError("Unable to read .defignore", e);
+            }
+        }
+        return ignoredFolders;
+    }
+
     private void createTasks() throws CompileExceptionError {
         newTasks = new ArrayList<Task<?>>();
         List<String> sortedInputs = sortInputs(); // from findSources
@@ -362,6 +376,7 @@ public class Project {
         // But the real problem is building/compressing the redundant textures (e.g. .png)
         String excludeFoldersStr = this.option("exclude-build-folder", "");
         List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
+        excludeFolders.addAll(loadDefoldIgnore());
 
         for (String input : sortedInputs) {
             Task<?> task = doCreateTask(input);
