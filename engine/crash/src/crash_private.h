@@ -78,6 +78,8 @@ namespace dmCrash
     void PlatformPurge();
     void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx);
 
+    void LogCallstack(char* extras); // split the extras into separate lines and logs them
+
     extern AppState g_AppState;
     extern char g_FilePath[AppState::FILEPATH_MAX];
 }
