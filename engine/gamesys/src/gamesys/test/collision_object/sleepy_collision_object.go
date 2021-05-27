@@ -1,6 +1,6 @@
 components {
   id: "co"
-  component: "/collision_object/sleeping.collisionobject"
+  component: "/collision_object/sleepy.collisionobject"
 }
 components {
   id: "sleepy-script"

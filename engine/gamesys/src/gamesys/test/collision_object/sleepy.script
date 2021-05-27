@@ -1,3 +1,8 @@
 
 
-tests_done = true
+tests_done = false
+
+function update(self, dt)
+  print("in lua's UPDATE!")
+  tests_done = true
+end

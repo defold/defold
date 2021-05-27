@@ -1330,6 +1330,8 @@ TEST_F(ComponentTest, MyTest)
     scriptlibcontext.m_LuaState = L;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
+
+
     const char* path_sleeping_go = "/collision_object/sleeping_collision_object.goc";
     dmhash_t hash_sleeping_go = dmHashString64("/sleeping_go");
 
@@ -1344,6 +1346,8 @@ TEST_F(ComponentTest, MyTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
         lua_getglobal(L, "tests_done");
         tests_done = lua_toboolean(L, -1);
