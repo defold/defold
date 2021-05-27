@@ -1319,7 +1319,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-TEST_F(ComponentTest, MyTest)
+TEST_F(MyCustomGamesysTest, MyTest)
 {
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -1330,9 +1330,7 @@ TEST_F(ComponentTest, MyTest)
     scriptlibcontext.m_LuaState = L;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
-
-
-    const char* path_sleeping_go = "/collision_object/sleeping_collision_object.goc";
+    const char* path_sleeping_go = "/collision_object/sleepy_collision_object.goc";
     dmhash_t hash_sleeping_go = dmHashString64("/sleeping_go");
 
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_sleeping_go, hash_sleeping_go, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

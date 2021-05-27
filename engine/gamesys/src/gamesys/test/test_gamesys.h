@@ -37,9 +37,39 @@ struct Params
     const char* m_TempResource;
 };
 
+
+
+
+
 template<typename T>
-class GamesysTest : public jc_test_params_class<T>
+class CustomizableGamesysTest : public jc_test_params_class<T>
 {
+public:
+    struct ProjectOptions {
+      uint32_t m_MaxCollisionCount;
+    };
+
+    CustomizableGamesysTest() {
+      memset(&projectOptions, 0, sizeof(projectOptions));
+    }
+
+    ProjectOptions projectOptions;
+protected:
+    void SetUp(ProjectOptions& options) {
+      projectOptions = options;
+    }
+
+    virtual void SetUp() = 0;
+};
+
+template<typename T>
+class GamesysTest : public CustomizableGamesysTest<T>
+{
+public:
+    GamesysTest() {
+        // default configuration values for the engine
+        this -> projectOptions.m_MaxCollisionCount = 0;
+    }
 protected:
     virtual void SetUp();
     virtual void TearDown();
@@ -71,6 +101,15 @@ protected:
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
+};
+
+class MyCustomGamesysTest : public GamesysTest<const char*>
+{
+public:
+    MyCustomGamesysTest() {
+      // override configuration values specified in GamesysTest()
+      this -> projectOptions.m_MaxCollisionCount = 64;
+    }
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -302,6 +341,7 @@ void GamesysTest<T>::SetUp()
     m_InputContext = dmInput::NewContext(input_params);
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
+    m_PhysicsContext.m_MaxCollisionCount = this -> projectOptions.m_MaxCollisionCount;
     m_PhysicsContext.m_3D = false;
     m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
 
