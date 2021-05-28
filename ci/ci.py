@@ -152,8 +152,8 @@ def install(args):
         ]
         aptfast(" ".join(packages))
 
-        print("Removing gcc11:")
-        call("sudo apt remove libgcc-11-dev gcc-11")
+        print("Removing gcc10-11:")
+        call("sudo apt remove libgcc-10-dev gcc-10 libgcc-11-dev gcc-11")
         print("Installed packages:")
         call("apt list --installed")
         print("libstdc++.so.6 versions:")
