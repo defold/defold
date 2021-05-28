@@ -153,7 +153,7 @@ def install(args):
         aptfast(" ".join(packages))
 
         print("Removing gcc11,g++11,:")
-        call("sudo apt-get autoremove -y libgcc-11-dev gcc-11")
+        call("sudo apt-get autoremove -y libgcc-10-dev gcc-10 libgcc-11-dev gcc-11")
         call("sudo apt-get install --allow-downgrades --no-remove --reinstall -y libstdc++6=8.4.0-1ubuntu1~18.04")
 
         print("Installed packages:")
