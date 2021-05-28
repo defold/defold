@@ -176,7 +176,6 @@ def format_exes(name, platform):
     for suff in suffix:
         exes.append('%s%s%s' % (prefix, name, suff))
     return exes
-    # return '%s%s%s' % (prefix, name, suffix)
 
 def format_lib(name, platform):
     prefix = 'lib'
@@ -510,6 +509,15 @@ class Configuration(object):
                 for path in package_paths:
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
+
+        # For easier usage with the extender server, we want the linux protoc tool available
+        if target_platform in ('x86_64-darwin', 'x86_64-win32', 'x86_64-linux'):
+            protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
+            package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
+            print("Installing %s packages " % 'x86_64-linux')
+            for path in package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(package_paths)
 
         target_packages = platform_packages.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
@@ -923,6 +931,12 @@ class Configuration(object):
             gdc_name = format_exes("gdc", self.target_platform)[0]
             gdc_bin = join(bin_dir, gdc_name)
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
+
+        # upload libdlib_shared on desktop platforms
+        if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']:
+            lib_name = format_lib("dlib_shared", self.target_platform)[0]
+            lib_bin = join(bin_dir, lib_name)
+            self.upload_to_archive(lib_bin, '%s/%s' % (full_archive_path, lib_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
