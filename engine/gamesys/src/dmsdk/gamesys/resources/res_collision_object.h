@@ -41,10 +41,10 @@ namespace dmGameSystem
         dmVMath::Vector3* m_ShapeTranslation;
         dmVMath::Quat* m_ShapeRotation;
         uint32_t m_TileGridShapeCount;
-        uint32_t m_ShapeCount;
+        uint32_t m_ShapeCount : 31;
+        uint32_t m_TileGrid : 1;
 
         dmPhysicsDDF::CollisionObjectDesc* m_DDF;
-        uint32_t m_TileGrid : 1;
     };
 }
 

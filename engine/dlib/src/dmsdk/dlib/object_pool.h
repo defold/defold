@@ -16,8 +16,6 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/array.h>
-//#include <dmsdk/dlib/index_pool.h>
-
 
 /*# SDK Object Pool API documentation
  *

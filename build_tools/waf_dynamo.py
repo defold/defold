@@ -1785,8 +1785,8 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_uastc', 'basis_transcoder']
-    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STATICLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
@@ -1799,7 +1799,7 @@ def detect(conf):
     elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
-        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
     elif platform in ('x86_64-linux',):
         conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):

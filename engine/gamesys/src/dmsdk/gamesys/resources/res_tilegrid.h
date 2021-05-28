@@ -33,10 +33,10 @@ namespace dmGameSystem
         dmArray<dmPhysics::HCollisionShape2D>   m_GridShapes;
         dmRender::HMaterial                     m_Material;
         uint32_t                                m_ColumnCount;
-        uint32_t                                m_RowCount;
+        uint32_t                                m_RowCount : 31;
+        uint32_t                                m_Dirty : 1;
         int32_t                                 m_MinCellX;
         int32_t                                 m_MinCellY;
-        uint32_t                                m_Dirty : 1;
     };
 }
 

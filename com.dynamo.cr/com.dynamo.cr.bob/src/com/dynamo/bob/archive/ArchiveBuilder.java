@@ -10,6 +10,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// Please keep the overview documentation up-to-date:
+// https://github.com/defold/defold/blob/dev/engine/docs/ARCHIVE_FORMAT.md
+
 package com.dynamo.bob.archive;
 
 import java.io.File;
@@ -24,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -50,20 +55,24 @@ public class ArchiveBuilder {
     private static final List<String> ENCRYPTED_EXTS = Arrays.asList("luac", "scriptc", "gui_scriptc", "render_scriptc");
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
+    private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
+    private boolean encrypt = true;
 
-    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder) {
+    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, boolean encrypt) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
+        this.encrypt = encrypt;
     }
 
     private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress, isLiveUpdate);
         if (!contains(e)) {
+            lookup.add(e.relName);
             entries.add(e);
         }
     }
@@ -71,6 +80,7 @@ public class ArchiveBuilder {
     public void add(String fileName, boolean doCompress) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress);
         if (!contains(e)) {
+            lookup.add(e.relName);
             entries.add(e);
         }
     }
@@ -78,12 +88,13 @@ public class ArchiveBuilder {
     public void add(String fileName) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, false);
         if (!contains(e)) {
+            lookup.add(e.relName);
             entries.add(e);
         }
     }
 
     private boolean contains(ArchiveEntry e) {
-        return entries.contains(e);
+        return lookup.contains(e.relName);
     }
 
     public ArchiveEntry getArchiveEntry(int index) {
@@ -199,7 +210,7 @@ public class ArchiveBuilder {
 
             // Encrypt data
             String extension = FilenameUtils.getExtension(entry.fileName);
-            if (ENCRYPTED_EXTS.indexOf(extension) != -1) {
+            if (encrypt && ENCRYPTED_EXTS.indexOf(extension) != -1) {
                 archiveEntryFlags = (byte) (archiveEntryFlags | ArchiveEntry.FLAG_ENCRYPTED);
                 entry.flags = (entry.flags | ArchiveEntry.FLAG_ENCRYPTED);
                 buffer = this.encryptResourceData(buffer);
@@ -244,12 +255,15 @@ public class ArchiveBuilder {
         // Write sorted entries to index file
         int entryOffset = (int) archiveIndex.getFilePointer();
         alignBuffer(archiveIndex, 4);
+
+        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * entries.size());
         for (ArchiveEntry entry : entries) {
-            archiveIndex.writeInt(entry.resourceOffset);
-            archiveIndex.writeInt(entry.size);
-            archiveIndex.writeInt(entry.compressedSize);
-            archiveIndex.writeInt(entry.flags);
+            indexBuffer.putInt(entry.resourceOffset);
+            indexBuffer.putInt(entry.size);
+            indexBuffer.putInt(entry.compressedSize);
+            indexBuffer.putInt(entry.flags);
         }
+        archiveIndex.write(indexBuffer.array());
 
         try {
             // Calc index file MD5 hash
@@ -358,7 +372,7 @@ public class ArchiveBuilder {
 
         int archivedEntries = 0;
         int excludedEntries = 0;
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, true);
         for (File currentInput : inputs) {
             if (currentInput.getName().startsWith("liveupdate.")){
                 excludedEntries++;
@@ -372,7 +386,7 @@ public class ArchiveBuilder {
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
 
-        manifestBuilder.setDependencies(rootNode);
+        manifestBuilder.setRoot(rootNode);
 
         RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
         RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");

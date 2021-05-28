@@ -11,6 +11,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <signal.h>
+#include <dlib/dlib.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
@@ -314,5 +315,31 @@ namespace dmCrash
 
         return 0;
     }
+
+    void LogCallstack(char* extras)
+    {
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+        dmLogError("CALL STACK:\n\n");
+
+        char* p = extras;
+        char* end = extras + strlen(extras);
+        while( p < end )
+        {
+            char* lineend = strchr(p, '\n');
+            if (!lineend)
+                lineend = strchr(p, '\r');
+            if (lineend && lineend < end)
+                *lineend = 0;
+
+            dmLogError("%s\n", p);
+
+            p = lineend+1;
+        }
+
+        dmLogError("\n");
+        dLib::SetDebugMode(is_debug_mode);
+    }
+
 }
 

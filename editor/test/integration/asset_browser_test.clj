@@ -157,7 +157,7 @@
           [file-1 file-2] false
           [fixed-1] false))
       (testing "validate-rename"
-        (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-resource-name parent-path new-name)))
+        (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-resource-name root-dir parent-path new-name)))
           
           "" "fine" true
           "" "game.project" true
@@ -218,7 +218,7 @@
           [fs-builtins-resource] true)) ; this should never appear in the asset browser, but if we decide it should - it will be possible to create dirs in it
 
       (testing "validate-new-folder-name"
-        (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-folder-name parent-path new-name)))
+        (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-folder-name root-dir parent-path new-name)))
           "" "my-folder" true
 
           "" "builtins" false

@@ -1,5 +1,5 @@
 // basisu_enc.h
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,13 +30,26 @@
 
 // This module is really just a huge grab bag of classes and helper functions needed by the encoder.
 
+// If BASISU_USE_HIGH_PRECISION_COLOR_DISTANCE is 1, quality in perceptual mode will be slightly greater, but at a large increase in encoding CPU time.
+#define BASISU_USE_HIGH_PRECISION_COLOR_DISTANCE (0)
+
 namespace basisu
 {
 	extern uint8_t g_hamming_dist[256];
+	extern const uint8_t g_debug_font8x8_basic[127 - 32 + 1][8];
 
 	// Encoder library initialization.
 	// This function MUST be called before encoding anything!
 	void basisu_encoder_init();
+
+	// basisu_kernels_sse.cpp - will be a no-op and g_cpu_supports_sse41 will always be false unless compiled with BASISU_SUPPORT_SSE=1
+	extern void detect_sse41();
+
+#if BASISU_SUPPORT_SSE
+	extern bool g_cpu_supports_sse41;
+#else
+	const bool g_cpu_supports_sse41 = false;
+#endif
 
 	void error_printf(const char *pFmt, ...);
 
@@ -61,6 +74,7 @@ namespace basisu
 		v = v * a + 128; 
 		return (uint8_t)((v + (v >> 8)) >> 8);
 	}
+
 	inline uint64_t read_bits(const uint8_t* pBuf, uint32_t& bit_offset, uint32_t codesize)
 	{
 		assert(codesize <= 64);
@@ -152,6 +166,7 @@ namespace basisu
 			return hash_hsieh(reinterpret_cast<const uint8_t *>(&k), sizeof(k));
 		}
 	};
+
 	class running_stat
 	{
 	public:
@@ -180,8 +195,8 @@ namespace basisu
 				m_new_s = m_old_s + (x - m_old_m) * (x - m_new_m);
 				m_old_m = m_new_m;
 				m_old_s = m_new_s;
-				m_min = std::min(x, m_min);
-				m_max = std::max(x, m_max);
+				m_min = basisu::minimum(x, m_min);
+				m_max = basisu::maximum(x, m_max);
 			}
 		}
 		uint32_t get_num() const
@@ -509,7 +524,7 @@ namespace basisu
 		
 	private:
 		std::vector<std::thread> m_threads;
-        std::vector<std::function<void()> > m_queue;
+		std::vector<std::function<void()> > m_queue;
 		
 		std::mutex m_mutex;
 		std::condition_variable m_has_work;
@@ -727,13 +742,14 @@ namespace basisu
 			return basist::color32(r, g, b, a);
 		}
 
-		static color_rgba comp_min(const color_rgba& a, const color_rgba& b) { return color_rgba(std::min(a[0], b[0]), std::min(a[1], b[1]), std::min(a[2], b[2]), std::min(a[3], b[3])); }
-		static color_rgba comp_max(const color_rgba& a, const color_rgba& b) { return color_rgba(std::max(a[0], b[0]), std::max(a[1], b[1]), std::max(a[2], b[2]), std::max(a[3], b[3])); }
+		static color_rgba comp_min(const color_rgba& a, const color_rgba& b) { return color_rgba(basisu::minimum(a[0], b[0]), basisu::minimum(a[1], b[1]), basisu::minimum(a[2], b[2]), basisu::minimum(a[3], b[3])); }
+		static color_rgba comp_max(const color_rgba& a, const color_rgba& b) { return color_rgba(basisu::maximum(a[0], b[0]), basisu::maximum(a[1], b[1]), basisu::maximum(a[2], b[2]), basisu::maximum(a[3], b[3])); }
 	};
 
-	typedef std::vector<color_rgba> color_rgba_vec;
+	typedef basisu::vector<color_rgba> color_rgba_vec;
 
 	const color_rgba g_black_color(0, 0, 0, 255);
+	const color_rgba g_black_trans_color(0, 0, 0, 0);
 	const color_rgba g_white_color(255, 255, 255, 255);
 
 	inline int color_distance(int r0, int g0, int b0, int r1, int g1, int b1)
@@ -761,6 +777,7 @@ namespace basisu
 	{
 		if (perceptual)
 		{
+#if BASISU_USE_HIGH_PRECISION_COLOR_DISTANCE
 			const float l1 = e1.r * .2126f + e1.g * .715f + e1.b * .0722f;
 			const float l2 = e2.r * .2126f + e2.g * .715f + e2.b * .0722f;
 
@@ -783,6 +800,49 @@ namespace basisu
 			}
 
 			return d;
+#elif 1
+			int dr = e1.r - e2.r;
+			int dg = e1.g - e2.g;
+			int db = e1.b - e2.b;
+
+			int delta_l = dr * 27 + dg * 92 + db * 9;
+			int delta_cr = dr * 128 - delta_l;
+			int delta_cb = db * 128 - delta_l;
+
+			uint32_t id = ((uint32_t)(delta_l * delta_l) >> 7U) +
+				((((uint32_t)(delta_cr * delta_cr) >> 7U) * 26U) >> 7U) +
+				((((uint32_t)(delta_cb * delta_cb) >> 7U) * 3U) >> 7U);
+
+			if (alpha)
+			{
+				int da = (e1.a - e2.a) << 7;
+				id += ((uint32_t)(da * da) >> 7U);
+			}
+
+			return id;
+#else
+			int dr = e1.r - e2.r;
+			int dg = e1.g - e2.g;
+			int db = e1.b - e2.b;
+
+			int64_t delta_l = dr * 27 + dg * 92 + db * 9;
+			int64_t delta_cr = dr * 128 - delta_l;
+			int64_t delta_cb = db * 128 - delta_l;
+
+			int64_t id = ((delta_l * delta_l) * 128) +
+				((delta_cr * delta_cr) * 26) +
+				((delta_cb * delta_cb) * 3);
+
+			if (alpha)
+			{
+				int64_t da = (e1.a - e2.a);
+				id += (da * da) * 128;
+			}
+
+			int d = (id + 8192) >> 14;
+
+			return d;
+#endif
 		}
 		else
 			return color_distance(e1, e2, alpha);
@@ -1102,7 +1162,7 @@ namespace basisu
 			float m_priority;
 		};
 
-		std::vector<entry> m_heap;
+		basisu::vector<entry> m_heap;
 		uint32_t m_size;
 
 		// Push down entry at index
@@ -1134,7 +1194,7 @@ namespace basisu
 	public:
 		typedef TrainingVectorType training_vec_type;
 		typedef std::pair<TrainingVectorType, uint64_t> training_vec_with_weight;
-		typedef std::vector< training_vec_with_weight > array_of_weighted_training_vecs;
+		typedef basisu::vector< training_vec_with_weight > array_of_weighted_training_vecs;
 
 		tree_vector_quant() :
 			m_next_codebook_index(0)
@@ -1154,7 +1214,7 @@ namespace basisu
 		const array_of_weighted_training_vecs &get_training_vecs() const	{ return m_training_vecs; }
 				array_of_weighted_training_vecs &get_training_vecs()			{ return m_training_vecs; }
 
-		void retrieve(std::vector< std::vector<uint32_t> > &codebook) const
+		void retrieve(basisu::vector< basisu::vector<uint32_t> > &codebook) const
 		{
 			for (uint32_t i = 0; i < m_nodes.size(); i++)
 			{
@@ -1167,7 +1227,7 @@ namespace basisu
 			}
 		}
 
-		void retrieve(std::vector<TrainingVectorType> &codebook) const
+		void retrieve(basisu::vector<TrainingVectorType> &codebook) const
 		{
 			for (uint32_t i = 0; i < m_nodes.size(); i++)
 			{
@@ -1180,7 +1240,7 @@ namespace basisu
 			}
 		}
 
-		void retrieve(uint32_t max_clusters, std::vector<uint_vec> &codebook) const
+		void retrieve(uint32_t max_clusters, basisu::vector<uint_vec> &codebook) const
       {
 			uint_vec node_stack;
          node_stack.reserve(512);
@@ -1227,7 +1287,7 @@ namespace basisu
 			priority_queue var_heap;
 			var_heap.init(max_size, 0, m_nodes[0].m_var);
 
-			std::vector<uint32_t> l_children, r_children;
+			basisu::vector<uint32_t> l_children, r_children;
 
 			// Now split the worst nodes
 			l_children.reserve(m_training_vecs.size() + 1);
@@ -1265,7 +1325,7 @@ namespace basisu
 			inline tsvq_node() : m_weight(0), m_origin(cZero), m_left_index(-1), m_right_index(-1), m_codebook_index(-1) { }
 
 			// vecs is erased
-			inline void set(const TrainingVectorType &org, uint64_t weight, float var, std::vector<uint32_t> &vecs) { m_origin = org; m_weight = weight; m_var = var; m_training_vecs.swap(vecs); }
+			inline void set(const TrainingVectorType &org, uint64_t weight, float var, basisu::vector<uint32_t> &vecs) { m_origin = org; m_weight = weight; m_var = var; m_training_vecs.swap(vecs); }
 
 			inline bool is_leaf() const { return m_left_index < 0; }
 
@@ -1273,11 +1333,11 @@ namespace basisu
 			uint64_t m_weight;
 			TrainingVectorType m_origin;
 			int32_t m_left_index, m_right_index;
-			std::vector<uint32_t> m_training_vecs;
+			basisu::vector<uint32_t> m_training_vecs;
 			int m_codebook_index;
 		};
 
-		typedef std::vector<tsvq_node> tsvq_node_vec;
+		typedef basisu::vector<tsvq_node> tsvq_node_vec;
 		tsvq_node_vec m_nodes;
 
 		array_of_weighted_training_vecs m_training_vecs;
@@ -1312,7 +1372,7 @@ namespace basisu
 			return root;
 		}
 
-		bool split_node(uint32_t node_index, priority_queue &var_heap, std::vector<uint32_t> &l_children, std::vector<uint32_t> &r_children)
+		bool split_node(uint32_t node_index, priority_queue &var_heap, basisu::vector<uint32_t> &l_children, basisu::vector<uint32_t> &r_children)
 		{
 			TrainingVectorType l_child_org, r_child_org;
 			uint64_t l_weight = 0, r_weight = 0;
@@ -1477,7 +1537,7 @@ namespace basisu
 				if (largest_axis_index < 0)
 					return false;
 
-				std::vector<float> keys(node.m_training_vecs.size());
+				basisu::vector<float> keys(node.m_training_vecs.size());
 				for (uint32_t i = 0; i < node.m_training_vecs.size(); i++)
 					keys[i] = m_training_vecs[node.m_training_vecs[i]].first[largest_axis_index];
 
@@ -1525,8 +1585,8 @@ namespace basisu
 		}
 
 		bool refine_split(const tsvq_node &node,
-			TrainingVectorType &l_child, uint64_t &l_weight, float &l_var, std::vector<uint32_t> &l_children,
-			TrainingVectorType &r_child, uint64_t &r_weight, float &r_var, std::vector<uint32_t> &r_children) const
+			TrainingVectorType &l_child, uint64_t &l_weight, float &l_var, basisu::vector<uint32_t> &l_children,
+			TrainingVectorType &r_child, uint64_t &r_weight, float &r_var, basisu::vector<uint32_t> &r_children) const
 		{
 			l_children.reserve(node.m_training_vecs.size());
 			r_children.reserve(node.m_training_vecs.size());
@@ -1639,8 +1699,8 @@ namespace basisu
 	template<typename Quantizer>
 	bool generate_hierarchical_codebook_threaded_internal(Quantizer& q,
 		uint32_t max_codebook_size, uint32_t max_parent_codebook_size,
-		std::vector<uint_vec>& codebook,
-		std::vector<uint_vec>& parent_codebook,
+		basisu::vector<uint_vec>& codebook,
+		basisu::vector<uint_vec>& parent_codebook,
 		uint32_t max_threads, bool limit_clusterizers, job_pool *pJob_pool)
 	{
 		codebook.resize(0);
@@ -1666,7 +1726,7 @@ namespace basisu
 		if (!q.generate(max_threads))
 			return false;
 
-		std::vector<uint_vec> initial_codebook;
+		basisu::vector<uint_vec> initial_codebook;
 
 		q.retrieve(initial_codebook);
 
@@ -1685,8 +1745,8 @@ namespace basisu
 		bool success_flags[cMaxThreads];
 		clear_obj(success_flags);
 
-		std::vector<uint_vec> local_clusters[cMaxThreads];
-		std::vector<uint_vec> local_parent_clusters[cMaxThreads];
+		basisu::vector<uint_vec> local_clusters[cMaxThreads];
+		basisu::vector<uint_vec> local_parent_clusters[cMaxThreads];
 
 		for (uint32_t thread_iter = 0; thread_iter < max_threads; thread_iter++)
 		{
@@ -1777,8 +1837,8 @@ namespace basisu
 	template<typename Quantizer>
 	bool generate_hierarchical_codebook_threaded(Quantizer& q,
 		uint32_t max_codebook_size, uint32_t max_parent_codebook_size,
-		std::vector<uint_vec>& codebook,
-		std::vector<uint_vec>& parent_codebook,
+		basisu::vector<uint_vec>& codebook,
+		basisu::vector<uint_vec>& parent_codebook,
 		uint32_t max_threads, job_pool *pJob_pool)
 	{
 		typedef bit_hasher<typename Quantizer::training_vec_type> training_vec_bit_hasher;
@@ -1808,7 +1868,7 @@ namespace basisu
 
 		Quantizer group_quant;
 		typedef typename group_hash::const_iterator group_hash_const_iter;
-		std::vector<group_hash_const_iter> unique_vec_iters;
+		basisu::vector<group_hash_const_iter> unique_vec_iters;
 		unique_vec_iters.reserve(unique_vecs.size());
 
 		for (auto iter = unique_vecs.begin(); iter != unique_vecs.end(); ++iter)
@@ -1823,7 +1883,7 @@ namespace basisu
 
 		debug_printf("Limit clusterizers: %u\n", limit_clusterizers);
 
-		std::vector<uint_vec> group_codebook, group_parent_codebook;
+		basisu::vector<uint_vec> group_codebook, group_parent_codebook;
 		bool status = generate_hierarchical_codebook_threaded_internal(group_quant,
 			max_codebook_size, max_parent_codebook_size,
 			group_codebook,
@@ -1872,7 +1932,7 @@ namespace basisu
 
 	class histogram
 	{
-		std::vector<uint32_t> m_hist;
+		basisu::vector<uint32_t> m_hist;
 
 	public:
 		histogram(uint32_t size = 0) { init(size); }
@@ -2390,6 +2450,14 @@ namespace basisu
 			return *this;
 		}
 
+		image& fill_box_alpha(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const color_rgba& c)
+		{
+			for (uint32_t iy = 0; iy < h; iy++)
+				for (uint32_t ix = 0; ix < w; ix++)
+					set_clipped_alpha(x + ix, y + iy, c);
+			return *this;
+		}
+
 		image &crop_dup_borders(uint32_t w, uint32_t h)
 		{
 			const uint32_t orig_w = m_width, orig_h = m_height;
@@ -2476,6 +2544,13 @@ namespace basisu
 		{
 			if ((static_cast<uint32_t>(x) < m_width) && (static_cast<uint32_t>(y) < m_height))
 				(*this)(x, y) = c;
+			return *this;
+		}
+
+		inline image& set_clipped_alpha(int x, int y, const color_rgba& c)
+		{
+			if ((static_cast<uint32_t>(x) < m_width) && (static_cast<uint32_t>(y) < m_height))
+				(*this)(x, y).m_comps[3] = c.m_comps[3];
 			return *this;
 		}
 
@@ -2603,6 +2678,8 @@ namespace basisu
 			}
 			return *this;
 		}
+
+		void debug_text(uint32_t x_ofs, uint32_t y_ofs, uint32_t x_scale, uint32_t y_scale, const color_rgba &fg, const color_rgba *pBG, bool alpha_only, const char* p, ...);
 				
 	private:
 		uint32_t m_width, m_height, m_pitch;  // all in pixels
@@ -2611,7 +2688,7 @@ namespace basisu
 
 	// Float images
 
-	typedef std::vector<vec4F> vec4F_vec;
+	typedef basisu::vector<vec4F> vec4F_vec;
 
 	class imagef
 	{
@@ -2941,7 +3018,7 @@ namespace basisu
 	template<typename T>
 	class vector2D
 	{
-		typedef std::vector<T> TVec;
+		typedef basisu::vector<T> TVec;
 
 		uint32_t m_width, m_height;
 		TVec m_values;
