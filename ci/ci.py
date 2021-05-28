@@ -151,6 +151,12 @@ def install(args):
             "xvfb"
         ]
         aptfast(" ".join(packages))
+
+        print("Installed packages:")
+        call("apt list --installed")
+        print("libstdc++.so.6 versions:")
+        call("locate libstdc++.so.6")
+        call("strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX")
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
