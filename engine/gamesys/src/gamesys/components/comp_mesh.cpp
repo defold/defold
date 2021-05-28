@@ -469,7 +469,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             ro.m_Textures[i] = textures_component[i] ? textures_component[i] : textures_resource[i];
 
-        dmGameSystem::EnableRenderObjectConstants(&ro, constants);
+        if (constants)
+            dmGameSystem::EnableRenderObjectConstants(&ro, constants);
     }
 
     template<typename T> static void FillAndApply(const Matrix4& matrix, bool is_point, uint8_t component_count, uint32_t count, uint32_t stride, T* raw_data, T* src_stream_data, T* dst_data_ptr)

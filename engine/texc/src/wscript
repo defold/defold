@@ -10,17 +10,27 @@ def build(bld):
     # The static library for the tests
     texc = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = ['.'],
-                            target = 'texc',
-                            uselib = 'BASIS_TRANSCODER DLIB')
+                            target = 'texc')
     texc.find_sources_in_dirs(["."], ['.cpp'])
 
-    # For the pipeline
-    texc_shared = bld.new_task_gen(features = 'cxx cshlib skip_asan',
+    remove_flags = {}
+    remove_flags['CXXFLAGS'] = []
+    remove_flags['LINKFLAGS'] = []
+    extra_encoder_flags = []
+    if bld.env['PLATFORM'] == 'x86_64-darwin':
+        # SSE4.1 was added in 10.12
+        remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
+        remove_flags['LINKFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
+        extra_encoder_flags += ['-mmacosx-version-min=10.12']
+
+    texc_shared = bld.new_task_gen(features = 'cxx cshlib skip_asan remove_flags',
                                    includes = ['.'],
+                                   remove_flags = remove_flags,
                                    target = 'texc_shared',
                                    uselib = 'BASIS_ENCODER DLIB_NOASAN')
     texc_shared.find_sources_in_dirs(["."], ['.cpp'])
-    texc_shared.env.append_unique('CXXFLAGS', '-std=c++11')
+    texc_shared.env.append_unique('CXXFLAGS', extra_encoder_flags)
+    texc_shared.env.append_unique('LINKFLAGS', extra_encoder_flags)
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 

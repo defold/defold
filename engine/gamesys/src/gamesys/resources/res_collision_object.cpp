@@ -125,7 +125,7 @@ range_error:
             {
                 goto range_error;
             }
-            ret = dmPhysics::NewConvexHullShape3D(context, &collision_shape->m_Data[shape->m_Index], shape->m_Count);
+            ret = dmPhysics::NewConvexHullShape3D(context, &collision_shape->m_Data[shape->m_Index], shape->m_Count / 3);
             break;
 
         default:

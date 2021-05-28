@@ -171,8 +171,8 @@ namespace dmGameSystem
     /*# set a tile in a tile map
      * Replace a tile in a tile map with a new tile.
      * The coordinates of the tiles are indexed so that the "first" tile just
-     * above and to the right of origo has coordinates 1,1.
-     * Tiles to the left of and below origo are indexed 0, -1, -2 and so forth.
+     * above and to the right of origin has coordinates 1,1.
+     * Tiles to the left of and below origin are indexed 0, -1, -2 and so forth.
      *
      * <pre>
      * +-------+-------+------+------+
@@ -195,7 +195,7 @@ namespace dmGameSystem
      * @param layer [type:string|hash] name of the layer for the tile
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
-     * @param tile [type:number] index of new tile to set
+     * @param tile [type:number] index of new tile to set. 0 resets the cell
      * @param [h-flipped] [type:boolean] optional if the tile should be horizontally flipped
      * @param [v-flipped] [type:boolean] optional i the tile should be vertically flipped
      * @examples
@@ -302,7 +302,7 @@ namespace dmGameSystem
 
     /*# get a tile from a tile map
      * Get the tile set at the specified position in the tilemap.
-     * The position is identified by the tile index starting at origo
+     * The position is identified by the tile index starting at origin
      * with index 1, 1. (see [ref:tilemap.set_tile()])
      * Which tile map and layer to query is identified by the URL and the
      * layer name parameters.
