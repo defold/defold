@@ -13,21 +13,6 @@
 #ifndef DM_GAMEOBJECT_RES_LUA_H
 #define DM_GAMEOBJECT_RES_LUA_H
 
-#include <stdint.h>
-
-#include <ddf/ddf.h>
-#include "../proto/gameobject/lua_ddf.h"
-
-namespace dmGameObject
-{
-    struct LuaScript
-    {
-        LuaScript(dmLuaDDF::LuaModule* lua_module) :
-            m_LuaModule(lua_module) {}
-
-        dmLuaDDF::LuaModule* m_LuaModule;
-
-    };
-}
+#include <dmsdk/gameobject/res_lua.h>
 
 #endif // DM_GAMEOBJECT_RES_LUA_H

@@ -14,8 +14,6 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
-import com.dynamo.atlas.proto.AtlasProto.Atlas;
-import com.dynamo.atlas.proto.AtlasProto.AtlasImage;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -28,7 +26,9 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.AtlasProto.Atlas;
+import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".texturesetc")
 public class AtlasBuilder extends Builder<Void>  {

@@ -20,7 +20,7 @@
 #include <script/script.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 
 #include "script_sprite.h"

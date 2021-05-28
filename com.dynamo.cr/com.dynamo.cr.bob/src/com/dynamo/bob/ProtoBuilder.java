@@ -44,6 +44,11 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
         return extToMessageClass.get(ext);
     }
 
+    static public boolean supportsType(String ext) {
+        Class<? extends GeneratedMessage> klass = getMessageClassFromExt(ext);
+        return klass != null;
+    }
+
     static public GeneratedMessage.Builder<?> newBuilder(String ext) throws CompileExceptionError {
         Class<? extends GeneratedMessage> klass = getMessageClassFromExt(ext);
         if (klass != null) {

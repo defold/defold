@@ -9,7 +9,7 @@ if sys.platform == "win32":
 else:
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto"
 
-def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/input_ddf.proto'):
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/input/input_ddf.proto'):
     def create(self, node):
         task = self.create_task(name)
         task.set_inputs(node)

@@ -47,7 +47,15 @@ namespace dmRender
         m_BufferMask = 0xff;
         m_ColorBufferMask = 0xf;
         m_ClearBuffer = 0;
-        m_Padding = 0;
+    }
+
+    Constant::Constant() {}
+    Constant::Constant(dmhash_t name_hash, int32_t location)
+        : m_Value(Vectormath::Aos::Vector4(0))
+        , m_NameHash(name_hash)
+        , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        , m_Location(location)
+    {
     }
 
     RenderObject::RenderObject()
@@ -139,7 +147,6 @@ namespace dmRender
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
-
         return context;
     }
 

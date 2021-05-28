@@ -26,8 +26,8 @@
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
-#include "../proto/gamesys_ddf.h"
-#include "../proto/sprite_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
 
 namespace dmGameSystem

@@ -16,7 +16,9 @@
 #include <stdint.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/message.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/hid/hid.h>
 
 /*# Game object functions
  *
@@ -33,8 +35,20 @@ namespace dmMessage
     struct URL;
 }
 
+namespace dmTransform
+{
+    class Transform;
+}
+
 namespace dmGameObject
 {
+    /*#
+     * Value for an invalid instance index, this must be the same as defined in gamesys_ddf.proto for Create#index.
+     * @constant
+     * @name INVALID_INSTANCE_POOL_INDEX
+     */
+    const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
+
     /*#
      * Gameobject instance handle
      * @typedef
@@ -69,6 +83,15 @@ namespace dmGameObject
      * @name HCollection
      */
     typedef struct CollectionHandle* HCollection;
+
+    typedef void* HCollectionDesc;
+
+    /*#
+     * Gameobject prototype handle
+     * @typedef
+     * @name HPrototype
+     */
+    typedef struct Prototype* HPrototype;
 
     /*#
      * Gameobject properties handle
@@ -170,6 +193,23 @@ namespace dmGameObject
         PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10
     };
 
+    /*#
+     * Playback type enum
+     * @enum
+     * @name Playback
+     */
+    enum Playback
+    {
+        PLAYBACK_NONE          = 0,
+        PLAYBACK_ONCE_FORWARD  = 1,
+        PLAYBACK_ONCE_BACKWARD = 2,
+        PLAYBACK_ONCE_PINGPONG = 3,
+        PLAYBACK_LOOP_FORWARD  = 4,
+        PLAYBACK_LOOP_BACKWARD = 5,
+        PLAYBACK_LOOP_PINGPONG = 6,
+        PLAYBACK_COUNT = 7,
+    };
+
     /*# Create result enum
      *
      * Create result enum.
@@ -254,21 +294,163 @@ namespace dmGameObject
      *
      * If the property is externally mutable, m_ValuePtr points to the value and its length is m_ElementCount.
      * m_Variant always reflects the value.
+     * @struct
+     * @name PropertyDesc
+     * @member m_ElementIds [type: dmhash_t] For composite properties (float arrays), these ids name each element
+     * @member m_Variant [type: PropertyVar] Variant holding the value
+     * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
+     * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
      */
     struct PropertyDesc
     {
         PropertyDesc();
-
-        /// For composite properties (float arrays), these ids name each element
         dmhash_t m_ElementIds[4];
-        /// Variant holding the value
         PropertyVar m_Variant;
-        /// Pointer to the value, only set for mutable values. The actual data type is described by the variant.
         float* m_ValuePtr;
-        /// Determines whether we are permitted to write to this property.
         bool m_ReadOnly;
     };
 
+    /*#
+     * Update context
+     * @struct
+     * @name UpdateContext
+     * @member m_DT [type: float] the delta time elapsed since last frame (seconds)
+     */
+    struct UpdateContext
+    {
+        float m_DT;
+    };
+
+    /*#
+     * Container of input related information.
+     * @struct
+     * @name InputAction
+     */
+    struct InputAction
+    {
+        InputAction();
+
+        /// Action id, hashed action name
+        dmhash_t m_ActionId;
+        /// Value of the input [0,1]
+        float m_Value;
+        /// Cursor X coordinate, in virtual screen space
+        float m_X;
+        /// Cursor Y coordinate, in virtual screen space
+        float m_Y;
+        /// Cursor dx since last frame, in virtual screen space
+        float m_DX;
+        /// Cursor dy since last frame, in virtual screen space
+        float m_DY;
+        /// Cursor X coordinate, in screen space
+        float m_ScreenX;
+        /// Cursor Y coordinate, in screen space
+        float m_ScreenY;
+        /// Cursor dx since last frame, in screen space
+        float m_ScreenDX;
+        /// Cursor dy since last frame, in screen space
+        float m_ScreenDY;
+        float m_AccX, m_AccY, m_AccZ;
+        /// Touch data
+        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
+        /// Number of m_Touch
+        int32_t  m_TouchCount;
+        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
+        char     m_Text[dmHID::MAX_CHAR_COUNT];
+        uint32_t m_TextCount;
+        uint32_t m_GamepadIndex;
+        uint8_t  m_IsGamepad : 1;
+        uint8_t  m_GamepadDisconnected : 1;
+        uint8_t  m_GamepadConnected : 1;
+        /// If input has a text payload (can be true even if text count is 0)
+        uint8_t  m_HasText : 1;
+        /// If the input was 0 last update
+        uint8_t  m_Pressed : 1;
+        /// If the input turned from above 0 to 0 this update
+        uint8_t  m_Released : 1;
+        /// If the input was held enough for the value to be repeated this update
+        uint8_t  m_Repeated : 1;
+        /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
+        uint8_t  m_PositionSet : 1;
+        /// If the accelerometer fields (m_AccX, m_AccY, m_AccZ) were set and valid to read
+        uint8_t  m_AccelerationSet : 1;
+        /// If the input action was consumed in an event dispatch
+        uint8_t  m_Consumed : 1;
+    };
+
+    /*#
+     * Input result enum
+     * @enum
+     * @name InputResult
+     * @member INPUT_RESULT_IGNORED = 0
+     * @member INPUT_RESULT_CONSUMED = 1
+     * @member INPUT_RESULT_UNKNOWN_ERROR = -1000
+     */
+    enum InputResult
+    {
+        INPUT_RESULT_IGNORED = 0,
+        INPUT_RESULT_CONSUMED = 1,
+        INPUT_RESULT_UNKNOWN_ERROR = -1000
+    };
+
+    /*#
+     * Retrieve the message socket for the specified collection.
+     * @name GetMessageSocket
+     * @param collection [type: dmGameObject::HCollection] Collection handle
+     * @return socket [type: dmMessage::HSocket] The message socket of the specified collection
+     */
+    dmMessage::HSocket GetMessageSocket(HCollection collection);
+
+    /*#
+     * Retrieve a collection from the specified instance
+     * @name GetCollection
+     * @param instance [type: dmGameObject::HInstance] Game object instance
+     * @return collection [type: dmGameObject::HInstance] The collection the specified instance belongs to
+     */
+    HCollection GetCollection(HInstance instance);
+
+    /*#
+     * Create a new gameobject instance
+     * @note Calling this function during update is not permitted. Use #Spawn instead for deferred creation
+     * @name New
+     * @param collection [type: dmGameObject::HCollection] Gameobject collection
+     * @param prototype_name |type: const char*] Prototype file name. May be 0.
+     * @return instance [type: dmGameObject::HInstance] New gameobject instance. NULL if any error occured
+     */
+    HInstance New(HCollection collection, const char* name);
+
+    /*#
+     * Delete gameobject instance
+     * @name Delete
+     * @param collection [type: dmGameObject::HCollection] Gameobject collection
+     * @param instance [type: dmGameObject::HInstance] Gameobject instance
+     * @param recursive [type: bool] If true, delete child hierarchy recursively in child to parent order (leaf first)
+     */
+    void Delete(HCollection collection, HInstance instance, bool recursive);
+
+    /*#
+     * Construct a hash of an instance id based on the index provided.
+     * @name ConstructInstanceId
+     * @param index [type: uint32_t] The index to base the id off of.
+     * @return id [type: dmhash_t] hash of the instance id constructed.
+     */
+    dmhash_t ConstructInstanceId(uint32_t index);
+
+    /*#
+     * Retrieve an instance index from the index pool for the collection.
+     * @name AcquireInstanceIndex
+     * @param collection [type: dmGameObject::HColleciton] Collection from which to retrieve the instance index.
+     * @return instance [type: uint32_t] index from the index pool of collection.
+     */
+    uint32_t AcquireInstanceIndex(HCollection collection);
+
+    /*#
+     * Assign an index to the instance, only if the instance is not null.
+     * @name AssignInstanceIndex
+     * @param index [type: uint32_t] The index to assign.
+     * @param instance [type: dmGameObject::HInstance] The instance that should be assigned the index.
+     */
+    void AssignInstanceIndex(uint32_t index, HInstance instance);
 
     /*# Get instance identifier
      * Get instance identifier
@@ -277,6 +459,34 @@ namespace dmGameObject
      * @return [type:dmhash_t] Identifier. dmGameObject::UNNAMED_IDENTIFIER if not set.
      */
     dmhash_t GetIdentifier(HInstance instance);
+
+    /*#
+     * Set instance identifier. Must be unique within the collection.
+     * @name SetIdentifier
+     * @param collection [type: dmGameObject::HCollection] Collection
+     * @param instance [type: dmGameObject::HInstance] Instance
+     * @param identifier [type: dmhash_t] Identifier
+     * @return result [type: dmGameObject::Result]  RESULT_OK on success
+     */
+    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
+
+    /*#
+     * Get instance from identifier
+     * @param collection [type: dmGameObject::HCollection] Collection
+     * @param identifier [type: dmhash_t] Identifier
+     * @return instance [type: dmGameObject::HInstance] Instance. NULL if instance isn't found.
+     */
+    HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
+
+    /*#
+     * Get component id from component index.
+     * @name GetComponentId
+     * @param instance [type: dmGameObject::HInstance] Instance
+     * @param component_index [type: uint16_t] Component index
+     * @param component_id [type: dmhash_t* Component id as out-argument
+     * @return result [type: dmGameObject::Result] RESULT_OK if the comopnent was found
+     */
+    Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
     /*# set position
      * Set gameobject instance position
@@ -381,6 +591,70 @@ namespace dmGameObject
      * @return [type:dmGameObject::MAtrix4] World transform matrix.
      */
     const dmVMath::Matrix4& GetWorldMatrix(HInstance instance);
+
+    /*# get world transform
+     * Get game object instance world transform
+     * @name GetWorldTransform
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmTransform::Transform] World transform
+     */
+    dmTransform::Transform GetWorldTransform(HInstance instance);
+
+    /*#
+     * Set whether the instance should be flagged as a bone.
+     * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
+     * Used for animated skeletons.
+     * @name SetBone
+     * @param instance [type: HImstance] Instance
+     * @param bone [type: bool] true if the instance is a bone
+     */
+    void SetBone(HInstance instance, bool bone);
+
+    /*#
+     * Check whether the instance is flagged as a bone.
+     * @name IsBone
+     * @param instance [type: HImstance] Instance
+     * @return result [type: bool] True if flagged as a bone
+     */
+    bool IsBone(HInstance instance);
+
+    /*#
+     * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
+     * The order of the transforms is depth-first.
+     * @name SetBoneTransforms
+     * @param instance [type: HImstance] First Instance of the hierarchy to set
+     * @param component_transform [type: dmTransform::Transform] the transform for component root
+     * @param transforms Array of transforms to set depth-first for the bone instances
+     * @param transform_count Size of the transforms array
+     * @return Number of instances found
+     */
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
+
+    /*#
+     * Recursively delete all instances flagged as bones under the given parent instance.
+     * The order of deletion is depth-first, so that the children are deleted before the parents.
+     * @name DeleteBones
+     * @param parent [type: HInstance] Parent instance of the hierarchy
+     */
+    void DeleteBones(HInstance parent);
+
+    /*
+     * Set parent instance to child
+     * @note Instances must belong to the same collection
+     * @name SetParent
+     * @param child [type: dmGameObject::HInstance] Child instance
+     * @param parent [type: dmGameObject::HInstance] Parent instance. If 0, the child will be detached from its current parent, if any.
+     * @return result [type: dmGameObject::Result] RESULT_OK on success. RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent at maximal level
+     */
+    Result SetParent(HInstance child, HInstance parent);
+
+    /*
+     * Get parent instance if it exists
+     * @name GetParent
+     * @param instance [type: dmGameObject::HInstance] Gameobject instance
+     * @return parent [type: dmGameObject::HInstance] Parent instance. NULL if passed instance is root
+     */
+    HInstance GetParent(HInstance instance);
 
 
     // These functions are used for profiling functionality

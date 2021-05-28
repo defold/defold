@@ -18,9 +18,10 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <gameobject/script.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 #include "../components/comp_collection_factory.h"
 #include "resources/res_collection_factory.h"

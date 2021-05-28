@@ -13,11 +13,13 @@
 #include <assert.h>
 
 #include <dlib/hash.h>
+#include <gameobject/script.h>
 
 #include "gamesys.h"
 #include "../gamesys_private.h" // dmGameObject::CheckGoInstance
 #include "../components/comp_spine_model.h"
 #include "../resources/res_spine_model.h"
+#include "../resources/res_skeleton.h"
 
 extern "C"
 {
