@@ -927,16 +927,10 @@ class Configuration(object):
             self.upload_to_archive(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
 
         # upload gdc tool on desktop platforms
-        if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']:
+        if self.is_desktop_target():
             gdc_name = format_exes("gdc", self.target_platform)[0]
             gdc_bin = join(bin_dir, gdc_name)
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
-
-        # upload libdlib_shared on desktop platforms
-        if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']:
-            lib_name = format_lib("dlib_shared", self.target_platform)[0]
-            lib_bin = join(bin_dir, lib_name)
-            self.upload_to_archive(lib_bin, '%s/%s' % (full_archive_path, lib_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -988,7 +982,7 @@ class Configuration(object):
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
-            libs = ['texc', 'particle']
+            libs = ['dlib', 'texc', 'particle']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
