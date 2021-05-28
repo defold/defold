@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,7 +12,8 @@
 
 #include "res_spine_model.h"
 
-#include <dlib/log.h>
+#include <dmsdk/dlib/log.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
@@ -98,4 +99,19 @@ namespace dmGameSystem
         model_resource->m_Model = ddf;
         return AcquireResources(params.m_Factory, model_resource, params.m_Filename);
     }
+
+    static dmResource::Result RegisterResourceType_SpineModel(dmResource::ResourceTypeRegisterContext& ctx)
+    {
+        return dmResource::RegisterType(ctx.m_Factory,
+                                           ctx.m_Name,
+                                           0, // context
+                                           ResSpineModelPreload,
+                                           ResSpineModelCreate,
+                                           0, // post create
+                                           ResSpineModelDestroy,
+                                           ResSpineModelRecreate);
+
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeSpineModel, "spinemodelc", dmGameSystem::RegisterResourceType_SpineModel, 0);

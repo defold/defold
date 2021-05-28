@@ -39,7 +39,7 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-import com.dynamo.sound.proto.Sound.SoundDesc;
+import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
@@ -209,7 +209,6 @@ public class GameObjectBuilder extends Builder<Void> {
         {".sprite", ".spritec"},
         {".tilegrid", ".tilemapc"},
         {".tilemap", ".tilemapc"},
-        {".spinemodel", ".spinemodelc"},
     };
 
     private PrototypeDesc.Builder transformGo(IResource resource,
@@ -223,6 +222,12 @@ public class GameObjectBuilder extends Builder<Void> {
             for (String[] fromTo : extensionMapping) {
                 c = BuilderUtil.replaceExt(c, fromTo[0], fromTo[1]);
             }
+
+            // Use the BuilderParams from each builder to map the input ext to the output ext
+            String inExt = "." + FilenameUtils.getExtension(c);
+            String outExt = project.replaceExt(inExt);
+            c = BuilderUtil.replaceExt(c, inExt, outExt);
+
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
             for (PropertyDesc desc : cd.getPropertiesList()) {
                 if (!PropertiesUtil.transformPropertyDesc(project, desc, properties, propertyResources)) {

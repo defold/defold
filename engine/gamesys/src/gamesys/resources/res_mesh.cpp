@@ -16,6 +16,7 @@
 #include <dlib/path.h>
 #include <dlib/dstrings.h>
 #include <dlib/memory.h>
+#include <dlib/buffer.h>
 
 #include "gamesys.h"
 

@@ -28,10 +28,12 @@
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"
-#include "comp_spine_model.h"
 #include "comp_private.h"
 
 #include "../resources/res_gui.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_animationset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 

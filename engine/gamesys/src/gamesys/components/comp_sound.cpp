@@ -21,7 +21,7 @@
 #include <dlib/object_pool.h>
 #include <sound/sound.h>
 
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"

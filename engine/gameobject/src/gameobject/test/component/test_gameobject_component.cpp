@@ -22,6 +22,7 @@
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../script.h"
 
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
 

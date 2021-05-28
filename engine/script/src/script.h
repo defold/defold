@@ -38,7 +38,6 @@ namespace dmLuaDDF
 
 namespace dmScript
 {
-    typedef struct Context* HContext;
     typedef struct ScriptWorld* HScriptWorld;
     typedef struct ScriptExtension* HScriptExtension;
 
@@ -280,49 +279,11 @@ namespace dmScript
     void PushTable(lua_State*L, const char* data, uint32_t data_size);
 
     /**
-     * Check if the value at #index is a hash
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if the value at #index is a hash
-     */
-    bool IsHash(lua_State *L, int index);
-
-    /**
-     * Push a hash value onto the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param hash Hash value to push
-     */
-    void PushHash(lua_State* L, dmhash_t hash);
-
-    /**
      * Removes a hash value from the currently known hashes.
      * @param L Lua state
      * @param hash Hash value to release
      */
     void ReleaseHash(lua_State* L, dmhash_t hash);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a hash.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The hash value
-     */
-    dmhash_t CheckHash(lua_State* L, int index);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a hash or string.
-     * If it is a string, it gets hashed on the fly
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The hash value
-     */
-    dmhash_t CheckHashOrString(lua_State* L, int index);
-
-    /**
-     * Gets as good as possible printable string from a hash or string
-     * @return Always a null terminated string. "<unknown>" if the hash could not be looked up.
-    */
-    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
     /**
      * Check if the value at #index is a FloatVector
@@ -544,16 +505,6 @@ namespace dmScript
      *  [-1] value
     */
     void GetScriptWorldContextValue(HScriptWorld script_world);
-
-    dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
-
-    /**
-     * Attempts to convert the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
-     * @param L Lua state
-     * @param out_url URL to be written to
-     * @param out_default_url default URL used in the resolve, can be 0x0 (not used)
-     */
-    int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* out_default_url);
 
     /**
      * Retrieve lua state from the context

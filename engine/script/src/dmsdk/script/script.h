@@ -16,6 +16,9 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/message.h>
+
 extern "C"
 {
 #include <dmsdk/lua/lua.h>
@@ -45,6 +48,13 @@ namespace dmScript
      * @namespace dmScript
      * @path engine/dlib/src/dmsdk/script/script.h
      */
+
+    /*#
+     * The script context
+     * @typedef
+     * @name HContext
+     */
+    typedef struct Context* HContext;
 
     /**
     * LuaStackCheck struct. Internal
@@ -374,6 +384,53 @@ namespace dmScript
      */
     Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
 
+    /*#
+     * Check if the value at #index is a hash
+     * @name dmScript::IsHash
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return true if the value at #index is a hash
+     */
+    bool IsHash(lua_State *L, int index);
+
+    /*#
+     * Push a hash value onto the supplied lua state, will increase the stack by 1.
+     * @name dmScript::PushHash
+     * @param L [type:lua_State*] Lua state
+     * @param hash [tyoe: dmhash_t] Hash value to push
+     */
+    void PushHash(lua_State* L, dmhash_t hash);
+
+    /*# get hash value
+     * Check if the value in the supplied index on the lua stack is a hash.
+     * @name dmScript::CheckHash
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return The hash value
+     */
+    dmhash_t CheckHash(lua_State* L, int index);
+
+    /*# get hash from hash or string
+     * Check if the value in the supplied index on the lua stack is a hash or string.
+     * If it is a string, it gets hashed on the fly
+     * @name dmScript::CheckHashOrString
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return The hash value
+     */
+    dmhash_t CheckHashOrString(lua_State* L, int index);
+
+    /*#
+     * Gets as good as possible printable string from a hash or string
+     * @name GetStringFromHashOrString
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @param buffer [type: char*] buffer receiving the value
+     * @param buffer_length [type: uint32_t] the buffer length
+     * @return string [type: const char*] Returns buffer. If buffer is non null, it will always contain a null terminated string. "<unknown>" if the hash could not be looked up.
+    */
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
+
     /*# convert a dmJson::Document to a Lua table
      * Convert a dmJson::Document document to Lua table.
      *
@@ -501,6 +558,51 @@ namespace dmScript
      * @return error code from pcall
      */
     int PCall(lua_State* L, int nargs, int nresult);
+
+
+    /*#
+     * Creates a reference to the value at top of stack, the ref is done in the
+     * current instances context table.
+     *
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     *
+     * @name RefInInstance
+     * @param L Lua state
+     * @return lua ref to value or LUA_NOREF
+     *
+     * Lua stack on entry
+     *  [-1] value
+     *
+     * Lua stack on exit
+    */
+    int RefInInstance(lua_State* L);
+
+    /*#
+     * Resolves the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
+     * It also gets the current (caller) url if the a pointer is passed to `out_default_url`
+     * @param L [type:lua_State*] Lua state
+     * @param out_url [type:dmMessage::URL*] where to store the result
+     * @param out_default_url [type:dmMessage::URL*] default URL used in the resolve, can be 0x0 (not used)
+     * @return result [type:int] 0 if successful. Throws Lua error on failure
+     */
+    int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* out_default_url);
+
+    /*#
+     * Resolves a url in string format into a dmMessage::URL struct.
+     *
+     * Special handling for:
+     * - "." returns the default socket + path
+     * - "#" returns default socket + path + fragment
+     *
+     * @name RefInInstance
+     * @param L [type:lua_State*] Lua state
+     * @param url [type:const char*] url
+     * @param out_url [type:dmMessage::URL*] where to store the result
+     * @param default_url [type:dmMessage::URL*] default url
+     * @return result [type:dmMessage::Result] dmMessage::RESULT_OK if the conversion succeeded
+    */
+    dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 }
 
 #endif // DMSDK_SCRIPT_SCRIPT_H

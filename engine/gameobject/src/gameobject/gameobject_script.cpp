@@ -430,7 +430,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** world)
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** out_world)
     {
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -458,8 +458,9 @@ namespace dmGameObject
                 return; // Actually never reached
             }
 
-            if (world != 0) {
-                *world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
+            void* world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
+            if (out_world != 0) {
+                *out_world = world;
             }
 
             if (component_ext != 0x0)
@@ -477,12 +478,17 @@ namespace dmGameObject
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
                     return; // Actually never reached
                 }
+
+                // If there is a GetComponent function, then use it to translate from user_data to the correct struct
+                if (type->m_GetFunction) {
+                    ComponentGetParams params = {world, user_data};
+                    *user_data = (uintptr_t)type->m_GetFunction(params);
+                }
             }
             if (url)
             {
                 *url = receiver;
             }
-
         }
         else
         {
@@ -491,37 +497,11 @@ namespace dmGameObject
         }
     }
 
-    static Collection* GetCollectionFromURL(const dmMessage::URL& url)
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url)
     {
-        Collection** pcollection = g_Register->m_SocketToCollection.Get(url.m_Socket);
-        return pcollection ? *pcollection : 0;
-    }
-
-    void* GetComponentFromURL(const dmMessage::URL& url)
-    {
-        Collection* collection = GetCollectionFromURL(url);
-        if (!collection) {
-            return 0;
-        }
-
-        Instance** instance = collection->m_IDToInstance.Get(url.m_Path);
-        if (!instance) {
-            return 0;
-        }
-
-        uintptr_t user_data;
-        uint32_t type_index;
-        // For loop over all components in the instance
-        dmGameObject::GetComponentUserData(*instance, url.m_Fragment, &type_index, &user_data);
-
-        void* world = collection->m_ComponentWorlds[type_index];
-
-        ComponentType* type = &g_Register->m_ComponentTypes[type_index];
-        if (!type->m_GetFunction) {
-            return 0;
-        }
-        ComponentGetParams params = {world, &user_data};
-        return type->m_GetFunction(params);
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        GetComponentUserDataFromLua(L, index, instance->m_Collection->m_HCollection, component_type, (uintptr_t*)component, url, out_world);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {

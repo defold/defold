@@ -59,8 +59,8 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 import com.dynamo.rig.proto.Rig.RigScene;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 
 @ProtoParams(srcClass = SpineSceneDesc.class, messageClass = RigScene.class)
