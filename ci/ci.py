@@ -155,9 +155,6 @@ def install(args):
         print("Removing gcc9,10,11:")
         call("sudo apt-get autoremove -y libgcc-9-dev gcc-9 libgcc-10-dev gcc-10 libgcc-11-dev gcc-11")
         call("sudo apt-get install --allow-downgrades --no-remove --reinstall -y libstdc++6=8.4.0-1ubuntu1~18.04")
-
-        print("Installed packages:")
-        call("apt list --installed")
         print("libstdc++.so.6 versions:")
         call("locate libstdc++.so.6")
         call("strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX")
