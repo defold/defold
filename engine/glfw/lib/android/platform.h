@@ -256,7 +256,7 @@ GLFWGLOBAL struct {
 // Joystick information & state
 //------------------------------------------------------------------------
 #define DEVICE_NAME_LENGTH 64
-#define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 19
+#define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 20
 #define GLFW_ANDROID_GAMEPAD_NUMAXIS 4
 
 GLFWGLOBAL struct {

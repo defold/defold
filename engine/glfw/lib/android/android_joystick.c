@@ -143,6 +143,7 @@ static int glfwAndroidKeycodeToJoystickButton(int keyCode)
         case AKEYCODE_BUTTON_SELECT:    return 16;
         case AKEYCODE_BUTTON_THUMBL:    return 17;
         case AKEYCODE_BUTTON_THUMBR:    return 18;
+        case AKEYCODE_BUTTON_MODE:      return 19;
         default: return -1;
     }
 }
