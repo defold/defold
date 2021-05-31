@@ -24,11 +24,6 @@ namespace dmSSLSocket
     typedef struct SSLSocket* Socket;
 }
 
-namespace dmDNS
-{
-    typedef struct Channel* HChannel;
-}
-
 /*# SDK Connection pool API documentation
  *
  * Connection pool
@@ -114,14 +109,28 @@ namespace dmConnectionPool
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param host [type:const char*] host
      * @param port [type:uint16_t] port
-     * @param dns_channel [type:dmDNS::HChannel] The DNS channel that will be used for translating the host to an address
      * @param ssl [type:bool] true for ssl connection
      * @param timeout [type:int] The timeout (micro seconds) for the connection and ssl handshake
      * @param connection [type:dmConnectionPool::HConnection*] connection (out)
      * @param sock_res [type:dmSocket::Result*] socket-result code on failure
      * @return dmConnectionPool::RESULT_OK on success
      */
-    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res);
+    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res);
+
+    /*#
+     * Connection to a host/port
+     * @name dmConnectionPool::Dial
+     * @param pool [type:dmConnectionPool::HPool] pool
+     * @param host [type:const char*] host
+     * @param port [type:uint16_t] port
+     * @param ssl [type:bool] true for ssl connection
+     * @param timeout [type:int] The timeout (micro seconds) for the connection and ssl handshake
+     * @param cancelflag [type:int*] If set and not null, will make the request early out
+     * @param connection [type:dmConnectionPool::HConnection*] connection (out)
+     * @param sock_res [type:dmSocket::Result*] socket-result code on failure
+     * @return dmConnectionPool::RESULT_OK on success
+     */
+    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, int* cancelflag, HConnection* connection, dmSocket::Result* sock_res);
 
     /*#
      * Return connection to pool

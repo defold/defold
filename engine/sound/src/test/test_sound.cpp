@@ -87,10 +87,12 @@ struct TestParams
     uint32_t    m_BufferFrameCount;
     float       m_Pan;
     float       m_Speed;
+    uint8_t     m_Loopcount;
 
     TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
     : m_Pan(0.0f)
     , m_Speed(1.0f)
+    , m_Loopcount(0)
     {
         m_DeviceName = device_name;
         m_Sound = sound;
@@ -116,6 +118,22 @@ struct TestParams
         m_MixRate = mix_rate;
         m_BufferFrameCount = buffer_frame_count;
     }
+    
+    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate,
+                uint32_t frame_count, uint32_t buffer_frame_count, float pan, float speed, uint32_t loopcount)
+    : m_Pan(pan)
+    , m_Speed(speed)
+    , m_Loopcount(loopcount)
+    {
+        m_DeviceName = device_name;
+        m_Sound = sound;
+        m_SoundSize = sound_size;
+        m_Type = type;
+        m_FrameCount = frame_count;
+        m_ToneRate = tone_rate;
+        m_MixRate = mix_rate;
+        m_BufferFrameCount = buffer_frame_count;
+    }    
 
 };
 
@@ -1030,6 +1048,8 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
+    r = dmSound::SetLooping(instance, 1, params.m_Loopcount);
+        
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(params.m_Speed,0,0,0));
@@ -1115,7 +1135,9 @@ const TestParams params_test_play_speed_test[] = {
             88200,
             2048,
             0.0f,
-            2.0f),
+            2.0f,
+            0       // loopcount. Increase it to stress the mix algorithm when testing by listening.
+    ), 
     TestParams("default",
             MONO_TONE_440_32000_64000_WAV,
             MONO_TONE_440_32000_64000_WAV_SIZE,
@@ -1125,7 +1147,9 @@ const TestParams params_test_play_speed_test[] = {
             64000,
             2048,
             0.0f,
-            2.0f),
+            2.0f,
+            0
+    ),
     TestParams("default",
             STEREO_TONE_440_32000_64000_WAV,
             STEREO_TONE_440_32000_64000_WAV_SIZE,
@@ -1135,7 +1159,9 @@ const TestParams params_test_play_speed_test[] = {
             64000,
             2048,
             0.0f,
-            2.0f),
+            2.0f,
+            0
+    ),
     TestParams("default",
             MONO_TONE_440_44100_88200_WAV,
             MONO_TONE_440_44100_88200_WAV_SIZE,
@@ -1145,7 +1171,9 @@ const TestParams params_test_play_speed_test[] = {
             88200,
             2048,
             0.0f,
-            0.5f),
+            0.5f,
+            0
+    ),
     TestParams("default",
             STEREO_TONE_440_32000_64000_WAV,
             STEREO_TONE_440_32000_64000_WAV_SIZE,
@@ -1155,7 +1183,21 @@ const TestParams params_test_play_speed_test[] = {
             64000,
             2048,
             0.0f,
-            0.5f),
+            0.5f,
+            0
+    ),
+    TestParams("default",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048,
+            0.0f,
+            2.159f,     // float speed - this would result in crackling sounds in #5613
+            5           // loop 5 times
+    ),        
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 #endif

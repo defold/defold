@@ -105,13 +105,13 @@ namespace dmLiveUpdate
     {
         dmResource::Manifest* manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
 
-        uint32_t resourceCount = MissingResources(manifest, urlHash, NULL, 0);
+        uint32_t resourceCount = MissingResources(manifest, urlHash, NULL, 0); // First, get the number of dependants
         uint32_t uniqueCount = 0;
         if (resourceCount > 0)
         {
             uint8_t** resources = (uint8_t**) malloc(resourceCount * sizeof(uint8_t*));
             *buffer = (char**) malloc(resourceCount * sizeof(char**));
-            MissingResources(manifest, urlHash, resources, resourceCount);
+            resourceCount = MissingResources(manifest, urlHash, resources, resourceCount);
 
             dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;

@@ -13,6 +13,7 @@
 package com.dynamo.bob;
 
 import java.lang.ClassLoader;
+import java.io.File;
 import java.util.Set;
 
 /**
@@ -29,4 +30,6 @@ public interface IClassScanner {
     public Set<String> scan(String pkg);
 
     public ClassLoader getClassLoader();
+
+    public void addUrl(File file);
 }

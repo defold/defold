@@ -35,7 +35,6 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-        source_dirs.append('dlib/android')
     elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin')
     elif 'win32' in bld.env.PLATFORM:
@@ -75,7 +74,6 @@ def build(bld):
 
     lib_features = {
                     'CONDITIONVARIABLE':    os.path.join('dlib', 'condition_variable.cpp'),
-                    'DNS':                  os.path.join('dlib', 'dns.cpp'),
                     'MUTEX':                os.path.join('dlib', 'mutex.cpp'),
                     'SYS':                  os.path.join('dlib', 'sys.cpp'),
                     'TIME':                 os.path.join('dlib', 'time.cpp'),
@@ -98,10 +96,6 @@ def build(bld):
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
-
-    # This "null" version uses dmSocket::GetHostByName()
-    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'arm64-nx64']:
-        lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
 
     if is_platform_private(bld.env.PLATFORM):
         # Replace with any specialized sources that the private platform uses
@@ -196,19 +190,31 @@ def build(bld):
     opt_level = getattr(Options.options, 'opt_level', '')
     FLAG_ST = '/O%s' if 'win' == bld.env.BUILD_PLATFORM else '-O%s'
     remove_flags = {}
+    remove_flags['CXXFLAGS'] = []
+    new_opt_level = False
     if opt_level in ['3','2']:
-        remove_flags['CXXFLAGS'] = []
         remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        new_opt_level = True
+
+    extra_encoder_flags = []
+    if bld.env['PLATFORM'] == 'x86_64-darwin':
+        # SSE4.1 was added in 10.12
+        remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
+        extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
     # For the texture compiler
+    basis_flags = ['BASISD_SUPPORT_KTX2_ZSTD=0'] #+ ['BASISU_FORCE_DEVEL_MESSAGES=1']
+    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-darwin'):
+        basis_flags += ['BASISU_SUPPORT_SSE=1']
     basis_encoder = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan remove_flags',
                             includes = ['basis'],
                             target = 'basis_encoder',
                             remove_flags = remove_flags,
-                            defines = ['DM_BASIS_ENCODER'])
+                            defines = ['DM_BASIS_ENCODER'] + basis_flags)
     basis_encoder.find_sources_in_dirs(["basis/encoder", "basis/transcoder"], ['.cpp'])
-    basis_encoder.env.append_unique('CXXFLAGS', ['-std=c++11'])
-    if remove_flags:
+    basis_encoder.env.append_unique('CXXFLAGS', extra_encoder_flags)
+
+    if new_opt_level:
         basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
 
     # For the runtime
@@ -216,11 +222,10 @@ def build(bld):
                             includes = ['basis'],
                             target = 'basis_transcoder',
                             remove_flags = remove_flags,
-                            defines = ['DM_BASIS_TRANSCODER_UASTC'],
+                            defines = ['DM_BASIS_TRANSCODER_UASTC', 'BASISD_SUPPORT_KTX2=0'] + basis_flags,
                             uselib = 'DLIB')
     basis_transcoder.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])
-    basis_transcoder.env.append_unique('CXXFLAGS', ['-std=c++11'])
-    if remove_flags:
+    if new_opt_level:
         basis_transcoder.env.append_unique('CXXFLAGS', ['-Os'])
 
     # Java
@@ -257,7 +262,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_as('${PREFIX}/include/dlib/endian.h', _get_native_file(build_util.get_target_os(), 'endian.h'))

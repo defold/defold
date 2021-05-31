@@ -16,7 +16,6 @@
 #include <stdint.h>
 #include <dlib/socket.h>
 #include <dlib/http_cache.h>
-#include <dlib/dns.h>
 #include <dmsdk/dlib/http_client.h>
 
 namespace dmHttpClient
@@ -141,9 +140,6 @@ namespace dmHttpClient
         /// HTTP-cache. Default value 0. Set to a http-cache to enable http-caching
         dmHttpCache::HCache m_HttpCache;
 
-        /// DNS-Channel.
-        dmDNS::HChannel m_DNSChannel;
-
         /// Maximum number of retries for GET-request.
         int m_MaxGetRetries;
 
@@ -187,9 +183,10 @@ namespace dmHttpClient
      * @param hostname Hostname
      * @param port Port number
      * @param secure TLS/SSL or not
+     * @param if non null and set, aborts the call as soon as possible
      * @return HTTP-client handle on success. 0 on failure.
      */
-    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure);
+    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure, int* cancelflag);
 
     /**
      * Set HTTP client option
@@ -263,13 +260,6 @@ namespace dmHttpClient
      * @return dmHttpCache::HCache handle
      */
     dmHttpCache::HCache GetHttpCache(HClient client);
-
-    /**
-     * Get the DNS channel associated with this client
-     * @param client client
-     * @return dmDNS::HChannel handle
-     */
-    dmDNS::HChannel GetDNSChannel(HClient client);
 
     /**
      * Delete HTTP client

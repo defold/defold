@@ -53,7 +53,7 @@ namespace dmGameSystem
         dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
         SpriteResource*             m_Resource;
-        CompRenderConstants         m_RenderConstants;
+        HComponentRenderConstants   m_RenderConstants;
         TextureSetResource*         m_TextureSet;
         dmRender::HMaterial         m_Material;
         /// Currently playing animation
@@ -133,7 +133,7 @@ namespace dmGameSystem
         }
 
         if (sprite_world->m_VertexBuffer == 0)
-            sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
         {
             uint32_t memsize = sizeof(SpriteVertex) * num_vertices_per_sprite * max_sprite_count;
@@ -163,7 +163,7 @@ namespace dmGameSystem
                 sprite_world->m_IndexBuffer = 0;
             }
 
-            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         }
 
         sprite_world->m_ReallocBuffers = 0;
@@ -326,7 +326,9 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        if (component->m_RenderConstants) {
+            dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
+        }
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
@@ -348,7 +350,8 @@ namespace dmGameSystem
         component->m_Rotation = params.m_Rotation;
         SpriteResource* resource = (SpriteResource*)params.m_Resource;
         component->m_Resource = resource;
-        dmMessage::ResetURL(component->m_Listener);
+        component->m_RenderConstants = 0;
+        dmMessage::ResetURL(&component->m_Listener);
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
@@ -379,6 +382,10 @@ namespace dmGameSystem
         }
         if (component->m_TextureSet) {
             dmResource::Release(factory, component->m_TextureSet);
+        }
+        if (component->m_RenderConstants)
+        {
+            dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
         }
         sprite_world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
@@ -590,12 +597,8 @@ namespace dmGameSystem
         ro.m_VertexStart = index_offset;
         ro.m_VertexCount = num_elements;
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
-        uint32_t size = first->m_RenderConstants.m_ConstantCount;
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            const dmRender::Constant& c = constants[i];
-            dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+        if (first->m_RenderConstants) {
+            dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
         }
 
         dmGameSystemDDF::SpriteDesc::BlendMode blend_mode = resource->m_DDF->m_BlendMode;
@@ -756,7 +759,7 @@ namespace dmGameSystem
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
                             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                            dmMessage::ResetURL(component->m_Listener);
+                            dmMessage::ResetURL(&component->m_Listener);
                             if (result != dmMessage::RESULT_OK)
                             {
                                 dmLogError("Could not send animation_done to listener.");
@@ -769,7 +772,7 @@ namespace dmGameSystem
                     }
                     else
                     {
-                        dmMessage::ResetURL(component->m_Listener);
+                        dmMessage::ResetURL(&component->m_Listener);
                     }
                 }
             }
@@ -857,16 +860,25 @@ namespace dmGameSystem
                 world->m_RenderObjects.SetSize(0);
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData),
-                                                world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                {
+                    uint32_t vertex_size = sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData);
+                    if (vertex_size)
+                    {
+                        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_size,
+                                                        world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
-                DM_COUNTER("SpriteVertexBuffer", (world->m_VertexBufferWritePtr - world->m_VertexBufferData) * sizeof(SpriteVertex));
+                        DM_COUNTER("SpriteVertexBuffer", vertex_size);
+                    }
+                }
 
                 if (world->m_UseGeometries)
                 {
                     uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
-                    dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                    DM_COUNTER("SpriteIndexBuffer", index_size);
+                    if (index_size)
+                    {
+                        dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                        DM_COUNTER("SpriteIndexBuffer", index_size);
+                    }
                 }
                 break;
             default:
@@ -910,7 +922,7 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
+            if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
             {
                 ReHash(&component);
             }
@@ -933,13 +945,17 @@ namespace dmGameSystem
     static bool CompSpriteGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
+        if (!component->m_RenderConstants)
+            return false;
+        return GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompSpriteSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        if (!component->m_RenderConstants)
+            component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -1034,7 +1050,7 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
+                if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;
                 }

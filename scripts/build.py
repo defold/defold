@@ -66,19 +66,19 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 c-ares-1.17.1 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1".split()
-PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1".split()
-PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.17.1 MoltenVK-1.0.41".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
 PACKAGES_DARWIN="protobuf-2.3.0 webp-0.5.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.17.1 MoltenVK-1.0.41".split()
-PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 c-ares-1.17.1 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.17.1 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.17.1 vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.17.1".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.17.1".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41".split()
+PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
+PACKAGES_LINUX_64="webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -111,7 +111,7 @@ SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
-EXTERNAL_LIBS = "bullet3d cares".split()
+EXTERNAL_LIBS = "bullet3d".split()
 
 def is_64bit_machine():
     return platform.machine().endswith('64')
@@ -522,7 +522,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python eggs")
-        run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pip'])
+        run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pip==19.3.1'])
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
@@ -734,16 +734,18 @@ class Configuration(object):
 
             # Includes
             includes = []
-            cwd = os.getcwd()
-            os.chdir(self.dynamo_home)
-            for root, dirs, files in os.walk("sdk/include"):
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "sdk/include")):
                 for file in files:
                     if file.endswith('.h'):
                         includes.append(os.path.join(root, file))
 
-            os.chdir(cwd)
-            includes = [os.path.join(self.dynamo_home, x) for x in includes]
-            self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
+            # proto _ddf.h
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
+                for file in files:
+                    if file.endswith('.h') and 'ddf' in file:
+                        includes.append(os.path.join(root, file))
+
+            self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
             # Configs
             configs = ['extender/build.yml']
@@ -752,15 +754,11 @@ class Configuration(object):
 
             # Variants
             variants = []
-            cwd = os.getcwd()
-            os.chdir(self.dynamo_home)
-            for root, dirs, files in os.walk("extender/variants"):
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "extender/variants")):
                 for file in files:
                     if file.endswith('.appmanifest'):
                         variants.append(os.path.join(root, file))
 
-            os.chdir(cwd)
-            variants = [os.path.join(self.dynamo_home, x) for x in variants]
             self._add_files_to_zip(zip, variants, self.dynamo_home, topfolder)
 
             def _findlibs(libdir):
@@ -827,18 +825,34 @@ class Configuration(object):
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # .proto files
-            protodir = os.path.join(self.dynamo_home, 'share/proto/')
-            paths = _findfiles(protodir, ('.proto',))
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            for d in ['share/proto/', 'ext/include/google/protobuf']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.proto',))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            # protoc
+            # pipeline tools
             if platform in ('x86_64-darwin','x86_64-linux','x86_64-win32'): # needed for the linux build server
+                # protoc
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
                 ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
                 ddfc_cxx = os.path.join(self.dynamo_home, 'bin/ddfc_cxx')
                 ddfc_cxx_bat = os.path.join(self.dynamo_home, 'bin/ddfc_cxx.bat')
                 ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
-                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat], self.dynamo_home, topfolder)
+
+                # protoc plugin (ddfc.py) needs our dlib_shared too
+                plugin_pb2 = os.path.join(self.dynamo_home, 'lib/python/plugin_pb2.py')
+                ddf_init = os.path.join(self.dynamo_home, 'lib/python/ddf/__init__.py')
+                ddf_extensions_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_extensions_pb2.py')
+                ddf_math_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_math_pb2.py')
+                dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
+                protobuf_egg = os.path.join(self.dynamo_home, 'ext/lib/python/protobuf-2.3.0-py2.5.egg')
+
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init, protobuf_egg], self.dynamo_home, topfolder)
+
+                # bob pipeline classes
+                bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
+                self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
+
 
             # For logging, print all paths in zip:
             for x in zip.namelist():

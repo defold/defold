@@ -517,9 +517,9 @@ namespace dmGameSystem
         uintptr_t descriptor = (uintptr_t)DDFMessage::m_DDFDescriptor;
         uint32_t data_size = sizeof(DDFMessage);
         dmMessage::URL sender;
-        dmMessage::ResetURL(sender);
+        dmMessage::ResetURL(&sender);
         dmMessage::URL receiver;
-        dmMessage::ResetURL(receiver);
+        dmMessage::ResetURL(&receiver);
         receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
         receiver.m_Path = instance_id;
         // sender is the same as receiver, but with the specific collision object as fragment
@@ -781,7 +781,7 @@ namespace dmGameSystem
             if (descriptor == dmPhysicsDDF::RequestRayCast::m_DDFDescriptor)
             {
                 dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData1;
                 uint16_t component_index;
                 dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
                 if (go_result != dmGameObject::RESULT_OK)
