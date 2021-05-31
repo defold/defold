@@ -37,7 +37,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
