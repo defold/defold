@@ -198,9 +198,12 @@ def release_markdown(config):
         # download file
         file_path = file.get("path")
 
+        if file_path.startswith("/archive/"):
+            file_path = file_path[len("/archive/"):]
+
         download_url = base_url + file_path
         if channel is not None:
-            download_url = "%s/%s/%s" % (base_url, channel, file_path)
+            download_url = "%s/archive/%s/%s" % (base_url, channel, file_path)
 
         if not test_path(file_path):
             continue

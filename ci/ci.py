@@ -332,7 +332,7 @@ def release(channel):
     cmd = ' '.join(args + opts)
     call(cmd)
 
-def release_to_github_markdown(token = None, repo = None, sha1 = None, branch = None):
+def release_to_github_markdown(token = None, repo = None, sha1 = None, branch = None, channel = None):
     args = "python scripts/build.py release_to_github_markdown".split()
     opts = []
 
@@ -346,7 +346,8 @@ def release_to_github_markdown(token = None, repo = None, sha1 = None, branch = 
         opts.append("--github-sha1=%s" % sha1)
 
     if branch:
-        channel = ci_helper.get_engine_channel(branch)
+        if channel is None:
+            channel = ci_helper.get_engine_channel(branch)
         opts.append("--channel=%s" % channel)
 
     cmd = ' '.join(args + opts)
@@ -513,7 +514,8 @@ def main(argv):
             release_to_github_markdown(token = args.github_token,
                                     repo = args.github_target_repo,
                                     sha1 = args.github_sha1,
-                                    branch = branch)
+                                    branch = branch,
+                                    channel = release_channel)
         else:
             print("Unknown command {0}".format(command))
 
