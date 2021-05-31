@@ -97,6 +97,7 @@ public class Project {
 
     public final static String LIB_DIR = ".internal/lib";
     public final static String CACHE_DIR = ".internal/cache";
+    private static ClassLoaderScanner scanner = null;
 
     public enum OutputFlags {
         NONE,
@@ -171,6 +172,22 @@ public class Project {
 
     public Publisher getPublisher() {
         return this.publisher;
+    }
+
+    public static ClassLoaderScanner createClassLoaderScanner() throws IOException {
+        // Find the jar file in the built-in resources
+        String jar = Bob.getJarFile("fmt-spine.jar");
+        scanner = new ClassLoaderScanner();
+        scanner.addUrl(new File(jar));
+        return scanner;
+    }
+
+    public static Class<?> getClass(String className) {
+        try {
+            return Class.forName(className, true, scanner.getClassLoader());
+        } catch(ClassNotFoundException e) {
+            return null;
+        }
     }
 
     /**
@@ -338,7 +355,7 @@ public class Project {
 
     private void createTasks() throws CompileExceptionError {
         newTasks = new ArrayList<Task<?>>();
-        List<String> sortedInputs = sortInputs();
+        List<String> sortedInputs = sortInputs(); // from findSources
 
         // To currently know the output resources, we need to parse the main.collectionc
         // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
@@ -874,12 +891,20 @@ public class Project {
         }
     }
 
+    private void registerPipelinePlugins() {
+        // Find the plugins and register them now, before we're building the content
+        List<File> plugins = ExtenderUtil.getPipelinePlugins(this);
+        for (File plugin : plugins) {
+            scanner.addUrl(plugin);
+            logInfo("Using plugin %s", plugin);
+        }
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
-        createTasks();
-        validateBuildResourceMapping();
+
         List<TaskResult> result = new ArrayList<TaskResult>();
 
         BundleHelper.throwIfCanceled(monitor);
@@ -909,21 +934,13 @@ public class Project {
                         fileHTMLWriter = new FileWriter(reportHTMLFile);
                     }
 
-                    IProgress m = monitor.subProgress(99);
-                    BundleHelper.throwIfCanceled(monitor);
-                    m.beginTask("Building...", newTasks.size());
-                    result = runTasks(m);
-                    m.done();
-                    if (anyFailing(result)) {
-                        break loop;
-                    }
-                    BundleHelper.throwIfCanceled(monitor);
 
                     final Boolean withSymbols = this.hasOption("with-symbols");
                     final String[] platforms = getPlatformStrings();
                     // Get or build engine binary
                     boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
                     if (buildRemoteEngine) {
+                        logInfo("Build Remote Engine...");
 
                         final String variant = this.option("variant", Bob.VARIANT_RELEASE);
 
@@ -935,13 +952,26 @@ public class Project {
                         // We default to the default architectures for the platform, and take the option value
                         // only if it has been set.
                         Platform platform = this.getPlatform();
+                        if (platform != Platform.getHostPlatform() && ExtenderUtil.hasExtensionPipelinePlugins(this)) {
+                            logInfo("Building plugins for host platform");
+
+                            String[] architectures = Platform.getHostPlatform().getArchitectures().getDefaultArchitectures();
+                            buildEngine(monitor, architectures, appmanifestOptions);
+
+                        }
+
                         String[] architectures = platform.getArchitectures().getDefaultArchitectures();
                         String customArchitectures = this.option("architectures", null);
                         if (customArchitectures != null) {
                             architectures = customArchitectures.split(",");
                         }
 
+                        long tstart = System.currentTimeMillis();
+
                         buildEngine(monitor, architectures, appmanifestOptions);
+
+                        long tend = System.currentTimeMillis();
+                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngines(monitor, platforms);
@@ -954,9 +984,41 @@ public class Project {
 
                     BundleHelper.throwIfCanceled(monitor);
 
+                    IProgress m = monitor.subProgress(99);
+
+                    IProgress mrep = m.subProgress(1);
+                    mrep.beginTask("Reading classes...", 1);
+                    createClassLoaderScanner();
+                    registerPipelinePlugins();
+                    scan(scanner, "com.dynamo.bob");
+                    scan(scanner, "com.dynamo.bob.pipeline");
+                    mrep.done();
+
+                    mrep = m.subProgress(1);
+                    mrep.beginTask("Reading tasks...", 1);
+                    pruneSources();
+                    createTasks();
+                    validateBuildResourceMapping();
+                    mrep.done();
+
+                    BundleHelper.throwIfCanceled(monitor);
+                    m.beginTask("Building...", newTasks.size());
+                    long tstart = System.currentTimeMillis();
+
+                    result = runTasks(m);
+                    m.done();
+
+                    long tend = System.currentTimeMillis();
+                    Bob.verbose("Content tasks took %f s\n", (tend-tstart)/1000.0);
+
+                    if (anyFailing(result)) {
+                        break loop;
+                    }
+                    BundleHelper.throwIfCanceled(monitor);
+
                     // Generate and save build report
                     if (generateReport) {
-                        IProgress mrep = monitor.subProgress(1);
+                        mrep = monitor.subProgress(1);
                         mrep.beginTask("Generating report...", 1);
                         ReportGenerator rg = new ReportGenerator(this);
                         String reportJSON = rg.generateJSON();
@@ -980,13 +1042,15 @@ public class Project {
                 }
                 case "clean": {
                     IProgress m = monitor.subProgress(1);
-                    m.beginTask("Cleaning...", newTasks.size());
-                    for (Task<?> t : newTasks) {
-                        List<IResource> outputs = t.getOutputs();
-                        for (IResource r : outputs) {
-                            BundleHelper.throwIfCanceled(monitor);
-                            r.remove();
+                    List<String> paths = state.getPaths();
+                    m.beginTask("Cleaning...", paths.size());
+                    for (String path : paths) {
+                        File f = new File(path);
+                        if (f.exists()) {
+                            state.removeSignature(path);
+                            f.delete();
                             m.worked(1);
+                            BundleHelper.throwIfCanceled(monitor);
                         }
                     }
                     m.done();
@@ -994,7 +1058,7 @@ public class Project {
                 }
                 case "distclean": {
                     IProgress m = monitor.subProgress(1);
-                    m.beginTask("Cleaning...", newTasks.size());
+                    m.beginTask("Cleaning...", 1);
                     BundleHelper.throwIfCanceled(monitor);
                     FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                     m.worked(1);
@@ -1063,8 +1127,6 @@ run:
                     continue;
                 }
 
-                monitor.worked(1);
-
                 byte[] taskSignature = task.calculateSignature(this);
 
                 // do all output files exist?
@@ -1102,6 +1164,8 @@ run:
                         completedTasks.add(task);
                         completedOutputs.addAll(task.getOutputs());
                     }
+
+                    monitor.worked(1);
                     continue;
                 }
 
@@ -1117,6 +1181,7 @@ run:
                 boolean abort = false;
                 try {
                     builder.build(task);
+                    monitor.worked(1);
                     for (IResource r : task.getOutputs()) {
                         state.putSignature(r.getAbsPath(), taskSignature);
                     }
@@ -1397,10 +1462,8 @@ run:
                 include = false;
             }
             if (include) {
-                String ext = "." + FilenameUtils.getExtension(path);
-                Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
-                if (builderClass != null)
-                    results.add(path);
+                // We'll add all files, and prune them later, when we know what file formats we support (after th eplugins are built)
+                results.add(path);
             }
         }
 
@@ -1443,6 +1506,19 @@ run:
         Walker walker = new Walker(skipDirs);
         List<String> results = new ArrayList<String>(1024);
         fileSystem.walk(path, walker, results);
+        inputs = results;
+    }
+
+    private void pruneSources() {
+        List<String> results = new ArrayList<>();
+        for (String path : inputs) {
+            String ext = "." + FilenameUtils.getExtension(path);
+            Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
+            if (builderClass != null)
+            {
+                results.add(path);
+            }
+        }
         inputs = results;
     }
 

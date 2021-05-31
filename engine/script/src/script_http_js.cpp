@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -45,6 +45,12 @@ namespace dmScript
     typedef void (*OnLoad)(void* context, int status, void* content, int content_size, const char* headers);
     typedef void (*OnError)(void* context, int status);
 
+    struct RequestContext
+    {
+        dmMessage::URL  m_Requester;
+        int             m_Callback;
+    };
+
     extern "C" void dmScriptHttpRequestAsync(const char* method, const char* url, const char* headers, void* arg, OnLoad onload, OnError onerror, const void* send_data, int send_data_length, int timeout);
 
     void HttpRequestAsync(const char* method, const char* url, const char* headers, void *arg, OnLoad ol, OnError oe, const void* send_data, int send_data_length)
@@ -60,7 +66,7 @@ namespace dmScript
         free((void*) response->m_Response);
     }
 
-    static void SendResponse(const dmMessage::URL* requester, int status,
+    static void SendResponse(const RequestContext* ctx, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length)
     {
@@ -76,7 +82,7 @@ namespace dmScript
         resp.m_Response = (uint64_t) malloc(response_length);
         memcpy((void*) resp.m_Response, response, response_length);
 
-        if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
+        if (dmMessage::RESULT_OK != dmMessage::Post(0, &ctx->m_Requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t)ctx->m_Callback, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
         {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
@@ -86,21 +92,22 @@ namespace dmScript
 
     void OnHttpLoad(void* context, int status, void* content, int content_size, const char* headers)
     {
-        dmMessage::URL* requester = (dmMessage::URL*) context;
-        SendResponse(requester, status, headers, strlen(headers), (const char*) content, content_size);
-        delete requester;
+        RequestContext* ctx = (RequestContext*) context;
+        SendResponse(ctx, status, headers, strlen(headers), (const char*) content, content_size);
+        delete ctx;
     }
 
     void OnHttpError(void* context, int status)
     {
-        dmMessage::URL* requester = (dmMessage::URL*) context;
-        SendResponse(requester, status, 0, 0, 0, 0);
+        RequestContext* ctx = (RequestContext*) context;
+        SendResponse(ctx, status, 0, 0, 0, 0);
     }
 
     int Http_Request(lua_State* L)
     {
         int top = lua_gettop(L);
 
+        int callback = 0;
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender)) {
 
@@ -108,9 +115,8 @@ namespace dmScript
             const char* method = luaL_checkstring(L, 2);
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
-            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-            int callback = dmScript::RefInInstance(L) - LUA_NOREF;
-            sender.m_FunctionRef = callback;
+            // NOTE: By convention the runctionref is offset by LUA_NOREF
+            callback = dmScript::RefInInstance(L) - LUA_NOREF;
 
             dmArray<char> h;
             h.SetCapacity(4 * 1024);
@@ -164,10 +170,11 @@ namespace dmScript
                 lua_pop(L, 1);
             }
 
-            dmMessage::URL* requester = new dmMessage::URL;
-            *requester = sender;
+            RequestContext* ctx = new RequestContext;
+            ctx->m_Callback = callback;
+            ctx->m_Requester = sender;
 
-            HttpRequestAsync(method, url, h.Begin(), requester, OnHttpLoad, OnHttpError, request_data, request_data_length);
+            HttpRequestAsync(method, url, h.Begin(), ctx, OnHttpLoad, OnHttpError, request_data, request_data_length);
             assert(top == lua_gettop(L));
             return 0;
         } else {

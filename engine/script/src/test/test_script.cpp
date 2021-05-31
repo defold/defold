@@ -344,7 +344,7 @@ TEST_F(ScriptTest, TestUserType) {
 
     // GetURL
     dmMessage::URL url;
-    dmMessage::ResetURL(url);
+    dmMessage::ResetURL(&url);
     ASSERT_NE_URL(dummy->m_URL, url);
     dmScript::GetURL(L, &url);
     ASSERT_EQ_URL(dummy->m_URL, url);
@@ -356,7 +356,7 @@ TEST_F(ScriptTest, TestUserType) {
     ASSERT_EQ(dummy->m_Dummy, user_data);
 
     // ResolvePath
-    dmMessage::ResetURL(url);
+    dmMessage::ResetURL(&url);
     dmMessage::Result result = dmScript::ResolveURL(L, "test_path", &url, &dummy->m_URL);
     ASSERT_EQ(dmMessage::RESULT_OK, result);
     ASSERT_EQ(dmHashString64("test_path"), url.m_Path);
@@ -365,7 +365,7 @@ TEST_F(ScriptTest, TestUserType) {
     result = dmMessage::NewSocket("default", &socket);
     ASSERT_EQ(dmMessage::RESULT_OK, result);
 
-    dmMessage::ResetURL(url);
+    dmMessage::ResetURL(&url);
     result = dmScript::ResolveURL(L, "default:/foo#bar", &url, &dummy->m_URL);
 
     ASSERT_EQ(dmMessage::RESULT_OK, result);

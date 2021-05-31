@@ -20,7 +20,6 @@
 #include "math.h"
 #include "hash.h"
 
-#include <dlib/dns.h>
 #include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sslsocket.h>
@@ -106,7 +105,7 @@ namespace dmConnectionPool
             }
 
             if (in_use > 0) {
-                dmLogError("Leaking %d connections from connection pool", in_use);
+                dmLogWarning("Leaking %d connections from connection pool", in_use);
             }
 
             dmMutex::Delete(m_Mutex);
@@ -330,14 +329,11 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result DoDial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res, bool ipv4, bool ipv6)
+    Result DoDial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, int* cancelflag, HConnection* connection, dmSocket::Result* sock_res, bool ipv4, bool ipv6)
     {
         if (!pool->m_AllowNewConnections) {
             return RESULT_SHUT_DOWN;
         }
-
-        dmSocket::Address address;
-        bool gethost_did_succeed;
 
         // This function would previously not specify ipv4 and/or ipv6 when calling GetHostByName.
         // GetHostByName would then assume both ipv4 and ipv6 and always prefer and return an ipv4
@@ -345,21 +341,17 @@ namespace dmConnectionPool
         // Connecting to the returned address would fail when on an ipv6 network.
         // This is why when calling DoDial we now have the ability to specify ipv4 and/or ipv6 so
         // that the caller can try to connect first to ipv4 and then to ipv6 if ipv4 failed.
-        if (dns_channel)
-        {
-            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, timeout, ipv4, ipv6) == dmDNS::RESULT_OK;
+        dmSocket::Address address;
 
-            // If the DNS request failed, we might need to update the DNS configuration for this channel since something
-            // might have happened with the network adapter since the last time a HTTP request happened.
-            if (!gethost_did_succeed)
-            {
-                dmDNS::RefreshChannel(dns_channel);
-                gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, timeout, ipv4, ipv6) == dmDNS::RESULT_OK;
-            }
-        }
-        else
+        uint64_t dial_started = dmTime::GetTime();
+        bool gethost_did_succeed = dmSocket::GetHostByNameT(host, &address, timeout, cancelflag, ipv4, ipv6) == dmSocket::RESULT_OK;
+        if (timeout > 0)
         {
-            gethost_did_succeed = dmSocket::GetHostByName(host, &address, ipv4, ipv6) == dmSocket::RESULT_OK;
+            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            if (timeout <= 0)
+            {
+                return RESULT_SOCKET_ERROR;
+            }
         }
 
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
@@ -408,11 +400,11 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, int* cancelflag, HConnection* connection, dmSocket::Result* sock_res)
     {
         // try connecting to the host using ipv4 first
         uint64_t dial_started = dmTime::GetTime();
-        Result r = DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 1, 0);
+        Result r = DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 1, 0);
         if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES)
         {
             return r;
@@ -426,7 +418,12 @@ namespace dmConnectionPool
                 return RESULT_SOCKET_ERROR;
             }
         }
-        return DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 0, 1);
+        return DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 0, 1);
+    }
+
+    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    {
+        return Dial(pool, host, port, ssl, timeout, 0, connection, sock_res);
     }
 
     void Return(HPool pool, HConnection connection)

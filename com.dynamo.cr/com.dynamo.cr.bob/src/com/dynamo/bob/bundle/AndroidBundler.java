@@ -260,6 +260,24 @@ public class AndroidBundler implements IBundler {
     }
 
     /**
+     * Get a list of assets from the build server to include in the aab.
+     * The assets originate from resolved gradle dependencies (.aar files)
+     */
+    private static ArrayList<File> getExtenderAssets(Project project) throws IOException {
+        final String extenderExeDir = getExtenderExeDir(project);
+        ArrayList<File> assets = new ArrayList<File>();
+        for (Platform architecture : getArchitectures(project)) {
+            File assetsDir = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), "assets")));
+            if (assetsDir.exists()) {
+                for(String file : assetsDir.list()) {
+                    assets.add(new File(assetsDir, file));
+                }
+            }
+        }
+        return assets;
+    }
+
+    /**
     * Get a list of dex files to include in the aab
     */
     private static ArrayList<File> getClassesDex(Project project) throws IOException {
@@ -489,8 +507,15 @@ public class AndroidBundler implements IBundler {
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 File source = new File(new File(project.getRootDirectory(), project.getBuildDirectory()), name);
                 File dest = new File(assetsDir, name);
-                log("Copying asset to " + dest);
+                log("Copying asset " + source + " to " + dest);
                 FileUtils.copyFile(source, dest);
+                BundleHelper.throwIfCanceled(canceled);
+            }
+            // copy assets from extender (from resolved gradle dependencies)
+            for(File asset : getExtenderAssets(project)) {
+                File dest = new File(assetsDir, asset.getName());
+                log("Copying asset " + asset + " to " + dest);
+                FileUtils.copyFile(asset, dest);
                 BundleHelper.throwIfCanceled(canceled);
             }
 

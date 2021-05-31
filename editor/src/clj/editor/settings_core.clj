@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,28 @@
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (set! *warn-on-reflection* true)
+
+(defn setting-index [settings path]
+  (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
+
+(defn remove-setting [settings path]
+  (if-let [index (setting-index settings path)]
+    (vec (concat (subvec settings 0 index) (subvec settings (inc index))))
+    settings))
+
+(defn clear-setting [settings path]
+  (if-let [index (setting-index settings path)]
+    (update settings index dissoc :value)
+    settings))
+
+(defn get-setting [settings path]
+  (when-let [index (setting-index settings path)]
+    (:value (nth settings index))))
+
+(defn set-setting [settings path value]
+  (if-let [index (setting-index settings path)]
+    (assoc-in settings [index :value] value)
+    (conj settings {:path path :value value})))
 
 (defn- non-blank [vals]
   (remove s/blank? vals))
@@ -38,7 +60,7 @@
   (BufferedReader. (StringReader. content)))
 
 (defn- empty-parse-state []
-  {:current-category nil :settings nil})
+  {:current-category nil :settings []})
 
 (defn- parse-category-line [{:keys [current-category settings] :as parse-state} line]
   (when-let [[_ new-category] (re-find #"^\s*\[([^\]]*)\]" line)]
@@ -46,14 +68,18 @@
 
 (defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
   (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
-    (when-let [setting-path (seq (non-blank (s/split key #"\.")))]
-      (update parse-state :settings conj {:path (into [current-category] setting-path) :value val}))))
+    (let [cleaned-path (first (seq (non-blank (s/split key #"\#"))))]
+      (when-let [setting-path (seq (non-blank (s/split cleaned-path #"\.")))]
+        (let [full-path (into [current-category] setting-path)]
+          (if-let [existing-value (get-setting settings full-path)]
+            (update parse-state :settings set-setting full-path (str existing-value "," val))
+            (update parse-state :settings conj {:path full-path :value val})))))))
 
 (defn- parse-error [line]
   (throw (Exception. (format "Invalid setting line: %s" line))))
 
 (defn- parse-state->settings [{:keys [settings]}]
-  (vec (reverse settings)))
+  settings)
 
 (defn parse-settings [reader]
   (parse-state->settings (reduce
@@ -188,9 +214,24 @@
 (defn- category->str [category settings]
   (s/join "\n" (cons (str "[" category "]") (map setting->str settings))))
 
+(defn split-multi-line-setting [category key settings]
+  (let [path [category key]]
+    (if-let [comma-separated-setting (not-empty (get-setting settings path))]
+      (let [comma-separated-setting-parts (non-blank (s/split comma-separated-setting #","))
+            comma-separated-setting-count (count comma-separated-setting-parts)
+            cleaned-settings (remove-setting settings path)]
+        (reduce
+          (fn [settings i]
+            (set-setting settings [category (str key "#" i)] (nth comma-separated-setting-parts i)))
+          cleaned-settings
+          (range 0 comma-separated-setting-count)))
+      settings)))
+
 (defn settings->str [settings]
-  (let [cat-order (category-order settings)
-        cat-grouped-settings (category-grouped-settings settings)]
+  (let [split-settings (split-multi-line-setting "project" "dependencies" (vec settings))
+        cat-order (category-order split-settings)
+        cat-grouped-settings (category-grouped-settings split-settings)]
+
     ;; Here we interleave categories with \n\n rather than join to make sure the file also ends with
     ;; two consecutive newlines. This is purely to avoid whitespace diffs when loading a project
     ;; created in the old editor and saving.
@@ -215,23 +256,6 @@
 
 (defn make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))
-
-(defn setting-index [settings path]
-  (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
-
-(defn get-setting [settings path]
-  (when-let [index (setting-index settings path)]
-    (:value (nth settings index))))
-
-(defn set-setting [settings path value]
-  (if-let [index (setting-index settings path)]
-    (assoc-in settings [index :value] value)
-    (conj settings {:path path :value value})))
-
-(defn clear-setting [settings path]
-  (if-let [index (setting-index settings path)]
-    (update settings index dissoc :value)
-    settings))
 
 (defn get-default-setting [meta-settings path]
   (when-let [index (setting-index meta-settings path)]

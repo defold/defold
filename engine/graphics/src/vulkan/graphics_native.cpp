@@ -238,6 +238,7 @@ namespace dmGraphics
                 free(context->m_DynamicOffsetBuffer);
             }
 
+            delete context->m_SwapChain->m_ResolveTexture;
             delete context->m_SwapChain;
         }
     }

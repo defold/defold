@@ -1530,14 +1530,12 @@ int main(int argc, char **argv)
 {
     #if defined(TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
-    dmDNS::Initialize();
     #endif
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
 
     #if defined(TEST_HTTP_SUPPORTED)
-    dmDNS::Finalize();
     dmSocket::Finalize();
     #endif
     return ret;

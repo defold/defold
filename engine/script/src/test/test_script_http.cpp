@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,7 +19,6 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/socket.h>
-#include <dlib/dns.h>
 #include <dlib/thread.h>
 #include <dlib/sys.h>
 
@@ -189,8 +188,7 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     assert(message->m_Descriptor != 0);
     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
 
-    // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-    int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
+    int ref = message->m_UserData2 + LUA_NOREF;
     dmScript::ResolveInInstance(L, ref);
     dmScript::UnrefInInstance(L, ref);
     lua_gc(L, LUA_GCCOLLECT, 0);
@@ -373,11 +371,9 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    dmDNS::Initialize();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
-    dmDNS::Finalize();
     dmSocket::Finalize();
     return ret;
 }

@@ -23,5 +23,5 @@ def build(bld):
                          exported_symbols = ['GraphicsAdapterVulkan'],
                          source = 'test_app_vulkan.cpp',
                          uselib = 'TESTMAIN PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN'.split() + extra_libs,
-                         uselib_local = 'graphics_vulkan graphics_transcoder_uastc',
+                         uselib_local = 'graphics_vulkan graphics_transcoder_basisu',
                          target = 'test_app_vulkan')

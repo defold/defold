@@ -1,5 +1,5 @@
 // basis_etc.h
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 #pragma once
 #include "../transcoder/basisu.h"
 #include "basisu_enc.h"
-#include <set>
 
 namespace basisu
 {
@@ -758,7 +757,7 @@ namespace basisu
 		}
 	};
 		
-	typedef std::vector<etc_block> etc_block_vec;
+	typedef basisu::vector<etc_block> etc_block_vec;
 
 	// Returns false if the unpack fails (could be bogus data or ETC2)
 	bool unpack_etc1(const etc_block& block, color_rgba *pDst, bool preserve_alpha = false);
@@ -882,10 +881,10 @@ namespace basisu
 				bb = (m_unscaled_color.b >> 2) | (m_unscaled_color.b << 3);
 			}
 			const int* pInten_table = g_etc1_inten_tables[m_inten_table];
-			pBlock_colors[0].set((uint8_t)(br + pInten_table[0]), (uint8_t)(bg + pInten_table[0]), (uint8_t)(bb + pInten_table[0]), 255);
-			pBlock_colors[1].set((uint8_t)(br + pInten_table[1]), (uint8_t)(bg + pInten_table[1]), (uint8_t)(bb + pInten_table[1]), 255);
-			pBlock_colors[2].set((uint8_t)(br + pInten_table[2]), (uint8_t)(bg + pInten_table[2]), (uint8_t)(bb + pInten_table[2]), 255);
-			pBlock_colors[3].set((uint8_t)(br + pInten_table[3]), (uint8_t)(bg + pInten_table[3]), (uint8_t)(bb + pInten_table[3]), 255);
+			pBlock_colors[0].set(br + pInten_table[0], bg + pInten_table[0], bb + pInten_table[0], 255);
+			pBlock_colors[1].set(br + pInten_table[1], bg + pInten_table[1], bb + pInten_table[1], 255);
+			pBlock_colors[2].set(br + pInten_table[2], bg + pInten_table[2], bb + pInten_table[2], 255);
+			pBlock_colors[3].set(br + pInten_table[3], bg + pInten_table[3], bb + pInten_table[3], 255);
 		}
 
 		color_rgba m_unscaled_color;
@@ -952,9 +951,6 @@ namespace basisu
 				m_refinement = true;
 
 				m_pForce_selectors = nullptr;
-
-				m_pEval_solution_override = nullptr;
-				m_pEval_solution_override_data = nullptr;
 			}
 
 			uint32_t m_num_src_pixels;
@@ -970,9 +966,6 @@ namespace basisu
 			bool m_refinement;
 
 			const uint8_t* m_pForce_selectors;
-
-			evaluate_solution_override_func m_pEval_solution_override;
-			void *m_pEval_solution_override_data;
 		};
 
 		struct results
@@ -1008,7 +1001,7 @@ namespace basisu
 			}
 
 			etc1_solution_coordinates  m_coords;
-			std::vector<uint8_t>    m_selectors;
+			basisu::vector<uint8_t>    m_selectors;
 			uint64_t                     m_error;
 			bool                       m_valid;
 
@@ -1039,33 +1032,36 @@ namespace basisu
 
 		vec3F m_avg_color;
 		int m_br, m_bg, m_bb;
-		std::vector<uint16_t> m_luma;
-		std::vector<uint32_t> m_sorted_luma;
-		std::vector<uint32_t> m_sorted_luma_indices;
+		int m_max_comp_spread;
+		basisu::vector<uint16_t> m_luma;
+		basisu::vector<uint32_t> m_sorted_luma;
+		basisu::vector<uint32_t> m_sorted_luma_indices;
 		const uint32_t* m_pSorted_luma_indices;
 		uint32_t* m_pSorted_luma;
 
-		std::vector<uint8_t> m_selectors;
-		std::vector<uint8_t> m_best_selectors;
+		basisu::vector<uint8_t> m_selectors;
+		basisu::vector<uint8_t> m_best_selectors;
 
 		potential_solution m_best_solution;
 		potential_solution m_trial_solution;
-		std::vector<uint8_t> m_temp_selectors;
+		basisu::vector<uint8_t> m_temp_selectors;
 
-		std::set<uint32_t> m_solutions_tried;
-
+		enum { cSolutionsTriedHashBits = 10, cTotalSolutionsTriedHashSize = 1 << cSolutionsTriedHashBits, cSolutionsTriedHashMask = cTotalSolutionsTriedHashSize - 1 };
+		uint8_t m_solutions_tried[cTotalSolutionsTriedHashSize / 8];
+		
 		void get_nearby_inten_tables(uint32_t idx, int &first_inten_table, int &last_inten_table)
 		{
 			first_inten_table = maximum<int>(idx - 1, 0);
 			last_inten_table = minimum<int>(cETC1IntenModifierValues, idx + 1);
 		}
-
+		
+		bool check_for_redundant_solution(const etc1_solution_coordinates& coords);
 		bool evaluate_solution_slow(const etc1_solution_coordinates& coords, potential_solution& trial_solution, potential_solution* pBest_solution);
 		bool evaluate_solution_fast(const etc1_solution_coordinates& coords, potential_solution& trial_solution, potential_solution* pBest_solution);
 
 		inline bool evaluate_solution(const etc1_solution_coordinates& coords, potential_solution& trial_solution, potential_solution* pBest_solution)
 		{
-			if (m_pParams->m_quality >= cETCQualitySlow)
+			if (m_pParams->m_quality >= cETCQualityMedium)
 				return evaluate_solution_slow(coords, trial_solution, pBest_solution);
 			else
 				return evaluate_solution_fast(coords, trial_solution, pBest_solution);

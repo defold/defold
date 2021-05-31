@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -543,8 +543,8 @@ namespace dmScript
      * Timers created within a script will automatically die when the script is deleted.
      *
      * @name timer.delay
-     * @param delay time interval in seconds
-     * @param repeat true = repeat timer until cancel, false = one-shot timer
+     * @param delay [type:number] time interval in seconds
+     * @param repeat [type:boolean] true = repeat timer until cancel, false = one-shot timer
      * @param callback [type:function(self, handle, time_elapsed)] timer callback function
      *
      * `self`
@@ -556,7 +556,7 @@ namespace dmScript
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return handle identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @return [type:hash] handle identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
      */
     static int TimerDelay(lua_State* L) {
         int top = lua_gettop(L);
@@ -597,8 +597,8 @@ namespace dmScript
      * Cancelling a timer that is already executed or cancelled is safe.
      *
      * @name timer.cancel
-     * @param handle the timer handle returned by timer.delay()
-     * @return true if the timer was active, false if the timer is already cancelled / complete
+     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      */
     static int TimerCancel(lua_State* L)
     {

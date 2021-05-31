@@ -9,7 +9,7 @@ def configure(conf):
 
 def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
-        includes = '. ../../proto',
+        includes = '. .. ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
         target = 'gamesys',

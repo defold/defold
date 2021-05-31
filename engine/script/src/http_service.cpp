@@ -46,7 +46,6 @@ namespace dmHttpService
     struct Worker
     {
         dmThread::Thread      m_Thread;
-        dmDNS::HChannel       m_DNSChannel;
         dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
@@ -58,6 +57,7 @@ namespace dmHttpService
         const HttpService*    m_Service;
         bool                  m_CacheFlusher;
         volatile bool         m_Run;
+        int                   m_Canceled;
     };
 
     struct HttpService
@@ -166,7 +166,7 @@ namespace dmHttpService
         free((void*) response->m_Response);
     }
 
-    static void SendResponse(const dmMessage::URL* requester, int status,
+    static void SendResponse(const dmMessage::URL* requester, uintptr_t userdata1, uintptr_t userdata2, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length,
                              const char* filepath)
@@ -182,7 +182,7 @@ namespace dmHttpService
         memcpy((void*) resp.m_Response, response, response_length);
         resp.m_Path = filepath;
 
-        if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
+        if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, userdata1, userdata2, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
         {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
@@ -190,7 +190,7 @@ namespace dmHttpService
         }
     }
 
-    void HandleRequest(Worker* worker, const dmMessage::URL* requester, dmHttpDDF::HttpRequest* request)
+    void HandleRequest(Worker* worker, const dmMessage::URL* requester, uintptr_t userdata1, uintptr_t userdata2, dmHttpDDF::HttpRequest* request)
     {
         dmURI::Parts url;
         request->m_Method = (const char*) ((uintptr_t) request + (uintptr_t) request->m_Method);
@@ -198,7 +198,7 @@ namespace dmHttpService
         dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
-            SendResponse(requester, 0, 0, 0, 0, 0, 0);
+            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, 0);
             return;
         }
         if (url.m_Path[0] == '\0') {
@@ -222,10 +222,10 @@ namespace dmHttpService
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
             params.m_HttpCache = worker->m_Service->m_HttpCache;
-            params.m_DNSChannel = worker->m_DNSChannel;
             params.m_RequestTimeout = request->m_Timeout;
 
-            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
+            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0, &worker->m_Canceled);
+
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
 
@@ -242,15 +242,15 @@ namespace dmHttpService
 
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
-                SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             } else {
                 // TODO: Error codes to lua?
                 dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
-                SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             }
         } else {
             // TODO: Error codes to lua?
-            SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             dmLogError("Unable to create HTTP connection to '%s'. No route to host?", request->m_Url);
         }
     }
@@ -269,7 +269,7 @@ namespace dmHttpService
             if (message->m_Descriptor == (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor)
             {
                 dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) &message->m_Data[0];
-                HandleRequest(worker, &message->m_Sender, request);
+                HandleRequest(worker, &message->m_Sender, 0, message->m_UserData2, request);
                 free((void*) request->m_Headers);
                 free((void*) request->m_Request);
             }
@@ -310,7 +310,8 @@ namespace dmHttpService
             dmMessage::Post(&message->m_Sender,
                             &r,
                             message->m_Id,
-                            message->m_UserData,
+                            message->m_UserData1,
+                            message->m_UserData2,
                             message->m_Descriptor,
                             message->m_Data,
                             message->m_DataSize, 0);
@@ -318,7 +319,7 @@ namespace dmHttpService
         }
     }
 
-    void Loop(void* arg)
+    static void Loop(void* arg)
     {
         Worker* worker = (Worker*) arg;
 
@@ -327,7 +328,10 @@ namespace dmHttpService
         while (worker->m_Run)
         {
             dmMessage::DispatchBlocking(worker->m_Socket, &Dispatch, worker);
-            if (worker->m_CacheFlusher &&  dmTime::GetTime() > next_flush) {
+            if (!worker->m_Run)
+                break;
+
+            if (worker->m_CacheFlusher && dmTime::GetTime() > next_flush) {
                 dmHttpCache::Flush(worker->m_Service->m_HttpCache);
                 next_flush = dmTime::GetTime() + flush_period;
             }
@@ -394,28 +398,10 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
-            worker->m_DNSChannel = 0;
+            worker->m_Canceled = 0;
             service->m_Workers.Push(worker);
 
-// Do not create a c-ares DNS channel on iOS
-// If we have no DNS channel we will fall back to POSIX getaddrinfo
-// c-ares DNS resolution will trigger a Network Security popup on most
-// residential WiFi setups since the WiFi router will act as a DNS and forward
-// DNS queries to the DNS of the ISP.
-// This will trigger the Network Security popup since c-ares communicates with
-// the router over the local network.
-// getaddrinfo on the other hand seems to be whitelisted in iOS.
-#if !defined(DM_PLATFORM_IOS)
-            dmDNS::NewChannel(&worker->m_DNSChannel);
-#endif
-
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
-// Detach the thread on iOS
-// DNS lookups on iOS are using getaddrinfo which may block for an undefined
-// amount of time. We do not wish to wait for the thread during shutdown
-#if defined(DM_PLATFORM_IOS)
-            dmThread::Detach(t);
-#endif
             worker->m_Thread = t;
         }
 
@@ -435,26 +421,41 @@ namespace dmHttpService
         dmMessage::URL url;
         url.m_Socket = http_service->m_Socket;
         dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
+
+        // Stop the balancer first, so we don't accept any new requests
+        dmThread::Join(http_service->m_Balancer);
+
+        // Cancel them all first, as opposed to one-by-one
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
+
             url.m_Socket = worker->m_Socket;
-            dmDNS::StopChannel(http_service->m_Workers[i]->m_DNSChannel);
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
-// On iOS we detach() the thread on creation so that we don't have to wait for
-// it during shutdown (see above for reason why)
-#if !defined(DM_PLATFORM_IOS)
-            dmThread::Join(worker->m_Thread);
-#endif
+
+            worker->m_Canceled = 1;
+        }
+
+        for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
+        {
+            dmHttpService::Worker* worker = http_service->m_Workers[i];
+
+            // DNS lookups using dmSocket::GetHostByName are using getaddrinfo which may block for an undefined
+            // amount of time. We do not wish to wait for the thread during shutdown
+            // We now use detach() on the thread on creation so that we don't have to wait for the thread
+            if (worker->m_Thread)
+            {
+                dmThread::Join(worker->m_Thread);
+            }
+
             dmMessage::DeleteSocket(worker->m_Socket);
-            dmDNS::DeleteChannel(worker->m_DNSChannel);
             if (worker->m_Client)
             {
                 dmHttpClient::Delete(worker->m_Client);
             }
             delete worker;
         }
-        dmThread::Join(http_service->m_Balancer);
+
         dmMessage::DeleteSocket(http_service->m_Socket);
         if (http_service->m_HttpCache)
             dmHttpCache::Close(http_service->m_HttpCache);

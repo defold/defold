@@ -472,6 +472,38 @@ TEST_F(SoundTest, UpdateSoundResource)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(SoundTest, LuaCallback)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/sound/luacallback.goc";
+
+    // Create gameobject
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    // Update sound component with custom buffer from lua. See set_sound.script:update()
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Allow for one more update for messages to go through
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    // release GO
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 
 TEST_P(ResourcePropTest, ResourceRefCounting)
 {
@@ -621,7 +653,7 @@ TEST_F(CursorTest, GuiFlipbookCursor)
     ASSERT_NE((void*)0x0, go);
 
     dmMessage::URL msg_url;
-    dmMessage::ResetURL(msg_url);
+    dmMessage::ResetURL(&msg_url);
     msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     msg_url.m_Path = go_id;
     msg_url.m_Fragment = gui_comp_id;
@@ -672,7 +704,7 @@ TEST_P(CursorTest, Cursor)
 
     // Dummy URL, just needed to kick flipbook animation on sprite
     dmMessage::URL msg_url;
-    dmMessage::ResetURL(msg_url);
+    dmMessage::ResetURL(&msg_url);
     msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     msg_url.m_Path = go_id;
     msg_url.m_Fragment = sprite_comp_id;

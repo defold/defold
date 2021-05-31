@@ -49,7 +49,7 @@ namespace basisu
 
 	private:
 		basist::basis_file_header m_header;
-		std::vector<basist::basis_slice_desc> m_images_descs;
+		basisu::vector<basist::basis_slice_desc> m_images_descs;
 
 		uint8_vec m_comp_data;
 
