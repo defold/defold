@@ -90,6 +90,12 @@ namespace dmThread
         assert(ret == 0);
     }
 
+    void Detach(Thread thread)
+    {
+        int ret = pthread_detach(thread);
+        assert(ret == 0);
+    }
+
     TlsKey AllocTls()
     {
         pthread_key_t key;
@@ -178,6 +184,11 @@ namespace dmThread
         assert(ret == WAIT_OBJECT_0);
     }
 
+    void Detach(Thread thread)
+    {
+        CloseHandle(thread);
+    }
+
     TlsKey AllocTls()
     {
         return TlsAlloc();
@@ -210,6 +221,3 @@ namespace dmThread
 #endif
 
 }
-
-
-

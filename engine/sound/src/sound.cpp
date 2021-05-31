@@ -401,6 +401,8 @@ namespace dmSound
     Result Finalize()
     {
         SoundSystem* sound = g_SoundSystem;
+        if (!sound)
+            return RESULT_OK;
 
         sound->m_IsRunning = false;
         if (sound->m_Thread)
@@ -773,6 +775,8 @@ namespace dmSound
 
     Result Pause(HSoundInstance sound_instance, bool pause)
     {
+        if (!g_SoundSystem)
+            return RESULT_OK;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         sound_instance->m_Playing = (uint8_t)!pause;
         return RESULT_OK;
@@ -780,11 +784,11 @@ namespace dmSound
 
     uint32_t GetAndIncreasePlayCounter()
     {
-    	if (g_SoundSystem->m_PlayCounter == dmSound::INVALID_PLAY_ID)
-    	{
-    		g_SoundSystem->m_PlayCounter = 0;
-    	}
-        return g_SoundSystem->m_PlayCounter++;
+       if (g_SoundSystem->m_PlayCounter == dmSound::INVALID_PLAY_ID)
+       {
+           g_SoundSystem->m_PlayCounter = 0;
+       }
+       return g_SoundSystem->m_PlayCounter++;
     }
 
     bool IsPlaying(HSoundInstance sound_instance)
@@ -833,6 +837,14 @@ namespace dmSound
         *right_scale = sinf(theta);
     }
 
+    /*
+     *
+     * Template parameters
+     *
+     * offset:  determines the value around which the audio samples are oscillating in the source audio data. if 0, samples are
+     *          both positive and negative.
+     * scale: changes the scale of the samples when mixed by multiplying their values with the 'scale' template param.
+     */
     template <typename T, int offset, int scale>
     static void MixResampleUpMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
@@ -857,7 +869,7 @@ namespace dmSound
         {
             float gain = gain_ramp.GetValue(i);
             float pan = pan_ramp.GetValue(i);
-            float mix = frac * range_recip;
+            float mix = frac * range_recip; // determines the bias between two consecutive samples in the sound instance. It ranges from 0-1. A mix of 0, makes only the first sample count while a mix of 0.5 will count equally both samples.
             T s1 = frames[index];
             T s2 = frames[index + 1];
             s1 = (s1 - offset) * scale;
@@ -866,21 +878,23 @@ namespace dmSound
             float left_scale, right_scale;
             GetPanScale(pan, &left_scale, &right_scale);
 
-            float s = (1.0f - mix) * s1 + mix * s2;
+            float s = (1.0f - mix) * s1 + mix * s2; // resulting destination sample value is a mix of two source samples since a kind of fractional indexing is used
             mix_buffer[2 * i] += s * gain * left_scale;
             mix_buffer[2 * i + 1] += s * gain * right_scale;
 
-            prev_index = index;
+            prev_index = index; // keep old index for assertion
             frac += delta;
 
             index += (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
 
-            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U);
+            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U); // Keep lower RESAMPLE_FRACTION_BITS bits. Clear higher.
         }
         instance->m_FrameFraction = frac;
 
         assert(prev_index <= instance->m_FrameCount);
 
+        // copy any remaining frames not mixed to the start of m_Frames
+        assert( instance->m_FrameCount >= index);
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T), (instance->m_FrameCount - index) * sizeof(T));
         instance->m_FrameCount -= index;
     }
@@ -1129,11 +1143,12 @@ namespace dmSound
         bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
+        uint32_t mixed_instance_FrameCount = ceilf(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
 
-        if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
+        if (instance->m_FrameCount < mixed_instance_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
-            uint32_t n = sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount;
+            uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
             if (!is_muted)
             {
@@ -1152,7 +1167,7 @@ namespace dmSound
             assert(decoded % stride == 0);
             instance->m_FrameCount += decoded / stride;
 
-            if (instance->m_FrameCount < sound->m_FrameCount) {
+            if (instance->m_FrameCount < mixed_instance_FrameCount) {
 
                 if (instance->m_Looping && instance->m_Loopcounter != 0) {
                     dmSoundCodec::Reset(sound->m_CodecContext, instance->m_Decoder);
@@ -1160,7 +1175,7 @@ namespace dmSound
                         instance->m_Loopcounter --;
                     }
 
-                    uint32_t n = sound->m_FrameCount - instance->m_FrameCount;
+                    uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount;
                     if (!is_muted)
                     {
                         r = dmSoundCodec::Decode(sound->m_CodecContext,
@@ -1179,12 +1194,12 @@ namespace dmSound
                     instance->m_FrameCount += decoded / stride;
 
                 } else {
-					
-					if  (instance->m_FrameCount < instance->m_Speed) {
-						// since this is the last mix and no more frames will be added, trailing frames will linger on forever
-						// if they are less than m_Speed. We will truncate them to avoid this. 
-						instance->m_FrameCount = 0;
-					}
+
+                    if  (instance->m_FrameCount < instance->m_Speed) {
+                        // since this is the last mix and no more frames will be added, trailing frames will linger on forever
+                        // if they are less than m_Speed. We will truncate them to avoid this.
+                        instance->m_FrameCount = 0;
+                    }
                     instance->m_EndOfStream = 1;
                 }
             }
@@ -1445,6 +1460,9 @@ namespace dmSound
     Result Update()
     {
         SoundSystem* sound = g_SoundSystem;
+        if (!sound)
+            return RESULT_OK;
+
         if (!sound->m_Thread)
             return UpdateInternal(sound);
         return sound->m_Status;
@@ -1453,7 +1471,7 @@ namespace dmSound
     Result Pause(bool pause)
     {
         SoundSystem* sound = g_SoundSystem;
-        if (sound->m_Thread)
+        if (sound && sound->m_Thread)
         {
             sound->m_IsPaused = pause;
         }

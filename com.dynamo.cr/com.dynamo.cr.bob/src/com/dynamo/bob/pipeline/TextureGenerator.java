@@ -230,6 +230,16 @@ public class TextureGenerator {
                 textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
             }
         }
+        else {
+            // Issue 5753: Since we currently don't support precompressed hardware textures so we use UASTC instead
+            if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_ETC1) {
+                compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGB;
+            } else if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1) {
+                compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
+            }
+        }
 
         // pick a pixel format (for texc) based on the texture format
         pixelFormat = pixelFormatLUT.get(textureFormat);

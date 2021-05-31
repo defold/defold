@@ -5,8 +5,8 @@
 namespace basist
 {
 	struct color_quad_u8
-	{
-		uint8_t m_c[4];
+	{ 
+		uint8_t m_c[4]; 
 	};
 
 	const uint32_t TOTAL_UASTC_MODES = 19;
@@ -101,9 +101,9 @@ namespace basist
 		int m_ccs;				// color component selector (dual plane only)
 		bool m_dual_plane;	// true if dual plane
 
-		// Weight and endpoint BISE values.
+		// Weight and endpoint BISE values. 
 		// Note these values are NOT linear, they must be BISE encoded. See Table 97 and Table 107.
-		uint8_t m_endpoints[18];	// endpoint values, in RR GG BB etc. order
+		uint8_t m_endpoints[18];	// endpoint values, in RR GG BB etc. order 
 		uint8_t m_weights[64];		// weight index values, raster order, in P0 P1, P0 P1, etc. or P0, P0, P0, P0, etc. order
 	};
 
@@ -198,7 +198,7 @@ namespace basist
 #ifdef _DEBUG
 	int astc_compute_texel_partition(int seed, int x, int y, int z, int partitioncount, bool small_block);
 #endif
-
+		
 	struct uastc_block
 	{
 		union
@@ -238,10 +238,10 @@ namespace basist
 	};
 
 	color32 apply_etc1_bias(const color32 &block_color, uint32_t bias, uint32_t limit, uint32_t subblock);
-
+	
 	struct decoder_etc_block;
 	struct eac_block;
-
+		
 	bool unpack_uastc(uint32_t mode, uint32_t common_pattern, const color32& solid_color, const astc_block_desc& astc, color32* pPixels, bool srgb);
 	bool unpack_uastc(const unpacked_uastc_block& unpacked_blk, color32* pPixels, bool srgb);
 
@@ -263,7 +263,7 @@ namespace basist
 
 	// Packs 16 scalar values to BC4. Same PSNR as stb_dxt's BC4 encoder, around 13% faster.
 	void encode_bc4(void* pDst, const uint8_t* pPixels, uint32_t stride);
-
+	
 	void encode_bc1_solid_block(void* pDst, uint32_t fr, uint32_t fg, uint32_t fb);
 
 	enum
@@ -273,7 +273,7 @@ namespace basist
 		cEncodeBC1UseSelectors = 4,
 	};
 	void encode_bc1(void* pDst, const uint8_t* pPixels, uint32_t flags);
-
+	
 	// Alternate PCA-free encoder, around 15% faster, same (or slightly higher) avg. PSNR
 	void encode_bc1_alt(void* pDst, const uint8_t* pPixels, uint32_t flags);
 
@@ -290,7 +290,7 @@ namespace basist
 
 	bool transcode_uastc_to_pvrtc1_4_rgb(const uastc_block* pSrc_blocks, void* pDst_blocks, uint32_t num_blocks_x, uint32_t num_blocks_y, bool high_quality, bool from_alpha);
 	bool transcode_uastc_to_pvrtc1_4_rgba(const uastc_block* pSrc_blocks, void* pDst_blocks, uint32_t num_blocks_x, uint32_t num_blocks_y, bool high_quality);
-
+		
 	// uastc_init() MUST be called before using this module.
 	void uastc_init();
 

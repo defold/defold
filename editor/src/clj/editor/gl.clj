@@ -365,4 +365,5 @@
   (case blend-mode
     :blend-mode-alpha (gl-blend-func gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
     (:blend-mode-add :blend-mode-add-alpha) (gl-blend-func gl GL/GL_ONE GL/GL_ONE)
-    :blend-mode-mult (gl-blend-func gl GL/GL_DST_COLOR GL/GL_ONE_MINUS_SRC_ALPHA)))
+    :blend-mode-mult (gl-blend-func gl GL/GL_DST_COLOR GL/GL_ONE_MINUS_SRC_ALPHA)
+    :blend-mode-screen (gl-blend-func gl GL/GL_ONE_MINUS_DST_COLOR GL/GL_ONE)))

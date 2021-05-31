@@ -23,17 +23,18 @@
 
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
-  {"x86_64-darwin" {"bin" ["dmengine" "dmengine_release"]
+  {"x86_64-darwin" {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.dylib"]}
-   "x86-win32"     {"bin" ["dmengine.exe" "dmengine_release.exe"]
+   "x86-win32"     {"bin" ["dmengine.exe" "dmengine.pdb"]
                     "lib" []}
-   "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe"]
+   "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine.pdb"]
                     "lib" ["particle_shared.dll"]}
-   "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
+   "x86_64-linux"  {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.so"]}
-   "armv7-darwin"  {"bin" ["dmengine" "dmengine_release"]
+   ;; The iOS version is needed for the "Sign iOS app" in the macOS editor
+   "armv7-darwin"  {"bin" ["dmengine"]
                     "lib" []}
-   "arm64-darwin"  {"bin" ["dmengine" "dmengine_release"]
+   "arm64-darwin"  {"bin" ["dmengine"]
                     "lib" []}})
 
 (defn- platform->engine-src-dirname [platform]
@@ -66,6 +67,7 @@
    "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
+   "${DYNAMO-HOME}/share/java/fmt-spine.jar"          "shared/java/fmt-spine.jar"
 
    "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
    "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"

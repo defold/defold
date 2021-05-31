@@ -9,7 +9,7 @@ Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: .,
  ext/jsr311-api-1.1.1.jar,
  ext/apache-mime4j-0.6.jar,
- ext/extender-client-0.0.1.jar,
+ ext/extender-client-0.0.2.jar,
  ext/commons-io-2.4.jar,
  ext/jackson-core-asl-1.9.2.jar,
  ext/jackson-mapper-asl-1.9.2.jar,

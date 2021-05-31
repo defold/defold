@@ -23,6 +23,9 @@
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
 
+#include <dmsdk/script/script.h>
+#include <dmsdk/gamesys/script.h>
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -234,6 +237,12 @@ class CursorTest : public GamesysTest<CursorTestParams>
 {
 public:
     virtual ~CursorTest() {}
+};
+
+class SoundTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~SoundTest() {}
 };
 
 bool CopyResource(const char* src, const char* dst);

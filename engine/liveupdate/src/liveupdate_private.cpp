@@ -27,7 +27,7 @@ namespace dmLiveUpdate
         return dmResource::HashLength(algorithm) * 2U;
     }
 
-    HResourceEntry FindResourceEntry(const dmResource::Manifest* manifest, const dmhash_t urlHash)
+    HResourceEntry FindResourceEntry(const dmResource::Manifest* manifest, const dmhash_t url_hash)
     {
         HResourceEntry entries = manifest->m_DDFData->m_Resources.m_Data;
 
@@ -36,16 +36,16 @@ namespace dmLiveUpdate
         while (first <= last)
         {
             int mid = first + (last - first) / 2;
-            uint64_t currentHash = entries[mid].m_UrlHash;
-            if (currentHash == urlHash)
+            dmhash_t currentHash = entries[mid].m_UrlHash;
+            if (currentHash == url_hash)
             {
                 return &entries[mid];
             }
-            else if (currentHash > urlHash)
+            else if (currentHash > url_hash)
             {
                 last = mid - 1;
             }
-            else if (currentHash < urlHash)
+            else if (currentHash < url_hash)
             {
                 first = mid + 1;
             }
@@ -54,10 +54,14 @@ namespace dmLiveUpdate
         return NULL;
     }
 
-    uint32_t MissingResources(dmResource::Manifest* manifest, const dmhash_t urlHash, uint8_t* entries[], uint32_t entries_size)
+    static HResourceEntry FindEntry(const dmResource::Manifest* manifest, uint32_t index)
     {
-        uint32_t resources = 0;
+        HResourceEntry entries = manifest->m_DDFData->m_Resources.m_Data;
+        return &entries[index];
+    }
 
+    uint32_t MissingResources(dmResource::Manifest* manifest, const dmhash_t url_hash, uint8_t* entries[], uint32_t entries_size)
+    {
         if (manifest == 0x0)
         {
             return 0;
@@ -66,26 +70,39 @@ namespace dmLiveUpdate
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
         uint32_t hash_len = dmResource::HashLength(algorithm);
 
-        HResourceEntry entry = FindResourceEntry(manifest, urlHash);
-        if (entry != NULL)
+        HResourceEntry entry = FindResourceEntry(manifest, url_hash);
+        if (entry == NULL)
         {
-            for (uint32_t i = 0; i < entry->m_Dependants.m_Count; ++i)
-            {
-                uint8_t* resource_hash = entry->m_Dependants.m_Data[i].m_Data.m_Data;
-                dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
-                if (result != dmResourceArchive::RESULT_OK)
-                {
-                    if (entries != NULL && resources < entries_size)
-                    {
-                        entries[resources] = resource_hash;
-                    }
+            return 0;
+        }
 
-                    resources += 1;
+        // entries may be null if the function is called to find out how many to allocate for
+        uint32_t count = entry->m_Dependants.m_Count;
+        if (entries == NULL)
+        {
+            return count;
+        }
+
+        uint32_t num_resources = 0;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint32_t index = entry->m_Dependants.m_Data[i];
+            HResourceEntry dependant = FindEntry(manifest, index);
+
+            uint8_t* resource_hash = dependant->m_Hash.m_Data.m_Data;
+            dmResourceArchive::Result result = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, resource_hash, hash_len, 0, 0);
+            if (result != dmResourceArchive::RESULT_OK)
+            {
+                if (entries != NULL && num_resources < entries_size)
+                {
+                    entries[num_resources] = resource_hash;
                 }
+
+                num_resources += 1;
             }
         }
 
-        return resources;
+        return num_resources;
     }
 
     void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, size_t buflen, uint8_t* digest)

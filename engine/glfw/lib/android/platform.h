@@ -255,17 +255,18 @@ GLFWGLOBAL struct {
 //------------------------------------------------------------------------
 // Joystick information & state
 //------------------------------------------------------------------------
-
-#define DEVICE_ID_LENGTH 64
+#define DEVICE_NAME_LENGTH 64
+#define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 19
+#define GLFW_ANDROID_GAMEPAD_NUMAXIS 4
 
 GLFWGLOBAL struct {
-    int           Present;
-    int           fd;
+    int           State;
+    int           DeviceId;
+    char          DeviceName[DEVICE_NAME_LENGTH];
     int           NumAxes;
     int           NumButtons;
-    float         *Axis;
-    unsigned char *Button;
-    char DeviceId[DEVICE_ID_LENGTH];
+    float         Axis[GLFW_ANDROID_GAMEPAD_NUMAXIS];
+    unsigned char Button[GLFW_ANDROID_GAMEPAD_NUMBUTTONS];
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 
@@ -299,5 +300,6 @@ void _glfwSetVideoModeMODE( int screen, int mode, int rate );
 void _glfwSetVideoMode( int screen, int *width, int *height, int *rate );
 void _glfwRestoreVideoMode( void );
 
+void _glfwPlatformDiscoverJoysticks();
 
 #endif // _platform_h_

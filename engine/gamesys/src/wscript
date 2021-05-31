@@ -1,4 +1,5 @@
 import os
+from waf_dynamo import dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -9,6 +10,8 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('gamesys')
     bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
+
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     if 'android' in bld.env['PLATFORM']:
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]

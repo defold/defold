@@ -510,17 +510,14 @@ namespace dmConfigFile
         params.m_Userdata = &context;
         params.m_HttpContent = &HttpContent;
         params.m_HttpHeader = &HttpHeader;
-        dmDNS::NewChannel(&params.m_DNSChannel);
-        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0);
+        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0, 0);
         if (client == 0x0)
         {
-            dmDNS::DeleteChannel(params.m_DNSChannel);
             return RESULT_FILE_NOT_FOUND;
         }
 
         dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
         dmHttpClient::Delete(client);
-        dmDNS::DeleteChannel(params.m_DNSChannel);
 
         if (http_result != dmHttpClient::RESULT_OK)
         {

@@ -128,7 +128,7 @@
         (doseq [[key val] bob-args]
           (.setOption bob-project key val))
         (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-        (let [scanner (ClassLoaderScanner.)]
+        (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
           (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
             (.scan bob-project scanner pkg)))
         (let [deps (workspace/dependencies ws)]

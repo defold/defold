@@ -305,7 +305,20 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-   public static String getDefaultDmengineExeName(String variant) {
+    public static String getJarFile(String filename) throws IOException {
+        init();
+        File f = new File(rootFolder, filename);
+        if (!f.exists()) {
+            URL url = Bob.class.getResource("/share/java/" + filename);
+            if (url == null) {
+                throw new RuntimeException(String.format("/share/java/%s not found", filename));
+            }
+            atomicCopy(url, f, false);
+        }
+        return f.getAbsolutePath();
+    }
+
+    public static String getDefaultDmengineExeName(String variant) {
         switch (variant)
         {
             case VARIANT_DEBUG:
@@ -467,10 +480,6 @@ public class Bob {
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-
         BobProjectProperties projectProperties = project.getProjectProperties();
         String dependencies = projectProperties.getStringValue("project", "dependencies", "");
 

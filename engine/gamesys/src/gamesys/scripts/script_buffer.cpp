@@ -10,8 +10,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <script/script.h>
-
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
@@ -23,6 +21,9 @@
 #include "script_buffer.h"
 #include "../resources/res_buffer.h"
 #include "../gamesys.h"
+
+#include <dmsdk/script/script.h>
+#include <dmsdk/gamesys/script.h>
 
 #if defined(_WIN32)
 #include <malloc.h>

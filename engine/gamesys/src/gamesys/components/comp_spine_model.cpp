@@ -167,8 +167,8 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                dmMessage::ResetURL(component->m_Listener);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, component->m_FunctionRef, descriptor, &message, data_size, 0);
+                dmMessage::ResetURL(&component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send animation_done to listener.");
@@ -182,7 +182,6 @@ namespace dmGameSystem
                 {
                     return;
                 }
-                receiver.m_FunctionRef = 0;
 
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {
@@ -206,7 +205,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size, 0);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, 0, descriptor, &event, data_size, 0);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send spine_event to listener.");
@@ -249,7 +248,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        dmGameSystem::HashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
@@ -340,12 +339,13 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
-        dmMessage::ResetURL(component->m_Listener);
+        dmMessage::ResetURL(&component->m_Listener);
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
+        component->m_FunctionRef = 0;
 
         // Create GO<->bone representation
         // We need to make sure that bone GOs are created before we start the default animation.
@@ -426,7 +426,7 @@ namespace dmGameSystem
     {
         DM_PROFILE(SpineModel, "RenderBatch");
 
-        const SpineModelComponent* first = (SpineModelComponent*) buf[*begin].m_UserData;
+        SpineModelComponent* first = (SpineModelComponent*) buf[*begin].m_UserData;
         const SpineModelResource* resource = first->m_Resource;
 
         uint32_t vertex_count = 0;
@@ -465,13 +465,7 @@ namespace dmGameSystem
         ro.m_Textures[0] = resource->m_RigScene->m_TextureSet->m_Texture;
         ro.m_Material = GetMaterial(first, resource);
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
-        uint32_t size = first->m_RenderConstants.m_ConstantCount;
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            const dmRender::Constant& c = constants[i];
-            dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
-        }
+        dmGameSystem::EnableRenderObjectConstants(&ro, &first->m_RenderConstants);
 
         dmGameSystemDDF::SpineModelDesc::BlendMode blend_mode = resource->m_Model->m_BlendMode;
         switch (blend_mode)
@@ -489,6 +483,11 @@ namespace dmGameSystem
             case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_MULT:
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_SCREEN:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
             default:
@@ -674,6 +673,7 @@ namespace dmGameSystem
                 if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, ddf_playback_map.m_Table[ddf->m_Playback], ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
+                    component->m_FunctionRef = params.m_Message->m_UserData2;
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash)
@@ -698,18 +698,10 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstantSpineModel* ddf = (dmGameSystemDDF::ResetConstantSpineModel*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
-                uint32_t size = component->m_RenderConstants.m_ConstantCount;
-                for (uint32_t i = 0; i < size; ++i)
+
+                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    if( constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
-                        component->m_RenderConstants.m_ConstantCount--;
-                        component->m_ReHash = 1;
-                        break;
-                    }
+                    component->m_ReHash = 1;
                 }
             }
         }

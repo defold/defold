@@ -200,7 +200,7 @@ namespace dmGameSystem
                 uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
                 dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                dmMessage::ResetURL(component->m_Listener);
+                dmMessage::ResetURL(&component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send animation_done to listener.");
@@ -249,7 +249,7 @@ namespace dmGameSystem
             dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
-        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        dmGameSystem::HashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
@@ -358,7 +358,7 @@ namespace dmGameSystem
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         ModelResource* resource = (ModelResource*)params.m_Resource;
         component->m_Resource = resource;
-        dmMessage::ResetURL(component->m_Listener);
+        dmMessage::ResetURL(&component->m_Listener);
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
@@ -455,7 +455,7 @@ namespace dmGameSystem
             dmRender::RenderObject& ro = *world->m_RenderObjects.End();
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
-            const ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
+            ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
             const ModelResource* mr = component->m_Resource;
             assert(mr->m_VertexBuffer);
 
@@ -479,12 +479,7 @@ namespace dmGameSystem
                 ro.m_Textures[i] = GetTexture(component, mr, i);
             }
 
-            const CompRenderConstants& constants = component->m_RenderConstants;
-            for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
-            {
-                const dmRender::Constant& c = constants.m_RenderConstants[i];
-                dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
-            }
+            dmGameSystem::EnableRenderObjectConstants(&ro, &component->m_RenderConstants);
 
             dmRender::AddToRender(render_context, &ro);
         }
@@ -550,11 +545,10 @@ namespace dmGameSystem
             ro.m_Textures[i] = GetTexture(first, resource, i);
         }
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
-        uint32_t size = first->m_RenderConstants.m_ConstantCount;
+        uint32_t size = first->m_RenderConstants.m_RenderConstants.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
-            const dmRender::Constant& c = constants[i];
+            const dmRender::Constant& c = first->m_RenderConstants.m_RenderConstants[i];
             dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
         }
 

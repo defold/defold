@@ -25,6 +25,8 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"
+#include "comp_private.h"
+
 
 namespace dmGameSystem
 {
@@ -36,6 +38,7 @@ namespace dmGameSystem
         dmMessage::URL          m_Listener;
         dmMessage::URL          m_Receiver;
         dmGameObject::HInstance m_Instance;
+        uintptr_t               m_LuaCallback;
         float                   m_Delay;
         uint32_t                m_PlayId;
         uint32_t                m_StopRequested  : 1;
@@ -61,6 +64,7 @@ namespace dmGameSystem
     static const dmhash_t SOUND_PROP_GAIN   = dmHashString64("gain");
     static const dmhash_t SOUND_PROP_PAN    = dmHashString64("pan");
     static const dmhash_t SOUND_PROP_SPEED  = dmHashString64("speed");
+    static const dmhash_t SOUND_PROP_SOUND  = dmHashString64("sound");
 
     dmGameObject::CreateResult CompSoundNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -183,14 +187,14 @@ namespace dmGameSystem
 
                                 message.m_PlayId = entry.m_PlayId;
 
-                                if (dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
+                                if (dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t)entry.m_LuaCallback, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
                                 {
                                     dmLogError("Could not send sound_done to listener.");
                                 }
                             }
 
-                            dmMessage::ResetURL(entry.m_Receiver);
-                            dmMessage::ResetURL(entry.m_Listener);
+                            dmMessage::ResetURL(&entry.m_Receiver);
+                            dmMessage::ResetURL(&entry.m_Listener);
                         }
                     }
                     else if (entry.m_StopRequested)
@@ -371,7 +375,8 @@ namespace dmGameSystem
                 entry.m_Receiver = params.m_Message->m_Receiver;
                 entry.m_Delay = play_sound->m_Delay;
                 entry.m_PlayId = play_sound->m_PlayId;
-                dmMessage::ResetURL(entry.m_Listener);
+                dmMessage::ResetURL(&entry.m_Listener);
+                entry.m_LuaCallback = 0;
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
                 {
@@ -389,6 +394,7 @@ namespace dmGameSystem
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
 
                     entry.m_Listener = params.m_Message->m_Sender;
+                    entry.m_LuaCallback = params.m_Message->m_UserData2;
                 }
                 else
                 {
@@ -466,12 +472,15 @@ namespace dmGameSystem
         uint32_t index = *params.m_UserData;
         SoundComponent* component = &world->m_Components.Get(index);
 
-        dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
-        if (parameter == dmSound::PARAMETER_MAX) {
-            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        if (params.m_PropertyId == SOUND_PROP_SOUND) {
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundData, out_value);
+        } else {
+            dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
+            if (parameter == dmSound::PARAMETER_MAX) {
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            }
+            return SoundGetParameter(world, params.m_Instance, component, parameter, out_value);
         }
-
-        return SoundGetParameter(world, params.m_Instance, component, parameter, out_value);
     }
 
     dmGameObject::PropertyResult CompSoundSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

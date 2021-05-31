@@ -23,7 +23,6 @@
 #include <crash/crash.h>
 #include <dlib/buffer.h>
 #include <dlib/dlib.h>
-#include <dlib/dns.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/http_client.h>
@@ -121,7 +120,7 @@ namespace dmEngine
         window_resized.m_Height = height;
 
         dmMessage::URL receiver;
-        dmMessage::ResetURL(receiver);
+        dmMessage::ResetURL(&receiver);
         dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -671,8 +670,8 @@ namespace dmEngine
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
-        graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
+        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
 
         graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
@@ -857,6 +856,8 @@ namespace dmEngine
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
             dmLogInfo("Initialised sound device '%s'", sound_params.m_OutputDevice);
+        } else {
+            dmLogWarning("Failed to initialize sound system.");
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
@@ -948,7 +949,7 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
-        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 0) ? 1 : 0;
+        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 1) ? 1 : 0;
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
@@ -1885,7 +1886,6 @@ void dmEngineInitialize()
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
-    dmDNS::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmLogParams params;
@@ -1908,7 +1908,6 @@ void dmEngineFinalize()
     dmLogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
-    dmDNS::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
 }
