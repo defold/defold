@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 
-import com.dynamo.gui.proto.Gui;
+import com.dynamo.gamesys.proto.Gui;
 import com.google.protobuf.Message;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
