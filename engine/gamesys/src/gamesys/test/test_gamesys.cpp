@@ -635,6 +635,48 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test that go.delete() does not influence other sprite animations in progress
+TEST_F(SpriteAnimTest, FlipbookAnim)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Spawn one go with a script that will initiate animations on the above sprites
+    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go_flipbook"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_animater);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    lua_getglobal(L, "num_finished");
+    int num_finished = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "num_messages");
+    int num_messages = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(2, num_finished);
+    ASSERT_EQ(1, num_messages);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
 {
     dmGameObject::PropertyDesc property_desc;
