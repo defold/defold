@@ -727,7 +727,7 @@ TEST_F(CursorTest, GuiFlipbookCursor)
 
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_cursor.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     dmMessage::URL msg_url;
