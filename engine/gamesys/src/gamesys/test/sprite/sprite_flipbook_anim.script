@@ -1,0 +1,34 @@
+tests_done = false
+num_finished = 0
+num_messages = 0
+
+local function callback(self, message_id, message, sender)
+    num_finished = num_finished + 1
+    tests_done = num_finished == 2
+end
+
+function init(self)
+    sprite.play_flipbook("#sprite", "anim_once")
+
+    num_finished = 0
+    num_messages = 0
+end
+
+function update(self, dt)
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("animation_done") then
+        num_finished = num_finished + 1
+        num_messages = num_messages + 1
+        tests_done = num_finished == 2
+
+        -- continue with the next animation
+        sprite.play_flipbook("#sprite", "anim_once", callback)
+    end
+end
+
+function final()
+    assert(num_finished == 2)
+    assert(num_messages == 1)
+end
