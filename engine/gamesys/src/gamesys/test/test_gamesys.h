@@ -153,6 +153,13 @@ public:
     virtual ~SpriteAnimTest() {}
 };
 
+class ParticleFxTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~ParticleFxTest() {}
+};
+
+
 class WindowEventTest : public GamesysTest<const char*>
 {
 public:

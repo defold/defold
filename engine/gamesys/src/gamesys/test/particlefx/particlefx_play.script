@@ -1,0 +1,20 @@
+tests_done = false
+
+local function emitter_state_change(self, id, emitter, state)
+    if state == particlefx.EMITTER_STATE_POSTSPAWN then
+        tests_done = true
+    end
+end
+
+function init(self)
+    particlefx.play("#particlefx", emitter_state_change)
+end
+
+function update(self, dt)
+end
+
+function on_message(self, message_id, message)
+end
+
+function final()
+end
