@@ -608,7 +608,7 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_NE((void*)0, go3);
 
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_property_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_animater);
 
     // 1st iteration:
