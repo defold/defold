@@ -246,6 +246,12 @@ public:
     virtual ~CursorTest() {}
 };
 
+class GuiTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~GuiTest() {}
+};
+
 class SoundTest : public GamesysTest<const char*>
 {
 public:

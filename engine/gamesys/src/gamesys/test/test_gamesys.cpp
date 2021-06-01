@@ -769,6 +769,45 @@ TEST_F(CursorTest, GuiFlipbookCursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Tests the animation done message/callback
+TEST_F(GuiTest, GuiFlipbookAnim)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t gui_comp_id = dmHashString64("gui");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(&msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = gui_comp_id;
+
+    m_UpdateContext.m_DT = 1.0f;
+
+    bool tests_done = false;
+    int max_iter = 100;
+    while (!tests_done && --max_iter > 0)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // continue test?
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    if (max_iter <= 0)
+    {
+        dmLogError("The playback didn't finish");
+    }
+    ASSERT_LT(0, max_iter);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_P(CursorTest, Cursor)
 {
     const CursorTestParams& params = GetParam();
