@@ -1,0 +1,19 @@
+tests_done = false
+
+local function callback(self, node)
+    tests_done = true
+end
+
+function init( self )
+    self.node = gui.get_node("box")
+    gui.play_flipbook(self.node, "anim_once", callback)
+end
+
+function update(self, dt)
+end
+
+function on_message(self, message_id, message, sender)
+end
+
+function final()
+end
