@@ -371,7 +371,7 @@ def get_branch():
 
 def is_workflow_enabled_in_repo():
     if not is_repo_private():
-        return True # all workflows are enabled by deefault
+        return True # all workflows are enabled by default
 
     workflow = os.environ.get('GITHUB_WORKFLOW', '')
     if workflow in ('CI - Main',):
@@ -411,7 +411,7 @@ def main(argv):
     platform = args.platform
 
     if platform and not is_platform_supported(platform):
-        print("Platform {} is private and current repo cannot build for this platform. Skipping".format(platform))
+        print("Platform {} is private and the repo '{}' cannot build for this platform. Skipping".format(platform, os.environ.get('GITHUB_REPOSITORY', '')))
         return;
 
     branch = get_branch()

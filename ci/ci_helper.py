@@ -8,8 +8,6 @@ import os, sys, platform
 
 PLATFORMS_PRIVATE = ('x86_64-ps4', 'arm64-nx64')
 
-DIRNAME=os.path.dirname(os.path.abspath(__file__))
-
 # We use this function to determine if we should skip this platform
 def can_build_private_platform(platform):
     return False
@@ -17,6 +15,7 @@ def can_build_private_platform(platform):
 def repo_name_to_platforms(repository):
     return None
 
+DIRNAME=os.path.dirname(os.path.abspath(__file__))
 if os.path.exists(os.path.join(DIRNAME, 'ci_private.py')):
     import ci_private
     can_build_private_platform = ci_private.can_build_private_platform
