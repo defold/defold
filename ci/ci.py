@@ -410,7 +410,7 @@ def main(argv):
 
     platform = args.platform
 
-    if not is_platform_supported(platform):
+    if platform and not is_platform_supported(platform):
         print("Platform {} is private and current repo cannot build for this platform. Skipping".format(platform))
         return;
 
