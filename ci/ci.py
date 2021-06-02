@@ -19,6 +19,7 @@ import platform
 import os
 import base64
 from argparse import ArgumentParser
+from ci_helper import is_platform_supported, is_repo_private
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
@@ -368,7 +369,20 @@ def get_branch():
         branch = call("git rev-parse HEAD")
     return branch
 
+def is_workflow_enabled_in_repo():
+    if not is_repo_private():
+        return True # all workflows are enabled by deefault
+
+    workflow = os.environ.get('GITHUB_WORKFLOW', '')
+    if workflow in ('CI - Main',):
+        return True
+    return False
+
 def main(argv):
+    if not is_workflow_enabled_in_repo():
+        print("Workflow '{}' is disabled in repo '{}'. Skipping".format(os.environ.get('GITHUB_WORKFLOW', ''), os.environ.get('GITHUB_REPOSITORY', '')))
+        return
+
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, notarize-editor, archive-editor, bob, sdk, install, smoke)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
@@ -395,6 +409,11 @@ def main(argv):
     args = parser.parse_args()
 
     platform = args.platform
+
+    if not is_platform_supported(platform):
+        print("Platform {} is private and current repo cannot build for this platform. Skipping".format(platform))
+        return;
+
     branch = get_branch()
 
     # configure build flags based on the branch
