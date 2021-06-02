@@ -1,8 +1,32 @@
 
 
-tests_done = false
+function init(self)
+  physics.set_gravity(vmath.vector3(0, -10, 0)) -- note, higher gravity (like -100) won't allow the object to settle
+end
+
+tests_done = false -- flag end of test to C level
+
+local counter = 0
+local body1_asleep_pos
 
 function update(self, dt)
-  print("in lua's UPDATE!")
-  tests_done = true
+  counter = counter + 1
+
+  if counter == 100 then -- iterate 100 times to allow bodies to settle and sleep
+		physics.create_joint(physics.JOINT_TYPE_FIXED, "body1-go#body-co", "my_test_joint", vmath.vector3(0, 0, 0), "body2-go#body-co", vmath.vector3(0, 0, 0), { max_length = 20 })
+    body1_asleep_pos = go.get_position("body1-go")
+	end
+
+	if counter == 110 then -- iterate a little more to make sure that object although attached hasn't moved
+    local body1_pos = go.get_position("body1-go")
+    assert(body1_asleep_pos.x == body1_pos.x)
+    assert(body1_asleep_pos.y == body1_pos.y)
+    physics.wakeup("body1-go#body-co")
+  end
+
+  if counter >= 120 then -- make sure the object has now moved after being awaken
+    local body1_pos = go.get_position("body1-go")
+    assert(body1_asleep_pos.x ~= body1_pos.x)
+    tests_done = true
+  end
 end

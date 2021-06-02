@@ -47,6 +47,8 @@ class CustomizableGamesysTest : public jc_test_params_class<T>
 public:
     struct ProjectOptions {
       uint32_t m_MaxCollisionCount;
+      uint32_t m_MaxContactPointCount;
+      bool m_3D;
     };
 
     CustomizableGamesysTest() {
@@ -67,8 +69,10 @@ class GamesysTest : public CustomizableGamesysTest<T>
 {
 public:
     GamesysTest() {
-        // default configuration values for the engine
+        // Default configuration values for the engine. Subclass GamesysTest and ovewrite in constructor.
         this -> projectOptions.m_MaxCollisionCount = 0;
+        this -> projectOptions.m_MaxContactPointCount = 0;
+        this -> projectOptions.m_3D = false;
     }
 protected:
     virtual void SetUp();
@@ -103,12 +107,14 @@ protected:
     dmHashTable64<void*> m_Contexts;
 };
 
-class MyCustomGamesysTest : public GamesysTest<const char*>
+class Sleeping2DCollisionObjectTest : public GamesysTest<const char*>
 {
 public:
-    MyCustomGamesysTest() {
+    Sleeping2DCollisionObjectTest() {
       // override configuration values specified in GamesysTest()
-      this -> projectOptions.m_MaxCollisionCount = 64;
+      this -> projectOptions.m_MaxCollisionCount = 32;
+      this -> projectOptions.m_MaxContactPointCount = 64;
+      this -> projectOptions.m_3D = false;
     }
 };
 
@@ -342,7 +348,8 @@ void GamesysTest<T>::SetUp()
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
     m_PhysicsContext.m_MaxCollisionCount = this -> projectOptions.m_MaxCollisionCount;
-    m_PhysicsContext.m_3D = false;
+    m_PhysicsContext.m_MaxContactPointCount = this -> projectOptions.m_MaxContactPointCount;
+    m_PhysicsContext.m_3D = this -> projectOptions.m_3D;
     m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
 
     m_ParticleFXContext.m_Factory = m_Factory;

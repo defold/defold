@@ -1319,7 +1319,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-TEST_F(MyCustomGamesysTest, MyTest)
+TEST_F(Sleeping2DCollisionObjectTest, WakingCollisionObjectTest)
 {
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -1330,14 +1330,26 @@ TEST_F(MyCustomGamesysTest, MyTest)
     scriptlibcontext.m_LuaState = L;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
-    const char* path_sleeping_go = "/collision_object/sleepy_collision_object.goc";
-    dmhash_t hash_sleeping_go = dmHashString64("/sleeping_go");
+    // a 'base' gameobject works as the base for other dynamic objects to stand on
+    const char* path_sleepy_go = "/collision_object/sleepy_base.goc";
+    dmhash_t hash_base_go = dmHashString64("/base-go");
+    // place the base object so that the upper level of base is at Y = 0
+    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, base_go);
 
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_sleeping_go, hash_sleeping_go, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
+    // two dynamic 'body' object will get spawned and placed appart
+    const char* path_body_go = "/collision_object/sleepy_body.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (10,10)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (50,10)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, 0, Point3(50,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
 
-    //ASSERT_TRUE(false);
-    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+
+    // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
     while (!tests_done)
     {
@@ -1353,7 +1365,6 @@ TEST_F(MyCustomGamesysTest, MyTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
 }
 
 /* Physics joints */
