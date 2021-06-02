@@ -155,6 +155,13 @@ public:
     virtual ~SpriteAnimTest() {}
 };
 
+class ParticleFxTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~ParticleFxTest() {}
+};
+
+
 class WindowEventTest : public GamesysTest<const char*>
 {
 public:
@@ -239,6 +246,12 @@ class CursorTest : public GamesysTest<CursorTestParams>
 {
 public:
     virtual ~CursorTest() {}
+};
+
+class GuiTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~GuiTest() {}
 };
 
 class SoundTest : public GamesysTest<const char*>
