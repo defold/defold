@@ -53,6 +53,7 @@ namespace dmGameSystem
         dmRig::HRigInstance         m_RigInstance;
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
+        int                         m_FunctionRef;
         CompRenderConstants         m_RenderConstants;
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmRender::HMaterial         m_Material;
@@ -199,7 +200,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, component->m_FunctionRef, descriptor, &message, data_size, 0);
                 dmMessage::ResetURL(&component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
@@ -364,6 +365,7 @@ namespace dmGameSystem
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
+        component->m_FunctionRef = 0;
 
         // Create GO<->bone representation
         // We need to make sure that bone GOs are created before we start the default animation.
@@ -773,6 +775,7 @@ namespace dmGameSystem
                 if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
+                    component->m_FunctionRef = params.m_Message->m_UserData2;
                 }
             }
             else if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
