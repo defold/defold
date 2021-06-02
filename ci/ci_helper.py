@@ -52,6 +52,7 @@ def is_repo_private():
         return False # probably a local build
 
     # get the platforms
+    platforms = repo_name_to_platforms(repository)
     if platforms is not None:
         for platform in platforms:
             if is_platform_private(platform):
