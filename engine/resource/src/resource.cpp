@@ -49,8 +49,8 @@
 #include <dlib/mutex.h>
 
 #include "resource.h"
-#include "resource_ddf.h"
 #include "resource_private.h"
+#include <resource/resource_ddf.h>
 
 /*
  * TODO:
@@ -1828,6 +1828,8 @@ void RegisterTypeCreatorDesc(struct TypeCreatorDesc* desc,
                             FResourceTypeRegister deregister_fn)
 {
     DM_STATIC_ASSERT(dmResource::s_ResourceTypeCreatorDescBufferSize >= sizeof(struct TypeCreatorDesc), Invalid_Struct_Size);
+
+    dmLogDebug("Registered resource type descriptor %s", name);
     desc->m_Name = name;
     desc->m_RegisterFn = register_fn;
     desc->m_DeregisterFn = deregister_fn;

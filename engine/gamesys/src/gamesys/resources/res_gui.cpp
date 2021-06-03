@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <new>
 #include "res_gui.h"
-#include "../proto/gui_ddf.h"
+#include <gamesys/gui_ddf.h>
 #include "../components/comp_gui_private.h"
 #include "gamesys.h"
 #include <gameobject/lua_ddf.h>

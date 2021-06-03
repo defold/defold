@@ -25,8 +25,10 @@
 
 #include "gamesys.h"
 #include "../resources/res_collision_object.h"
+#include "../resources/res_tilegrid.h"
 
-#include "../proto/physics_ddf.h"
+#include <gamesys/physics_ddf.h>
+#include <gamesys/gamesys_ddf.h>
 
 namespace dmGameSystem
 {

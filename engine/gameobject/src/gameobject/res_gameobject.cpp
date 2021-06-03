@@ -93,6 +93,9 @@ namespace dmGameObject
                 assert(fact_e == dmResource::RESULT_OK);
                 uint32_t type_index;
                 ComponentType* type = FindComponentType(regist, resource_type, &type_index);
+                if (!type) {
+                    dmLogError("Failed to find component type for '%s'/'%s'", component_desc.m_Id, component_desc.m_Component);
+                }
                 assert(type != 0x0);
                 dmResource::SResourceDescriptor descriptor;
                 fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);

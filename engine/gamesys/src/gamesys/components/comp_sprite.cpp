@@ -33,8 +33,8 @@
 #include "../gamesys_private.h"
 #include "comp_private.h"
 
-#include "sprite_ddf.h"
-#include "gamesys_ddf.h"
+#include <gamesys/sprite_ddf.h>
+#include <gamesys/gamesys_ddf.h>
 
 using namespace Vectormath::Aos;
 namespace dmGameSystem
@@ -50,6 +50,7 @@ namespace dmGameSystem
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
+        int                         m_FunctionRef; // Animation callback function
         dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
         SpriteResource*             m_Resource;
@@ -355,6 +356,7 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
+        component->m_FunctionRef = 0;
 
         component->m_ReHash = 1;
 
@@ -758,7 +760,7 @@ namespace dmGameSystem
                             sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
-                            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
+                            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, component->m_FunctionRef, descriptor, &message, data_size, 0);
                             dmMessage::ResetURL(&component->m_Listener);
                             if (result != dmMessage::RESULT_OK)
                             {
@@ -1020,6 +1022,7 @@ namespace dmGameSystem
                 if (PlayAnimation(component, ddf->m_Id, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
+                    component->m_FunctionRef = params.m_Message->m_UserData2;
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash)

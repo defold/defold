@@ -3,7 +3,7 @@ package dmBufferDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
-option java_package = "com.dynamo.buffer.proto";
+option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "BufferProto";
 
 // NOTE: Must match ValueType in dmsdk/buffer.h

@@ -125,17 +125,6 @@ namespace dmGameSystem
         uint32_t                    m_Subpixels : 1;
     };
 
-    struct SpineModelContext
-    {
-        SpineModelContext()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        dmRender::HRenderContext    m_RenderContext;
-        dmResource::HFactory        m_Factory;
-        uint32_t                    m_MaxSpineModelCount;
-    };
-
     struct ModelContext
     {
         ModelContext()
@@ -226,7 +215,6 @@ namespace dmGameSystem
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
-                                                  SpineModelContext* spine_model_context,
                                                   ModelContext* model_context,
                                                   MeshContext* Mesh_context,
                                                   LabelContext* label_context,

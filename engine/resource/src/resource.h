@@ -19,7 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/mutex.h>
-#include "liveupdate_ddf.h"
+#include <resource/liveupdate_ddf.h>
 #include "resource_archive.h"
 
 namespace dmResource
@@ -69,26 +69,6 @@ namespace dmResource
         dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
         dmLiveUpdateDDF::ManifestFile*              m_DDF;
         dmLiveUpdateDDF::ManifestData*              m_DDFData;
-    };
-
-    /// Resource descriptor
-    struct SResourceDescriptor
-    {
-        /// Hash of resource name
-        uint64_t m_NameHash;
-
-        /// Resource pointer. Must be unique and not NULL.
-        void*    m_Resource;
-        /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
-        void*    m_PrevResource;
-
-        /// Resource size in memory. I.e. the payload of m_Resource
-        uint32_t m_ResourceSize;
-
-        // private members
-        uint32_t m_ResourceSizeOnDisc;
-        void*    m_ResourceType;
-        uint32_t m_ReferenceCount;
     };
 
     typedef uintptr_t ResourceType;
@@ -178,15 +158,6 @@ namespace dmResource
      * @param factory Factory handle
      */
     void UpdateFactory(HFactory factory);
-
-    /**
-     * Get a resource from factory
-     * @param factory Factory handle
-     * @param name Resource name
-     * @param resource Created resource
-     * @return RESULT_OK on success
-     */
-    Result Get(HFactory factory, const char* name, void** resource);
 
     /**
      * Find a resource by a canonical path hash.
@@ -290,13 +261,6 @@ namespace dmResource
     void IncRef(HFactory factory, void* resource);
 
     /**
-     * Release resource
-     * @param factory Factory handle
-     * @param resource Resource
-     */
-    void Release(HFactory factory, void* resource);
-
-    /**
      * Create a new preloader
      * @param factory Factory handle
      * @param name Resource to load
@@ -330,15 +294,6 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void DeletePreloader(HPreloader preloader);
-
-    /**
-     * Hint the preloader what to load before Create is called on the resource.
-     * The resources are not guaranteed to be loaded before Create is called.
-     * This function can be called from a worker thread.
-     * @param name Resource name
-     * @return bool if successfully invoking preloader.
-     */
-    bool PreloadHint(HPreloadHintInfo preloader, const char *name);
 
     Manifest* GetManifest(HFactory factory);
 

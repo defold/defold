@@ -157,7 +157,6 @@ namespace dmGameObject
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
         m_Mutex = dmMutex::New();
-        m_SocketToCollection.SetCapacity(15, 17);
     }
 
     Register::~Register()
@@ -337,14 +336,6 @@ namespace dmGameObject
             regist->m_Collections.OffsetCapacity(4);
         }
         regist->m_Collections.Push(collection);
-
-        if (regist->m_SocketToCollection.Full())
-        {
-            uint32_t capacity = regist->m_Collections.Capacity()*2; // two sockets per collection
-            regist->m_SocketToCollection.SetCapacity(capacity/2-1, capacity);
-        }
-        regist->m_SocketToCollection.Put(collection->m_NameHash, collection);
-
         return RESULT_OK;
     }
 
@@ -381,7 +372,6 @@ namespace dmGameObject
             dmMessage::Consume(collection->m_ComponentSocket);
             dmMessage::DeleteSocket(collection->m_ComponentSocket);
             collection->m_ComponentSocket = 0;
-            regist->m_SocketToCollection.Erase(collection->m_NameHash);
         }
         if (collection->m_FrameSocket)
         {
@@ -2845,7 +2835,7 @@ namespace dmGameObject
         dmTransform::ToMatrix a dmTransform::Transform from the world transform.
         When this is not possible, nonsense will be returned.
     */
-    const dmTransform::Transform GetWorldTransform(HInstance instance)
+    dmTransform::Transform GetWorldTransform(HInstance instance)
     {
         Matrix4 mtx = instance->m_Collection->m_WorldTransforms[instance->m_Index];
         return dmTransform::ToTransform(mtx);

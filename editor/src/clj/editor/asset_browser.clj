@@ -282,7 +282,7 @@
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
 (defn- reserved-project-file [^File project-path ^File f]
-  (resource-watch/reserved-proj-path? (resource/file->proj-path project-path f)))
+  (resource-watch/reserved-proj-path? project-path (resource/file->proj-path project-path f)))
 
 (defn- illegal-copy-move-pairs [^File project-path prospect-pairs]
   (seq (filter (comp (partial reserved-project-file project-path) second) prospect-pairs)))
@@ -361,9 +361,10 @@
   (assert (and new-name (not (string/blank? new-name))))
   (let [workspace (resource/workspace resource)
         src-file (io/file resource)
-        ^File dest-file (File. (.getParent src-file) new-name)
-        dest-proj-path (resource/file->proj-path (workspace/project-path workspace) dest-file)]
-    (when-not (resource-watch/reserved-proj-path? dest-proj-path)
+        dest-file (File. (.getParent src-file) new-name)
+        project-directory-file (workspace/project-path workspace)
+        dest-proj-path (resource/file->proj-path project-directory-file dest-file)]
+    (when-not (resource-watch/reserved-proj-path? project-directory-file dest-proj-path)
       (let [[[^File src-file ^File dest-file]]
             ;; plain case change causes irrelevant conflict on case insensitive fs
             ;; fs/move handles this, no need to resolve
@@ -381,9 +382,9 @@
        (not (resource/read-only? (first resources)))
        (not (fixed-resource-paths (resource/resource->proj-path (first resources))))))
 
-(defn validate-new-resource-name [parent-path new-name]
+(defn validate-new-resource-name [^File project-directory-file parent-path new-name]
   (let [prospect-path (str parent-path "/" new-name)]
-    (when (resource-watch/reserved-proj-path? prospect-path)
+    (when (resource-watch/reserved-proj-path? project-directory-file prospect-path)
       (format "The name %s is reserved" new-name))))
 
 (handler/defhandler :rename :asset-browser
@@ -400,10 +401,11 @@
                                    "")
                    (resource/resource-name resource)))
           parent-path (resource/parent-proj-path (resource/proj-path resource))
+          project-directory-file (workspace/project-path workspace)
           options {:title (if dir? "Rename Folder" "Rename File")
                    :label (if dir? "New Folder Name" "New File Name")
                    :sanitize (if dir? dialogs/sanitize-folder-name (partial dialogs/sanitize-file-name extension))
-                   :validate (partial validate-new-resource-name parent-path)}
+                   :validate (partial validate-new-resource-name project-directory-file parent-path)}
           new-name (dialogs/make-rename-dialog name options)]
       (when-let [sane-new-name (some-> new-name not-empty)]
         (rename resource sane-new-name)))))
@@ -484,9 +486,9 @@
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))
 
-(defn validate-new-folder-name [parent-path new-name]
+(defn validate-new-folder-name [^File project-directory-file parent-path new-name]
   (let [prospect-path (str parent-path "/" new-name)]
-    (when (resource-watch/reserved-proj-path? prospect-path)
+    (when (resource-watch/reserved-proj-path? project-directory-file prospect-path)
       (format "The name %s is reserved" new-name))))
 
 (defn new-folder? [resources]
@@ -502,7 +504,8 @@
           parent-path (resource/proj-path parent-resource)
           parent-path (if (= parent-path "/") "" parent-path) ; special case because the project root dir ends in /
           base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
-          options {:validate (partial validate-new-folder-name parent-path)}]
+          project-directory-file (workspace/project-path workspace)
+          options {:validate (partial validate-new-folder-name project-directory-file parent-path)}]
       (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
         (let [^File folder (resolve-sub-folder base-folder new-folder-name)]
           (do (fs/create-directories! folder)

@@ -105,6 +105,7 @@ public class Project {
 
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
+    private Map<String, String> inextToOutext = new HashMap<>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private ArrayList<Task<?>> newTasks;
@@ -246,6 +247,8 @@ public class Project {
                     if (builderParams != null) {
                         for (String inExt : builderParams.inExts()) {
                             extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+
+                            inextToOutext.put(inExt, builderParams.outExt());
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -265,6 +268,13 @@ public class Project {
                 }
             }
         }
+    }
+
+    public String replaceExt(String inExt) {
+        String outExt = inextToOutext.get(inExt); // Get the output ext, or use the inExt as default
+        if (outExt != null)
+            return outExt;
+        return inExt;
     }
 
     private Task<?> doCreateTask(String input) throws CompileExceptionError {
@@ -353,6 +363,20 @@ public class Project {
         return sortedInputs;
     }
 
+    private List<String> loadDefoldIgnore() throws CompileExceptionError {
+        List<String> ignoredFolders = new ArrayList<String>();
+        final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
+        if (defIgnoreFile.isFile()) {
+            try {
+                ignoredFolders = FileUtils.readLines(defIgnoreFile, "UTF-8");
+            }
+            catch(IOException e) {
+                throw new CompileExceptionError("Unable to read .defignore", e);
+            }
+        }
+        return ignoredFolders;
+    }
+
     private void createTasks() throws CompileExceptionError {
         newTasks = new ArrayList<Task<?>>();
         List<String> sortedInputs = sortInputs(); // from findSources
@@ -362,6 +386,7 @@ public class Project {
         // But the real problem is building/compressing the redundant textures (e.g. .png)
         String excludeFoldersStr = this.option("exclude-build-folder", "");
         List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
+        excludeFolders.addAll(loadDefoldIgnore());
 
         for (String input : sortedInputs) {
             Task<?> task = doCreateTask(input);

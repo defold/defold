@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,18 +30,18 @@
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
-           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
+           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
+           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.sound.proto Sound$SoundDesc]
+           [com.dynamo.gamesys.proto Sound$SoundDesc]
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
-           [com.dynamo.model.proto ModelProto$Model]
-           [com.dynamo.physics.proto Physics$CollisionObjectDesc]
-           [com.dynamo.label.proto Label$LabelDesc]
+           [com.dynamo.gamesys.proto ModelProto$Model]
+           [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
+           [com.dynamo.gamesys.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.gui.proto Gui$SceneDesc]
-           [com.dynamo.spine.proto Spine$SpineModelDesc]
+           [com.dynamo.gamesys.proto Gui$SceneDesc]
+           [com.dynamo.gamesys.proto Spine$SpineModelDesc]
            [java.io ByteArrayOutputStream File]
            [org.apache.commons.io FilenameUtils IOUtils]))
 

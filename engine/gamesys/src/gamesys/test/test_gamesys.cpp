@@ -26,8 +26,8 @@
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
-#include "../proto/gamesys_ddf.h"
-#include "../proto/sprite_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
 
 namespace dmGameSystem
@@ -611,7 +611,7 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_NE((void*)0, go3);
 
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_property_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_animater);
 
     // 1st iteration:
@@ -638,6 +638,84 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test that animation done event reaches either callback or onmessage
+TEST_F(SpriteAnimTest, FlipbookAnim)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Spawn one go with a script that will initiate animations on the above sprites
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    lua_getglobal(L, "num_finished");
+    int num_finished = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "num_messages");
+    int num_messages = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(2, num_finished);
+    ASSERT_EQ(1, num_messages);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Test that animation done event reaches callback
+TEST_F(ParticleFxTest, PlayAnim)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Spawn one go with a script that will initiate animations on the above sprites
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    bool tests_done = false;
+    int max_iter = 100;
+    while (!tests_done && --max_iter > 0)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    if (max_iter <= 0)
+    {
+        dmLogError("The playback didn't finish");
+    }
+
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
 {
     dmGameObject::PropertyDesc property_desc;
@@ -652,7 +730,7 @@ TEST_F(CursorTest, GuiFlipbookCursor)
 
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_cursor.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     dmMessage::URL msg_url;
@@ -690,6 +768,45 @@ TEST_F(CursorTest, GuiFlipbookCursor)
         continue_test = lua_toboolean(L, -1);
         lua_pop(L, 1);
     }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Tests the animation done message/callback
+TEST_F(GuiTest, GuiFlipbookAnim)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t gui_comp_id = dmHashString64("gui");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(&msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = gui_comp_id;
+
+    m_UpdateContext.m_DT = 1.0f;
+
+    bool tests_done = false;
+    int max_iter = 100;
+    while (!tests_done && --max_iter > 0)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // continue test?
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    if (max_iter <= 0)
+    {
+        dmLogError("The playback didn't finish");
+    }
+    ASSERT_LT(0, max_iter);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

@@ -26,13 +26,16 @@ def build(bld):
     else:
         resource.source.append('mount/mount_generic.cpp');
 
-    resource.find_sources_in_dirs('../proto')
+    resource.find_sources_in_dirs('../proto/resource')
 
     if not Options.options.skip_build_tests:
         bld.add_subdirs('test')
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+
+    bld.install_files('${PREFIX}/share/proto/resource', '../proto/resource/resource_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/resource', '../proto/resource/liveupdate_ddf.proto')
 
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_archive.h')

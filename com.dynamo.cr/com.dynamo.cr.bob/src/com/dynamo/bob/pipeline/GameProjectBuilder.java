@@ -33,7 +33,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -61,33 +60,23 @@ import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.proto.DdfExtensions;
 
+import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
+import com.dynamo.gamesys.proto.ModelProto.Model;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.graphics.proto.Graphics.Cubemap;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.rig.proto.Rig.MeshSet;
+import com.dynamo.rig.proto.Rig.Skeleton;
+
 import com.google.protobuf.DescriptorProtos.FieldOptions;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Message;
 
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
-import com.dynamo.graphics.proto.Graphics.Cubemap;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
-import com.dynamo.mesh.proto.MeshProto.MeshDesc;
-import com.dynamo.model.proto.ModelProto.Model;
-import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.rig.proto.Rig.MeshSet;
-import com.dynamo.rig.proto.Rig.Skeleton;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
-
-
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
-
-    private static Set<String> leafResourceTypes = new HashSet<String>();
-
-    static {
-        leafResourceTypes.add(".texturec");
-        leafResourceTypes.add(".wavc");
-        leafResourceTypes.add(".oggc");
-        leafResourceTypes.add(".bufferc");
-    }
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
         handle.deleteOnExit();
@@ -266,7 +255,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
         String ext = resource.getPath().substring(i);
 
-        if (leafResourceTypes.contains(ext)) {
+        if (!ProtoBuilder.supportsType(ext)) {
             return;
         }
 
@@ -336,7 +325,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
         String ext = resource.getPath().substring(i);
 
-        if (leafResourceTypes.contains(ext)) {
+        if (!ProtoBuilder.supportsType(ext)) {
             return;
         }
 

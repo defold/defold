@@ -15,7 +15,7 @@
 #include <dlib/log.h>
 #include <physics/physics.h>
 
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "gamesys.h"
 #include "gamesys_private.h"
 
@@ -36,6 +36,7 @@
 #include <liveupdate/liveupdate.h>
 
 #include <dmsdk/gamesys/script.h>
+#include <gameobject/script.h>
 
 extern "C"
 {
