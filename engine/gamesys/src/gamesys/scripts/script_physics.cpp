@@ -1085,7 +1085,7 @@ namespace dmGameSystem
     {
         return Physics_SetFlipInternal(L, false);
     }
-    
+
     // Wake up a collisionobject component
     static int Physics_Wakeup(lua_State* L)
     {
@@ -1096,8 +1096,7 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
-        //TODO - what is returned ?        
-        dmGameSystem::Wakeup(comp_world, comp);        
+        dmGameSystem::Wakeup(comp_world, comp);
 
         return 0;
     }
@@ -1120,7 +1119,7 @@ namespace dmGameSystem
 
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
-        {"wakeup",          Physics_Wakeup},     
+        {"wakeup",          Physics_Wakeup},
         {0, 0}
     };
 

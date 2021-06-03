@@ -1088,11 +1088,11 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         return !body->IsAwake();
     }
-    
+
     void Wakeup2D(HCollisionObject2D collision_object)
     {
         b2Body* body = ((b2Body*)collision_object);
-        return body->SetAwake(true);
+        body->SetAwake(true);
     }
 
     void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation) {
