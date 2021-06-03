@@ -30,6 +30,8 @@
 #include "../proto/sprite_ddf.h"
 #include "../components/comp_label.h"
 
+#include <dmsdk/gamesys/render_constants.h>
+
 namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
@@ -2839,6 +2841,60 @@ TEST_F(ScriptBufferTest, RefCount)
     dmLogWarning("<- Expected error outputs end.");
 #endif
 }
+
+TEST_F(RenderConstantsTest, CreateDestroy)
+{
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+    dmGameSystem::DestroyRenderConstants(constants);
+}
+
+TEST_F(RenderConstantsTest, SetGetConstant)
+{
+    dmhash_t name_hash1 = dmHashString64("user_var1");
+    dmhash_t name_hash2 = dmHashString64("user_var2");
+
+    dmRender::HMaterial material = 0;
+    {
+        const char path_material[] = "/material/valid.materialc";
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
+        ASSERT_NE((void*)0, material);
+
+        dmRender::Constant rconstant;
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
+    }
+
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+
+    dmRender::Constant* constant = 0;
+    bool result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
+    ASSERT_FALSE(result);
+    ASSERT_EQ(0, constant);
+
+    dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
+    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, var1); // stores the previous value
+
+    result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
+    ASSERT_TRUE(result);
+    ASSERT_NE((void*)0, constant);
+    ASSERT_EQ(name_hash1, constant->m_NameHash);
+
+    // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
+    dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
+    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, var2);
+    // Make sure it's still valid and doesn't trigger an ASAN issue
+    ASSERT_EQ(name_hash1, constant->m_NameHash);
+
+    ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash1)); // removed
+    ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash1)); // not removed
+    ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
+    ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
+
+    dmGameSystem::DestroyRenderConstants(constants);
+
+    dmResource::Release(m_Factory, material);
+}
+
 
 int main(int argc, char **argv)
 {
