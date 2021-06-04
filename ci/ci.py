@@ -105,6 +105,8 @@ def setup_keychain(args):
 
     print("Done with keychain setup")
 
+def get_github_token():
+    return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
 def setup_windows_cert(args):
     print("Setting up certificate")
@@ -328,6 +330,10 @@ def release(channel):
     args = "python scripts/build.py release".split()
     opts = []
     opts.append("--channel=%s" % channel)
+
+    token = get_github_token()
+    if token:
+        opts.append("--github-token=%s" % token)
 
     cmd = ' '.join(args + opts)
     call(cmd)
