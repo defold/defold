@@ -23,6 +23,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../script.h"
 #include "gameobject/test/spawn_delete/test_gameobject_spawn_delete_ddf.h"
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../proto/gameobject/lua_ddf.h"

@@ -13,9 +13,11 @@
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
+#include <dlib/configfile.h>
 #include <hid/hid.h>
 
 #include <sound/sound.h>
+#include <gameobject/component.h>
 #include <gameobject/component.h>
 #include <rig/rig.h>
 
@@ -47,6 +49,7 @@ protected:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
+    dmConfigFile::HConfig m_Config;
 
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
@@ -63,7 +66,6 @@ protected:
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::MeshContext m_MeshContext;
-    dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
     dmGameSystem::SoundContext m_SoundContext;
@@ -258,6 +260,12 @@ public:
     virtual ~SoundTest() {}
 };
 
+class RenderConstantsTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~RenderConstantsTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
@@ -333,10 +341,6 @@ void GamesysTest<T>::SetUp()
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
     m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
 
-    m_SpineModelContext.m_RenderContext = m_RenderContext;
-    m_SpineModelContext.m_Factory = m_Factory;
-    m_SpineModelContext.m_MaxSpineModelCount = 32;
-
     m_LabelContext.m_RenderContext = m_RenderContext;
     m_LabelContext.m_MaxLabelCount = 32;
     m_LabelContext.m_Subpixels     = 0;
@@ -364,14 +368,22 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
+
+    dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
+
     dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
     component_create_ctx.m_Script = m_ScriptContext;
     component_create_ctx.m_Register = m_Register;
     component_create_ctx.m_Factory = m_Factory;
+    component_create_ctx.m_Config = m_Config;
+    component_create_ctx.m_Contexts.SetCapacity(3, 8);
+    component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), m_GraphicsContext);
+    component_create_ctx.m_Contexts.Put(dmHashString64("render"), m_RenderContext);
+
     dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
-                                                                                                    &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
+                                                                                                    &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
                                                                                                     &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
 
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
@@ -399,6 +411,7 @@ void GamesysTest<T>::TearDown()
     dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
     dmBuffer::DeleteContext();
+    dmConfigFile::Delete(m_Config);
 }
 
 // Specific test class for testing dmBuffers in scripts

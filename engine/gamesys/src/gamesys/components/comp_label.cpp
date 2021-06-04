@@ -36,8 +36,8 @@
 #include "../gamesys_private.h"
 #include "comp_private.h"
 
-#include "label_ddf.h"
-#include "gamesys_ddf.h"
+#include <gamesys/label_ddf.h>
+#include <gamesys/gamesys_ddf.h>
 
 using namespace Vectormath::Aos;
 namespace dmGameSystem

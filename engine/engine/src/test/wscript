@@ -18,8 +18,8 @@ def build(bld):
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
 
-    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript']
+    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeSpineModel']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeSpineModel']
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',

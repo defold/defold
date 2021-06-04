@@ -430,7 +430,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** world)
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** out_world)
     {
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -458,8 +458,9 @@ namespace dmGameObject
                 return; // Actually never reached
             }
 
-            if (world != 0) {
-                *world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
+            void* world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
+            if (out_world != 0) {
+                *out_world = world;
             }
 
             if (component_ext != 0x0)
@@ -477,12 +478,17 @@ namespace dmGameObject
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
                     return; // Actually never reached
                 }
+
+                // If there is a GetComponent function, then use it to translate from user_data to the correct struct
+                if (type->m_GetFunction) {
+                    ComponentGetParams params = {world, user_data};
+                    *user_data = (uintptr_t)type->m_GetFunction(params);
+                }
             }
             if (url)
             {
                 *url = receiver;
             }
-
         }
         else
         {
@@ -491,37 +497,11 @@ namespace dmGameObject
         }
     }
 
-    static Collection* GetCollectionFromURL(const dmMessage::URL& url)
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url)
     {
-        Collection** pcollection = g_Register->m_SocketToCollection.Get(url.m_Socket);
-        return pcollection ? *pcollection : 0;
-    }
-
-    void* GetComponentFromURL(const dmMessage::URL& url)
-    {
-        Collection* collection = GetCollectionFromURL(url);
-        if (!collection) {
-            return 0;
-        }
-
-        Instance** instance = collection->m_IDToInstance.Get(url.m_Path);
-        if (!instance) {
-            return 0;
-        }
-
-        uintptr_t user_data;
-        uint32_t type_index;
-        // For loop over all components in the instance
-        dmGameObject::GetComponentUserData(*instance, url.m_Fragment, &type_index, &user_data);
-
-        void* world = collection->m_ComponentWorlds[type_index];
-
-        ComponentType* type = &g_Register->m_ComponentTypes[type_index];
-        if (!type->m_GetFunction) {
-            return 0;
-        }
-        ComponentGetParams params = {world, &user_data};
-        return type->m_GetFunction(params);
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        GetComponentUserDataFromLua(L, index, instance->m_Collection->m_HCollection, component_type, (uintptr_t*)component, url, out_world);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {
@@ -1100,6 +1080,7 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world position
+     * The function will return the world position calculated at the end of the previous frame.
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
@@ -1127,7 +1108,8 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world rotation
-     * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
+     * The function will return the world rotation calculated at the end of the previous frame.
+     * Use [ref:go.get_rotation] to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the world rotation for, by default the instance of the calling script
@@ -1154,7 +1136,8 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world 3D scale factor
-     * Use <code>go.get_scale</code> to retrieve the 3D scale factor relative to the parent.
+     * The function will return the world 3D scale factor calculated at the end of the previous frame.
+     * Use [ref:go.get_scale] to retrieve the 3D scale factor relative to the parent.
      * This vector is derived by decomposing the transformation matrix and should be used with care.
      * For most cases it should be fine to use [ref:go.get_world_scale_uniform] instead.
      *
@@ -1183,7 +1166,8 @@ namespace dmGameObject
     }
 
     /*# gets the uniform game object instance world scale factor
-     * Use <code>go.get_scale_uniform</code> to retrieve the scale factor relative to the parent.
+     * The function will return the world scale factor calculated at the end of the previous frame.
+     * Use [ref:go.get_scale_uniform] to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale_uniform
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the world scale for, by default the instance of the calling script
@@ -1210,6 +1194,7 @@ namespace dmGameObject
     }
 
     /*# gets the game object instance world transform matrix
+     * The function will return the world transform matrix calculated at the end of the previous frame.
      *
      * @name go.get_world_transform
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the world transform for, by default the instance of the calling script

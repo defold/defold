@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <ddf/ddf.h>
 #include <resource/resource.h>
-#include "res_lua.h"
+#include <dmsdk/gameobject/res_lua.h>
 #include "../proto/gameobject/lua_ddf.h"
 #include "gameobject_script_util.h"
 

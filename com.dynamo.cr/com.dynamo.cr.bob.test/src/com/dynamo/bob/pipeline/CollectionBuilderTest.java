@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,7 +37,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
@@ -440,7 +440,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
         addEmbeddedInstance(src, "go", components, p, r, s);
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(7, messages.size());
+        Assert.assertEquals(3, messages.size()); // 7 original, but 3 when merged
 
         CollectionDesc collection = (CollectionDesc)messages.get(0);
         Assert.assertEquals(3, collection.getInstancesCount());
