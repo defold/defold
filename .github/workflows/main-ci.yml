@@ -404,6 +404,11 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
+        name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)
+        shell: bash,
+        run: 'ci/ci.sh install_ext'
+      },
+      {
         name: 'Release',
         run: 'ci/ci.sh release'
       },
