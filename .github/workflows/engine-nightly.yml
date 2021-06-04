@@ -9,6 +9,7 @@ env:
   S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
   S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
 
 
 jobs:
