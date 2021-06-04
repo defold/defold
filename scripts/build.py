@@ -1343,6 +1343,7 @@ class Configuration(object):
     def build_editor2(self):
         cmd = ['python', './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
                'build']
 
         if self.skip_tests:
@@ -1368,6 +1369,7 @@ class Configuration(object):
         cmd = ['python', './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
+               '--archive-domain=%s' % self.archive_domain,
                'sign']
         if self.skip_codesign:
             cmd.append('--skip-codesign')
@@ -1389,6 +1391,7 @@ class Configuration(object):
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
                '--bundle-dir=%s' % editor_bundle_dir,
+               '--archive-domain=%s' % self.archive_domain,
                'installer']
         if self.skip_codesign:
             cmd.append('--skip-codesign')
