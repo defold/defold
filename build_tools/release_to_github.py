@@ -12,12 +12,17 @@ import s3
 import subprocess
 import urlparse
 
-def get_default_repo():
-    url = run.shell_command('git remote get-url origin')
-    if not 'github.com' in url:
-        return None
+def get_current_repo():
     # git@github.com:defold/defold.git
-    return url.replace('git@github.com:', '').replace('.git', '').strip()
+    # https://github.com/defold/defold.git
+    url = run.shell_command('git remote get-url origin')
+    url = url.replace('.git', '').strip()
+
+    domain = "github.com"
+    index = url.index(domain)
+    if index < 0:
+        return None
+    return url[index+1:]
 
 def get_git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
