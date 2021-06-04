@@ -28,7 +28,7 @@ import datetime
 import imp
 import fnmatch
 
-DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
+DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
