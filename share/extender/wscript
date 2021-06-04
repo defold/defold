@@ -1,13 +1,46 @@
 #! /usr/bin/env python
 
+import sys, re, os
+import waf_dynamo
+import Task, Utils
+from TaskGen import taskgen, feature, after, before
+
 VERSION='0.1'
 APPNAME='extender'
 
 srcdir = '.'
 blddir = 'build'
 
-import sys, re, os
-import waf_dynamo
+def append_yaml(task):
+    path = task.outputs[0].bldpath(task.env)
+    with open(path, 'wb') as out_f:
+        for i in task.inputs:
+            with open(i.abspath(), 'rb') as in_f:
+                data = in_f.read();
+                out_f.write(data)
+
+    digest = Utils.h_file(path)
+    for i in task.inputs:
+        task.generator.bld.node_sigs[i.variant(task.env)][i.id] = digest
+    return 0
+
+task = Task.task_type_from_func('merge_yaml',
+                                func  = append_yaml,
+                                color = 'PINK',
+                                before  = 'cc cxx')
+@taskgen
+@feature('merge_yaml')
+def feature_merge_yaml(self):
+    inputs = []
+    for name in self.yaml_source:
+        i = self.path.find_or_declare(name)
+        inputs.append(i)
+
+    out = self.path.find_or_declare([self.yaml_target])
+
+    task = self.create_task('merge_yaml')
+    task.set_inputs(inputs)
+    task.set_outputs(out)
 
 def init():
     pass
@@ -19,6 +52,16 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
 
 def build(bld):
+
+    source = ['build.yml']
+    if os.path.exists('build_private.yml'):
+        source += ['build_private.yml']
+
+    bld.new_task_gen(features = 'merge_yaml',
+                     yaml_source = source,
+                     yaml_target = 'build.yml',
+                     name='Build Yaml')
+
     bld.add_group()
     bld.install_files('${PREFIX}/extender', 'build.yml')
     bld.install_files('${PREFIX}/extender/variants', 'variants/*.appmanifest')
