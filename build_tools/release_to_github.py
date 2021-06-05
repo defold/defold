@@ -22,7 +22,7 @@ def get_current_repo():
     index = url.index(domain)
     if index < 0:
         return None
-    return url[index+1:]
+    return url[index+len(domain)+1:]
 
 def get_git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
@@ -258,3 +258,7 @@ def release_markdown(config):
     github.put(target_url, config.github_token, json = post_data, headers = headers)
 
     log("Released Defold %s - %s to %s" % (config.version, release_sha, target_url))
+
+if __name__ == '__main__':
+    print("For testing only")
+    print(get_default_repo())
