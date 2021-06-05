@@ -13,11 +13,16 @@ import subprocess
 import urlparse
 
 def get_default_repo():
-    url = run.shell_command('git remote get-url origin')
-    if not 'github.com' in url:
-        return None
     # git@github.com:defold/defold.git
-    return url.replace('git@github.com:', '').replace('.git', '').strip()
+    # https://github.com/defold/defold.git
+    url = run.shell_command('git remote get-url origin')
+    url = url.replace('.git', '').strip()
+
+    domain = "github.com"
+    index = url.index(domain)
+    if index < 0:
+        return None
+    return url[index+len(domain)+1:]
 
 def get_git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
@@ -253,3 +258,7 @@ def release_markdown(config):
     github.put(target_url, config.github_token, json = post_data, headers = headers)
 
     log("Released Defold %s - %s to %s" % (config.version, release_sha, target_url))
+
+if __name__ == '__main__':
+    print("For testing only")
+    print(get_default_repo())
