@@ -86,7 +86,7 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
-DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY", None)
+DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY", release_to_github.get_current_repo())
 
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
@@ -2117,11 +2117,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'GitHub authentication token when releasing to GitHub')
 
-
-    github_release_target_repo = os.environ.get("DM_RELEASE_REPOSITORY", release_to_github.get_current_repo())
+    github_release_target_repo = DEFAULT_RELEASE_REPOSITORY
     parser.add_option('--github-target-repo', dest='github_target_repo',
                       default = github_release_target_repo,
-                      help = 'GitHub target repo when releasing artefacts')
+                      help = 'GitHub target repo when releasing artefacts. Default is %s' % github_release_target_repo)
 
     parser.add_option('--github-sha1', dest='github_sha1',
                       default = None,
