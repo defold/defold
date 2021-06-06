@@ -51,7 +51,7 @@ except Exception, e:
         def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
             return []
         @classmethod
-        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the host
+        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
             return []
         @classmethod
         def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
@@ -59,6 +59,13 @@ except Exception, e:
         @classmethod
         def is_library_supported(cls, platform, library):
             return True
+        @classmethod
+        def is_repo_private(self, version, channel):
+            return False
+        @classmethod
+        def get_tag_suffix(self):
+            return ''
+
 finally:
     sys.dont_write_bytecode = False
 
@@ -1463,6 +1470,17 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
+    def _get_tag_name(version, channel):
+        if channel and channel != 'stable':
+            channel = '-' + channel
+        else:
+            channel = ''
+
+        suffix = build_private.get_tag_suffix() # E.g. '' or 'switch'
+        if suffix:
+            suffix = '-' + suffix
+
+        return '%s%s%s' % (version, channel, suffix)
 
     def create_tag(self):
         if self.channel is None:
@@ -1472,7 +1490,9 @@ class Configuration(object):
         is_stable = self.channel == 'stable'
         channel = '' if is_stable else self.channel
         msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
-        tag_name = '%s%s%s' % (self.version, '' if is_stable else '-', channel)
+
+        tag_name = _get_tag_name(self.version, self.channel)
+
         cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
         # E.g.
@@ -1578,7 +1598,14 @@ class Configuration(object):
             channel_pattern = ''
             if self.channel != 'stable':
                 channel_pattern = '-' + self.channel
-            pattern = r"(\d+\.\d+\.\d+%s)$" % channel_pattern
+            platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
+            if platform_pattern:
+                platform_pattern = '-' + platform_pattern
+
+            # Example tags:
+            #   1.2.184, 1.2.184-alpha, 1.2.184-beta
+            #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
+            pattern = r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
 
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern)
         else:
@@ -1597,7 +1624,9 @@ class Configuration(object):
             if response[0] != 'y':
                 return
 
-        self._release_web_pages(releases);
+        # Only release the web pages for the public repo
+        if not build_private.is_repo_private():
+            self._release_web_pages(releases);
 
         # Release to github as well
         if tag_name:
