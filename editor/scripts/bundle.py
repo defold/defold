@@ -203,7 +203,7 @@ def launcher_path(options, platform, exe_suffix):
         return options.launcher
     elif options.engine_sha1:
         launcher_version = options.engine_sha1
-        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform, exe_suffix)
+        launcher_url = 'https://%s/archive/%s/engine/%s/launcher%s' % (options.archive_domain, launcher_version, platform, exe_suffix)
         launcher = download(launcher_url)
         if not launcher:
             print('Failed to download launcher', launcher_url)
