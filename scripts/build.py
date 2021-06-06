@@ -1491,7 +1491,7 @@ class Configuration(object):
         channel = '' if is_stable else self.channel
         msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
 
-        tag_name = _get_tag_name(self.version, self.channel)
+        tag_name = self._get_tag_name(self.version, self.channel)
 
         cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
