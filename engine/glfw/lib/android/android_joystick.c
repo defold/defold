@@ -179,23 +179,28 @@ static void glfwAndroidUpdateDpad(const AInputEvent* event)
     const int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
     if (joystickIndex >= 0)
     {
+        _glfwJoy[joystickIndex].Hats = GLFW_HAT_CENTERED;
         float hatX = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_HAT_X, 0);
         if (hatX == 1.0f)
         {
             _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_RIGHT)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_RIGHT;
         }
         else if (hatX == -1.0f)
         {
             _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_LEFT)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_LEFT;
         }
         float hatY = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_HAT_Y, 0);
         if (hatY == 1.0f)
         {
-            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_UP)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_DOWN)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_DOWN;
         }
         else if (hatY == -1.0f)
         {
-            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_DOWN)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_UP)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_UP;
         }
     }
 }
@@ -224,6 +229,7 @@ void glfwAndroidUpdateJoystick(const AInputEvent* event)
         if ((type == AINPUT_EVENT_TYPE_MOTION) && ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_MOVE))
         {
             glfwAndroidUpdateAxis(event);
+            glfwAndroidUpdateDpad(event);
         }
     }
     else if ((source & AINPUT_SOURCE_DPAD) != 0)
@@ -348,6 +354,9 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
     case GLFW_BUTTONS:
         return _glfwJoy[ joy ].NumButtons;
 
+    case GLFW_HATS:
+        return 1;
+
     default:
         break;
     }
@@ -427,7 +436,8 @@ int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
     {
         return 0;
     }
-    return 0;
+    hats[0] |= _glfwJoy[ joy ].Hats;
+    return 1;
 }
 
 

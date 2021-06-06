@@ -267,6 +267,7 @@ GLFWGLOBAL struct {
     int           NumButtons;
     float         Axis[GLFW_ANDROID_GAMEPAD_NUMAXIS];
     unsigned char Button[GLFW_ANDROID_GAMEPAD_NUMBUTTONS];
+    unsigned char Hats;
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 
