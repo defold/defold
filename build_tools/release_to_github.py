@@ -124,13 +124,16 @@ def release(config, tag_name, release_sha, s3_release):
     log("Uploading artifacts to GitHub from S3")
     base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
 
+    def is_main_file(path):
+        return os.path.basename(path) in ('bob.jar', 'Defold-x86_64-darwin.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip'):
+
     urls = set() # not sure why some files are reported twice, but we don't want to download/upload them twice
     for file in s3_release.get("files", None):
         # download file
         path = file.get("path")
 
         keep = False
-        if os.path.basename(path) in ('bob.jar', 'Defold-x86_64-darwin.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip'):
+        if is_main_file(path):
             keep = True
 
         if not keep:
@@ -143,13 +146,17 @@ def release(config, tag_name, release_sha, s3_release):
 
     for download_url in urls:
         filepath = config._download(download_url)
-        filename = re.sub(r'https://d.defold.com/archive/(.*?)/', '', download_url)
+        filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
+        basename = os.path.basename(filename)
         # file stream upload to GitHub
         log("Uploading to GitHub " + filename)
         with open(filepath, 'rb') as f:
-            content_type,_ = mimetypes.guess_type(filename)
+            content_type,_ = mimetypes.guess_type(basename)
             headers = { "Content-Type": content_type or "application/octet-stream" }
-            github.post(upload_url % (filename), config.github_token, data = f, headers = headers)
+            name = filename
+            if is_main_file(path):
+                name = basename
+            github.post(upload_url % (name), config.github_token, data = f, headers = headers)
 
     log("Released Defold %s to GitHub" % tag_name)
 
