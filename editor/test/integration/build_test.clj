@@ -41,7 +41,7 @@
            [com.dynamo.gamesys.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.gamesys.proto Gui$SceneDesc]
-           [com.dynamo.gamesys.proto Spine$SpineModelDesc]
+           [com.dynamo.spine.proto Spine$SpineModelDesc]
            [java.io ByteArrayOutputStream File]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
