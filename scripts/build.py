@@ -1470,7 +1470,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    def _get_tag_name(version, channel):
+    def _get_tag_name(self, version, channel):
         if channel and channel != 'stable':
             channel = '-' + channel
         else:
