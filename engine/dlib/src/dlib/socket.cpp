@@ -830,7 +830,7 @@ namespace dmSocket
 
     Result SetQuickAck(Socket socket, bool use_quick_ack)
     {
-#if defined(__MACH__) || defined(_WIN32)
+#if defined(__MACH__) || defined(_WIN32) || defined(__NX__)
         return RESULT_OK;
 #else
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);

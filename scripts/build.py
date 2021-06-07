@@ -51,7 +51,7 @@ except Exception, e:
         def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
             return []
         @classmethod
-        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the host
+        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
             return []
         @classmethod
         def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
@@ -59,6 +59,13 @@ except Exception, e:
         @classmethod
         def is_library_supported(cls, platform, library):
             return True
+        @classmethod
+        def is_repo_private(self):
+            return False
+        @classmethod
+        def get_tag_suffix(self):
+            return ''
+
 finally:
     sys.dont_write_bytecode = False
 
@@ -85,7 +92,8 @@ PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
-DEFAULT_ARCHIVE_DOMAIN= os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
+DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
+DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY", release_to_github.get_current_repo())
 
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
@@ -108,6 +116,9 @@ EMSCRIPTEN_VERSION_STR = "2.0.11"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
+# Don't use WSL from the msys/cygwin terminal
+if os.environ.get('TERM','') in ('cygwin',):
+    SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
 ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
@@ -1343,6 +1354,7 @@ class Configuration(object):
     def build_editor2(self):
         cmd = ['python', './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
                'build']
 
         if self.skip_tests:
@@ -1368,6 +1380,7 @@ class Configuration(object):
         cmd = ['python', './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
+               '--archive-domain=%s' % self.archive_domain,
                'sign']
         if self.skip_codesign:
             cmd.append('--skip-codesign')
@@ -1389,6 +1402,7 @@ class Configuration(object):
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
                '--bundle-dir=%s' % editor_bundle_dir,
+               '--archive-domain=%s' % self.archive_domain,
                'installer']
         if self.skip_codesign:
             cmd.append('--skip-codesign')
@@ -1459,6 +1473,17 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
+    def _get_tag_name(self, version, channel):
+        if channel and channel != 'stable':
+            channel = '-' + channel
+        else:
+            channel = ''
+
+        suffix = build_private.get_tag_suffix() # E.g. '' or 'switch'
+        if suffix:
+            suffix = '-' + suffix
+
+        return '%s%s%s' % (version, channel, suffix)
 
     def create_tag(self):
         if self.channel is None:
@@ -1468,7 +1493,9 @@ class Configuration(object):
         is_stable = self.channel == 'stable'
         channel = '' if is_stable else self.channel
         msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
-        tag_name = '%s%s%s' % (self.version, '' if is_stable else '-', channel)
+
+        tag_name = self._get_tag_name(self.version, self.channel)
+
         cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
         # E.g.
@@ -1574,7 +1601,14 @@ class Configuration(object):
             channel_pattern = ''
             if self.channel != 'stable':
                 channel_pattern = '-' + self.channel
-            pattern = r"(\d+\.\d+\.\d+%s)$" % channel_pattern
+            platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
+            if platform_pattern:
+                platform_pattern = '-' + platform_pattern
+
+            # Example tags:
+            #   1.2.184, 1.2.184-alpha, 1.2.184-beta
+            #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
+            pattern = r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
 
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern)
         else:
@@ -1593,7 +1627,9 @@ class Configuration(object):
             if response[0] != 'y':
                 return
 
-        self._release_web_pages(releases);
+        # Only release the web pages for the public repo
+        if not build_private.is_repo_private():
+            self._release_web_pages(releases);
 
         # Release to github as well
         if tag_name:
@@ -2113,9 +2149,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'GitHub authentication token when releasing to GitHub')
 
+    github_release_target_repo = DEFAULT_RELEASE_REPOSITORY
     parser.add_option('--github-target-repo', dest='github_target_repo',
-                      default = release_to_github.get_default_repo(),
-                      help = 'GitHub target repo when releasing artefacts')
+                      default = github_release_target_repo,
+                      help = 'GitHub target repo when releasing artefacts. Default is %s' % github_release_target_repo)
 
     parser.add_option('--github-sha1', dest='github_sha1',
                       default = None,
