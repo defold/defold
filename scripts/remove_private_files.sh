@@ -4,6 +4,8 @@ PATHS="./build_tools/private/waf_dynamo_private.py;\
 ./build_tools/private/waf_dynamo_private.pyc;\
 ./scripts/build_private.py;\
 ./scripts/build_private.pyc;\
+./ci/ci_private.py;\
+./ci/ci_private.pyc;\
 ./packages/protobuf-2.3.0-arm64-nx64.tar.gz;\
 ./engine/dlib/src/dlib/nx64;\
 ./engine/app/src/nx64;\
