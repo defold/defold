@@ -118,7 +118,8 @@ PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 # Don't use WSL from the msys/cygwin terminal
 if os.environ.get('TERM','') in ('cygwin',):
-    SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
+    if 'WD' in os.environ:
+        SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
 ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
