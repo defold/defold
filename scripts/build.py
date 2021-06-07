@@ -60,7 +60,7 @@ except Exception, e:
         def is_library_supported(cls, platform, library):
             return True
         @classmethod
-        def is_repo_private(self, version, channel):
+        def is_repo_private(self):
             return False
         @classmethod
         def get_tag_suffix(self):
