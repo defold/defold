@@ -765,7 +765,7 @@
 
 (defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
-        progress (atom (progress/make "Updating dependencies..." 13 0))]
+        progress (atom (progress/make "Updating dependencies..." 14 0))]
     (render-progress! @progress)
 
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
@@ -775,8 +775,13 @@
       (workspace/set-project-dependencies! workspace-id dependencies))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
+
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
+
+    (workspace/load-editor-plugins! workspace-id)
+    (render-progress! (swap! progress progress/advance 1 "Loading plugins..."))
+
     (let [project (make-project graph workspace-id extensions)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
       ;; Prime the auto completion cache

@@ -340,6 +340,21 @@ ordinary paths."
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
+(defn- is-plugin-file? [resource]
+  (contains? #{"clj"} (resource/ext resource)))
+
+(defn- find-editor-plugins [workspace]
+  (let [resources (filter (fn [x] (is-plugin-file? x)) (g/node-value workspace :resource-list))]
+    resources))
+
+(defn- load-plugin! [resource]
+  (log/info :msg (str "Loading plugin" (resource/path resource)))
+  (load-string (slurp resource)) ; TODO Handle Exceptions!
+  (log/info :msg (str "Loaded plugin" (resource/path resource))))
+
+(defn load-editor-plugins! [workspace]
+  (let [resources (find-editor-plugins workspace)]
+    (dorun (map load-plugin! resources))))
 
 (g/deftype UriVec [URI])
 
