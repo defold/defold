@@ -75,8 +75,10 @@ int socket_waitfd(p_socket ps, int sw, p_timeout tm) {
 * Initializes module 
 \*-------------------------------------------------------------------------*/
 int socket_open(void) {
+#if !defined(__NX__)
     /* instals a handler to ignore sigpipe or it will crash us */
     signal(SIGPIPE, SIG_IGN);
+#endif
     return 1;
 }
 
@@ -391,6 +393,23 @@ int socket_gethostbyname(const char *addr, struct hostent **hp) {
     else if (errno) return errno;
     else return IO_UNKNOWN;
 }
+
+
+#if defined(__NX__)
+const char* gai_strerror(int errcode)
+{
+    static char buffer[128];
+    snprintf(buffer, sizeof(buffer), "gai_strerror: %d", errcode);
+    return buffer;
+}
+
+const char *hstrerror(int errcode)
+{
+    static char buffer[128];
+    snprintf(buffer, sizeof(buffer), "hstrerror: %d", errcode);
+    return buffer;
+}
+#endif
 
 /*-------------------------------------------------------------------------*\
 * Error translation functions

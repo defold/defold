@@ -3,6 +3,7 @@ import os
 from waf_dynamo import dmsdk_add_files
 from BuildUtility import create_build_utility
 
+
 def _get_native_file(target_os, name):
     native_source = '%s/%s' % (target_os, name)
     if not os.path.exists(os.path.join('src',native_source)):
@@ -16,24 +17,23 @@ def set_options(opt):
 def build(bld):
     build_util = create_build_utility(bld.env)
 
-    platform_folder = _get_native_file(build_util.get_target_os(), 'glfw')
+    platform_folder = 'glfw'
+    if build_util.get_target_os() in ('nx64',):
+        platform_folder = build_util.get_target_os()
 
     hid = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = '.'.split(),
                            target = 'hid',
                            source = ['hid.cpp'])
-
-    hid.includes.insert(0, '%s' % build_util.get_target_os())
-    hid.includes.insert(1, platform_folder)
-    hid.source.append(_get_native_file(build_util.get_target_os(), 'glfw/hid_native.cpp'))
+    hid.includes.insert(0, platform_folder)
+    hid.source.append('%s/hid_native.cpp' % platform_folder)
 
     hid_null = bld.new_task_gen(features = 'cxx cstaticlib',
                                 includes = ['.', 'null'],
                                 proto_gen_py = True,
                                 target = 'hid_null',
                                 source = ['hid.cpp', 'hid_null.cpp'])
-    hid_null.includes.insert(0, '%s' % build_util.get_target_os())
-    hid_null.includes.insert(1, platform_folder)
+    hid_null.includes.insert(0, platform_folder)
 
     bld.add_subdirs('test')
 
@@ -41,7 +41,7 @@ def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    header = _get_native_file(build_util.get_target_os(), 'glfw/dmsdk/hid/hid_native_defines.h')
+    header = _get_native_file(platform_folder, 'dmsdk/hid/hid_native_defines.h')
     bld.install_as('${PREFIX}/sdk/include/dmsdk/hid/hid_native_defines.h', header)
 
 
