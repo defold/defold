@@ -87,6 +87,9 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        if (!input.getAbsPath().endsWith("game.project")) {
+            return null;
+        }
 
         // We currently don't have a file mapping with an input -> output for certain files
         // These should to be setup in the corresponding builder!
