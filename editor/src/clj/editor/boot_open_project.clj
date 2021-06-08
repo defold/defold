@@ -87,8 +87,13 @@
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
+
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
+    (workspace/load-editor-plugins! workspace)
+    ; do it a second time, after the plugins were reloaded
+    (resource-types/register-resource-types! workspace)
+
     (workspace/load-build-cache! workspace)
     workspace))
 
