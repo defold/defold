@@ -78,8 +78,6 @@ import com.google.protobuf.Message;
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
 
-    private static Map<Project, Integer> instanceCount = new HashMap<Project, Integer>();
-
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
         handle.deleteOnExit();
         RandomAccessFile file = new RandomAccessFile(handle, "rw");
@@ -89,10 +87,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-        int count = instanceCount.getOrDefault(project, 0);
-        instanceCount.put(project, ++count);
-        if (count > 1) {
+        if (!project.getGameProjectResource().getAbsPath().equals(input.getAbsPath())) {
             throw new CompileExceptionError(input, -1, "The project can not contain more than one project file");
         }
 
