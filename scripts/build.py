@@ -85,7 +85,7 @@ PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
-DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
+DEFAULT_ARCHIVE_DOMAIN= os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 
 PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
@@ -1460,51 +1460,30 @@ class Configuration(object):
 # BEGIN: RELEASE
 #
 
+    def create_tag(self):
+        if self.channel is None:
+            self._log("No channel specified!")
+            sys.exit(1)
 
-    def release(self):
-        page = None;
-        with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
-            page = file.read()
+        is_stable = self.channel == 'stable'
+        channel = '' if is_stable else self.channel
+        msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
+        tag_name = '%s%s%s' % (self.version, '' if is_stable else '-', channel)
+        cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
-        if run.shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
-            # NOTE: Only run fetch when we have a configured remote branch.
-            # When running on buildbot we don't but fetching should not be required either
-            # as we're already up-to-date
-            self._log('Running git fetch to get latest tags and refs...')
-            run.shell_command('git fetch')
+        # E.g.
+        #   git tag -f -a 1.2.184 -m "Release 1.2.184" <- stable
+        #   git tag -f -a 1.2.184-alpha -m "Release 1.2.184 - alpha"
+        run.shell_command(cmd)
+        return tag_name
 
-        u = urlparse.urlparse(self.get_archive_path())
-        hostname = u.hostname
-        bucket = s3.get_bucket(hostname)
+    def push_tag(self, tag):
+        cmd = 'git push -f origin %s' % tag
+        run.shell_command(cmd)
 
-        model = {'releases': [],
-                 'has_releases': False}
-
-        if self.channel == 'stable':
-            # Move artifacts to a separate page?
-            model['releases'] = s3.get_tagged_releases(self.get_archive_path())
-            model['has_releases'] = True
-        else:
-            model['releases'] = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
-            model['has_releases'] = True
-
-        if not model['releases']:
-            raise Exception('Unable to find any releases')
-
-        # NOTE
-        # - The stable channel is based on the latest tag
-        # - The beta and alpha channels are based on the latest
-        #   commit in their branches, i.e. origin/dev for alpha
-        if self.channel == 'stable':
-            release_sha1 = model['releases'][0]['sha1']
-        else:
-            release_sha1 = self._git_sha1()
-
-        if sys.stdin.isatty():
-            sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
-            response = sys.stdin.readline()
-            if response[0] != 'y':
-                return
+    def _release_web_pages(self, releases):
+        model = {'releases': releases,
+                 'has_releases': True}
 
         model['release'] = { 'channel': "Unknown", 'version': self.version }
         if self.channel:
@@ -1518,13 +1497,23 @@ class Configuration(object):
         else:
             editor_channel = self.channel or "stable"
 
+        u = urlparse.urlparse(self.get_archive_path())
+        hostname = u.hostname
+        bucket = s3.get_bucket(hostname)
+
         editor_archive_path = urlparse.urlparse(self.get_archive_path(editor_channel)).path
+
+        release_sha1 = releases[0]['sha1']
 
         editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
         model['release'] = {'editor': [ dict(name='macOS 10.11+', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
                                         dict(name='macOS 10.7-10.10', url=editor_download_url + 'Defold-x86_64-darwin.zip'),
                                         dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
                                         dict(name='Ubuntu 16.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
+
+        page = None;
+        with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
+            page = file.read()
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -1558,15 +1547,67 @@ class Configuration(object):
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
+    def release(self):
+        """ This step creates a tag using the channel name
+        * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
+        * It will update the releases in the target repository
+        """
+        if self.channel is None:
+            self._log("No channel specified!")
+            sys.exit(0)
+
+        if run.shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
+            # NOTE: Only run fetch when we have a configured remote branch.
+            # When running on buildbot we don't but fetching should not be required either
+            # as we're already up-to-date
+            self._log('Running git fetch to get latest tags and refs...')
+            run.shell_command('git fetch')
+
+        # Create or update the tag for engine releases
+        if self.channel in ('stable', 'beta', 'alpha'):
+            tag_name = self.create_tag()
+            self.push_tag(tag_name)
+
+        if tag_name is not None:
+            # NOTE: Each of the main branches has a channel (stable, beta and alpha)
+            #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
+            channel_pattern = ''
+            if self.channel != 'stable':
+                channel_pattern = '-' + self.channel
+            pattern = r"(\d+\.\d+\.\d+%s)$" % channel_pattern
+
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern)
+        else:
+            # e.g. editor-dev releases
+            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+
+        if not releases:
+            self.log('Unable to find any releases')
+            sys.exit(1)
+
+        release_sha1 = releases[0]['sha1']
+
+        if sys.stdin.isatty():
+            sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+            response = sys.stdin.readline()
+            if response[0] != 'y':
+                return
+
+        self._release_web_pages(releases);
+
+        # Release to github as well
+        if tag_name:
+            # only allowed anyways with a github token
+            release_to_github.release(self, tag_name, release_sha1, releases[0])
+
 #
 # END: RELEASE
 # ------------------------------------------------------------
 
-
     def release_to_github(self):
         release_to_github.release(self)
 
-    def release_to_github_markdown(self):
+    def release_to_github_markdown(self): # currently only used on the private platform repos
         release_to_github.release_markdown(self)
 
     def sync_archive(self):

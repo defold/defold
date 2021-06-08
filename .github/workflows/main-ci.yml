@@ -20,11 +20,13 @@ env:
   NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
   NOTARIZATION_ITC_PROVIDER: ${{ secrets.NOTARIZATION_ITC_PROVIDER }}
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
   WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
   WINDOWS_CERTIFICATE_PASS: ${{ secrets.WINDOWS_CERTIFICATE_PASS }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   BUILD_BRANCH: ${{ github.event.client_payload.branch }}
+  SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
 
 
@@ -40,7 +42,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
+      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
@@ -52,7 +54,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   bld-eng-macos:
@@ -75,7 +77,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   bld-eng-ios:
@@ -88,7 +90,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
@@ -99,7 +101,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   bld-eng-web:
@@ -112,7 +114,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
@@ -123,7 +125,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   bld-eng-android:
@@ -136,7 +138,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
@@ -147,7 +149,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   bld-eng-linux:
@@ -160,11 +162,61 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive engine'
+      },
+      {
+       name: 'Notify if build status changed',
+       uses: homoluctus/slatify@master,
+       if: failure(),
+       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+      }]
+
+  bld-eng-switch:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    strategy:
+      matrix:
+        platform: [arm64-nx64]
+    runs-on: windows-2016
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'Build engine',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        shell: bash,
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
+      },
+      {
+       name: 'Notify if build status changed',
+       uses: homoluctus/slatify@master,
+       if: failure(),
+       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+      }]
+
+  bld-eng-ps4:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    strategy:
+      matrix:
+        platform: [x86_64-ps4]
+    runs-on: windows-2016
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'Build engine',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        shell: bash,
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
       {
        name: 'Notify if build status changed',
@@ -178,7 +230,7 @@ jobs:
 
   build-bob:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web]
+    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -194,12 +246,12 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   build-sdk:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web]
+    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -214,7 +266,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
 # ---- BUILD EDITOR ------------------
@@ -244,7 +296,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   sign-editor-darwin:
@@ -288,7 +340,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
 
@@ -338,7 +390,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
 # ---- RELEASE ------------------
@@ -350,6 +402,12 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
+      {
+        name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)
+        shell: bash,
+        run: 'ci/ci.sh install_ext'
+      },
       {
         name: 'Release',
         run: 'ci/ci.sh release'
@@ -360,7 +418,7 @@ jobs:
         if: (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
         with: {
             repo: 'defold/defold.github.io',
-            token: '${{ secrets.GITHUB_TOKEN_READONLY }}',
+            token: '${{ secrets.SERVICES_GITHUB_TOKEN }}',
             user: 'services@defold.se',
             action: 'refdoc'
         }
@@ -370,5 +428,5 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]

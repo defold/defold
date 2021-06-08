@@ -28,7 +28,8 @@ import datetime
 import imp
 import fnmatch
 
-DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
+DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
+CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
@@ -202,7 +203,7 @@ def launcher_path(options, platform, exe_suffix):
         return options.launcher
     elif options.engine_sha1:
         launcher_version = options.engine_sha1
-        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform, exe_suffix)
+        launcher_url = 'https://%s/archive/%s/engine/%s/launcher%s' % (options.archive_domain, launcher_version, platform, exe_suffix)
         launcher = download(launcher_url)
         if not launcher:
             print('Failed to download launcher', launcher_url)
@@ -213,7 +214,7 @@ def launcher_path(options, platform, exe_suffix):
 
 
 def full_jdk_url(jdk_platform):
-    return 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-%s_%s_bin.tar.gz' % (java_version, jdk_platform)
+    return '%s/openjdk-%s_%s_bin.tar.gz' % (CDN_PACKAGES_URL, java_version, jdk_platform)
 
 
 def download_build_jdk():

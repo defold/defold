@@ -260,6 +260,12 @@ public:
     virtual ~SoundTest() {}
 };
 
+class RenderConstantsTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~RenderConstantsTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 

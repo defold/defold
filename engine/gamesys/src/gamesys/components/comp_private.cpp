@@ -21,7 +21,9 @@ namespace dmGameSystem
 
 CompRenderConstants::CompRenderConstants()
 {
-    memset(this, 0x0, sizeof(*this));
+    // We need to make sure these arrays aren't reallocated, since we might hand pointers off to comp_anim.cpp
+    m_RenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
+    m_PrevRenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
 }
 
 dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vector3& ref_value, const PropVector3& property)
@@ -350,11 +352,6 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
             return;
         }
 
-        if (constants->m_RenderConstants.Full())
-        {
-            constants->m_RenderConstants.OffsetCapacity(1);
-            constants->m_PrevRenderConstants.OffsetCapacity(1);
-        }
         constants->m_RenderConstants.SetSize(count+1);
         constants->m_PrevRenderConstants.SetSize(count+1);
 
