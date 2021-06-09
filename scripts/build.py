@@ -1310,12 +1310,26 @@ class Configuration(object):
             os.unlink(platform_sdk_zip.name)
             print ""
 
+        # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
+        # and set the flags explicitly
+        for root, dirs, files in os.walk(tempdir):
+            for f in files:
+                p = os.path.join(root, f)
+                if '/bin/' in p:
+                    os.chmod(p, 0o755)
+                    st = os.stat(p)
+
         treepath = os.path.join(tempdir, 'defoldsdk')
         sdkpath = self._ziptree(treepath, directory=tempdir)
-        print "Packaged defold sdk"
+        print "Packaged defold sdk from", tempdir, "to", sdkpath
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
+
+        os.unlink(sdkpath)
+        print "Removed", sdkpath
+        shutil.rmtree(tempdir)
+        print "Removed", tempdir
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
