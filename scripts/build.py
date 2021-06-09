@@ -409,9 +409,16 @@ class Configuration(object):
 
     def _extract_zip(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
-        zf = zipfile.ZipFile(file, 'r')
-        zf.extractall(path)
-        zf.close()
+
+        def _extract_zip_entry( zf, info, extract_dir ):
+            zf.extract( info.filename, path=extract_dir )
+            out_path = os.path.join( extract_dir, info.filename )
+            perm = info.external_attr >> 16L
+            os.chmod( out_path, perm )
+
+        with zipfile.ZipFile(file, 'r') as zf:
+            for info in zf.infolist():
+                _extract_zip_entry( zf, info, path )
 
     def _extract(self, file, path):
         if os.path.splitext(file)[1] == '.zip':
