@@ -26,7 +26,7 @@
            [com.dynamo.render.proto Render$Resize]
            [java.io BufferedReader File InputStream IOException]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
-           [java.util.zip ZipFile]))
+           [java.util.zip ZipEntry ZipFile]))
 
 (set! *warn-on-reflection* true)
 
@@ -208,13 +208,13 @@
       (fs/set-executable! engine-file)
       engine-file)))
 
-(defn- zip-entries! [zipfile]
+(defn- zip-entries! [^ZipFile zipfile]
   (enumeration-seq (.entries zipfile)))
 
 (defn- unpack-build-zip!
   [^File engine-archive dir]
   (with-open [zip-file (ZipFile. engine-archive)]
-    (doseq [entry (zip-entries! zip-file)]
+    (doseq [^ZipEntry entry (zip-entries! zip-file)]
       (let [savePath (str dir File/separatorChar (.getName entry))
             saveFile (File. savePath)]
         (if (.isDirectory entry)
@@ -222,10 +222,9 @@
             (.mkdirs saveFile))
           (let [parentDir (File. (.substring savePath 0 (.lastIndexOf savePath (int File/separatorChar))))
                 stream (.getInputStream zip-file entry)]
-            (if-not (.exists parentDir) (.mkdirs parentDir))
-            (clojure.java.io/copy stream saveFile)))
-      ))))
-
+            (when-not (.exists parentDir)
+              (.mkdirs parentDir))
+            (io/copy stream saveFile)))))))
 
 (def ^:private dmengine-dependencies
   {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
