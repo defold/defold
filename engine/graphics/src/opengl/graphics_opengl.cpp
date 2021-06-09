@@ -85,6 +85,8 @@ typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, 
 typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
 typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
 typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
+typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
+typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -114,6 +116,8 @@ PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
 PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
 PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
 PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
+PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
+PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
 
 PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
 PFNGLCREATESHADERPROC glCreateShader = NULL;
@@ -811,6 +815,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
         GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
+        GET_PROC_ADDRESS(glStencilOpSeparate, "glStencilOpSeparate", PFNGLSTENCILOPSEPARATEPROC);
+        GET_PROC_ADDRESS(glStencilFuncSeparate, "glStencilFuncSeparate", PFNGLSTENCILFUNCSEPARATEPROC);
 #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
