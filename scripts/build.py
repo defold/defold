@@ -1292,6 +1292,13 @@ class Configuration(object):
         base_prefix = os.path.join(root, sha1)
 
         platforms = get_target_platforms()
+
+        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
+        # it last, in order to preserve unix line endings in the files
+        if 'x86_64-linux' in platforms:
+            platforms.remove('x86_64-linux')
+            platforms.append('x86_64-linux')
+
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
             entry = bucket.get_key(prefix)
