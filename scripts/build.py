@@ -1333,8 +1333,6 @@ class Configuration(object):
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
-        os.unlink(sdkpath)
-        print "Removed", sdkpath
         shutil.rmtree(tempdir)
         print "Removed", tempdir
 
