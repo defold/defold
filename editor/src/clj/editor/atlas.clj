@@ -52,6 +52,7 @@
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
+           [java.util List]
            [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -791,8 +792,8 @@
   (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)
-                              children (vec (g/node-value parent :nodes))
-                              node-child-index (.indexOf ^java.util.List children node-id)]
+                              ^List children (vec (g/node-value parent :nodes))
+                              node-child-index (.indexOf children node-id)]
                           (pos? node-child-index)))
   (run [selection] (move-node! (selection->image selection) -1)))
 
@@ -800,7 +801,7 @@
   (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)
-                              children (vec (g/node-value parent :nodes))
-                              node-child-index (.indexOf ^java.util.List children node-id)]
+                              ^List children (vec (g/node-value parent :nodes))
+                              node-child-index (.indexOf children node-id)]
                           (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))
