@@ -738,14 +738,15 @@ namespace dmGameSystem
 
     static void ApplyStencilClipping(RenderGuiContext* gui_context, const dmGui::StencilScope* state, dmRender::StencilTestParams& stp) {
         if (state != 0x0) {
-            stp.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
-            stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-            stp.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
-            stp.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
+            stp.m_Front.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
+            stp.m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
+            stp.m_Front.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
             stp.m_Ref = state->m_RefVal;
             stp.m_RefMask = state->m_TestMask;
             stp.m_BufferMask = state->m_WriteMask;
             stp.m_ColorBufferMask = state->m_ColorMask;
+            stp.m_SeparateFaceStates = 0;
             if (gui_context->m_FirstStencil)
             {
                 // Set the m_ClearBuffer for the first stencil of each scene so that scenes (and components) can share the stencil buffer.
@@ -756,14 +757,15 @@ namespace dmGameSystem
                 stp.m_ClearBuffer = 1;
             }
         } else {
-            stp.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
-            stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-            stp.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
-            stp.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+            stp.m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
             stp.m_Ref = 0;
             stp.m_RefMask = 0xff;
             stp.m_BufferMask = 0xff;
             stp.m_ColorBufferMask = 0xf;
+            stp.m_SeparateFaceStates = 0;
         }
     }
 

@@ -2804,6 +2804,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return func_lut[func];
     }
 
+    static GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
+    {
+        const GLenum face_type_lut[] = {
+            GL_FRONT,
+            GL_BACK,
+            GL_FRONT_AND_BACK,
+        };
+
+        return face_type_lut[face_type];
+    }
+
     static void OpenGLSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
@@ -2832,6 +2843,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    static void OpenGLSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    {
+        assert(context);
+        glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
+        CHECK_GL_ERROR
+    }
+
     static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
@@ -2850,16 +2868,28 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
+    static void OpenGLSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        assert(context);
+        const GLenum stencil_op_lut[] = {
+            GL_KEEP,
+            GL_ZERO,
+            GL_REPLACE,
+            GL_INCR,
+            GL_INCR_WRAP,
+            GL_DECR,
+            GL_DECR_WRAP,
+            GL_INVERT,
+        };
+
+        glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
+        CHECK_GL_ERROR;
+    }
+
     static void OpenGLSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
-        const GLenum face_type_lut[] = {
-            GL_FRONT,
-            GL_BACK,
-            GL_FRONT_AND_BACK,
-        };
-
-        glCullFace(face_type_lut[face_type]);
+        glCullFace(GetOpenGLFaceTypeFunc(face_type));
         CHECK_GL_ERROR
     }
 
@@ -2980,7 +3010,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_SetScissor = OpenGLSetScissor;
         fn_table.m_SetStencilMask = OpenGLSetStencilMask;
         fn_table.m_SetStencilFunc = OpenGLSetStencilFunc;
+        fn_table.m_SetStencilFuncSeparate = OpenGLSetStencilFuncSeparate;
         fn_table.m_SetStencilOp = OpenGLSetStencilOp;
+        fn_table.m_SetStencilOpSeparate = OpenGLSetStencilOpSeparate;
         fn_table.m_SetCullFace = OpenGLSetCullFace;
         fn_table.m_SetPolygonOffset = OpenGLSetPolygonOffset;
         fn_table.m_NewRenderTarget = OpenGLNewRenderTarget;
