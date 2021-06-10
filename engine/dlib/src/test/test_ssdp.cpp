@@ -241,6 +241,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
 
 #if !defined(_WIN32) && !defined(GITHUB_CI)
 
+// (╯°□°)╯︵ ┻━┻
 TEST_F(dmSSDPTest, Search)
 {
     // To search for devices we must invoke client -> server -> client
