@@ -90,10 +90,6 @@
 
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
-    (workspace/load-editor-plugins! workspace)
-    ; do it a second time, after the plugins were reloaded
-    (resource-types/register-resource-types! workspace)
-
     (workspace/load-build-cache! workspace)
     workspace))
 
