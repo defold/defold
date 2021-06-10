@@ -205,6 +205,7 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 			// remove the single or double quotes around the string
 			if (module.startsWith("\"") || module.startsWith("'")) {
 				module = module.replace("\"", "").replace("'", "");
+				// ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
 				if (!LUA_LIBRARIES.contains(module)) {
 					modules.add(module);
 				}
