@@ -348,7 +348,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.p('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.p('"%s",', to_lower_case(message_type.name))
-    pp_cpp.p('0x%016XLL,', dlib.dmHashBuffer64(to_lower_case(message_type.name)))
+    pp_cpp.p('0x%016XULL,', dlib.dmHashBuffer64(to_lower_case(message_type.name)))
     pp_cpp.p('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.p('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     if len(lst) > 0:
@@ -362,7 +362,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
+    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
 
     pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s_%s(&%s_%s_DESCRIPTOR);' % (namespace, message_type.name, namespace, message_type.name))
 
@@ -468,7 +468,7 @@ def to_java_descriptor(context, pp, message_type, proto_package, java_package, q
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    #pp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
+    #pp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
 
 def to_java_class(context, pp, message_type, proto_package, java_package, qualified_proto_package):
     # Calculate maximum length of "type"
