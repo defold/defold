@@ -279,4 +279,4 @@ def release_markdown(config):
 
 if __name__ == '__main__':
     print("For testing only")
-    print(get_default_repo())
+    print(get_current_repo())
