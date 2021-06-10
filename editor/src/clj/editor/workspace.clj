@@ -259,7 +259,7 @@ ordinary paths."
   ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin" (resource/path resource)))
   (let [plugin (load-string (slurp resource))]
-    (plugin [workspace]))
+    (plugin workspace))
   (log/info :msg (str "Loaded plugin" (resource/path resource))))
 
 (defn load-editor-plugins! [workspace added]
