@@ -1557,13 +1557,13 @@ namespace dmGameSystem
             dmPhysics::FlipV2D(component->m_Object2D);
         component->m_FlippedY = flip;
     }
-    
-    void Wakeup(void* _world, void* _component)
+
+    void WakeupCollision(void* _world, void* _component)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
 
-        if (world->m_3D) 
+        if (world->m_3D)
         {
             dmPhysics::Wakeup3D(component->m_Object3D);
         } else

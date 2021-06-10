@@ -1087,6 +1087,21 @@ namespace dmGameSystem
     }
 
     // Wake up a collisionobject component
+    /*# explicitly wakeup a collision object
+     *
+     * Collision objects tend to fall asleep when inactive for a small period of time for
+     * efficiency reasons. This function wakes them up.
+     *
+     * @name physics.wakeup
+     * @param url [type:string|hash|url] the collision object to wake.
+     * ```lua
+     * function on_input(self, action_id, action)
+     *     if action_id == hash("test") and action.pressed then
+     *         physics.wakeup("#collisionobject")
+     *     end
+     * end
+     * ```
+     */
     static int Physics_Wakeup(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1096,7 +1111,7 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
-        dmGameSystem::Wakeup(comp_world, comp);
+        dmGameSystem::WakeupCollision(comp_world, comp);
 
         return 0;
     }

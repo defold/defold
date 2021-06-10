@@ -1454,7 +1454,7 @@ TEST_F(Sleeping2DCollisionObjectTest, WakingCollisionObjectTest)
     dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, base_go);
 
-    // two dynamic 'body' object will get spawned and placed appart
+    // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body_go = "/collision_object/sleepy_body.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (10,10)

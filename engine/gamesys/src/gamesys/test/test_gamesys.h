@@ -37,24 +37,24 @@ struct Params
     const char* m_TempResource;
 };
 
+struct ProjectOptions {
+  uint32_t m_MaxCollisionCount;
+  uint32_t m_MaxContactPointCount;
+  bool m_3D;
+};
+
 template<typename T>
 class CustomizableGamesysTest : public jc_test_params_class<T>
 {
 public:
-    struct ProjectOptions {
-      uint32_t m_MaxCollisionCount;
-      uint32_t m_MaxContactPointCount;
-      bool m_3D;
-    };
-
     CustomizableGamesysTest() {
-      memset(&projectOptions, 0, sizeof(projectOptions));
+      memset(&m_projectOptions, 0, sizeof(m_projectOptions));
     }
 
-    ProjectOptions projectOptions;
+    ProjectOptions m_projectOptions;
 protected:
     void SetUp(ProjectOptions& options) {
-      projectOptions = options;
+      m_projectOptions = options;
     }
 
     virtual void SetUp() = 0;
@@ -66,9 +66,9 @@ class GamesysTest : public CustomizableGamesysTest<T>
 public:
     GamesysTest() {
         // Default configuration values for the engine. Subclass GamesysTest and ovewrite in constructor.
-        this -> projectOptions.m_MaxCollisionCount = 0;
-        this -> projectOptions.m_MaxContactPointCount = 0;
-        this -> projectOptions.m_3D = false;
+        this->m_projectOptions.m_MaxCollisionCount = 0;
+        this->m_projectOptions.m_MaxContactPointCount = 0;
+        this->m_projectOptions.m_3D = false;
     }
 protected:
     virtual void SetUp();
@@ -108,10 +108,11 @@ class Sleeping2DCollisionObjectTest : public GamesysTest<const char*>
 public:
     Sleeping2DCollisionObjectTest() {
       // override configuration values specified in GamesysTest()
-      this -> projectOptions.m_MaxCollisionCount = 32;
-      this -> projectOptions.m_MaxContactPointCount = 64;
-      this -> projectOptions.m_3D = false;
+      m_projectOptions.m_MaxCollisionCount = 32;
+      m_projectOptions.m_MaxContactPointCount = 64;
+      m_projectOptions.m_3D = false;
     }
+
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -356,9 +357,9 @@ void GamesysTest<T>::SetUp()
     m_InputContext = dmInput::NewContext(input_params);
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
-    m_PhysicsContext.m_MaxCollisionCount = this -> projectOptions.m_MaxCollisionCount;
-    m_PhysicsContext.m_MaxContactPointCount = this -> projectOptions.m_MaxContactPointCount;
-    m_PhysicsContext.m_3D = this -> projectOptions.m_3D;
+    m_PhysicsContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
+    m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+    m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
     m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
 
     m_ParticleFXContext.m_Factory = m_Factory;
