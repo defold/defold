@@ -23,15 +23,40 @@
 
 set -e
 
-SDK_10_VERSION="10.0.18362.0"
-MSVC_VERSION="14.25.28610"
 
 VC_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Community"
-
 SDK_PATH="C:\Program Files (x86)\Windows Kits"
 
+
+# Set it specifically if you need to, otherwise it will find the highest number
+#MSVC_VERSION="14.29.30037"
+#SDK_10_VERSION="10.0.18362.0"
+
+if [ -e $MSVC_VERSION ]; then
+	# get the highest version number
+	MSVC_VERSION=$(ls "$VC_PATH/VC/Tools/MSVC/" | tail -n 1)
+fi
+
+if [ -e $SDK_10_VERSION ]; then
+	# get the highest version number
+	SDK_10_VERSION=$(ls "$SDK_PATH/10/Include/" | tail -n 1)
+fi
+
+if [ -e $MSVC_VERSION ]; then
+	echo "No msvc version found at $VC_PATH/VC/Tools/MSVC"
+	exit 1
+fi
+
+if [ -e $SDK_10_VERSION ]; then
+	echo "No windows sdk version found at $SDK_PATH/10/Include"
+	exit 1
+fi
+
+echo MSVC_VERSION=${MSVC_VERSION}
+echo SDK_10_VERSION=${SDK_10_VERSION}
+
+
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-${MSVC_VERSION}.tar.gz"
-PACKAGES_WIN32_SDK_8="WindowsKits-8.1.tar.gz"
 PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_10_VERSION}.tar.gz"
 
 
@@ -40,13 +65,6 @@ TMP_PATH=${TARGET_PATH}/tmp
 if [ ! -d "${TMP_PATH}" ]; then
 	mkdir -p ${TMP_PATH}
 fi
-
-# if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_8}" ]; then
-# 	echo "Packing to ${PACKAGES_WIN32_SDK_8}"
-# 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} -C "${SDK_PATH}" 8.1/Include 8.1/Lib 8.1/sdk_license.rtf 8.1/sdk_third_party_notices.rtf
-# else
-# 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} already existed"
-# fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
@@ -74,6 +92,8 @@ if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/atlmfc"  "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
 
 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "$TMP" VC
+
+	rm -rf ${TMP}
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} already existed"
 fi
