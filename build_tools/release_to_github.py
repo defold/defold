@@ -12,7 +12,7 @@ import s3
 import subprocess
 import urlparse
 
-def get_default_repo():
+def get_current_repo():
     # git@github.com:defold/defold.git
     # https://github.com/defold/defold.git
     url = run.shell_command('git remote get-url origin')
@@ -198,6 +198,9 @@ def release_markdown(config):
     if not release_sha:
         release_sha = get_git_sha1()
 
+    channel = config.channel
+    log("Using channel %s" % channel)
+
     # get the release on S3
     log("Getting S3 release for version %s with sha %s" % (config.version, release_sha))
     s3_release = s3.get_single_release(config.archive_path, config.version, release_sha)
@@ -217,8 +220,16 @@ def release_markdown(config):
     base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
     for file in s3_release.get("files", None):
         # download file
-        download_url = base_url + file.get("path")
-        if not test_path(download_url):
+        file_path = file.get("path")
+
+        if file_path.startswith("/archive/"):
+            file_path = file_path[len("/archive/"):]
+
+        download_url = base_url + file_path
+        if channel is not None:
+            download_url = "%s/archive/%s/%s" % (base_url, channel, file_path)
+
+        if not test_path(file_path):
             continue
 
         if download_url.endswith('bob.jar'):
@@ -268,4 +279,4 @@ def release_markdown(config):
 
 if __name__ == '__main__':
     print("For testing only")
-    print(get_default_repo())
+    print(get_current_repo())
