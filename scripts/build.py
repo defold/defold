@@ -409,9 +409,16 @@ class Configuration(object):
 
     def _extract_zip(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
-        zf = zipfile.ZipFile(file, 'r')
-        zf.extractall(path)
-        zf.close()
+
+        def _extract_zip_entry( zf, info, extract_dir ):
+            zf.extract( info.filename, path=extract_dir )
+            out_path = os.path.join( extract_dir, info.filename )
+            perm = info.external_attr >> 16L
+            os.chmod( out_path, perm )
+
+        with zipfile.ZipFile(file, 'r') as zf:
+            for info in zf.infolist():
+                _extract_zip_entry( zf, info, path )
 
     def _extract(self, file, path):
         if os.path.splitext(file)[1] == '.zip':
@@ -1285,6 +1292,13 @@ class Configuration(object):
         base_prefix = os.path.join(root, sha1)
 
         platforms = get_target_platforms()
+
+        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
+        # it last, in order to preserve unix line endings in the files
+        if 'x86_64-linux' in platforms:
+            platforms.remove('x86_64-linux')
+            platforms.append('x86_64-linux')
+
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
             entry = bucket.get_key(prefix)
@@ -1303,12 +1317,24 @@ class Configuration(object):
             os.unlink(platform_sdk_zip.name)
             print ""
 
+        # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
+        # and set the flags explicitly
+        for root, dirs, files in os.walk(tempdir):
+            for f in files:
+                p = os.path.join(root, f)
+                if '/bin/' in p:
+                    os.chmod(p, 0o755)
+                    st = os.stat(p)
+
         treepath = os.path.join(tempdir, 'defoldsdk')
         sdkpath = self._ziptree(treepath, directory=tempdir)
-        print "Packaged defold sdk"
+        print "Packaged defold sdk from", tempdir, "to", sdkpath
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
+
+        shutil.rmtree(tempdir)
+        print "Removed", tempdir
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
