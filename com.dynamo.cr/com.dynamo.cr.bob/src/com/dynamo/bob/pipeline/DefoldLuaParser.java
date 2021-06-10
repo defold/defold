@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -23,6 +26,32 @@ import com.dynamo.bob.pipeline.luaparser.LuaParserBaseListener;
 
 public class DefoldLuaParser extends LuaParserBaseListener {
 	private static final Logger LOGGER = Logger.getLogger(DefoldLuaParser.class.getName());
+
+	/**
+	 * This list of Lua libraries represent the Lua standard libraries as well
+	 * as other very commonly used libraries that are included in the Defold
+	 * version of Lua.
+	 * Third-party Lua modules from the Lua developer community may include
+	 * require() calls for these libraries and unless we exclude these require
+	 * calls the build will fail since bob will be looking for a corresponding
+	 * .lua module file
+	 */
+	private static final Set<String> LUA_LIBRARIES = new HashSet<String>(Arrays.asList(
+	     new String[] {
+	 		"coroutine",
+	 		"package",
+	 		"string",
+	 		"table",
+	 		"math",
+	 		"io",
+	 		"os",
+	 		"debug",
+	 		"socket",			// LuaSocket
+	 		"bit",				// LuaJIT+Lua addon
+	 		"ffi",				// LuaJIT
+	 		"jit"				// LuaJIT
+	 	}
+	));
 
 	public class PropertyAndLine {
 		public String property;
@@ -176,7 +205,9 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 			// remove the single or double quotes around the string
 			if (module.startsWith("\"") || module.startsWith("'")) {
 				module = module.replace("\"", "").replace("'", "");
-				modules.add(module);
+				if (!LUA_LIBRARIES.contains(module)) {
+					modules.add(module);
+				}
 			}
 		}
 		// go.property() call?
