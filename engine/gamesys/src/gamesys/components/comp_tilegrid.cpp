@@ -84,7 +84,7 @@ namespace dmGameSystem
         dmArray<TileGridRegion>     m_Regions;
         dmArray<TileGridLayer>      m_Layers;
         uint32_t                    m_MixedHash;
-        CompRenderConstants         m_RenderConstants;
+        HComponentRenderConstants   m_RenderConstants;
         dmRender::HMaterial         m_Material;
         TextureSetResource*         m_TextureSet;
         TileGridResource*           m_Resource;
@@ -249,7 +249,9 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, GetMaterial(component), sizeof(dmRender::HMaterial));
         dmHashUpdateBuffer32(&state, GetTextureSet(component), sizeof(TextureSetResource));
         dmHashUpdateBuffer32(&state, &resource->m_TileGrid->m_BlendMode, sizeof(resource->m_TileGrid->m_BlendMode));
-        dmGameSystem::HashRenderConstants(&component->m_RenderConstants, &state);
+        if (component->m_RenderConstants) {
+            dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
+        }
 
         component->m_MixedHash = dmHashFinal32(&state);
     }
@@ -427,6 +429,12 @@ namespace dmGameSystem
 
                 delete [] tile_grid->m_Cells;
                 delete [] tile_grid->m_CellFlags;
+
+                if (tile_grid->m_RenderConstants)
+                {
+                    dmGameSystem::DestroyRenderConstants(tile_grid->m_RenderConstants);
+                }
+
                 world->m_Components.EraseSwap(i);
                 delete tile_grid;
                 return dmGameObject::CREATE_RESULT_OK;
@@ -619,7 +627,9 @@ namespace dmGameSystem
         ro.m_Material = GetMaterial(first);
         ro.m_Textures[0] = texture_set->m_Texture;
 
-        dmGameSystem::EnableRenderObjectConstants(&ro, &first->m_RenderConstants);
+        if (first->m_RenderConstants) {
+            dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
+        }
 
         dmGameSystemDDF::TileGrid::BlendMode blend_mode = resource->m_TileGrid->m_BlendMode;
         switch (blend_mode)
@@ -737,7 +747,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            if (dmGameSystem::AreRenderConstantsUpdated(&component->m_RenderConstants))
+            if (component->m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component->m_RenderConstants))
             {
                 ReHash(component);
             }
@@ -869,13 +879,17 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
-            SetRenderConstant(&component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, ddf->m_Value);
+            if (!component->m_RenderConstants)
+                component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+            SetRenderConstant(component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, ddf->m_Value);
             ReHash(component);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::ResetConstantTileMap* ddf = (dmGameSystemDDF::ResetConstantTileMap*)params.m_Message->m_Data;
-            ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash);
+            if (component->m_RenderConstants) {
+                ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash);
+            }
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
@@ -901,13 +915,17 @@ namespace dmGameSystem
     static bool CompTileGridGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         TileGridComponent* component = (TileGridComponent*)user_data;
-        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
+        if (!component->m_RenderConstants)
+            return false;
+        return GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         TileGridComponent* component = (TileGridComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component), name_hash, element_index, var);
+        if (!component->m_RenderConstants)
+            component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component), name_hash, element_index, var);
         ReHash(component);
     }
 
