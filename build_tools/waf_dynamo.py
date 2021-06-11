@@ -1449,12 +1449,7 @@ def get_msvc_version(conf, platform):
     ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
     ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
     ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
-
-    for v in ucrt_dirs:
-        print "MAWE", "UCRT VERSION", v
-
     ucrt_version = ucrt_dirs[-1]
-    print "MAWE", "PICKED UCRT VERSION", ucrt_version
 
     if not ucrt_version.startswith('10.0'):
         conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
@@ -1462,14 +1457,7 @@ def get_msvc_version(conf, platform):
     msvc_version = [x for x in os.listdir(os.path.join(msvcdir,'VC','Tools','MSVC'))]
     msvc_version = [x for x in msvc_version if x.startswith('14.')]
     msvc_version.sort(key=lambda x: map(int, x.split('.')))
-
-    for v in msvc_version:
-        print "MAWE", "MSVC VERSION", v
-
-
     msvc_version = msvc_version[-1]
-
-    print "MAWE", "PICKED MSVC VERSION", msvc_version
 
     if not msvc_version.startswith('14.'):
         conf.fatal("Unable to determine msvc version: '%s'" % msvc_version)
@@ -1566,8 +1554,8 @@ def detect(conf):
         else:
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (msvc_path, includes, libdirs)))])]
 
-        #if not Options.options.skip_codesign:
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
+        if not Options.options.skip_codesign:
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
 
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None

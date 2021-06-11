@@ -180,6 +180,19 @@ def mac_certificate(codesigning_identity):
     else:
         return None
 
+def get_windows_kits_version(platform):
+    windowskitsdir = os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', 'Win32', 'WindowsKits')
+
+    arch = 'x64'
+    if platform == 'win32':
+        arch = 'x86'
+
+    # Since the programs(Windows!) can update, we do this dynamically to find the correct version
+    ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
+    ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
+    ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
+    return ucrt_dirs[-1]
+
 def sign_files(platform, options, dir):
     if options.skip_codesign:
         return
@@ -198,7 +211,8 @@ def sign_files(platform, options, dir):
         with open(certificate_pass_path, 'rb') as f:
             certificate_pass = f.read()
 
-        signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
+        ucrt_version = get_windows_kits_version(platform)
+        signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin',ucrt_version,'x64','signtool.exe')
         if not os.path.exists(signtool):
             print("signtool.exe file does not exist:", signtool)
             sys.exit(1)
