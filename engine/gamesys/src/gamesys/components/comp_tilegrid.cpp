@@ -69,6 +69,7 @@ namespace dmGameSystem
         : m_Instance(0)
         , m_Cells(0)
         , m_CellFlags(0)
+        , m_RenderConstants(0)
         , m_Material(0)
         , m_TextureSet(0)
         , m_Resource(0)
