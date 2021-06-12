@@ -498,7 +498,25 @@ namespace dmEngine
     */
     bool Init(HEngine engine, int argc, char *argv[])
     {
+        #if defined(__EMSCRIPTEN__)
+        EM_ASM({
+            if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
+                console.log("\n%c     %c    Defold Engine %s (%s)    %c     %c\n -=[ https://www.defold.com ]=-",
+                    "background: #fd6623; padding:5px 0;",
+                    "background: #272c31; color: #fafafa; padding:5px 0;",
+                    UTF8ToString($0),
+                    UTF8ToString($1),
+                    "background: #39a3e4; padding:5px 0;",
+                    "background: #ffffff; color: #000000; padding:5px 0;"
+                );
+            }
+            else {
+                console.log("\nDefold Engine %s (%s) -=[ https://www.defold.com ]=-", UTF8ToString($0), UTF8ToString($1));
+            }
+        }, dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+        #else
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+        #endif
 
         dmCrash::SetExtraInfoCallback(CrashHandlerCallback, engine);
 
