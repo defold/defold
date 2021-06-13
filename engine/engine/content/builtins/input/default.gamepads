@@ -882,10 +882,10 @@ driver
     map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 1 }
     map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }
     map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 }
-	map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 6 }
-	map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 7 }
-	map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 18 }
-	map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 8 }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 7 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 18 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 8 }
     map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 18 }
 }
 
@@ -952,14 +952,14 @@ driver
     device: "Joy-Con (R)"
     platform: "android"
     dead_zone: 0.2
-	map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 6 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 6 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 6 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 7 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 7 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 16 }
-	map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 6 }
-	map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 7 }
-	map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 18 }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 7 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 18 }
     map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 2 }
     map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 1 }
     map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }
