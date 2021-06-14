@@ -1007,6 +1007,12 @@ namespace dmPhysics
         btCollisionObject* co = GetCollisionObject(collision_object);
         return co->getActivationState() == ISLAND_SLEEPING;
     }
+    
+    void Wakeup3D(HCollisionObject3D collision_object)
+    {
+        btCollisionObject* co = GetCollisionObject(collision_object);
+        co->activate();
+    }
 
     void SetLockedRotation3D(HCollisionObject3D collision_object, bool locked_rotation) {
         btCollisionObject* co = GetCollisionObject(collision_object);

@@ -68,6 +68,7 @@ namespace dmGameSystem
     bool IsCollision2D(void* _world);
     void SetCollisionFlipH(void* _component, bool flip);
     void SetCollisionFlipV(void* _component, bool flip);
+    void WakeupCollision(void* _world, void* _component);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H
