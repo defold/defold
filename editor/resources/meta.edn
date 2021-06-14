@@ -732,7 +732,7 @@
    :label "Custom .css"
    :path ["html5" "cssfile"]}
   {:type :resource,
-   :filter "png"
+   :filter ["gif", "jpg", "png", "svg"],
    :preserve-extension true,
    :help "custom html splash screen image",
    :path ["html5" "splash_image"]}
@@ -757,6 +757,10 @@
    :help "set to true if you want to have the 'Made with Defold' link",
    :default true
    :path ["html5" "show_made_with_defold"]}
+  {:type :boolean,
+   :help "set to true if you want to show a 'Made with Defold' link in the browser console",
+   :default true
+   :path ["html5" "show_console_banner"]}
   {:type :string,
    :help "scale mode for canvas, by default 'Downscale Fit'",
    :default "downscale_fit",

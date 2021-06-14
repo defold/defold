@@ -911,6 +911,20 @@ namespace dmPhysics
     bool IsSleeping2D(HCollisionObject3D collision_object);
 
     /**
+     * Activate 3D collision object 
+     * 
+     * @param collision_object
+     */
+    void Wakeup3D(HCollisionObject3D collision_object);
+    
+    /**
+     * Wake up collision object
+     * 
+     * @param collision_object
+     */
+    void Wakeup2D(HCollisionObject2D collision_object);
+    
+    /**
      * Set whether the 3D collision object has locked rotation or not, which means that the angular velocity will always be 0.
      *
      * @param collision_object Collision object to lock

@@ -1,0 +1,24 @@
+function init(self)
+	msg.post(".", "acquire_input_focus")
+
+	-- rotate the cube
+	go.animate(".", "euler.z", go.PLAYBACK_LOOP_FORWARD, 360, go.EASING_INOUTQUAD, 6)
+	go.animate(".", "euler.x", go.PLAYBACK_LOOP_FORWARD, 360, go.EASING_INOUTQUAD, 9)
+	go.animate(".", "euler.y", go.PLAYBACK_LOOP_FORWARD, 360, go.EASING_INOUTQUAD, 12)
+
+	-- tint the cube
+	model.set_constant("#cube", "tint", vmath.vector4(1,1,0,1))
+
+	-- position directional light
+	self.light = vmath.vector4(0, 0, 2, 0)
+	model.set_constant("#cube", "light", self.light)
+
+	self.count = 3
+end
+
+function update(self, dt)
+	self.count = self.count - 1
+	if self.count <= 0 then
+		sys.exit(0)
+	end
+end

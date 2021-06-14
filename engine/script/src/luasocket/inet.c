@@ -258,7 +258,7 @@ int inet_meth_getpeername(lua_State *L, p_socket ps, int family)
         lua_pushstring(L, socket_strerror(errno));
         return 2;
     }
-	err = getnameinfo((struct sockaddr *) &peer, peer_len,
+    err = getnameinfo((struct sockaddr *) &peer, peer_len,
         name, INET6_ADDRSTRLEN,
         port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
     if (err) {
@@ -293,8 +293,8 @@ int inet_meth_getsockname(lua_State *L, p_socket ps, int family)
         lua_pushstring(L, socket_strerror(errno));
         return 2;
     }
-	err=getnameinfo((struct sockaddr *)&peer, peer_len,
-		name, INET6_ADDRSTRLEN, port, 6, NI_NUMERICHOST | NI_NUMERICSERV);
+    err=getnameinfo((struct sockaddr *)&peer, peer_len,
+        name, INET6_ADDRSTRLEN, port, 6, NI_NUMERICHOST | NI_NUMERICSERV);
     if (err) {
         lua_pushnil(L);
         lua_pushstring(L, gai_strerror(err));
@@ -442,8 +442,8 @@ const char *inet_tryconnect(p_socket ps, int *family, const char *address,
 const char *inet_tryaccept(p_socket server, int family, p_socket client,
     p_timeout tm)
 {
-	socklen_t len;
-	t_sockaddr_storage addr;
+    socklen_t len;
+    t_sockaddr_storage addr;
 
     if (family == PF_INET) {
         len = sizeof(struct sockaddr_in);
@@ -453,7 +453,7 @@ const char *inet_tryaccept(p_socket server, int family, p_socket client,
         len = sizeof(struct sockaddr_in6);
     }
 #endif
-	return socket_strerror(socket_accept(server, client, (SA *) &addr,
+    return socket_strerror(socket_accept(server, client, (SA *) &addr,
         &len, tm));
 }
 

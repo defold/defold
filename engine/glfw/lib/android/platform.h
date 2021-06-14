@@ -257,7 +257,7 @@ GLFWGLOBAL struct {
 //------------------------------------------------------------------------
 #define DEVICE_NAME_LENGTH 64
 #define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 20
-#define GLFW_ANDROID_GAMEPAD_NUMAXIS 6
+#define GLFW_ANDROID_GAMEPAD_NUMAXIS 8
 
 GLFWGLOBAL struct {
     int           State;
