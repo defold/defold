@@ -89,7 +89,7 @@ public class GameProjectBuilder extends Builder<Void> {
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         boolean nonStandardGameProjectFile = !project.getGameProjectResource().getAbsPath().equals(input.getAbsPath());
         if (nonStandardGameProjectFile) {
-            Bob.verbose("GameProjectBuilder.create Found non-standard game.project file: %s\n", input.getPath());
+            throw new CompileExceptionError(input, -1, "Found non-standard game.project file: " + input.getPath());
         }
 
         // We currently don't have a file mapping with an input -> output for certain files
@@ -122,10 +122,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        // ignore custom resources if processing a project file other than game.project
-        if (!nonStandardGameProjectFile) {
-            project.buildResource(input, CopyCustomResourcesBuilder.class);
-        }
+        project.buildResource(input, CopyCustomResourcesBuilder.class);
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
