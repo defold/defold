@@ -89,6 +89,8 @@ static int glfwAndroidMotionToJoystickAxis(int motionAxis)
         case AMOTION_EVENT_AXIS_RZ:         return 3;
         case AMOTION_EVENT_AXIS_LTRIGGER:   return 4;
         case AMOTION_EVENT_AXIS_RTRIGGER:   return 5;
+        case AMOTION_EVENT_AXIS_HAT_X:      return 6;
+        case AMOTION_EVENT_AXIS_HAT_Y:      return 7;
         default: return -1;
     }
 }
@@ -116,6 +118,8 @@ static void glfwAndroidUpdateAxis(const AInputEvent* event)
         glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RZ);
         glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_LTRIGGER);
         glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RTRIGGER);
+        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_X);
+        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_Y);
     }
 }
 
