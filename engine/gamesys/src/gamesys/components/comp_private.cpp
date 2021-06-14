@@ -18,6 +18,12 @@ using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
 
+struct CompRenderConstants
+{
+    CompRenderConstants();
+    dmArray<dmRender::Constant> m_RenderConstants;
+    dmArray<dmVMath::Vector4>   m_PrevRenderConstants;
+};
 
 CompRenderConstants::CompRenderConstants()
 {

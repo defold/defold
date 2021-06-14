@@ -30,13 +30,6 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector4& ref_value, const PropVector4& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector4& set_value, const PropVector4& property);
-
-    struct CompRenderConstants
-    {
-        CompRenderConstants();
-        dmArray<dmRender::Constant> m_RenderConstants;
-        dmArray<dmVMath::Vector4>   m_PrevRenderConstants;
-    };
 }
 
 #endif // DM_GAMESYS_COMP_PRIVATE_H
