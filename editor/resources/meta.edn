@@ -722,7 +722,7 @@
    :label "Custom .css"
    :path ["html5" "cssfile"]}
   {:type :resource,
-   :filter "png"
+   :filter ["gif", "jpg", "png", "svg"],
    :preserve-extension true,
    :help "custom html splash screen image",
    :path ["html5" "splash_image"]}
