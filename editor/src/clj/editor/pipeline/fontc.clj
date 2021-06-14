@@ -419,8 +419,9 @@
         padding (+ (min (int 4) ^int (:shadow-blur font-desc))
                    (int (:outline-width font-desc)))
         glyph-cell-padding 1
-        channel-count (if (and (> ^double (:outline-width font-desc) 0.0)
-                               (> ^double (:outline-alpha font-desc) 0.0))
+        channel-count (if (or (> ^double (:shadow-alpha font-desc) 0.0)
+                              (and (> ^double (:outline-width font-desc) 0.0)
+                                   (> ^double (:outline-alpha font-desc) 0.0)))
                         3 1)
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
         ;; Note: We need to diverge between placing glyphs within the cache and placing them
