@@ -457,7 +457,9 @@ namespace dmEngine
 
         if (ctx->m_First)
         {
-            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            int32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            if (nwritten < 0)
+                nwritten = 0;
             ctx->m_Buffer += nwritten;
             ctx->m_BufferSize -= nwritten;
             ctx->m_First = false;
