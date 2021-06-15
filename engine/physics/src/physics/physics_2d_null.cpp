@@ -191,6 +191,10 @@ namespace dmPhysics
         return false;
     }
 
+    void Wakeup2D(HCollisionObject2D collision_object)
+    {
+    }
+
     void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation)
     {
     }
