@@ -112,6 +112,7 @@ struct Funcs
     typedef bool (*IsEnabledFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetEnabledFunc)(typename T::WorldType world, typename T::CollisionObjectType collision_object, bool enabled);
     typedef bool (*IsSleepingFunc)(typename T::CollisionObjectType collision_object);
+    typedef void (*WakeupFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetLockedRotationFunc)(typename T::CollisionObjectType collision_object, bool locked_rotation);
     typedef float (*GetLinearDampingFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetLinearDampingFunc)(typename T::CollisionObjectType collision_object, float linear_damping);
@@ -166,6 +167,7 @@ struct Test3D
     Funcs<Test3D>::IsEnabledFunc                    m_IsEnabledFunc;
     Funcs<Test3D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test3D>::IsSleepingFunc                   m_IsSleepingFunc;
+    Funcs<Test3D>::WakeupFunc                       m_WakeupFunc;
     Funcs<Test3D>::SetLockedRotationFunc            m_SetLockedRotationFunc;
     Funcs<Test3D>::GetLinearDampingFunc             m_GetLinearDampingFunc;
     Funcs<Test3D>::SetLinearDampingFunc             m_SetLinearDampingFunc;
@@ -223,6 +225,7 @@ struct Test2D
     Funcs<Test2D>::IsEnabledFunc                    m_IsEnabledFunc;
     Funcs<Test2D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test2D>::IsSleepingFunc                   m_IsSleepingFunc;
+    Funcs<Test2D>::WakeupFunc                       m_WakeupFunc;
     Funcs<Test2D>::SetLockedRotationFunc            m_SetLockedRotationFunc;
     Funcs<Test2D>::GetLinearDampingFunc             m_GetLinearDampingFunc;
     Funcs<Test2D>::SetLinearDampingFunc             m_SetLinearDampingFunc;

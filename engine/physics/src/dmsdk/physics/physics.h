@@ -13,6 +13,15 @@
 #ifndef DMSDK_PHYSICS_H
 #define DMSDK_PHYSICS_H
 
+/*# Physics
+ * Physics related structs and functions
+ *
+ * @document
+ * @name Physics
+ * @namespace dmPhysics
+ * @path engine/physics/src/dmsdk/physics/physics.h
+ */
+
 namespace dmPhysics
 {
     /*#
