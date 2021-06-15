@@ -115,7 +115,8 @@ bool RunFile(lua_State* L, const char* filename)
     dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        printf("%s\n", lua_tolstring(L, -1, 0));
+        fflush(stdout);
         return false;
     }
     return true;
@@ -125,7 +126,8 @@ bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        printf("%s\n", lua_tolstring(L, -1, 0));
+        fflush(stdout);
         return false;
     }
     return true;
@@ -176,6 +178,24 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     ASSERT_NE((const char*)0, strstr(result, "    bar = \"It was a dark and stormy night,\""));
     ASSERT_NE((const char*)0, strstr(result, "  }"));
     ASSERT_NE((const char*)0, strstr(result, "}"));
+}
+
+
+TEST_F(ScriptTest, TestLuaCallstack)
+{
+    int top = lua_gettop(L);
+    ASSERT_TRUE(RunFile(L, "test_lua_callstack.luac"));
+
+    // Retrieve and run callback from c func
+    lua_getglobal(L, "do_crash");
+    luaL_checktype(L, -1, LUA_TFUNCTION);
+    int ret = dmScript::PCall(L, 0, LUA_MULTRET);
+
+    ASSERT_EQ(5, ret);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    const char* log = GetLog();
+    printf("LOG: %s\n", log ? log : "");
 }
 
 TEST_F(ScriptTest, TestPPrintTruncate)

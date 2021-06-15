@@ -325,7 +325,7 @@ namespace dmScript
     // From ldblib.c function db_errorfb()
     uint32_t WriteLuaTracebackEntry(lua_Debug* entry, char* buffer, uint32_t buffer_size)
     {
-        uint32_t nwritten = 0;
+        int32_t nwritten = 0;
         if (*entry->namewhat != '\0')
         {
             nwritten = dmSnPrintf(buffer, buffer_size, "  %s:%d: in function %s\n", entry->short_src, entry->currentline, entry->name);
@@ -342,7 +342,12 @@ namespace dmScript
         {
             nwritten = dmSnPrintf(buffer, buffer_size, "  %s:%d: in function <%s:%d>\n", entry->short_src, entry->currentline, entry->short_src, entry->linedefined);
         }
-        return nwritten;
+
+        // Truncated, so we'll just make sure we've not written anything
+        if (nwritten < 0)
+            nwritten = 0;
+
+        return (uint32_t)nwritten;
     }
 
 
@@ -1316,7 +1321,9 @@ namespace dmScript
 
         if (ctx->m_First)
         {
-            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "stack traceback:\n");
+            int32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "stack traceback:\n");
+            if (nwritten < 0)
+                nwritten = 0;
             ctx->m_Buffer += nwritten;
             ctx->m_BufferSize -= nwritten;
             ctx->m_First = false;
