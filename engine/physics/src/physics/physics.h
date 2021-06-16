@@ -911,19 +911,19 @@ namespace dmPhysics
     bool IsSleeping2D(HCollisionObject3D collision_object);
 
     /**
-     * Activate 3D collision object 
-     * 
+     * Activate 3D collision object
+     *
      * @param collision_object
      */
     void Wakeup3D(HCollisionObject3D collision_object);
-    
+
     /**
      * Wake up collision object
-     * 
+     *
      * @param collision_object
      */
     void Wakeup2D(HCollisionObject2D collision_object);
-    
+
     /**
      * Set whether the 3D collision object has locked rotation or not, which means that the angular velocity will always be 0.
      *
@@ -1043,6 +1043,24 @@ namespace dmPhysics
      * @return the total mass
      */
     float GetMass2D(HCollisionObject2D collision_object);
+
+    /**
+     * Return whether this 2D collision object is a bullet or not. Technically a _bullet_
+     * is a fast moving collision object requiring special handling by the underlying
+     * physics engine.
+     *
+     * @param collision_object The affected collision object
+     * @return true if is indeed a bullet
+     */
+    bool IsBullet2D(HCollisionObject2D collision_object);
+
+    /**
+     * Makes this collision object a bullet or not.
+     *
+     * @param collision_object The affected collision object
+     * @param value true to make this a bullet, false otherwise
+     */
+    void SetBullet2D(HCollisionObject2D collision_object, bool value);
 
     /**
      * Container of data for ray cast queries.
