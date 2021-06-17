@@ -909,6 +909,7 @@ namespace dmPhysics
         def.linearDamping = data.m_LinearDamping;
         def.angularDamping = data.m_AngularDamping;
         def.fixedRotation = data.m_LockedRotation;
+        def.bullet = data.m_Bullet;
         def.active = data.m_Enabled;
         b2Body* body = world->m_World.CreateBody(&def);
         Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);

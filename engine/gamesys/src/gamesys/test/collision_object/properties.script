@@ -7,7 +7,6 @@ function test_bullet_property()
 	assert(go.get("go#properties-co", "bullet"))
 end
 
-
 function init(self)
   physics.set_gravity(vmath.vector3(0, -10, 0))
 
@@ -15,7 +14,6 @@ function init(self)
 end
 
 tests_done = false -- flag end of test to C level
-
 
 function update(self, dt)
     tests_done = true

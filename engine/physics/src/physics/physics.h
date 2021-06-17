@@ -568,6 +568,8 @@ namespace dmPhysics
         uint16_t m_Mask;
         /// Locked rotation keeps the angular velocity at 0
         uint16_t m_LockedRotation : 1;
+        /// Bullet determings if this behaves like a bullet (fast moving object) or not
+        uint16_t m_Bullet : 1;
         /// Whether the object is enabled from the start or not, default is 1
         uint16_t m_Enabled : 1;
         uint16_t :14;
