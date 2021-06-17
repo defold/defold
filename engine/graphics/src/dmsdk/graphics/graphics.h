@@ -136,8 +136,8 @@ namespace dmGraphics
      */
     enum FaceWinding
     {
-        FACE_WINDING_CCW = 1,
-        FACE_WINDING_CW  = 0,
+        FACE_WINDING_CCW = 0,
+        FACE_WINDING_CW  = 1,
     };
 
     /*#
