@@ -115,16 +115,29 @@ namespace dmRender
         StencilTestParams();
         void Init();
 
-        dmGraphics::CompareFunc m_Func;
-        dmGraphics::StencilOp m_OpSFail;
-        dmGraphics::StencilOp m_OpDPFail;
-        dmGraphics::StencilOp m_OpDPPass;
+        struct
+        {
+            dmGraphics::CompareFunc m_Func;
+            dmGraphics::StencilOp   m_OpSFail;
+            dmGraphics::StencilOp   m_OpDPFail;
+            dmGraphics::StencilOp   m_OpDPPass;
+        } m_Front;
+
+        struct
+        {
+            dmGraphics::CompareFunc m_Func;
+            dmGraphics::StencilOp   m_OpSFail;
+            dmGraphics::StencilOp   m_OpDPFail;
+            dmGraphics::StencilOp   m_OpDPPass;
+        } m_Back;
+
         uint8_t m_Ref;
         uint8_t m_RefMask;
         uint8_t m_BufferMask;
         uint8_t m_ColorBufferMask : 4;
         uint8_t m_ClearBuffer : 1;
-        uint8_t : 3;
+        uint8_t m_SeparateFaceStates : 1;
+        uint8_t : 2;
     };
 
 

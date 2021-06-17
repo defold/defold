@@ -2629,12 +2629,24 @@ bail:
         context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
+    static void VulkanSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    {
+        // TODO: Make room in pipeline handle for separate stencil states
+        VulkanSetStencilFunc(context, func, ref, mask);
+    }
+
     static void VulkanSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
         context->m_PipelineState.m_StencilOpFail      = sfail;
         context->m_PipelineState.m_StencilOpDepthFail = dpfail;
         context->m_PipelineState.m_StencilOpPass      = dppass;
+    }
+
+    static void VulkanSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        // TODO: Make room in pipeline handle for separate stencil states
+        VulkanSetStencilOp(context, sfail, dpfail, dppass);
     }
 
     static void VulkanSetCullFace(HContext context, FaceType face_type)
@@ -3411,7 +3423,9 @@ bail:
         fn_table.m_SetScissor = VulkanSetScissor;
         fn_table.m_SetStencilMask = VulkanSetStencilMask;
         fn_table.m_SetStencilFunc = VulkanSetStencilFunc;
+        fn_table.m_SetStencilFuncSeparate = VulkanSetStencilFuncSeparate;
         fn_table.m_SetStencilOp = VulkanSetStencilOp;
+        fn_table.m_SetStencilOpSeparate = VulkanSetStencilOpSeparate;
         fn_table.m_SetCullFace = VulkanSetCullFace;
         fn_table.m_SetPolygonOffset = VulkanSetPolygonOffset;
         fn_table.m_NewRenderTarget = VulkanNewRenderTarget;
