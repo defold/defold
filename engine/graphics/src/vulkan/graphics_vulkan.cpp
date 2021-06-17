@@ -2656,6 +2656,11 @@ bail:
         context->m_CullFaceChanged              = true;
     }
 
+    static void VulkanSetFaceWinding(HContext, FaceWinding face_winding)
+    {
+        // TODO: Add this to the vulkan pipeline handle aswell, for now it's a NOP
+    }
+
     static void VulkanSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
@@ -3427,6 +3432,7 @@ bail:
         fn_table.m_SetStencilOp = VulkanSetStencilOp;
         fn_table.m_SetStencilOpSeparate = VulkanSetStencilOpSeparate;
         fn_table.m_SetCullFace = VulkanSetCullFace;
+        fn_table.m_SetFaceWinding = VulkanSetFaceWinding;
         fn_table.m_SetPolygonOffset = VulkanSetPolygonOffset;
         fn_table.m_NewRenderTarget = VulkanNewRenderTarget;
         fn_table.m_DeleteRenderTarget = VulkanDeleteRenderTarget;

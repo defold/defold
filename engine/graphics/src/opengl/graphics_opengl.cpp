@@ -2899,6 +2899,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    static void OpenGLSetFaceWinding(HContext context, FaceWinding face_winding)
+    {
+        assert(context);
+
+        const GLenum face_winding_lut[] = {
+            GL_CCW,
+            GL_CW,
+        };
+
+        glFrontFace(face_winding_lut[face_winding]);
+    }
+
     static void OpenGLSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
@@ -3020,6 +3032,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_SetStencilOp = OpenGLSetStencilOp;
         fn_table.m_SetStencilOpSeparate = OpenGLSetStencilOpSeparate;
         fn_table.m_SetCullFace = OpenGLSetCullFace;
+        fn_table.m_SetFaceWinding = OpenGLSetFaceWinding;
         fn_table.m_SetPolygonOffset = OpenGLSetPolygonOffset;
         fn_table.m_NewRenderTarget = OpenGLNewRenderTarget;
         fn_table.m_DeleteRenderTarget = OpenGLDeleteRenderTarget;

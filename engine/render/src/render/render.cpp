@@ -684,6 +684,9 @@ namespace dmRender
             if (ro->m_SetStencilTest)
                 ApplyStencilTest(render_context, ro);
 
+            if (ro->m_SetFaceWinding)
+                dmGraphics::SetFaceWinding(context, ro->m_FaceWinding);
+
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
