@@ -530,7 +530,9 @@ namespace dmGraphics
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     void SetStencilMask(HContext context, uint32_t mask);
     void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);
+    void SetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask);
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
+    void SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
     void SetCullFace(HContext context, FaceType face_type);
     void SetPolygonOffset(HContext context, float factor, float units);
 

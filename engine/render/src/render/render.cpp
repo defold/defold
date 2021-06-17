@@ -38,15 +38,20 @@ namespace dmRender
     }
 
     void StencilTestParams::Init() {
-        m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
-        m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-        m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
-        m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+        m_Front.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+        m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+        m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+        m_Front.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+        m_Back.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+        m_Back.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+        m_Back.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+        m_Back.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
         m_Ref = 0;
         m_RefMask = 0xff;
         m_BufferMask = 0xff;
         m_ColorBufferMask = 0xf;
         m_ClearBuffer = 0;
+        m_SeparateFaceStates = 0;
     }
 
     Constant::Constant() {}
@@ -335,8 +340,19 @@ namespace dmRender
         }
         dmGraphics::SetColorMask(graphics_context, stp.m_ColorBufferMask & (1<<3), stp.m_ColorBufferMask & (1<<2), stp.m_ColorBufferMask & (1<<1), stp.m_ColorBufferMask & (1<<0));
         dmGraphics::SetStencilMask(graphics_context, stp.m_BufferMask);
-        dmGraphics::SetStencilFunc(graphics_context, stp.m_Func, stp.m_Ref, stp.m_RefMask);
-        dmGraphics::SetStencilOp(graphics_context, stp.m_OpSFail, stp.m_OpDPFail, stp.m_OpDPPass);
+
+        if (stp.m_SeparateFaceStates)
+        {
+            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT, stp.m_Front.m_Func, stp.m_Ref, stp.m_RefMask);
+            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK, stp.m_Back.m_Func, stp.m_Ref, stp.m_RefMask);
+            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT, stp.m_Front.m_OpSFail, stp.m_Front.m_OpDPFail, stp.m_Front.m_OpDPPass);
+            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK, stp.m_Back.m_OpSFail, stp.m_Back.m_OpDPFail, stp.m_Back.m_OpDPPass);
+        }
+        else
+        {
+            dmGraphics::SetStencilFunc(graphics_context, stp.m_Front.m_Func, stp.m_Ref, stp.m_RefMask);
+            dmGraphics::SetStencilOp(graphics_context, stp.m_Front.m_OpSFail, stp.m_Front.m_OpDPFail, stp.m_Front.m_OpDPPass);
+        }
     }
 
     void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const RenderObject* ro)

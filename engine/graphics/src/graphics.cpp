@@ -584,9 +584,17 @@ namespace dmGraphics
     {
         g_functions.m_SetStencilFunc(context, func, ref, mask);
     }
+    void SetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    {
+        g_functions.m_SetStencilFuncSeparate(context, face_type, func, ref, mask);
+    }
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         g_functions.m_SetStencilOp(context, sfail, dpfail, dppass);
+    }
+    void SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        g_functions.m_SetStencilOpSeparate(context, face_type, sfail, dpfail, dppass);
     }
     void SetCullFace(HContext context, FaceType face_type)
     {
