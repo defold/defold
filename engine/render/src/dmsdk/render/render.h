@@ -195,11 +195,13 @@ namespace dmRender
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
+        dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
+        uint8_t                         m_SetFaceWinding : 1;
     };
 
     /*#
