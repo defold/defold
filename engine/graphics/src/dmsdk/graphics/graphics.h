@@ -130,6 +130,18 @@ namespace dmGraphics
 
     /*#
      * @enum
+     * @name FaceWinding
+     * @member FACE_WINDING_CCW
+     * @member FACE_WINDING_CW
+     */
+    enum FaceWinding
+    {
+        FACE_WINDING_CCW = 0,
+        FACE_WINDING_CW  = 1,
+    };
+
+    /*#
+     * @enum
      * @name StencilOp
      * @member STENCIL_OP_KEEP
      * @member STENCIL_OP_ZERO

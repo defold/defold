@@ -600,6 +600,10 @@ namespace dmGraphics
     {
         g_functions.m_SetCullFace(context, face_type);
     }
+    void SetFaceWinding(HContext context, FaceWinding face_winding)
+    {
+        g_functions.m_SetFaceWinding(context, face_winding);
+    }
     void SetPolygonOffset(HContext context, float factor, float units)
     {
         g_functions.m_SetPolygonOffset(context, factor, units);
