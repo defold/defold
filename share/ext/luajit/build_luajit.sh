@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-readonly BASE_URL=http://luajit.org/download/
-readonly FILE_URL=LuaJIT-2.1.0-beta3.tar.gz
+readonly SHA1=3f9389edc6cdf3f78a6896d550c236860aed62b2
+readonly BASE_URL=https://github.com/LuaJIT/LuaJIT/archive/
+readonly FILE_URL=${SHA1}.zip
 readonly PRODUCT=luajit
 readonly VERSION=2.1.0-beta3
 
@@ -9,7 +10,7 @@ readonly VERSION=2.1.0-beta3
 TAR_SKIP_BIN=0
 
 function luajit_configure() {
-	export MAKEFLAGS="-e"
+	export MAKEFLAGS="-e -j8"
 	export BUILDMODE=static
 	export PREFIX=`pwd`/build
 	export INSTALL_LIB=$PREFIX/lib/$CONF_TARGET
@@ -109,6 +110,25 @@ export -f luajit_configure
 
 . ../common.sh
 
+
+function cmi_unpack() {
+    echo cmi_unpack
+    pwd
+    if [ -d "LuaJIT-${VERSION}" ]; then
+        rm -rf LuaJIT-${VERSION}
+    fi
+    unzip -q $SCRIPTDIR/download/$FILE_URL
+    mv LuaJIT-${SHA1} LuaJIT-${VERSION}
+}
+
+function cmi_patch() {
+    echo cmi_patch
+    if [ -f ../patch_$VERSION ]; then
+        echo "Applying MAWE patch ../patch_$VERSION" && patch -l --binary -p1 < ../patch_$VERSION
+    fi
+}
+
+
 export CONF_TARGET=$1
 
 case $1 in
@@ -131,6 +151,7 @@ case $1 in
 		export TARGET_SYS=Linux
 		function cmi_make() {
 					TAR_SKIP_BIN=0
+					pushd LuaJIT-${VERSION}
 					echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=0"
 					export DEFOLD_ARCH="32"
 					set -e
@@ -146,11 +167,13 @@ case $1 in
 					make install
 					set +e
 					cp src/lj.supp $PREFIX/share/luajit
+					popd
 		}
 		;;
 	x86_64-darwin)
 		function cmi_make() {
 					TAR_SKIP_BIN=0
+					pushd LuaJIT-${VERSION}
 					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=0"
 					# Note: Luajit sets this to 10.4, which is less than what we support.
 					#       This value is set to the same as MIN_OSX_SDK_VERSION in waf_dynamo.py
@@ -169,12 +192,14 @@ case $1 in
 					make install
 					set +e
 					cp src/lj.supp $PREFIX/share/luajit
+					popd
 		}
 		;;
 	win32|x86_64-win32)
 		cmi_setup_vs2015_env $1
 
 		function cmi_make() {
+			pushd LuaJIT-${VERSION}
 			cd src
 			export DEFOLD_ARCH="32"
 			cmd "/C msvcbuild.bat static dummy ${CONF_TARGET} "
@@ -209,6 +234,7 @@ case $1 in
 			cp lj.supp $PREFIX/share/luajit
 			cp -r jit $PREFIX/share/luajit
 			cp ../etc/luajit.1 $PREFIX/share/man/man1
+			popd
 		}
 		;;
 esac
