@@ -3873,6 +3873,37 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     ASSERT_FALSE(node->m_Node.m_Enabled);
 }
 
+TEST_F(dmGuiTest, ScriptRecursiveEnabled)
+{
+    char buffer[512];
+    const char* s = "function init(self)\n"
+                    "    local pos = vmath.vector3(1,1,1)\n"
+                    "    self.n1 = gui.new_text_node(pos, 1)\n"
+                    "    self.n2 = gui.new_text_node(pos, 2)\n"
+                    "    gui.set_parent(self.n2, self.n1)\n"
+                    "    assert(gui.is_enabled(self.n1))\n"
+                    "    gui.set_enabled(self.n1, false)\n"
+                    "    assert(not gui.is_enabled(self.n1))\n"
+                    "    assert(not gui.is_enabled(self.n2, true))\n" // n2 node enabled but n1 disabled
+                    "end\n";
+    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // Run init function
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // Retrieve node
+    dmGui::InternalNode* node = &m_Scene->m_Nodes[0];
+    ASSERT_STREQ("1", node->m_Node.m_Text); // make sure we found the right one
+    ASSERT_FALSE(node->m_Node.m_Enabled);
+    dmGui::InternalNode* node2 = &m_Scene->m_Nodes[1];
+    ASSERT_STREQ("2", node2->m_Node.m_Text);
+    ASSERT_TRUE(node2->m_Node.m_Enabled);
+}
+
 static void RenderNodesOrder(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
