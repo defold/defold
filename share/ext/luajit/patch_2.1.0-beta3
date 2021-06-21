@@ -1,6 +1,6 @@
-diff -u -r -w a/LuaJIT-2.1.0-beta3/src/jit/bcsave.lua b/LuaJIT-2.1.0-beta3/src/jit/bcsave.lua
---- a/LuaJIT-2.1.0-beta3/src/jit/bcsave.lua 2017-05-01 21:05:00.000000000 +0200
-+++ b/LuaJIT-2.1.0-beta3/src/jit/bcsave.lua 2019-02-18 17:19:53.000000000 +0100
+diff -u -r -w a/src/jit/bcsave.lua b/src/jit/bcsave.lua
+--- a/src/jit/bcsave.lua 2017-05-01 21:05:00.000000000 +0200
++++ b/src/jit/bcsave.lua 2019-02-18 17:19:53.000000000 +0100
 @@ -29,6 +29,7 @@
    -l        Only list bytecode.
    -s        Strip debug info (default).
@@ -73,10 +73,10 @@ diff -u -r -w a/LuaJIT-2.1.0-beta3/src/jit/bcsave.lua b/LuaJIT-2.1.0-beta3/src/j
    end
  end
 
-diff --git a/LuaJIT-2.1.0-beta3/src/lib_io.c b/LuaJIT-2.1.0-beta3/src/lib_io.c
+diff --git a/src/lib_io.c b/src/lib_io.c
 index 9763ed466..e302194b7 100644
---- a/LuaJIT-2.1.0-beta3/src/lib_io.c
-+++ b/LuaJIT-2.1.0-beta3/src/lib_io.c
+--- a/src/lib_io.c
++++ b/src/lib_io.c
 @@ -431,7 +431,7 @@ LJLIB_CF(io_popen)
  LJLIB_CF(io_tmpfile)
  {
@@ -86,10 +86,10 @@ index 9763ed466..e302194b7 100644
    iof->fp = NULL; errno = ENOSYS;
  #else
    iof->fp = tmpfile();
-diff --git a/LuaJIT-2.1.0-beta3/src/lib_os.c b/LuaJIT-2.1.0-beta3/src/lib_os.c
+diff --git a/src/lib_os.c b/src/lib_os.c
 index 9e78d49ac..959dff883 100644
---- a/LuaJIT-2.1.0-beta3/src/lib_os.c
-+++ b/LuaJIT-2.1.0-beta3/src/lib_os.c
+--- a/src/lib_os.c
++++ b/src/lib_os.c
 @@ -76,7 +76,7 @@ LJLIB_CF(os_rename)
 
  LJLIB_CF(os_tmpname)
@@ -99,10 +99,10 @@ index 9e78d49ac..959dff883 100644
    lj_err_caller(L, LJ_ERR_OSUNIQF);
    return 0;
  #else
-diff --git a/LuaJIT-2.1.0-beta3/src/lj_alloc.c b/LuaJIT-2.1.0-beta3/src/lj_alloc.c
+diff --git a/src/lj_alloc.c b/src/lj_alloc.c
 index 95d15d046..3eb388c55 100644
---- a/LuaJIT-2.1.0-beta3/src/lj_alloc.c
-+++ b/LuaJIT-2.1.0-beta3/src/lj_alloc.c
+--- a/src/lj_alloc.c
++++ b/src/lj_alloc.c
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
 
@@ -112,10 +112,10 @@ index 95d15d046..3eb388c55 100644
 
  #define DEFAULT_GRANULARITY   ((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD   ((size_t)2U * (size_t)1024U * (size_t)1024U)
-diff --git a/LuaJIT-2.1.0-beta3/src/lj_obj.h b/LuaJIT-2.1.0-beta3/src/lj_obj.h
+diff --git a/src/lj_obj.h b/src/lj_obj.h
 index 52372c3e7..928e83936 100644
---- a/LuaJIT-2.1.0-beta3/src/lj_obj.h
-+++ b/LuaJIT-2.1.0-beta3/src/lj_obj.h
+--- a/src/lj_obj.h
++++ b/src/lj_obj.h
 @@ -316,15 +316,24 @@ typedef struct GCstr {
 
  /* -- Userdata object ----------------------------------------------------- */

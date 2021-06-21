@@ -113,12 +113,12 @@ export -f luajit_configure
 
 function cmi_unpack() {
     echo cmi_unpack
-    pwd
-    if [ -d "LuaJIT-${VERSION}" ]; then
-        rm -rf LuaJIT-${VERSION}
-    fi
-    unzip -q $SCRIPTDIR/download/$FILE_URL
-    mv LuaJIT-${SHA1} LuaJIT-${VERSION}
+    # simulate the "--strip-components=1" of the tar unpack command
+    local dest=$(pwd)
+    local temp=$(mktemp -d)
+    unzip -q -d "$temp" $SCRIPTDIR/download/$FILE_URL
+	mv "$temp"/*/* "$dest"
+	rm -rf "./$temp"
 }
 
 function cmi_patch() {
@@ -151,7 +151,6 @@ case $1 in
 		export TARGET_SYS=Linux
 		function cmi_make() {
 					TAR_SKIP_BIN=0
-					pushd LuaJIT-${VERSION}
 					echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=0"
 					export DEFOLD_ARCH="32"
 					set -e
@@ -167,13 +166,11 @@ case $1 in
 					make install
 					set +e
 					cp src/lj.supp $PREFIX/share/luajit
-					popd
 		}
 		;;
 	x86_64-darwin)
 		function cmi_make() {
 					TAR_SKIP_BIN=0
-					pushd LuaJIT-${VERSION}
 					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=0"
 					# Note: Luajit sets this to 10.4, which is less than what we support.
 					#       This value is set to the same as MIN_OSX_SDK_VERSION in waf_dynamo.py
@@ -192,14 +189,12 @@ case $1 in
 					make install
 					set +e
 					cp src/lj.supp $PREFIX/share/luajit
-					popd
 		}
 		;;
 	win32|x86_64-win32)
 		cmi_setup_vs2015_env $1
 
 		function cmi_make() {
-			pushd LuaJIT-${VERSION}
 			cd src
 			export DEFOLD_ARCH="32"
 			cmd "/C msvcbuild.bat static dummy ${CONF_TARGET} "
@@ -234,7 +229,6 @@ case $1 in
 			cp lj.supp $PREFIX/share/luajit
 			cp -r jit $PREFIX/share/luajit
 			cp ../etc/luajit.1 $PREFIX/share/man/man1
-			popd
 		}
 		;;
 esac
