@@ -517,15 +517,20 @@
     :id id
     :playback playback))
 
-(g/defnk produce-anim-data
-  [animations layout-data uv-transforms]
+(g/defnk produce-texture-set-data
+  [animations layout-data]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         complete-ddf-animations (map complete-ddf-animation
                                      incomplete-ddf-animations
                                      animations)
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set :animations complete-ddf-animations)]
-    (texture-set/make-anim-data complete-ddf-texture-set uv-transforms)))
+    (assoc layout-data
+      :texture-set complete-ddf-texture-set)))
+
+(g/defnk produce-anim-data
+  [texture-set uv-transforms]
+  (texture-set/make-anim-data texture-set uv-transforms))
 
 (g/defnk produce-image-path->rect
   [layout-size layout-rects]
@@ -573,25 +578,19 @@
   (output all-atlas-images [Image] :cached (g/fnk [animation-images]
                                              (vec (distinct (flatten animation-images)))))
 
-  (output texture-set-data-generator g/Any (g/fnk [_node-id animations all-atlas-images extrude-borders inner-padding margin resource :as args]
-                                             (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-                                                 (let [augmented-args (assoc args :workspace (resource/workspace resource))]
-                                                   {:f generate-texture-set-data
-                                                    :args augmented-args}))))
-
   (output layout-data-generator g/Any (g/fnk [_node-id animation-images all-atlas-images extrude-borders inner-padding margin resource :as args]
                                         (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
                                             (let [fake-animations (map make-animation
                                                                        (repeat "")
                                                                        animation-images)
                                                   augmented-args (-> args
-                                                                     (dissoc :animation-ids :animation-images)
+                                                                     (dissoc :animation-images)
                                                                      (assoc :animations fake-animations
                                                                             :workspace (resource/workspace resource)))]
                                               {:f generate-texture-set-data
                                                :args augmented-args}))))
 
-  (output texture-set-data g/Any               :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
+  (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (call-generator layout-data-generator)))
   (output layout-size      g/Any               (g/fnk [layout-data] (:size layout-data)))
   (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
