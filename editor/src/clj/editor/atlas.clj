@@ -150,9 +150,9 @@
       (str/split #"\.(?=[^\.]+$)")
       first))
 
-(defn image->animation [image id]
+(defn make-animation [id images]
   (types/map->Animation {:id              id
-                         :images          [image]
+                         :images          images
                          :fps             30
                          :flip-horizontal false
                          :flip-vertical   false
@@ -216,8 +216,9 @@
 
   (output atlas-image Image (g/fnk [image-resource maybe-image-size sprite-trim-mode]
                               (Image. (resource/proj-path image-resource) nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)))
+  (output atlas-images [Image] (g/fnk [atlas-image] [atlas-image]))
   (output animation Animation (g/fnk [atlas-image id]
-                                (image->animation atlas-image id)))
+                                (make-animation id [atlas-image])))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
                                                      (let [label (or id "<No Image>")]
                                                        (cond-> {:node-id _node-id
@@ -254,7 +255,7 @@
   (concat
     (g/connect image-node :_node-id         atlas-node :nodes)
     (g/connect image-node :animation        atlas-node :animations)
-    (g/connect image-node :atlas-image      atlas-node :atlas-images)
+    (g/connect image-node :atlas-images     atlas-node :animation-images)
     (g/connect image-node :build-errors     atlas-node :child-build-errors)
     (g/connect image-node :ddf-message      atlas-node :img-ddf)
     (g/connect image-node :id               atlas-node :animation-ids)
@@ -283,6 +284,7 @@
   (concat
     (g/connect animation-node :_node-id         atlas-node     :nodes)
     (g/connect animation-node :animation        atlas-node     :animations)
+    (g/connect animation-node :atlas-images     atlas-node     :animation-images)
     (g/connect animation-node :build-errors     atlas-node     :child-build-errors)
     (g/connect animation-node :ddf-message      atlas-node     :anim-ddf)
     (g/connect animation-node :id               atlas-node     :animation-ids)
@@ -339,6 +341,8 @@
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
   (input atlas-images Image :array)
+  (output atlas-images [Image] (gu/passthrough atlas-images))
+
   (input img-ddf g/Any :array)
   (input child-scenes g/Any :array)
   (input child-build-errors g/Any :array)
@@ -393,6 +397,22 @@
 
 (defn- validate-extrude-borders [node-id extrude-borders]
   (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+
+(defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
+  (when-some [errors (->> [(validate-margin node-id margin)
+                           (validate-inner-padding node-id inner-padding)
+                           (validate-extrude-borders node-id extrude-borders)]
+                          (filter some?)
+                          (not-empty))]
+    (g/error-aggregate errors))
+
+  (when-let [errors (->> [[margin "Margin"]
+                          [inner-padding "Inner Padding"]
+                          [extrude-borders "Extrude Borders"]]
+                         (keep (fn [[v name]]
+                                 (validation/prop-error :fatal node-id :layout-result validation/prop-negative? v name)))
+                         not-empty)]
+    (g/error-aggregate errors)))
 
 (g/defnk produce-build-targets [_node-id resource texture-set packed-image-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
@@ -474,7 +494,7 @@
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-image [{:keys [_node-id image-resources texture-set-data-generator]}]
+(defn- generate-packed-image [{:keys [_node-id image-resources layout-data-generator]}]
   (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
                                  (image-util/read-image %))
                               image-resources)
@@ -482,7 +502,7 @@
     (if (seq errors)
       (g/error-aggregate errors)
       (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
-        (texture-set-gen/layout-images (:layout (call-generator texture-set-data-generator)) id->image)))))
+        (texture-set-gen/layout-images (:layout (call-generator layout-data-generator)) id->image)))))
 
 (g/defnk produce-anim-data
   [texture-set uv-transforms]
@@ -519,9 +539,9 @@
 
   (input build-settings g/Any)
   (input texture-profiles g/Any)
-  (input atlas-images g/Any :array)
   (input animations Animation :array)
   (input animation-ids g/Str :array)
+  (input animation-images [Image] :array)
   (input img-ddf g/Any :array)
   (input anim-ddf g/Any :array)
   (input child-scenes g/Any :array)
@@ -531,28 +551,33 @@
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
-  (output all-atlas-images           [Image]             :cached (g/fnk [animations]
-                                                                   (into [] (comp (mapcat :images) (distinct)) animations)))
+  (output all-atlas-images [Image] :cached (g/fnk [animation-images]
+                                             (vec (distinct (flatten animation-images)))))
 
   (output texture-set-data-generator g/Any (g/fnk [_node-id animations all-atlas-images extrude-borders inner-padding margin resource :as args]
-                                                  (or (when-let [errors (->> [[margin "Margin"]
-                                                                              [inner-padding "Inner Padding"]
-                                                                              [extrude-borders "Extrude Borders"]]
-                                                                             (keep (fn [[v name]]
-                                                                                     (validation/prop-error :fatal _node-id :layout-result validation/prop-negative? v name)))
-                                                                             not-empty)]
-                                                        (g/error-aggregate errors))
-                                                      {:f    generate-texture-set-data
-                                                       :args (assoc args
-                                                               :workspace (resource/workspace resource))})))
+                                             (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
+                                                 (let [augmented-args (assoc args :workspace (resource/workspace resource))]
+                                                   {:f generate-texture-set-data
+                                                    :args augmented-args}))))
+
+  (output layout-data-generator g/Any (g/fnk [_node-id animation-ids animation-images all-atlas-images extrude-borders inner-padding margin resource :as args]
+                                        (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
+                                            (let [fake-animations (map make-animation animation-ids animation-images)
+                                                  augmented-args (-> args
+                                                                     (dissoc :animation-ids :animation-images)
+                                                                     (assoc :animations fake-animations
+                                                                            :workspace (resource/workspace resource)))]
+                                              {:f generate-texture-set-data
+                                               :args augmented-args}))))
 
   (output texture-set-data g/Any               :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
-  (output layout-size      g/Any               (g/fnk [texture-set-data] (:size texture-set-data)))
+  (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (call-generator layout-data-generator)))
+  (output layout-size      g/Any               (g/fnk [layout-data] (:size layout-data)))
   (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
-  (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
-  (output layout-rects     g/Any               (g/fnk [texture-set-data] (:rects texture-set-data)))
+  (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
+  (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin texture-set-data-generator]
+  (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
                                          (let [flat-image-resources (filterv some? (flatten image-resources))
                                                image-sha1s (map (fn [resource]
                                                                   (resource-io/with-error-translation resource _node-id nil
@@ -571,7 +596,7 @@
                                                 :sha1 packed-image-sha1
                                                 :args {:_node-id _node-id
                                                        :image-resources flat-image-resources
-                                                       :texture-set-data-generator texture-set-data-generator}})))))
+                                                       :layout-data-generator layout-data-generator}})))))
 
   (output packed-image     BufferedImage       :cached (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 
