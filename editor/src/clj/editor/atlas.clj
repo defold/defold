@@ -504,9 +504,28 @@
       (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
         (texture-set-gen/layout-images (:layout (call-generator layout-data-generator)) id->image)))))
 
+(defn- complete-ddf-animation [ddf-animation {:keys [flip-horizontal flip-vertical fps id playback] :as _animation}]
+  (assert (boolean? flip-horizontal))
+  (assert (boolean? flip-vertical))
+  (assert (integer? fps))
+  (assert (string? id))
+  (assert (protobuf/val->pb-enum Tile$Playback playback))
+  (assoc ddf-animation
+    :flip-horizontal (if flip-horizontal 1 0)
+    :flip-vertical (if flip-vertical 1 0)
+    :fps (int fps)
+    :id id
+    :playback playback))
+
 (g/defnk produce-anim-data
-  [texture-set uv-transforms]
-  (texture-set/make-anim-data texture-set uv-transforms))
+  [animations layout-data uv-transforms]
+  (let [incomplete-ddf-texture-set (:texture-set layout-data)
+        incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
+        complete-ddf-animations (map complete-ddf-animation
+                                     incomplete-ddf-animations
+                                     animations)
+        complete-ddf-texture-set (assoc incomplete-ddf-texture-set :animations complete-ddf-animations)]
+    (texture-set/make-anim-data complete-ddf-texture-set uv-transforms)))
 
 (g/defnk produce-image-path->rect
   [layout-size layout-rects]
@@ -560,9 +579,11 @@
                                                    {:f generate-texture-set-data
                                                     :args augmented-args}))))
 
-  (output layout-data-generator g/Any (g/fnk [_node-id animation-ids animation-images all-atlas-images extrude-borders inner-padding margin resource :as args]
+  (output layout-data-generator g/Any (g/fnk [_node-id animation-images all-atlas-images extrude-borders inner-padding margin resource :as args]
                                         (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-                                            (let [fake-animations (map make-animation animation-ids animation-images)
+                                            (let [fake-animations (map make-animation
+                                                                       (repeat "")
+                                                                       animation-images)
                                                   augmented-args (-> args
                                                                      (dissoc :animation-ids :animation-images)
                                                                      (assoc :animations fake-animations
