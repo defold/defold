@@ -404,14 +404,6 @@
                            (validate-extrude-borders node-id extrude-borders)]
                           (filter some?)
                           (not-empty))]
-    (g/error-aggregate errors))
-
-  (when-let [errors (->> [[margin "Margin"]
-                          [inner-padding "Inner Padding"]
-                          [extrude-borders "Extrude Borders"]]
-                         (keep (fn [[v name]]
-                                 (validation/prop-error :fatal node-id :layout-result validation/prop-negative? v name)))
-                         not-empty)]
     (g/error-aggregate errors)))
 
 (g/defnk produce-build-targets [_node-id resource texture-set packed-image-generator texture-profile build-settings build-errors]
