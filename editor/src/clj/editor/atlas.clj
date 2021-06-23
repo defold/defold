@@ -504,6 +504,28 @@
       (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
         (texture-set-gen/layout-images (:layout (call-generator layout-data-generator)) id->image)))))
 
+(g/defnk produce-layout-data-generator
+  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin resource :as args]
+  ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
+  ;; compiles a TextureSetProto$TextureSet including the animation data in
+  ;; addition to generating the layout. This means that modifying a property on
+  ;; an animation will unnecessarily invalidate the layout, which in turn
+  ;; invalidates the packed image texture. For the editor, we're only interested
+  ;; in the layout-related properties of the produced TextureSetResult. To break
+  ;; the dependency on animation properties, we supply a list of fake animations
+  ;; to the TextureSetGenerator.calculateLayout() method that only includes data
+  ;; that can affect the layout.
+  (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
+      (let [fake-animations (map make-animation
+                                 (repeat "")
+                                 animation-images)
+            augmented-args (-> args
+                               (dissoc :animation-images)
+                               (assoc :animations fake-animations
+                                      :workspace (resource/workspace resource)))]
+        {:f generate-texture-set-data
+         :args augmented-args})))
+
 (defn- complete-ddf-animation [ddf-animation {:keys [flip-horizontal flip-vertical fps id playback] :as _animation}]
   (assert (boolean? flip-horizontal))
   (assert (boolean? flip-vertical))
@@ -518,13 +540,18 @@
     :playback playback))
 
 (g/defnk produce-texture-set-data
+  ;; The TextureSetResult we generated in produce-layout-data-generator does not
+  ;; contain the animation metadata since it was produced from fake animations.
+  ;; In order to produce a valid TextureSetResult, we complete the protobuf
+  ;; animations inside the embedded TextureSet with our animation properties.
   [animations layout-data]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         complete-ddf-animations (map complete-ddf-animation
                                      incomplete-ddf-animations
                                      animations)
-        complete-ddf-texture-set (assoc incomplete-ddf-texture-set :animations complete-ddf-animations)]
+        complete-ddf-texture-set (assoc incomplete-ddf-texture-set
+                                   :animations complete-ddf-animations)]
     (assoc layout-data
       :texture-set complete-ddf-texture-set)))
 
@@ -578,18 +605,7 @@
   (output all-atlas-images [Image] :cached (g/fnk [animation-images]
                                              (vec (distinct (flatten animation-images)))))
 
-  (output layout-data-generator g/Any (g/fnk [_node-id animation-images all-atlas-images extrude-borders inner-padding margin resource :as args]
-                                        (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-                                            (let [fake-animations (map make-animation
-                                                                       (repeat "")
-                                                                       animation-images)
-                                                  augmented-args (-> args
-                                                                     (dissoc :animation-images)
-                                                                     (assoc :animations fake-animations
-                                                                            :workspace (resource/workspace resource)))]
-                                              {:f generate-texture-set-data
-                                               :args augmented-args}))))
-
+  (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (call-generator layout-data-generator)))
   (output layout-size      g/Any               (g/fnk [layout-data] (:size layout-data)))
