@@ -35,17 +35,19 @@ function luajit_configure() {
 			XFLAGS="$COMMON_FLAGS_32"
 			export CROSS=""
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="clang -m64"
-			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
-			export HOST_ALDFLAGS="-m64"
+			export HOST_CC="clang"
+			export HOST_CFLAGS="$XFLAGS -m32 -isysroot $OSX_SDK_ROOT -I."
+			export HOST_ALDFLAGS="-m32"
 			export TARGET_FLAGS="$CFLAGS"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM"
+            export SKIPLUAJIT=true
 			;;
 		arm64-darwin)
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_64"
 			export CROSS=""
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="clang -m64"
+			export HOST_CC="clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_FLAGS="$CFLAGS"
@@ -55,7 +57,7 @@ function luajit_configure() {
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_64"
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="clang -m64"
+			export HOST_CC="clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_FLAGS="$CFLAGS"
@@ -64,7 +66,7 @@ function luajit_configure() {
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_32"
 			export CROSS=""
-			export HOST_CC="clang -m32"
+			export HOST_CC="clang"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
 			export HOST_ALDFLAGS="-m32"
 			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM"
@@ -73,7 +75,7 @@ function luajit_configure() {
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_64"
 			export CROSS=""
-			export HOST_CC="clang -m64"
+			export HOST_CC="clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_FLAGS="$CFLAGS"

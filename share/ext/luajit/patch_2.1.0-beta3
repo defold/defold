@@ -50,10 +50,33 @@ index aa1b84bd7..7731a81a1 100644
  
  
 diff --git a/src/Makefile b/src/Makefile
-index 2538503f9..ae2790564 100644
+index 2538503f9..a30b16f17 100644
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -534,7 +534,7 @@ ifeq (Windows,$(TARGET_SYS))
+@@ -205,14 +205,20 @@ HOST_ACFLAGS= $(CCOPTIONS) $(HOST_XCFLAGS) $(TARGET_ARCH) $(HOST_CFLAGS)
+ HOST_ALDFLAGS= $(LDOPTIONS) $(HOST_XLDFLAGS) $(HOST_LDFLAGS)
+ HOST_ALIBS= $(HOST_XLIBS) $(LIBS) $(HOST_LIBS)
+ 
++# missing from the original make file
++DEFAULT_AR = ar
++AR= $(DEFAULT_AR)
++DEFAULT_STRIP = strip
++STRIP= $(DEFAULT_STRIP)
++
+ STATIC_CC = $(CROSS)$(CC)
+ DYNAMIC_CC = $(CROSS)$(CC) -fPIC
+ TARGET_CC= $(STATIC_CC)
+ TARGET_STCC= $(STATIC_CC)
+ TARGET_DYNCC= $(DYNAMIC_CC)
+ TARGET_LD= $(CROSS)$(CC)
+-TARGET_AR= $(CROSS)ar rcus
+-TARGET_STRIP= $(CROSS)strip
++TARGET_AR= $(CROSS)$(AR) rcus
++TARGET_STRIP= $(CROSS)$(STRIP)
+ 
+ TARGET_LIBPATH= $(or $(PREFIX),/usr/local)/$(or $(MULTILIB),lib)
+ TARGET_SONAME= libluajit-$(ABIVER).so.$(MAJVER)
+@@ -534,7 +540,7 @@ ifeq (Windows,$(TARGET_SYS))
    TARGET_DYNCC= $(STATIC_CC)
    LJVM_MODE= peobj
    LJVM_BOUT= $(LJVM_O)
@@ -62,12 +85,17 @@ index 2538503f9..ae2790564 100644
    ifeq (cygwin,$(HOST_MSYS))
      LUAJIT_SO= cyg$(TARGET_DLLNAME)
    else
-@@ -639,10 +639,12 @@ depend:
+@@ -639,16 +645,24 @@ depend:
  
  $(MINILUA_T): $(MINILUA_O)
  	$(E) "HOSTLINK  $@"
 +	$(E) "TARGET_LJARCH=$(TARGET_LJARCH)"
 +	$(E) "DASM_ARCH=$(DASM_ARCH)"
++	$(E) "CFLAGS=$(CFLAGS)"
++	$(E) "HOST_CFLAGS=$(HOST_CFLAGS)"
++	$(E) "TARGET_CFLAGS=$(TARGET_CFLAGS)"
++	$(E) "TARGET_FLAGS=$(TARGET_FLAGS)"
++	$(E) $(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(MINILUA_O) $(MINILUA_LIBS) $(HOST_ALIBS)
  	$(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(MINILUA_O) $(MINILUA_LIBS) $(HOST_ALIBS)
  
  host/buildvm_arch.h: $(DASM_DASC) $(DASM_DEP) $(DASM_DIR)/*.lua lj_arch.h lua.h luaconf.h
@@ -76,6 +104,49 @@ index 2538503f9..ae2790564 100644
  	$(Q)$(DASM) $(DASM_FLAGS) -o $@ $(DASM_DASC)
  
  host/buildvm.o: $(DASM_DIR)/dasm_*.h
+ 
+ $(BUILDVM_T): $(BUILDVM_O)
+ 	$(E) "HOSTLINK  $@"
++	$(E) $(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(BUILDVM_O) $(HOST_ALIBS)
+ 	$(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(BUILDVM_O) $(HOST_ALIBS)
+ 
+ $(LJVM_BOUT): $(BUILDVM_T)
+@@ -686,6 +700,7 @@ lj_folddef.h: $(BUILDVM_T) lj_opt_fold.c
+ %.o: %.c
+ 	$(E) "CC        $@"
+ 	$(Q)$(TARGET_DYNCC) $(TARGET_ACFLAGS) -c -o $(@:.o=_dyn.o) $<
++	$(E) $(Q)$(TARGET_CC) $(TARGET_ACFLAGS) -c -o $@ $<
+ 	$(Q)$(TARGET_CC) $(TARGET_ACFLAGS) -c -o $@ $<
+ 
+ %.o: %.S
+@@ -696,9 +711,11 @@ lj_folddef.h: $(BUILDVM_T) lj_opt_fold.c
+ $(LUAJIT_O):
+ 	$(E) "CC        $@"
+ 	$(Q)$(TARGET_STCC) $(TARGET_ACFLAGS) -c -o $@ $<
++	$(E) $(Q)$(TARGET_STCC) $(TARGET_ACFLAGS) -c -o $@ $<
+ 
+ $(HOST_O): %.o: %.c
+ 	$(E) "HOSTCC    $@"
++	$(E) $(Q)$(HOST_CC) $(HOST_ACFLAGS) -c -o $@ $<
+ 	$(Q)$(HOST_CC) $(HOST_ACFLAGS) -c -o $@ $<
+ 
+ include Makefile.dep
+@@ -709,6 +726,7 @@ include Makefile.dep
+ 
+ $(LUAJIT_A): $(LJVMCORE_O)
+ 	$(E) "AR        $@"
++	$(E) $(Q)$(TARGET_AR) $@ $(LJVMCORE_O)
+ 	$(Q)$(TARGET_AR) $@ $(LJVMCORE_O)
+ 
+ # The dependency on _O, but linking with _DYNO is intentional.
+@@ -719,6 +737,7 @@ $(LUAJIT_SO): $(LJVMCORE_O)
+ 
+ $(LUAJIT_T): $(TARGET_O) $(LUAJIT_O) $(TARGET_DEP)
+ 	$(E) "LINK      $@"
++	$(E) $(Q)$(TARGET_LD) $(TARGET_ALDFLAGS) -o $@ $(LUAJIT_O) $(TARGET_O) $(TARGET_ALIBS)
+ 	$(Q)$(TARGET_LD) $(TARGET_ALDFLAGS) -o $@ $(LUAJIT_O) $(TARGET_O) $(TARGET_ALIBS)
+ 	$(Q)$(TARGET_STRIP) $@
+ 	$(E) "OK        Successfully built LuaJIT"
 diff --git a/src/jit/bcsave.lua b/src/jit/bcsave.lua
 index ab13667a9..6fb0ef569 100644
 --- a/src/jit/bcsave.lua
