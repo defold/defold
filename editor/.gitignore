@@ -25,3 +25,5 @@ pom.xml.asc
 /resources/doc/
 /build
 /preflight-report.txt
+/.calva
+/.lsp
