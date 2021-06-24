@@ -1,7 +1,86 @@
-diff -u -r -w a/src/jit/bcsave.lua b/src/jit/bcsave.lua
---- a/src/jit/bcsave.lua 2017-05-01 21:05:00.000000000 +0200
-+++ b/src/jit/bcsave.lua 2019-02-18 17:19:53.000000000 +0100
-@@ -29,6 +29,7 @@
+diff --git a/Makefile b/Makefile
+index aa1b84bd7..7731a81a1 100644
+--- a/Makefile
++++ b/Makefile
+@@ -44,7 +44,7 @@ INSTALL_CMOD= $(INSTALL_CMODD)/$(ABIVER)
+ INSTALL_MAN= $(INSTALL_SHARE)/man/man1
+ INSTALL_PKGCONFIG= $(INSTALL_LIB)/pkgconfig
+ 
+-INSTALL_TNAME= luajit-$(VERSION)
++INSTALL_TNAME= luajit-$(VERSION)-$(DEFOLD_ARCH)
+ INSTALL_TSYMNAME= luajit
+ INSTALL_ANAME= libluajit-$(ABIVER).a
+ INSTALL_SOSHORT1= libluajit-$(ABIVER).so
+@@ -60,7 +60,7 @@ INSTALL_DYN= $(INSTALL_LIB)/$(INSTALL_SONAME)
+ INSTALL_SHORT1= $(INSTALL_LIB)/$(INSTALL_SOSHORT1)
+ INSTALL_SHORT2= $(INSTALL_LIB)/$(INSTALL_SOSHORT2)
+ INSTALL_T= $(INSTALL_BIN)/$(INSTALL_TNAME)
+-INSTALL_TSYM= $(INSTALL_BIN)/$(INSTALL_TSYMNAME)
++INSTALL_TSYM= $(INSTALL_BIN)/$(INSTALL_TSYMNAME)-$(DEFOLD_ARCH)
+ INSTALL_PC= $(INSTALL_PKGCONFIG)/$(INSTALL_PCNAME)
+ 
+ INSTALL_DIRS= $(INSTALL_BIN) $(INSTALL_LIB) $(INSTALL_INC) $(INSTALL_MAN) \
+@@ -109,7 +109,7 @@ endif
+ INSTALL_DEP= src/luajit
+ 
+ default all $(INSTALL_DEP):
+-	@echo "==== Building LuaJIT $(VERSION) ===="
++	@echo "==== Building LuaJIT $(VERSION) with TARGET_SYS: '$(TARGET_SYS)' on host"
+ 	$(MAKE) -C src
+ 	@echo "==== Successfully built LuaJIT $(VERSION) ===="
+ 
+@@ -130,12 +130,15 @@ install: $(INSTALL_DEP)
+ 	  $(RM) $(FILE_PC).tmp
+ 	cd src && $(INSTALL_F) $(FILES_INC) $(INSTALL_INC)
+ 	cd src/jit && $(INSTALL_F) $(FILES_JITLIB) $(INSTALL_JITLIB)
++	$(SYMLINK) $(INSTALL_TNAME) $(INSTALL_TSYM)
+ 	@echo "==== Successfully installed LuaJIT $(VERSION) to $(PREFIX) ===="
++	@echo "SKIP_BIN_INSTALL: ${SKIP_BIN_INSTALL}" # If we should install (output) anything in the /bin/ dir.
++	@echo "INSTALL_BIN: ${INSTALL_BIN}"
++	@echo "INSTALL_TNAME: ${INSTALL_TNAME}"
++	@echo "INSTALL_TSYMNAME: ${INSTALL_TSYMNAME}"
++	@echo "INSTALL_TSYM: ${INSTALL_TSYM}"
+ 	@echo ""
+-	@echo "Note: the development releases deliberately do NOT install a symlink for luajit"
+-	@echo "You can do this now by running this command (with sudo):"
+-	@echo ""
+-	@echo "  $(SYMLINK) $(INSTALL_TNAME) $(INSTALL_TSYM)"
++	@echo "Note: the development releases installs a symlink for luajit"
+ 	@echo ""
+ 
+ 
+diff --git a/src/Makefile b/src/Makefile
+index 2538503f9..ae2790564 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -534,7 +534,7 @@ ifeq (Windows,$(TARGET_SYS))
+   TARGET_DYNCC= $(STATIC_CC)
+   LJVM_MODE= peobj
+   LJVM_BOUT= $(LJVM_O)
+-  LUAJIT_T= luajit.exe
++  LUAJIT_T= luajit-$(DEFOLD_ARCH).exe
+   ifeq (cygwin,$(HOST_MSYS))
+     LUAJIT_SO= cyg$(TARGET_DLLNAME)
+   else
+@@ -639,10 +639,12 @@ depend:
+ 
+ $(MINILUA_T): $(MINILUA_O)
+ 	$(E) "HOSTLINK  $@"
++	$(E) "TARGET_LJARCH=$(TARGET_LJARCH)"
++	$(E) "DASM_ARCH=$(DASM_ARCH)"
+ 	$(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(MINILUA_O) $(MINILUA_LIBS) $(HOST_ALIBS)
+ 
+ host/buildvm_arch.h: $(DASM_DASC) $(DASM_DEP) $(DASM_DIR)/*.lua lj_arch.h lua.h luaconf.h
+-	$(E) "DYNASM    $@"
++	$(E) "DYNASM    $@ using $(DASM_DASC)"
+ 	$(Q)$(DASM) $(DASM_FLAGS) -o $@ $(DASM_DASC)
+ 
+ host/buildvm.o: $(DASM_DIR)/dasm_*.h
+diff --git a/src/jit/bcsave.lua b/src/jit/bcsave.lua
+index ab13667a9..6fb0ef569 100644
+--- a/src/jit/bcsave.lua
++++ b/src/jit/bcsave.lua
+@@ -29,6 +29,7 @@ Save LuaJIT bytecode: luajit -b[options] input output
    -l        Only list bytecode.
    -s        Strip debug info (default).
    -g        Keep debug info.
@@ -9,10 +88,10 @@ diff -u -r -w a/src/jit/bcsave.lua b/src/jit/bcsave.lua
    -n name   Set module name (default: auto-detect from input name).
    -t type   Set output file type (default: auto-detect from output name).
    -a arch   Override architecture for object files (default: native).
-@@ -49,10 +50,13 @@
+@@ -49,10 +50,13 @@ local function check(ok, ...)
    os.exit(1)
  end
-
+ 
 -local function readfile(input)
 +local function readfile(input, filename)
    if type(input) == "function" then return input end
@@ -23,19 +102,19 @@ diff -u -r -w a/src/jit/bcsave.lua b/src/jit/bcsave.lua
 +  f:close()
 +  return check(loadstring(src, filename))
  end
-
+ 
  local function savefile(name, mode)
-@@ -579,13 +583,13 @@
-
+@@ -579,13 +583,13 @@ end
+ 
  ------------------------------------------------------------------------------
-
+ 
 -local function bclist(input, output)
 -  local f = readfile(input)
-+local function bclist(ctx, input, output, filename)
++local function bclist(input, output, filename)
 +  local f = readfile(input, filename)
    require("jit.bc").dump(f, savefile(output, "w"), true)
  end
-
+ 
 -local function bcsave(ctx, input, output)
 -  local f = readfile(input)
 +local function bcsave(ctx, input, output, filename)
@@ -43,7 +122,7 @@ diff -u -r -w a/src/jit/bcsave.lua b/src/jit/bcsave.lua
    local s = string.dump(f, ctx.strip)
    local t = ctx.type
    if not t then
-@@ -608,6 +612,7 @@
+@@ -608,6 +612,7 @@ local function docmd(...)
    local arg = {...}
    local n = 1
    local list = false
@@ -51,16 +130,16 @@ diff -u -r -w a/src/jit/bcsave.lua b/src/jit/bcsave.lua
    local ctx = {
      strip = true, arch = jit.arch, os = jit.os:lower(),
      type = false, modname = false,
-@@ -638,6 +643,8 @@
-        ctx.arch = checkarg(tremove(arg, n), map_arch, "architecture")
-      elseif opt == "o" then
-        ctx.os = checkarg(tremove(arg, n), map_os, "OS name")
-+     elseif opt == "f" then
-+       filename = tremove(arg, n)
-      else
-        usage()
-      end
-@@ -649,10 +657,10 @@
+@@ -638,6 +643,8 @@ local function docmd(...)
+ 	    ctx.arch = checkarg(tremove(arg, n), map_arch, "architecture")
+ 	  elseif opt == "o" then
+ 	    ctx.os = checkarg(tremove(arg, n), map_os, "OS name")
++    elseif opt == "f" then
++      filename = tremove(arg, n)
+ 	  else
+ 	    usage()
+ 	  end
+@@ -649,10 +656,10 @@ local function docmd(...)
    end
    if list then
      if #arg == 0 or #arg > 2 then usage() end
@@ -72,9 +151,9 @@ diff -u -r -w a/src/jit/bcsave.lua b/src/jit/bcsave.lua
 +    bcsave(ctx, arg[1], arg[2], filename or arg[1])
    end
  end
-
+ 
 diff --git a/src/lib_io.c b/src/lib_io.c
-index 9763ed466..e302194b7 100644
+index 94d6f0a54..b7ee69d7c 100644
 --- a/src/lib_io.c
 +++ b/src/lib_io.c
 @@ -431,7 +431,7 @@ LJLIB_CF(io_popen)
@@ -87,11 +166,11 @@ index 9763ed466..e302194b7 100644
  #else
    iof->fp = tmpfile();
 diff --git a/src/lib_os.c b/src/lib_os.c
-index 9e78d49ac..959dff883 100644
+index f19b831c7..56bda9f94 100644
 --- a/src/lib_os.c
 +++ b/src/lib_os.c
 @@ -76,7 +76,7 @@ LJLIB_CF(os_rename)
-
+ 
  LJLIB_CF(os_tmpname)
  {
 -#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA
@@ -100,26 +179,38 @@ index 9e78d49ac..959dff883 100644
    return 0;
  #else
 diff --git a/src/lj_alloc.c b/src/lj_alloc.c
-index 95d15d046..3eb388c55 100644
+index 165203fad..bf0d3c7a0 100644
 --- a/src/lj_alloc.c
 +++ b/src/lj_alloc.c
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
-
- #define MAX_SIZE_T     (~(size_t)0)
--#define MALLOC_ALIGNMENT   ((size_t)8U)
-+#define MALLOC_ALIGNMENT  ((size_t)16U)
-
- #define DEFAULT_GRANULARITY   ((size_t)128U * (size_t)1024U)
- #define DEFAULT_TRIM_THRESHOLD   ((size_t)2U * (size_t)1024U * (size_t)1024U)
+ 
+ #define MAX_SIZE_T		(~(size_t)0)
+-#define MALLOC_ALIGNMENT	((size_t)8U)
++#define MALLOC_ALIGNMENT	((size_t)16U)
+ 
+ #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
+ #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
+diff --git a/src/lj_arch.h b/src/lj_arch.h
+index ae9994676..d4888b4cb 100644
+--- a/src/lj_arch.h
++++ b/src/lj_arch.h
+@@ -68,7 +68,6 @@
+ #else
+ #error "No support for this architecture (yet)"
+ #endif
+-
+ #endif
+ 
+ /* Select native OS if no target OS defined. */
 diff --git a/src/lj_obj.h b/src/lj_obj.h
-index 52372c3e7..928e83936 100644
+index 5547a79b5..2bbc95354 100644
 --- a/src/lj_obj.h
 +++ b/src/lj_obj.h
 @@ -316,15 +316,24 @@ typedef struct GCstr {
-
+ 
  /* -- Userdata object ----------------------------------------------------- */
-
+ 
 +#if defined(__GNUC__)
 +#define DM_ALIGNED(a) __attribute__ ((aligned (a)))
 +#elif defined(_MSC_VER)
@@ -132,14 +223,14 @@ index 52372c3e7..928e83936 100644
 -typedef struct GCudata {
 +typedef struct DM_ALIGNED(16) GCudata {
    GCHeader;
-   uint8_t udtype; /* Userdata type. */
+   uint8_t udtype;	/* Userdata type. */
    uint8_t unused2;
-   GCRef env;      /* Should be at same offset in GCfunc. */
-   MSize len;      /* Size of payload. */
-   GCRef metatable;   /* Must be at same offset in GCtab. */
--  uint32_t align1; /* To force 8 byte alignment of the payload. */
-+  uint32_t align0; /* To force 16 byte alignment of the payload. */
+   GCRef env;		/* Should be at same offset in GCfunc. */
+   MSize len;		/* Size of payload. */
+   GCRef metatable;	/* Must be at same offset in GCtab. */
+-  uint32_t align1;	/* To force 8 byte alignment of the payload. */
++  uint32_t align0;	/* To force 8 byte alignment of the payload. */
 +  uint64_t align1; /* ^ */
  } GCudata;
-
+ 
  /* Userdata types. */

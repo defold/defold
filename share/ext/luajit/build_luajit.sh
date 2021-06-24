@@ -25,20 +25,14 @@ function luajit_configure() {
 	# Some architectures (e.g. PPC) can use either single-number (1) or
 	# dual-number (2) mode. For clarity we explicitly use LUAJIT_NUMMODE=2
 	# for mobile architectures.
+
+	COMMON_FLAGS_32="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL -DLUAJIT_DISABLE_GC64 "
+	COMMON_FLAGS_64="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL "
+
 	case $CONF_TARGET in
 		armv7-darwin)
 			TAR_SKIP_BIN=1
-			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			export CROSS=""
-			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="clang -m32"
-			export HOST_CFLAGS="$XFLAGS -m32 -isysroot $OSX_SDK_ROOT -I."
-			export HOST_ALDFLAGS="-m32"
-			export TARGET_FLAGS="$CFLAGS"
-			;;
-		arm64-darwin)
-			TAR_SKIP_BIN=1
-			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
+			XFLAGS="$COMMON_FLAGS_32"
 			export CROSS=""
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="clang -m64"
@@ -46,9 +40,20 @@ function luajit_configure() {
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_FLAGS="$CFLAGS"
 			;;
+		arm64-darwin)
+			TAR_SKIP_BIN=1
+			XFLAGS="$COMMON_FLAGS_64"
+			export CROSS=""
+			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
+			export HOST_CC="clang -m64"
+			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
+			export HOST_ALDFLAGS="-m64"
+			export TARGET_FLAGS="$CFLAGS"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64"
+			;;
 		x86_64-ios)
 			TAR_SKIP_BIN=1
-			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT -DLJ_NO_SYSTEM"
+			XFLAGS="$COMMON_FLAGS_64"
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="clang -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
@@ -57,23 +62,22 @@ function luajit_configure() {
 			;;
 		armv7-android)
 			TAR_SKIP_BIN=1
-			XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			export CROSS="" # is this needed for clang? -> "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
+			XFLAGS="$COMMON_FLAGS_32"
+			export CROSS=""
 			export HOST_CC="clang -m32"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
 			export HOST_ALDFLAGS="-m32"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM"
 			;;
 		arm64-android)
 			TAR_SKIP_BIN=1
-			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			export CROSS="" # is this needed for clang? -> "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin/aarch64-linux-android${ANDROID_64_VERSION}-"
+			XFLAGS="$COMMON_FLAGS_64"
+			export CROSS=""
 			export HOST_CC="clang -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_FLAGS="$CFLAGS"
-			;;
-		x86_64-linux)
-			return
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64"
 			;;
 		*)
 			return
@@ -95,7 +99,6 @@ function luajit_configure() {
 	export TARGET_CFLAGS="$CFLAGS $XFLAGS"
 
 	# These are used for host compiling
-	export HOST_LD=true
 	export HOST_XCFLAGS=""
 	export HOST_LDFLAGS="${BUILD_LDFLAGS}"
 
@@ -118,13 +121,13 @@ function cmi_unpack() {
     local temp=$(mktemp -d)
     unzip -q -d "$temp" $SCRIPTDIR/download/$FILE_URL
 	mv "$temp"/*/* "$dest"
-	rm -rf "./$temp"
+	rm -rf "$temp"
 }
 
 function cmi_patch() {
     echo cmi_patch
     if [ -f ../patch_$VERSION ]; then
-        echo "Applying MAWE patch ../patch_$VERSION" && patch -l --binary -p1 < ../patch_$VERSION
+        echo "Applying patch ../patch_$VERSION" && patch -l --binary -p1 < ../patch_$VERSION
     fi
 }
 
@@ -150,17 +153,18 @@ case $1 in
 	x86_64-linux)
 		export TARGET_SYS=Linux
 		function cmi_make() {
-					TAR_SKIP_BIN=0
-					echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=0"
 					export DEFOLD_ARCH="32"
+					export TARGET_CFLAGS="-DLUAJIT_DISABLE_GC64"
+					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
 					set -e
 					make -j8
 					make install
 					make clean
 					set +e
-					echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=1"
-					export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
+
 					export DEFOLD_ARCH="64"
+					export TARGET_CFLAGS=""
+					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
 					set -e
 					make -j8
 					make install
@@ -169,21 +173,33 @@ case $1 in
 		}
 		;;
 	x86_64-darwin)
+		export TARGET_SYS=Darwin
 		function cmi_make() {
-					TAR_SKIP_BIN=0
-					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=0"
 					# Note: Luajit sets this to 10.4, which is less than what we support.
 					#       This value is set to the same as MIN_OSX_SDK_VERSION in waf_dynamo.py
 					export MACOSX_DEPLOYMENT_TARGET="10.7"
-					export DEFOLD_ARCH="32"
-					set -e
-					make -j8
-					make install
-					make clean
-					set +e
-					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=1"
-					export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
+
+					# Since GC32 mode isn't supported on macOS, in the new version.
+					# We'll just use the old built executable from the previous package
+
+					# mkdir foo
+					# cd foo
+					# tar xvf ../../../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz
+					# tar xvf ../../build/luajit-2.1.0-beta3-x86_64-darwin.tar.gz
+					# tar zcvf ../luajit-2.1.0-beta3-x86_64-darwin.tar.gz .
+
+					# export DEFOLD_ARCH="32"
+					# export TARGET_CFLAGS="-DLUAJIT_DISABLE_GC64"
+					# echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
+					# set -e
+					# make -j8
+					# make install
+					# make clean
+					# set +e
+
 					export DEFOLD_ARCH="64"
+					export TARGET_CFLAGS=""
+					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
 					set -e
 					make -j8
 					make install
@@ -191,7 +207,8 @@ case $1 in
 					cp src/lj.supp $PREFIX/share/luajit
 		}
 		;;
-	win32|x86_64-win32)
+	x86_64-win32)
+		export TARGET_SYS=Windows
 		cmi_setup_vs2015_env $1
 
 		function cmi_make() {

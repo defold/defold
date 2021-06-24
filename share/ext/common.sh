@@ -39,6 +39,7 @@ ANDROID_64_VERSION=21 # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
 
 MAKEFILE=Makefile
+MAKEFILE_ARGS=
 
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
 CURL="curl -L -O"
@@ -54,7 +55,7 @@ function download() {
 
 function cmi_make() {
     set -e
-    make -f $MAKEFILE -j8
+    make -f $MAKEFILE $MAKEFILE_ARGS -j8
     make install
     set +e
 }
