@@ -156,8 +156,8 @@ case $1 in
 		export TARGET_SYS=Linux
 		function cmi_make() {
 					export DEFOLD_ARCH="32"
-					export TARGET_CFLAGS="-DLUAJIT_DISABLE_GC64"
-					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
+					export XCFLAGS="-DLUAJIT_DISABLE_GC64"
+					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 					set -e
 					make -j8
 					make install
@@ -165,8 +165,8 @@ case $1 in
 					set +e
 
 					export DEFOLD_ARCH="64"
-					export TARGET_CFLAGS=""
-					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
+					export XCFLAGS=""
+					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 					set -e
 					make -j8
 					make install
