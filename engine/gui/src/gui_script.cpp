@@ -2841,17 +2841,20 @@ namespace dmGui
      *
      * @name gui.is_enabled
      * @param node [type:node] node to query
+     * @param recursive [type:boolean] check hierarchy recursively
      * @return enabled [type:boolean] whether the node is enabled or not
      */
     static int LuaIsEnabled(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 1);
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
         Scene* scene = GuiScriptInstance_Check(L);
-
-        lua_pushboolean(L, dmGui::IsNodeEnabled(scene, hnode));
+        int top = lua_gettop(L);
+        bool recursive = top >= 2 && lua_toboolean(L, 2);
+        lua_pushboolean(L, dmGui::IsNodeEnabled(scene, hnode, recursive));
 
         return 1;
     }
