@@ -17,6 +17,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
+#include <physics/physics.h>
 #include <rig/rig.h>
 
 #include "gamesys/gamesys.h"
@@ -36,9 +37,39 @@ struct Params
     const char* m_TempResource;
 };
 
+struct ProjectOptions {
+  uint32_t m_MaxCollisionCount;
+  uint32_t m_MaxContactPointCount;
+  bool m_3D;
+};
+
 template<typename T>
-class GamesysTest : public jc_test_params_class<T>
+class CustomizableGamesysTest : public jc_test_params_class<T>
 {
+public:
+    CustomizableGamesysTest() {
+      memset(&m_projectOptions, 0, sizeof(m_projectOptions));
+    }
+
+    ProjectOptions m_projectOptions;
+protected:
+    void SetUp(ProjectOptions& options) {
+      m_projectOptions = options;
+    }
+
+    virtual void SetUp() = 0;
+};
+
+template<typename T>
+class GamesysTest : public CustomizableGamesysTest<T>
+{
+public:
+    GamesysTest() {
+        // Default configuration values for the engine. Subclass GamesysTest and ovewrite in constructor.
+        this->m_projectOptions.m_MaxCollisionCount = 0;
+        this->m_projectOptions.m_MaxContactPointCount = 0;
+        this->m_projectOptions.m_3D = false;
+    }
 protected:
     virtual void SetUp();
     virtual void TearDown();
@@ -47,6 +78,7 @@ protected:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
+    dmConfigFile::HConfig m_Config;
 
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
@@ -63,13 +95,24 @@ protected:
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::MeshContext m_MeshContext;
-    dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
     dmGameSystem::SoundContext m_SoundContext;
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
+};
+
+class Sleeping2DCollisionObjectTest : public GamesysTest<const char*>
+{
+public:
+    Sleeping2DCollisionObjectTest() {
+      // override configuration values specified in GamesysTest()
+      m_projectOptions.m_MaxCollisionCount = 32;
+      m_projectOptions.m_MaxContactPointCount = 64;
+      m_projectOptions.m_3D = false;
+    }
+
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -320,7 +363,9 @@ void GamesysTest<T>::SetUp()
     m_InputContext = dmInput::NewContext(input_params);
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
-    m_PhysicsContext.m_3D = false;
+    m_PhysicsContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
+    m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+    m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
     m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
 
     m_ParticleFXContext.m_Factory = m_Factory;
@@ -338,10 +383,6 @@ void GamesysTest<T>::SetUp()
     m_FactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
     m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
-
-    m_SpineModelContext.m_RenderContext = m_RenderContext;
-    m_SpineModelContext.m_Factory = m_Factory;
-    m_SpineModelContext.m_MaxSpineModelCount = 32;
 
     m_LabelContext.m_RenderContext = m_RenderContext;
     m_LabelContext.m_MaxLabelCount = 32;
@@ -370,14 +411,22 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
+
+    dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
+
     dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
     component_create_ctx.m_Script = m_ScriptContext;
     component_create_ctx.m_Register = m_Register;
     component_create_ctx.m_Factory = m_Factory;
+    component_create_ctx.m_Config = m_Config;
+    component_create_ctx.m_Contexts.SetCapacity(3, 8);
+    component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), m_GraphicsContext);
+    component_create_ctx.m_Contexts.Put(dmHashString64("render"), m_RenderContext);
+
     dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
-                                                                                                    &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
+                                                                                                    &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
                                                                                                     &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
 
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
@@ -405,6 +454,7 @@ void GamesysTest<T>::TearDown()
     dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
     dmBuffer::DeleteContext();
+    dmConfigFile::Delete(m_Config);
 }
 
 // Specific test class for testing dmBuffers in scripts

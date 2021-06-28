@@ -12,12 +12,17 @@ import s3
 import subprocess
 import urlparse
 
-def get_default_repo():
-    url = run.shell_command('git remote get-url origin')
-    if not 'github.com' in url:
-        return None
+def get_current_repo():
     # git@github.com:defold/defold.git
-    return url.replace('git@github.com:', '').replace('.git', '').strip()
+    # https://github.com/defold/defold.git
+    url = run.shell_command('git remote get-url origin')
+    url = url.replace('.git', '').strip()
+
+    domain = "github.com"
+    index = url.index(domain)
+    if index < 0:
+        return None
+    return url[index+len(domain)+1:]
 
 def get_git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
@@ -40,65 +45,62 @@ def get_defold_version_from_file():
         return None
     return out.strip()
 
-def release(config):
-    log("Releasing Defold %s to GitHub" % (config.version))
+def release(config, tag_name, release_sha, s3_release):
+    log("Releasing Defold %s to GitHub" % tag_name)
     if config.github_token is None:
         log("No GitHub authorization token")
         return
 
-    repo = config.github_target_repo
-    if repo is None:
-        repo = "defold/defold"
-    repo = "/repos/%s" % repo
+    channel = config.channel
+    if not channel:
+        log("No release channel specified")
+        return
 
-    # get the sha for the version we are releasing by
-    # searching all tags for the version
-    ref_tag = None
-    ref_tags = github.get("%s/git/refs/tags" % repo, config.github_token)
-    if not ref_tags:
-        log("Unable to get ref tags")
-        exit(1)
-    for tag in ref_tags:
-        if config.version in tag.get("ref"):
-            ref_tag = tag
-            break
-    if not ref_tag:
-        log("Unable to find ref tag for version %s" % (config.version))
-        exit(1)
-    release_tag = github.get("%s/git/tags/%s" % (repo, ref_tag.get("object").get("sha")), config.github_token)
-    if not release_tag:
-        log("Unable to get release tag")
-        exit(1)
-    release_sha = release_tag.get("object").get("sha")
+    log("tag name: %s" % tag_name)
+    log("release sha1: %s" % release_sha)
+    log("channel: %s" % channel)
 
-    # get the release on S3
-    log("Getting S3 release for version %s with sha %s" % (config.version, release_sha))
-    s3_release = s3.get_single_release(config.archive_path, config.version, release_sha)
+    source_repo = os.environ.get('GITHUB_REPOSITORY', "defold/defold")
+    source_repo = "/repos/%s" % source_repo
+
+    log("source repo: %s" % source_repo)
+
+    target_repo = config.github_target_repo
+    if target_repo is None:
+        target_repo = os.environ.get('GITHUB_REPOSITORY', None)
+    if target_repo is None:
+        target_repo = "defold/defold"
+    target_repo = "/repos/%s" % target_repo
+
+    log("target repo: %s" % target_repo)
+
+    release_name = 'v%s - %s' % (config.version, channel)
+    draft = False # If true, it won't create a tag
+    pre_release = channel not in ('stable','beta') # If true, it will be marked as "Pre-release" in the UI
+
     if not s3_release.get("files"):
-        log("No files found on S3")
+        log("No files found on S3 with sha %s" % release_sha)
         exit(1)
 
-    # try to find existing release for the current version
     release = None
-    response = github.get("%s/releases" % repo, config.github_token)
-    if not response:
-        log("Unable to get releases")
-        exit(1)
-    for r in response:
-        if r.get("tag_name") == config.version:
-            release = r
-            break
+    response = github.get("%s/releases" % target_repo, config.github_token)
+    if response:
+        for r in response:
+            if r.get("tag_name") == tag_name:
+                release = r
+                break
 
-    # no existing relase, create one!
     if not release:
+        log("No release found with tag %s, creating a new one" % tag_name)
+
         data = {
-            "tag_name": config.version,
-            "name": "v" + config.version,
-            "body": "Defold version " + config.version,
-            "draft": False,
-            "prerelease": False
+            "tag_name": tag_name,
+            "name": release_name,
+            "body": "Defold version %s channel=%s" % (config.version, channel),
+            "draft": draft,
+            "prerelease": pre_release
         }
-        release = github.post("%s/releases" % repo, config.github_token, json = data)
+        release = github.post("%s/releases" % target_repo, config.github_token, json = data)
         if not release:
             log("Unable to create new release")
             exit(1)
@@ -112,7 +114,7 @@ def release(config):
     log("Deleting existing artifacts from the release")
     for asset in release.get("assets", []):
         log("Deleting %s" % (asset.get("id")))
-        github.delete("%s/releases/assets/%s" % (repo, asset.get("id")), config.github_token)
+        github.delete("%s/releases/assets/%s" % (target_repo, asset.get("id")), config.github_token)
 
     # upload_url is a Hypermedia link (https://developer.github.com/v3/#hypermedia)
     # Example: https://uploads.github.com/repos/defold/defold/releases/25677114/assets{?name,label}
@@ -120,21 +122,43 @@ def release(config):
     # for now we ignore this and fix it ourselves (note this may break if GitHub
     # changes the way uploads are done)
     log("Uploading artifacts to GitHub from S3")
-    upload_url = release.get("upload_url").replace("{?name,label}", "?name=%s")
     base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
+
+    def is_main_file(path):
+        return os.path.basename(path) in ('bob.jar', 'Defold-x86_64-darwin.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip')
+
+    urls = set() # not sure why some files are reported twice, but we don't want to download/upload them twice
     for file in s3_release.get("files", None):
         # download file
-        download_url = base_url + file.get("path")
+        path = file.get("path")
+
+        keep = False
+        if is_main_file(path):
+            keep = True
+
+        if not keep:
+            continue
+
+        download_url = base_url + path
+        urls.add(download_url)
+
+    upload_url = release.get("upload_url").replace("{?name,label}", "?name=%s")
+
+    for download_url in urls:
         filepath = config._download(download_url)
-        filename = re.sub(r'https://d.defold.com/archive/(.*?)/', '', download_url)
+        filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
+        basename = os.path.basename(filename)
         # file stream upload to GitHub
         log("Uploading to GitHub " + filename)
         with open(filepath, 'rb') as f:
-            content_type,_ = mimetypes.guess_type(filename)
+            content_type,_ = mimetypes.guess_type(basename)
             headers = { "Content-Type": content_type or "application/octet-stream" }
-            github.post(upload_url % (filename), config.github_token, data = f, headers = headers)
+            name = filename
+            if is_main_file(path):
+                name = basename
+            github.post(upload_url % (name), config.github_token, data = f, headers = headers)
 
-    log("Released Defold %s to GitHub" % (config.version))
+    log("Released Defold %s to GitHub" % tag_name)
 
 
 MARKDOWN_TEMPLATE="""
@@ -174,6 +198,9 @@ def release_markdown(config):
     if not release_sha:
         release_sha = get_git_sha1()
 
+    channel = config.channel
+    log("Using channel %s" % channel)
+
     # get the release on S3
     log("Getting S3 release for version %s with sha %s" % (config.version, release_sha))
     s3_release = s3.get_single_release(config.archive_path, config.version, release_sha)
@@ -193,8 +220,16 @@ def release_markdown(config):
     base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
     for file in s3_release.get("files", None):
         # download file
-        download_url = base_url + file.get("path")
-        if not test_path(download_url):
+        file_path = file.get("path")
+
+        if file_path.startswith("/archive/"):
+            file_path = file_path[len("/archive/"):]
+
+        download_url = base_url + file_path
+        if channel is not None:
+            download_url = "%s/archive/%s/%s" % (base_url, channel, file_path)
+
+        if not test_path(file_path):
             continue
 
         if download_url.endswith('bob.jar'):
@@ -241,3 +276,7 @@ def release_markdown(config):
     github.put(target_url, config.github_token, json = post_data, headers = headers)
 
     log("Released Defold %s - %s to %s" % (config.version, release_sha, target_url))
+
+if __name__ == '__main__':
+    print("For testing only")
+    print(get_current_repo())

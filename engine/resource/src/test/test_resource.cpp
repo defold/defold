@@ -27,7 +27,7 @@
     #undef TEST_HTTP_SUPPORTED
 #endif
 
-#include "resource_ddf.h"
+#include <resource/resource_ddf.h>
 #include "../resource.h"
 #include "../resource_private.h"
 #include "test/test_resource_ddf.h"

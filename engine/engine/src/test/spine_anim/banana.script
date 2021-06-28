@@ -2,6 +2,10 @@ function init(self)
     -- Add initialization code here
     -- Remove this function if not needed
     self.ticks = 0
+
+    -- testing the render constants
+    go.set("go#spinemodel", "tint", vmath.vector4(1,1,1,1))
+    spine_model.reset_constant("go#spinemodel", "tint")
 end
 
 function final(self)

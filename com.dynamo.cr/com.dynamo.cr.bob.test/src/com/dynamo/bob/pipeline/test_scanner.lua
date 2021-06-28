@@ -66,3 +66,17 @@ local module = require(modname)
 
 -- FROM the jumper pathfinding library. SHOULD NOT BE INCLUDED
 local Heuristic = require ((...):gsub('%.path$','.heuristics'))
+
+-- Lua standard libraries + Defold extras SHOULD NOT BE INCLUDED
+local coroutine = require "coroutine"
+local package = require "package"
+local string = require "string"
+local table = require "table"
+local math = require "math"
+local io = require "io"
+local os = require "os"
+local debug = require "debug"
+local socket = require "socket"
+local bit = require "bit"
+local ffi = require "ffi"
+local jit = require "jit"

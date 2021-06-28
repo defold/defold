@@ -110,6 +110,7 @@ int opt_set_broadcast(lua_State *L, p_socket ps)
     return opt_setboolean(L, ps, SOL_SOCKET, SO_BROADCAST);
 }
 
+#if !defined(DM_IPV6_UNSUPPORTED)
 int opt_set_ip6_unicast_hops(lua_State *L, p_socket ps)
 {
   return opt_setint(L, ps, IPPROTO_IPV6, IPV6_UNICAST_HOPS);
@@ -129,6 +130,7 @@ int opt_get_ip6_multicast_hops(lua_State *L, p_socket ps)
 {
   return opt_getint(L, ps, IPPROTO_IPV6, IPV6_MULTICAST_HOPS);
 }
+#endif //DM_IPV6_UNSUPPORTED
 
 int opt_set_ip_multicast_loop(lua_State *L, p_socket ps)
 {
@@ -140,6 +142,7 @@ int opt_get_ip_multicast_loop(lua_State *L, p_socket ps)
     return opt_getboolean(L, ps, IPPROTO_IP, IP_MULTICAST_LOOP);
 }
 
+#if !defined(DM_IPV6_UNSUPPORTED)
 int opt_set_ip6_multicast_loop(lua_State *L, p_socket ps)
 {
     return opt_setboolean(L, ps, IPPROTO_IPV6, IPV6_MULTICAST_LOOP);
@@ -149,6 +152,7 @@ int opt_get_ip6_multicast_loop(lua_State *L, p_socket ps)
 {
     return opt_getboolean(L, ps, IPPROTO_IPV6, IPV6_MULTICAST_LOOP);
 }
+#endif // DM_IPV6_UNSUPPORTED
 
 int opt_set_linger(lua_State *L, p_socket ps)
 {
@@ -221,6 +225,7 @@ int opt_set_ip_drop_membersip(lua_State *L, p_socket ps)
     return opt_setmembership(L, ps, IPPROTO_IP, IP_DROP_MEMBERSHIP);
 }
 
+#if !defined(DM_IPV6_UNSUPPORTED)
 int opt_set_ip6_add_membership(lua_State *L, p_socket ps)
 {
     return opt_ip6_setmembership(L, ps, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP);
@@ -240,6 +245,7 @@ int opt_set_ip6_v6only(lua_State *L, p_socket ps)
 {
     return opt_setboolean(L, ps, IPPROTO_IPV6, IPV6_V6ONLY);
 }
+#endif // DM_IPV6_UNSUPPORTED
 
 /*=========================================================================*\
 * Auxiliar functions
@@ -265,6 +271,7 @@ static int opt_setmembership(lua_State *L, p_socket ps, int level, int name)
     return opt_set(L, ps, level, name, (char *) &val, sizeof(val));
 }
 
+#if !defined(DM_IPV6_UNSUPPORTED)
 static int opt_ip6_setmembership(lua_State *L, p_socket ps, int level, int name)
 {
     struct ipv6_mreq val;                   /* obj, opt-name, table */
@@ -290,6 +297,7 @@ static int opt_ip6_setmembership(lua_State *L, p_socket ps, int level, int name)
     }
     return opt_set(L, ps, level, name, (char *) &val, sizeof(val));
 }
+#endif // DM_IPV6_UNSUPPORTED
 
 static 
 int opt_get(lua_State *L, p_socket ps, int level, int name, void *val, int* len)

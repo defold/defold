@@ -49,11 +49,9 @@
 #include "resources/res_sprite.h"
 #include "resources/res_textureset.h"
 #include "resources/res_tilegrid.h"
-#include "resources/res_animationset.h"
 #include "resources/res_meshset.h"
 #include "resources/res_skeleton.h"
 #include "resources/res_rig_scene.h"
-#include "resources/res_spine_model.h"
 #include "resources/res_display_profiles.h"
 #include "resources/res_label.h"
 
@@ -72,7 +70,6 @@
 #include "components/comp_light.h"
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
-#include "components/comp_spine_model.h"
 #include "components/comp_label.h"
 
 namespace dmGameSystem
@@ -97,7 +94,7 @@ namespace dmGameSystem
     e = dmResource::RegisterType(factory, extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func);\
     if( e != dmResource::RESULT_OK )\
     {\
-        dmLogFatal("Unable to register resource type: %s", extension);\
+        dmLogFatal("Unable to register resource type: %s (%s)", extension, dmResource::ResultToString(e));\
         return e;\
     }\
 
@@ -133,11 +130,9 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate);
-        REGISTER_RESOURCE_TYPE("animationsetc", 0, ResAnimationSetPreload, ResAnimationSetCreate, 0, ResAnimationSetDestroy, ResAnimationSetRecreate);
         REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, 0, ResMeshSetDestroy, ResMeshSetRecreate);
         REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, 0, ResSkeletonDestroy, ResSkeletonRecreate);
         REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, 0, ResRigSceneDestroy, ResRigSceneRecreate);
-        REGISTER_RESOURCE_TYPE(SPINE_MODEL_EXT, 0, ResSpineModelPreload, ResSpineModelCreate, 0, ResSpineModelDestroy, ResSpineModelRecreate);
         REGISTER_RESOURCE_TYPE("display_profilesc", render_context, 0, ResDisplayProfilesCreate, 0, ResDisplayProfilesDestroy, ResDisplayProfilesRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
@@ -155,7 +150,6 @@ namespace dmGameSystem
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
-                                                SpineModelContext* spine_model_context,
                                                 ModelContext* model_context,
                                                 MeshContext* mesh_context,
                                                 LabelContext* label_context,
@@ -328,14 +322,6 @@ namespace dmGameSystem
                 CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
                 0, 0,
                 1);
-
-        REGISTER_COMPONENT_TYPE(SPINE_MODEL_EXT, 1300, spine_model_context,
-                CompSpineModelNewWorld, CompSpineModelDeleteWorld,
-                CompSpineModelCreate, CompSpineModelDestroy, 0, 0, CompSpineModelAddToUpdate, 0,
-                CompSpineModelUpdate, CompSpineModelRender, 0, CompSpineModelOnMessage, 0,
-                CompSpineModelOnReload, CompSpineModelGetProperty, CompSpineModelSetProperty,
-                0, 0,
-                0);
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
                 CompLabelNewWorld, CompLabelDeleteWorld,

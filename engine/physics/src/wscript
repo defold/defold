@@ -1,4 +1,4 @@
-import sys
+from waf_dynamo import dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -10,3 +10,5 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('box2d')
     bld.add_subdirs('physics')
+
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

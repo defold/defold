@@ -133,6 +133,22 @@ namespace dmMessage
     void SetSocket(URL* url, HSocket socket);
 
     /*#
+     * Tests if a socket is valid (not deleted).
+     * @name IsSocketValid
+     * @param socket [type: dmMessage::HSocket] Socket
+     * @return result [type: bool] if the socket is valid or not
+     */
+    bool IsSocketValid(HSocket socket);
+
+    /*#
+     * Get socket name
+     * @name GetSocketName
+     * @param socket [type: dmMessage::HSocket] Socket
+     * @return name [type: const char*] socket name. 0 if it was not found
+     */
+    const char* GetSocketName(HSocket socket);
+
+    /*#
      * Get the message path
      * @name GetPath
      * @param url [type: dmMessage::URL] url
@@ -179,6 +195,35 @@ namespace dmMessage
      */
     typedef void(*MessageDestroyCallback)(dmMessage::Message* message);
 
+    /*#
+     * Message data desc used at dispatch callback. When a message is posted,
+     * the actual object is copied into the sockets internal buffer.
+     * @struct
+     * @name Message
+     * @member m_Sender [type: dmMessage::URL] Sender uri
+     * @member m_Receiver [type: dmMessage::URL] Receiver uri
+     * @member m_Id [type: dmhash_t] Unique id of message
+     * @member m_UserData1 [type: uintptr_t] User data pointer
+     * @member m_UserData2 [type: uintptr_t] User data pointer
+     * @member m_Descriptor [type: uintptr_t] User specified descriptor of the message data
+     * @member m_DataSize [type: uint32_t] Size of message data in bytes
+     * @member m_Next [type: dmMessage::Message*] Ptr to next message (or 0 if last)
+     * @member m_DestroyCallback [type: dmMessage::MessageDestroyCallback] If set, will be called after each dispatch
+     * @member m_Data [type: uint8_t*] Payload
+     */
+    struct Message
+    {
+        URL                    m_Sender;            //! Sender uri
+        URL                    m_Receiver;          //! Receiver uri
+        dmhash_t               m_Id;                //! Unique id of message
+        uintptr_t              m_UserData1;         //! User data pointer
+        uintptr_t              m_UserData2;         //! User data pointer
+        uintptr_t              m_Descriptor;        //! User specified descriptor of the message data
+        uint32_t               m_DataSize;          //! Size of message data in bytes
+        struct Message*        m_Next;              //! Ptr to next message (or 0 if last)
+        MessageDestroyCallback m_DestroyCallback;   //! If set, will be called after each dispatch
+        uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
+    };
 
     /**
      * Post an message to a socket

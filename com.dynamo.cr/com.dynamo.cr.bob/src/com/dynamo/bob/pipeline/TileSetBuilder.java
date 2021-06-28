@@ -35,8 +35,8 @@ import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
-import com.dynamo.tile.proto.Tile.TileSet;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".texturesetc")

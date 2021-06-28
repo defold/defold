@@ -34,10 +34,14 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_spine_model.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_animationset.h"
+#include "../resources/res_textureset.h"
 
-#include "spine_ddf.h"
-#include "sprite_ddf.h"
-#include "tile_ddf.h"
+#include <gamesys/spine_ddf.h>
+#include <gamesys/sprite_ddf.h>
+#include <gamesys/tile_ddf.h>
 
 using namespace Vectormath::Aos;
 
@@ -53,6 +57,18 @@ namespace dmGameSystem
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     static void DestroyComponent(struct SpineModelWorld* world, uint32_t index);
+
+    struct SpineModelContext
+    {
+        SpineModelContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmResource::HFactory        m_Factory;
+        dmRender::HRenderContext    m_RenderContext;
+        dmGraphics::HContext        m_GraphicsContext;
+        uint32_t                    m_MaxSpineModelCount;
+    };
 
     // Translation table to translate from dmGameObject playback mode into dmRig playback mode.
     static struct PlaybackGameObjectToRig
@@ -248,7 +264,9 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        dmGameSystem::HashRenderConstants(&component->m_RenderConstants, &state);
+        if (component->m_RenderConstants) {
+            dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
+        }
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
@@ -406,6 +424,10 @@ namespace dmGameSystem
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
+        if (component->m_RenderConstants) {
+            dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
+        }
+
         delete component;
         world->m_Components.Free(index, true);
     }
@@ -465,7 +487,9 @@ namespace dmGameSystem
         ro.m_Textures[0] = resource->m_RigScene->m_TextureSet->m_Texture;
         ro.m_Material = GetMaterial(first, resource);
 
-        dmGameSystem::EnableRenderObjectConstants(&ro, &first->m_RenderConstants);
+        if (first->m_RenderConstants) {
+            dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
+        }
 
         dmGameSystemDDF::SpineModelDesc::BlendMode blend_mode = resource->m_Model->m_BlendMode;
         switch (blend_mode)
@@ -557,7 +581,7 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
+            if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
             {
                 ReHash(&component);
             }
@@ -641,13 +665,17 @@ namespace dmGameSystem
     static bool CompSpineModelGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data;
-        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
+        if (!component->m_RenderConstants)
+            return false;
+        return GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompSpineModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        if (!component->m_RenderConstants)
+            component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -699,7 +727,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::ResetConstantSpineModel* ddf = (dmGameSystemDDF::ResetConstantSpineModel*)params.m_Message->m_Data;
 
-                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
+                if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;
                 }
@@ -938,4 +966,37 @@ namespace dmGameSystem
         return r == dmRig::RESULT_OK;
     }
 
+
+    static dmGameObject::Result CompSpineModelRegister(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        SpineModelContext* spinemodelctx = new SpineModelContext;
+        spinemodelctx->m_Factory = ctx->m_Factory;
+        spinemodelctx->m_GraphicsContext = *(dmGraphics::HContext*)ctx->m_Contexts.Get(dmHashString64("graphics"));
+        spinemodelctx->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
+
+        int32_t max_rig_instance = max_rig_instance = dmConfigFile::GetInt(ctx->m_Config, "rig.max_instance_count", 128);
+        spinemodelctx->m_MaxSpineModelCount = dmMath::Max(dmConfigFile::GetInt(ctx->m_Config, "spine.max_count", 128), max_rig_instance);
+
+        // Ideally, we'd like to move this priority a lot earlier
+        // We sould be able to avoid doing UpdateTransforms again in the Render() function
+        ComponentTypeSetPrio(type, 1300);
+        ComponentTypeSetContext(type, spinemodelctx);
+        ComponentTypeSetHasUserData(type, true);
+        ComponentTypeSetReadsTransforms(type, false);
+
+        ComponentTypeSetNewWorldFn(type, CompSpineModelNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompSpineModelDeleteWorld);
+        ComponentTypeSetCreateFn(type, CompSpineModelCreate);
+        ComponentTypeSetDestroyFn(type, CompSpineModelDestroy);
+        ComponentTypeSetAddToUpdateFn(type, CompSpineModelAddToUpdate);
+        ComponentTypeSetUpdateFn(type, CompSpineModelUpdate);
+        ComponentTypeSetRenderFn(type, CompSpineModelRender);
+        ComponentTypeSetOnMessageFn(type, CompSpineModelOnMessage);
+        ComponentTypeSetOnReloadFn(type, CompSpineModelOnReload);
+        ComponentTypeSetGetPropertyFn(type, CompSpineModelGetProperty);
+        ComponentTypeSetSetPropertyFn(type, CompSpineModelSetProperty);
+        return dmGameObject::RESULT_OK;
+    }
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeSpineModel, "spinemodelc", dmGameSystem::CompSpineModelRegister);

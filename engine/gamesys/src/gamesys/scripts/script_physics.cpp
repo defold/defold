@@ -17,10 +17,11 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <gameobject/script.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
-#include "physics_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/physics_ddf.h>
 #include "../gamesys_private.h"
 
 #include "components/comp_collision_object.h"
@@ -1085,6 +1086,36 @@ namespace dmGameSystem
         return Physics_SetFlipInternal(L, false);
     }
 
+    // Wake up a collisionobject component
+    /*# explicitly wakeup a collision object
+     *
+     * Collision objects tend to fall asleep when inactive for a small period of time for
+     * efficiency reasons. This function wakes them up.
+     *
+     * @name physics.wakeup
+     * @param url [type:string|hash|url] the collision object to wake.
+     * ```lua
+     * function on_input(self, action_id, action)
+     *     if action_id == hash("test") and action.pressed then
+     *         physics.wakeup("#collisionobject")
+     *     end
+     * end
+     * ```
+     */
+    static int Physics_Wakeup(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        dmGameSystem::WakeupCollision(comp_world, comp);
+
+        return 0;
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -1103,6 +1134,7 @@ namespace dmGameSystem
 
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
+        {"wakeup",          Physics_Wakeup},
         {0, 0}
     };
 

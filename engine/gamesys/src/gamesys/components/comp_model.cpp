@@ -32,10 +32,14 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_model.h"
+#include "../resources/res_rig_scene.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_animationset.h"
+#include "../resources/res_meshset.h"
 #include "comp_private.h"
 
-#include "gamesys_ddf.h"
-#include "model_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/model_ddf.h>
 
 using namespace Vectormath::Aos;
 
@@ -54,7 +58,7 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
         int                         m_FunctionRef;
-        CompRenderConstants         m_RenderConstants;
+        HComponentRenderConstants   m_RenderConstants;
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmRender::HMaterial         m_Material;
 
@@ -250,7 +254,9 @@ namespace dmGameSystem
             dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
-        dmGameSystem::HashRenderConstants(&component->m_RenderConstants, &state);
+        if (component->m_RenderConstants) {
+            dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
+        }
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
@@ -366,6 +372,7 @@ namespace dmGameSystem
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
         component->m_FunctionRef = 0;
+        component->m_RenderConstants = 0;
 
         // Create GO<->bone representation
         // We need to make sure that bone GOs are created before we start the default animation.
@@ -426,6 +433,10 @@ namespace dmGameSystem
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
+        if (component->m_RenderConstants) {
+            dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
+        }
+
         delete component;
         world->m_Components.Free(index, true);
     }
@@ -481,7 +492,9 @@ namespace dmGameSystem
                 ro.m_Textures[i] = GetTexture(component, mr, i);
             }
 
-            dmGameSystem::EnableRenderObjectConstants(&ro, &component->m_RenderConstants);
+            if (component->m_RenderConstants) {
+                dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
+            }
 
             dmRender::AddToRender(render_context, &ro);
         }
@@ -547,11 +560,8 @@ namespace dmGameSystem
             ro.m_Textures[i] = GetTexture(first, resource, i);
         }
 
-        uint32_t size = first->m_RenderConstants.m_RenderConstants.Size();
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            const dmRender::Constant& c = first->m_RenderConstants.m_RenderConstants[i];
-            dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+        if (first->m_RenderConstants) {
+            dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
         }
 
         dmRender::AddToRender(render_context, &ro);
@@ -635,7 +645,7 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
+            if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
             {
                 ReHash(&component);
             }
@@ -742,14 +752,17 @@ namespace dmGameSystem
     static bool CompModelGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         ModelComponent* component = (ModelComponent*)user_data;
-        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
+        if (!component->m_RenderConstants)
+            return false;
+        return GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         ModelComponent* component = (ModelComponent*)user_data;
-
-        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        if (!component->m_RenderConstants)
+            component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -800,7 +813,7 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
+                if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;
                 }

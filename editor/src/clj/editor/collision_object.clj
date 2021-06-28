@@ -33,7 +33,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
+  (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)

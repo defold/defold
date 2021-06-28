@@ -10,9 +10,9 @@ def build(bld):
                           target = 'input',
                           proto_gen_py = True,
                           protoc_includes = '../proto')
-    script.find_sources_in_dirs(['.', '../proto'])
+    script.find_sources_in_dirs(['.', '../proto/input'])
 
     bld.install_files('${PREFIX}/include/input', 'input.h')
-    bld.install_files('${PREFIX}/share/proto', '../proto/input_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../proto/input/input_ddf.proto')
 
     bld.add_subdirs('test')

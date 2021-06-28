@@ -9,6 +9,10 @@
 
 #include "socket.h"
 
+#if defined(__NX__)
+const char* gai_strerror(int errcode);
+#endif
+
 /* WinSock doesn't have a strerror... */
 static const char *wstrerror(int err);
 

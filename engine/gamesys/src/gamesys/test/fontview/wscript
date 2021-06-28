@@ -19,6 +19,6 @@ def build(bld):
                                     uselib = 'RENDER CRASH GRAPHICS RESOURCE HID DDF DMGLFW PLATFORM_SOCKET SCRIPT LUA EXTENSION DLIB X CARES',
                                     web_libs = ['library_sys.js', 'library_glfw.js'],
                                     uselib_local = 'gamesys',
-                                    includes = ['../../../src', '../../../build'],
+                                    includes = ['../../../../src',  '../../../build'],
                                     target = 'fontview')
     font_viewer.install_path = None

@@ -12,7 +12,7 @@
 
 #include "comp_light.h"
 #include "resources/res_light.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 
 #include <dlib/array.h>
 #include <dlib/log.h>

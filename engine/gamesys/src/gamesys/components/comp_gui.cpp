@@ -28,10 +28,12 @@
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"
-#include "comp_spine_model.h"
 #include "comp_private.h"
 
 #include "../resources/res_gui.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_animationset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 
@@ -358,6 +360,7 @@ namespace dmGameSystem
             // Notify the scene script. The callback originates from the dmGraphics::SetWindowSize firing the callback.
             char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
             dmMessage::Message* message = (dmMessage::Message*)buf;
+            memset(message, 0, sizeof(dmMessage::Message));
             message->m_Sender = dmMessage::URL();
             message->m_Receiver = dmMessage::URL();
             message->m_Id = dmHashString64("layout_changed");
@@ -613,6 +616,7 @@ namespace dmGameSystem
 
         uint8_t buf[sizeof(dmMessage::Message) + sizeof(dmGameSystemDDF::SpineEvent)];
         dmMessage::Message* message = (dmMessage::Message*)buf;
+        memset(message, 0, sizeof(dmMessage::Message));
         message->m_Sender = dmMessage::URL();
         message->m_Receiver = dmMessage::URL();
         message->m_Id = message_id;

@@ -24,6 +24,7 @@ Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char
 {
     DM_STATIC_ASSERT(dmGameObject::s_ComponentTypeDescBufferSize >= sizeof(ComponentTypeDescriptor), Invalid_Struct_Size);
 
+    dmLogDebug("Registered component type descriptor %s", name);
     desc->m_Name = name;
     desc->m_CreateFn = create_fn;
     desc->m_Next = g_ComponentTypeSentinel.m_Next;

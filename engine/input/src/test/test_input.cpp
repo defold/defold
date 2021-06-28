@@ -24,7 +24,7 @@
 #include "../input.h"
 #include "../input_private.h"
 
-#include "input_ddf.h"
+#include <input/input_ddf.h>
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"
