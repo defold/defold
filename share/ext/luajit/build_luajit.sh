@@ -171,7 +171,6 @@ case $1 in
 					make -j8
 					make install
 					set +e
-					cp src/lj.supp $PREFIX/share/luajit
 		}
 		;;
 	x86_64-darwin)
@@ -206,17 +205,40 @@ case $1 in
 					make -j8
 					make install
 					set +e
-					cp src/lj.supp $PREFIX/share/luajit
 		}
 		;;
-	x86_64-win32)
+	win32)
 		export TARGET_SYS=Windows
-		cmi_setup_vs2015_env $1
+		cmi_setup_vs2019_env $1
 
 		function cmi_make() {
 			cd src
 			export DEFOLD_ARCH="32"
-			cmd "/C msvcbuild.bat static dummy ${CONF_TARGET} "
+			cmd "/C echo PATH=%Path% "
+
+			cmd "/C msvcbuild.bat nogc64 static dummy ${CONF_TARGET} "
+			mkdir -p $PREFIX/lib/$CONF_TARGET
+			mkdir -p $PREFIX/bin/$CONF_TARGET
+			mkdir -p $PREFIX/include/luajit-2.0
+			mkdir -p $PREFIX/share
+			mkdir -p $PREFIX/share/lua/5.1
+			mkdir -p $PREFIX/share/luajit/jit
+			mkdir -p $PREFIX/share/man/man1
+			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
+			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
+			cp -r jit $PREFIX/share/luajit
+		}
+		;;
+	x86_64-win32)
+		export TARGET_SYS=Windows
+		cmi_setup_vs2019_env $1
+
+		function cmi_make() {
+			cd src
+			export DEFOLD_ARCH="32"
+			cmd "/C echo PATH=%Path% "
+
+			cmd "/C msvcbuild.bat nogc64 static dummy ${CONF_TARGET} "
 			mkdir -p $PREFIX/lib/$CONF_TARGET
 			mkdir -p $PREFIX/bin/$CONF_TARGET
 			mkdir -p $PREFIX/include/luajit-2.0
@@ -227,7 +249,6 @@ case $1 in
 			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
 			cp luajit-${DEFOLD_ARCH}.exe $PREFIX/bin/$CONF_TARGET
 			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
-			cp lj.supp $PREFIX/share/luajit
 			cp -r jit $PREFIX/share/luajit
 			cp ../etc/luajit.1 $PREFIX/share/man/man1
 
@@ -245,7 +266,6 @@ case $1 in
 			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
 			cp luajit-${DEFOLD_ARCH}.exe $PREFIX/bin/$CONF_TARGET
 			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
-			cp lj.supp $PREFIX/share/luajit
 			cp -r jit $PREFIX/share/luajit
 			cp ../etc/luajit.1 $PREFIX/share/man/man1
 		}
