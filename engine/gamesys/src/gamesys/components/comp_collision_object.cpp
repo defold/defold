@@ -25,8 +25,10 @@
 
 #include "gamesys.h"
 #include "../resources/res_collision_object.h"
+#include "../resources/res_tilegrid.h"
 
-#include "../proto/physics_ddf.h"
+#include <gamesys/physics_ddf.h>
+#include <gamesys/gamesys_ddf.h>
 
 namespace dmGameSystem
 {
@@ -1554,6 +1556,20 @@ namespace dmGameSystem
         if (component->m_FlippedY != flip)
             dmPhysics::FlipV2D(component->m_Object2D);
         component->m_FlippedY = flip;
+    }
+
+    void WakeupCollision(void* _world, void* _component)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+
+        if (world->m_3D)
+        {
+            dmPhysics::Wakeup3D(component->m_Object3D);
+        } else
+        {
+            dmPhysics::Wakeup2D(component->m_Object2D);
+        }
     }
 
 }

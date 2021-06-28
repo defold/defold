@@ -71,27 +71,37 @@ def get_files(archive_path, bucket, sha1):
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.zip|ref-doc.zip)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "bob", '.*(/bob.jar)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor", '.*(/Defold-.*)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "dev", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "alpha", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "beta", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "stable", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
     return files
 
-def get_tagged_releases(archive_path):
+def get_tagged_releases(archive_path, pattern=None):
     u = urlparse.urlparse(archive_path)
     bucket = get_bucket(u.hostname)
+
+    if pattern is None:
+        pattern = "(.*?)$" # captures all tags
 
     tags = run.shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
     tags.reverse()
     releases = []
+
+    matches = []
     for line in tags:
         line = line.strip()
         if not line:
             continue
-        m = re.match('(.*?) refs/tags/(.*?)$', line)
+        p = '(.*?) refs/tags/%s' % pattern
+        m = re.match('(.*?) refs/tags/%s' % pattern, line)
         if not m:
             continue
         sha1, tag = m.groups()
+        matches.append((sha1, tag))
+
+    for sha1, tag in matches[:10]: # Only the first releases
         epoch = run.shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
         date = datetime.fromtimestamp(float(epoch))
         files = get_files(archive_path, bucket, sha1)

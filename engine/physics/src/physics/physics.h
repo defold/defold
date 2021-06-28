@@ -10,11 +10,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef PHYSICS_H
-#define PHYSICS_H
+#ifndef DM_PHYSICS_H
+#define DM_PHYSICS_H
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/physics/physics.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h> // TODO: Use dmsdk/dlib/vmath.h
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -69,12 +70,8 @@ namespace dmPhysics
     typedef struct Context2D* HContext2D;
     /// 2D world handle.
     typedef struct World2D* HWorld2D;
-    /// 2D collision shape handle.
-    typedef void* HCollisionShape2D;
     /// 2D collision object handle.
     typedef void* HCollisionObject2D;
-    /// 2D cull-set handle
-    typedef void* HHullSet2D;
 
     /// Generic Joint handle
     typedef void* HJoint;
@@ -914,6 +911,20 @@ namespace dmPhysics
     bool IsSleeping2D(HCollisionObject3D collision_object);
 
     /**
+     * Activate 3D collision object 
+     * 
+     * @param collision_object
+     */
+    void Wakeup3D(HCollisionObject3D collision_object);
+    
+    /**
+     * Wake up collision object
+     * 
+     * @param collision_object
+     */
+    void Wakeup2D(HCollisionObject2D collision_object);
+    
+    /**
      * Set whether the 3D collision object has locked rotation or not, which means that the angular velocity will always be 0.
      *
      * @param collision_object Collision object to lock
@@ -1330,4 +1341,4 @@ namespace dmPhysics
 
 }
 
-#endif // PHYSICS_H
+#endif // DM_PHYSICS_H

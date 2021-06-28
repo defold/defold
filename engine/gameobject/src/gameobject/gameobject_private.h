@@ -201,8 +201,6 @@ namespace dmGameObject
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
 
-        dmHashTable64<Collection*>  m_SocketToCollection;
-
         Register();
         ~Register();
     };

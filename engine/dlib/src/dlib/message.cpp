@@ -359,6 +359,11 @@ namespace dmMessage
         memset((void*)url, 0, sizeof(URL));
     }
 
+    void ResetURL(URL& url)
+    {
+        ResetURL(&url);
+    }
+
     HSocket GetSocket(const URL* url)
     {
         return url->m_Socket;

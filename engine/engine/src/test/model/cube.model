@@ -1,0 +1,7 @@
+mesh: "/model/cube.dae"
+material: "/builtins/materials/model.material"
+textures: "/model/green.png"
+skeleton: ""
+animations: ""
+default_animation: ""
+name: "unnamed"

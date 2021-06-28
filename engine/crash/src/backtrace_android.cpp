@@ -95,6 +95,7 @@ namespace dmCrash
     void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback cbk, void* ctx)
     {
         g_CrashExtraInfoCallback = cbk;
+        g_CrashExtraInfoCallbackCtx = ctx;
     }
 
     void OnCrash(int signo, siginfo_t const *si, const ucontext *uc)
@@ -197,6 +198,8 @@ namespace dmCrash
         }
 
         WriteCrash(g_FilePath, &g_AppState);
+
+        LogCallstack(g_AppState.m_Extra);
     }
 
     void WriteDump()

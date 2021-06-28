@@ -440,8 +440,9 @@ public class Fontc {
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
             inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
 
-            // If font has outline, we need all three channels
-            if (fontDesc.getOutlineWidth() > 0.0f && this.fontDesc.getOutlineAlpha() > 0.0f) {
+            // If font has outline or shadow, we need all three channels
+            if ((fontDesc.getOutlineWidth() > 0.0f && this.fontDesc.getOutlineAlpha() > 0.0f)
+            || (fontDesc.getShadowAlpha() > 0.0f)) {
                 channelCount = 3;
             } else {
                 channelCount = 1;
@@ -454,7 +455,7 @@ public class Fontc {
                    inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
             // If font has shadow, we'll need 3 channels. Not all platforms universally support
             // texture formats with only 2 channels (such as LUMINANCE_ALPHA)
-            if (fontDesc.getShadowBlur() > 0.0f && fontDesc.getShadowAlpha() > 0.0f) {
+            if (fontDesc.getShadowAlpha() > 0.0f) {
                 channelCount = 3;
             }
             else {

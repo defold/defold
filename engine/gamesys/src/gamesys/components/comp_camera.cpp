@@ -20,7 +20,7 @@
 #include <render/render.h>
 
 #include "../resources/res_camera.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 
 namespace dmGameSystem

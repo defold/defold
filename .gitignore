@@ -48,3 +48,5 @@ com.dynamo.cr/extensions/**/build
 /local_sdks
 external/**/build/
 editor/resources/splash.css
+editor/.calva/output-window/output.calva-repl
+editor/.lsp/sqlite.db

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,9 +26,6 @@ import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.atlas.proto.AtlasProto.Atlas;
-import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
-import com.dynamo.atlas.proto.AtlasProto.AtlasImage;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
@@ -36,8 +33,11 @@ import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
-import com.dynamo.tile.proto.Tile.Playback;
-import com.dynamo.tile.proto.Tile.SpriteTrimmingMode;
+import com.dynamo.gamesys.proto.AtlasProto.Atlas;
+import com.dynamo.gamesys.proto.AtlasProto.AtlasAnimation;
+import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
+import com.dynamo.gamesys.proto.Tile.Playback;
+import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {

@@ -117,6 +117,11 @@ namespace dmHID
      * @name dmHID::MAX_TOUCH_DEVICE_COUNT [type: uint32_t]
      */
     const static uint32_t MAX_TOUCH_DEVICE_COUNT = HID_NATIVE_MAX_TOUCH_DEVICE_COUNT;
+    /*# max number of characters
+     * @constant
+     * @name dmHID::MAX_CHAR_COUNT
+     */
+    const static uint32_t MAX_CHAR_COUNT = 256;
 
     /*# touch phase enumeration
      * @note By convention the enumeration corresponds to the iOS values
@@ -473,6 +478,48 @@ namespace dmHID
         uint8_t m_Hat[MAX_GAMEPAD_HAT_COUNT];
         bool m_GamepadDisconnected;
         bool m_GamepadConnected;
+    };
+
+    /*#
+     * Data for a single touch, e.g. finger
+     * @struct
+     * @name Touch
+     * @member m_TapCount [type: int32_t] Single-click, double, etc
+     * @member m_Phase [type: Phase] Begin, end, etc
+     * @member m_X [type: int32_t] Current x
+     * @member m_Y [type: int32_t] Current y
+     * @member m_ScreenX [type: int32_t] Current x, in screen space
+     * @member m_ScreenY [type: int32_t] Current y, in screen space
+     * @member m_DX [type: int32_t] Current dx
+     * @member m_DY [type: int32_t] Current dy
+     * @member m_ScreenDX [type: int32_t] Current dx, in screen space
+     * @member m_ScreenDY [type: int32_t] Current dy, in screen space
+     * @member m_Id [type: int32_t] Touch id
+     */
+    struct Touch
+    {
+        /// Single-click, double, etc
+        int32_t m_TapCount;
+        /// Begin, end, etc
+        Phase   m_Phase;
+        /// Current x
+        int32_t m_X;
+        /// Current y
+        int32_t m_Y;
+        /// Current x, in screen space
+        int32_t m_ScreenX;
+        /// Current y, in screen space
+        int32_t m_ScreenY;
+        /// Current dx
+        int32_t m_DX;
+        /// Current dy
+        int32_t m_DY;
+        /// Current dx, in screen space
+        int32_t m_ScreenDX;
+        /// Current dy, in screen space
+        int32_t m_ScreenDY;
+        /// Touch id
+        int32_t m_Id;
     };
 
     /*# gets a keyboard handle

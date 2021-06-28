@@ -28,7 +28,22 @@ import datetime
 import imp
 import fnmatch
 
-DEFAULT_ARCHIVE_DOMAIN="d.defold.com"
+# TODO: collect common functions in a more suitable reusable module
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+    sys.dont_write_bytecode = True
+    import build_private
+except Exception, e:
+    class build_private(object):
+        @classmethod
+        def get_tag_suffix(self):
+            return ''
+finally:
+    sys.dont_write_bytecode = False
+
+
+DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
+CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
@@ -115,14 +130,29 @@ def ziptree(path, outfile, directory = None):
     zip.close()
     return outfile
 
-def git_sha1_from_version_file():
+def _get_tag_name(version, channel): # from build.py
+    if channel and channel != 'stable':
+        channel = '-' + channel
+    else:
+        channel = ''
+
+    suffix = build_private.get_tag_suffix() # E.g. '' or 'switch'
+    if suffix:
+        suffix = '-' + suffix
+
+    return '%s%s%s' % (version, channel, suffix)
+
+def git_sha1_from_version_file(options):
     """ Gets the version number and checks if that tag exists """
     with open('../VERSION', 'r') as version_file:
         version = version_file.read().strip()
 
-    process = subprocess.Popen(['git', 'rev-list', '-n', '1', version], stdout = subprocess.PIPE)
+    tag_name = _get_tag_name(version, options.channel)
+
+    process = subprocess.Popen(['git', 'rev-list', '-n', '1', tag_name], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
+        print "Unable to find git sha from tag=%s" % tag_name
         return None
     return out.strip()
 
@@ -202,7 +232,7 @@ def launcher_path(options, platform, exe_suffix):
         return options.launcher
     elif options.engine_sha1:
         launcher_version = options.engine_sha1
-        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform, exe_suffix)
+        launcher_url = 'https://%s/archive/%s/engine/%s/launcher%s' % (options.archive_domain, launcher_version, platform, exe_suffix)
         launcher = download(launcher_url)
         if not launcher:
             print('Failed to download launcher', launcher_url)
@@ -213,7 +243,7 @@ def launcher_path(options, platform, exe_suffix):
 
 
 def full_jdk_url(jdk_platform):
-    return 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-%s_%s_bin.tar.gz' % (java_version, jdk_platform)
+    return '%s/openjdk-%s_%s_bin.tar.gz' % (CDN_PACKAGES_URL, java_version, jdk_platform)
 
 
 def download_build_jdk():
@@ -557,15 +587,16 @@ Commands:
         # exists, then we're on a branch that uses a stable engine
         # (ie. editor-dev or branch based on editor-dev), so use that.
         # Otherwise use archived artifacts for HEAD.
-        options.engine_sha1 = git_sha1_from_version_file() or git_sha1('HEAD')
+        options.engine_sha1 = git_sha1_from_version_file(options) or git_sha1('HEAD')
     elif options.engine_artifacts == 'dynamo-home':
         options.engine_sha1 = None
     elif options.engine_artifacts == 'archived':
         options.engine_sha1 = git_sha1('HEAD')
     elif options.engine_artifacts == 'archived-stable':
-        options.engine_sha1 = git_sha1_from_version_file()
+        options.engine_sha1 = git_sha1_from_version_file(options)
         if not options.engine_sha1:
-            sys.exit("Unable to find git sha from VERSION file")
+            print "Unable to find git sha from VERSION file"
+            sys.exit(1)
     else:
         options.engine_sha1 = options.engine_artifacts
 

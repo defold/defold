@@ -50,7 +50,7 @@
             <proto dir="${env.DYNAMO_HOME}/../../engine/script/src" file="script/ddf_script.proto"/>
 
             <!-- This needs to be moved into this plugin -->
-            <proto dir="${env.DYNAMO_HOME}/../../engine/gamesys/proto/" file="spine_ddf.proto"/>
+            <proto dir="${env.DYNAMO_HOME}/../../engine/gamesys/proto" file="gamesys/spine_ddf.proto"/>
 
         </parallel>
 

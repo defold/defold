@@ -17,7 +17,7 @@
 #include <dlib/hash.h>
 #include <hid/hid.h>
 
-#include "input_ddf.h"
+#include <input/input_ddf.h>
 
 namespace dmInput
 {

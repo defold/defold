@@ -25,12 +25,6 @@
 
 namespace dmHID
 {
-    /** max number of characters
-     * @constant
-     * @name dmHID::MAX_CHAR_COUNT
-     */
-    const uint32_t MAX_CHAR_COUNT = 256;
-
     /// Constant that defines invalid context handles
     const HContext INVALID_CONTEXT = 0;
 
@@ -53,35 +47,6 @@ namespace dmHID
         char     m_Text[MAX_CHAR_COUNT];
         uint32_t m_Size;
         uint32_t m_HasText : 1;
-    };
-
-    /**
-     * Data for a single touch, e.g. finger
-     */
-    struct Touch
-    {
-        /// Single-click, double, etc
-        int32_t m_TapCount;
-        /// Begin, end, etc
-        Phase   m_Phase;
-        /// Current x
-        int32_t m_X;
-        /// Current y
-        int32_t m_Y;
-        /// Current x, in screen space
-        int32_t m_ScreenX;
-        /// Current y, in screen space
-        int32_t m_ScreenY;
-        /// Current dx
-        int32_t m_DX;
-        /// Current dy
-        int32_t m_DY;
-        /// Current dx, in screen space
-        int32_t m_ScreenDX;
-        /// Current dy, in screen space
-        int32_t m_ScreenDY;
-        /// Touch id
-        int32_t m_Id;
     };
 
     /**

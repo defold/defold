@@ -34,8 +34,8 @@
 #include "../gamesys_private.h"
 #include "comp_private.h"
 
-#include "gamesys_ddf.h"
-#include "mesh_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/mesh_ddf.h>
 
 #include "../resources/res_mesh.h"
 

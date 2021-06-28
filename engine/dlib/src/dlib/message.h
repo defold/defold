@@ -21,24 +21,6 @@
 
 namespace dmMessage
 {
-    /**
-     * Message data desc used at dispatch callback. When a message is posted,
-     * the actual object is copied into the sockets internal buffer.
-     */
-    struct Message
-    {
-        URL                    m_Sender;            //! Sender uri
-        URL                    m_Receiver;          //! Receiver uri
-        dmhash_t               m_Id;                //! Unique id of message
-        uintptr_t              m_UserData1;         //! User data pointer
-        uintptr_t              m_UserData2;         //! User data pointer
-        uintptr_t              m_Descriptor;        //! User specified descriptor of the message data
-        uint32_t               m_DataSize;          //! Size of message data in bytes
-        struct Message*        m_Next;              //! Ptr to next message (or 0 if last)
-        MessageDestroyCallback m_DestroyCallback;   //! If set, will be called after each dispatch
-        uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
-    };
-
     // Page size must be a multiple of dmMessage::ALIGNMENT (see message.cpp).
     // This simplifies the allocation scheme
     const uint32_t DM_MESSAGE_PAGE_SIZE = 4096U;
@@ -73,20 +55,6 @@ namespace dmMessage
      * @return RESULT_OK if the socket was found, RESULT_NAME_OK_SOCKET_NOT_FOUND if socket wasn't found but the name was ok
      */
     Result GetSocket(const char *name, HSocket* out_socket);
-
-    /**
-     * Get socket name
-     * @param socket Socket
-     * @return socket name, 0x0 if it was not found
-     */
-    const char* GetSocketName(HSocket socket);
-
-    /**
-     * Tests if a socket is valid (not deleted).
-     * @param socket Socket
-     * @return if the socket is valid or not
-     */
-    bool IsSocketValid(HSocket socket);
 
     /**
      * Test if a socket has any messages

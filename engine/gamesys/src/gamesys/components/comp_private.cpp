@@ -18,10 +18,18 @@ using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
 
+struct CompRenderConstants
+{
+    CompRenderConstants();
+    dmArray<dmRender::Constant> m_RenderConstants;
+    dmArray<dmVMath::Vector4>   m_PrevRenderConstants;
+};
 
 CompRenderConstants::CompRenderConstants()
 {
-    memset(this, 0, sizeof(*this));
+    // We need to make sure these arrays aren't reallocated, since we might hand pointers off to comp_anim.cpp
+    m_RenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
+    m_PrevRenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
 }
 
 dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vector3& ref_value, const PropVector3& property)
@@ -348,16 +356,6 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         {
             dmLogWarning("Out of component constants (%d)", MAX_COMP_RENDER_CONSTANTS);
             return;
-        }
-
-        if (constants->m_RenderConstants.Full())
-        {
-            // We need to make sure these arrays aren't reallocated, since we might hand pointers off to comp_anim.cpp
-            // so we allocate enough memory up front
-            // Note, we don't want to do this in the constructor, since it's not always called for some components
-            // TODO: Make sure each component uses CreateRenderConstants()!
-            constants->m_RenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
-            constants->m_PrevRenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
         }
 
         constants->m_RenderConstants.SetSize(count+1);
