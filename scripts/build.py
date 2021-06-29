@@ -1618,6 +1618,7 @@ class Configuration(object):
             run.shell_command('git fetch')
 
         # Create or update the tag for engine releases
+        tag_name = None
         if self.channel in ('stable', 'beta', 'alpha'):
             tag_name = self.create_tag()
             self.push_tag(tag_name)
@@ -1668,10 +1669,15 @@ class Configuration(object):
 # ------------------------------------------------------------
 
     def release_to_github(self):
-        release_to_github.release(self)
+        tag_name = self._get_tag_name(self.version, self.channel)
+        release_sha1 = self._git_sha1(self.version)
+        releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
 
-    def release_to_github_markdown(self): # currently only used on the private platform repos
-        release_to_github.release_markdown(self)
+        #Hack since the no-channel bucket is the one containing both bob and editors
+        channel = self.channel
+        self.channel = ''
+        release_to_github.release(self, tag_name, release_sha1, releases[0])
+        self.channel = channel
 
     def sync_archive(self):
         u = urlparse.urlparse(self.get_archive_path())
@@ -1870,7 +1876,10 @@ class Configuration(object):
 # END: SMOKE TEST
 # ------------------------------------------------------------
     def get_archive_path(self, channel=None):
-        return join(self.archive_path, channel or self.channel)
+        if channel is None:
+            channel = self.channel
+        assert(type(channel) == str)
+        return join(self.archive_path, channel)
 
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
