@@ -24,10 +24,10 @@
   (future
     (try
       (.browse (Desktop/getDesktop) uri)
+      nil
       (catch Throwable error
         (println (str "Failed to open URI " uri))
-        (println (.getMessage error)))))
-  nil)
+        (println (.getMessage error))))))
 
 (defn list-event-types
   "Print all event types that can be sampled by the profiler. Available options:

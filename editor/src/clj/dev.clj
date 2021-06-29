@@ -17,16 +17,13 @@
             [editor.changes-view :as changes-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
-            [editor.defold-project :as project]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
-            [internal.graph.types :as gt]
-            [internal.node :as in]
+            [internal.graph :as ig]
             [internal.system :as is]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
-           [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [javafx.stage Window]))
@@ -57,9 +54,6 @@
 (defn active-view []
   (some-> (app-view)
           (g/node-value :active-view)))
-
-(defn resource-node [path-or-resource]
-  (project/get-resource-node (project) path-or-resource))
 
 (defn selection []
   (->> (g/node-value (project) :selected-node-ids-by-resource-node)
@@ -235,123 +229,92 @@
                          (class-symbol (.getReturnType m))]))))))
         (.getMethodDescriptors (object-bean-info instance))))
 
-(defn direct-internal-successors [basis node-id label]
-  (let [node-type (g/node-type* basis node-id)
-        output-label->output-desc (in/declared-outputs node-type)]
-    (keep (fn [[output-label output-desc]]
-            (when (and (not= label output-label)
-                       (contains? (:dependencies output-desc) label))
-              (pair node-id output-label)))
-          output-label->output-desc)))
-
-(defn direct-override-successors [basis node-id label]
-  (let [graph-id (g/node-id->graph-id node-id)
-        graph (get-in basis [:graphs graph-id])]
-    (map (fn [override-node-id]
-           (pair override-node-id label))
-         (get-in graph [:node->overrides node-id]))))
-
-(defn direct-successors* [direct-connected-successors-fn basis node-id-and-label-pairs]
-  (into #{}
-        (mapcat (fn [[node-id label]]
-                  (concat
-                    (direct-internal-successors basis node-id label)
-                    (direct-override-successors basis node-id label)
-                    (direct-connected-successors-fn node-id label))))
-        node-id-and-label-pairs))
-
-(defn recursive-successors* [direct-connected-successors-fn basis node-id-and-label-pairs]
-  (let [direct-successors (direct-successors* direct-connected-successors-fn basis node-id-and-label-pairs)]
-    (if (empty? direct-successors)
-      direct-successors
-      (into direct-successors
-            (recursive-successors* direct-connected-successors-fn basis direct-successors)))))
-
-(defn direct-connected-successors-by-label [basis node-id]
-  (util/group-into {} []
-                   (fn key-fn [^Arc arc]
-                     (.source-label arc))
-                   (fn value-fn [^Arc arc]
-                     (pair (.target-id arc)
-                           (.target-label arc)))
-                   (gt/arcs-by-source basis node-id)))
-
-(defn make-direct-connected-successors-fn [basis]
-  (let [direct-connected-successors-by-label-fn (memoize (partial direct-connected-successors-by-label basis))]
-    (fn direct-connected-successors [node-id label]
-      (-> node-id direct-connected-successors-by-label-fn label))))
-
 (defn successor-tree
   "Returns a tree of all downstream inputs and outputs affected by a change to
-  the specified node id and label. The result is a map of target node keys to
-  affected labels, recursively. The node-key-fn takes a basis and a node-id,
-  and should return the key to use for the node in the resulting map. If not
-  supplied, the node keys will be a pair of the node-type-key and the node-id."
+  the specified node id and label. The result is a map of target node id to
+  affected labels, recursively."
   ([node-id label]
-   (successor-tree (g/now) node-id label))
+   (let [basis (ig/update-successors (g/now) {node-id #{label}})]
+     (successor-tree basis node-id label)))
   ([basis node-id label]
-   (let [direct-connected-successors-fn (make-direct-connected-successors-fn basis)]
-     (util/group-into
-       (sorted-map)
-       (sorted-map)
-       (fn key-fn [[successor-node-id]]
-         (pair (node-type-key basis successor-node-id)
-               successor-node-id))
-       (fn value-fn [[successor-node-id successor-label]]
-         (pair successor-label
-               (not-empty
-                 (successor-tree basis successor-node-id successor-label))))
-       (direct-successors* direct-connected-successors-fn basis [(pair node-id label)])))))
-
-(defn- successor-types-impl [successors-fn basis node-id-and-label-pairs]
-  (let [direct-connected-successors-fn (make-direct-connected-successors-fn basis)]
-    (into (sorted-map)
-          (map (fn [[node-type-key successor-labels]]
-                 (pair node-type-key
-                       (into (sorted-map)
-                             (frequencies successor-labels)))))
-          (util/group-into {} []
-                           (comp (partial node-type-key basis) first)
-                           second
-                           (successors-fn direct-connected-successors-fn basis node-id-and-label-pairs)))))
-
-(defn successor-types*
-  "Like successor-types, but you can query multiple inputs at once by providing
-  a sequence of [node-id label] pairs."
-  ([node-id-and-label-pairs]
-   (successor-types* (g/now) node-id-and-label-pairs))
-  ([basis node-id-and-label-pairs]
-   (successor-types-impl recursive-successors* basis node-id-and-label-pairs)))
+   (let [graph-id (g/node-id->graph-id node-id)
+         successors-by-node-id (get-in basis [:graphs graph-id :successors])]
+     (into (sorted-map)
+           (map (fn [[successor-node-id successor-labels]]
+                  (pair successor-node-id
+                        (into (sorted-map)
+                              (keep (fn [successor-label]
+                                      (when-not (and (= node-id successor-node-id)
+                                                     (= label successor-label))
+                                        (pair successor-label
+                                              (not-empty (successor-tree basis successor-node-id successor-label))))))
+                              successor-labels))))
+           (get-in successors-by-node-id [node-id label])))))
 
 (defn successor-types
   "Returns a map of all downstream inputs and outputs affected by a change to
   the specified node id and label, recursively. The result is a flat map of
-  target node types to a map of the affected labels in that node type. The
-  number associated with each affected label is how many upstream labels
-  invalidate that label in the current search space."
+  target node types to the set of affected labels in that node type."
   ([node-id label]
-   (successor-types (g/now) node-id label))
+   (let [basis (ig/update-successors (g/now) {node-id #{label}})]
+     (successor-types basis node-id label)))
   ([basis node-id label]
-   (successor-types* basis [(pair node-id label)])))
+   (letfn [(select [[node-id node-successors]]
+             (mapcat (fn [[label next-successors]]
+                       (cons (pair node-id label)
+                             (mapcat select next-successors)))
+                     node-successors))]
+     (util/group-into (sorted-map)
+                      (sorted-set)
+                      (comp (partial node-type-key basis) key)
+                      val
+                      (mapcat select
+                              (successor-tree basis node-id label))))))
 
-(defn direct-successor-types*
-  "Like direct-successor-types, but you can query multiple inputs at once by
-  providing a sequence of [node-id label] pairs."
-  ([node-id-and-label-pairs]
-   (direct-successor-types* (g/now) node-id-and-label-pairs))
-  ([basis node-id-and-label-pairs]
-   (successor-types-impl direct-successors* basis node-id-and-label-pairs)))
+(defn successor-types*
+  "Like successor-types, but you can query multiple inputs at once using a map."
+  ([label-seqs-by-node-id]
+   (let [label-sets-by-node-id (util/map-vals set label-seqs-by-node-id)
+         basis (ig/update-successors (g/now) label-sets-by-node-id)]
+     (successor-types* basis label-sets-by-node-id)))
+  ([basis label-seqs-by-node-id]
+   (reduce (partial merge-with into)
+           (sorted-map)
+           (for [[node-id labels] label-seqs-by-node-id
+                 label labels]
+             (successor-types basis node-id label)))))
 
 (defn direct-successor-types
   "Returns a map of all downstream inputs and outputs immediately affected by a
   change to the specified node id and label. The result is a flat map of target
-  node types to a map of the affected labels in that node type. The number
-  associated with each affected label is how many upstream labels invalidate
-  that label in the current search space."
+  node types to the set of affected labels in that node type."
   ([node-id label]
-   (direct-successor-types (g/now) node-id label))
+   (let [basis (ig/update-successors (g/now) {node-id #{label}})]
+     (direct-successor-types basis node-id label)))
   ([basis node-id label]
-   (direct-successor-types* basis [(pair node-id label)])))
+   (util/group-into (sorted-map)
+                    (sorted-set)
+                    (comp (partial node-type-key basis) key)
+                    val
+                    (mapcat (fn [[node-id node-successors]]
+                              (map (fn [[label]]
+                                     (pair node-id label))
+                                   node-successors))
+                            (successor-tree basis node-id label)))))
+
+(defn direct-successor-types*
+  "Like direct-successor-types, but you can query multiple inputs at once using
+  a map."
+  ([label-seqs-by-node-id]
+   (let [label-sets-by-node-id (util/map-vals set label-seqs-by-node-id)
+         basis (ig/update-successors (g/now) label-sets-by-node-id)]
+     (direct-successor-types* basis label-sets-by-node-id)))
+  ([basis label-seqs-by-node-id]
+   (reduce (partial merge-with into)
+           (sorted-map)
+           (for [[node-id labels] label-seqs-by-node-id
+                 label labels]
+             (direct-successor-types basis node-id label)))))
 
 (defn ordered-occurrences
   "Returns a sorted list of [occurrence-count entry]. The list is sorted by

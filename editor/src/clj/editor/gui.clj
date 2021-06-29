@@ -2992,7 +2992,7 @@
                               parent (core/scope selected-node-id)
                               node-child-index (g/node-value selected-node-id :child-index)
                               child-indices (g/node-value parent :child-indices)]
-                          (< node-child-index (dec (count child-indices)))))
+                          (< node-child-index (dec (.size child-indices)))))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected 1))))
 
