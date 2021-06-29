@@ -52,7 +52,7 @@ def release(config, tag_name, release_sha, s3_release):
         return
 
     channel = config.channel
-    if not channel:
+    if channel is None:
         log("No release channel specified")
         return
 
