@@ -1618,6 +1618,7 @@ class Configuration(object):
             run.shell_command('git fetch')
 
         # Create or update the tag for engine releases
+        tag_name = None
         if self.channel in ('stable', 'beta', 'alpha'):
             tag_name = self.create_tag()
             self.push_tag(tag_name)
