@@ -131,7 +131,7 @@ def ziptree(path, outfile, directory = None):
     return outfile
 
 def _get_tag_name(version, channel): # from build.py
-    if channel and channel != 'stable':
+    if channel and channel != 'stable' and not channel.startswith('editor-'):
         channel = '-' + channel
     else:
         channel = ''
