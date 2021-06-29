@@ -503,7 +503,7 @@ namespace dmGui
 
     /*# gets the index of the specified node
      *
-     * Retrieve the index of the specified node.
+     * Retrieve the index of the specified node among its siblings.
      * The index defines the order in which a node appear in a GUI scene.
      * Higher index means the node is drawn on top of lower indexed nodes.
      *
@@ -512,7 +512,7 @@ namespace dmGui
      * @return index [type:number] the index of the node
      * @examples
      *
-     * Compare the index order of two nodes:
+     * Compare the index order of two sibling nodes:
      *
      * ```lua
      * local node1 = gui.get_node("my_node_1")
