@@ -299,8 +299,8 @@ diff -u -r a/src/lj_obj.h b/src/lj_obj.h
  /* Userdata types. */
 diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
 --- a/src/msvcbuild.bat	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/msvcbuild.bat	2021-06-28 13:56:39.000000000 +0200
-@@ -12,6 +12,42 @@
++++ b/src/msvcbuild.bat	2021-06-30 15:03:59.000000000 +0200
+@@ -12,6 +12,53 @@
  
  @if not defined INCLUDE goto :FAIL
  
@@ -310,6 +310,7 @@ diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
 +@set WindowsLibPath=C:\Program Files (x86)\Windows
 +@set WindowsSDKLibVersion=10.0.19041.0\
 +@set UCRTVersion=10.0.19041.0
++@set FrameworkDir32=C:\Windows\Microsoft.NET\Framework\
 +@set FrameworkDir64=C:\Windows\Microsoft.NET\Framework64\
 +@set FrameworkVersion64=v4.0.30319
 +@set VCToolsVersion=14.29.30037
@@ -329,13 +330,23 @@ diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
 +@set PATH=%c_VSINSTALLDIR%VC/BIN;%PATH%
 +@set PATH=%c_VSINSTALLDIR%Common7/IDE/;%PATH%
 +
++@if "%3"=="win32" goto SETUP_VC_32
++@if "%3"=="x86_64-win32" goto SETUP_VC_64
++
++:SETUP_VC_32
++@set MSVC_ARCH=x86
++goto SETUP_VC
++
 +:SETUP_VC_64
-+@echo Using visual studio setup 64 bit ("amd64")
++@set MSVC_ARCH=x64
++goto SETUP_VC
++
++:SETUP_VC
++@echo Using visual studio setup %MSVC_ARCH%
 +@set INCLUDE=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\include;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\include;%WindowsSdkDir%\include\%UCRTVersion%\ucrt;%WindowsSdkDir%\include\%UCRTVersion%\shared;%WindowsSdkDir%\include\%UCRTVersion%\um;%WindowsSdkDir%\include\%UCRTVersion%\winrt;%WindowsSdkDir%\include\%UCRTVersion%\cppwinrt
-+@set LIB=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\lib\x64;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\lib\x64;%WindowsSdkDir%\lib\%UCRTVersion%\ucrt\x64;%WindowsSdkDir%\lib\%UCRTVersion%\um\x64
-+@set LIBPATH=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\lib\x64;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\lib\x64;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\lib\x86\store\references;%WindowsSdkDir%\UnionMetadata\%UCRTVersion%;%WindowsSdkDir%\References\%UCRTVersion%;C:\Windows\Microsoft.NET\Framework64\%FrameworkVersion64%
-+@set PATH=%VSINSTALLDIR%\Common7\IDE\Extensions\Microsoft\IntelliCode\CLI;%VSINSTALLDIR%\VC\Tools\MSVC\14.29.30037\bin\HostX64\x64;%VSINSTALLDIR%\Common7\IDE\VC\VCPackages;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer;%VSINSTALLDIR%\MSBuild\Current\bin\Roslyn;%VSINSTALLDIR%\Team Tools\Performance Tools\x64;%VSINSTALLDIR%\Team Tools\Performance Tools;%VSINSTALLDIR%\Common7\Tools\devinit;%VSINSTALLDIR%\MSBuild\Current\Bin;%VSINSTALLDIR%\Common7\IDE\;%VSINSTALLDIR%\Common7\Tools\;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%WindowsSdkDir%\bin\%UCRTVersion%\x64;%WindowsSdkDir%\bin\x64;C:\Windows\Microsoft.NET\Framework64\%FrameworkVersion64%
-+@set DASC=vm_x64.dasc
++@set LIB=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\lib\%MSVC_ARCH%;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\lib\%MSVC_ARCH%;%WindowsSdkDir%\lib\%UCRTVersion%\ucrt\%MSVC_ARCH%;%WindowsSdkDir%\lib\%UCRTVersion%\um\%MSVC_ARCH%
++@set LIBPATH=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\lib\%MSVC_ARCH%;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\lib\%MSVC_ARCH%;%WindowsSdkDir%\UnionMetadata\%UCRTVersion%;%WindowsSdkDir%\References\%UCRTVersion%;
++@set PATH=%VSINSTALLDIR%\Common7\IDE\Extensions\Microsoft\IntelliCode\CLI;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\bin\Host%MSVC_ARCH%\%MSVC_ARCH%;%VSINSTALLDIR%\Common7\IDE\VC\VCPackages;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer;%VSINSTALLDIR%\MSBuild\Current\bin\Roslyn;%VSINSTALLDIR%\Team Tools\Performance Tools\%MSVC_ARCH%;%VSINSTALLDIR%\Team Tools\Performance Tools;%VSINSTALLDIR%\Common7\Tools\devinit;%VSINSTALLDIR%\MSBuild\Current\Bin;%VSINSTALLDIR%\Common7\IDE\;%VSINSTALLDIR%\Common7\Tools\;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%WindowsSdkDir%\bin\%UCRTVersion%\%MSVC_ARCH%;%WindowsSdkDir%\bin\%MSVC_ARCH%
 +goto SETUP_VC_DONE
 +:SETUP_VC_DONE
 +
@@ -343,7 +354,7 @@ diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
  @setlocal
  @rem Add more debug flags here, e.g. DEBUGCFLAGS=/DLUA_USE_APICHECK
  @set DEBUGCFLAGS=
-@@ -23,7 +59,7 @@
+@@ -23,7 +70,7 @@
  @set DASM=%DASMDIR%\dynasm.lua
  @set DASC=vm_x64.dasc
  @set LJDLLNAME=lua51.dll
@@ -352,7 +363,7 @@ diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
  @set BUILDTYPE=release
  @set ALL_LIB=lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c lib_buffer.c
  
-@@ -48,6 +84,7 @@
+@@ -48,6 +95,7 @@
  @set DASC=vm_x86.dasc
  @set LJCOMPILE=%LJCOMPILE% /DLUAJIT_DISABLE_GC64
  :GC64
@@ -360,7 +371,7 @@ diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
  minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h %DASC%
  @if errorlevel 1 goto :BAD
  
-@@ -104,10 +141,10 @@
+@@ -104,10 +152,10 @@
  
  %LJCOMPILE% luajit.c
  @if errorlevel 1 goto :BAD

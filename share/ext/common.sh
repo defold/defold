@@ -172,37 +172,41 @@ function cmi_setup_vs2019_env() {
     export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\'
     export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\10\'
     export WindowsLibPath='C:\Program Files (x86)\Windows'
-    export FrameworkDir='C:\Windows\Microsoft.NET\Framework\'
+    export FrameworkDir32='C:\Windows\Microsoft.NET\Framework\'
     export FrameworkDir64='C:\Windows\Microsoft.NET\Framework64\'
     export UCRTVersion=10.0.19041.0
-    export FrameworkVersion64=v4.0.30319
+    export FrameworkVersion=v4.0.30319
     export VCToolsVersion=14.29.30037
 
     # The following should be largely installation-independent.
     export VCINSTALLDIR='${VSINSTALLDIR}VC\'
     export DevEnvDir='${VSINSTALLDIR}Common7\IDE\'
 
-    export FrameworkDIR32="$FrameworkDir"
-    export FrameworkVersion32="$FrameworkVersion"
+    arch="x64"
+    export FrameworkDir=${FrameworkDir64}
+    if [ "$1" == "win32" ]; then
+        arch="x86"
+        export FrameworkDir=${FrameworkDir32}
+    fi
 
     export INCLUDE="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\include;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\include;${WindowsSdkDir}\\include\\${UCRTVersion}\\ucrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\shared;${WindowsSdkDir}\\include\\${UCRTVersion}\\um;${WindowsSdkDir}\\include\\${UCRTVersion}\\winrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\cppwinrt"
-    export LIB="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\x64;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x64;${WindowsSdkDir}\\lib\\${UCRTVersion}\\ucrt\\x64;${WindowsSdkDir}\\lib\\${UCRTVersion}\\um\\x64"
-    export LIBPATH="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\x64;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x64;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x86\\store\\references;${WindowsSdkDir}\\UnionMetadata\\${UCRTVersion};${WindowsSdkDir}\\References\\${UCRTVersion};${FrameworkDir64}\\${FrameworkVersion64}"
+    export LIB="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\ucrt\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\um\\${arch}"
+    export LIBPATH="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x86\\store\\references;${WindowsSdkDir}\\UnionMetadata\\${UCRTVersion};${WindowsSdkDir}\\References\\${UCRTVersion};${FrameworkDir64}\\${FrameworkVersion}"
 
     c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
     c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
-    c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir64")
+    c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir")
 
     echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
     echo AFTER c_VSINSTALLDIR == $c_VSINSTALLDIR
 
     TMPPATH="${c_VSINSTALLDIR}Common7/IDE/Extensions/Microsoft/IntelliCode/CLI"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/HostX64/x64"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/Host${arch}/${arch}"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/VC/VCPackages"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TestWindow"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}MSBuild/Current/bin/Roslyn"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Team Tools/Performance Tools/x64"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Team Tools/Performance Tools/${arch}"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Team Tools/Performance Tools"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/Tools/devinit"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}MSBuild/Current/Bin"
@@ -210,9 +214,9 @@ function cmi_setup_vs2019_env() {
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/Tools/"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"
     TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
-    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/${UCRTVersion}/x64"
-    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/x64"
-    TMPPATH="${TMPPATH}:${c_FrameworkDir64}${FrameworkVersion64}"
+    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/${UCRTVersion}/${arch}"
+    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/${arch}"
+    TMPPATH="${TMPPATH}:${c_FrameworkDir64}${FrameworkVersion}"
 
     export PATH="$TMPPATH:${PATH}"
 }
