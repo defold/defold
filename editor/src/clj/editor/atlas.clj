@@ -539,9 +539,12 @@
   [animations layout-data]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
+        animation-present-in-ddf? (comp not-empty :images)
+        animations-in-ddf (filter animation-present-in-ddf?
+                                  animations)
         complete-ddf-animations (map complete-ddf-animation
                                      incomplete-ddf-animations
-                                     animations)
+                                     animations-in-ddf)
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set
                                    :animations complete-ddf-animations)]
     (assoc layout-data
