@@ -154,10 +154,11 @@ TEST_F(ScriptTest, TestPPrint)
     ASSERT_NE((const char*)0, strstr(result, "{ --[[0]]"));
     ASSERT_NE((const char*)0, strstr(result, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)"));
     ASSERT_NE((const char*)0, strstr(result, "  3 = { } --[[0]]"));
-    ASSERT_NE((const char*)0, strstr(result, "  2 = \"hello\""));
-    ASSERT_NE((const char*)0, strstr(result, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),"));
-    ASSERT_NE((const char*)0, strstr(result, "      q = vmath.quat(0, 0, 0, 1),"));
-    ASSERT_NE((const char*)0, strstr(result, "      n = vmath.vector3(0, 0, 0)"));
+    const char* s = strstr(result, "  2 = \"hello\"");
+    ASSERT_NE((const char*)0, s);
+    ASSERT_NE((const char*)0, strstr(s, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)"));
+    ASSERT_NE((const char*)0, strstr(s, "      q = vmath.quat(0, 0, 0, 1)"));
+    ASSERT_NE((const char*)0, strstr(s, "      n = vmath.vector3(0, 0, 0)"));
     ASSERT_NE((const char*)0, strstr(result, "DEBUG:SCRIPT: 5"));
 }
 
