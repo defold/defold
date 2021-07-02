@@ -87,6 +87,7 @@
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
+
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)

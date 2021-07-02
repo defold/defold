@@ -277,7 +277,8 @@ class Configuration(object):
                  version = None,
                  codesigning_identity = None,
                  windows_cert = None,
-                 windows_cert_pass = None):
+                 windows_cert_pass = None,
+                 verbose = False):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -320,6 +321,7 @@ class Configuration(object):
         self.codesigning_identity = codesigning_identity
         self.windows_cert = windows_cert
         self.windows_cert_pass = windows_cert_pass
+        self.verbose = verbose
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -1062,14 +1064,18 @@ class Configuration(object):
 
         ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
         ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        if self.verbose:
+            ant_args += ['-v']
 
         env = self._form_env()
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
         env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
         env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
-        run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
+        s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
+        if self.verbose:
+            print s
 
         self._log('Building extensions')
         extension_dir = join(self.defold_root, 'com.dynamo.cr/extensions')
@@ -1077,9 +1083,13 @@ class Configuration(object):
             cwd = os.path.join(extension_dir, d)
             if os.path.isdir(cwd):
                 self._log('Building %s' % d)
-                run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
+                s = run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
+                if self.verbose:
+                    print s
 
-        run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        s = run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        if self.verbose:
+            print s
 
     def build_engine(self):
         self.check_sdk()
@@ -1618,6 +1628,7 @@ class Configuration(object):
             run.shell_command('git fetch')
 
         # Create or update the tag for engine releases
+        tag_name = None
         if self.channel in ('stable', 'beta', 'alpha'):
             tag_name = self.create_tag()
             self.push_tag(tag_name)
@@ -1668,10 +1679,15 @@ class Configuration(object):
 # ------------------------------------------------------------
 
     def release_to_github(self):
-        release_to_github.release(self)
+        tag_name = self._get_tag_name(self.version, self.channel)
+        release_sha1 = self._git_sha1(self.version)
+        releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
 
-    def release_to_github_markdown(self): # currently only used on the private platform repos
-        release_to_github.release_markdown(self)
+        #Hack since the no-channel bucket is the one containing both bob and editors
+        channel = self.channel
+        self.channel = ''
+        release_to_github.release(self, tag_name, release_sha1, releases[0])
+        self.channel = channel
 
     def sync_archive(self):
         u = urlparse.urlparse(self.get_archive_path())
@@ -1870,7 +1886,10 @@ class Configuration(object):
 # END: SMOKE TEST
 # ------------------------------------------------------------
     def get_archive_path(self, channel=None):
-        return join(self.archive_path, channel or self.channel)
+        if channel is None:
+            channel = self.channel
+        assert(type(channel) == str)
+        return join(self.archive_path, channel)
 
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
@@ -2201,6 +2220,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Path to file containing password to codesigning certificate for Windows version of the editor')
 
+    parser.add_option('--verbose', dest='verbose',
+                      action = 'store_true',
+                      default = False,
+                      help = 'If used, outputs verbose logging')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2240,7 +2264,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       version = options.version,
                       codesigning_identity = options.codesigning_identity,
                       windows_cert = options.windows_cert,
-                      windows_cert_pass = options.windows_cert_pass)
+                      windows_cert_pass = options.windows_cert_pass,
+                      verbose = options.verbose)
 
     for cmd in args:
         f = getattr(c, cmd, None)

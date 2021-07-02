@@ -7,16 +7,17 @@ RUN \
   apt-get install -y software-properties-common && \
   add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
-  apt-get install -y openjdk-11-jdk && \
-  apt install -y openjdk-8-jdk
+  apt-get install -y openjdk-11-jdk
 
-# We still use GCC-5: https://askubuntu.com/a/1087368
+# Using the vanilla GCC (7.5.0) and Clang (6.0.0)
 
 RUN \
+  dpkg --add-architecture i386 && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-    gcc-5 \
-    g++-5 \
+    gcc \
+    g++ \
+    clang \
     libssl-dev \
     openssl \
     libtool \
@@ -28,24 +29,9 @@ RUN \
     libopenal-dev \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
-    freeglut3-dev && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 10 && \
-	update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20 && \
-	update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 10 && \
-	update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20 && \
-	update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30 && \
-	update-alternatives --set cc /usr/bin/gcc && \
-	update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30 && \
-	update-alternatives --set c++ /usr/bin/g++
-
-RUN \
-  apt-get update && \
-  apt-get install -y --no-install-recommends \
-    clang-6.0 && \
-    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-6.0 1000 && \
-    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 1000 && \
-    update-alternatives --config clang && \
-    update-alternatives --config clang++
+    freeglut3-dev \
+    gcc-multilib \
+    g++-multilib
 
 RUN \
   apt-get install -y --no-install-recommends \
