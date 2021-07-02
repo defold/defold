@@ -621,6 +621,16 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, leading), metrics.m_Height);
 }
 
+TEST_F(dmRenderTest, GetTextMetricsSkipWhitespace)
+{
+    dmRender::TextMetrics metricsSingleLine;
+    dmRender::TextMetrics metricsMultiLine;
+
+    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLine);
+    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLine);
+    ASSERT_NE(metricsMultiLine.m_Width, metricsSingleLine.m_Width);
+}
+
 TEST_F(dmRenderTest, TextAlignment)
 {
     dmRender::TextMetrics metrics;

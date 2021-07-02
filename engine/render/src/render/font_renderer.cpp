@@ -679,7 +679,11 @@ namespace dmRender
 
         LayoutMetrics lm(font_map, tracking);
         float layout_width;
-        int line_count = Layout(text, width, lines, max_lines, &layout_width, lm);
+        // Whitespace characters should be ignored when rendering multiline text.
+        // For single line text we still want to include whitespaces when the
+        // text layout is calculated (https://github.com/defold/defold/issues/5911)
+        bool skip_whitespace = te.m_LineBreak;
+        int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, skip_whitespace);
         float x_offset = OffsetX(te.m_Align, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
@@ -1158,7 +1162,11 @@ namespace dmRender
 
         LayoutMetrics lm(font_map, tracking * line_height);
         float layout_width;
-        uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm);
+        // Whitespace characters should be ignored for multiline text.
+        // For single line text we still want to include whitespaces in text
+        // metrics calculations (https://github.com/defold/defold/issues/5911)
+        bool skip_whitepace = line_break;
+        uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm, skip_whitepace);
         metrics->m_Width = layout_width;
         metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
     }
