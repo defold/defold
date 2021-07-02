@@ -33,6 +33,7 @@ namespace dmGraphics
 
     struct DeviceBuffer
     {
+        DeviceBuffer(){}
         DeviceBuffer(const VkBufferUsageFlags usage)
         : m_MappedDataPtr(0)
         , m_Usage(usage)
@@ -62,8 +63,6 @@ namespace dmGraphics
 
     struct Texture
     {
-    	Texture();
-
         struct VulkanHandle
         {
             VkImage     m_Image;
@@ -348,7 +347,7 @@ namespace dmGraphics
     {
         dmArray<VkImage>      m_Images;
         dmArray<VkImageView>  m_ImageViews;
-        Texture               m_ResolveTexture;
+        Texture*              m_ResolveTexture;
         const VkSurfaceKHR    m_Surface;
         const QueueFamily     m_QueueFamily;
         VkSurfaceFormatKHR    m_SurfaceFormat;
@@ -358,7 +357,8 @@ namespace dmGraphics
         uint8_t               m_ImageIndex;
 
         SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
-            const SwapChainCapabilities& capabilities, const QueueFamily queueFamily);
+            const SwapChainCapabilities& capabilities, const QueueFamily queueFamily,
+            Texture* resolveTexture);
         VkResult Advance(VkDevice vk_device, VkSemaphore);
         bool     HasMultiSampling();
     };
@@ -527,6 +527,7 @@ namespace dmGraphics
 
     // called from OpenWindow
     bool InitializeVulkan(HContext context, const WindowParams* params);
+    void InitializeVulkanTexture(Texture* t);
 
     void OnWindowResize(int width, int height);
     int OnWindowClose();
@@ -549,9 +550,7 @@ namespace dmGraphics
     void     LoadVulkanFunctions(VkInstance vk_instance);
 
 
-    void SwapBuffers();
-
-
+    void NativeSwapBuffers(HContext context);
     bool NativeInit(const struct ContextParams& params);
     void NativeExit();
 

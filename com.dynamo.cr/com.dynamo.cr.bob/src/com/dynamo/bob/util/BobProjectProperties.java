@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,7 +24,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
@@ -268,6 +271,40 @@ public class BobProjectProperties {
         return dst;
     }
 
+    static private void mergeMultilineKey(Map<String, Map<String, String>> properties, String group, String keyToMerge) {
+        Map<String, String> propGroup = properties.get(group);
+        if (propGroup == null) {
+            return;
+        }
+        // TreeMap implements SortedMap which give us values sorted by key
+        // find all matching keys and add them based on their indices, ie foo.0,
+        // foo.1, foo.123 etc
+        // a key without an index in the key name is treated as having index 0
+        Map<Integer, String> values = new TreeMap<Integer, String>();
+        for(String key : propGroup.keySet().stream().collect(Collectors.toList())) {
+            if (key.startsWith(keyToMerge)) {
+                int index = 0;
+                int keyIndex = key.indexOf("#");
+                if (keyIndex != -1) {
+                    try {
+                        index = Integer.parseInt(key.substring(keyIndex + 1).trim());
+                    }
+                    catch(Exception e) {
+                        continue;
+                    }
+                }
+                String value = propGroup.get(key);
+                values.put(index, value);
+                propGroup.remove(key);
+            }
+        }
+        if (!values.isEmpty()) {
+            // merge the individual values back to a single long comma separated list in memory
+            String mergedValues = values.values().stream().collect(Collectors.joining(","));
+            propGroup.put(keyToMerge, mergedValues);
+        }
+    }
+
     static private Map<String, Map<String, String>> doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
         Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
@@ -409,6 +446,7 @@ public class BobProjectProperties {
     public void load(InputStream in) throws IOException, ParseException {
         try {
             Map<String, Map<String, String>> props = doLoad(in, null);
+            mergeMultilineKey(props, "project", "dependencies");
             // remove any properties in props from defaults
             removeProperties(defaults, props);
             // merge into properties

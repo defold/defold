@@ -63,7 +63,8 @@ namespace dmGameSystem
         dmRig::HRigInstance         m_RigInstance;
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
-        CompRenderConstants         m_RenderConstants;
+        int                         m_FunctionRef;
+        HComponentRenderConstants   m_RenderConstants;
         dmRender::HMaterial         m_Material;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;

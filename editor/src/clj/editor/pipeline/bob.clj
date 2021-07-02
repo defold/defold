@@ -29,6 +29,7 @@
     [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
+    [org.apache.commons.io FilenameUtils]
     [java.io File InputStream]
     [java.net URI]))
 
@@ -36,6 +37,46 @@
 
 (def skip-dirs #{".git" "build/default" ".internal"})
 (def html5-url-prefix "/html5")
+(def html5-mime-types {"js" "application/javascript",
+                       "json" "application/json",
+                       "wasm" "application/wasm",
+                       "webmanifest" "application/manifest+json",
+                       "xhtml" "application/xhtml+xml",
+                       "zip" "application/zip",
+                       "aac" "audio/aac",
+                       "mp3" "audio/mp3",
+                       "m4a" "audio/mp4",
+                       "oga" "audio/ogg",
+                       "ogg" "audio/ogg",
+                       "wav" "audio/wav",
+                       "woff" "font/woff",
+                       "woff2" "font/woff2",
+                       "apng" "image/apng",
+                       "avif" "image/avif",
+                       "bmp" "image/bmp",
+                       "gif" "image/gif",
+                       "jpeg" "image/jpeg",
+                       "jpg" "image/jpeg",
+                       "jfif" "image/jpeg",
+                       "pjpeg" "image/jpeg",
+                       "pjp" "image/jpeg",
+                       "png" "image/png",
+                       "svg" "image/svg+xml",
+                       "webp" "image/webp",
+                       "cur" "image/x-icon",
+                       "ico" "image/x-icon",
+                       "tif" "image/tif",
+                       "tiff" "image/tiff",
+                       "css" "text/css",
+                       "htm" "text/html",
+                       "html" "text/html",
+                       "shtml" "text/html",
+                       "txt" "text/plain",
+                       "xml" "text/xml",
+                       "mp4" "video/mp4",
+                       "ogv" "video/ogg",
+                       "webm" "video/webm",
+                       "m4v" "video/x-m4v"})
 
 (defn ->progress
   ([render-progress!]
@@ -128,7 +169,7 @@
         (doseq [[key val] bob-args]
           (.setOption bob-project key val))
         (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-        (let [scanner (ClassLoaderScanner.)]
+        (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
           (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
             (.scan bob-project scanner pkg)))
         (let [deps (workspace/dependencies ws)]
@@ -283,10 +324,9 @@
        :headers {"Location" (str html5-url-prefix "/index.html")}}
 
       (let [served-file   (try-resolve-html5-file project url)
-            extra-headers (when (clojure.string/ends-with?
-                                  (clojure.string/lower-case url)
-                                  ".wasm")
-                                {"Content-Type" "application/wasm"})]
+            extra-headers {"Content-Type" (html5-mime-types
+                                            (FilenameUtils/getExtension (clojure.string/lower-case url))
+                                            "application/octet-stream")}]
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.
           (or (nil? served-file) (.isDirectory served-file))

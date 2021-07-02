@@ -2,15 +2,29 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+
+LICENSE="""
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+"""
 
 
 from optparse import OptionParser
@@ -334,7 +348,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.p('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.p('"%s",', to_lower_case(message_type.name))
-    pp_cpp.p('0x%016XLL,', dlib.dmHashBuffer64(to_lower_case(message_type.name)))
+    pp_cpp.p('0x%016XULL,', dlib.dmHashBuffer64(to_lower_case(message_type.name)))
     pp_cpp.p('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.p('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     if len(lst) > 0:
@@ -348,7 +362,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
+    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
 
     pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s_%s(&%s_%s_DESCRIPTOR);' % (namespace, message_type.name, namespace, message_type.name))
 
@@ -454,7 +468,7 @@ def to_java_descriptor(context, pp, message_type, proto_package, java_package, q
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    #pp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
+    #pp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
 
 def to_java_class(context, pp, message_type, proto_package, java_package, qualified_proto_package):
     # Calculate maximum length of "type"
@@ -578,6 +592,11 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     f_h = StringIO()
     pp_h = PrettyPrinter(f_h, 0)
 
+    pp_h.p(LICENSE)
+    pp_h.p("")
+    pp_h.p("// GENERATED FILE! DO NOT EDIT!");
+    pp_h.p("")
+
     guard_name = base_name.upper() + "_H"
     pp_h.p('#ifndef %s', guard_name)
     pp_h.p('#define %s', guard_name)
@@ -585,10 +604,11 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
 
     pp_h.p('#include <stdint.h>')
     pp_h.p('#include <assert.h>')
+    pp_h.p('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
         if not 'ddf_extensions' in d:
             pp_h.p('#include "%s"', d.replace(".proto", ".h"))
-    pp_h.p('#include <dlib/align.h>')
+    pp_h.p('#include <dmsdk/dlib/align.h>')
 
     for i in includes:
         pp_h.p('#include "%s"', i)

@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
 #include <pthread.h>
 #include <limits.h>
 #include <unistd.h>
@@ -119,7 +119,7 @@ namespace dmThread
      * automatically released back to the system without the need for another
      * thread to join with the terminated thread.
      * @name dmThread::Join
-     * @param thread Thread to join
+     * @param thread Thread to detach
      */
     void Detach(Thread thread);
 

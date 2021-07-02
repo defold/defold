@@ -32,10 +32,14 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_model.h"
+#include "../resources/res_rig_scene.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_animationset.h"
+#include "../resources/res_meshset.h"
 #include "comp_private.h"
 
-#include "gamesys_ddf.h"
-#include "model_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/model_ddf.h>
 
 using namespace Vectormath::Aos;
 
@@ -53,7 +57,8 @@ namespace dmGameSystem
         dmRig::HRigInstance         m_RigInstance;
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
-        CompRenderConstants         m_RenderConstants;
+        int                         m_FunctionRef;
+        HComponentRenderConstants   m_RenderConstants;
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmRender::HMaterial         m_Material;
 
@@ -199,8 +204,8 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                dmMessage::ResetURL(component->m_Listener);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, component->m_FunctionRef, descriptor, &message, data_size, 0);
+                dmMessage::ResetURL(&component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send animation_done to listener.");
@@ -249,7 +254,9 @@ namespace dmGameSystem
             dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
-        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        if (component->m_RenderConstants) {
+            dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
+        }
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
@@ -358,12 +365,14 @@ namespace dmGameSystem
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         ModelResource* resource = (ModelResource*)params.m_Resource;
         component->m_Resource = resource;
-        dmMessage::ResetURL(component->m_Listener);
+        dmMessage::ResetURL(&component->m_Listener);
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
+        component->m_FunctionRef = 0;
+        component->m_RenderConstants = 0;
 
         // Create GO<->bone representation
         // We need to make sure that bone GOs are created before we start the default animation.
@@ -424,6 +433,10 @@ namespace dmGameSystem
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
+        if (component->m_RenderConstants) {
+            dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
+        }
+
         delete component;
         world->m_Components.Free(index, true);
     }
@@ -455,7 +468,7 @@ namespace dmGameSystem
             dmRender::RenderObject& ro = *world->m_RenderObjects.End();
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
-            const ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
+            ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
             const ModelResource* mr = component->m_Resource;
             assert(mr->m_VertexBuffer);
 
@@ -479,11 +492,8 @@ namespace dmGameSystem
                 ro.m_Textures[i] = GetTexture(component, mr, i);
             }
 
-            const CompRenderConstants& constants = component->m_RenderConstants;
-            for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
-            {
-                const dmRender::Constant& c = constants.m_RenderConstants[i];
-                dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+            if (component->m_RenderConstants) {
+                dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
             }
 
             dmRender::AddToRender(render_context, &ro);
@@ -550,12 +560,8 @@ namespace dmGameSystem
             ro.m_Textures[i] = GetTexture(first, resource, i);
         }
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
-        uint32_t size = first->m_RenderConstants.m_ConstantCount;
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            const dmRender::Constant& c = constants[i];
-            dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+        if (first->m_RenderConstants) {
+            dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
         }
 
         dmRender::AddToRender(render_context, &ro);
@@ -639,7 +645,7 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
+            if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
             {
                 ReHash(&component);
             }
@@ -746,14 +752,17 @@ namespace dmGameSystem
     static bool CompModelGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         ModelComponent* component = (ModelComponent*)user_data;
-        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
+        if (!component->m_RenderConstants)
+            return false;
+        return GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         ModelComponent* component = (ModelComponent*)user_data;
-
-        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        if (!component->m_RenderConstants)
+            component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -779,6 +788,7 @@ namespace dmGameSystem
                 if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
+                    component->m_FunctionRef = params.m_Message->m_UserData2;
                 }
             }
             else if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
@@ -803,7 +813,7 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
+                if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;
                 }

@@ -195,10 +195,7 @@ namespace dmCrash
 
         WriteCrash(g_FilePath, &g_AppState);
 
-        bool is_debug_mode = dLib::IsDebugMode();
-        dLib::SetDebugMode(true);
-        dmLogError("CALL STACK:\n\n%s\n", g_AppState.m_Extra);
-        dLib::SetDebugMode(is_debug_mode);
+        LogCallstack(g_AppState.m_Extra);
     }
 
     void WriteDump()

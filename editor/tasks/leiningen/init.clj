@@ -55,6 +55,12 @@
       "archived"        (sha-from-ref "HEAD")
       version)))
 
+(defn- resolve-archive-domain
+  [user_domain]
+  (let [default_domain "d.defold.com"
+        env_domain (System/getenv "DM_ARCHIVE_DOMAIN")]
+        (or user_domain env_domain default_domain)))
+
 (def init-tasks
   [["clean"]
    ["local-jars"]
@@ -73,7 +79,7 @@
     - archive-domain: domain where engine artifacts are stored"
   [project & [version archive-domain]]
   (let [git-sha (resolve-version version)
-        archive-domain (or archive-domain "d.defold.com")
+        archive-domain (resolve-archive-domain archive-domain)
         project (assoc project :archive-domain archive-domain :engine git-sha)]
     (println (format "Initializing editor with version '%s', resolved to '%s'. Using archive domain '%s'." version (get project :engine) (get project :archive-domain)))
     (doseq [task+args init-tasks]

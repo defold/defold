@@ -2193,9 +2193,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
     {
         int custom_ref = LUA_NOREF;
-        if (message->m_Receiver.m_FunctionRef) {
+        if (message->m_UserData2) {
             // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-            custom_ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
+            custom_ref = message->m_UserData2 + LUA_NOREF;
             // RunScript method will DeRef the custom_ref if it is not LUA_NOREF
         }
 
@@ -4140,9 +4140,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 && node_pos.getY() <= 1.0f;
     }
 
-    bool IsNodeEnabled(HScene scene, HNode node)
+    bool IsNodeEnabled(HScene scene, HNode node, bool recursive)
     {
         InternalNode* n = GetNode(scene, node);
+        if (recursive)
+        {
+            return IsNodeEnabledRecursive(scene, n->m_Index);
+        }
         return n->m_Node.m_Enabled;
     }
 

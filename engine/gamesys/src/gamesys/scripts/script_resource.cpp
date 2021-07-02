@@ -16,13 +16,14 @@
 #include <dlib/dstrings.h>
 #include <resource/resource.h>
 #include <graphics/graphics_ddf.h>
-#include "mesh_ddf.h"
-#include <script/script.h>
+#include <gamesys/mesh_ddf.h>
 #include <liveupdate/liveupdate.h>
 #include "../gamesys.h"
 #include "script_resource_liveupdate.h"
 #include "../resources/res_buffer.h"
 
+#include <dmsdk/script/script.h>
+#include <dmsdk/gamesys/script.h>
 
 namespace dmGameSystem
 {

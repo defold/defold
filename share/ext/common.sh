@@ -12,14 +12,13 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-# config
-
 set -e
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-IOS_SDK_VERSION=13.1
-IOS_SIMULATOR_SDK_VERSION=13.1
+# config
+IOS_SDK_VERSION=14.0
+IOS_SIMULATOR_SDK_VERSION=14.0
 IOS_MIN_SDK_VERSION=8.0
 
 OSX_MIN_SDK_VERSION=10.7
@@ -28,7 +27,7 @@ OSX_SDK_VERSION=10.15
 OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
-DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault11.1.xctoolchain
+DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault12.1.xctoolchain
 
 ANDROID_NDK_VERSION=20
 ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
@@ -40,6 +39,7 @@ ANDROID_64_VERSION=21 # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
 
 MAKEFILE=Makefile
+MAKEFILE_ARGS=
 
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
 CURL="curl -L -O"
@@ -55,7 +55,7 @@ function download() {
 
 function cmi_make() {
     set -e
-    make -f $MAKEFILE -j8
+    make -f $MAKEFILE $MAKEFILE_ARGS -j8
     make install
     set +e
 }
@@ -165,44 +165,60 @@ function path_to_posix() {
     echo "$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
 }
 
-function cmi_setup_vs2015_env() {
+function cmi_setup_vs2019_env() {
     # from https://stackoverflow.com/a/3272301
 
     # These lines will be installation-dependent.
-    export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio 14.0\'
-    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\8.0'
-    export FrameworkDir='C:\WINDOWS\Microsoft.NET\Framework\'
+    export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\'
+    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\10\'
+    export WindowsLibPath='C:\Program Files (x86)\Windows'
+    export FrameworkDir32='C:\Windows\Microsoft.NET\Framework\'
+    export FrameworkDir64='C:\Windows\Microsoft.NET\Framework64\'
+    export UCRTVersion=10.0.19041.0
     export FrameworkVersion=v4.0.30319
-    export Framework35Version=v3.5
+    export VCToolsVersion=14.29.30037
 
     # The following should be largely installation-independent.
-    export VCINSTALLDIR="$VSINSTALLDIR"'VC\'
-    export DevEnvDir="$VSINSTALLDIR"'Common7\IDE\'
+    export VCINSTALLDIR='${VSINSTALLDIR}VC\'
+    export DevEnvDir='${VSINSTALLDIR}Common7\IDE\'
 
-    export FrameworkDIR32="$FrameworkDir"
-    export FrameworkVersion32="$FrameworkVersion"
+    arch="x64"
+    export FrameworkDir=${FrameworkDir64}
+    if [ "$1" == "win32" ]; then
+        arch="x86"
+        export FrameworkDir=${FrameworkDir32}
+    fi
 
-    export INCLUDE="${VCINSTALLDIR}INCLUDE;${WindowsSdkDir}include;"
-    export LIB="${VCINSTALLDIR}LIB;${WindowsSdkDir}lib;"
-    export LIBPATH="${FrameworkDir}${FrameworkVersion};"
-    export LIBPATH="${LIBPATH}${FrameworkDir}${Framework35Version};"
-    export LIBPATH="${LIBPATH}${VCINSTALLDIR}LIB;"
+    export INCLUDE="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\include;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\include;${WindowsSdkDir}\\include\\${UCRTVersion}\\ucrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\shared;${WindowsSdkDir}\\include\\${UCRTVersion}\\um;${WindowsSdkDir}\\include\\${UCRTVersion}\\winrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\cppwinrt"
+    export LIB="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\ucrt\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\um\\${arch}"
+    export LIBPATH="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x86\\store\\references;${WindowsSdkDir}\\UnionMetadata\\${UCRTVersion};${WindowsSdkDir}\\References\\${UCRTVersion};${FrameworkDir64}\\${FrameworkVersion}"
 
     c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
     c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
-    c_FrameworkDir=$(windows_path_to_posix "$FrameworkDir")
+    c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir")
 
     echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
-    echo BEFORE c_VSINSTALLDIR == $c_VSINSTALLDIR
+    echo AFTER c_VSINSTALLDIR == $c_VSINSTALLDIR
 
-    export PATH="${c_WindowsSdkDir}bin:$PATH"
-    export PATH="${c_WindowsSdkDir}bin/NETFX 4.0 Tools:$PATH"
-    export PATH="${c_VSINSTALLDIR}VC/VCPackages:$PATH"
-    export PATH="${c_FrameworkDir}${Framework35Version}:$PATH"
-    export PATH="${c_FrameworkDir}${FrameworkVersion}:$PATH"
-    export PATH="${c_VSINSTALLDIR}Common7/Tools:$PATH"
-    export PATH="${c_VSINSTALLDIR}VC/BIN:$PATH"
-    export PATH="${c_VSINSTALLDIR}Common7/IDE/:$PATH"
+    TMPPATH="${c_VSINSTALLDIR}Common7/IDE/Extensions/Microsoft/IntelliCode/CLI"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/Host${arch}/${arch}"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/VC/VCPackages"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TestWindow"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}MSBuild/Current/bin/Roslyn"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Team Tools/Performance Tools/${arch}"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Team Tools/Performance Tools"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/Tools/devinit"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}MSBuild/Current/Bin"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/Tools/"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"
+    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
+    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/${UCRTVersion}/${arch}"
+    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/${arch}"
+    TMPPATH="${TMPPATH}:${c_FrameworkDir64}${FrameworkVersion}"
+
+    export PATH="$TMPPATH:${PATH}"
 }
 
 function cmi() {

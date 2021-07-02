@@ -22,7 +22,7 @@
 #include <render/render.h>
 
 #include "../gamesys.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 
 #include "resources/res_particlefx.h"
@@ -177,9 +177,6 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        sender.m_FunctionRef = 0;
-        receiver.m_FunctionRef = 0;
 
         if (top > 1 && !lua_isnil(L, 2))
         {

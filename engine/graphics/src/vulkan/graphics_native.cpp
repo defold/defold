@@ -238,6 +238,7 @@ namespace dmGraphics
                 free(context->m_DynamicOffsetBuffer);
             }
 
+            delete context->m_SwapChain->m_ResolveTexture;
             delete context->m_SwapChain;
         }
     }
@@ -325,7 +326,7 @@ namespace dmGraphics
         }
     }
 
-    void SwapBuffers()
+    void NativeSwapBuffers(HContext context)
     {
     #if (defined(__arm__) || defined(__arm64__))
         glfwSwapBuffers();

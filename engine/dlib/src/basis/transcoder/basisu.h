@@ -1,5 +1,5 @@
 // basisu.h
-// Copyright (C) 2019-2020 Binomial LLC. All Rights Reserved.
+// Copyright (C) 2019-2021 Binomial LLC. All Rights Reserved.
 // Important: If compiling with gcc, be sure strict aliasing is disabled: -fno-strict-aliasing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,10 +41,6 @@
 			#endif
 		#endif // defined(_DEBUG) || defined(DEBUG)
 
-		#ifndef NOMINMAX
-			#define NOMINMAX
-		#endif
-
 	#endif // BASISU_NO_ITERATOR_DEBUG_LEVEL
 
 #endif // _MSC_VER
@@ -63,9 +59,10 @@
 #include <functional>
 #include <iterator>
 #include <type_traits>
-#include <vector>
 #include <assert.h>
 #include <random>
+
+#include "basisu_containers.h"
 
 #ifdef max
 #undef max
@@ -108,16 +105,17 @@ namespace basisu
 	const char BASISU_PATH_SEPERATOR_CHAR = '/';
 #endif
 
-	typedef std::vector<uint8_t> uint8_vec;
-	typedef std::vector<int16_t> int16_vec;
-	typedef std::vector<uint16_t> uint16_vec;
-	typedef std::vector<uint32_t> uint_vec;
-	typedef std::vector<uint64_t> uint64_vec;
-	typedef std::vector<int> int_vec;
-	typedef std::vector<bool> bool_vec;
+	typedef basisu::vector<uint8_t> uint8_vec;
+	typedef basisu::vector<int16_t> int16_vec;
+	typedef basisu::vector<uint16_t> uint16_vec;
+	typedef basisu::vector<uint32_t> uint_vec;
+	typedef basisu::vector<uint64_t> uint64_vec;
+	typedef basisu::vector<int> int_vec;
+	typedef basisu::vector<bool> bool_vec;
 
 	void enable_debug_printf(bool enabled);
 	void debug_printf(const char *pFmt, ...);
+		
 
 	template <typename T> inline void clear_obj(T& obj) { memset(&obj, 0, sizeof(obj)); }
 
@@ -126,7 +124,7 @@ namespace basisu
 	template <typename S> inline S maximum(S a, S b) { return (a > b) ? a : b; }
 	template <typename S> inline S maximum(S a, S b, S c) { return maximum(maximum(a, b), c); }
 	template <typename S> inline S maximum(S a, S b, S c, S d) { return maximum(maximum(maximum(a, b), c), d); }
-
+	
 	template <typename S> inline S minimum(S a, S b) {	return (a < b) ? a : b; }
 	template <typename S> inline S minimum(S a, S b, S c) {	return minimum(minimum(a, b), c); }
 	template <typename S> inline S minimum(S a, S b, S c, S d) { return minimum(minimum(minimum(a, b), c), d); }
@@ -150,7 +148,7 @@ namespace basisu
 	inline uint32_t iabs(int32_t i) { return (i < 0) ? static_cast<uint32_t>(-i) : static_cast<uint32_t>(i);	}
 	inline uint64_t iabs64(int64_t i) {	return (i < 0) ? static_cast<uint64_t>(-i) : static_cast<uint64_t>(i); }
 
-	template<typename T> inline void clear_vector(T &vec) { vec.erase(vec.begin(), vec.end()); }
+	template<typename T> inline void clear_vector(T &vec) { vec.erase(vec.begin(), vec.end()); }		
 	template<typename T> inline typename T::value_type *enlarge_vector(T &vec, size_t n) { size_t cs = vec.size(); vec.resize(cs + n); return &vec[cs]; }
 
 	inline bool is_pow2(uint32_t x) { return x && ((x & (x - 1U)) == 0U); }
@@ -163,8 +161,8 @@ namespace basisu
 
 	template<typename T> inline T saturate(T val) { return clamp(val, 0.0f, 1.0f); }
 
-	template<typename T, typename R> inline void append_vector(T &vec, const R *pObjs, size_t n)
-	{
+	template<typename T, typename R> inline void append_vector(T &vec, const R *pObjs, size_t n) 
+	{ 
 		if (n)
 		{
 			const size_t cur_s = vec.size();
@@ -210,7 +208,7 @@ namespace basisu
 		for (size_t i = 0; i < vec.size(); i++)
 			vec[i] = obj;
 	}
-
+		
 	inline uint64_t read_be64(const void *p)
 	{
 		uint64_t val = 0;
@@ -259,41 +257,105 @@ namespace basisu
 		return true;
 	}
 
-	// Always little endian 2-4 byte unsigned int
+	static inline uint32_t read_le_dword(const uint8_t *pBytes)
+	{
+		return (pBytes[3] << 24U) | (pBytes[2] << 16U) | (pBytes[1] << 8U) | (pBytes[0]);
+	}
+
+	static inline void write_le_dword(uint8_t* pBytes, uint32_t val)
+	{
+		pBytes[0] = (uint8_t)val;
+		pBytes[1] = (uint8_t)(val >> 8U);
+		pBytes[2] = (uint8_t)(val >> 16U);
+		pBytes[3] = (uint8_t)(val >> 24U);
+	}
+		
+	// Always little endian 1-8 byte unsigned int
 	template<uint32_t NumBytes>
 	struct packed_uint
 	{
 		uint8_t m_bytes[NumBytes];
 
-		inline packed_uint() { static_assert(NumBytes <= 4, "NumBytes <= 4"); }
-		inline packed_uint(uint32_t v) { *this = v; }
+		inline packed_uint() { static_assert(NumBytes <= sizeof(uint64_t), "Invalid NumBytes"); }
+		inline packed_uint(uint64_t v) { *this = v; }
 		inline packed_uint(const packed_uint& other) { *this = other; }
+						
+		inline packed_uint& operator= (uint64_t v) 
+		{ 
+			for (uint32_t i = 0; i < NumBytes; i++) 
+				m_bytes[i] = static_cast<uint8_t>(v >> (i * 8)); 
+			return *this; 
+		}
 
-		inline packed_uint& operator= (uint32_t v) { for (uint32_t i = 0; i < NumBytes; i++) m_bytes[i] = static_cast<uint8_t>(v >> (i * 8)); return *this; }
-		inline packed_uint& operator= (const packed_uint& rhs) { memcpy(m_bytes, rhs.m_bytes, sizeof(m_bytes)); return *this; }
+		inline packed_uint& operator= (const packed_uint& rhs) 
+		{ 
+			memcpy(m_bytes, rhs.m_bytes, sizeof(m_bytes)); 
+			return *this;
+		}
 
 		inline operator uint32_t() const
 		{
 			switch (NumBytes)
 			{
-				case 1:  return  m_bytes[0];
-				case 2:  return (m_bytes[1] << 8U) | m_bytes[0];
-				case 3:  return (m_bytes[2] << 16U) | (m_bytes[1] << 8U) | (m_bytes[0]);
-				default: return (m_bytes[3] << 24U) | (m_bytes[2] << 16U) | (m_bytes[1] << 8U) | (m_bytes[0]);
+				case 1:  
+				{
+					return  m_bytes[0];
+				}
+				case 2:  
+				{
+					return (m_bytes[1] << 8U) | m_bytes[0];
+				}
+				case 3:  
+				{
+					return (m_bytes[2] << 16U) | (m_bytes[1] << 8U) | m_bytes[0];
+				}
+				case 4:  
+				{
+					return read_le_dword(m_bytes);
+				}
+				case 5:
+				{
+					uint32_t l = read_le_dword(m_bytes);
+					uint32_t h = m_bytes[4];
+					return static_cast<uint64_t>(l) | (static_cast<uint64_t>(h) << 32U);
+				}
+				case 6:
+				{
+					uint32_t l = read_le_dword(m_bytes);
+					uint32_t h = (m_bytes[5] << 8U) | m_bytes[4];
+					return static_cast<uint64_t>(l) | (static_cast<uint64_t>(h) << 32U);
+				}
+				case 7:
+				{
+					uint32_t l = read_le_dword(m_bytes);
+					uint32_t h = (m_bytes[6] << 16U) | (m_bytes[5] << 8U) | m_bytes[4];
+					return static_cast<uint64_t>(l) | (static_cast<uint64_t>(h) << 32U);
+				}
+				case 8:  
+				{
+					uint32_t l = read_le_dword(m_bytes);
+					uint32_t h = read_le_dword(m_bytes + 4);
+					return static_cast<uint64_t>(l) | (static_cast<uint64_t>(h) << 32U);
+				}
+				default: 
+				{
+					assert(0);
+					return 0;
+				}
 			}
 		}
 	};
 
 	enum eZero { cZero };
 	enum eNoClamp { cNoClamp };
-
+	
 	// Rice/Huffman entropy coding
-
+		
 	// This is basically Deflate-style canonical Huffman, except we allow for a lot more symbols.
 	enum
 	{
-		cHuffmanMaxSupportedCodeSize = 16, cHuffmanMaxSupportedInternalCodeSize = 31,
-		cHuffmanFastLookupBits = 10,
+		cHuffmanMaxSupportedCodeSize = 16, cHuffmanMaxSupportedInternalCodeSize = 31, 
+		cHuffmanFastLookupBits = 10, 
 		cHuffmanMaxSymsLog2 = 14, cHuffmanMaxSyms = 1 << cHuffmanMaxSymsLog2,
 
 		// Small zero runs
@@ -316,16 +378,16 @@ namespace basisu
 
 	// GPU texture formats
 
-	enum texture_format
+	enum class texture_format
 	{
 		cInvalidTextureFormat = -1,
-
+		
 		// Block-based formats
 		cETC1,			// ETC1
 		cETC1S,			// ETC1 (subset: diff colors only, no subblocks)
 		cETC2_RGB,		// ETC2 color block (basisu doesn't support ETC2 planar/T/H modes - just basic ETC1)
 		cETC2_RGBA,		// ETC2 EAC alpha block followed by ETC2 color block
-		cETC2_ALPHA,	// ETC2 EAC alpha block
+		cETC2_ALPHA,	// ETC2 EAC alpha block 
 		cBC1,				// DXT1
 		cBC3,				// DXT5 (BC4/DXT5A block followed by a BC1/DXT1 block)
 		cBC4,				// DXT5A
@@ -340,10 +402,10 @@ namespace basisu
 		cPVRTC2_4_RGBA,
 		cETC2_R11_EAC,
 		cETC2_RG11_EAC,
-		cUASTC4x4,
+		cUASTC4x4,		
 		cBC1_NV,
 		cBC1_AMD,
-
+		
 		// Uncompressed/raw pixels
 		cRGBA32,
 		cRGB565,
@@ -356,21 +418,21 @@ namespace basisu
 	{
 		switch (fmt)
 		{
-		case cETC1:
-		case cETC1S:
-		case cETC2_RGB:
-		case cETC2_ALPHA:
-		case cBC1:
-		case cBC1_NV:
-		case cBC1_AMD:
-		case cBC4:
-		case cPVRTC1_4_RGB:
-		case cPVRTC1_4_RGBA:
-		case cATC_RGB:
-		case cPVRTC2_4_RGBA:
-		case cETC2_R11_EAC:
+		case texture_format::cETC1:
+		case texture_format::cETC1S:
+		case texture_format::cETC2_RGB:
+		case texture_format::cETC2_ALPHA:
+		case texture_format::cBC1:
+		case texture_format::cBC1_NV:
+		case texture_format::cBC1_AMD:
+		case texture_format::cBC4:
+		case texture_format::cPVRTC1_4_RGB:
+		case texture_format::cPVRTC1_4_RGBA:
+		case texture_format::cATC_RGB:
+		case texture_format::cPVRTC2_4_RGBA:
+		case texture_format::cETC2_R11_EAC:
 			return 8;
-		case cRGBA32:
+		case texture_format::cRGBA32:
 			return sizeof(uint32_t) * 16;
 		default:
 			break;
@@ -388,7 +450,7 @@ namespace basisu
 		BASISU_NOTE_UNUSED(fmt);
 		switch (fmt)
 		{
-		case cFXT1_RGB:
+		case texture_format::cFXT1_RGB:
 			return 8;
 		default:
 			break;
@@ -401,6 +463,6 @@ namespace basisu
 		BASISU_NOTE_UNUSED(fmt);
 		return 4;
 	}
-
+							
 } // namespace basisu
 

@@ -27,7 +27,7 @@
     #undef TEST_HTTP_SUPPORTED
 #endif
 
-#include "resource_ddf.h"
+#include <resource/resource_ddf.h>
 #include "../resource.h"
 #include "../resource_private.h"
 #include "test/test_resource_ddf.h"
@@ -1530,14 +1530,12 @@ int main(int argc, char **argv)
 {
     #if defined(TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
-    dmDNS::Initialize();
     #endif
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
 
     #if defined(TEST_HTTP_SUPPORTED)
-    dmDNS::Finalize();
     dmSocket::Finalize();
     #endif
     return ret;

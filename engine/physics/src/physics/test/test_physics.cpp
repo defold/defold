@@ -117,6 +117,7 @@ Test3D::Test3D()
 , m_IsEnabledFunc(dmPhysics::IsEnabled3D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled3D)
 , m_IsSleepingFunc(dmPhysics::IsSleeping3D)
+, m_WakeupFunc(dmPhysics::Wakeup3D)
 , m_SetLockedRotationFunc(dmPhysics::SetLockedRotation3D)
 , m_GetLinearDampingFunc(dmPhysics::GetLinearDamping3D)
 , m_SetLinearDampingFunc(dmPhysics::SetLinearDamping3D)
@@ -174,6 +175,7 @@ Test2D::Test2D()
 , m_IsEnabledFunc(dmPhysics::IsEnabled2D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled2D)
 , m_IsSleepingFunc(dmPhysics::IsSleeping2D)
+, m_WakeupFunc(dmPhysics::Wakeup2D)
 , m_SetLockedRotationFunc(dmPhysics::SetLockedRotation2D)
 , m_GetLinearDampingFunc(dmPhysics::GetLinearDamping2D)
 , m_SetLinearDampingFunc(dmPhysics::SetLinearDamping2D)
@@ -1684,6 +1686,27 @@ TYPED_TEST(PhysicsTest, KinematicSleep)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box0_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box0_shape);
+}
+
+// Although we don't have a good way of testing the functionality here (we do it in an integration test instead),
+// we need to make sure the linking will work as expected
+TYPED_TEST(PhysicsTest, Wakeup)
+{
+    float box_half_ext = 0.5f;
+
+    VisualObject box0_vo;
+    box0_vo.m_Position = Point3(0, 5.0f, 0);
+    dmPhysics::CollisionObjectData box0_data;
+    box0_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    box0_data.m_Mass = 0.0f;
+    typename TypeParam::CollisionShapeType box0_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
+    box0_data.m_UserData = &box0_vo;
+    typename TypeParam::CollisionObjectType box0_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box0_data, &box0_shape, 1u);
+
+    (*TestFixture::m_Test.m_WakeupFunc)(box0_co);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box0_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box0_shape);

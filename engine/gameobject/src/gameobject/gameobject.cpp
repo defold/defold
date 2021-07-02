@@ -157,7 +157,6 @@ namespace dmGameObject
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
         m_Mutex = dmMutex::New();
-        m_SocketToCollection.SetCapacity(15, 17);
     }
 
     Register::~Register()
@@ -337,14 +336,6 @@ namespace dmGameObject
             regist->m_Collections.OffsetCapacity(4);
         }
         regist->m_Collections.Push(collection);
-
-        if (regist->m_SocketToCollection.Full())
-        {
-            uint32_t capacity = regist->m_Collections.Capacity()*2; // two sockets per collection
-            regist->m_SocketToCollection.SetCapacity(capacity/2-1, capacity);
-        }
-        regist->m_SocketToCollection.Put(collection->m_NameHash, collection);
-
         return RESULT_OK;
     }
 
@@ -381,7 +372,6 @@ namespace dmGameObject
             dmMessage::Consume(collection->m_ComponentSocket);
             dmMessage::DeleteSocket(collection->m_ComponentSocket);
             collection->m_ComponentSocket = 0;
-            regist->m_SocketToCollection.Erase(collection->m_NameHash);
         }
         if (collection->m_FrameSocket)
         {
@@ -2047,11 +2037,11 @@ namespace dmGameObject
         Instance* instance = 0x0;
         // Start by looking for the instance in the user-data,
         // which is the case when an instance sends to itself.
-        if (message->m_UserData != 0
+        if (message->m_UserData1 != 0
                 && message->m_Sender.m_Socket == message->m_Receiver.m_Socket
                 && message->m_Sender.m_Path == message->m_Receiver.m_Path)
         {
-            Instance* user_data_instance = (Instance*)message->m_UserData;
+            Instance* user_data_instance = (Instance*)message->m_UserData1;
             if (message->m_Receiver.m_Path == user_data_instance->m_Identifier)
             {
                 instance = user_data_instance;
@@ -2105,7 +2095,7 @@ namespace dmGameObject
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
                 if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
                 {
-                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size, 0);
+                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData1, gotr_descriptor, &response, data_size, 0);
                     if (message_result != dmMessage::RESULT_OK)
                     {
                         dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name, message_result);
@@ -2845,7 +2835,7 @@ namespace dmGameObject
         dmTransform::ToMatrix a dmTransform::Transform from the world transform.
         When this is not possible, nonsense will be returned.
     */
-    const dmTransform::Transform GetWorldTransform(HInstance instance)
+    dmTransform::Transform GetWorldTransform(HInstance instance)
     {
         Matrix4 mtx = instance->m_Collection->m_WorldTransforms[instance->m_Index];
         return dmTransform::ToTransform(mtx);

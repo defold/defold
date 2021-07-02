@@ -23,7 +23,6 @@
 #include <crash/crash.h>
 #include <dlib/buffer.h>
 #include <dlib/dlib.h>
-#include <dlib/dns.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/http_client.h>
@@ -121,7 +120,7 @@ namespace dmEngine
         window_resized.m_Height = height;
 
         dmMessage::URL receiver;
-        dmMessage::ResetURL(receiver);
+        dmMessage::ResetURL(&receiver);
         dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -234,8 +233,6 @@ namespace dmEngine
         m_GuiContext.m_RenderContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
-        m_SpineModelContext.m_RenderContext = 0x0;
-        m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
         m_MeshContext.m_RenderContext = 0x0;
@@ -460,7 +457,9 @@ namespace dmEngine
 
         if (ctx->m_First)
         {
-            uint32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            int32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
+            if (nwritten < 0)
+                nwritten = 0;
             ctx->m_Buffer += nwritten;
             ctx->m_BufferSize -= nwritten;
             ctx->m_First = false;
@@ -569,6 +568,25 @@ namespace dmEngine
 #endif
         }
 
+        #if defined(__EMSCRIPTEN__)
+        if (1 == dmConfigFile::GetInt(engine->m_Config, "html5.show_console_banner", 1))
+        {
+            EM_ASM({
+                if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
+                    console.log("%c    %c    Made with Defold    %c    %c    https://www.defold.com",
+                        "background: #fd6623; padding:5px 0; border: 5px;",
+                        "background: #272c31; color: #fafafa; padding:5px 0;",
+                        "background: #39a3e4; padding:5px 0;",
+                        "background: #ffffff; color: #000000; padding:5px 0;"
+                    );
+                }
+                else {
+                    console.log("Made with Defold -=[ https://www.defold.com ]=-");
+                }
+            });
+        }
+        #endif
+
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();
 
@@ -671,8 +689,8 @@ namespace dmEngine
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
-        graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
+        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
 
         graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
@@ -857,6 +875,8 @@ namespace dmEngine
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
             dmLogInfo("Initialised sound device '%s'", sound_params.m_OutputDevice);
+        } else {
+            dmLogWarning("Failed to initialize sound system.");
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
@@ -948,7 +968,7 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
-        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 0) ? 1 : 0;
+        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 1) ? 1 : 0;
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
@@ -997,10 +1017,6 @@ namespace dmEngine
         engine->m_MeshContext.m_Factory       = engine->m_Factory;
         engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
 
-        engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpineModelContext.m_Factory = engine->m_Factory;
-        engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
-
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
         engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
@@ -1032,6 +1048,9 @@ namespace dmEngine
         component_create_ctx.m_Script = engine->m_GOScriptContext;
         component_create_ctx.m_Register = engine->m_Register;
         component_create_ctx.m_Factory = engine->m_Factory;
+        component_create_ctx.m_Contexts.SetCapacity(3, 8);
+        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
+        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
@@ -1053,7 +1072,7 @@ namespace dmEngine
             goto bail;
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
-                                                                                                &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
+                                                                                                &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
                                                                                                 &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
         if (go_result != dmGameObject::RESULT_OK)
@@ -1885,7 +1904,6 @@ void dmEngineInitialize()
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
-    dmDNS::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmLogParams params;
@@ -1908,7 +1926,6 @@ void dmEngineFinalize()
     dmLogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
-    dmDNS::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
 }

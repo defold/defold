@@ -30,6 +30,7 @@
 
 #include "internal.h"
 
+#include "android_joystick.h"
 #include "android_log.h"
 #include "android_util.h"
 
@@ -46,7 +47,6 @@
 struct android_app* g_AndroidApp;
 
 extern int main(int argc, char** argv);
-extern void ares_library_init_jvm(JavaVM *jvm);
 
 extern int g_KeyboardActive;
 extern int g_autoCloseKeyboard;
@@ -677,6 +677,8 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
 {
     out->m_Type = AInputEvent_getType(event);
 
+    glfwAndroidUpdateJoystick(event);
+
     if (out->m_Type == AINPUT_EVENT_TYPE_MOTION)
     {
         // touch_handling
@@ -860,8 +862,6 @@ void _glfwPreMain(struct android_app* state)
     g_AndroidApp = state;
 
     _glfwWin.opened = 0;
-
-    ares_library_init_jvm(g_AndroidApp->activity->vm);
 
     char* argv[] = {0};
     argv[0] = strdup("defold-app");

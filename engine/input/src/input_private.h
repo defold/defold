@@ -16,7 +16,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
 
-#include "input_ddf.h"
+#include <input/input_ddf.h>
 
 namespace dmInput
 {

@@ -28,10 +28,12 @@
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"
-#include "comp_spine_model.h"
 #include "comp_private.h"
 
 #include "../resources/res_gui.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_animationset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 
@@ -358,6 +360,7 @@ namespace dmGameSystem
             // Notify the scene script. The callback originates from the dmGraphics::SetWindowSize firing the callback.
             char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
             dmMessage::Message* message = (dmMessage::Message*)buf;
+            memset(message, 0, sizeof(dmMessage::Message));
             message->m_Sender = dmMessage::URL();
             message->m_Receiver = dmMessage::URL();
             message->m_Id = dmHashString64("layout_changed");
@@ -571,7 +574,7 @@ namespace dmGameSystem
 
         dmGui::NewSceneParams scene_params;
         // This is a hard cap since the render key has 13 bits for node index (see gui.cpp)
-        assert(scene_desc->m_MaxNodes <= 2^13);
+        assert(scene_desc->m_MaxNodes <= 8192);
         scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
@@ -613,6 +616,7 @@ namespace dmGameSystem
 
         uint8_t buf[sizeof(dmMessage::Message) + sizeof(dmGameSystemDDF::SpineEvent)];
         dmMessage::Message* message = (dmMessage::Message*)buf;
+        memset(message, 0, sizeof(dmMessage::Message));
         message->m_Sender = dmMessage::URL();
         message->m_Receiver = dmMessage::URL();
         message->m_Id = message_id;
@@ -736,14 +740,15 @@ namespace dmGameSystem
 
     static void ApplyStencilClipping(RenderGuiContext* gui_context, const dmGui::StencilScope* state, dmRender::StencilTestParams& stp) {
         if (state != 0x0) {
-            stp.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
-            stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-            stp.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
-            stp.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
+            stp.m_Front.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
+            stp.m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
+            stp.m_Front.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
             stp.m_Ref = state->m_RefVal;
             stp.m_RefMask = state->m_TestMask;
             stp.m_BufferMask = state->m_WriteMask;
             stp.m_ColorBufferMask = state->m_ColorMask;
+            stp.m_SeparateFaceStates = 0;
             if (gui_context->m_FirstStencil)
             {
                 // Set the m_ClearBuffer for the first stencil of each scene so that scenes (and components) can share the stencil buffer.
@@ -754,14 +759,15 @@ namespace dmGameSystem
                 stp.m_ClearBuffer = 1;
             }
         } else {
-            stp.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
-            stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-            stp.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
-            stp.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+            stp.m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Front.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
             stp.m_Ref = 0;
             stp.m_RefMask = 0xff;
             stp.m_BufferMask = 0xff;
             stp.m_ColorBufferMask = 0xf;
+            stp.m_SeparateFaceStates = 0;
         }
     }
 

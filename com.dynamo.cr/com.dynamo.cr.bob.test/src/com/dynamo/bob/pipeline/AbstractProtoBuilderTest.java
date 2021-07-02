@@ -77,8 +77,8 @@ public abstract class AbstractProtoBuilderTest {
             throw new RuntimeException(e);
         }
 
-        this.scanner = new ClassLoaderScanner();
-        this.scanner.addUrl(new File(jar));
+        scanner = new ClassLoaderScanner();
+        scanner.addUrl(new File(jar));
 
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");

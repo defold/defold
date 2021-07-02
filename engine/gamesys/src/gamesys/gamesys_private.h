@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -70,12 +70,7 @@ namespace dmGameSystem
         dmScript::LuaCallbackInfo* m_CallbackInfo;
     };
 
-    /**
-     * Return current game object instance, if any.
-     * Must be called from within a lua pcall, since it long jumps if no instance can be found.
-     * @param L lua state
-     * @return instance
-     */
+    // A wrapper for dmScript::CheckGoInstance
     dmGameObject::HInstance CheckGoInstance(lua_State* L);
 
     /**
@@ -87,24 +82,6 @@ namespace dmGameSystem
      * @param format printf-style format string
      */
     void LogMessageError(dmMessage::Message* message, const char* format, ...);
-
-    typedef bool (*CompGetConstantCallback)(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant);
-
-    /**
-     * Helper function to get material constants of components that use them: sprite, label, tile maps, spine and models
-     * Sprite and Label should not use value ptr. Deleting a gameobject (that included sprite(s) or label(s)) will rearrange the
-     * object pool for components (due to EraseSwap in the Free for the object pool). This result in the original animation value pointer will still point
-     * to the original memory location in the component object pool.
-     */
-    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data);
-
-    typedef void (*CompSetConstantCallback)(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
-
-    /**
-     * Helper function to set material constants of components that use them: sprite, label, tile maps, spine and models
-     */
-    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data);
-
 }
 
 #endif // DM_GAMESYS_PRIVER_H

@@ -85,6 +85,8 @@ typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, 
 typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
 typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
 typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
+typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
+typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -114,6 +116,8 @@ PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
 PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
 PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
 PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
+PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
+PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
 
 PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
 PFNGLCREATESHADERPROC glCreateShader = NULL;
@@ -699,14 +703,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
 
 #if defined(ANDROID)
-        // Seems to work fine anyway with out any hints
+        // Seems to work fine anyway without any hints
         // which is good, since we want to fallback from OpenGLES 3 to 2
 #elif defined(__linux__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(_WIN32)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
             #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
@@ -722,6 +726,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         if (is_desktop) {
             glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         }
 
         int mode = GLFW_WINDOW;
@@ -729,7 +734,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             mode = GLFW_FULLSCREEN;
         if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            if (is_desktop) {
+                dmLogWarning("Trying OpenGL 3.1 compat mode");
+
+                // Try a second time, this time without core profile, and lower the minor version
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1); // We currently cannot go lower since we support shader model 140
+                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+
+                if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
+                {
+                    return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+                }
+            }
+            else {
+                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            }
         }
 
 #if defined (_WIN32)
@@ -796,6 +815,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
         GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
+        GET_PROC_ADDRESS(glStencilOpSeparate, "glStencilOpSeparate", PFNGLSTENCILOPSEPARATEPROC);
+        GET_PROC_ADDRESS(glStencilFuncSeparate, "glStencilFuncSeparate", PFNGLSTENCILFUNCSEPARATEPROC);
 #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
@@ -1008,19 +1029,28 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_DepthBufferBits = 16;
 #else
 
+#if defined(__MACH__)
+        context->m_PackedDepthStencil = 1;
+#endif
+
         if ((IsExtensionSupported("GL_OES_packed_depth_stencil", extensions)) || (IsExtensionSupported("GL_EXT_packed_depth_stencil", extensions)))
         {
             context->m_PackedDepthStencil = 1;
         }
         GLint depth_buffer_bits;
         glGetIntegerv( GL_DEPTH_BITS, &depth_buffer_bits );
+        if (GL_INVALID_ENUM == glGetError())
+        {
+            depth_buffer_bits = 24;
+        }
+
         context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
 #endif
 
         GLint gl_max_texture_size = 1024;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
         context->m_MaxTextureSize = gl_max_texture_size;
-        CLEAR_GL_ERROR
+        CLEAR_GL_ERROR;
 
 #if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
@@ -1035,14 +1065,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
         }
         context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
-        CLEAR_GL_ERROR
+        CLEAR_GL_ERROR;
 
         GLint gl_max_elem_indices = 65536;
         if (!legacy) {
             glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
         }
         context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
-        CLEAR_GL_ERROR
+        CLEAR_GL_ERROR;
 #endif
 
         if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
@@ -1894,7 +1924,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
 #ifdef GL_DEPTH_STENCIL_ATTACHMENT
             // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
+            glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
             CHECK_GL_ERROR;
             if(!update_current)
             {
@@ -2000,6 +2030,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 }
             }
             OpenGLSetDepthStencilRenderBuffer(rt);
+            CHECK_GL_FRAMEBUFFER_ERROR;
         }
 
         // Disable color buffer
@@ -2016,7 +2047,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         }
 
-        CHECK_GL_FRAMEBUFFER_ERROR
+        CHECK_GL_FRAMEBUFFER_ERROR;
         glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR;
 
@@ -2076,7 +2107,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
-        CHECK_GL_FRAMEBUFFER_ERROR
+        CHECK_GL_FRAMEBUFFER_ERROR;
     }
 
     static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
@@ -2779,6 +2810,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return func_lut[func];
     }
 
+    static GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
+    {
+        const GLenum face_type_lut[] = {
+            GL_FRONT,
+            GL_BACK,
+            GL_FRONT_AND_BACK,
+        };
+
+        return face_type_lut[face_type];
+    }
+
     static void OpenGLSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
@@ -2807,6 +2849,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    static void OpenGLSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    {
+        assert(context);
+        glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
+        CHECK_GL_ERROR
+    }
+
     static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
@@ -2825,17 +2874,41 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
+    static void OpenGLSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        assert(context);
+        const GLenum stencil_op_lut[] = {
+            GL_KEEP,
+            GL_ZERO,
+            GL_REPLACE,
+            GL_INCR,
+            GL_INCR_WRAP,
+            GL_DECR,
+            GL_DECR_WRAP,
+            GL_INVERT,
+        };
+
+        glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
+        CHECK_GL_ERROR;
+    }
+
     static void OpenGLSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
-        const GLenum face_type_lut[] = {
-            GL_FRONT,
-            GL_BACK,
-            GL_FRONT_AND_BACK,
+        glCullFace(GetOpenGLFaceTypeFunc(face_type));
+        CHECK_GL_ERROR
+    }
+
+    static void OpenGLSetFaceWinding(HContext context, FaceWinding face_winding)
+    {
+        assert(context);
+
+        const GLenum face_winding_lut[] = {
+            GL_CCW,
+            GL_CW,
         };
 
-        glCullFace(face_type_lut[face_type]);
-        CHECK_GL_ERROR
+        glFrontFace(face_winding_lut[face_winding]);
     }
 
     static void OpenGLSetPolygonOffset(HContext context, float factor, float units)
@@ -2955,8 +3028,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_SetScissor = OpenGLSetScissor;
         fn_table.m_SetStencilMask = OpenGLSetStencilMask;
         fn_table.m_SetStencilFunc = OpenGLSetStencilFunc;
+        fn_table.m_SetStencilFuncSeparate = OpenGLSetStencilFuncSeparate;
         fn_table.m_SetStencilOp = OpenGLSetStencilOp;
+        fn_table.m_SetStencilOpSeparate = OpenGLSetStencilOpSeparate;
         fn_table.m_SetCullFace = OpenGLSetCullFace;
+        fn_table.m_SetFaceWinding = OpenGLSetFaceWinding;
         fn_table.m_SetPolygonOffset = OpenGLSetPolygonOffset;
         fn_table.m_NewRenderTarget = OpenGLNewRenderTarget;
         fn_table.m_DeleteRenderTarget = OpenGLDeleteRenderTarget;

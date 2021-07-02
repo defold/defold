@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -354,12 +354,48 @@ namespace dmMessage
         return false;
     }
 
-    void ResetURL(const URL& url)
+    void ResetURL(URL* url)
     {
-        memset((void*)&url, 0, sizeof(URL));
+        memset((void*)url, 0, sizeof(URL));
     }
 
-    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
+    void ResetURL(URL& url)
+    {
+        ResetURL(&url);
+    }
+
+    HSocket GetSocket(const URL* url)
+    {
+        return url->m_Socket;
+    }
+
+    void SetSocket(URL* url, HSocket socket)
+    {
+        url->m_Socket = socket;
+    }
+
+    dmhash_t GetPath(const URL* url)
+    {
+        return url->m_Path;
+    }
+
+    void SetPath(URL* url, dmhash_t path)
+    {
+        url->m_Path = path;
+    }
+
+    dmhash_t GetFragment(const URL* url)
+    {
+        return url->m_Fragment;
+    }
+
+    void SetFragment(URL* url, dmhash_t fragment)
+    {
+        url->m_Fragment = fragment;
+    }
+
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
+                    uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER("Messages", 1)
@@ -386,11 +422,12 @@ namespace dmMessage
         }
         else
         {
-            ResetURL(new_message->m_Sender);
+            ResetURL(&new_message->m_Sender);
         }
         new_message->m_Receiver = *receiver;
         new_message->m_Id = message_id;
-        new_message->m_UserData = user_data;
+        new_message->m_UserData1 = user_data1;
+        new_message->m_UserData2 = user_data2;
         new_message->m_Descriptor = descriptor;
         new_message->m_DataSize = message_data_size;
         new_message->m_Next = 0;
@@ -420,6 +457,13 @@ namespace dmMessage
 
         return RESULT_OK;
     }
+
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t descriptor,
+                    const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
+    {
+        return Post(sender, receiver, message_id, user_data1, 0, descriptor, message_data, message_data_size, destroy_callback);
+    }
+
 
     // Fast length limited string concatenation that assume we already point to
     // the end of the string. Returns the new end of the string so we do not need

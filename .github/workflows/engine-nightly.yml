@@ -9,6 +9,8 @@ env:
   S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
   S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
+  DM_RELEASE_REPOSITORY: ${{ secrets.DM_RELEASE_REPOSITORY }}
 
 
 jobs:
@@ -26,9 +28,9 @@ jobs:
       {
          name: 'Notify if build status changed',
          uses: homoluctus/slatify@master,
-         if: always(),
+         if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   build-engine-linux-64:
@@ -45,7 +47,7 @@ jobs:
       {
          name: 'Notify if build status changed',
          uses: homoluctus/slatify@master,
-         if: always(),
+         if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]

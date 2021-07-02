@@ -117,6 +117,12 @@ char**              g_Argv = 0;
 
 static void ShutdownEngine(bool call_exit)
 {
+    if (!g_EngineContext)
+    {
+        // It's possible to get both a sys.reboot() and an app exit on the same frame
+        return;
+    }
+
     int run_action = GLFW_APP_RUN_UPDATE;
     int exit_code = 0;
     int argc = 0;

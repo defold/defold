@@ -1,11 +1,13 @@
 #! /usr/bin/env python
 
+from waf_dynamo import dmsdk_add_files
+
 def configure(conf):
     pass
 
 def build(bld):
     bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                     includes = ['.', '../proto'],
+                     includes = ['.', '..', '../proto'],
                      proto_gen_py = True,
                      protoc_includes = '../proto',
                      target = 'rig',
@@ -17,7 +19,7 @@ def build(bld):
 
     if is_host:
         bld.new_task_gen(features = 'cxx cshlib ddf',
-                        includes = ['.', '../proto'],
+                        includes = ['.', '..', '../proto'],
                         target = 'rig_shared',
                         protoc_includes = '../proto',
                         uselib = 'DDF DLIB PLATFORM_SOCKET',
@@ -27,3 +29,5 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/rig/rig_ddf.proto')
 
     bld.add_subdirs('test')
+
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

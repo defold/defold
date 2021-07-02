@@ -478,7 +478,7 @@ namespace dmGraphics
             // multisampling enabled.
             VkImageView& vk_image_view_swap      = swapChain->m_ImageViews[i];
             VkImageView& vk_image_view_depth     = context->m_MainTextureDepthStencil.m_Handle.m_ImageView;
-            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture.m_Handle.m_ImageView;
+            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture->m_Handle.m_ImageView;
             VkImageView  vk_image_attachments[3];
             uint8_t num_attachments;
 
@@ -875,6 +875,7 @@ namespace dmGraphics
 
         uint16_t validation_layers_count;
         const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
+        Texture* resolveTexture = new Texture;
 
         if (selected_device == NULL)
         {
@@ -929,8 +930,9 @@ namespace dmGraphics
         vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
         // Create swap chain
+        InitializeVulkanTexture(resolveTexture);
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family);
+        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, resolveTexture);
 
         res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
@@ -1163,7 +1165,7 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % g_max_frames_in_flight;
         context->m_FrameBegun           = 0;
 
-        SwapBuffers();
+        NativeSwapBuffers(context);
     }
 
     static void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
@@ -2627,6 +2629,12 @@ bail:
         context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
+    static void VulkanSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    {
+        // TODO: Make room in pipeline handle for separate stencil states
+        VulkanSetStencilFunc(context, func, ref, mask);
+    }
+
     static void VulkanSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
@@ -2635,11 +2643,22 @@ bail:
         context->m_PipelineState.m_StencilOpPass      = dppass;
     }
 
+    static void VulkanSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        // TODO: Make room in pipeline handle for separate stencil states
+        VulkanSetStencilOp(context, sfail, dpfail, dppass);
+    }
+
     static void VulkanSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
         context->m_PipelineState.m_CullFaceType = face_type;
         context->m_CullFaceChanged              = true;
+    }
+
+    static void VulkanSetFaceWinding(HContext, FaceWinding face_winding)
+    {
+        // TODO: Add this to the vulkan pipeline handle aswell, for now it's a NOP
     }
 
     static void VulkanSetPolygonOffset(HContext context, float factor, float units)
@@ -2948,7 +2967,9 @@ bail:
 
     static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params)
     {
-        Texture* tex       = new Texture;
+        Texture* tex = new Texture;
+        InitializeVulkanTexture(tex);
+
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
@@ -3407,8 +3428,11 @@ bail:
         fn_table.m_SetScissor = VulkanSetScissor;
         fn_table.m_SetStencilMask = VulkanSetStencilMask;
         fn_table.m_SetStencilFunc = VulkanSetStencilFunc;
+        fn_table.m_SetStencilFuncSeparate = VulkanSetStencilFuncSeparate;
         fn_table.m_SetStencilOp = VulkanSetStencilOp;
+        fn_table.m_SetStencilOpSeparate = VulkanSetStencilOpSeparate;
         fn_table.m_SetCullFace = VulkanSetCullFace;
+        fn_table.m_SetFaceWinding = VulkanSetFaceWinding;
         fn_table.m_SetPolygonOffset = VulkanSetPolygonOffset;
         fn_table.m_NewRenderTarget = VulkanNewRenderTarget;
         fn_table.m_DeleteRenderTarget = VulkanDeleteRenderTarget;

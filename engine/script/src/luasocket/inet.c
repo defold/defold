@@ -11,6 +11,10 @@
 
 #include "inet.h"
 
+#if defined(__NX__)
+extern const char* gai_strerror(int errcode);
+#endif
+
 /*=========================================================================*\
 * Internal function prototypes.
 \*=========================================================================*/
@@ -214,18 +218,26 @@ static int inet_global_getaddrinfo(lua_State *L)
 /*-------------------------------------------------------------------------*\
 * Gets the host name
 \*-------------------------------------------------------------------------*/
+
 static int inet_global_gethostname(lua_State *L)
 {
+#if defined(__NX__)
+    lua_pushnil(L);
+    lua_pushstring(L, "gethostname is unsupported on this platform");
+    return 2;
+#else
     char name[257];
     name[256] = '\0';
     if (gethostname(name, 256) < 0) {
         lua_pushnil(L);
         lua_pushstring(L, socket_strerror(errno));
         return 2;
-    } else {
+    } else
+    {
         lua_pushstring(L, name);
         return 1;
     }
+#endif
 }
 
 /*=========================================================================*\
@@ -246,7 +258,7 @@ int inet_meth_getpeername(lua_State *L, p_socket ps, int family)
         lua_pushstring(L, socket_strerror(errno));
         return 2;
     }
-	err = getnameinfo((struct sockaddr *) &peer, peer_len,
+    err = getnameinfo((struct sockaddr *) &peer, peer_len,
         name, INET6_ADDRSTRLEN,
         port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
     if (err) {
@@ -281,8 +293,8 @@ int inet_meth_getsockname(lua_State *L, p_socket ps, int family)
         lua_pushstring(L, socket_strerror(errno));
         return 2;
     }
-	err=getnameinfo((struct sockaddr *)&peer, peer_len, 
-		name, INET6_ADDRSTRLEN, port, 6, NI_NUMERICHOST | NI_NUMERICSERV);
+    err=getnameinfo((struct sockaddr *)&peer, peer_len,
+        name, INET6_ADDRSTRLEN, port, 6, NI_NUMERICHOST | NI_NUMERICSERV);
     if (err) {
         lua_pushnil(L);
         lua_pushstring(L, gai_strerror(err));
@@ -364,6 +376,7 @@ const char *inet_trydisconnect(p_socket ps, int family, p_timeout tm)
             return socket_strerror(socket_connect(ps, (SA *) &sin, 
                 sizeof(sin), tm));
         }
+#if !defined(DM_IPV6_UNSUPPORTED)
         case PF_INET6: {
             struct sockaddr_in6 sin6;
             struct in6_addr addrany = IN6ADDR_ANY_INIT; 
@@ -373,6 +386,7 @@ const char *inet_trydisconnect(p_socket ps, int family, p_timeout tm)
             return socket_strerror(socket_connect(ps, (SA *) &sin6, 
                 sizeof(sin6), tm));
         }
+#endif
     }
     return NULL;
 }
@@ -401,7 +415,7 @@ const char *inet_tryconnect(p_socket ps, int *family, const char *address,
          * not enter this branch. */
         if (*family != iterator->ai_family) {
             socket_destroy(ps);
-            err = socket_strerror(socket_create(ps, iterator->ai_family, 
+            err = socket_strerror(socket_create(ps, iterator->ai_family,
                 iterator->ai_socktype, iterator->ai_protocol));
             if (err != NULL) {
                 freeaddrinfo(resolved);
@@ -412,7 +426,7 @@ const char *inet_tryconnect(p_socket ps, int *family, const char *address,
             socket_setnonblocking(ps);
         }
         /* try connecting to remote address */
-        err = socket_strerror(socket_connect(ps, (SA *) iterator->ai_addr, 
+        err = socket_strerror(socket_connect(ps, (SA *) iterator->ai_addr,
             (socklen_t) iterator->ai_addrlen, tm));
         /* if success, break out of loop */
         if (err == NULL) break;
@@ -425,17 +439,21 @@ const char *inet_tryconnect(p_socket ps, int *family, const char *address,
 /*-------------------------------------------------------------------------*\
 * Tries to accept a socket
 \*-------------------------------------------------------------------------*/
-const char *inet_tryaccept(p_socket server, int family, p_socket client, 
+const char *inet_tryaccept(p_socket server, int family, p_socket client,
     p_timeout tm)
 {
-	socklen_t len;
-	t_sockaddr_storage addr;
-	if (family == PF_INET6) {
-		len = sizeof(struct sockaddr_in6);
-	} else {
-		len = sizeof(struct sockaddr_in);
-	}
-	return socket_strerror(socket_accept(server, client, (SA *) &addr, 
+    socklen_t len;
+    t_sockaddr_storage addr;
+
+    if (family == PF_INET) {
+        len = sizeof(struct sockaddr_in);
+    }
+#if !defined(DM_IPV6_UNSUPPORTED)
+    else if (family == PF_INET6) {
+        len = sizeof(struct sockaddr_in6);
+    }
+#endif
+    return socket_strerror(socket_accept(server, client, (SA *) &addr,
         &len, tm));
 }
 
@@ -487,7 +505,7 @@ const char *inet_trybind(p_socket ps, const char *address, const char *serv,
 }
 
 /*-------------------------------------------------------------------------*\
-* Some systems do not provide these so that we provide our own. 
+* Some systems do not provide these so that we provide our own.
 \*-------------------------------------------------------------------------*/
 #ifdef LUASOCKET_INET_ATON
 int inet_aton(const char *cp, struct in_addr *inp)
@@ -512,7 +530,7 @@ int inet_aton(const char *cp, struct in_addr *inp)
 #endif
 
 #ifdef LUASOCKET_INET_PTON
-int inet_pton(int af, const char *src, void *dst) 
+int inet_pton(int af, const char *src, void *dst)
 {
     struct addrinfo hints, *res;
     int ret = 1;
@@ -523,13 +541,17 @@ int inet_pton(int af, const char *src, void *dst)
     if (af == AF_INET) {
         struct sockaddr_in *in = (struct sockaddr_in *) res->ai_addr;
         memcpy(dst, &in->sin_addr, sizeof(in->sin_addr));
-    } else if (af == AF_INET6) {
+    }
+#if !defined(DM_IPV6_UNSUPPORTED)
+    else if (af == AF_INET6) {
         struct sockaddr_in6 *in = (struct sockaddr_in6 *) res->ai_addr;
         memcpy(dst, &in->sin6_addr, sizeof(in->sin6_addr));
-    } else {
+    }
+#endif
+    else {
         ret = -1;
     }
-    freeaddrinfo(res); 
+    freeaddrinfo(res);
     return ret;
 }
 

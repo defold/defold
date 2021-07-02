@@ -21,7 +21,7 @@
 #include <dlib/object_pool.h>
 #include <sound/sound.h>
 
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"
@@ -38,6 +38,7 @@ namespace dmGameSystem
         dmMessage::URL          m_Listener;
         dmMessage::URL          m_Receiver;
         dmGameObject::HInstance m_Instance;
+        uintptr_t               m_LuaCallback;
         float                   m_Delay;
         uint32_t                m_PlayId;
         uint32_t                m_StopRequested  : 1;
@@ -186,14 +187,14 @@ namespace dmGameSystem
 
                                 message.m_PlayId = entry.m_PlayId;
 
-                                if (dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
+                                if (dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t)entry.m_LuaCallback, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
                                 {
                                     dmLogError("Could not send sound_done to listener.");
                                 }
                             }
 
-                            dmMessage::ResetURL(entry.m_Receiver);
-                            dmMessage::ResetURL(entry.m_Listener);
+                            dmMessage::ResetURL(&entry.m_Receiver);
+                            dmMessage::ResetURL(&entry.m_Listener);
                         }
                     }
                     else if (entry.m_StopRequested)
@@ -374,7 +375,8 @@ namespace dmGameSystem
                 entry.m_Receiver = params.m_Message->m_Receiver;
                 entry.m_Delay = play_sound->m_Delay;
                 entry.m_PlayId = play_sound->m_PlayId;
-                dmMessage::ResetURL(entry.m_Listener);
+                dmMessage::ResetURL(&entry.m_Listener);
+                entry.m_LuaCallback = 0;
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
                 {
@@ -392,6 +394,7 @@ namespace dmGameSystem
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
 
                     entry.m_Listener = params.m_Message->m_Sender;
+                    entry.m_LuaCallback = params.m_Message->m_UserData2;
                 }
                 else
                 {

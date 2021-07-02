@@ -2,7 +2,7 @@
 
 import os, sys
 import waf_graphics, waf_dynamo
-from waf_dynamo import apidoc_extract_task
+from waf_dynamo import apidoc_extract_task, dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -18,9 +18,9 @@ def build(bld):
                            target = 'render')
 
     obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto'])
-    #obj.source.append('../proto/render_ddf.proto')
 
     bld.add_subdirs('test')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
     bld.install_files('${PREFIX}/include/render', 'render/display_profiles.h')
@@ -28,8 +28,12 @@ def build(bld):
 
     bld.install_files('${PREFIX}/lib/python', 'waf_render.py')
 
-    bld.install_files('${PREFIX}/share/proto', '../proto/render/material_ddf.proto')
-    bld.install_files('${PREFIX}/share/proto', '../proto/render/render_ddf.proto')
-    bld.install_files('${PREFIX}/share/proto', '../proto/render/font_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/render', '../proto/render/material_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/render', '../proto/render/render_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/render', '../proto/render/font_ddf.proto')
 
-    apidoc_extract_task(bld, ['../proto/render/render_ddf.proto', 'render/render_script.cpp'])
+    apidoc_extract_task(bld, [
+      '../proto/render/material_ddf.proto',
+      '../proto/render/render_ddf.proto',
+      '../proto/render/font_ddf.proto',
+      'render/render_script.cpp'])

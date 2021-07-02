@@ -115,7 +115,8 @@ bool RunFile(lua_State* L, const char* filename)
     dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        printf("%s\n", lua_tolstring(L, -1, 0));
+        fflush(stdout);
         return false;
     }
     return true;
@@ -125,7 +126,8 @@ bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        printf("%s\n", lua_tolstring(L, -1, 0));
+        fflush(stdout);
         return false;
     }
     return true;
@@ -152,10 +154,11 @@ TEST_F(ScriptTest, TestPPrint)
     ASSERT_NE((const char*)0, strstr(result, "{ --[[0]]"));
     ASSERT_NE((const char*)0, strstr(result, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)"));
     ASSERT_NE((const char*)0, strstr(result, "  3 = { } --[[0]]"));
-    ASSERT_NE((const char*)0, strstr(result, "  2 = \"hello\""));
-    ASSERT_NE((const char*)0, strstr(result, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),"));
-    ASSERT_NE((const char*)0, strstr(result, "      q = vmath.quat(0, 0, 0, 1),"));
-    ASSERT_NE((const char*)0, strstr(result, "      n = vmath.vector3(0, 0, 0)"));
+    const char* s = strstr(result, "  2 = \"hello\"");
+    ASSERT_NE((const char*)0, s);
+    ASSERT_NE((const char*)0, strstr(s, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)"));
+    ASSERT_NE((const char*)0, strstr(s, "      q = vmath.quat(0, 0, 0, 1)"));
+    ASSERT_NE((const char*)0, strstr(s, "      n = vmath.vector3(0, 0, 0)"));
     ASSERT_NE((const char*)0, strstr(result, "DEBUG:SCRIPT: 5"));
 }
 
@@ -176,6 +179,24 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     ASSERT_NE((const char*)0, strstr(result, "    bar = \"It was a dark and stormy night,\""));
     ASSERT_NE((const char*)0, strstr(result, "  }"));
     ASSERT_NE((const char*)0, strstr(result, "}"));
+}
+
+
+TEST_F(ScriptTest, TestLuaCallstack)
+{
+    int top = lua_gettop(L);
+    ASSERT_TRUE(RunFile(L, "test_lua_callstack.luac"));
+
+    // Retrieve and run callback from c func
+    lua_getglobal(L, "do_crash");
+    luaL_checktype(L, -1, LUA_TFUNCTION);
+    int ret = dmScript::PCall(L, 0, LUA_MULTRET);
+
+    ASSERT_EQ(5, ret);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    const char* log = GetLog();
+    printf("LOG: %s\n", log ? log : "");
 }
 
 TEST_F(ScriptTest, TestPPrintTruncate)
@@ -344,7 +365,7 @@ TEST_F(ScriptTest, TestUserType) {
 
     // GetURL
     dmMessage::URL url;
-    dmMessage::ResetURL(url);
+    dmMessage::ResetURL(&url);
     ASSERT_NE_URL(dummy->m_URL, url);
     dmScript::GetURL(L, &url);
     ASSERT_EQ_URL(dummy->m_URL, url);
@@ -356,7 +377,7 @@ TEST_F(ScriptTest, TestUserType) {
     ASSERT_EQ(dummy->m_Dummy, user_data);
 
     // ResolvePath
-    dmMessage::ResetURL(url);
+    dmMessage::ResetURL(&url);
     dmMessage::Result result = dmScript::ResolveURL(L, "test_path", &url, &dummy->m_URL);
     ASSERT_EQ(dmMessage::RESULT_OK, result);
     ASSERT_EQ(dmHashString64("test_path"), url.m_Path);
@@ -365,7 +386,7 @@ TEST_F(ScriptTest, TestUserType) {
     result = dmMessage::NewSocket("default", &socket);
     ASSERT_EQ(dmMessage::RESULT_OK, result);
 
-    dmMessage::ResetURL(url);
+    dmMessage::ResetURL(&url);
     result = dmScript::ResolveURL(L, "default:/foo#bar", &url, &dummy->m_URL);
 
     ASSERT_EQ(dmMessage::RESULT_OK, result);

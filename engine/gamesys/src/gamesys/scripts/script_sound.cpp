@@ -21,7 +21,7 @@
 #include <sound/sound.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
+#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 
 #include "script_sound.h"
@@ -42,6 +42,86 @@ namespace dmGameSystem
      * @document
      * @name Sound
      * @namespace sound
+     */
+
+
+    /*# [type:number] sound gain
+     *
+     * The gain on the sound-component. Note that gain is in linear scale,
+     * between 0 and 1.
+     *
+     * @name gain
+     * @property
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *   local gain = go.get("#sound", "gain")
+     *   go.set("#sound", "gain", gain * 1.5)
+     * end
+     * ```
+     */
+
+    /*# [type:number] sound pan
+     *
+     * The pan on the sound-component. The valid range is from -1.0 to 1.0,
+     * representing -45 degrees left, to +45 degrees right.
+     *
+     * @name pan
+     * @property
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *   local pan = go.get("#sound", "pan")
+     *   go.set("#sound", "pan", pan * -1)
+     * end
+     * ```
+     */
+
+    /*# [type:number] sound speed
+     *
+     * The speed on the sound-component where 1.0 is normal speed, 0.5 is half
+     * speed and 2.0 is double speed.
+     *
+     * @name speed
+     * @property
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *   local speed = go.get("#sound", "speed")
+     *   go.set("#sound", "speed", speed * 0.5)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] sound data
+     *
+     * The sound data used when playing the sound. The type of the property is hash.
+     *
+     * @name sound
+     * @property
+     *
+     * @examples
+     *
+     * How to change the sound:
+     *
+     * ```lua
+     * function init(self)
+     *   -- load a wav file bundled as a custom resource
+     *   local wav = sys.load_resource("foo.wav")
+     *   -- get resource path to the sound component
+     *   local resource_path = go.get("#sound", "sound")
+     *   -- update the resource with the loaded wav file
+     *   resource.set_sound(resource_path, wav)
+     *   -- play the updated sound
+     *   sound.play("#sound")
+     * end
+     * ```
      */
 
     /*# check if background music is playing
@@ -451,14 +531,15 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
+        int functionref = 0;
         if (top > 2) // completed cb
         {
             if (lua_isfunction(L, 3))
             {
                 lua_pushvalue(L, 3);
                 play_id = dmSound::GetAndIncreasePlayCounter();
-                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
+                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 
@@ -469,7 +550,7 @@ namespace dmGameSystem
         msg.m_Speed = speed;
         msg.m_PlayId = play_id;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
         lua_pushnumber(L, (double) msg.m_PlayId);
 

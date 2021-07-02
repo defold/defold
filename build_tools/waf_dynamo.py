@@ -176,6 +176,9 @@ def apidoc_extract_task(bld, src):
         # Gather data
         for s in src:
             n = bld.path.find_resource(s)
+            if not n:
+                print("Couldn't find resource: %s" % s)
+                continue
             with open(n.abspath(), 'r') as in_f:
                 source = in_f.read()
                 for k,v in chain(elements.items(), ns_elements(source).items()):
@@ -299,9 +302,11 @@ def default_flags(self):
 
     # Common for all platforms
     flags = []
-    flags += [FLAG_ST % ('O%s' % opt_level)]
     if Options.options.ndebug:
         flags += [self.env.CXXDEFINES_ST % 'NDEBUG']
+
+    for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+        self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
 
     if Options.options.show_includes:
         if 'win' == build_util.get_target_os():
@@ -346,7 +351,7 @@ def default_flags(self):
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
-                self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
+                self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
                 if 'linux' in self.env['BUILD_PLATFORM']:
@@ -1766,12 +1771,6 @@ def detect(conf):
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STATICLIB_DDF'] = 'ddf'
 
-    conf.env['STATICLIB_CARES'] = []
-    if platform not in ('js-web', 'wasm-web'):
-        conf.env['STATICLIB_CARES'].append('cares')
-    if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
-        conf.env['STATICLIB_CARES'].append('resolv')
-
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'
 
@@ -1786,8 +1785,8 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_uastc', 'basis_transcoder']
-    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_uastc', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STATICLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
@@ -1800,7 +1799,7 @@ def detect(conf):
     elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
-        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
     elif platform in ('x86_64-linux',):
         conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):

@@ -17,21 +17,12 @@
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
+#include <dlib/hash.h>
 #include <ddf/ddf.h>
-#include <graphics/graphics_ddf.h>
 #include <graphics/graphics_ddf.h>
 
 namespace dmGraphics
 {
-    typedef uintptr_t                 HVertexProgram;
-    typedef uintptr_t                 HFragmentProgram;
-    typedef uintptr_t                 HProgram;
-    typedef struct Context*           HContext;
-    typedef struct Texture*           HTexture;
-    typedef uintptr_t                 HVertexBuffer;
-    typedef uintptr_t                 HIndexBuffer;
-    typedef struct VertexDeclaration* HVertexDeclaration;
-    typedef struct RenderTarget*      HRenderTarget;
 
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
 
@@ -71,13 +62,6 @@ namespace dmGraphics
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
-    // primitive type
-    enum PrimitiveType
-    {
-        PRIMITIVE_LINES          = 0,
-        PRIMITIVE_TRIANGLES      = 1,
-        PRIMITIVE_TRIANGLE_STRIP = 2,
-    };
 
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
@@ -99,29 +83,6 @@ namespace dmGraphics
         STATE_CULL_FACE            = 5,
         STATE_POLYGON_OFFSET_FILL  = 6,
         STATE_ALPHA_TEST_SUPPORTED = 7,
-    };
-
-    // data types
-    enum Type
-    {
-        TYPE_BYTE           = 0,
-        TYPE_UNSIGNED_BYTE  = 1,
-        TYPE_SHORT          = 2,
-        TYPE_UNSIGNED_SHORT = 3,
-        TYPE_INT            = 4,
-        TYPE_UNSIGNED_INT   = 5,
-        TYPE_FLOAT          = 6,
-        TYPE_FLOAT_VEC4     = 7,
-        TYPE_FLOAT_MAT4     = 8,
-        TYPE_SAMPLER_2D     = 9,
-        TYPE_SAMPLER_CUBE   = 10,
-    };
-
-    // Index buffer format
-    enum IndexBufferFormat
-    {
-        INDEXBUFFER_FORMAT_16 = 0,
-        INDEXBUFFER_FORMAT_32 = 1,
     };
 
     // Texture format
@@ -199,67 +160,6 @@ namespace dmGraphics
         TEXTURE_WRAP_REPEAT          = 3,
     };
 
-    // Blend factor
-    enum BlendFactor
-    {
-        BLEND_FACTOR_ZERO                     = 0,
-        BLEND_FACTOR_ONE                      = 1,
-        BLEND_FACTOR_SRC_COLOR                = 2,
-        BLEND_FACTOR_ONE_MINUS_SRC_COLOR      = 3,
-        BLEND_FACTOR_DST_COLOR                = 4,
-        BLEND_FACTOR_ONE_MINUS_DST_COLOR      = 5,
-        BLEND_FACTOR_SRC_ALPHA                = 6,
-        BLEND_FACTOR_ONE_MINUS_SRC_ALPHA      = 7,
-        BLEND_FACTOR_DST_ALPHA                = 8,
-        BLEND_FACTOR_ONE_MINUS_DST_ALPHA      = 9,
-        BLEND_FACTOR_SRC_ALPHA_SATURATE       = 10,
-        BLEND_FACTOR_CONSTANT_COLOR           = 11,
-        BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 12,
-        BLEND_FACTOR_CONSTANT_ALPHA           = 13,
-        BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
-    };
-
-    // Compare func
-    enum CompareFunc
-    {
-        COMPARE_FUNC_NEVER    = 0,
-        COMPARE_FUNC_LESS     = 1,
-        COMPARE_FUNC_LEQUAL   = 2,
-        COMPARE_FUNC_GREATER  = 3,
-        COMPARE_FUNC_GEQUAL   = 4,
-        COMPARE_FUNC_EQUAL    = 5,
-        COMPARE_FUNC_NOTEQUAL = 6,
-        COMPARE_FUNC_ALWAYS   = 7,
-    };
-
-    // Stencil operation
-    enum StencilOp
-    {
-        STENCIL_OP_KEEP      = 0,
-        STENCIL_OP_ZERO      = 1,
-        STENCIL_OP_REPLACE   = 2,
-        STENCIL_OP_INCR      = 3,
-        STENCIL_OP_INCR_WRAP = 4,
-        STENCIL_OP_DECR      = 5,
-        STENCIL_OP_DECR_WRAP = 6,
-        STENCIL_OP_INVERT    = 7,
-    };
-
-    // Buffer usage
-    enum BufferUsage
-    {
-        BUFFER_USAGE_STREAM_DRAW  = 0,
-        BUFFER_USAGE_DYNAMIC_DRAW = 1,
-        BUFFER_USAGE_STATIC_DRAW  = 2,
-    };
-
-    // Buffer access
-    enum BufferAccess
-    {
-        BUFFER_ACCESS_READ_ONLY  = 0,
-        BUFFER_ACCESS_WRITE_ONLY = 1,
-        BUFFER_ACCESS_READ_WRITE = 2,
-    };
 
     // Face type
     enum FaceType
@@ -309,15 +209,6 @@ namespace dmGraphics
     {
         TEXTURE_STATUS_OK               = 0,
         TEXTURE_STATUS_DATA_PENDING     = (1 << 0), // Currently waiting for the upload to be done
-    };
-
-    struct VertexElement
-    {
-        const char*     m_Name;
-        uint32_t        m_Stream;
-        uint32_t        m_Size;
-        Type            m_Type;
-        bool            m_Normalize;
     };
 
     struct TextureCreationParams {
@@ -454,7 +345,7 @@ namespace dmGraphics
     /**
      * Get the window refresh rate
      * @params context Graphics context handle
-     * @return The window refresh rate, 0 if refresh rate ciuld not be read.
+     * @return The window refresh rate, 0 if refresh rate could not be read.
      */
     uint32_t GetWindowRefreshRate(HContext context);
 
@@ -588,28 +479,14 @@ namespace dmGraphics
      */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
-    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void DeleteVertexBuffer(HVertexBuffer buffer);
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+    // Test functions:
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
     bool UnmapVertexBuffer(HVertexBuffer buffer);
-    uint32_t GetMaxElementsVertices(HContext context);
-
-
-    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void DeleteIndexBuffer(HIndexBuffer buffer);
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
     bool UnmapIndexBuffer(HIndexBuffer buffer);
-    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
-    uint32_t GetMaxElementsIndices(HContext context);
+    // <- end test functions
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
@@ -653,8 +530,11 @@ namespace dmGraphics
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     void SetStencilMask(HContext context, uint32_t mask);
     void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);
+    void SetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask);
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
+    void SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
     void SetCullFace(HContext context, FaceType face_type);
+    void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
@@ -667,7 +547,7 @@ namespace dmGraphics
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
-    TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format);
+    TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 

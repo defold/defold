@@ -26,9 +26,11 @@
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
-#include "../proto/gamesys_ddf.h"
-#include "../proto/sprite_ddf.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
+
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
@@ -304,6 +306,9 @@ TEST_P(InvalidVertexSpaceTest, InvalidVertexSpace)
     ASSERT_NE(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
 }
 
+
+
+
 // Test for input consuming in collection proxy
 TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 {
@@ -472,6 +477,38 @@ TEST_F(SoundTest, UpdateSoundResource)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(SoundTest, LuaCallback)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/sound/luacallback.goc";
+
+    // Create gameobject
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    // Update sound component with custom buffer from lua. See set_sound.script:update()
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Allow for one more update for messages to go through
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    // release GO
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 
 TEST_P(ResourcePropTest, ResourceRefCounting)
 {
@@ -576,7 +613,7 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_NE((void*)0, go3);
 
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_property_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_animater);
 
     // 1st iteration:
@@ -603,6 +640,84 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test that animation done event reaches either callback or onmessage
+TEST_F(SpriteAnimTest, FlipbookAnim)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Spawn one go with a script that will initiate animations on the above sprites
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    lua_getglobal(L, "num_finished");
+    int num_finished = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "num_messages");
+    int num_messages = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(2, num_finished);
+    ASSERT_EQ(1, num_messages);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Test that animation done event reaches callback
+TEST_F(ParticleFxTest, PlayAnim)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Spawn one go with a script that will initiate animations on the above sprites
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    bool tests_done = false;
+    int max_iter = 100;
+    while (!tests_done && --max_iter > 0)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    if (max_iter <= 0)
+    {
+        dmLogError("The playback didn't finish");
+    }
+
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
 {
     dmGameObject::PropertyDesc property_desc;
@@ -617,11 +732,11 @@ TEST_F(CursorTest, GuiFlipbookCursor)
 
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_cursor.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     dmMessage::URL msg_url;
-    dmMessage::ResetURL(msg_url);
+    dmMessage::ResetURL(&msg_url);
     msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     msg_url.m_Path = go_id;
     msg_url.m_Fragment = gui_comp_id;
@@ -659,6 +774,45 @@ TEST_F(CursorTest, GuiFlipbookCursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Tests the animation done message/callback
+TEST_F(GuiTest, GuiFlipbookAnim)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t gui_comp_id = dmHashString64("gui");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(&msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = gui_comp_id;
+
+    m_UpdateContext.m_DT = 1.0f;
+
+    bool tests_done = false;
+    int max_iter = 100;
+    while (!tests_done && --max_iter > 0)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // continue test?
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    if (max_iter <= 0)
+    {
+        dmLogError("The playback didn't finish");
+    }
+    ASSERT_LT(0, max_iter);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_P(CursorTest, Cursor)
 {
     const CursorTestParams& params = GetParam();
@@ -672,7 +826,7 @@ TEST_P(CursorTest, Cursor)
 
     // Dummy URL, just needed to kick flipbook animation on sprite
     dmMessage::URL msg_url;
-    dmMessage::ResetURL(msg_url);
+    dmMessage::ResetURL(&msg_url);
     msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     msg_url.m_Path = go_id;
     msg_url.m_Fragment = sprite_comp_id;
@@ -1282,6 +1436,54 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(Sleeping2DCollisionObjectTest, WakingCollisionObjectTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // a 'base' gameobject works as the base for other dynamic objects to stand on
+    const char* path_sleepy_go = "/collision_object/sleepy_base.goc";
+    dmhash_t hash_base_go = dmHashString64("/base-go");
+    // place the base object so that the upper level of base is at Y = 0
+    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, base_go);
+
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body_go = "/collision_object/sleepy_body.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (10,10)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (50,10)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, 0, Point3(50,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+
+
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 /* Physics joints */
@@ -2690,6 +2892,60 @@ TEST_F(ScriptBufferTest, RefCount)
     dmLogWarning("<- Expected error outputs end.");
 #endif
 }
+
+TEST_F(RenderConstantsTest, CreateDestroy)
+{
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+    dmGameSystem::DestroyRenderConstants(constants);
+}
+
+TEST_F(RenderConstantsTest, SetGetConstant)
+{
+    dmhash_t name_hash1 = dmHashString64("user_var1");
+    dmhash_t name_hash2 = dmHashString64("user_var2");
+
+    dmRender::HMaterial material = 0;
+    {
+        const char path_material[] = "/material/valid.materialc";
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
+        ASSERT_NE((void*)0, material);
+
+        dmRender::Constant rconstant;
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
+    }
+
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+
+    dmRender::Constant* constant = 0;
+    bool result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
+    ASSERT_FALSE(result);
+    ASSERT_EQ(0, constant);
+
+    dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
+    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, var1); // stores the previous value
+
+    result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
+    ASSERT_TRUE(result);
+    ASSERT_NE((void*)0, constant);
+    ASSERT_EQ(name_hash1, constant->m_NameHash);
+
+    // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
+    dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
+    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, var2);
+    // Make sure it's still valid and doesn't trigger an ASAN issue
+    ASSERT_EQ(name_hash1, constant->m_NameHash);
+
+    ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash1)); // removed
+    ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash1)); // not removed
+    ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
+    ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
+
+    dmGameSystem::DestroyRenderConstants(constants);
+
+    dmResource::Release(m_Factory, material);
+}
+
 
 int main(int argc, char **argv)
 {
