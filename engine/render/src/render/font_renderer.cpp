@@ -1016,7 +1016,7 @@ namespace dmRender
         for (uint32_t i = 0; i < size; ++i)
         {
             const dmRender::Constant& c = constants[i];
-            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Value);
+            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Values[0]);
         }
 
         for (uint32_t *i = begin;i != end; ++i)

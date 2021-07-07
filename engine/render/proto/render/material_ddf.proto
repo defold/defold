@@ -19,13 +19,14 @@ message MaterialDesc
         CONSTANT_TYPE_NORMAL = 6;
         CONSTANT_TYPE_WORLDVIEW = 7;
         CONSTANT_TYPE_WORLDVIEWPROJ = 8;
+        CONSTANT_TYPE_USER_ARRAY = 9;
     }
 
     message Constant
     {
         required string name = 1;
         required ConstantType type = 2;
-        optional dmMath.Vector4 value = 3;
+        repeated dmMath.Vector4 value = 3;
     }
 
     enum VertexSpace

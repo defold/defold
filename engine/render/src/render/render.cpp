@@ -56,7 +56,7 @@ namespace dmRender
 
     Constant::Constant() {}
     Constant::Constant(dmhash_t name_hash, int32_t location)
-        : m_Value(Vectormath::Aos::Vector4(0))
+        : m_Values(0)
         , m_NameHash(name_hash)
         , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
         , m_Location(location)
@@ -365,7 +365,7 @@ namespace dmRender
                 const Constant* c = &ro->m_Constants[i];
                 if (c->m_Location != -1)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, c->m_Location);
+                    dmGraphics::SetConstantV4(graphics_context, c->m_Values, 1, c->m_Location);
                 }
             }
             return;
@@ -378,7 +378,7 @@ namespace dmRender
                 int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
                 if (location)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, *location);
+                    dmGraphics::SetConstantV4(graphics_context, c->m_Values, 1, *location);
                 }
             }
         }
@@ -756,7 +756,7 @@ namespace dmRender
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                c->m_Value = value;
+                c->m_Values[0] = value;
                 c->m_NameHash = name_hash;
                 c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
                 c->m_Location = location;
@@ -863,7 +863,7 @@ namespace dmRender
         int32_t* location = context->m_Material->m_NameHashToLocation.Get(*name_hash);
         if (location)
         {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, value, *location);
+            dmGraphics::SetConstantV4(context->m_GraphicsContext, value, 1, *location);
         }
     }
 

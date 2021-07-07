@@ -2361,7 +2361,7 @@ bail:
         return (Type) 0xffffffff;
     }
 
-    static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
@@ -2380,6 +2380,7 @@ bail:
 
         ShaderResourceBinding* res = &module->m_Uniforms[index];
         *type = shaderDataTypeToGraphicsType(res->m_Type);
+        *size = 1; // TODO
 
         return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
     }
@@ -2433,7 +2434,7 @@ bail:
         return -1;
     }
 
-    static void VulkanSetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
+    static void VulkanSetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register)
     {
         assert(context->m_CurrentProgram);
         assert(base_register >= 0);
