@@ -2,6 +2,7 @@
 title = test
 [bootstrap]
 main_collection = /main.collectionc
+debug_init_script = /init_script/init.luac
 [input]
 gamepads = /default.gamepadsc
 game_binding = /default.input_bindingc
