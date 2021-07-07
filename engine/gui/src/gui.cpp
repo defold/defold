@@ -4140,9 +4140,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 && node_pos.getY() <= 1.0f;
     }
 
-    bool IsNodeEnabled(HScene scene, HNode node)
+    bool IsNodeEnabled(HScene scene, HNode node, bool recursive)
     {
         InternalNode* n = GetNode(scene, node);
+        if (recursive)
+        {
+            return IsNodeEnabledRecursive(scene, n->m_Index);
+        }
         return n->m_Node.m_Enabled;
     }
 

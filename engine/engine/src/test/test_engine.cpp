@@ -290,7 +290,7 @@ TEST_F(EngineTest, BufferResources)
     ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
-#if !defined(__NX__) // until we've added suport for it
+#if !defined(__NX__) // until we've added support for it
 TEST_F(EngineTest, MemCpuProfiler)
 {
     #ifndef SANITIZE_ADDRESS
@@ -310,48 +310,40 @@ TEST_F(EngineTest, MemCpuProfiler)
 // Verify that project.dependencies config entry is stripped during build.
 TEST_F(EngineTest, ProjectDependency)
 {
-    // Regular project.dependencies entry
-    const char* argv1[] = {"test_engine", "--config=bootstrap.main_collection=/project_conf/project_conf.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/project_conf/test1.projectc"};
+    const char* argv1[] = {"test_engine", "--config=bootstrap.main_collection=/project_conf/project_conf.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(sizeof(argv1)/sizeof(argv1[0]), (char**)argv1, 0, 0, 0));
-
-    // project.dependencies entry without spaces
-    const char* argv2[] = {"test_engine", "--config=bootstrap.main_collection=/project_conf/project_conf.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/project_conf/test2.projectc"};
-    ASSERT_EQ(0, Launch(sizeof(argv2)/sizeof(argv2[0]), (char**)argv2, 0, 0, 0));
-
-    // Multiple project.dependencies entries
-    const char* argv3[] = {"test_engine", "--config=bootstrap.main_collection=/project_conf/project_conf.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/project_conf/test3.projectc"};
-    ASSERT_EQ(0, Launch(sizeof(argv3)/sizeof(argv3[0]), (char**)argv3, 0, 0, 0));
 }
 
 // Verify that the engine runs the init script at startup
 TEST_F(EngineTest, RunScript)
 {
-    // Regular project.dependencies entry
-    const char* argv1[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/init_script/game.projectc"};
+    // Regular game.project bootstrap.debug_init_script entry
+    const char* argv1[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game.collectionc", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(sizeof(argv1)/sizeof(argv1[0]), (char**)argv1, 0, 0, 0));
 
+    // Command line property
     // Two files in the same property "file1,file2"
-    const char* argv2[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/init_script/game1.projectc"};
+    const char* argv2[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.debug_init_script=/init_script/init.luac,/init_script/init1.luac", "--config=bootstrap.main_collection=/init_script/game1.collectionc", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(sizeof(argv2)/sizeof(argv2[0]), (char**)argv2, 0, 0, 0));
 
     // Command line property
     // An init script that all it does is post an exit
-    const char* argv3[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/init2.luac", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/init_script/game2.projectc"};
+    const char* argv3[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/init2.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(sizeof(argv3)/sizeof(argv3[0]), (char**)argv3, 0, 0, 0));
 
     // Trying a non existing file
-    const char* argv4[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/init_script/game2.projectc"};
+    const char* argv4[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", CONTENT_ROOT "/game.projectc"};
     ASSERT_NE(0, Launch(sizeof(argv4)/sizeof(argv4[0]), (char**)argv4, 0, 0, 0));
 
     // With a non shared context
-    const char* argv5[] = {"test_engine", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/init_script/game.projectc"};
+    const char* argv5[] = {"test_engine", "--config=script.shared_state=0", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(sizeof(argv5)/sizeof(argv5[0]), (char**)argv5, 0, 0, 0));
 }
 
 #if !defined(__NX__) // until we support connections
 TEST_F(EngineTest, ConnectionRunScript)
 {
-    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/init_script/game_connection.projectc"};
+    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game_connection.collectionc", CONTENT_ROOT "/game.projectc"};
     HttpTestContext ctx;
     ctx.m_Script = "post_runscript.py";
 
@@ -366,13 +358,10 @@ TEST_F(EngineTest, ConnectionRunScript)
 TEST_P(DrawCountTest, DrawCount)
 {
     const DrawCountParams& p = GetParam();
-
-    char name[] = {"dmengine"};
-    char state[] = {"--config=script.shared_state=1"};
-    char dont_unload[] = {"--config=dmengine.unload_builtins=0"};
     char project[512];
     dmSnPrintf(project, sizeof(project), "%s%s", CONTENT_ROOT, p.m_ProjectPath);
-    char* argv[] = {name, state, dont_unload, project};
+
+    char* argv[] = {"dmengine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project};
 
     ASSERT_TRUE(dmEngine::Init(m_Engine, sizeof(argv)/sizeof(argv[0]), argv));
 
@@ -387,7 +376,7 @@ TEST_P(DrawCountTest, DrawCount)
 
 DrawCountParams draw_count_params[] =
 {
-    {"/render/drawcall.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
+    {"/game.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 

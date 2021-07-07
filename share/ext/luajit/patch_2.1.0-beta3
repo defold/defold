@@ -1,7 +1,6 @@
-Binary files LuaJIT-2.1.0-beta3/.DS_Store and LuaJIT-2.1.0-beta3b/.DS_Store differ
-diff -u -r -w LuaJIT-2.1.0-beta3/Makefile LuaJIT-2.1.0-beta3b/Makefile
---- LuaJIT-2.1.0-beta3/Makefile	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/Makefile	2019-02-22 13:45:28.000000000 +0100
+diff -u -r a/Makefile b/Makefile
+--- a/Makefile	2021-06-14 14:56:54.000000000 +0200
++++ b/Makefile	2021-06-22 12:57:06.000000000 +0200
 @@ -44,7 +44,7 @@
  INSTALL_MAN= $(INSTALL_SHARE)/man/man1
  INSTALL_PKGCONFIG= $(INSTALL_LIB)/pkgconfig
@@ -20,23 +19,16 @@ diff -u -r -w LuaJIT-2.1.0-beta3/Makefile LuaJIT-2.1.0-beta3b/Makefile
  INSTALL_PC= $(INSTALL_PKGCONFIG)/$(INSTALL_PCNAME)
  
  INSTALL_DIRS= $(INSTALL_BIN) $(INSTALL_LIB) $(INSTALL_INC) $(INSTALL_MAN) \
-@@ -109,12 +109,14 @@
+@@ -109,7 +109,7 @@
  INSTALL_DEP= src/luajit
  
  default all $(INSTALL_DEP):
 -	@echo "==== Building LuaJIT $(VERSION) ===="
-+	@echo "==== Building LuaJIT $(VERSION) with TARGET_SYS: '$(TARGET_SYS)' on host '$(HOST_SYS)' ===="
++	@echo "==== Building LuaJIT $(VERSION) with TARGET_SYS: '$(TARGET_SYS)' on host"
  	$(MAKE) -C src
-+
  	@echo "==== Successfully built LuaJIT $(VERSION) ===="
  
- install: $(INSTALL_DEP)
- 	@echo "==== Installing LuaJIT $(VERSION) to $(PREFIX) ===="
-+	@echo "INSTALL_DIRS: $(INSTALL_DIRS)"
- 	$(MKDIR) $(INSTALL_DIRS)
- 	cd src && $(INSTALL_X) $(FILE_T) $(INSTALL_T)
- 	cd src && test -f $(FILE_A) && $(INSTALL_F) $(FILE_A) $(INSTALL_STATIC) || :
-@@ -130,12 +132,15 @@
+@@ -130,12 +130,15 @@
  	  $(RM) $(FILE_PC).tmp
  	cd src && $(INSTALL_F) $(FILES_INC) $(INSTALL_INC)
  	cd src/jit && $(INSTALL_F) $(FILES_JITLIB) $(INSTALL_JITLIB)
@@ -56,28 +48,33 @@ diff -u -r -w LuaJIT-2.1.0-beta3/Makefile LuaJIT-2.1.0-beta3b/Makefile
  	@echo ""
  
  
-Binary files LuaJIT-2.1.0-beta3/src/.DS_Store and LuaJIT-2.1.0-beta3b/src/.DS_Store differ
-diff -u -r -w LuaJIT-2.1.0-beta3/src/Makefile LuaJIT-2.1.0-beta3b/src/Makefile
---- LuaJIT-2.1.0-beta3/src/Makefile	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/Makefile	2019-02-04 18:12:29.000000000 +0100
-@@ -273,6 +273,8 @@
- endif
- endif
+diff -u -r a/src/Makefile b/src/Makefile
+--- a/src/Makefile	2021-06-14 14:56:54.000000000 +0200
++++ b/src/Makefile	2021-06-24 18:28:26.000000000 +0200
+@@ -205,14 +205,20 @@
+ HOST_ALDFLAGS= $(LDOPTIONS) $(HOST_XLDFLAGS) $(HOST_LDFLAGS)
+ HOST_ALIBS= $(HOST_XLIBS) $(LIBS) $(HOST_LIBS)
  
-+# @echo "target arch: ${TARGET_LJARCH}"
++# missing from the original make file
++DEFAULT_AR = ar
++AR= $(DEFAULT_AR)
++DEFAULT_STRIP = strip
++STRIP= $(DEFAULT_STRIP)
 +
- ifneq (,$(findstring LJ_TARGET_PS3 1,$(TARGET_TESTARCH)))
-   TARGET_SYS= PS3
-   TARGET_ARCH+= -D__CELLOS_LV2__
-@@ -303,6 +305,7 @@
- ##############################################################################
+ STATIC_CC = $(CROSS)$(CC)
+ DYNAMIC_CC = $(CROSS)$(CC) -fPIC
+ TARGET_CC= $(STATIC_CC)
+ TARGET_STCC= $(STATIC_CC)
+ TARGET_DYNCC= $(DYNAMIC_CC)
+ TARGET_LD= $(CROSS)$(CC)
+-TARGET_AR= $(CROSS)ar rcus
+-TARGET_STRIP= $(CROSS)strip
++TARGET_AR= $(CROSS)$(AR) rcus
++TARGET_STRIP= $(CROSS)$(STRIP)
  
- TARGET_SYS?= $(HOST_SYS)
-+# @echo "TARGET_SYS: ${TARGET_SYS}"
- ifeq (Windows,$(TARGET_SYS))
-   TARGET_STRIP+= --strip-unneeded
-   TARGET_XSHLDFLAGS= -shared
-@@ -524,7 +527,7 @@
+ TARGET_LIBPATH= $(or $(PREFIX),/usr/local)/$(or $(MULTILIB),lib)
+ TARGET_SONAME= libluajit-$(ABIVER).so.$(MAJVER)
+@@ -534,7 +540,7 @@
    TARGET_DYNCC= $(STATIC_CC)
    LJVM_MODE= peobj
    LJVM_BOUT= $(LJVM_O)
@@ -86,12 +83,72 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/Makefile LuaJIT-2.1.0-beta3b/src/Makefile
    ifeq (cygwin,$(HOST_MSYS))
      LUAJIT_SO= cyg$(TARGET_DLLNAME)
    else
-Only in LuaJIT-2.1.0-beta3b/src/host: .DS_Store
-Only in LuaJIT-2.1.0-beta3b/src/jit: .DS_Store
-diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/bcsave.lua
---- LuaJIT-2.1.0-beta3/src/jit/bcsave.lua	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/jit/bcsave.lua	2019-02-18 17:19:53.000000000 +0100
-@@ -25,6 +25,7 @@
+@@ -639,16 +645,24 @@
+ 
+ $(MINILUA_T): $(MINILUA_O)
+ 	$(E) "HOSTLINK  $@"
++	$(E) "TARGET_LJARCH=$(TARGET_LJARCH)"
++	$(E) "DASM_ARCH=$(DASM_ARCH)"
++	$(E) "CFLAGS=$(CFLAGS)"
++	$(E) "HOST_CFLAGS=$(HOST_CFLAGS)"
++	$(E) "TARGET_CFLAGS=$(TARGET_CFLAGS)"
++	$(E) "TARGET_FLAGS=$(TARGET_FLAGS)"
++	$(E) $(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(MINILUA_O) $(MINILUA_LIBS) $(HOST_ALIBS)
+ 	$(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(MINILUA_O) $(MINILUA_LIBS) $(HOST_ALIBS)
+ 
+ host/buildvm_arch.h: $(DASM_DASC) $(DASM_DEP) $(DASM_DIR)/*.lua lj_arch.h lua.h luaconf.h
+-	$(E) "DYNASM    $@"
++	$(E) "DYNASM    $@ using $(DASM_DASC)"
+ 	$(Q)$(DASM) $(DASM_FLAGS) -o $@ $(DASM_DASC)
+ 
+ host/buildvm.o: $(DASM_DIR)/dasm_*.h
+ 
+ $(BUILDVM_T): $(BUILDVM_O)
+ 	$(E) "HOSTLINK  $@"
++	$(E) $(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(BUILDVM_O) $(HOST_ALIBS)
+ 	$(Q)$(HOST_CC) $(HOST_ALDFLAGS) -o $@ $(BUILDVM_O) $(HOST_ALIBS)
+ 
+ $(LJVM_BOUT): $(BUILDVM_T)
+@@ -686,6 +700,7 @@
+ %.o: %.c
+ 	$(E) "CC        $@"
+ 	$(Q)$(TARGET_DYNCC) $(TARGET_ACFLAGS) -c -o $(@:.o=_dyn.o) $<
++	$(E) $(Q)$(TARGET_CC) $(TARGET_ACFLAGS) -c -o $@ $<
+ 	$(Q)$(TARGET_CC) $(TARGET_ACFLAGS) -c -o $@ $<
+ 
+ %.o: %.S
+@@ -696,9 +711,11 @@
+ $(LUAJIT_O):
+ 	$(E) "CC        $@"
+ 	$(Q)$(TARGET_STCC) $(TARGET_ACFLAGS) -c -o $@ $<
++	$(E) $(Q)$(TARGET_STCC) $(TARGET_ACFLAGS) -c -o $@ $<
+ 
+ $(HOST_O): %.o: %.c
+ 	$(E) "HOSTCC    $@"
++	$(E) $(Q)$(HOST_CC) $(HOST_ACFLAGS) -c -o $@ $<
+ 	$(Q)$(HOST_CC) $(HOST_ACFLAGS) -c -o $@ $<
+ 
+ include Makefile.dep
+@@ -709,6 +726,7 @@
+ 
+ $(LUAJIT_A): $(LJVMCORE_O)
+ 	$(E) "AR        $@"
++	$(E) $(Q)$(TARGET_AR) $@ $(LJVMCORE_O)
+ 	$(Q)$(TARGET_AR) $@ $(LJVMCORE_O)
+ 
+ # The dependency on _O, but linking with _DYNO is intentional.
+@@ -719,6 +737,7 @@
+ 
+ $(LUAJIT_T): $(TARGET_O) $(LUAJIT_O) $(TARGET_DEP)
+ 	$(E) "LINK      $@"
++	$(E) $(Q)$(TARGET_LD) $(TARGET_ALDFLAGS) -o $@ $(LUAJIT_O) $(TARGET_O) $(TARGET_ALIBS)
+ 	$(Q)$(TARGET_LD) $(TARGET_ALDFLAGS) -o $@ $(LUAJIT_O) $(TARGET_O) $(TARGET_ALIBS)
+ 	$(Q)$(TARGET_STRIP) $@
+ 	$(E) "OK        Successfully built LuaJIT"
+diff -u -r a/src/jit/bcsave.lua b/src/jit/bcsave.lua
+--- a/src/jit/bcsave.lua	2021-06-14 14:56:54.000000000 +0200
++++ b/src/jit/bcsave.lua	2021-06-22 09:24:20.000000000 +0200
+@@ -29,6 +29,7 @@
    -l        Only list bytecode.
    -s        Strip debug info (default).
    -g        Keep debug info.
@@ -99,7 +156,7 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/
    -n name   Set module name (default: auto-detect from input name).
    -t type   Set output file type (default: auto-detect from output name).
    -a arch   Override architecture for object files (default: native).
-@@ -45,10 +46,13 @@
+@@ -49,10 +50,13 @@
    os.exit(1)
  end
  
@@ -109,19 +166,19 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/
    if input == "-" then input = nil end
 -  return check(loadfile(input))
 +  local f = assert(io.open(input, "r"))
-+  local src = f:read("*all")    
++  local src = f:read("*all")
 +  f:close()
 +  return check(loadstring(src, filename))
  end
  
  local function savefile(name, mode)
-@@ -575,13 +579,13 @@
+@@ -579,13 +583,13 @@
  
  ------------------------------------------------------------------------------
  
 -local function bclist(input, output)
 -  local f = readfile(input)
-+local function bclist(ctx, input, output, filename)
++local function bclist(input, output, filename)
 +  local f = readfile(input, filename)
    require("jit.bc").dump(f, savefile(output, "w"), true)
  end
@@ -133,24 +190,24 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/
    local s = string.dump(f, ctx.strip)
    local t = ctx.type
    if not t then
-@@ -604,6 +608,7 @@
+@@ -608,6 +612,7 @@
    local arg = {...}
    local n = 1
    local list = false
 +  local filename = nil
    local ctx = {
-     strip = true, arch = jit.arch, os = string.lower(jit.os),
+     strip = true, arch = jit.arch, os = jit.os:lower(),
      type = false, modname = false,
-@@ -634,6 +639,8 @@
- 	    ctx.arch = checkarg(table.remove(arg, n), map_arch, "architecture")
+@@ -638,6 +643,8 @@
+ 	    ctx.arch = checkarg(tremove(arg, n), map_arch, "architecture")
  	  elseif opt == "o" then
- 	    ctx.os = checkarg(table.remove(arg, n), map_os, "OS name")
+ 	    ctx.os = checkarg(tremove(arg, n), map_os, "OS name")
 +    elseif opt == "f" then
-+      filename = table.remove(arg, n)
++      filename = tremove(arg, n)
  	  else
  	    usage()
  	  end
-@@ -645,10 +652,10 @@
+@@ -649,10 +656,10 @@
    end
    if list then
      if #arg == 0 or #arg > 2 then usage() end
@@ -162,12 +219,11 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/
 +    bcsave(ctx, arg[1], arg[2], filename or arg[1])
    end
  end
-
-diff --git LuaJIT-2.1.0-beta3_a/src/lib_io.c LuaJIT-2.1.0-beta3_b/src/lib_io.c
-index 9763ed466..e302194b7 100644
---- LuaJIT-2.1.0-beta3_a/src/lib_io.c
-+++ LuaJIT-2.1.0-beta3_b/src/lib_io.c
-@@ -427,7 +427,7 @@ LJLIB_CF(io_popen)
+ 
+diff -u -r a/src/lib_io.c b/src/lib_io.c
+--- a/src/lib_io.c	2021-06-14 14:56:54.000000000 +0200
++++ b/src/lib_io.c	2021-06-22 09:25:24.000000000 +0200
+@@ -431,7 +431,7 @@
  LJLIB_CF(io_tmpfile)
  {
    IOFileUD *iof = io_file_new(L);
@@ -176,12 +232,11 @@ index 9763ed466..e302194b7 100644
    iof->fp = NULL; errno = ENOSYS;
  #else
    iof->fp = tmpfile();
-diff --git LuaJIT-2.1.0-beta3_a/src/lib_os.c LuaJIT-2.1.0-beta3_b/src/lib_os.c
-index 9e78d49ac..959dff883 100644
---- LuaJIT-2.1.0-beta3_a/src/lib_os.c
-+++ LuaJIT-2.1.0-beta3_b/src/lib_os.c
-@@ -76,7 +76,7 @@ LJLIB_CF(os_rename)
-
+diff -u -r a/src/lib_os.c b/src/lib_os.c
+--- a/src/lib_os.c	2021-06-14 14:56:54.000000000 +0200
++++ b/src/lib_os.c	2021-06-22 09:26:56.000000000 +0200
+@@ -76,7 +76,7 @@
+ 
  LJLIB_CF(os_tmpname)
  {
 -#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA
@@ -189,68 +244,34 @@ index 9e78d49ac..959dff883 100644
    lj_err_caller(L, LJ_ERR_OSUNIQF);
    return 0;
  #else
-diff --git a/LuaJIT-2.1.0-beta3_b/src/libluajit-5.1.a LuaJIT-2.1.0-beta3_b/src/libluajit-5.1.a
-new file mode 100644
-index 000000000..27f160136
-Binary files /dev/null and LuaJIT-2.1.0-beta3_b/src/libluajit-5.1.a differ
-diff --git LuaJIT-2.1.0-beta3_a/src/lj_alloc.c LuaJIT-2.1.0-beta3_b/src/lj_alloc.c
-index 95d15d046..3eb388c55 100644
---- LuaJIT-2.1.0-beta3_a/src/lj_alloc.c
-+++ LuaJIT-2.1.0-beta3_b/src/lj_alloc.c
-@@ -35,7 +35,7 @@
+diff -u -r a/src/lj_alloc.c b/src/lj_alloc.c
+--- a/src/lj_alloc.c	2021-06-14 14:56:54.000000000 +0200
++++ b/src/lj_alloc.c	2021-06-22 09:27:34.000000000 +0200
+@@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
-
+ 
  #define MAX_SIZE_T		(~(size_t)0)
 -#define MALLOC_ALIGNMENT	((size_t)8U)
-+#define MALLOC_ALIGNMENT  ((size_t)16U)
-
++#define MALLOC_ALIGNMENT	((size_t)16U)
+ 
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
-diff --git LuaJIT-2.1.0-beta3_a/src/lj_arch.h LuaJIT-2.1.0-beta3_b/src/lj_arch.h
-index c8d7138e0..713d489cf 100644
---- LuaJIT-2.1.0-beta3_a/src/lj_arch.h
-+++ LuaJIT-2.1.0-beta3_b/src/lj_arch.h
-@@ -55,6 +55,9 @@
- #define LUAJIT_TARGET	LUAJIT_ARCH_MIPS64
- #elif defined(__mips__) || defined(__mips) || defined(__MIPS__) || defined(__MIPS)
- #define LUAJIT_TARGET	LUAJIT_ARCH_MIPS32
-+#elif defined(__NX__)
-+#define LJ_TARGET_NX 1
-+#define LJ_TARGET_CONSOLE 1
+diff -u -r a/src/lj_arch.h b/src/lj_arch.h
+--- a/src/lj_arch.h	2021-06-14 14:56:54.000000000 +0200
++++ b/src/lj_arch.h	2021-06-23 15:32:59.000000000 +0200
+@@ -68,7 +68,6 @@
  #else
  #error "No support for this architecture (yet)"
  #endif
-@@ -501,6 +505,9 @@
- #elif LJ_TARGET_WINDOWS || LJ_TARGET_XBOX360
- #define LJ_HASPROFILE		1
- #define LJ_PROFILE_WTHREAD	1
-+#elif LJ_TARGET_NX
-+#define LJ_HASPROFILE       1
-+#define LJ_PROFILE_PTHREAD  1
- #else
- #define LJ_HASPROFILE		0
+-
  #endif
-diff --git LuaJIT-2.1.0-beta3_a/src/lj_jit.h LuaJIT-2.1.0-beta3_b/src/lj_jit.h
-index 92054e3df..1ec937e23 100644
---- LuaJIT-2.1.0-beta3_a/src/lj_jit.h
-+++ LuaJIT-2.1.0-beta3_b/src/lj_jit.h
-@@ -417,8 +417,8 @@ typedef struct jit_State {
-   int32_t retdepth;	/* Return frame depth (count of RETF). */
-
-   TValue ksimd[LJ_KSIMD__MAX*2+1];  /* 16 byte aligned SIMD constants. */
--  TValue k64[LJ_K64__MAX];  /* Common 8 byte constants used by backends. */
--  uint32_t k32[LJ_K32__MAX];  /* Ditto for 4 byte constants. */
-+  TValue k64[LJ_K64__MAX+1];  /* Common 8 byte constants used by backends. */
-+  uint32_t k32[LJ_K32__MAX+1];  /* Ditto for 4 byte constants. */
-
-   IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
-   IRRef irtoplim;	/* Upper limit of instuction buffer (biased). */
-diff --git LuaJIT-2.1.0-beta3_a/src/lj_obj.h LuaJIT-2.1.0-beta3_b/src/lj_obj.h
-index 52372c3e7..928e83936 100644
---- LuaJIT-2.1.0-beta3_a/src/lj_obj.h
-+++ LuaJIT-2.1.0-beta3_b/src/lj_obj.h
-@@ -304,15 +304,24 @@ typedef struct GCstr {
-
+ 
+ /* Select native OS if no target OS defined. */
+diff -u -r a/src/lj_obj.h b/src/lj_obj.h
+--- a/src/lj_obj.h	2021-06-14 14:56:54.000000000 +0200
++++ b/src/lj_obj.h	2021-06-22 09:28:37.000000000 +0200
+@@ -316,15 +316,24 @@
+ 
  /* -- Userdata object ----------------------------------------------------- */
  
 +#if defined(__GNUC__)
@@ -271,220 +292,96 @@ index 52372c3e7..928e83936 100644
    MSize len;		/* Size of payload. */
    GCRef metatable;	/* Must be at same offset in GCtab. */
 -  uint32_t align1;	/* To force 8 byte alignment of the payload. */
-+  uint32_t align0; /* To force 16 byte alignment of the payload. */
-+  uint64_t align1; /* ^ */ 
++  uint32_t align0;	/* To force 8 byte alignment of the payload. */
++  uint64_t align1; /* ^ */
  } GCudata;
  
  /* Userdata types. */
-diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcbuild.bat
---- LuaJIT-2.1.0-beta3/src/msvcbuild.bat	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/msvcbuild.bat	2019-02-26 17:03:41.000000000 +0100
-@@ -11,7 +11,64 @@
- @rem
- @rem Then cd to this directory and run this script.
+diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
+--- a/src/msvcbuild.bat	2021-06-14 14:56:54.000000000 +0200
++++ b/src/msvcbuild.bat	2021-06-30 15:03:59.000000000 +0200
+@@ -12,6 +12,53 @@
  
--@if not defined INCLUDE goto :FAIL
-+@if not defined INCLUDE goto FAIL
-+
+ @if not defined INCLUDE goto :FAIL
+ 
 +@rem These lines will be installation-dependent.
-+@set VSINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio 14.0\
-+@set WindowsKits=C:\Program Files (x86)\Windows Kits\
-+@set WindowsSdkDir=%WindowsKits%8.1\
-+@set WindowsLibPath=%WindowsSdkDir%\References\CommonConfiguration\Neutral
-+@set WindowsSDKLibVersion=winv6.3\
-+@set UCRTVersion=10.0.10240.0
-+@set FrameworkDir=C:\WINDOWS\Microsoft.NET\Framework\
-+@set FrameworkVersion=v4.0.30319
-+@set Framework35Version=v3.5
-+
-+@set WindowsSDK_ExecutablePath_x64=C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\
-+@set WindowsSDK_ExecutablePath_x86=C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\
++@set VSINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\
++@set WindowsSdkDir=C:\Program Files (x86)\Windows Kits\10\
++@set WindowsLibPath=C:\Program Files (x86)\Windows
++@set WindowsSDKLibVersion=10.0.19041.0\
++@set UCRTVersion=10.0.19041.0
++@set FrameworkDir32=C:\Windows\Microsoft.NET\Framework\
++@set FrameworkDir64=C:\Windows\Microsoft.NET\Framework64\
++@set FrameworkVersion64=v4.0.30319
++@set VCToolsVersion=14.29.30037
 +
 +@rem The following should be largely installation-independent.
 +@set VCINSTALLDIR=%VSINSTALLDIR%VC\
 +@set DevEnvDir=%VSINSTALLDIR%Common7\IDE\
-+
-+@set FrameworkDIR32=%FrameworkDir%
-+@set FrameworkVersion32=%FrameworkVersion%
 +
 +@set c_VSINSTALLDIR=%VSINSTALLDIR%
 +@set c_WindowsSdkDir=%WindowsSdkDir%
 +@set c_FrameworkDir=%FrameworkDir%
 +
 +@set PATH=%c_WindowsSdkDir%bin;%PATH%
-+@set PATH=%c_WindowsSdkDir%bin/NETFX 4.0 Tools;%PATH%
 +@set PATH=%c_VSINSTALLDIR%VC/VCPackages;%PATH%
-+@set PATH=%c_FrameworkDir%%Framework35Version%;%PATH%
 +@set PATH=%c_FrameworkDir%%FrameworkVersion%;%PATH%
 +@set PATH=%c_VSINSTALLDIR%Common7/Tools;%PATH%
 +@set PATH=%c_VSINSTALLDIR%VC/BIN;%PATH%
 +@set PATH=%c_VSINSTALLDIR%Common7/IDE/;%PATH%
 +
-+
 +@if "%3"=="win32" goto SETUP_VC_32
 +@if "%3"=="x86_64-win32" goto SETUP_VC_64
 +
 +:SETUP_VC_32
-+@echo Using visual studio setup 32 bit ("x86")
-+@set INCLUDE=%VCINSTALLDIR%\INCLUDE;%VCINSTALLDIR%\ATLMFC\INCLUDE;%WindowsKits%\10\include\10.0.10240.0\ucrt;%WindowsKits%\NETFXSDK\4.6.1\include\um;%WindowsSdkDir%\include\\shared;%WindowsSdkDir%\include\\um;%WindowsSdkDir%\include\\winrt;
-+@set LIB=%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x86;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x86;%WindowsSdkDir%\lib\winv6.3\um\x86;
-+@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
-+@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin;%VSINSTALLDIR%\Common7\IDE\;%VCINSTALLDIR%\BIN;%VSINSTALLDIR%\Common7\Tools;C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\VCPackages;
-+@set DASC=vm_x86.dasc
-+goto SETUP_VC_DONE
++@set MSVC_ARCH=x86
++goto SETUP_VC
 +
 +:SETUP_VC_64
-+@echo Using visual studio setup 64 bit ("amd64")
-+@set INCLUDE=%VCINSTALLDIR%INCLUDE;%WindowsSdkDir%include;%WindowsKits%\10\include\10.0.10240.0\ucrt;%WindowsKits%\NETFXSDK\4.6.1\include\um;%WindowsSdkDir%\include\shared;%WindowsSdkDir%\include\um;%WindowsSdkDir%\include\\winrt;
-+@set LIB=%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x64;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x64;%WindowsSdkDir%\lib\winv6.3\um\x64;
-+@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
-+@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin\amd64;%VSINSTALLDIR%\VC\BIN\amd64;C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VSINSTALLDIR%\VC\VCPackages;%VSINSTALLDIR%\Common7\IDE;%VSINSTALLDIR%\Common7\Tools;%WindowsSdkDir%\bin\x64;%WindowsSdkDir%\bin\x86;C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\
-+@set DASC=vm_x64.dasc
++@set MSVC_ARCH=x64
++goto SETUP_VC
++
++:SETUP_VC
++@echo Using visual studio setup %MSVC_ARCH%
++@set INCLUDE=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\include;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\include;%WindowsSdkDir%\include\%UCRTVersion%\ucrt;%WindowsSdkDir%\include\%UCRTVersion%\shared;%WindowsSdkDir%\include\%UCRTVersion%\um;%WindowsSdkDir%\include\%UCRTVersion%\winrt;%WindowsSdkDir%\include\%UCRTVersion%\cppwinrt
++@set LIB=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\lib\%MSVC_ARCH%;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\lib\%MSVC_ARCH%;%WindowsSdkDir%\lib\%UCRTVersion%\ucrt\%MSVC_ARCH%;%WindowsSdkDir%\lib\%UCRTVersion%\um\%MSVC_ARCH%
++@set LIBPATH=%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\ATLMFC\lib\%MSVC_ARCH%;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\lib\%MSVC_ARCH%;%WindowsSdkDir%\UnionMetadata\%UCRTVersion%;%WindowsSdkDir%\References\%UCRTVersion%;
++@set PATH=%VSINSTALLDIR%\Common7\IDE\Extensions\Microsoft\IntelliCode\CLI;%VSINSTALLDIR%\VC\Tools\MSVC\%VCToolsVersion%\bin\Host%MSVC_ARCH%\%MSVC_ARCH%;%VSINSTALLDIR%\Common7\IDE\VC\VCPackages;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer;%VSINSTALLDIR%\MSBuild\Current\bin\Roslyn;%VSINSTALLDIR%\Team Tools\Performance Tools\%MSVC_ARCH%;%VSINSTALLDIR%\Team Tools\Performance Tools;%VSINSTALLDIR%\Common7\Tools\devinit;%VSINSTALLDIR%\MSBuild\Current\Bin;%VSINSTALLDIR%\Common7\IDE\;%VSINSTALLDIR%\Common7\Tools\;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%WindowsSdkDir%\bin\%UCRTVersion%\%MSVC_ARCH%;%WindowsSdkDir%\bin\%MSVC_ARCH%
 +goto SETUP_VC_DONE
 +:SETUP_VC_DONE
- 
++
++
  @setlocal
- @set LJCOMPILE=cl /nologo /c /O2 /W3 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_STDIO_INLINE=__declspec(dllexport)__inline
-@@ -20,89 +77,90 @@
- @set LJLIB=lib /nologo /nodefaultlib
- @set DASMDIR=..\dynasm
+ @rem Add more debug flags here, e.g. DEBUGCFLAGS=/DLUA_USE_APICHECK
+ @set DEBUGCFLAGS=
+@@ -23,7 +70,7 @@
  @set DASM=%DASMDIR%\dynasm.lua
--@set DASC=vm_x86.dasc
+ @set DASC=vm_x64.dasc
  @set LJDLLNAME=lua51.dll
 -@set LJLIBNAME=lua51.lib
 +@set LJLIBNAME=libluajit-5.1.lib
- @set ALL_LIB=lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
+ @set BUILDTYPE=release
+ @set ALL_LIB=lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c lib_buffer.c
  
- %LJCOMPILE% host\minilua.c
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- %LJLINK% /out:minilua.exe minilua.obj
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- if exist minilua.exe.manifest^
-   %LJMT% -manifest minilua.exe.manifest -outputresource:minilua.exe
- 
- @set DASMFLAGS=-D WIN -D JIT -D FFI -D P64
- @set LJARCH=x64
-+
-+@rem Check for 64 bit host compiler.
- @minilua
--@if errorlevel 8 goto :X64
-+@if errorlevel 8 goto X64
- @set DASMFLAGS=-D WIN -D JIT -D FFI
- @set LJARCH=x86
- @set LJCOMPILE=%LJCOMPILE% /arch:SSE2
-+
- :X64
--@if "%1" neq "gc64" goto :NOGC64
-+@if "%2" neq "gc64" goto :NOGC64
- @shift
--@set DASC=vm_x64.dasc
- @set LJCOMPILE=%LJCOMPILE% /DLUAJIT_ENABLE_GC64
- :NOGC64
+@@ -48,6 +95,7 @@
+ @set DASC=vm_x86.dasc
+ @set LJCOMPILE=%LJCOMPILE% /DLUAJIT_DISABLE_GC64
+ :GC64
++@echo "Using " %LJCOMPILE% %DASC%
  minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h %DASC%
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
+ @if errorlevel 1 goto :BAD
  
- %LJCOMPILE% /I "." /I %DASMDIR% host\buildvm*.c
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- %LJLINK% /out:buildvm.exe buildvm*.obj
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- if exist buildvm.exe.manifest^
-   %LJMT% -manifest buildvm.exe.manifest -outputresource:buildvm.exe
- 
- buildvm -m peobj -o lj_vm.obj
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- buildvm -m bcdef -o lj_bcdef.h %ALL_LIB%
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- buildvm -m ffdef -o lj_ffdef.h %ALL_LIB%
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- buildvm -m libdef -o lj_libdef.h %ALL_LIB%
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- buildvm -m recdef -o lj_recdef.h %ALL_LIB%
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- buildvm -m vmdef -o jit\vmdef.lua %ALL_LIB%
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- buildvm -m folddef -o lj_folddef.h lj_opt_fold.c
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- 
--@if "%1" neq "debug" goto :NODEBUG
-+@if "%1" neq "debug" goto NODEBUG
- @shift
- @set LJCOMPILE=%LJCOMPILE% /Zi
- @set LJLINK=%LJLINK% /debug /opt:ref /opt:icf /incremental:no
- :NODEBUG
--@if "%1"=="amalg" goto :AMALGDLL
--@if "%1"=="static" goto :STATIC
--%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
--@if errorlevel 1 goto :BAD
-+@if "%1"=="amalg" goto AMALGDLL
-+@if "%1"=="static" goto STATIC
-+%LJCOMPILE% /MT /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
-+@if errorlevel 1 goto BAD
- %LJLINK% /DLL /out:%LJDLLNAME% lj_*.obj lib_*.obj
--@if errorlevel 1 goto :BAD
--@goto :MTDLL
-+@if errorlevel 1 goto BAD
-+@goto MTDLL
- :STATIC
- %LJCOMPILE% lj_*.c lib_*.c
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- %LJLIB% /OUT:%LJLIBNAME% lj_*.obj lib_*.obj
--@if errorlevel 1 goto :BAD
--@goto :MTDLL
-+@if errorlevel 1 goto BAD
-+@goto MTDLL
- :AMALGDLL
--%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL ljamalg.c
--@if errorlevel 1 goto :BAD
-+%LJCOMPILE% /MT /DLUA_BUILD_AS_DLL ljamalg.c
-+@if errorlevel 1 goto BAD
- %LJLINK% /DLL /out:%LJDLLNAME% ljamalg.obj lj_vm.obj
--@if errorlevel 1 goto :BAD
-+@if errorlevel 1 goto BAD
- :MTDLL
- if exist %LJDLLNAME%.manifest^
-   %LJMT% -manifest %LJDLLNAME%.manifest -outputresource:%LJDLLNAME%;2
+@@ -104,10 +152,10 @@
  
  %LJCOMPILE% luajit.c
--@if errorlevel 1 goto :BAD
+ @if errorlevel 1 goto :BAD
 -%LJLINK% /out:luajit.exe luajit.obj %LJLIBNAME%
--@if errorlevel 1 goto :BAD
++%LJLINK% /out:luajit-%DEFOLD_ARCH%.exe luajit.obj %LJLIBNAME%
+ @if errorlevel 1 goto :BAD
 -if exist luajit.exe.manifest^
 -  %LJMT% -manifest luajit.exe.manifest -outputresource:luajit.exe
-+@if errorlevel 1 goto BAD
-+%LJLINK% /out:luajit-%DEFOLD_ARCH%.exe luajit.obj %LJLIBNAME%
-+@if errorlevel 1 goto BAD
 +if exist luajit-%DEFOLD_ARCH%.exe.manifest^
 +  %LJMT% -manifest luajit-%DEFOLD_ARCH%.exe.manifest -outputresource:luajit-%DEFOLD_ARCH%.exe
  
  @del *.obj *.manifest minilua.exe buildvm.exe
  @del host\buildvm_arch.h
-@@ -110,13 +168,13 @@
- @echo.
- @echo === Successfully built LuaJIT for Windows/%LJARCH% ===
- 
--@goto :END
-+@goto END
- :BAD
- @echo.
- @echo *******************************************************
- @echo *** Build FAILED -- Please check the error messages ***
--@echo *******************************************************
--@goto :END
-+@echo *******************************************************
-+@goto END
- :FAIL
- @echo You must open a "Visual Studio .NET Command Prompt" to run this script
- :END

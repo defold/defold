@@ -1159,9 +1159,10 @@ namespace dmGui
      *
      * @param scene the scene the node exists in
      * @param node the node to be enabled/disabled
+     * @param recursive check hierarchy recursively
      * @return whether the node is enabled or not
      */
-    bool IsNodeEnabled(HScene scene, HNode node);
+    bool IsNodeEnabled(HScene scene, HNode node, bool recursive);
     /** enables/disables a node
      * Set if a node should be enabled or not. Only enabled nodes are animated and rendered.
      *
