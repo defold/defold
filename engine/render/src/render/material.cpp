@@ -37,13 +37,14 @@ namespace dmRender
         const uint32_t buffer_size = 128;
         char buffer[buffer_size];
         dmGraphics::Type type;
+        int32_t size = 0;
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
             type = (dmGraphics::Type) -1;
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type);
+            dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type, &size);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
@@ -76,7 +77,7 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type);
+            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type, &size);
             int32_t location         = dmGraphics::GetUniformLocation(m->m_Program, buffer);
 
             // DEF-2971-hotfix
@@ -96,8 +97,13 @@ namespace dmRender
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
+                Constant render_constant(name_hash, location);
+                render_constant.m_NumComponents = size;
+                render_constant.m_Values        = new dmVMath::Vector4[size];
+
                 MaterialConstant constant;
-                constant.m_Constant = Constant(name_hash, location);
+                constant.m_Constant = render_constant;
+
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
                     size_t original_size = strlen(buffer);
@@ -151,9 +157,10 @@ namespace dmRender
             int32_t location = constant.m_Location;
             switch (constant.m_Type)
             {
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_ARRAY:
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                 {
-                    dmGraphics::SetConstantV4(graphics_context, &constant.m_Value, location);
+                    dmGraphics::SetConstantV4(graphics_context, constant.m_Values, constant.m_NumComponents, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
@@ -354,23 +361,23 @@ namespace dmRender
             MaterialConstant& c = constants[i];
             if (c.m_Constant.m_NameHash == name_hash)
             {
-                out_value = c.m_Constant.m_Value.getElem(element_index);
+                out_value = c.m_Constant.m_Values[0].getElem(element_index);
                 return true;
             }
         }
         return false;
     }
 
-    void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4 value)
+    void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4* values, uint32_t count)
     {
         dmArray<MaterialConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
             MaterialConstant& c = constants[i];
-            if (c.m_Constant.m_NameHash == name_hash)
+            if (c.m_Constant.m_NameHash == name_hash && count <= c.m_Constant.m_NumComponents)
             {
-                c.m_Constant.m_Value = value;
+                memcpy(c.m_Constant.m_Values, values, sizeof(c.m_Constant.m_Values[0]) * count);
             }
         }
     }

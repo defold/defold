@@ -86,12 +86,12 @@ namespace dmRender
      */
     struct Constant
     {
-        dmVMath::Vector4                        m_Value;
+        dmVMath::Vector4*                       m_Values;
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
         int32_t                                 m_Location;
+        uint16_t                                m_NumComponents;
 
-    // Private
         Constant();
         Constant(dmhash_t name_hash, int32_t location);
     };
