@@ -246,6 +246,29 @@ ordinary paths."
 (defn snapshot-cache [workspace]
   (g/node-value workspace :snapshot-cache))
 
+(defn- is-plugin-file? [resource]
+  (contains? #{"clj"} (resource/ext resource)))
+
+(def dbg-workspace (atom -1))
+
+(defn- find-editor-plugins [workspace]
+  (let [resources (filter is-plugin-file? (g/node-value workspace :resource-list))]
+    resources))
+
+(defn- load-plugin! [workspace resource]
+  ; TODO Handle Exceptions!
+  (log/info :msg (str "Loading plugin" (resource/path resource)))
+  (let [plugin (load-string (slurp resource))]
+    (plugin workspace))
+  (log/info :msg (str "Loaded plugin" (resource/path resource))))
+
+(defn load-editor-plugins! [workspace added]
+  (reset! dbg-workspace workspace)
+  (let [added-resources (set (map resource/proj-path added))
+        plugin-resources (find-editor-plugins workspace)
+        plugin-resources (filter (fn [x] (contains? added-resources (resource/proj-path x))) plugin-resources)]
+    (dorun (map (fn [x] (load-plugin! workspace x)) plugin-resources))))
+
 (defn resource-sync!
   ([workspace]
    (resource-sync! workspace []))
@@ -317,6 +340,7 @@ ordinary paths."
          (try
            (let [listeners @(g/node-value workspace :resource-listeners)
                  total-progress-size (transduce (map first) + 0 listeners)]
+             (load-editor-plugins! workspace (:added changes))
              (loop [listeners listeners
                     parent-progress (progress/make "" total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]
@@ -339,7 +363,6 @@ ordinary paths."
 
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
-
 
 (g/deftype UriVec [URI])
 

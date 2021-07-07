@@ -503,7 +503,7 @@ namespace dmGui
 
     /*# gets the index of the specified node
      *
-     * Retrieve the index of the specified node.
+     * Retrieve the index of the specified node among its siblings.
      * The index defines the order in which a node appear in a GUI scene.
      * Higher index means the node is drawn on top of lower indexed nodes.
      *
@@ -512,7 +512,7 @@ namespace dmGui
      * @return index [type:number] the index of the node
      * @examples
      *
-     * Compare the index order of two nodes:
+     * Compare the index order of two sibling nodes:
      *
      * ```lua
      * local node1 = gui.get_node("my_node_1")
@@ -2841,17 +2841,20 @@ namespace dmGui
      *
      * @name gui.is_enabled
      * @param node [type:node] node to query
+     * @param recursive [type:boolean] check hierarchy recursively
      * @return enabled [type:boolean] whether the node is enabled or not
      */
     static int LuaIsEnabled(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 1);
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
         Scene* scene = GuiScriptInstance_Check(L);
-
-        lua_pushboolean(L, dmGui::IsNodeEnabled(scene, hnode));
+        int top = lua_gettop(L);
+        bool recursive = top >= 2 && lua_toboolean(L, 2);
+        lua_pushboolean(L, dmGui::IsNodeEnabled(scene, hnode, recursive));
 
         return 1;
     }
