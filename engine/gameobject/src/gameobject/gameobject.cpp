@@ -3177,7 +3177,7 @@ namespace dmGameObject
         }
     }
 
-    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value)
+    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value, PropertyOptions options)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
@@ -3358,6 +3358,7 @@ namespace dmGameObject
                     p.m_PropertyId = property_id;
                     p.m_UserData = user_data;
                     p.m_Value = value;
+                    p.m_Options = options;
                     return type->m_SetPropertyFunction(p);
                 }
                 else

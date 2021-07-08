@@ -74,8 +74,8 @@ namespace dmRender
 
     struct MaterialConstant
     {
-        Constant m_Constant;
-        dmhash_t m_ElementIds[4];
+        Constant  m_Constant;
+        dmhash_t  m_ElementIds[4];
     };
 
     struct RenderContextParams
@@ -128,7 +128,7 @@ namespace dmRender
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
-    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vectormath::Aos::Vector4& value);
+    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vectormath::Aos::Vector4* values, uint32_t num_values);
     void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash);
 
     /**

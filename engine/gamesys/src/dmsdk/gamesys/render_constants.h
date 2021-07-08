@@ -97,7 +97,7 @@ namespace dmGameSystem
      * @param element_index [type: uint32_t*] pointer to the index of the element (in range [0,3]). May be 0
      * @param var [type: const dmGameObject::PropertyVar&] the constant value
      */
-    void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+    void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var);
 
     /*#
      * Removes a render constant from the container
@@ -159,7 +159,7 @@ namespace dmGameSystem
      * @typedef
      * @name CompSetConstantCallback
      */
-    typedef void (*CompSetConstantCallback)(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+    typedef void (*CompSetConstantCallback)(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var);
 
     /**
      * Helper function to set material constants of components that use them: sprite, label, tile maps, spine and models
@@ -171,7 +171,7 @@ namespace dmGameSystem
      * @param callback_user_data [type: void*] callback user data
      * @return result [type: dmGameObject::PropertyResult] the result
      */
-    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data);
+    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, int32_t value_index, CompSetConstantCallback callback, void* callback_user_data);
 
 }
 

@@ -503,7 +503,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < constant_count; ++i)
         {
             dmParticle::RenderConstant* c = &constants[i];
-            dmRender::EnableRenderObjectConstant(ro, c->m_NameHash, c->m_Value);
+            dmRender::EnableRenderObjectConstant(ro, c->m_NameHash, &c->m_Value, 1);
         }
     }
 

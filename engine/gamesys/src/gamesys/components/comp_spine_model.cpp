@@ -670,12 +670,12 @@ namespace dmGameSystem
         return GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompSpineModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompSpineModelSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -710,9 +710,10 @@ namespace dmGameSystem
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash)
             {
+                int index = 0; // TODO
                 dmGameSystemDDF::SetConstantSpineModel* ddf = (dmGameSystemDDF::SetConstantSpineModel*)params.m_Message->m_Data;
                 dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(GetMaterial(component, component->m_Resource), ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), CompSpineModelSetConstantCallback, component);
+                        dmGameObject::PropertyVar(ddf->m_Value), index, CompSpineModelSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
@@ -884,7 +885,7 @@ namespace dmGameSystem
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }
-        return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpineModelSetConstantCallback, component);
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)

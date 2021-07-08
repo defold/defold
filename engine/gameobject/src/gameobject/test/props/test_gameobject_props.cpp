@@ -304,8 +304,10 @@ static dmhash_t hash(const char* s)
 
 #define ASSERT_SET_PROP_NUM(go, prop, v0, epsilon)\
     {\
+        dmGameObject::PropertyOptions opt;\
+        opt.m_Index = 0;\
         dmGameObject::PropertyVar var(v0);\
-        dmGameObject::SetProperty(go, 0, hash(prop), var);\
+        dmGameObject::SetProperty(go, 0, hash(prop), var, opt);\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
         ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
@@ -322,8 +324,10 @@ static dmhash_t hash(const char* s)
 
 #define ASSERT_SET_PROP_V1(go, prop, v0, epsilon)\
     {\
+        dmGameObject::PropertyOptions opt;\
+        opt.m_Index = 0;\
         dmGameObject::PropertyVar var(v0);\
-        dmGameObject::SetProperty(go, 0, hash(prop), var);\
+        dmGameObject::SetProperty(go, 0, hash(prop), var, opt);\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
@@ -358,7 +362,9 @@ static dmhash_t hash(const char* s)
 #define ASSERT_SET_PROP_V3(go, prop, v, epsilon)\
     {\
         dmGameObject::PropertyVar var(v);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), var));\
+        dmGameObject::PropertyOptions opt;\
+        opt.m_Index = 0;\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), var, opt));\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
@@ -368,21 +374,21 @@ static dmhash_t hash(const char* s)
         float v0 = v.getX() + 1.0f;\
         dmhash_t id = hash(prop ".x");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var, opt));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getY() + 1.0f;\
         id = hash(prop ".y");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var, opt));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getZ() + 1.0f;\
         id = hash(prop ".z");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var, opt));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
     }
@@ -422,7 +428,9 @@ static dmhash_t hash(const char* s)
 #define ASSERT_SET_PROP_V4(go, prop, v, epsilon)\
     {\
         dmGameObject::PropertyVar var(v);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), var));\
+        dmGameObject::PropertyOptions opt;\
+        opt.m_Index = 0;\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), var, opt));\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
@@ -433,28 +441,28 @@ static dmhash_t hash(const char* s)
         float v0 = v.getX() + 1.0f;\
         dmhash_t id = hash(prop ".x");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var, opt));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getY() + 1.0f;\
         id = hash(prop ".y");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var, opt));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getZ() + 1.0f;\
         id = hash(prop ".z");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var, opt));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
 \
         v0 = v.getW() + 1.0f;\
         id = hash(prop ".w");\
         var = dmGameObject::PropertyVar(v0);\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, var, opt));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, desc));\
         ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
     }

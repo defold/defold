@@ -737,7 +737,7 @@ namespace dmRender
         return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
     }
 
-    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4& value)
+    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4* values, uint32_t num_values)
     {
         assert(ro);
         HMaterial material = ro->m_Material;
@@ -750,15 +750,21 @@ namespace dmRender
             return;
         }
 
+        Constant material_constant;
+        GetMaterialProgramConstant(material, name_hash, material_constant);
+
         for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
         {
             Constant* c = &ro->m_Constants[i];
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                c->m_Values[0] = value;
+                c->m_Values        = new Vector4[material_constant.m_NumComponents]; // TODO: will this be a lot of dynamic allocations? o_o
+                c->m_NumComponents = material_constant.m_NumComponents;
+                memcpy(c->m_Values, values, sizeof(values[0]) * num_values);
+
                 c->m_NameHash = name_hash;
-                c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+                c->m_Type     = num_values > 1 ? dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_ARRAY : dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
                 c->m_Location = location;
                 return;
             }
@@ -775,6 +781,10 @@ namespace dmRender
             Constant* c = &ro->m_Constants[i];
             if (c->m_NameHash == name_hash)
             {
+                if (c->m_Values)
+                {
+                    delete[] c->m_Values;
+                }
                 c->m_Location = -1;
                 return;
             }

@@ -811,12 +811,12 @@ namespace dmGameSystem
         return component->m_RenderConstants && dmGameSystem::GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompMeshSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompMeshSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         MeshComponent* component = (MeshComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        dmGameSystem::SetRenderConstant(component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, component->m_Resource->m_Material, name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -838,7 +838,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
                 dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), CompMeshSetConstantCallback, component);
+                        dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompMeshSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
@@ -969,7 +969,7 @@ namespace dmGameSystem
             }
         }
 
-        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
+        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompMeshSetConstantCallback, component);
         component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
         return res;

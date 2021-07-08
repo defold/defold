@@ -430,7 +430,9 @@ static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_
 
 static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t in_val) {
     dmGameObject::PropertyVar prop_var(in_val);
-    return dmGameObject::SetProperty(instance, comp_name, prop_name, prop_var);
+    dmGameObject::PropertyOptions opt;
+    opt.m_Index = 0;
+    return dmGameObject::SetProperty(instance, comp_name, prop_name, prop_var, opt);
 }
 
 TEST_F(SoundTest, UpdateSoundResource)
@@ -2923,7 +2925,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     ASSERT_EQ(0, constant);
 
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, var1); // stores the previous value
+    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
 
     result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_TRUE(result);
@@ -2932,7 +2934,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
     dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, var2);
+    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, 0, var2);
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 
