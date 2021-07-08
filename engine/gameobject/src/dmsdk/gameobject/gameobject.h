@@ -241,6 +241,11 @@ namespace dmGameObject
         UPDATE_RESULT_UNKNOWN_ERROR = -1000,
     };
 
+    struct PropertyOptions
+    {
+        int32_t m_Index;
+    };
+
     /*# property variant
      * Property variant that holds the data for a variable
      *

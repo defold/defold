@@ -92,14 +92,25 @@ namespace dmRender
             }
 
             assert(name_str_length > 0);
+
+            // For uniform arrays, OpenGL returns the name as "uniform[0]"
+            for (int j = 0; j < name_str_length; ++j)
+            {
+                if (buffer[j] == '[')
+                {
+                    buffer[j] = 0;
+                    break;
+                }
+            }
+
             dmhash_t name_hash = dmHashString64(buffer);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
                 Constant render_constant(name_hash, location);
-                render_constant.m_NumComponents = size;
-                render_constant.m_Values        = new dmVMath::Vector4[size];
+                render_constant.m_NumComponents      = size;
+                render_constant.m_Values             = new dmVMath::Vector4[size];
 
                 MaterialConstant constant;
                 constant.m_Constant = render_constant;
@@ -142,6 +153,17 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteProgram(graphics_context, material->m_Program);
+
+        const dmArray<MaterialConstant>& constants = material->m_Constants;
+        for (uint32_t i = 0; i < constants.Size(); ++i)
+        {
+            const MaterialConstant& material_constant = constants[i];
+            if (material_constant.m_Constant.m_Values != 0x0)
+            {
+                delete[] material_constant.m_Constant.m_Values;
+            }
+        }
+
         delete material;
     }
 

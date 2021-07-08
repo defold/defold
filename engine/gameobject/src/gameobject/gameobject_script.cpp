@@ -654,9 +654,26 @@ namespace dmGameObject
         if (target_instance == 0)
             return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+
+        dmGameObject::PropertyOptions property_options;
+        property_options.m_Index = 0;
+
+        // Options table
+        if (lua_gettop(L) > 3)
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "index");
+            property_options.m_Index = lua_isnil(L, -1) ? 0.0 : luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
         if (result == PROPERTY_RESULT_OK)
         {
-            result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_var);
+            result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_var, property_options);
         }
         switch (result)
         {

@@ -120,7 +120,7 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
-    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data)
+    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, int32_t value_index, CompSetConstantCallback callback, void* callback_user_data)
     {
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
@@ -137,7 +137,7 @@ namespace dmGameSystem
                     {
                         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
                     }
-                    callback(callback_user_data, constant_id, 0x0, var);
+                    callback(callback_user_data, constant_id, value_index, 0x0, var);
                 }
                 else
                 {
@@ -145,7 +145,7 @@ namespace dmGameSystem
                     {
                         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
                     }
-                    callback(callback_user_data, constant_id, &element_index, var);
+                    callback(callback_user_data, constant_id, value_index, &element_index, var);
                 }
                 return dmGameObject::PROPERTY_RESULT_OK;
             }

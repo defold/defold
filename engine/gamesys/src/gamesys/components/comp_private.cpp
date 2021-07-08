@@ -336,7 +336,7 @@ bool GetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, 
     return false;
 }
 
-void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
 {
     Vector4* v = 0x0;
     uint32_t count = constants->m_RenderConstants.Size();
@@ -345,7 +345,7 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         dmRender::Constant& c = constants->m_RenderConstants[i];
         if (c.m_NameHash == name_hash)
         {
-            v = &c.m_Values[0];
+            v = &c.m_Values[value_index];
             break;
         }
     }
@@ -364,8 +364,8 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         dmRender::Constant c;
         dmRender::GetMaterialProgramConstant(material, name_hash, c);
         constants->m_RenderConstants[count] = c;
-        constants->m_PrevRenderConstants[count] = c.m_Values[0];
-        v = &(constants->m_RenderConstants[count].m_Values[0]);
+        constants->m_PrevRenderConstants[count] = c.m_Values[0]; // What to do with this?
+        v = &(constants->m_RenderConstants[count].m_Values[value_index]);
     }
     if (element_index == 0x0)
         *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
@@ -422,7 +422,7 @@ void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderCon
     for (uint32_t i = 0; i < size; ++i)
     {
         const dmRender::Constant& c = constants[i];
-        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Values[0]);
+        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Values, c.m_NumComponents);
     }
 }
 

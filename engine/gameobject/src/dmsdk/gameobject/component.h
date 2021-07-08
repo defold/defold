@@ -418,6 +418,8 @@ namespace dmGameObject
         uintptr_t* m_UserData;
         /// New value of the property
         PropertyVar m_Value;
+        /// Options for setting the property
+        PropertyOptions m_Options;
     };
 
     /*#

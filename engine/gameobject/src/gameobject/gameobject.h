@@ -354,7 +354,7 @@ namespace dmGameObject
      * @param userdata2 User specified data
      * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value);
+    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value, PropertyOptions options);
 
     typedef void (*AnimationStopped)(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2);
