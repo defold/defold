@@ -90,7 +90,7 @@ platforms:
 
     # Generates the ddf format files for use in the engine
     protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
-    # Generates the language specific (cpp, jaba and python) format bindings for use in the pipeline plugins
+    # Generates the language specific (cpp, java and python) format bindings for use in the pipeline plugins
     protoPipelineCmd:       '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --proto_path={{proto_path}} --{{language}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
     protoPipelineOutputRe:  '*.pb.h|*.pb.cc|*_pb2.py'
 
@@ -110,7 +110,7 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
-        MACOS_VERSION:          "{{env.MACOS_10_15_VERSION}}"
+        MACOS_VERSION:          "{{env.MACOS_11_VERSION}}"
         LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
     context:
         frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
