@@ -1166,7 +1166,6 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_BULLET) {
             if (physics_context->m_3D) {
-                // TODO - display not-implemented warning
                 dmLogWarning("'bullet' property not supported in 3d physics mode");
                 return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
             } else {
