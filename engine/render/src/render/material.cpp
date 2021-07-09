@@ -39,6 +39,7 @@ namespace dmRender
         dmGraphics::Type type;
         int32_t size = 0;
 
+        uint32_t constants_data_size = 0;
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
@@ -49,6 +50,7 @@ namespace dmRender
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 constants_count++;
+                constants_data_size += sizeof(Vector4) * size;
             }
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
@@ -66,6 +68,12 @@ namespace dmRender
             m->m_Constants.SetCapacity(constants_count);
         }
 
+        if (constants_count > 0)
+        {
+            m->m_ConstantData = (Vector4*) malloc(constants_data_size);
+            memset(m->m_ConstantData, 0, constants_data_size);
+        }
+
         if (samplers_count > 0)
         {
             m->m_Samplers.SetCapacity(samplers_count);
@@ -75,6 +83,7 @@ namespace dmRender
             }
         }
 
+        dmVMath::Vector4* constant_data_ptr = m->m_ConstantData;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
             uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type, &size);
@@ -93,7 +102,8 @@ namespace dmRender
 
             assert(name_str_length > 0);
 
-            // For uniform arrays, OpenGL returns the name as "uniform[0]"
+            // For uniform arrays, OpenGL returns the name as "uniform[0]",
+            // but we want to identify it as the base name instead.
             for (int j = 0; j < name_str_length; ++j)
             {
                 if (buffer[j] == '[')
@@ -110,7 +120,8 @@ namespace dmRender
                 m->m_NameHashToLocation.Put(name_hash, location);
                 Constant render_constant(name_hash, location);
                 render_constant.m_NumComponents      = size;
-                render_constant.m_Values             = new dmVMath::Vector4[size];
+                render_constant.m_ValuePtr           = constant_data_ptr;
+                constant_data_ptr                   += size;
 
                 MaterialConstant constant;
                 constant.m_Constant = render_constant;
@@ -154,15 +165,8 @@ namespace dmRender
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteProgram(graphics_context, material->m_Program);
 
-        const dmArray<MaterialConstant>& constants = material->m_Constants;
-        for (uint32_t i = 0; i < constants.Size(); ++i)
-        {
-            const MaterialConstant& material_constant = constants[i];
-            if (material_constant.m_Constant.m_Values != 0x0)
-            {
-                delete[] material_constant.m_Constant.m_Values;
-            }
-        }
+        if (material->m_ConstantData)
+            free(material->m_ConstantData);
 
         delete material;
     }
@@ -182,7 +186,7 @@ namespace dmRender
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_ARRAY:
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                 {
-                    dmGraphics::SetConstantV4(graphics_context, constant.m_Values, constant.m_NumComponents, location);
+                    dmGraphics::SetConstantV4(graphics_context, constant.m_ValuePtr, constant.m_NumComponents, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
@@ -383,7 +387,7 @@ namespace dmRender
             MaterialConstant& c = constants[i];
             if (c.m_Constant.m_NameHash == name_hash)
             {
-                out_value = c.m_Constant.m_Values[0].getElem(element_index);
+                out_value = c.m_Constant.m_ValuePtr[0].getElem(element_index);
                 return true;
             }
         }
@@ -399,7 +403,7 @@ namespace dmRender
             MaterialConstant& c = constants[i];
             if (c.m_Constant.m_NameHash == name_hash && count <= c.m_Constant.m_NumComponents)
             {
-                memcpy(c.m_Constant.m_Values, values, sizeof(c.m_Constant.m_Values[0]) * count);
+                memcpy(c.m_Constant.m_ValuePtr, values, sizeof(c.m_Constant.m_ValuePtr[0]) * count);
             }
         }
     }

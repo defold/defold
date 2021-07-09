@@ -86,7 +86,7 @@ namespace dmRender
      */
     struct Constant
     {
-        dmVMath::Vector4*                       m_Values;
+        dmVMath::Vector4*                       m_ValuePtr;
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
         int32_t                                 m_Location;
@@ -184,6 +184,7 @@ namespace dmRender
         static const uint32_t MAX_TEXTURE_COUNT = 8;
         static const uint32_t MAX_CONSTANT_COUNT = 16;
         Constant                        m_Constants[MAX_CONSTANT_COUNT];
+        dmVMath::Vector4                m_ConstantsData[MAX_CONSTANT_COUNT];
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
