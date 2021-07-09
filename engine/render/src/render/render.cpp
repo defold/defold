@@ -759,6 +759,13 @@ namespace dmRender
         for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
         {
             Constant* c = &ro->m_Constants[i];
+
+            if ((value_ptr + num_values) > value_ptr_end)
+            {
+                dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
+                return;
+            }
+
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
@@ -773,11 +780,6 @@ namespace dmRender
             }
 
             value_ptr += c->m_NumComponents;
-            if (value_ptr >= value_ptr_end)
-            {
-                dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
-                return;
-            }
         }
 
         dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
