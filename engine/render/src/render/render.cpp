@@ -56,7 +56,7 @@ namespace dmRender
 
     Constant::Constant() {}
     Constant::Constant(dmhash_t name_hash, int32_t location)
-        : m_Values(0)
+        : m_ValuePtr(0)
         , m_NameHash(name_hash)
         , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
         , m_Location(location)
@@ -365,7 +365,7 @@ namespace dmRender
                 const Constant* c = &ro->m_Constants[i];
                 if (c->m_Location != -1)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, c->m_Values, 1, c->m_Location);
+                    dmGraphics::SetConstantV4(graphics_context, c->m_ValuePtr, 1, c->m_Location);
                 }
             }
             return;
@@ -378,7 +378,7 @@ namespace dmRender
                 int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
                 if (location)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, c->m_Values, 1, *location);
+                    dmGraphics::SetConstantV4(graphics_context, c->m_ValuePtr, 1, *location);
                 }
             }
         }
@@ -753,19 +753,29 @@ namespace dmRender
         Constant material_constant;
         GetMaterialProgramConstant(material, name_hash, material_constant);
 
+        Vector4* value_ptr     = ro->m_ConstantsData;
+        Vector4* value_ptr_end = value_ptr + RenderObject::MAX_CONSTANT_COUNT;
+
         for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
         {
             Constant* c = &ro->m_Constants[i];
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                c->m_Values        = new Vector4[material_constant.m_NumComponents]; // TODO: will this be a lot of dynamic allocations? o_o
+                c->m_ValuePtr      = value_ptr;
                 c->m_NumComponents = material_constant.m_NumComponents;
-                memcpy(c->m_Values, values, sizeof(values[0]) * num_values);
+                memcpy(c->m_ValuePtr, values, sizeof(values[0]) * num_values);
 
                 c->m_NameHash = name_hash;
                 c->m_Type     = num_values > 1 ? dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_ARRAY : dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
                 c->m_Location = location;
+                return;
+            }
+
+            value_ptr += c->m_NumComponents;
+            if (value_ptr >= value_ptr_end)
+            {
+                dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
                 return;
             }
         }
@@ -781,10 +791,6 @@ namespace dmRender
             Constant* c = &ro->m_Constants[i];
             if (c->m_NameHash == name_hash)
             {
-                if (c->m_Values)
-                {
-                    delete[] c->m_Values;
-                }
                 c->m_Location = -1;
                 return;
             }

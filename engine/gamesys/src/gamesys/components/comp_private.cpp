@@ -345,7 +345,7 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         dmRender::Constant& c = constants->m_RenderConstants[i];
         if (c.m_NameHash == name_hash)
         {
-            v = &c.m_Values[value_index];
+            v = &c.m_ValuePtr[value_index];
             break;
         }
     }
@@ -364,8 +364,8 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         dmRender::Constant c;
         dmRender::GetMaterialProgramConstant(material, name_hash, c);
         constants->m_RenderConstants[count] = c;
-        constants->m_PrevRenderConstants[count] = c.m_Values[0]; // What to do with this?
-        v = &(constants->m_RenderConstants[count].m_Values[value_index]);
+        constants->m_PrevRenderConstants[count] = c.m_ValuePtr[0]; // What to do with this?
+        v = &(constants->m_RenderConstants[count].m_ValuePtr[value_index]);
     }
     if (element_index == 0x0)
         *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
@@ -396,8 +396,8 @@ void HashRenderConstants(HComponentRenderConstants constants, HashState32* state
     {
         dmRender::Constant& c = constants->m_RenderConstants[i];
         dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(c.m_NameHash));
-        dmHashUpdateBuffer32(state, &c.m_Values[0], sizeof(c.m_Values[0]));
-        constants->m_PrevRenderConstants[i] = c.m_Values[0];
+        dmHashUpdateBuffer32(state, &c.m_ValuePtr[0], sizeof(c.m_ValuePtr[0]));
+        constants->m_PrevRenderConstants[i] = c.m_ValuePtr[0];
     }
 }
 
@@ -407,7 +407,7 @@ int AreRenderConstantsUpdated(HComponentRenderConstants constants)
     for (uint32_t i = 0; i < size; ++i)
     {
         // TODO: Do a faster check for equality!
-        if (lengthSqr(constants->m_RenderConstants[i].m_Values[0] - constants->m_PrevRenderConstants[i]) > 0)
+        if (lengthSqr(constants->m_RenderConstants[i].m_ValuePtr[0] - constants->m_PrevRenderConstants[i]) > 0)
         {
             return 1;
         }
@@ -422,7 +422,7 @@ void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderCon
     for (uint32_t i = 0; i < size; ++i)
     {
         const dmRender::Constant& c = constants[i];
-        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Values, c.m_NumComponents);
+        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_NumComponents);
     }
 }
 
