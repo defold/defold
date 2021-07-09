@@ -152,7 +152,7 @@ namespace dmGameSystem
      * @param callback_user_data [type: void*] callback user data
      * @return result [type: dmGameObject::PropertyResult] the result
      */
-    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data);
+    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data);
 
     /*#
      * Used in SetMaterialConstant to set a render constant's value

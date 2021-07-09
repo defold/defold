@@ -576,7 +576,7 @@ namespace dmGameSystem
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFontMap(component, component->m_Resource), out_value);
         }
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, out_value, false, CompLabelGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompLabelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompLabelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

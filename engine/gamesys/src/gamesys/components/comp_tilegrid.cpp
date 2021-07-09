@@ -941,7 +941,7 @@ namespace dmGameSystem
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component), out_value);
         }
-        return GetMaterialConstant(GetMaterial(component), params.m_PropertyId, out_value, true, CompTileGridGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompTileGridGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
