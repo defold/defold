@@ -1112,7 +1112,7 @@ namespace dmGameSystem
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource)->m_Texture, out_value);
         }
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, out_value, false, CompSpriteGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

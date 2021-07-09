@@ -59,7 +59,7 @@ namespace dmGameSystem
 
     }
 
-    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data)
+    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data)
     {
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
@@ -70,7 +70,7 @@ namespace dmGameSystem
             Vector4* value = 0x0;
             dmRender::Constant* comp_constant = 0x0;
             if (callback(callback_user_data, constant_id, &comp_constant))
-                value = comp_constant->m_ValuePtr;
+                value = &comp_constant->m_ValuePtr[value_index];
             if (constant_id == name_hash)
             {
                 if (element_ids != 0x0)
@@ -90,7 +90,7 @@ namespace dmGameSystem
                 {
                     dmRender::Constant c;
                     dmRender::GetMaterialProgramConstant(material, constant_id, c);
-                    out_desc.m_Variant = dmGameObject::PropertyVar(c.m_ValuePtr[0]);
+                    out_desc.m_Variant = dmGameObject::PropertyVar(c.m_ValuePtr[value_index]);
                 }
             }
             else

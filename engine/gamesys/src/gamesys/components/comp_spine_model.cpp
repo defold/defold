@@ -833,7 +833,7 @@ namespace dmGameSystem
             dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), material, out_value);
         }
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, out_value, true, CompSpineModelGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompSpineModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

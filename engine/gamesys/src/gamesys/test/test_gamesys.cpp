@@ -422,7 +422,9 @@ static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::H
 
 static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {
     dmGameObject::PropertyDesc desc;
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, desc));
+    dmGameObject::PropertyOptions opt;
+    opt.m_Index = 0;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, opt, desc));
     dmGameObject::PropertyType type = desc.m_Variant.m_Type;
     ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_HASH == type);
     *out_val = desc.m_Variant.m_Hash;
@@ -432,7 +434,7 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     dmGameObject::PropertyVar prop_var(in_val);
     dmGameObject::PropertyOptions opt;
     opt.m_Index = 0;
-    return dmGameObject::SetProperty(instance, comp_name, prop_name, prop_var, opt);
+    return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
 }
 
 TEST_F(SoundTest, UpdateSoundResource)
@@ -723,7 +725,9 @@ TEST_F(ParticleFxTest, PlayAnim)
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
 {
     dmGameObject::PropertyDesc property_desc;
-    dmGameObject::GetProperty(go, component_id, property_id, property_desc);
+    dmGameObject::PropertyOptions property_opt;
+    property_opt.m_Index = 0;
+    dmGameObject::GetProperty(go, component_id, property_id, property_opt, property_desc);
     return property_desc.m_Variant.m_Number;
 }
 

@@ -2997,7 +2997,7 @@ namespace dmGameObject
         instance->m_Transform.SetRotation(dmVMath::EulerToQuat(instance->m_EulerRotation));
     }
 
-    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyDesc& out_value)
+    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
@@ -3156,6 +3156,7 @@ namespace dmGameObject
                     p.m_World = instance->m_Collection->m_ComponentWorlds[component.m_TypeIndex];
                     p.m_Instance = instance;
                     p.m_PropertyId = property_id;
+                    p.m_Options = options;
                     p.m_UserData = user_data;
                     PropertyDesc prop_desc;
                     PropertyResult result = type->m_GetPropertyFunction(p, prop_desc);
@@ -3177,7 +3178,7 @@ namespace dmGameObject
         }
     }
 
-    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value, PropertyOptions options)
+    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
