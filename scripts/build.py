@@ -829,6 +829,7 @@ class Configuration(object):
 
             # Android Jars (external)
             external_jars = ("android-support-multidex.jar",
+                             "androidx-multidex.jar",
                              "android.jar")
             jardir = os.path.join(self.dynamo_home, 'ext/share/java')
             paths = _findjars(jardir, external_jars)
