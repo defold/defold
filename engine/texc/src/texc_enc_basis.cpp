@@ -26,11 +26,17 @@ namespace dmTexc
 {
     static void SetCompressionLevel(CompressionType compression_type, CompressionLevel compression_level, basisu::basis_compressor_params& comp_params)
     {
-        // The order of the enum (since the names are extremely confusing/subjective)
+        // The order of the enums.
         // CL_FAST    = 0;
         // CL_NORMAL  = 1;
         // CL_HIGH    = 2;
         // CL_BEST    = 3;
+
+        // We roughly want to achieve this. Note However, that the Basis Universal library doesn't exactly work like this.
+        // FAST - low amount of compression, quality is almost exactly the same quality as uncompressed
+        // NORMAL - medium amount of compression, slight change in image quality
+        // HIGH - high compression ratio but visible reduction in quality
+        // BEST - maximum compression ratio and visible compression artifacts
 
         if (compression_type == CT_BASIS_ETC1S)
         {
@@ -55,45 +61,46 @@ namespace dmTexc
         }
         else {
 
-            // # Best first, fast last
-            // test_uastc(image, uastc_level=2, uastc_rdo_l=0.25, uastc_rdo_d=16384)   # 64.88%, 47.977 dB, 3.139894 s
-            // test_uastc(image, uastc_level=1, uastc_rdo_l=1, uastc_rdo_d=16384)      # 52.31%, 45.047 dB, 2.310900 s
-            // test_uastc(image, uastc_level=1, uastc_rdo_l=2, uastc_rdo_d=8192)       # 49.82%, 42.927 dB, 1.243244 s
-            // test_uastc(image, uastc_level=0, uastc_rdo_l=3, uastc_rdo_d=8192)       # 43.79%, 40.481 dB, 0.778897 s
-
             int uastc_level;
             int uastc_rdo_d;
             float uastc_rdo_l;
-            if (compression_level == CL_BEST)
+            bool uastc_enable = false;
+            if (compression_level == CL_BEST) // "best" means smallest size here
             {
-                uastc_level = 2;
-                uastc_rdo_l = 0.25;
-                uastc_rdo_d = 16384;
+                uastc_enable = true;
+
+                // Size is % of original size (100% == no compression)
+                // dB measures the information loss (100 dB == no signal loss)
+                // test_uastc(image, uastc_level=0, uastc_rdo_l=3, uastc_rdo_d=4192)  # 44.53%, 40.549 dB, 0.482915 s
+                uastc_level = 0;
+                uastc_rdo_l = 3;
+                uastc_rdo_d = 4096;
             }
             else if (compression_level == CL_HIGH)
             {
+                // test_uastc(image, uastc_level=1, uastc_rdo_l=1, uastc_rdo_d=8192)  # 52.74%, 45.098 dB, 1.315928 s
+                uastc_enable = true;
                 uastc_level = 1;
                 uastc_rdo_l = 1;
-                uastc_rdo_d = 16384;
+                uastc_rdo_d = 8192;
             }
             else if (compression_level == CL_NORMAL)
             {
-                uastc_level = 1;
-                uastc_rdo_l = 2;
-                uastc_rdo_d = 8192;
+                comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelDefault; // 47.47 dB
             }
             else // CL_FAST
             {
-                uastc_level = 0;
-                uastc_rdo_l = 3;
-                uastc_rdo_d = 8192;
+                comp_params.m_pack_uastc_flags = basisu::cPackUASTCLevelFaster; // 46.49 dB
             }
 
             // See basisu_comp.h
-            comp_params.m_rdo_uastc = true;
-            comp_params.m_pack_uastc_flags = uastc_level;
-            comp_params.m_rdo_uastc_quality_scalar = uastc_rdo_l;
-            comp_params.m_rdo_uastc_dict_size = uastc_rdo_d;
+            if (uastc_enable)
+            {
+                comp_params.m_rdo_uastc = uastc_enable;
+                comp_params.m_pack_uastc_flags = uastc_level;
+                comp_params.m_rdo_uastc_quality_scalar = uastc_rdo_l;
+                comp_params.m_rdo_uastc_dict_size = uastc_rdo_d;
+            }
         }
     }
 
