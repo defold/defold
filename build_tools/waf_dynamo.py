@@ -79,6 +79,7 @@ OSX_SDK_VERSION="11.3"
 MIN_OSX_SDK_VERSION="10.7"
 
 XCODE_VERSION="12.5"
+SWIFT_VERSION="5.0"
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
@@ -334,35 +335,36 @@ def default_flags(self):
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
-    if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
+    if "linux" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-            # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
-            # some tests after we switched to -02 optimisations. We should refine these tests so that they
-            # don't rely on equal-compare floating point values, and/or verify that underlaying engine
-            # code don't rely on floats being of a certain precision level. When this is done, we can
-            # remove -ffloat-store. Jira Issue: DEF-1891
-            if 'linux' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
-                self.env.append_value(f, ['-ffloat-store'])
-            if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
-                self.env.append_value(f, ['-m32'])
-            if "osx" == build_util.get_target_os():
-                self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
-                self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
-                self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
-                if 'linux' in self.env['BUILD_PLATFORM']:
-                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
+    elif "osx" == build_util.get_target_os():
 
-        if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
-            self.env.append_value('LINKFLAGS', ['-m32'])
-        if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+        sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)
+        swift_dir = "%s/usr/lib/swift-%s/macosx" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
+
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-rtti'])
+
+            self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
+            self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
+
+            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
             if 'linux' in self.env['BUILD_PLATFORM']:
-                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
+                self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
+
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LIBPATH', ['-L%s/usr/lib' % sys_root, '-L%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '-L%s' % swift_dir])
+
+        if 'linux' in self.env['BUILD_PLATFORM']:
+            self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
 
@@ -382,19 +384,23 @@ def default_flags(self):
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)
+        swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
             sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)
+            swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
-                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
-                                            '-isysroot', sys_root, '-isysroot', sys_root])
+                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+
+            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
         self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION] + extra_linkflags)
+        self.env.append_value('LIBPATH', ['-L%s/usr/lib' % sys_root, '-L%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '-L%s' % swift_dir])
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
