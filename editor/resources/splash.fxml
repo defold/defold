@@ -23,7 +23,7 @@
    <AnchorPane id="footer" AnchorPane.bottomAnchor="76.0" AnchorPane.leftAnchor="109.0" AnchorPane.rightAnchor="109.0">
       <VBox prefWidth="250.0" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="115.0">
          <Label id="version" text="No Version" visible="false" wrapText="true" />
-         <Label id="copyright" text="2009–2020 Defold Foundation." />
+         <Label id="copyright" text="2009–2021 Defold Foundation." />
          <Label id="rights-reserved" text="All rights reserved." />
          <Label id="sponsors" text="Corporate Partners:" />
          <HBox id="sponsor-icons">
