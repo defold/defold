@@ -84,11 +84,15 @@ def build(bld):
             'spinescene',
             'spinemodel']
 
+    extra_libs = []
+    if bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        extra_libs += ['OPENGL']
+
     exported_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim',
                         'ComponentTypeScript', 'ComponentTypeAnim']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '../../../src ../../../proto %s' % (dir),
-                                     uselib = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB CARES',
+                                     uselib = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB CARES'.split() + extra_libs,
                                      uselib_local = 'gamesys',
                                      exported_symbols = exported_symbols,
                                      web_libs = ['library_sys.js', 'library_script.js'],
