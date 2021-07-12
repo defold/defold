@@ -77,6 +77,7 @@ OSX_SDK_VERSION="11.3"
 MIN_OSX_SDK_VERSION="10.7"
 
 XCODE_VERSION="12.5"
+XCODE_CLANG_VERSION="12.0.5"
 SWIFT_VERSION="5.0"
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
@@ -393,7 +394,7 @@ def default_flags(self):
         if 'linux' in self.env['BUILD_PLATFORM']:
             target_triplet='arm-apple-darwin19'
             extra_ccflags += ['-target', target_triplet]
-            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/12.0.0/lib/darwin'),
+            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/%s/lib/darwin' % XCODE_CLANG_VERSION),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
             extra_linkflags += ['-fobjc-link-runtime']
