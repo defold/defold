@@ -361,7 +361,7 @@ def default_flags(self):
                 self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
-        self.env.append_value('LIBPATH', ['-L%s/usr/lib' % sys_root, '-L%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '-L%s' % swift_dir])
+        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
             self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
@@ -400,7 +400,7 @@ def default_flags(self):
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
         self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION] + extra_linkflags)
-        self.env.append_value('LIBPATH', ['-L%s/usr/lib' % sys_root, '-L%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '-L%s' % swift_dir])
+        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '%s' % swift_dir])
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
