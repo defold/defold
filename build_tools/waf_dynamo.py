@@ -44,7 +44,7 @@ except:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web']
+        return platform not in ['js-web', 'wasm-web', 'armv7-darwin', 'x86_64-ios']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -328,6 +328,28 @@ def default_flags(self):
            self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
            self.env.append_value(f, self.env.CXXDEFINES_ST % "JC_TEST_USE_COLORS=1")
 
+    for f in ['CCFLAGS', 'CXXFLAGS']:
+        if '64' in build_util.get_target_architecture():
+            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
+        else:
+            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
+
+    libpath = build_util.get_library_path()
+
+    # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
+    if not os.path.exists(libpath):
+        os.makedirs(libpath)
+    self.env.append_value('LIBPATH', libpath)
+
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
+    self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
+
+    # Platform specific paths etc comes after the project specific stuff
+
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
@@ -462,27 +484,6 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
-
-
-    for f in ['CCFLAGS', 'CXXFLAGS']:
-        if '64' in build_util.get_target_architecture():
-            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
-        else:
-            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
-
-    libpath = build_util.get_library_path()
-
-    # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
-    if not os.path.exists(libpath):
-        os.makedirs(libpath)
-    self.env.append_value('LIBPATH', libpath)
-
-    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
-    self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     platform_setup_vars(self, build_util)
 
