@@ -90,7 +90,7 @@ platforms:
 
     # Generates the ddf format files for use in the engine
     protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
-    # Generates the language specific (cpp, jaba and python) format bindings for use in the pipeline plugins
+    # Generates the language specific (cpp, java and python) format bindings for use in the pipeline plugins
     protoPipelineCmd:       '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --proto_path={{proto_path}} --{{language}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
     protoPipelineOutputRe:  '*.pb.h|*.pb.cc|*_pb2.py'
 
@@ -110,13 +110,17 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
-        MACOS_VERSION:          "{{env.MACOS_10_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_12_CLANG_VERSION}}"
+        MACOS_VERSION:          "{{env.MACOS_11_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_VERSION}}"
         LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_11_VERSION}}.sdk"
     context:
         frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin", "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/12.0.0/lib/darwin"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:    ["DM_PLATFORM_OSX", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_64", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
+        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ["-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         libs:       ['clang_rt.osx']
@@ -134,8 +138,8 @@ platforms:
     zipContentPattern: 'dmengine'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+"]
-    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk/ -m64 -O2 -g -stdlib=libc++ -mmacosx-version-min=10.7 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
-    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk/ -m64 -O2 -g -stdlib=libc++ -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
+    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin19 -m64 -O2 -g -stdlib=libc++ -mmacosx-version-min=10.7 -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin19 -m64 -O2 -g -stdlib=libc++ -mmacosx-version-min=10.7 -isysroot {{env.SYSROOT}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     manifestName:     'Info.plist'
@@ -152,14 +156,18 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_12_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_VERSION}}"
         IOS_VERSION:            "{{env.IOS_14_VERSION}}"
         LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_14_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "Security"]
         weakFrameworks: ["Foundation"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
-        libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin", "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/12.0.0/lib/darwin"]
+        libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:    ["DM_PLATFORM_IOS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_64"]
+        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-Wl,-U,_objc_loadClassref']
         libs:       ['clang_rt.ios']
@@ -177,8 +185,8 @@ platforms:
     zipContentPattern: 'dmengine'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+"]
-    compileCmd: 'clang++ -c -arch arm64 -target arm-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd: 'clang++ -arch arm64 -target arm-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+    compileCmd: 'clang++ -c -arch arm64 -target arm-apple-darwin19 -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch arm64 -target arm-apple-darwin19 -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     manifestName:     'Info.plist'
@@ -189,14 +197,18 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_12_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_VERSION}}"
         IOS_VERSION:            "{{env.IOS_14_VERSION}}"
         LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_14_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "Security"]
         weakFrameworks: ["Foundation"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
-        libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin", "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/12.0.0/lib/darwin"]
+        libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:    ["DM_PLATFORM_IOS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_32"]
+        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-Wl,-U,_objc_loadClassref']
         libs:       ['clang_rt.ios']
@@ -214,8 +226,8 @@ platforms:
     zipContentPattern: 'dmengine'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+"]
-    compileCmd: 'clang++ -c -arch armv7 -target arm-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk/ -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd: 'clang++ -arch armv7 -target arm-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk/ -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+    compileCmd: 'clang++ -c -arch armv7 -target arm-apple-darwin19 -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch armv7 -target arm-apple-darwin19 -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     manifestName:     'Info.plist'
@@ -226,14 +238,18 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_12_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_VERSION}}"
         IOS_VERSION:            "{{env.IOS_14_VERSION}}"
         LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_14_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "Security"]
         weakFrameworks: ["Foundation"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-ios", "{{dynamo_home}}/ext/lib/x86_64-ios", "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_VERSION}}.sdk/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphonesimulator", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/12.0.0/lib/darwin"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-ios", "{{dynamo_home}}/ext/lib/x86_64-ios", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphonesimulator", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphonesimulator", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:    ["IOS_SIMULATOR", "DDF_EXPOSE_DESCRIPTORS", "DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]
+        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-pagezero_size', '10000', '-image_base', '100000000', '-Wl,-U,_objc_loadClassref']
         libs:       ['clang_rt.ios']
@@ -251,8 +267,8 @@ platforms:
     zipContentPattern: 'dmengine'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+"]
-    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_VERSION}}.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_VERSION}}.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin19 -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin19 -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     manifestName:     'Info.plist'
@@ -442,7 +458,7 @@ platforms:
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
-        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
+        systemIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
@@ -460,7 +476,7 @@ platforms:
     symbolsPattern:  '.*pdb'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-=]+"]
-    compileCmd:     'clang++ -target x86_64-pc-win32-msvc -m64 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
+    compileCmd:     'clang++ -target x86_64-pc-win32-msvc -m64 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target x86_64-pc-win32-msvc -m64 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     windresCmd:     'windres -i {{dynamo_home}}/lib/x86_64-win32/engine.rc -O coff -o {{tgt}}'
@@ -477,7 +493,7 @@ platforms:
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]
-        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
+        systemIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
@@ -495,7 +511,7 @@ platforms:
     symbolsPattern:  '.*pdb'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-=]+"]
-    compileCmd:     'clang++ -target i386-pc-win32-msvc -m32 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
+    compileCmd:     'clang++ -target i386-pc-win32-msvc -m32 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target i386-pc-win32-msvc -m32 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
