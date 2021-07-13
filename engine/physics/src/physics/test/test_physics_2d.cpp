@@ -191,8 +191,10 @@ TYPED_TEST(PhysicsTest, UseBullet)
     typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
-    (*TestFixture::m_Test.m_IsBulletFunc)(dynamic_co);
-    (*TestFixture::m_Test.m_SetBulletFunc)(dynamic_co, false);
+    ASSERT_EQ(false, (*TestFixture::m_Test.m_IsBulletFunc)(dynamic_co)); // check default
+    (*TestFixture::m_Test.m_SetBulletFunc)(dynamic_co, true);
+    ASSERT_EQ(true, (*TestFixture::m_Test.m_IsBulletFunc)(dynamic_co));
+
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
