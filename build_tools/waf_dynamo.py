@@ -1797,18 +1797,19 @@ def detect(conf):
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
-    conf.env['FRAMEWORK_GRAPHICS'] = ['CoreGraphics']
-    conf.env['FRAMEWORK_GRAPHICS_VULKAN'] = ['CoreGraphics']
-
     if platform in ('x86_64-darwin'):
         vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'ApplicationServices']
+        conf.env['FRAMEWORK_GRAPHICS'] = ['CoreGraphics']
+        conf.env['FRAMEWORK_GRAPHICS_VULKAN'] = ['CoreGraphics']
     elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+        conf.env['FRAMEWORK_GRAPHICS'] = ['CoreGraphics']
+        conf.env['FRAMEWORK_GRAPHICS_VULKAN'] = ['CoreGraphics']
     elif platform in ('x86_64-linux',):
         conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):
