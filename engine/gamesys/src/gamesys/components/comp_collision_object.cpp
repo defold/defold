@@ -44,6 +44,8 @@ namespace dmGameSystem
     static const dmhash_t PROP_LINEAR_VELOCITY = dmHashString64("linear_velocity");
     static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
     static const dmhash_t PROP_MASS = dmHashString64("mass");
+    static const dmhash_t PROP_BULLET = dmHashString64("bullet");
+
 
     struct CollisionComponent;
     struct JointEndPoint;
@@ -321,6 +323,8 @@ namespace dmGameSystem
         out_data.m_LinearDamping = ddf->m_LinearDamping;
         out_data.m_AngularDamping = ddf->m_AngularDamping;
         out_data.m_LockedRotation = ddf->m_LockedRotation;
+        out_data.m_LockedRotation = ddf->m_LockedRotation;
+        out_data.m_Bullet = ddf->m_Bullet;
         out_data.m_Enabled = enabled;
         for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
         {
@@ -1160,6 +1164,14 @@ namespace dmGameSystem
                 out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetMass2D(component->m_Object2D));
             }
             return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_BULLET) {
+            if (physics_context->m_3D) {
+                dmLogWarning("'bullet' property not supported in 3d physics mode");
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::IsBullet2D(component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
             if (physics_context->m_3D) {
                 out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping3D(component->m_Object3D));
@@ -1199,6 +1211,16 @@ namespace dmGameSystem
                 dmPhysics::SetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             } else {
                 dmPhysics::SetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_BULLET) {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_BOOLEAN)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (physics_context->m_3D) {
+                dmLogWarning("'bullet' property not supported in 3d physics mode");
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            } else {
+                dmPhysics::SetBullet2D(component->m_Object2D, params.m_Value.m_Bool);
             }
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {

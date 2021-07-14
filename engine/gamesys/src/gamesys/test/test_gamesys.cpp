@@ -1438,7 +1438,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-TEST_F(Sleeping2DCollisionObjectTest, WakingCollisionObjectTest)
+TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
 {
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -1485,6 +1485,42 @@ TEST_F(Sleeping2DCollisionObjectTest, WakingCollisionObjectTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+// Test case for collision-object properties
+TEST_F(CollisionObject2DTest, PropertiesTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // a 'base' gameobject works as the base for other dynamic objects to stand on
+    const char* path_go = "/collision_object/properties.goc";
+    dmhash_t hash_go = dmHashString64("/go");
+    // place the base object so that the upper level of base is at Y = 0
+    dmGameObject::HInstance properties_go = Spawn(m_Factory, m_Collection, path_go, hash_go, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, properties_go);
+
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 
 /* Physics joints */
 TEST_F(ComponentTest, JointTest)

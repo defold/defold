@@ -222,6 +222,14 @@ namespace dmPhysics
         return 0;
     }
 
+    bool IsBullet2D(HCollisionObject2D collision_object)
+    {
+        return false;
+    }
+
+    void SetBullet2D(HCollisionObject2D collision_object, bool value) {
+    }
+
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
     }

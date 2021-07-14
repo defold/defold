@@ -124,6 +124,8 @@ struct Funcs
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);
     typedef void (*SetGravityFunc)(typename T::WorldType world, const Vectormath::Aos::Vector3& gravity);
+    typedef bool (*IsBulletFunc)(typename T::CollisionObjectType collision_object);
+    typedef void (*SetBulletFunc)(typename T::CollisionObjectType collision_object, bool value);
     typedef Vectormath::Aos::Vector3 (*GetGravityFunc)(typename T::WorldType world);
 };
 
@@ -238,6 +240,8 @@ struct Test2D
     Funcs<Test2D>::ReplaceShapeFunc                 m_ReplaceShapeFunc;
     Funcs<Test2D>::SetGravityFunc                   m_SetGravityFunc;
     Funcs<Test2D>::GetGravityFunc                   m_GetGravityFunc;
+    Funcs<Test2D>::IsBulletFunc                     m_IsBulletFunc;
+    Funcs<Test2D>::SetBulletFunc                    m_SetBulletFunc;
 
     float*      m_Vertices;
     uint32_t    m_VertexCount;
