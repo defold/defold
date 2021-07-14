@@ -626,19 +626,16 @@ int  _glfwPlatformOpenWindow( int width, int height,
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
         unsigned int attribute_count = 0;
-    #define ADD_ATTR(x) attributes[attribute_count++] = x
-    #define ADD_ATTR2(x, y) (void)({ ADD_ATTR(x); ADD_ATTR(y); })
     #define MAX_ATTRS 24 // urgh
         NSOpenGLPixelFormatAttribute attributes[MAX_ATTRS];
+    #define ADD_ATTR(x) assert(attribute_count < MAX_ATTRS); attributes[attribute_count++] = x
+    #define ADD_ATTR2(x, y) (void)({ ADD_ATTR(x); ADD_ATTR(y); })
 
         ADD_ATTR( NSOpenGLPFADoubleBuffer );
 
         if( wndconfig->mode == GLFW_FULLSCREEN )
         {
-            ADD_ATTR( NSOpenGLPFAFullScreen );
-            ADD_ATTR( NSOpenGLPFANoRecovery );
-            ADD_ATTR2( NSOpenGLPFAScreenMask,
-                       CGDisplayIDToOpenGLDisplayMask( CGMainDisplayID() ) );
+            ADD_ATTR2( NSOpenGLPFAScreenMask, CGDisplayIDToOpenGLDisplayMask( CGMainDisplayID() ) );
         }
 
         ADD_ATTR2( NSOpenGLPFAColorSize, colorBits );
