@@ -60,6 +60,9 @@ public:
 
 	/// Position
 	b2Vec2 m_p;
+
+	// Defold modifications
+	b2Vec2 m_creationP; // DEFOLD: Store the position used at creation time
 };
 
 inline b2CircleShape::b2CircleShape()
