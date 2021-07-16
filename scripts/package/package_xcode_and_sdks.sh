@@ -66,10 +66,6 @@ function package_platform() {
 	PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 
 	EXTRA_ARGS=""
-	for f in ${PLATFORM_FOLDER}/usr/lib/swift*
-	do
-		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
-	done
 
 	echo FOUND $PLATFORM_SYMLINK "->" $PLATFORM_FOLDER
 	make_archive $PLATFORM_FOLDER $PLATFORM_SYMLINK ${EXTRA_ARGS}
