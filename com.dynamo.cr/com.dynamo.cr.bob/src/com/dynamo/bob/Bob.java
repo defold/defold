@@ -421,6 +421,9 @@ public class Bob {
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
+        options.addOption(null, "build-plugins", false, "Build editor and pipeline plugins only");
+
+
         // debug options
         options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
 

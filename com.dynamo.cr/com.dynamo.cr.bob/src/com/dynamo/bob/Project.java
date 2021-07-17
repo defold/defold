@@ -943,6 +943,55 @@ public class Project {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
 
+                    final Boolean withSymbols = this.hasOption("with-symbols");
+                    final String[] platforms = getPlatformStrings();
+                    // Get or build engine binary
+                    boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    if (buildRemoteEngine) {
+                        logInfo("Build Remote Engine...");
+
+                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+
+                        Map<String, String> appmanifestOptions = new HashMap<>();
+                        appmanifestOptions.put("baseVariant", variant);
+                        appmanifestOptions.put("withSymbols", withSymbols.toString());
+
+                        if (this.hasOption("build-plugins")) {
+                            appmanifestOptions.put("buildArtifacts", "plugins");
+                        }
+
+                        Platform platform = this.getPlatform();
+
+                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                        String customArchitectures = this.option("architectures", null);
+                        if (customArchitectures != null) {
+                            architectures = customArchitectures.split(",");
+                        }
+
+                        long tstart = System.currentTimeMillis();
+
+                        buildEngine(monitor, architectures, appmanifestOptions);
+
+                        long tend = System.currentTimeMillis();
+                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
+
+                        if (this.hasOption("build-plugins")) {
+                            // If we only wanted to build the extensions, we simply continue here
+                            continue;
+                        }
+
+                    } else {
+                        // Remove the remote built executables in the build folder, they're still in the cache
+                        cleanEngines(monitor, platforms);
+                        if (withSymbols) {
+                            IProgress progress = monitor.subProgress(1);
+                            downloadSymbols(progress);
+                            progress.done();
+                        }
+                    }
+
+                    BundleHelper.throwIfCanceled(monitor);
+
                     // Do early test if report files are writable before we start building
                     boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
                     FileWriter fileJSONWriter = null;
@@ -958,56 +1007,6 @@ public class Project {
                         File reportHTMLFile = new File(reportHTMLPath);
                         fileHTMLWriter = new FileWriter(reportHTMLFile);
                     }
-
-
-                    final Boolean withSymbols = this.hasOption("with-symbols");
-                    final String[] platforms = getPlatformStrings();
-                    // Get or build engine binary
-                    boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                    if (buildRemoteEngine) {
-                        logInfo("Build Remote Engine...");
-
-                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-
-                        Map<String, String> appmanifestOptions = new HashMap<>();
-                        appmanifestOptions.put("baseVariant", variant);
-                        appmanifestOptions.put("withSymbols", withSymbols.toString());
-
-                        // Since this can be a call from Editor we can't expect the architectures option to be set.
-                        // We default to the default architectures for the platform, and take the option value
-                        // only if it has been set.
-                        Platform platform = this.getPlatform();
-                        if (platform != Platform.getHostPlatform() && ExtenderUtil.hasExtensionPipelinePlugins(this)) {
-                            logInfo("Building plugins for host platform");
-
-                            String[] architectures = Platform.getHostPlatform().getArchitectures().getDefaultArchitectures();
-                            buildEngine(monitor, architectures, appmanifestOptions);
-
-                        }
-
-                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
-                        String customArchitectures = this.option("architectures", null);
-                        if (customArchitectures != null) {
-                            architectures = customArchitectures.split(",");
-                        }
-
-                        long tstart = System.currentTimeMillis();
-
-                        buildEngine(monitor, architectures, appmanifestOptions);
-
-                        long tend = System.currentTimeMillis();
-                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
-                    } else {
-                        // Remove the remote built executables in the build folder, they're still in the cache
-                        cleanEngines(monitor, platforms);
-                        if (withSymbols) {
-                            IProgress progress = monitor.subProgress(1);
-                            downloadSymbols(progress);
-                            progress.done();
-                        }
-                    }
-
-                    BundleHelper.throwIfCanceled(monitor);
 
                     IProgress m = monitor.subProgress(99);
 
