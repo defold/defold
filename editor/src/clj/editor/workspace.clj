@@ -34,6 +34,7 @@ ordinary paths."
 (set! *warn-on-reflection* true)
 
 (def build-dir "/build/default/")
+(def plugins-dir "/build/plugins/")
 
 (defn project-path
   (^File [workspace]
@@ -42,8 +43,17 @@ ordinary paths."
   (^File [workspace evaluation-context]
    (io/as-file (g/node-value workspace :root evaluation-context))))
 
+(defn- skip-first-char [^String path]
+  (.substring path 1 (count path)))
+
 (defn build-path [workspace]
-  (io/file (project-path workspace) "build/default/"))
+  (io/file (project-path workspace) (skip-first-char build-dir)))
+
+(defn plugin-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char plugins-dir)))
+  (^File [workspace path]
+   (io/file (project-path workspace) (str (skip-first-char plugins-dir) (skip-first-char path)))))
 
 (defrecord BuildResource [resource prefix]
   resource/Resource
@@ -246,28 +256,65 @@ ordinary paths."
 (defn snapshot-cache [workspace]
   (g/node-value workspace :snapshot-cache))
 
-(defn- is-plugin-file? [resource]
+(defn- is-plugin-clojure-file? [resource]
   (contains? #{"clj"} (resource/ext resource)))
 
-(def dbg-workspace (atom -1))
-
-(defn- find-editor-plugins [workspace]
-  (let [resources (filter is-plugin-file? (g/node-value workspace :resource-list))]
+(defn- find-clojure-plugins [workspace]
+  (let [resources (filter is-plugin-clojure-file? (g/node-value workspace :resource-list))]
     resources))
 
 (defn- load-plugin! [workspace resource]
   ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin" (resource/path resource)))
-  (let [plugin (load-string (slurp resource))]
-    (plugin workspace))
+  (let [plugin-fn (load-string (slurp resource))]
+    (plugin-fn workspace))
   (log/info :msg (str "Loaded plugin" (resource/path resource))))
 
 (defn load-editor-plugins! [workspace added]
-  (reset! dbg-workspace workspace)
   (let [added-resources (set (map resource/proj-path added))
-        plugin-resources (find-editor-plugins workspace)
+        plugin-resources (find-clojure-plugins workspace)
         plugin-resources (filter (fn [x] (contains? added-resources (resource/proj-path x))) plugin-resources)]
     (dorun (map (fn [x] (load-plugin! workspace x)) plugin-resources))))
+
+; Determine if the extension has plugins, if so, it needs to be extracted
+
+(defn- is-jar-file? [resource]
+  (contains? #{"jar"} (resource/ext resource)))
+
+(defn- is-plugin-file? [resource]
+  (string/includes? (resource/proj-path resource) "/plugins/"))
+
+(defn- find-plugins-shared-libraries [workspace]
+  (let [resources (filter is-plugin-file? (g/node-value workspace :resource-list))]
+    resources))
+
+(defn unpack-resource! [workspace resource]
+  (let [target-path (plugin-path workspace (resource/proj-path resource))
+        parent-dir (.getParentFile ^File target-path)
+        input-stream (clojure.java.io/input-stream resource)]
+    (when-not (.exists parent-dir)
+      (.mkdirs parent-dir))
+    (io/copy input-stream target-path)))
+
+; It's important to use the same class loader, so that the type signatures match
+(def class-loader (clojure.lang.DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
+
+(defn load-class! [class-name]
+  (Class/forName class-name true class-loader))
+
+(defn- register-jar-file! [workspace resource]
+  (let [jar-file (plugin-path workspace (resource/proj-path resource))]
+    (.addURL class-loader (io/as-url jar-file))))
+
+(defn unpack-editor-plugins! [workspace changed]
+  ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
+  ; TODO: Handle removed plugins (e.g. a dependency was removed)
+  (let [changed-resources (set (map resource/proj-path changed))
+        all-plugin-resources (find-plugins-shared-libraries workspace)
+        changed-plugin-resources (filter (fn [x] (contains? changed-resources (resource/proj-path x))) all-plugin-resources)
+        changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
+    (dorun (map (fn [x] (unpack-resource! workspace x)) changed-plugin-resources))
+    (dorun (map (fn [x] (register-jar-file! workspace x)) changed-jar-resources))))
 
 (defn resource-sync!
   ([workspace]
@@ -339,8 +386,11 @@ ordinary paths."
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
          (try
            (let [listeners @(g/node-value workspace :resource-listeners)
-                 total-progress-size (transduce (map first) + 0 listeners)]
-             (load-editor-plugins! workspace (:added changes))
+                 total-progress-size (transduce (map first) + 0 listeners)
+                 added (:added changes)
+                 changed (:changed changes)]
+             (unpack-editor-plugins! workspace (set/union added changed))
+             (load-editor-plugins! workspace (set/union added changed))
              (loop [listeners listeners
                     parent-progress (progress/make "" total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]

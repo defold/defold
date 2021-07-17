@@ -31,8 +31,6 @@
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.types :as types]
             [editor.json :as json]
