@@ -96,6 +96,7 @@ public class Project {
 
     public final static String LIB_DIR = ".internal/lib";
     public final static String CACHE_DIR = ".internal/cache";
+    public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
 
     public enum OutputFlags {
@@ -149,6 +150,10 @@ public class Project {
 
     public String getBuildDirectory() {
         return buildDirectory;
+    }
+
+    public String getPluginsDirectory() {
+        return FilenameUtils.concat(getRootDirectory(), PLUGINS_DIR);
     }
 
     public String getBinaryOutputDirectory() {
@@ -772,7 +777,7 @@ public class Project {
             boolean debugUploadZip = this.hasOption("debug-ne-upload");
 
             if (debugUploadZip) {
-                File debugZip = new File(buildDir, "upload.zip");
+                File debugZip = new File(buildDir.getParent(), "upload.zip");
                 ZipOutputStream zipOut = null;
                 try {
                     zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
@@ -916,9 +921,10 @@ public class Project {
         }
     }
 
-    private void registerPipelinePlugins() {
+    private void registerPipelinePlugins() throws CompileExceptionError {
         // Find the plugins and register them now, before we're building the content
-        List<File> plugins = ExtenderUtil.getPipelinePlugins(this);
+        BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
+        List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
         for (File plugin : plugins) {
             scanner.addUrl(plugin);
             logInfo("Using plugin %s", plugin);
