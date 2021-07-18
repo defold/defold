@@ -304,7 +304,7 @@ ordinary paths."
 
 (defn- register-jar-file! [workspace resource]
   (let [jar-file (plugin-path workspace (resource/proj-path resource))]
-    (.addURL class-loader (io/as-url jar-file))))
+    (.addURL ^clojure.lang.DynamicClassLoader class-loader (io/as-url jar-file))))
 
 (defn unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
