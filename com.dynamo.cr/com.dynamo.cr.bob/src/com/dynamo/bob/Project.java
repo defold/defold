@@ -931,6 +931,21 @@ public class Project {
         }
     }
 
+    private boolean shouldBuildArtifact(String artifact) {
+        String str = this.option("build-artifacts", "");
+        List<String> artifacts = Arrays.asList(str.split(","));
+        return artifacts.contains(artifact);
+    }
+
+    private boolean shouldBuildEngine() {
+        String str = this.option("build-artifacts", "");
+        return str.equals("") || shouldBuildArtifact("engine");
+    }
+
+    private boolean shouldBuildPlugins() {
+        return shouldBuildArtifact("plugins");
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
@@ -962,8 +977,10 @@ public class Project {
                         appmanifestOptions.put("baseVariant", variant);
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                        if (this.hasOption("build-plugins")) {
-                            appmanifestOptions.put("buildArtifacts", "plugins");
+                        if (this.hasOption("build-artifacts")) {
+                            String s = this.option("build-artifacts", "");
+                            System.out.printf("build-artifacts: %s\n", s);
+                            appmanifestOptions.put("buildArtifacts", s);
                         }
 
                         Platform platform = this.getPlatform();
@@ -981,7 +998,7 @@ public class Project {
                         long tend = System.currentTimeMillis();
                         Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
 
-                        if (this.hasOption("build-plugins")) {
+                        if (!shouldBuildEngine()) {
                             // If we only wanted to build the extensions, we simply continue here
                             continue;
                         }

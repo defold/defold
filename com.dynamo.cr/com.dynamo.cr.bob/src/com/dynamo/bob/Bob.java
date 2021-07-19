@@ -421,7 +421,7 @@ public class Bob {
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
-        options.addOption(null, "build-plugins", false, "Build editor and pipeline plugins only");
+        options.addOption(null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.");
 
 
         // debug options
@@ -486,6 +486,25 @@ public class Bob {
 
         Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
         project.findSources(sourceDirectory, skipDirs);
+    }
+
+    private static void validateChoices(String optionName, String value, List<String> validChoices) {
+        if (!validChoices.contains(value)) {
+            System.out.printf("%s option must be one of: ", optionName);
+            for (String choice : validChoices) {
+                System.out.printf("%s, ", choice);
+            }
+            System.out.printf("\n");
+            System.exit(1);
+        }
+    }
+
+    private static void validateChoicesList(Project project, String optionName, String[] validChoices) {
+        String str = project.option(optionName, "");
+        List<String> values = Arrays.asList(str.split(","));
+        for (String value : values) {
+            validateChoices(optionName, value, Arrays.asList(validChoices));
+        }
     }
 
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
@@ -625,6 +644,11 @@ public class Bob {
 
         if (cmd.hasOption("bundle-format")) {
             project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
+        }
+
+        if (project.hasOption("build-artifacts")) {
+            String[] validArtifacts = {"engine", "plugins"};
+            validateChoicesList(project, "build-artifacts", validArtifacts);
         }
 
         boolean ret = true;
