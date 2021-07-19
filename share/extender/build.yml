@@ -459,7 +459,7 @@ platforms:
         engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
         systemIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
-        defines:    ["DM_PLATFORM_WINDOWS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
+        defines:    ["DM_PLATFORM_WINDOWS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
@@ -494,7 +494,7 @@ platforms:
         engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]
         systemIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
-        defines:    ["DM_PLATFORM_WINDOWS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
+        defines:    ["DM_PLATFORM_WINDOWS", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
@@ -517,12 +517,15 @@ platforms:
     windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
   x86_64-linux:
+    env:
+      LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
+
     context:
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
         includes:   ["{{dynamo_home}}/include/x86_64-linux"]
         defines:    ["DM_PLATFORM_LINUX", "DDF_EXPOSE_DESCRIPTORS", "__STDC_LIMIT_MACROS", "LUA_BYTECODE_ENABLE_64"]
-        flags:      ["-ffloat-store", "-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
+        flags:      ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
         linkFlags:  []
         libs:       []
         # this happens to contain some dynamic engine libs too (openal)

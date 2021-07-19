@@ -22,7 +22,7 @@ Macros currently mean no foreseeable performance gain however."
             [clojure.string :as s]
             [internal.java :as j]
             [editor.util :as util]
-            [util.murmur :as murmur]
+            [editor.workspace :as workspace]
             [util.digest :as digest])
   (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor DescriptorProtos$FieldOptions
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
@@ -30,7 +30,6 @@ Macros currently mean no foreseeable performance gain however."
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.lang.reflect Method]
            [java.io Reader ByteArrayOutputStream]
-           [java.security MessageDigest]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -360,7 +359,7 @@ Macros currently mean no foreseeable performance gain however."
                                      (->CamelCase (FilenameUtils/getBaseName (.getName file))))
                          inner-cls (desc-name desc)]
                      (str package "." outer-cls "$" inner-cls)))]
-    (Class/forName cls-name)))
+    (workspace/load-class! cls-name)))
 
 (defn- primitive-builder [^Descriptors$FieldDescriptor desc]
   (let [type (.getJavaType desc)]
