@@ -281,11 +281,27 @@ ordinary paths."
 (defn- is-jar-file? [resource]
   (contains? #{"jar"} (resource/ext resource)))
 
-(defn- is-plugin-file? [resource]
-  (string/includes? (resource/proj-path resource) "/plugins/"))
+; from native_extensions.clj
+(defn- extension-root?
+  [resource]
+  (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
+
+(defn- is-extension-file? [workspace resource]
+  (let [parent-path (resource/parent-proj-path (resource/proj-path resource))
+        parent (find-resource workspace (str parent-path))]
+    (if (extension-root? resource)
+      true
+      (if parent
+        (is-extension-file? workspace parent)
+        false))))
+
+(defn- is-plugin-file? [workspace resource]
+  (and
+    (string/includes? (resource/proj-path resource) "/plugins/")
+    (is-extension-file? workspace resource)))
 
 (defn- find-plugins-shared-libraries [workspace]
-  (let [resources (filter is-plugin-file? (g/node-value workspace :resource-list))]
+  (let [resources (filter (fn [x] (is-plugin-file? workspace x)) (g/node-value workspace :resource-list))]
     resources))
 
 (defn unpack-resource! [workspace resource]
