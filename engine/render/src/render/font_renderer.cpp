@@ -677,13 +677,14 @@ namespace dmRender
         const uint32_t max_lines = 128;
         TextLine lines[max_lines];
 
-        LayoutMetrics lm(font_map, tracking);
-        float layout_width;
         // Trailing space characters should be ignored when measuring and
         // rendering multiline text.
         // For single line text we still want to include spaces when the text
         // layout is calculated (https://github.com/defold/defold/issues/5911)
         bool measure_trailing_space = !te.m_LineBreak;
+
+        LayoutMetrics lm(font_map, tracking);
+        float layout_width;
         int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
         float x_offset = OffsetX(te.m_Align, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
@@ -1162,13 +1163,14 @@ namespace dmRender
 
         float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
 
-        LayoutMetrics lm(font_map, tracking * line_height);
-        float layout_width;
         // Trailing space characters should be ignored when measuring and
         // rendering multiline text.
         // For single line text we still want to include spaces when the text
         // layout is calculated (https://github.com/defold/defold/issues/5911)
         bool measure_trailing_space = !line_break;
+
+        LayoutMetrics lm(font_map, tracking * line_height);
+        float layout_width;
         uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
         metrics->m_Width = layout_width;
         metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);

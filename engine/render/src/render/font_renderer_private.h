@@ -91,7 +91,7 @@ namespace dmRender
                         last_n = n-trim;
                         last_w = w;
                         last_cursor = cursor;
-                        if (c != '\n')
+                        if (c != '\n' && !measure_trailing_space)
                             c = SkipWS(&cursor, &n);
                     }
                     else if (last_n != 0)
