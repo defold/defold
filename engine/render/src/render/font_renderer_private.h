@@ -65,7 +65,7 @@ namespace dmRender
                TextLine* lines, uint16_t lines_count,
                float* text_width,
                Metric metrics,
-               bool skip_whitespace)
+               bool measure_trailing_space)
     {
         const char* cursor = str;
 
@@ -85,13 +85,13 @@ namespace dmRender
                     int trim = 0;
                     if (c != 0)
                         trim = 1;
-                    w = metrics(row_start, n-trim);
+                    w = metrics(row_start, n-trim, measure_trailing_space);
                     if (w <= width)
                     {
                         last_n = n-trim;
                         last_w = w;
                         last_cursor = cursor;
-                        if (c != '\n' && skip_whitespace)
+                        if (c != '\n')
                             c = SkipWS(&cursor, &n);
                     }
                     else if (last_n != 0)
