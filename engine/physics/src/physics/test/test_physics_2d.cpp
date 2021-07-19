@@ -117,6 +117,8 @@ Test2D::Test2D()
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
+, m_IsBulletFunc(dmPhysics::IsBullet2D)
+, m_SetBulletFunc(dmPhysics::SetBullet2D)
 , m_Vertices(new float[3*2])
 , m_VertexCount(3)
 , m_PolygonRadius(b2_polygonRadius)
@@ -174,6 +176,30 @@ TYPED_TEST(PhysicsTest, MultipleGroups)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shapes[0]);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shapes[1]);
 }
+
+TYPED_TEST(PhysicsTest, UseBullet)
+{
+    VisualObject vo_b;
+    vo_b.m_Position = Point3(0.5f, 3.0f, 0.0f);
+
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    data.m_Group = 1 << 3;
+    data.m_Mask = 1 << 2;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    ASSERT_EQ(false, (*TestFixture::m_Test.m_IsBulletFunc)(dynamic_co)); // check default
+    (*TestFixture::m_Test.m_SetBulletFunc)(dynamic_co, true);
+    ASSERT_EQ(true, (*TestFixture::m_Test.m_IsBulletFunc)(dynamic_co));
+
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
 
 TYPED_TEST(PhysicsTest, GridShapePolygon)
 {
