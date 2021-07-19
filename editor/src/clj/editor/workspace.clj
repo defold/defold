@@ -43,8 +43,8 @@ ordinary paths."
   (^File [workspace evaluation-context]
    (io/as-file (g/node-value workspace :root evaluation-context))))
 
-(defn- skip-first-char [^String path]
-  (.substring path 1 (count path)))
+(defn- skip-first-char [path]
+  (subs path 1))
 
 (defn build-path [workspace]
   (io/file (project-path workspace) (skip-first-char build-dir)))
@@ -257,7 +257,7 @@ ordinary paths."
   (g/node-value workspace :snapshot-cache))
 
 (defn- is-plugin-clojure-file? [resource]
-  (contains? #{"clj"} (resource/ext resource)))
+  (= "clj" (resource/ext resource)))
 
 (defn- find-clojure-plugins [workspace]
   (let [resources (filter is-plugin-clojure-file? (g/node-value workspace :resource-list))]
@@ -270,7 +270,7 @@ ordinary paths."
     (plugin-fn workspace))
   (log/info :msg (str "Loaded plugin" (resource/path resource))))
 
-(defn load-editor-plugins! [workspace added]
+(defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))
         plugin-resources (find-clojure-plugins workspace)
         plugin-resources (filter (fn [x] (contains? added-resources (resource/proj-path x))) plugin-resources)]
@@ -279,7 +279,7 @@ ordinary paths."
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
 (defn- is-jar-file? [resource]
-  (contains? #{"jar"} (resource/ext resource)))
+  (= "jar" (resource/ext resource)))
 
 ; from native_extensions.clj
 (defn- extension-root?
@@ -307,7 +307,7 @@ ordinary paths."
 (defn unpack-resource! [workspace resource]
   (let [target-path (plugin-path workspace (resource/proj-path resource))
         parent-dir (.getParentFile ^File target-path)
-        input-stream (clojure.java.io/input-stream resource)]
+        input-stream (io/input-stream resource)]
     (when-not (.exists parent-dir)
       (.mkdirs parent-dir))
     (io/copy input-stream target-path)))
@@ -322,15 +322,17 @@ ordinary paths."
   (let [jar-file (plugin-path workspace (resource/proj-path resource))]
     (.addURL ^clojure.lang.DynamicClassLoader class-loader (io/as-url jar-file))))
 
-(defn unpack-editor-plugins! [workspace changed]
+(defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
   (let [changed-resources (set (map resource/proj-path changed))
         all-plugin-resources (find-plugins-shared-libraries workspace)
         changed-plugin-resources (filter (fn [x] (contains? changed-resources (resource/proj-path x))) all-plugin-resources)
         changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
-    (dorun (map (fn [x] (unpack-resource! workspace x)) changed-plugin-resources))
-    (dorun (map (fn [x] (register-jar-file! workspace x)) changed-jar-resources))))
+    (doseq [x changed-plugin-resources]
+      (unpack-resource! workspace x))
+    (doseq [x changed-jar-resources]
+      (register-jar-file! workspace x))))
 
 (defn resource-sync!
   ([workspace]
@@ -404,9 +406,10 @@ ordinary paths."
            (let [listeners @(g/node-value workspace :resource-listeners)
                  total-progress-size (transduce (map first) + 0 listeners)
                  added (:added changes)
-                 changed (:changed changes)]
-             (unpack-editor-plugins! workspace (set/union added changed))
-             (load-editor-plugins! workspace (set/union added changed))
+                 changed (:changed changes)
+                 all-changed (set/union added changed)]
+             (unpack-editor-plugins! workspace all-changed)
+             (load-editor-plugins! workspace all-changed)
              (loop [listeners listeners
                     parent-progress (progress/make "" total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]
