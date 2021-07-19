@@ -615,8 +615,11 @@
     root))
 
 (defn- load-xml [path]
-  (with-open [stream (io/input-stream (io/resource path))]
-    (xml/parse stream)))
+  (try
+    (with-open [stream (io/input-stream (io/resource path))]
+      (xml/parse stream))
+    (catch Exception e
+      (nil))))
 
 (defn load-svg-path
   "Loads the path data from a simple .svg file. Assumes the scene contains a
