@@ -711,7 +711,7 @@ public class AndroidBundler implements IBundler {
             args.add(getJavaBinFile("java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
             args.add("build-apks");
-            args.add("--mode"); args.add("universal");
+            args.add("--mode"); args.add("UNIVERSAL");
             args.add("--bundle"); args.add(aabPath);
             args.add("--output"); args.add(apksPath);
             args.add("--ks"); args.add(keystore);

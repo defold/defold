@@ -96,6 +96,7 @@ public class Project {
 
     public final static String LIB_DIR = ".internal/lib";
     public final static String CACHE_DIR = ".internal/cache";
+    public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
 
     public enum OutputFlags {
@@ -149,6 +150,10 @@ public class Project {
 
     public String getBuildDirectory() {
         return buildDirectory;
+    }
+
+    public String getPluginsDirectory() {
+        return FilenameUtils.concat(getRootDirectory(), PLUGINS_DIR);
     }
 
     public String getBinaryOutputDirectory() {
@@ -772,7 +777,7 @@ public class Project {
             boolean debugUploadZip = this.hasOption("debug-ne-upload");
 
             if (debugUploadZip) {
-                File debugZip = new File(buildDir, "upload.zip");
+                File debugZip = new File(buildDir.getParent(), "upload.zip");
                 ZipOutputStream zipOut = null;
                 try {
                     zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
@@ -916,13 +921,29 @@ public class Project {
         }
     }
 
-    private void registerPipelinePlugins() {
+    private void registerPipelinePlugins() throws CompileExceptionError {
         // Find the plugins and register them now, before we're building the content
-        List<File> plugins = ExtenderUtil.getPipelinePlugins(this);
+        BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
+        List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
         for (File plugin : plugins) {
             scanner.addUrl(plugin);
             logInfo("Using plugin %s", plugin);
         }
+    }
+
+    private boolean shouldBuildArtifact(String artifact) {
+        String str = this.option("build-artifacts", "");
+        List<String> artifacts = Arrays.asList(str.split(","));
+        return artifacts.contains(artifact);
+    }
+
+    private boolean shouldBuildEngine() {
+        String str = this.option("build-artifacts", "");
+        return str.equals("") || shouldBuildArtifact("engine");
+    }
+
+    private boolean shouldBuildPlugins() {
+        return shouldBuildArtifact("plugins");
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
@@ -943,6 +964,57 @@ public class Project {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
 
+                    final Boolean withSymbols = this.hasOption("with-symbols");
+                    final String[] platforms = getPlatformStrings();
+                    // Get or build engine binary
+                    boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    if (buildRemoteEngine) {
+                        logInfo("Build Remote Engine...");
+
+                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+
+                        Map<String, String> appmanifestOptions = new HashMap<>();
+                        appmanifestOptions.put("baseVariant", variant);
+                        appmanifestOptions.put("withSymbols", withSymbols.toString());
+
+                        if (this.hasOption("build-artifacts")) {
+                            String s = this.option("build-artifacts", "");
+                            System.out.printf("build-artifacts: %s\n", s);
+                            appmanifestOptions.put("buildArtifacts", s);
+                        }
+
+                        Platform platform = this.getPlatform();
+
+                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                        String customArchitectures = this.option("architectures", null);
+                        if (customArchitectures != null) {
+                            architectures = customArchitectures.split(",");
+                        }
+
+                        long tstart = System.currentTimeMillis();
+
+                        buildEngine(monitor, architectures, appmanifestOptions);
+
+                        long tend = System.currentTimeMillis();
+                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
+
+                        if (!shouldBuildEngine()) {
+                            // If we only wanted to build the extensions, we simply continue here
+                            continue;
+                        }
+
+                    } else {
+                        // Remove the remote built executables in the build folder, they're still in the cache
+                        cleanEngines(monitor, platforms);
+                        if (withSymbols) {
+                            IProgress progress = monitor.subProgress(1);
+                            downloadSymbols(progress);
+                            progress.done();
+                        }
+                    }
+
+                    BundleHelper.throwIfCanceled(monitor);
+
                     // Do early test if report files are writable before we start building
                     boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
                     FileWriter fileJSONWriter = null;
@@ -958,56 +1030,6 @@ public class Project {
                         File reportHTMLFile = new File(reportHTMLPath);
                         fileHTMLWriter = new FileWriter(reportHTMLFile);
                     }
-
-
-                    final Boolean withSymbols = this.hasOption("with-symbols");
-                    final String[] platforms = getPlatformStrings();
-                    // Get or build engine binary
-                    boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                    if (buildRemoteEngine) {
-                        logInfo("Build Remote Engine...");
-
-                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-
-                        Map<String, String> appmanifestOptions = new HashMap<>();
-                        appmanifestOptions.put("baseVariant", variant);
-                        appmanifestOptions.put("withSymbols", withSymbols.toString());
-
-                        // Since this can be a call from Editor we can't expect the architectures option to be set.
-                        // We default to the default architectures for the platform, and take the option value
-                        // only if it has been set.
-                        Platform platform = this.getPlatform();
-                        if (platform != Platform.getHostPlatform() && ExtenderUtil.hasExtensionPipelinePlugins(this)) {
-                            logInfo("Building plugins for host platform");
-
-                            String[] architectures = Platform.getHostPlatform().getArchitectures().getDefaultArchitectures();
-                            buildEngine(monitor, architectures, appmanifestOptions);
-
-                        }
-
-                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
-                        String customArchitectures = this.option("architectures", null);
-                        if (customArchitectures != null) {
-                            architectures = customArchitectures.split(",");
-                        }
-
-                        long tstart = System.currentTimeMillis();
-
-                        buildEngine(monitor, architectures, appmanifestOptions);
-
-                        long tend = System.currentTimeMillis();
-                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
-                    } else {
-                        // Remove the remote built executables in the build folder, they're still in the cache
-                        cleanEngines(monitor, platforms);
-                        if (withSymbols) {
-                            IProgress progress = monitor.subProgress(1);
-                            downloadSymbols(progress);
-                            progress.done();
-                        }
-                    }
-
-                    BundleHelper.throwIfCanceled(monitor);
 
                     IProgress m = monitor.subProgress(99);
 

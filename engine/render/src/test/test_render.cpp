@@ -474,6 +474,7 @@ static float Metric(const char* text, int n, bool measure_trailing_space)
 TEST(dmFontRenderer, Layout)
 {
     const uint32_t lines_count = 256;
+    const bool skip_whitespace = true;
     dmRender::TextLine lines[lines_count];
     int total_lines;
     const float char_width = 4;

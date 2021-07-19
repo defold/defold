@@ -1210,4 +1210,25 @@ public class BundleHelper {
         }
         return resources;
     }
+
+    public static List<File> getPipelinePlugins(Project project, String pluginsDir) {
+        List<File> files = ExtenderUtil.listFilesRecursive(new File(pluginsDir), ExtenderUtil.JAR_RE);
+        return files;
+    }
+
+    public static void extractPipelinePlugins(Project project, String pluginsDir) throws CompileExceptionError {
+        List<IResource> sources = new ArrayList<>();
+        List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
+            if (!resource.exists()) {
+                throw new CompileExceptionError(resource, 1, "Resource doesn't exist!");
+            }
+
+            sources.addAll( listFilesRecursive( project, extension + "/plugins/" ) );
+        }
+
+        ExtenderUtil.storeResources(new File(pluginsDir), sources);
+    }
+
 }

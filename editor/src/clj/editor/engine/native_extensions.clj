@@ -20,7 +20,6 @@
    [editor.defold-project :as project]
    [editor.engine.build-errors :as engine-build-errors]
    [editor.fs :as fs]
-   [editor.library :as library]
    [editor.resource :as resource]
    [editor.system :as system]
    [editor.workspace :as workspace]
@@ -125,6 +124,8 @@
    ["include"]
    ["manifests"]
    ["src"]
+   ["commonsrc"]
+   ;["pluginsrc"] ; We explicitly don't include this until we can build different build targets from within the editor (e.g. using "build-plugins" as bob does)
    ["lib" "common"]])
 
 (defn- platform-extension-paths

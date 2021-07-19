@@ -84,8 +84,8 @@ PACKAGES_DARWIN_64="protobuf-2.3.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremo
 PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
 PACKAGES_LINUX_64="webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex androidx-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex androidx-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -95,10 +95,10 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
 
-PACKAGES_IOS_SDK="iPhoneOS14.0.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.0.sdk"
-PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.1.xctoolchain"
+PACKAGES_IOS_SDK="iPhoneOS14.5.sdk"
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.5.sdk"
+PACKAGES_MACOS_SDK="MacOSX11.3.sdk"
+PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.5.xctoolchain"
 PACKAGES_TAPI_VERSION="tapi1.6"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
@@ -644,7 +644,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-30-30.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
@@ -829,6 +829,7 @@ class Configuration(object):
 
             # Android Jars (external)
             external_jars = ("android-support-multidex.jar",
+                             "androidx-multidex.jar",
                              "android.jar")
             jardir = os.path.join(self.dynamo_home, 'ext/share/java')
             paths = _findjars(jardir, external_jars)

@@ -423,24 +423,6 @@ public class ExtenderUtil {
         return folders;
     }
 
-    public static boolean hasExtensionPipelinePlugins(Project project) {
-        List<String> extensionFolders = getExtensionFolders(project);
-        for (String extension : extensionFolders) {
-            List<ExtenderResource> files = listFilesRecursive( project, extension + "/pluginsrc/");
-            if (!files.isEmpty())
-                return true;
-        }
-        return false;
-    }
-
-    public static List<File> getPipelinePlugins(Project project) {
-        String outputDir = project.getBinaryOutputDirectory();
-        Platform hostPlatform = Platform.getHostPlatform();
-        File buildDir = new File(FilenameUtils.concat(outputDir, hostPlatform.getExtenderPair()));
-        List<File> files = listFilesRecursive(buildDir, JAR_RE);
-        return files;
-    }
-
     private static boolean hasPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
@@ -493,7 +475,7 @@ public class ExtenderUtil {
     /**
      * Get a list of all extension sources and libraries from a project for a specific platform.
      * @param project
-     * @return A list of IExtenderResources that can be supplied to ExtenderClient
+     * @return A list of ExtenderResource that can be supplied to ExtenderClient
      */
     public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError {
         List<ExtenderResource> sources = new ArrayList<>();
@@ -735,6 +717,22 @@ public class ExtenderUtil {
                 FileUtils.writeByteArrayToFile(outputFile, data);
             } catch (Exception e) {
                 throw new CompileExceptionError(r, 0, e);
+            }
+        }
+    }
+
+    public static void storeResources(File targetDirectory, List<IResource> resources) throws CompileExceptionError {
+        for (IResource resource : resources) {
+            String relativePath = resource.getPath();
+            File outputFile = new File(targetDirectory, relativePath);
+            if (!outputFile.getParentFile().exists()) {
+                outputFile.getParentFile().mkdirs();
+            }
+            try {
+                byte[] data = resource.getContent();
+                FileUtils.writeByteArrayToFile(outputFile, data);
+            } catch (Exception e) {
+                throw new CompileExceptionError(resource, 0, e);
             }
         }
     }

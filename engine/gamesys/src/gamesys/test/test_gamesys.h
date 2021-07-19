@@ -103,16 +103,16 @@ protected:
     dmHashTable64<void*> m_Contexts;
 };
 
-class Sleeping2DCollisionObjectTest : public GamesysTest<const char*>
+// sets up test context for various 2D physics/collision-object tests
+class CollisionObject2DTest : public GamesysTest<const char*>
 {
 public:
-    Sleeping2DCollisionObjectTest() {
+    CollisionObject2DTest() {
       // override configuration values specified in GamesysTest()
       m_projectOptions.m_MaxCollisionCount = 32;
       m_projectOptions.m_MaxContactPointCount = 64;
       m_projectOptions.m_3D = false;
     }
-
 };
 
 class ResourceTest : public GamesysTest<const char*>
