@@ -64,3 +64,4 @@ embedded_collision_shape {
 linear_damping: 0.0
 angular_damping: 0.0
 locked_rotation: false
+bullet: false
