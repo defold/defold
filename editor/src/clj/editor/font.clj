@@ -186,16 +186,17 @@
 
 (defn- break-lines [lines glyphs max-width text-tracking]
   (reduce (fn [result line]
-            (let [w (measure-line glyphs text-tracking line)]
+            (let [trimmed-line (s/trim line)
+                  w (measure-line glyphs text-tracking trimmed-line)]
               (if (> w max-width)
-                (let [[l1 l2] (break-line line glyphs max-width text-tracking)]
+                (let [[l1 l2] (break-line trimmed-line glyphs max-width text-tracking)]
                   (if l2
                     (recur (conj result l1) l2)
-                    (conj result line)))
-                (conj result line)))) [] lines))
+                    (conj result trimmed-line)))
+                (conj result trimmed-line)))) [] lines))
 
 (defn- split-text [glyphs text line-break? max-width text-tracking]
-  (cond-> (map s/trim (s/split-lines text))
+  (cond-> (s/split-lines text)
     line-break? (break-lines glyphs max-width text-tracking)))
 
 (defn- font-map->glyphs [font-map]
