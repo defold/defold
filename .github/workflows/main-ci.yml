@@ -6,7 +6,7 @@ on:
        - '*'
        - '!DEFEDIT-*'
        - '!editor-dev'
-  pull_request_target:
+  pull_request:
      branches:
        - '*'
        - '!DEFEDIT-*'
@@ -46,7 +46,7 @@ jobs:
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         shell: bash,
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
@@ -70,7 +70,7 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
       {
@@ -94,7 +94,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       },
       {
@@ -118,7 +118,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       },
       {
@@ -142,7 +142,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       },
       {
@@ -166,7 +166,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive engine'
       },
       {
@@ -190,7 +190,7 @@ jobs:
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         shell: bash,
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
@@ -215,7 +215,7 @@ jobs:
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         shell: bash,
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
@@ -239,7 +239,7 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Build bob',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
         run: 'ci/ci.sh bob'
       },
       {
@@ -259,7 +259,7 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       {
         name: 'Build SDK',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
         run: 'ci/ci.sh sdk'
       },
       {
@@ -284,12 +284,12 @@ jobs:
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
       {
         name: 'Build editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh build-editor'
       },
       {
         name: 'Archive editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh archive-editor'
       },
       {
@@ -313,27 +313,27 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Download editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
       },
       {
         name: 'Install dependencies',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
         name: 'Sign editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh sign-editor --platform=${{ matrix.platform }}'
       },
       {
         name: 'Notarize editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
       },
       {
         name: 'Archive editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       },
       {
@@ -359,31 +359,31 @@ jobs:
       {
         name: 'Download editor',
         shell: bash,
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
       },
       {
         name: 'Install dependencies',
         shell: bash,
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
       },
       {
         name: 'Install ext dependencies',
         shell: bash,
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh install_ext --platform=${{ matrix.platform }}'
       },
       {
         name: 'Sign editor',
         shell: bash,
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass=./ci/windows_cert.pass --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
         shell: bash,
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request_target') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       },
       {
