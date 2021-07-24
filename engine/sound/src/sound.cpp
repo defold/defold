@@ -46,7 +46,7 @@ namespace dmSound
     const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
     const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
 
-    static void SoundThread(struct SoundSystem* sound);
+    static void SoundThread(void* ctx);
 
     /**
      * Value with memory for "ramping" of values. See also struct Ramp below.
@@ -1446,8 +1446,9 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    static void SoundThread(SoundSystem* sound)
+    static void SoundThread(void* ctx)
     {
+        SoundSystem* sound = (SoundSystem*)ctx;
         while (sound->m_IsRunning)
         {
             sound->m_Status = RESULT_OK;
