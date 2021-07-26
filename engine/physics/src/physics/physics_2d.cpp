@@ -282,7 +282,7 @@ namespace dmPhysics
         for (int i = 0; i < count; ++i)
         {
             shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
-            shape->m_verticesOriginal[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
+            shape->m_verticesOriginal[i] = FlipPoint(shape->m_verticesOriginal[i], horizontal, vertical);
         }
 
         // Switch the winding of the polygon
@@ -315,7 +315,13 @@ namespace dmPhysics
         {
             b2Shape* shape = fixture->GetShape();
             switch(shape->GetType()) {
-            case b2Shape::e_circle:     ((b2CircleShape*)shape)->m_p = FlipPoint(((b2CircleShape*)shape)->m_p, horizontal, vertical); break;
+            case b2Shape::e_circle:
+            {
+                b2CircleShape* circle_shape = (b2CircleShape*)shape;
+                circle_shape->m_p = FlipPoint(circle_shape->m_p, horizontal, vertical);
+                circle_shape->m_creationP = FlipPoint(circle_shape->m_creationP, horizontal, vertical);
+            }
+            break;
             case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, horizontal, vertical); break;
             case b2Shape::e_edge:       // Currently unsupported by the engine
             case b2Shape::e_chain:
@@ -364,7 +370,11 @@ namespace dmPhysics
 
             if (fix->GetShape()->GetType() == b2Shape::e_circle) {
                 // creation scale for circles, is the initial radius
-                shape->m_radius = shape->m_creationScale * object_scale;
+                b2CircleShape* circle_shape = (b2CircleShape*)shape;
+                circle_shape->m_radius = circle_shape->m_creationScale * object_scale;
+
+                b2Vec2 p = circle_shape->m_creationP;
+                circle_shape->m_p.Set(p.x * object_scale, p.y * object_scale);
             }
             else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
                 b2PolygonShape* pshape = (b2PolygonShape*)shape;
@@ -742,9 +752,11 @@ namespace dmPhysics
             b2CircleShape* circle_shape_prim = new b2CircleShape(*circle_shape);
             circle_shape_prim->m_p = TransformScaleB2(transform, scale, circle_shape->m_p);
             if (context->m_AllowDynamicTransforms)
+            {
                 circle_shape_prim->m_creationScale = circle_shape_prim->m_radius;
+                circle_shape_prim->m_creationP = b2Vec2(transform.p.x / scale, transform.p.y / scale);
+            }
             circle_shape_prim->m_radius *= scale;
-            scale = circle_shape_prim->m_radius;
             ret = circle_shape_prim;
         }
             break;

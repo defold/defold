@@ -115,16 +115,29 @@ namespace dmRender
         StencilTestParams();
         void Init();
 
-        dmGraphics::CompareFunc m_Func;
-        dmGraphics::StencilOp m_OpSFail;
-        dmGraphics::StencilOp m_OpDPFail;
-        dmGraphics::StencilOp m_OpDPPass;
+        struct
+        {
+            dmGraphics::CompareFunc m_Func;
+            dmGraphics::StencilOp   m_OpSFail;
+            dmGraphics::StencilOp   m_OpDPFail;
+            dmGraphics::StencilOp   m_OpDPPass;
+        } m_Front;
+
+        struct
+        {
+            dmGraphics::CompareFunc m_Func;
+            dmGraphics::StencilOp   m_OpSFail;
+            dmGraphics::StencilOp   m_OpDPFail;
+            dmGraphics::StencilOp   m_OpDPPass;
+        } m_Back;
+
         uint8_t m_Ref;
         uint8_t m_RefMask;
         uint8_t m_BufferMask;
         uint8_t m_ColorBufferMask : 4;
         uint8_t m_ClearBuffer : 1;
-        uint8_t : 3;
+        uint8_t m_SeparateFaceStates : 1;
+        uint8_t : 2;
     };
 
 
@@ -182,11 +195,13 @@ namespace dmRender
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
+        dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
+        uint8_t                         m_SetFaceWinding : 1;
     };
 
     /*#

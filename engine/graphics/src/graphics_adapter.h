@@ -121,8 +121,11 @@ namespace dmGraphics
     typedef void (*SetScissorFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*SetStencilMaskFn)(HContext context, uint32_t mask);
     typedef void (*SetStencilFuncFn)(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);
+    typedef void (*SetStencilFuncSeparateFn)(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask);
     typedef void (*SetStencilOpFn)(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
+    typedef void (*SetStencilOpSeparateFn)(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
     typedef void (*SetCullFaceFn)(HContext context, FaceType face_type);
+    typedef void (*SetFaceWindingFn)(HContext context, FaceWinding face_winding);
     typedef void (*SetPolygonOffsetFn)(HContext context, float factor, float units);
     typedef HRenderTarget (*NewRenderTargetFn)(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     typedef void (*DeleteRenderTargetFn)(HRenderTarget render_target);
@@ -225,8 +228,11 @@ namespace dmGraphics
         SetScissorFn m_SetScissor;
         SetStencilMaskFn m_SetStencilMask;
         SetStencilFuncFn m_SetStencilFunc;
+        SetStencilFuncSeparateFn m_SetStencilFuncSeparate;
         SetStencilOpFn m_SetStencilOp;
+        SetStencilOpSeparateFn m_SetStencilOpSeparate;
         SetCullFaceFn m_SetCullFace;
+        SetFaceWindingFn m_SetFaceWinding;
         SetPolygonOffsetFn m_SetPolygonOffset;
         NewRenderTargetFn m_NewRenderTarget;
         DeleteRenderTargetFn m_DeleteRenderTarget;
