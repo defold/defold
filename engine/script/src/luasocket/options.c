@@ -1,8 +1,8 @@
 /*=========================================================================*\
-* Common option interface 
+* Common option interface
 * LuaSocket toolkit
 \*=========================================================================*/
-#include <string.h> 
+#include <string.h>
 
 #include "lauxlib.h"
 
@@ -20,9 +20,9 @@ static int opt_setboolean(lua_State *L, p_socket ps, int level, int name);
 static int opt_getboolean(lua_State *L, p_socket ps, int level, int name);
 static int opt_setint(lua_State *L, p_socket ps, int level, int name);
 static int opt_getint(lua_State *L, p_socket ps, int level, int name);
-static int opt_set(lua_State *L, p_socket ps, int level, int name, 
+static int opt_set(lua_State *L, p_socket ps, int level, int name,
         void *val, int len);
-static int opt_get(lua_State *L, p_socket ps, int level, int name, 
+static int opt_get(lua_State *L, p_socket ps, int level, int name,
         void *val, int* len);
 
 /*=========================================================================*\
@@ -60,29 +60,29 @@ int opt_meth_getoption(lua_State *L, p_opt opt, p_socket ps)
 /* enables reuse of local address */
 int opt_set_reuseaddr(lua_State *L, p_socket ps)
 {
-    return opt_setboolean(L, ps, SOL_SOCKET, SO_REUSEADDR); 
+    return opt_setboolean(L, ps, SOL_SOCKET, SO_REUSEADDR);
 }
 
 int opt_get_reuseaddr(lua_State *L, p_socket ps)
 {
-    return opt_getboolean(L, ps, SOL_SOCKET, SO_REUSEADDR); 
+    return opt_getboolean(L, ps, SOL_SOCKET, SO_REUSEADDR);
 }
 
 /* enables reuse of local port */
 int opt_set_reuseport(lua_State *L, p_socket ps)
 {
-    return opt_setboolean(L, ps, SOL_SOCKET, SO_REUSEPORT); 
+    return opt_setboolean(L, ps, SOL_SOCKET, SO_REUSEPORT);
 }
 
 int opt_get_reuseport(lua_State *L, p_socket ps)
 {
-    return opt_getboolean(L, ps, SOL_SOCKET, SO_REUSEPORT); 
+    return opt_getboolean(L, ps, SOL_SOCKET, SO_REUSEPORT);
 }
 
 /* disables the Naggle algorithm */
 int opt_set_tcp_nodelay(lua_State *L, p_socket ps)
 {
-    return opt_setboolean(L, ps, IPPROTO_TCP, TCP_NODELAY); 
+    return opt_setboolean(L, ps, IPPROTO_TCP, TCP_NODELAY);
 }
 
 int opt_get_tcp_nodelay(lua_State *L, p_socket ps)
@@ -92,12 +92,12 @@ int opt_get_tcp_nodelay(lua_State *L, p_socket ps)
 
 int opt_set_keepalive(lua_State *L, p_socket ps)
 {
-    return opt_setboolean(L, ps, SOL_SOCKET, SO_KEEPALIVE); 
+    return opt_setboolean(L, ps, SOL_SOCKET, SO_KEEPALIVE);
 }
 
 int opt_get_keepalive(lua_State *L, p_socket ps)
 {
-    return opt_getboolean(L, ps, SOL_SOCKET, SO_KEEPALIVE); 
+    return opt_getboolean(L, ps, SOL_SOCKET, SO_KEEPALIVE);
 }
 
 int opt_set_dontroute(lua_State *L, p_socket ps)
@@ -160,12 +160,12 @@ int opt_set_linger(lua_State *L, p_socket ps)
     if (!lua_istable(L, 3)) auxiliar_typeerror(L,3,lua_typename(L, LUA_TTABLE));
     lua_pushstring(L, "on");
     lua_gettable(L, 3);
-    if (!lua_isboolean(L, -1)) 
+    if (!lua_isboolean(L, -1))
         luaL_argerror(L, 3, "boolean 'on' field expected");
     li.l_onoff = (u_short) lua_toboolean(L, -1);
     lua_pushstring(L, "timeout");
     lua_gettable(L, 3);
-    if (!lua_isnumber(L, -1)) 
+    if (!lua_isnumber(L, -1))
         luaL_argerror(L, 3, "number 'timeout' field expected");
     li.l_linger = (u_short) lua_tonumber(L, -1);
     return opt_set(L, ps, SOL_SOCKET, SO_LINGER, (char *) &li, sizeof(li));
@@ -198,7 +198,7 @@ int opt_set_ip_multicast_if(lua_State *L, p_socket ps)
     val.s_addr = htonl(INADDR_ANY);
     if (strcmp(address, "*") && !inet_aton(address, &val))
         luaL_argerror(L, 3, "ip expected");
-    return opt_set(L, ps, IPPROTO_IP, IP_MULTICAST_IF, 
+    return opt_set(L, ps, IPPROTO_IP, IP_MULTICAST_IF,
         (char *) &val, sizeof(val));
 }
 
@@ -256,17 +256,17 @@ static int opt_setmembership(lua_State *L, p_socket ps, int level, int name)
     if (!lua_istable(L, 3)) auxiliar_typeerror(L,3,lua_typename(L, LUA_TTABLE));
     lua_pushstring(L, "multiaddr");
     lua_gettable(L, 3);
-    if (!lua_isstring(L, -1)) 
+    if (!lua_isstring(L, -1))
         luaL_argerror(L, 3, "string 'multiaddr' field expected");
-    if (!inet_aton(lua_tostring(L, -1), &val.imr_multiaddr)) 
+    if (!inet_aton(lua_tostring(L, -1), &val.imr_multiaddr))
         luaL_argerror(L, 3, "invalid 'multiaddr' ip address");
     lua_pushstring(L, "interface");
     lua_gettable(L, 3);
-    if (!lua_isstring(L, -1)) 
+    if (!lua_isstring(L, -1))
         luaL_argerror(L, 3, "string 'interface' field expected");
     val.imr_interface.s_addr = htonl(INADDR_ANY);
     if (strcmp(lua_tostring(L, -1), "*") &&
-            !inet_aton(lua_tostring(L, -1), &val.imr_interface)) 
+            !inet_aton(lua_tostring(L, -1), &val.imr_interface))
         luaL_argerror(L, 3, "invalid 'interface' ip address");
     return opt_set(L, ps, level, name, (char *) &val, sizeof(val));
 }
@@ -279,14 +279,14 @@ static int opt_ip6_setmembership(lua_State *L, p_socket ps, int level, int name)
     if (!lua_istable(L, 3)) auxiliar_typeerror(L,3,lua_typename(L, LUA_TTABLE));
     lua_pushstring(L, "multiaddr");
     lua_gettable(L, 3);
-    if (!lua_isstring(L, -1)) 
+    if (!lua_isstring(L, -1))
         luaL_argerror(L, 3, "string 'multiaddr' field expected");
-    if (!inet_pton(AF_INET6, lua_tostring(L, -1), &val.ipv6mr_multiaddr)) 
+    if (!inet_pton(AF_INET6, lua_tostring(L, -1), &val.ipv6mr_multiaddr))
         luaL_argerror(L, 3, "invalid 'multiaddr' ip address");
     lua_pushstring(L, "interface");
     lua_gettable(L, 3);
     /* By default we listen to interface on default route
-     * (sigh). However, interface= can override it. We should 
+     * (sigh). However, interface= can override it. We should
      * support either number, or name for it. Waiting for
      * windows port of if_nametoindex */
     if (!lua_isnil(L, -1)) {
@@ -299,7 +299,7 @@ static int opt_ip6_setmembership(lua_State *L, p_socket ps, int level, int name)
 }
 #endif // DM_IPV6_UNSUPPORTED
 
-static 
+static
 int opt_get(lua_State *L, p_socket ps, int level, int name, void *val, int* len)
 {
     socklen_t socklen = *len;
@@ -312,7 +312,7 @@ int opt_get(lua_State *L, p_socket ps, int level, int name, void *val, int* len)
     return 0;
 }
 
-static 
+static
 int opt_set(lua_State *L, p_socket ps, int level, int name, void *val, int len)
 {
     if (setsockopt(*ps, level, name, (char *) val, len) < 0) {

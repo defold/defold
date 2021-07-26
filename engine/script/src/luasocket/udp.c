@@ -190,7 +190,7 @@ static int meth_sendto(lua_State *L) {
         return 2;
     }
     timeout_markstart(tm);
-    err = socket_sendto(&udp->sock, data, count, &sent, ai->ai_addr, 
+    err = socket_sendto(&udp->sock, data, count, &sent, ai->ai_addr,
         (socklen_t) ai->ai_addrlen, tm);
     freeaddrinfo(ai);
     if (err != IO_DONE) {
@@ -242,7 +242,7 @@ static int meth_receivefrom(lua_State *L)
     char portstr[6];
     timeout_markstart(tm);
     count = MIN(count, sizeof(buffer));
-    err = socket_recvfrom(&udp->sock, buffer, count, &got, (SA *) &addr, 
+    err = socket_recvfrom(&udp->sock, buffer, count, &got, (SA *) &addr,
             &addr_len, tm);
     /* Unlike TCP, recv() of zero is not closed, but a zero-length packet. */
     if (err == IO_CLOSED)
@@ -252,7 +252,7 @@ static int meth_receivefrom(lua_State *L)
         lua_pushstring(L, udp_strerror(err));
         return 2;
     }
-    err = getnameinfo((struct sockaddr *)&addr, addr_len, addrstr, 
+    err = getnameinfo((struct sockaddr *)&addr, addr_len, addrstr,
         INET6_ADDRSTRLEN, portstr, 6, NI_NUMERICHOST | NI_NUMERICSERV);
 	if (err) {
         lua_pushnil(L);
@@ -356,7 +356,7 @@ static int meth_setpeername(lua_State *L) {
     /* make sure we try to connect only to the same family */
     connecthints.ai_family = udp->family;
     if (connecting) {
-        err = inet_tryconnect(&udp->sock, &udp->family, address, 
+        err = inet_tryconnect(&udp->sock, &udp->family, address,
             port, tm, &connecthints);
         if (err) {
             lua_pushnil(L);

@@ -112,8 +112,8 @@ static int inet_global_getnameinfo(lua_State *L) {
 
     lua_newtable(L);
     for (i = 1, iter = resolved; iter; i++, iter = iter->ai_next) {
-        getnameinfo(iter->ai_addr, (socklen_t) iter->ai_addrlen, 
-            hbuf, host? (socklen_t) sizeof(hbuf): 0, 
+        getnameinfo(iter->ai_addr, (socklen_t) iter->ai_addrlen,
+            hbuf, host? (socklen_t) sizeof(hbuf): 0,
             sbuf, serv? (socklen_t) sizeof(sbuf): 0, 0);
         if (host) {
             lua_pushnumber(L, i);
@@ -184,7 +184,7 @@ static int inet_global_getaddrinfo(lua_State *L)
     lua_newtable(L);
     for (iterator = resolved; iterator; iterator = iterator->ai_next) {
         char hbuf[NI_MAXHOST];
-        ret = getnameinfo(iterator->ai_addr, (socklen_t) iterator->ai_addrlen, 
+        ret = getnameinfo(iterator->ai_addr, (socklen_t) iterator->ai_addrlen,
             hbuf, (socklen_t) sizeof(hbuf), NULL, 0, NI_NUMERICHOST);
         if (ret){
           lua_pushnil(L);
@@ -373,17 +373,17 @@ const char *inet_trydisconnect(p_socket ps, int family, p_timeout tm)
             memset((char *) &sin, 0, sizeof(sin));
             sin.sin_family = AF_UNSPEC;
             sin.sin_addr.s_addr = INADDR_ANY;
-            return socket_strerror(socket_connect(ps, (SA *) &sin, 
+            return socket_strerror(socket_connect(ps, (SA *) &sin,
                 sizeof(sin), tm));
         }
 #if !defined(DM_IPV6_UNSUPPORTED)
         case PF_INET6: {
             struct sockaddr_in6 sin6;
-            struct in6_addr addrany = IN6ADDR_ANY_INIT; 
+            struct in6_addr addrany = IN6ADDR_ANY_INIT;
             memset((char *) &sin6, 0, sizeof(sin6));
             sin6.sin6_family = AF_UNSPEC;
             sin6.sin6_addr = addrany;
-            return socket_strerror(socket_connect(ps, (SA *) &sin6, 
+            return socket_strerror(socket_connect(ps, (SA *) &sin6,
                 sizeof(sin6), tm));
         }
 #endif

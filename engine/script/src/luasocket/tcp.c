@@ -254,7 +254,7 @@ static int meth_connect(lua_State *L)
     /* make sure we try to connect only to the same family */
     connecthints.ai_family = tcp->family;
     timeout_markstart(&tcp->tm);
-    err = inet_tryconnect(&tcp->sock, &tcp->family, address, port, 
+    err = inet_tryconnect(&tcp->sock, &tcp->family, address, port,
         &tcp->tm, &connecthints);
     /* have to set the class even if it failed due to non-blocking connects */
     auxiliar_setclass(L, "tcp{client}", 1);
