@@ -160,15 +160,6 @@ public class Bob {
         }
     }
 
-    public static void initSwitch() {
-        init();
-        try {
-            extract(Bob.class.getResource("/lib/switch-tools.zip"), rootFolder);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private static void extract(final URL url, File toFolder) throws IOException {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
