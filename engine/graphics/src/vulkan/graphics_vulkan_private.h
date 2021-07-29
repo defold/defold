@@ -550,7 +550,9 @@ namespace dmGraphics
     void     LoadVulkanFunctions(VkInstance vk_instance);
 
 
-    void NativeSwapBuffers(HContext context);
+    void SwapBuffers();
+
+
     bool NativeInit(const struct ContextParams& params);
     void NativeExit();
 

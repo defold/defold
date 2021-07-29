@@ -326,7 +326,7 @@ namespace dmGraphics
         }
     }
 
-    void NativeSwapBuffers(HContext context)
+    void SwapBuffers()
     {
     #if (defined(__arm__) || defined(__arm64__))
         glfwSwapBuffers();

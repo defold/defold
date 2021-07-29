@@ -37,9 +37,6 @@ namespace dmCrash
     {
     }
 
-    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback, void*)
-    {
-    }
 }
 
 #if defined(__EMSCRIPTEN__)
