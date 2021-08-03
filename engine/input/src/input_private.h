@@ -128,6 +128,7 @@ namespace dmInput
 
     struct GamepadConfig
     {
+        uint32_t m_DeviceId;
         float m_DeadZone;
         GamepadInput m_Inputs[dmInputDDF::MAX_GAMEPAD_COUNT];
     };

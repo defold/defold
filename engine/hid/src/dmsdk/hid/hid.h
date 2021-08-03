@@ -639,6 +639,32 @@ namespace dmHID
      */
     void AddKeyboardChar(HContext context, int chr);
 
+    /**
+     * Obtain a gamepad packet reflecting the current input state of the gamepad in a  HID context.
+     *
+     * @param gamepad gamepad handle
+     * @param out_packet Gamepad packet out argument
+     * @return If the packet was successfully updated or not.
+     */
+    bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* out_packet);
+
+    /**
+     * Convenience function to retrieve the state of a gamepad button from a gamepad packet.
+     * @param packet Gamepad packet
+     * @param button The requested button
+     * @return If the button was pressed or not
+     */
+    bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
+
+    /**
+     * Convenience function to retrieve the state of a gamepad hat from a gamepad packet.
+     * @param packet Gamepad packet
+     * @param hat The requested hat index
+     * @param hat_value Reference to where the hat value should be written
+     * @return If the hat has data or not
+     */
+    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t& hat_value);
+
 }
 
 #endif // DMSDK_HID_H

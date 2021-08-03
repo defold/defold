@@ -43,6 +43,8 @@ namespace dmInput
         uint32_t m_IsGamepad : 1;
         uint32_t m_GamepadDisconnected : 1;
         uint32_t m_GamepadConnected : 1;
+        dmHID::GamepadPacket m_GamepadPacket;
+        uint32_t m_HasGamepadPacket;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
