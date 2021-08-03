@@ -130,6 +130,11 @@ namespace dmInput
             return 0x0;
         } else {
             GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_name));
+            if (config == 0x0)
+            {
+                dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
+                return 0x0;
+            }
             if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
                 dmLogWarning("No gamepad map found for gamepad %d (%s).", gamepad_index, device_name);
