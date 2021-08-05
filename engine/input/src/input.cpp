@@ -137,7 +137,7 @@ namespace dmInput
             }
             if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
-                dmLogWarning("No gamepad map found for gamepad %d (%s).", gamepad_index, device_name);
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
             }
             GamepadBinding* gamepad_binding = new GamepadBinding();
             memset(gamepad_binding, 0, sizeof(*gamepad_binding));
