@@ -357,7 +357,7 @@ def build(bld):
         test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                          includes = '../../../src . .. ../../../proto',
                                          exported_symbols = exported_symbols,
-                                         uselib = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG CARES',
+                                         uselib = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG HID',
                                          uselib_local = 'gameobject',
                                          web_libs = ['library_sys.js', 'library_script.js'],
                                          proto_gen_py = True,
