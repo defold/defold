@@ -408,7 +408,7 @@ namespace dmGameObject
                 {
                     lua_pushinteger(L, (lua_Integer) (i+1));
                     uint8_t hat_value;
-                    if (dmHID::GetGamepadHat(&gamepadPacket, i, hat_value))
+                    if (dmHID::GetGamepadHat(&gamepadPacket, i, &hat_value))
                     {
                         lua_pushnumber(L, hat_value);
                     }

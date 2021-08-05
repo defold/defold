@@ -663,7 +663,7 @@ namespace dmHID
      * @param hat_value Reference to where the hat value should be written
      * @return If the hat has data or not
      */
-    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t& hat_value);
+    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t* out_hat_value);
 
 }
 

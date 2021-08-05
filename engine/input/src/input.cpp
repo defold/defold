@@ -988,7 +988,7 @@ namespace dmInput
         case dmInputDDF::GAMEPAD_TYPE_HAT:
             {
                 uint8_t t = 0;
-                bool s = dmHID::GetGamepadHat(packet, input.m_Index, t);
+                bool s = dmHID::GetGamepadHat(packet, input.m_Index, &t);
                 if (s && (t & input.m_HatMask)) {
                     v = 1.0f;
                 }
