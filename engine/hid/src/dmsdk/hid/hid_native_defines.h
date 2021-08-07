@@ -10,39 +10,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "crash.h"
-#include "crash_private.h"
+#ifndef DMSDK_HID_NATIVE_DEFINES_H
+#define DMSDK_HID_NATIVE_DEFINES_H
 
-namespace dmCrash
-{
-
-    void WriteDump()
-    {
-        WriteCrash(g_FilePath, &g_AppState);
-    }
-
-    void SetCrashFilename(const char*)
-    {
-    }
-
-    void PlatformPurge()
-    {
-    }
-
-    void InstallHandler()
-    {
-    }
-
-    void EnableHandler(bool)
-    {
-    }
-
-    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback, void*)
-    {
-    }
-}
-
-#if defined(__EMSCRIPTEN__)
-extern "C" void JSWriteDump(char* json_stacktrace) {
-}
+#include <stdint.h>
+#if defined(__NX__)
+#include <dmsdk/hid/nx64/hid_native_defines.h>
+#else
+#include <dmsdk/hid/glfw/hid_native_defines.h>
 #endif
+
+#endif // DMSDK_HID_NATIVE_DEFINES_H

@@ -81,7 +81,9 @@ static t_opt optset[] = {
     {"keepalive",   opt_set_keepalive},
     {"reuseaddr",   opt_set_reuseaddr},
     {"tcp-nodelay", opt_set_tcp_nodelay},
+#if !defined(DM_IPV6_UNSUPPORTED)
     {"ipv6-v6only", opt_set_ip6_v6only},
+#endif // DM_IPV6_UNSUPPORTED
     {"linger",      opt_set_linger},
     {NULL,          NULL}
 };
@@ -366,11 +368,14 @@ static int tcp_create(lua_State *L, int family) {
         auxiliar_setclass(L, "tcp{master}", -1);
         /* initialize remaining structure fields */
         socket_setnonblocking(&sock);
+
+#if !defined(DM_IPV6_UNSUPPORTED)
         if (family == PF_INET6) {
             int yes = 1;
             setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY,
                 (void *)&yes, sizeof(yes));
         }
+#endif
         tcp->sock = sock;
         io_init(&tcp->io, (p_send) socket_send, (p_recv) socket_recv,
                 (p_error) socket_ioerror, &tcp->sock);

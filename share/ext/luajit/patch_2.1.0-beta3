@@ -1,6 +1,6 @@
-diff -u -r a/Makefile b/Makefile
+diff -ruw a/Makefile b/Makefile
 --- a/Makefile	2021-06-14 14:56:54.000000000 +0200
-+++ b/Makefile	2021-06-22 12:57:06.000000000 +0200
++++ b/Makefile	2021-07-13 15:48:49.000000000 +0200
 @@ -44,7 +44,7 @@
  INSTALL_MAN= $(INSTALL_SHARE)/man/man1
  INSTALL_PKGCONFIG= $(INSTALL_LIB)/pkgconfig
@@ -48,9 +48,9 @@ diff -u -r a/Makefile b/Makefile
  	@echo ""
  
  
-diff -u -r a/src/Makefile b/src/Makefile
+diff -ruw a/src/Makefile b/src/Makefile
 --- a/src/Makefile	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/Makefile	2021-06-24 18:28:26.000000000 +0200
++++ b/src/Makefile	2021-07-13 15:48:49.000000000 +0200
 @@ -205,14 +205,20 @@
  HOST_ALDFLAGS= $(LDOPTIONS) $(HOST_XLDFLAGS) $(HOST_LDFLAGS)
  HOST_ALIBS= $(HOST_XLIBS) $(LIBS) $(HOST_LIBS)
@@ -145,9 +145,9 @@ diff -u -r a/src/Makefile b/src/Makefile
  	$(Q)$(TARGET_LD) $(TARGET_ALDFLAGS) -o $@ $(LUAJIT_O) $(TARGET_O) $(TARGET_ALIBS)
  	$(Q)$(TARGET_STRIP) $@
  	$(E) "OK        Successfully built LuaJIT"
-diff -u -r a/src/jit/bcsave.lua b/src/jit/bcsave.lua
+diff -ruw a/src/jit/bcsave.lua b/src/jit/bcsave.lua
 --- a/src/jit/bcsave.lua	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/jit/bcsave.lua	2021-06-22 09:24:20.000000000 +0200
++++ b/src/jit/bcsave.lua	2021-07-13 15:48:49.000000000 +0200
 @@ -29,6 +29,7 @@
    -l        Only list bytecode.
    -s        Strip debug info (default).
@@ -220,33 +220,33 @@ diff -u -r a/src/jit/bcsave.lua b/src/jit/bcsave.lua
    end
  end
  
-diff -u -r a/src/lib_io.c b/src/lib_io.c
+diff -ruw a/src/lib_io.c b/src/lib_io.c
 --- a/src/lib_io.c	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/lib_io.c	2021-06-22 09:25:24.000000000 +0200
++++ b/src/lib_io.c	2021-07-13 17:07:20.000000000 +0200
 @@ -431,7 +431,7 @@
  LJLIB_CF(io_tmpfile)
  {
    IOFileUD *iof = io_file_new(L);
 -#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA
-+#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA || LJ_TARGET_NX
++#if LJ_TARGET_CONSOLE
    iof->fp = NULL; errno = ENOSYS;
  #else
    iof->fp = tmpfile();
-diff -u -r a/src/lib_os.c b/src/lib_os.c
+diff -ruw a/src/lib_os.c b/src/lib_os.c
 --- a/src/lib_os.c	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/lib_os.c	2021-06-22 09:26:56.000000000 +0200
++++ b/src/lib_os.c	2021-07-13 17:04:46.000000000 +0200
 @@ -76,7 +76,7 @@
  
  LJLIB_CF(os_tmpname)
  {
 -#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA
-+#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA || LJ_TARGET_NX
++#if LJ_TARGET_CONSOLE
    lj_err_caller(L, LJ_ERR_OSUNIQF);
    return 0;
  #else
-diff -u -r a/src/lj_alloc.c b/src/lj_alloc.c
+diff -ruw a/src/lj_alloc.c b/src/lj_alloc.c
 --- a/src/lj_alloc.c	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/lj_alloc.c	2021-06-22 09:27:34.000000000 +0200
++++ b/src/lj_alloc.c	2021-07-13 15:48:49.000000000 +0200
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
  
@@ -256,9 +256,9 @@ diff -u -r a/src/lj_alloc.c b/src/lj_alloc.c
  
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
-diff -u -r a/src/lj_arch.h b/src/lj_arch.h
+diff -ruw a/src/lj_arch.h b/src/lj_arch.h
 --- a/src/lj_arch.h	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/lj_arch.h	2021-06-23 15:32:59.000000000 +0200
++++ b/src/lj_arch.h	2021-07-13 17:10:39.000000000 +0200
 @@ -68,7 +68,6 @@
  #else
  #error "No support for this architecture (yet)"
@@ -267,9 +267,39 @@ diff -u -r a/src/lj_arch.h b/src/lj_arch.h
  #endif
  
  /* Select native OS if no target OS defined. */
-diff -u -r a/src/lj_obj.h b/src/lj_obj.h
+@@ -162,6 +161,14 @@
+ #endif
+ #endif
+ 
++#if defined(LUAJIT_CONSOLE)
++    #if LUAJIT_CONSOLE == 1
++        #define LJ_TARGET_CONSOLE   1
++    #else
++        #define LJ_TARGET_CONSOLE   0
++    #endif
++#endif
++
+ /* -- Arch-specific settings ---------------------------------------------- */
+ 
+ /* Set target architecture properties. */
+diff -ruw a/src/lj_jit.h b/src/lj_jit.h
+--- a/src/lj_jit.h	2021-06-14 14:56:54.000000000 +0200
++++ b/src/lj_jit.h	2021-07-13 15:48:49.000000000 +0200
+@@ -439,9 +439,9 @@
+   int32_t framedepth;	/* Current frame depth. */
+   int32_t retdepth;	/* Return frame depth (count of RETF). */
+ 
+-  uint32_t k32[LJ_K32__MAX];  /* Common 4 byte constants used by backends. */
++  uint32_t k32[LJ_K32__MAX+1];  /* Common 4 byte constants used by backends. */
+   TValue ksimd[LJ_KSIMD__MAX*2+1];  /* 16 byte aligned SIMD constants. */
+-  TValue k64[LJ_K64__MAX];  /* Common 8 byte constants. */
++  TValue k64[LJ_K64__MAX+1];  /* Common 8 byte constants. */
+ 
+   IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
+   IRRef irtoplim;	/* Upper limit of instuction buffer (biased). */
+diff -ruw a/src/lj_obj.h b/src/lj_obj.h
 --- a/src/lj_obj.h	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/lj_obj.h	2021-06-22 09:28:37.000000000 +0200
++++ b/src/lj_obj.h	2021-07-13 15:48:49.000000000 +0200
 @@ -316,15 +316,24 @@
  
  /* -- Userdata object ----------------------------------------------------- */
@@ -297,10 +327,10 @@ diff -u -r a/src/lj_obj.h b/src/lj_obj.h
  } GCudata;
  
  /* Userdata types. */
-diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
+diff -ruw a/src/msvcbuild.bat b/src/msvcbuild.bat
 --- a/src/msvcbuild.bat	2021-06-14 14:56:54.000000000 +0200
-+++ b/src/msvcbuild.bat	2021-06-30 15:03:59.000000000 +0200
-@@ -12,6 +12,53 @@
++++ b/src/msvcbuild.bat	2021-07-13 15:57:38.000000000 +0200
+@@ -12,6 +12,52 @@
  
  @if not defined INCLUDE goto :FAIL
  
@@ -350,11 +380,10 @@ diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
 +goto SETUP_VC_DONE
 +:SETUP_VC_DONE
 +
-+
  @setlocal
  @rem Add more debug flags here, e.g. DEBUGCFLAGS=/DLUA_USE_APICHECK
  @set DEBUGCFLAGS=
-@@ -23,7 +70,7 @@
+@@ -23,7 +69,7 @@
  @set DASM=%DASMDIR%\dynasm.lua
  @set DASC=vm_x64.dasc
  @set LJDLLNAME=lua51.dll
@@ -363,15 +392,15 @@ diff -u -r a/src/msvcbuild.bat b/src/msvcbuild.bat
  @set BUILDTYPE=release
  @set ALL_LIB=lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c lib_buffer.c
  
-@@ -48,6 +95,7 @@
+@@ -48,6 +94,7 @@
  @set DASC=vm_x86.dasc
  @set LJCOMPILE=%LJCOMPILE% /DLUAJIT_DISABLE_GC64
  :GC64
-+@echo "Using " %LJCOMPILE% %DASC%
+++@echo "Using " %LJCOMPILE% %DASC%
  minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h %DASC%
  @if errorlevel 1 goto :BAD
  
-@@ -104,10 +152,10 @@
+@@ -104,10 +151,10 @@
  
  %LJCOMPILE% luajit.c
  @if errorlevel 1 goto :BAD

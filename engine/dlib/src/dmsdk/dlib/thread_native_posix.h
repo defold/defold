@@ -10,39 +10,16 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "crash.h"
-#include "crash_private.h"
+#ifndef DMSDK_THREAD_NATIVE_POSIX_H
+#define DMSDK_THREAD_NATIVE_POSIX_H
 
-namespace dmCrash
+#include <pthread.h>
+#include <limits.h>
+#include <unistd.h>
+namespace dmThread
 {
-
-    void WriteDump()
-    {
-        WriteCrash(g_FilePath, &g_AppState);
-    }
-
-    void SetCrashFilename(const char*)
-    {
-    }
-
-    void PlatformPurge()
-    {
-    }
-
-    void InstallHandler()
-    {
-    }
-
-    void EnableHandler(bool)
-    {
-    }
-
-    void HandlerSetExtraInfoCallback(FCallstackExtraInfoCallback, void*)
-    {
-    }
+    typedef pthread_t Thread;
+    typedef pthread_key_t TlsKey;
 }
 
-#if defined(__EMSCRIPTEN__)
-extern "C" void JSWriteDump(char* json_stacktrace) {
-}
 #endif

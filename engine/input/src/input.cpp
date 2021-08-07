@@ -26,6 +26,8 @@
 
 namespace dmInput
 {
+    static const uint16_t INVALID_INDEX = 0xFFFF;
+
     dmHID::Key KEY_MAP[dmInputDDF::MAX_KEY_COUNT];
     dmHID::MouseButton MOUSE_BUTTON_MAP[dmInputDDF::MAX_KEY_COUNT];
 
@@ -377,7 +379,7 @@ namespace dmInput
                     memset(config.m_Inputs, 0, sizeof(config.m_Inputs));
                     for (uint32_t j = 0; j < (sizeof(config.m_Inputs) / sizeof(struct GamepadInput)); ++j)
                     {
-                        config.m_Inputs[j].m_Index = (uint16_t)~0;
+                        config.m_Inputs[j].m_Index = INVALID_INDEX;
                     }
 
                     for (uint32_t j = 0; j < gamepad_map.m_Map.m_Count; ++j)
@@ -659,8 +661,12 @@ namespace dmInput
                         uint32_t lstick_hori_axis = config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_LEFT].m_Index;
                         uint32_t rstick_vert_axis = config->m_Inputs[dmInputDDF::GAMEPAD_RSTICK_UP].m_Index;
                         uint32_t rstick_hori_axis = config->m_Inputs[dmInputDDF::GAMEPAD_RSTICK_LEFT].m_Index;
-                        if (lstick_vert_axis != ~0U && lstick_hori_axis != ~0U)
+
+                        if (lstick_vert_axis != INVALID_INDEX && lstick_hori_axis != INVALID_INDEX)
                         {
+                            assert(lstick_vert_axis < dmHID::MAX_GAMEPAD_AXIS_COUNT);
+                            assert(lstick_hori_axis < dmHID::MAX_GAMEPAD_AXIS_COUNT);
+
                             float& lx = packet->m_Axis[lstick_hori_axis];
                             float& ly = packet->m_Axis[lstick_vert_axis];
                             if (lx * lx + ly * ly <= config->m_DeadZone * config->m_DeadZone)
@@ -669,8 +675,11 @@ namespace dmInput
                                 ly = 0.0f;
                             }
                         }
-                        if (rstick_vert_axis != ~0U && rstick_hori_axis != ~0U)
+                        if (rstick_vert_axis != INVALID_INDEX && rstick_hori_axis != INVALID_INDEX)
                         {
+                            assert(rstick_vert_axis < dmHID::MAX_GAMEPAD_AXIS_COUNT);
+                            assert(rstick_hori_axis < dmHID::MAX_GAMEPAD_AXIS_COUNT);
+
                             float& rx = packet->m_Axis[rstick_hori_axis];
                             float& ry = packet->m_Axis[rstick_vert_axis];
                             if (rx * rx + ry * ry <= config->m_DeadZone * config->m_DeadZone)
@@ -703,7 +712,7 @@ namespace dmInput
                                     }
                                 }
                             } else {
-                                if (input.m_Index != (uint16_t)~0)
+                                if (input.m_Index != INVALID_INDEX)
                                 {
                                     float v = ApplyGamepadModifiers(packet, input);
                                     Action* action = gamepad_binding->m_Actions.Get(trigger.m_ActionId);

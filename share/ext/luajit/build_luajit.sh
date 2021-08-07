@@ -272,6 +272,38 @@ case $1 in
 			cp ../etc/luajit.1 $PREFIX/share/man/man1
 		}
 		;;
+	arm64-nx64)
+		export TARGET_SYS=Other
+
+		OLDPATH=$PATH
+		cmi_setup_vs2019_env $1 "cmd"
+
+		# no need to create a bin folder
+		TAR_SKIP_BIN=1
+
+		function cmi_make() {
+			cd src
+
+			cmd "/C echo PATH=%Path% "
+
+			export DEFOLD_ARCH="64"
+
+			cp ../../build_nx64.bat .
+
+			cmd "/C build_nx64.bat noamalg static gc64 ${CONF_TARGET} "
+			mkdir -p $PREFIX/lib/$CONF_TARGET
+			mkdir -p $PREFIX/include/luajit-2.0
+			mkdir -p $PREFIX/share
+			mkdir -p $PREFIX/share/lua/5.1
+			mkdir -p $PREFIX/share/luajit/jit
+			cp libluajit*.a $PREFIX/lib/$CONF_TARGET
+			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
+			cp -r jit $PREFIX/share/luajit
+
+			PATH=$OLDPATH
+		}
+
+		;;
 esac
 
 download

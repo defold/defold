@@ -30,6 +30,7 @@ function usage() {
     echo " * wasm-web"
     echo " * win32 (luajit)"
     echo " * x86_64-win32 (luajit)"
+    echo " * arm64-nx64"
     exit $1
 }
 
