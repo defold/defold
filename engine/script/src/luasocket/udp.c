@@ -14,6 +14,10 @@
 #include "options.h"
 #include "udp.h"
 
+#if defined(__NX__)
+extern const char* gai_strerror(int errcode);
+#endif
+
 /* min and max macros */
 #ifndef MIN
 #define MIN(x, y) ((x) < (y) ? x : y)
@@ -78,12 +82,14 @@ static t_opt optset[] = {
     {"ip-multicast-loop",    opt_set_ip_multicast_loop},
     {"ip-add-membership",    opt_set_ip_add_membership},
     {"ip-drop-membership",   opt_set_ip_drop_membersip},
+#if !defined(DM_IPV6_UNSUPPORTED)
     {"ipv6-unicast-hops",    opt_set_ip6_unicast_hops},
     {"ipv6-multicast-hops",  opt_set_ip6_unicast_hops},
     {"ipv6-multicast-loop",  opt_set_ip6_multicast_loop},
     {"ipv6-add-membership",  opt_set_ip6_add_membership},
     {"ipv6-drop-membership", opt_set_ip6_drop_membersip},
     {"ipv6-v6only",          opt_set_ip6_v6only},
+#endif // DM_IPV6_UNSUPPORTED
     {NULL,                   NULL}
 };
 
@@ -92,10 +98,12 @@ static t_opt optget[] = {
     {"ip-multicast-if",      opt_get_ip_multicast_if},
     {"ip-multicast-loop",    opt_get_ip_multicast_loop},
     {"error",                opt_get_error},
+#if !defined(DM_IPV6_UNSUPPORTED)
     {"ipv6-unicast-hops",    opt_get_ip6_unicast_hops},
     {"ipv6-multicast-hops",  opt_get_ip6_unicast_hops},
     {"ipv6-multicast-loop",  opt_get_ip6_multicast_loop},
     {"ipv6-v6only",          opt_get_ip6_v6only},
+#endif // DM_IPV6_UNSUPPORTED
     {NULL,                   NULL}
 };
 
@@ -416,11 +424,13 @@ static int udp_create(lua_State *L, int family) {
         auxiliar_setclass(L, "udp{unconnected}", -1);
         /* initialize remaining structure fields */
         socket_setnonblocking(&sock);
+#if !defined(DM_IPV6_UNSUPPORTED)
         if (family == PF_INET6) {
             int yes = 1;
             setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY,
                 (void *)&yes, sizeof(yes));
         }
+#endif // DM_IPV6_UNSUPPORTED
         udp->sock = sock;
         timeout_init(&udp->tm, -1, -1);
         udp->family = family;
