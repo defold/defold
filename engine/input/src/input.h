@@ -40,16 +40,19 @@ namespace dmInput
         uint32_t     m_TextCount;
         uint32_t     m_HasText;
         uint32_t m_GamepadIndex;
+        dmHID::GamepadPacket m_GamepadPacket;
+
         uint32_t m_IsGamepad : 1;
         uint32_t m_GamepadDisconnected : 1;
         uint32_t m_GamepadConnected : 1;
+        uint32_t m_HasGamepadPacket : 1;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
         uint32_t m_PositionSet : 1;
         uint32_t m_AccelerationSet : 1;
         uint32_t m_Dirty : 1; // it's dirty and should report its value
-        uint32_t :23;
+        uint32_t :22;
     };
 
     typedef struct Context* HContext;
