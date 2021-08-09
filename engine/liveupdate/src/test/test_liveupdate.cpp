@@ -52,6 +52,35 @@ TEST(dmLiveUpdate, BytesToHexString)
     ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_long);
 }
 
+// We make sure we link with the functions to make sure we don't miss a null implementation
+TEST(dmLiveUpdate, InitExit)
+{
+    dmResource::NewFactoryParams factory_params;
+    dmResource::HFactory factory = dmResource::NewFactory(&factory_params, "build/default");
+    dmLiveUpdate::Initialize(factory);
+
+    dmLiveUpdate::RegisterArchiveLoaders();
+
+    dmLiveUpdate::Finalize();
+    dmResource::DeleteFactory(factory);
+}
+
+// We make sure we link with the functions to make sure we don't miss a null implementation
+TEST(dmLiveUpdate, GetMissingResources)
+{
+    dmResource::NewFactoryParams factory_params;
+    dmResource::HFactory factory = dmResource::NewFactory(&factory_params, "build/default");
+    dmLiveUpdate::Initialize(factory);
+
+    char** buffer = 0;
+    uint32_t num_missing = dmLiveUpdate::GetMissingResources(0, &buffer);
+    ASSERT_EQ(0U, num_missing);
+
+    dmLiveUpdate::Finalize();
+    dmResource::DeleteFactory(factory);
+}
+
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
