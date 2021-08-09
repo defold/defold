@@ -61,12 +61,14 @@ public class ArchiveBuilder {
     private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private boolean encrypt = true;
+    private int resourcePadding = 4;
 
-    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, boolean encrypt) {
+    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, boolean encrypt, int resourcePadding) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.encrypt = encrypt;
+        this.resourcePadding = resourcePadding;
     }
 
     private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
@@ -236,7 +238,7 @@ public class ArchiveBuilder {
                 this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
                 entries.remove(i);
             } else {
-                alignBuffer(archiveData, 4);
+                alignBuffer(archiveData, this.resourcePadding);
                 entry.resourceOffset = (int) archiveData.getFilePointer();
                 archiveData.write(buffer, 0, buffer.length);
             }
@@ -372,7 +374,7 @@ public class ArchiveBuilder {
 
         int archivedEntries = 0;
         int excludedEntries = 0;
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, true);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, true, 4);
         for (File currentInput : inputs) {
             if (currentInput.getName().startsWith("liveupdate.")){
                 excludedEntries++;

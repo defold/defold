@@ -412,6 +412,7 @@ public class Bob {
         options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
         options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
+        options.addOption(null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4");
 
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
 
@@ -505,6 +506,13 @@ public class Bob {
         for (String value : values) {
             validateChoices(optionName, value, Arrays.asList(validChoices));
         }
+    }
+
+    public static boolean isPowerOfTwo(int x)
+    {
+        // First x in the below expression is
+        // for the case when x is 0
+        return x != 0 && ((x & (x - 1)) == 0);
     }
 
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
@@ -640,6 +648,26 @@ public class Bob {
 
         if (cmd.hasOption("use-vanilla-lua")) {
             project.setOption("use-vanilla-lua", "true");
+        }
+
+        if (cmd.hasOption("archive-resource-padding")) {
+            String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
+            int resourcePadding = 0;
+            try {
+                resourcePadding = Integer.parseInt(resourcePaddingStr);
+            } catch (Exception e) {
+                System.out.printf("Could not parse --archive-resource-padding='%s' into a valid integer\n", resourcePaddingStr);
+                System.exit(1);
+                return;
+            }
+
+            if (!isPowerOfTwo(resourcePadding)) {
+                System.out.printf("Argument --archive-resource-padding='%s' isn't a power of two\n", resourcePaddingStr);
+                System.exit(1);
+                return;
+            }
+
+            project.setOption("archive-resource-padding", resourcePaddingStr);
         }
 
         if (cmd.hasOption("bundle-format")) {
