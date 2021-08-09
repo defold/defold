@@ -152,6 +152,22 @@ static int glfwAndroidKeycodeToJoystickButton(int keyCode)
         case AKEYCODE_BUTTON_THUMBL:    return 17;
         case AKEYCODE_BUTTON_THUMBR:    return 18;
         case AKEYCODE_BUTTON_MODE:      return 19;
+        case AKEYCODE_BUTTON_1:         return 20;
+        case AKEYCODE_BUTTON_2:         return 21;
+        case AKEYCODE_BUTTON_3:         return 22;
+        case AKEYCODE_BUTTON_4:         return 23;
+        case AKEYCODE_BUTTON_5:         return 24;
+        case AKEYCODE_BUTTON_6:         return 25;
+        case AKEYCODE_BUTTON_7:         return 26;
+        case AKEYCODE_BUTTON_8:         return 27;
+        case AKEYCODE_BUTTON_9:         return 28;
+        case AKEYCODE_BUTTON_10:        return 29;
+        case AKEYCODE_BUTTON_11:        return 30;
+        case AKEYCODE_BUTTON_12:        return 31;
+        case AKEYCODE_BUTTON_13:        return 32;
+        case AKEYCODE_BUTTON_14:        return 33;
+        case AKEYCODE_BUTTON_15:        return 34;
+        case AKEYCODE_BUTTON_16:        return 35;
         default: return -1;
     }
 }
