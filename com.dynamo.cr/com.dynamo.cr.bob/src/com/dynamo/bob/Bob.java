@@ -413,16 +413,18 @@ public class Bob {
 
         options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
 
-        options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
+        options.addOption("l", "liveupdate", true, "Yes if liveupdate content should be published");
 
-        options.addOption("ar", "architectures", true, "comma separated list of architectures to include for the platform");
+        options.addOption("ar", "architectures", true, "Comma separated list of architectures to include for the platform");
 
-        options.addOption(null, "settings", true, "a path to a game project settings file. more than one occurrance are allowed. the settings files are applied left to right.");
+        options.addOption(null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.");
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
         options.addOption(null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.");
 
+        options.addOption(null, "resource-cache-local", true, "Path to local resource cache.");
+        options.addOption(null, "resource-cache-remote", true, "URL to remote resource cache.");
 
         // debug options
         options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
@@ -649,6 +651,10 @@ public class Bob {
         if (project.hasOption("build-artifacts")) {
             String[] validArtifacts = {"engine", "plugins"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
+        }
+
+        if (cmd.hasOption("resource-cache-local")) {
+            project.setOption("resource-cache-local", cmd.getOptionValue("resource-cache-local"));
         }
 
         boolean ret = true;
