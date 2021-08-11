@@ -85,6 +85,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
+import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
@@ -861,36 +862,6 @@ public class Project {
         m.done();
     }
 
-    private void downloadToFile(URL url, File file) throws IOException, CompileExceptionError {
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        InputStream input = null;
-        try {
-            connection.connect();
-            int code = connection.getResponseCode();
-
-            if (code == 304) {
-                logInfo("Status %d: Already cached", code);
-            }
-            else if (code >= 400) {
-                logWarning("Status %d: Failed to download %s", code, url);
-                throw new CompileExceptionError(String.format("Status %d: Failed to download %s", code, url), new Exception());
-            }
-            else {
-                input = new BufferedInputStream(connection.getInputStream());
-                FileUtils.copyInputStreamToFile(input, file);
-            }
-            connection.disconnect();
-        } catch (ConnectException e) {
-            throw new CompileExceptionError(String.format("Connection refused by the server at %s", url.toString()), e);
-        } catch (FileNotFoundException e) {
-            throw new CompileExceptionError(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
-        } finally {
-            if(input != null) {
-                IOUtils.closeQuietly(input);
-            }
-        }
-    }
-
     private void downloadSymbols(IProgress progress) throws IOException, CompileExceptionError {
         final String[] platforms = getPlatformStrings();
 
@@ -925,9 +896,14 @@ public class Project {
             }
 
             if (symbolsFilename != null) {
-                URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
-                File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
-                downloadToFile(url, file);
+                try {
+                    URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+                    File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
+                    HttpUtil.downloadToFile(url, file);
+                }
+                catch (Exception e) {
+                    throw new CompileExceptionError(e);
+                }
             }
             progress.worked(1);
         }

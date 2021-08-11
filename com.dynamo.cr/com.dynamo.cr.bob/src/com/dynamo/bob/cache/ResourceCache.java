@@ -2,8 +2,12 @@ package com.dynamo.bob.cache;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
+
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.HttpUtil;
 
 public class ResourceCache {
 
@@ -21,49 +25,88 @@ public class ResourceCache {
 		this.enabled = localCacheDir != null;
 	}
 
-	private File getFile(String key) {
+	private File fileFromKey(String key) {
 		return new File(localCacheDir, key);
 	}
 
-	public boolean put(String key, byte[] content) {
-		if (!enabled) {
-			return false;
-		}
-		File file = getFile(key);
-		if (!file.exists()) {
-			try {
-				Files.write(file.toPath(), content);
-			}
-			catch(IOException e) {
-				System.out.println("Failed to cache resource with key " + key);
-				e.printStackTrace();
-				return false;
-			}
-		}
-		return true;
+	private URL urlFromFile(File file) throws MalformedURLException {
+		return new URL(remoteCacheUrl + "/" + file.getName());
 	}
 
-	public byte[] get(String key) {
+	private void saveToLocalCache(File file, byte[] data) throws IOException {
+		Files.write(file.toPath(), data);
+	}
+
+	private byte[] loadFromLocalCache(File file) throws IOException {
+		if (file.exists()) {
+			return Files.readAllBytes(file.toPath());
+		}
+		return null;
+	}
+
+	private void uploadToRemoteCache(File file) throws MalformedURLException {
+		if (remoteCacheUrl == null) {
+			return;
+		}
+		if (!file.exists()) {
+			return;
+		}
+		URL url = urlFromFile(file);
+		if (!HttpUtil.exists(url)) {
+			HttpUtil.uploadFile(url, file);
+		}
+	}
+
+	private void downloadFromRemoteCache(File file) throws MalformedURLException {
+		if (remoteCacheUrl == null) {
+			return;
+		}
+		URL url = urlFromFile(file);
+		if (HttpUtil.exists(url)) {
+			HttpUtil.downloadToFile(url, file);
+		}
+	}
+
+	/**
+	 * Put data in the resource cache
+	 * @param key Key to associate data with
+	 * @param data The data to store
+	 */
+	public void put(String key, byte[] data) throws IOException {
+		if (!enabled) {
+			return;
+		}
+		File file = fileFromKey(key);
+		if (file.exists()) {
+			// file is already in the local cache
+			return;
+		}
+
+		saveToLocalCache(file, data);
+		uploadToRemoteCache(file);
+	}
+
+	/**
+	 * Get data from the resource cache
+	 * @param key Key associated with the data to get
+	 * @return The data or null if no data exists in the cache
+	 */
+	public byte[] get(String key) throws IOException {
 		if (!enabled) {
 			return null;
 		}
-		File file = getFile(key);
-		if (file.exists()) {
-			try {
-				return Files.readAllBytes(file.toPath());
-			}
-			catch(IOException e) {
-				System.out.println("Failed to get resource with key " + key);
-				e.printStackTrace();
-			}
+		File file = fileFromKey(key);
+		if (!file.exists()) {
+			downloadFromRemoteCache(file);
 		}
-		return null;
+
+		return loadFromLocalCache(file);
 	}
 
 	public boolean contains(String key) {
 		if (!enabled) {
 			return false;
 		}
-		return getFile(key).exists();
+		return fileFromKey(key).exists();
 	}
 }
