@@ -77,8 +77,6 @@ public class HttpUtil {
 			IOUtils.closeQuietly(bos);
 
 			int code = connection.getResponseCode();
-			String response = connection.getResponseMessage();
-			logInfo("%d %s", code, response);
 			if ((code < 200) || (code > 202)) {
 				throw new RuntimeException(String.format("Status %d: Failed to upload %s", code, url), new Exception());
 			}
