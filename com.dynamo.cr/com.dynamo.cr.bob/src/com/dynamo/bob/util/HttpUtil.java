@@ -95,8 +95,10 @@ public class HttpUtil {
 	public static boolean exists(URL url) {
 		try {
 			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+			connection.setRequestMethod("HEAD");
 			connection.connect();
 			int code = connection.getResponseCode();
+			connection.disconnect();
 			return (code >= 200 && code < 400);
 		}
 		catch (ConnectException e) {
