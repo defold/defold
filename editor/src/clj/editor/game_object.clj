@@ -546,7 +546,8 @@
   (let [self (:_node-id user-data)
         project (project/get-project self)
         component-type (:resource-type user-data)
-        template (workspace/template component-type)
+        workspace (:workspace user-data) ; Is there a better way to get it?
+        template (workspace/template workspace component-type)
         id (gen-component-id self (:ext component-type))]
     (g/transact
      (concat
@@ -563,7 +564,7 @@
   (->> (workspace/get-resource-types workspace :component)
        (filter (fn [resource-type]
                  (and (not (contains? (:tags resource-type) :non-embeddable))
-                      (workspace/has-template? resource-type))))))
+                      (workspace/has-template? workspace resource-type))))))
 
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
@@ -571,7 +572,7 @@
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
                               :command :add
-                              :user-data {:_node-id self :resource-type res-type}}))
+                              :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
          (sort-by :label)
          vec)))
 

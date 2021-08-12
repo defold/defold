@@ -157,19 +157,6 @@ ordinary paths."
   ([workspace tag]
    (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
-(defn- template-path [resource-type]
-  (or (:template resource-type)
-      (some->> resource-type :ext (str "templates/template."))))
-
-(defn has-template? [resource-type]
-  (some? (some-> resource-type template-path io/resource)))
-
-(defn template [resource-type]
-  (when-let [template-path (template-path resource-type)]
-    (when-let [resource (io/resource template-path)]
-      (with-open [f (io/reader resource)]
-        (slurp f)))))
-
 (defn resource-icon [resource]
   (when resource
     (if (and (resource/read-only? resource)
@@ -226,6 +213,26 @@ ordinary paths."
                  (to-absolute-path (str (.getParent (File. (resource/proj-path base-resource)))) path))]
       (when-let [workspace (:workspace base-resource)]
         (resolve-workspace-resource workspace path)))))
+
+(defn- template-path [resource-type]
+  (or (:template resource-type)
+      (some->> resource-type :ext (str "templates/template."))))
+
+(defn get-template [workspace resource-type]
+  (let [path (template-path resource-type)
+        java-resource (when path (io/resource path))
+        editor-resource (when path (find-resource workspace path))]
+    (or java-resource editor-resource)))
+  
+(defn has-template? [workspace resource-type]
+  (let [resource (get-template workspace resource-type)]
+    (prn "has-template?" (:ext resource-type) (not= resource nil) resource)
+    (not= resource nil)))
+
+(defn template [workspace resource-type]
+  (when-let [resource (get-template workspace resource-type)]
+    (with-open [f (io/reader resource)]
+      (slurp f))))
 
 (defn set-project-dependencies! [workspace library-uris]
   (g/set-property! workspace :dependencies library-uris)
