@@ -307,6 +307,9 @@ ordinary paths."
     (string/includes? (resource/proj-path resource) "/plugins/")
     (is-extension-file? workspace resource)))
 
+(defn- is-shared-library? [resource]
+  (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
+
 (defn- find-plugins-shared-libraries [workspace]
   (let [resources (filter (fn [x] (is-plugin-file? workspace x)) (g/node-value workspace :resource-list))]
     resources))
@@ -325,21 +328,38 @@ ordinary paths."
 (defn load-class! [class-name]
   (Class/forName class-name true class-loader))
 
+(defn- addToPathProperty [propertyname path]
+  (let [current (System/getProperty propertyname)
+        newvalue (if current
+                   (str current java.io.File/pathSeparator path)
+                   path)]
+    (System/setProperty propertyname newvalue)))
+
 (defn- register-jar-file! [workspace resource]
   (let [jar-file (plugin-path workspace (resource/proj-path resource))]
     (.addURL ^clojure.lang.DynamicClassLoader class-loader (io/as-url jar-file))))
 
+(defn- register-shared-library-file! [workspace resource]
+  (let [resource-file (plugin-path workspace (resource/proj-path resource))
+        parent-dir (.getParent resource-file)]
+; TODO: Only add files for the current platform (e.g. dylib on macOS)
+    (addToPathProperty "jna.library.path" parent-dir)
+    (addToPathProperty "java.library.path" parent-dir)))
+  
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
   (let [changed-resources (set (map resource/proj-path changed))
         all-plugin-resources (find-plugins-shared-libraries workspace)
         changed-plugin-resources (filter (fn [x] (contains? changed-resources (resource/proj-path x))) all-plugin-resources)
+        changed-shared-library-resources (filter is-shared-library? changed-plugin-resources)
         changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
     (doseq [x changed-plugin-resources]
       (unpack-resource! workspace x))
     (doseq [x changed-jar-resources]
-      (register-jar-file! workspace x))))
+      (register-jar-file! workspace x))
+    (doseq [x changed-shared-library-resources]
+      (register-shared-library-file! workspace x))))
 
 (defn resource-sync!
   ([workspace]
