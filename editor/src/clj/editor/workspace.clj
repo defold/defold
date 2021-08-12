@@ -226,7 +226,6 @@ ordinary paths."
   
 (defn has-template? [workspace resource-type]
   (let [resource (get-template workspace resource-type)]
-    (prn "has-template?" (:ext resource-type) (not= resource nil) resource)
     (not= resource nil)))
 
 (defn template [workspace resource-type]
