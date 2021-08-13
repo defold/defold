@@ -133,7 +133,7 @@ public class Task<T> {
      * @param resources A list of resources to add
      */
     private void updateDigestWithResources(MessageDigest digest, List<IResource> resources) throws IOException {
-        List<IResource> sortedResources = new ArrayList<IResource>(resources)
+        List<IResource> sortedResources = new ArrayList<IResource>(resources);
         Collections.sort(sortedResources, new Comparator<IResource>() {
             @Override
             public int compare(IResource r1, IResource r2) {
