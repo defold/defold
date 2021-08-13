@@ -96,7 +96,7 @@ public interface IResource {
     IResource output();
 
     /**
-     * Check is the resource is an output-resource, see {@link IResource#output()}
+     * Check if the resource is an output-resource, see {@link IResource#output()}
      * @return true if an output-resource
      */
     boolean isOutput();
