@@ -1221,7 +1221,10 @@ run:
                     for (IResource r : outputResources) {
                         final String key = ResourceCacheKey.calculate(task, options, r);
                         outputResourceToCacheKey.put(r, key);
-                        if (!resourceCache.contains(key)) {
+                        if (!r.isCacheable()) {
+                            allResourcesCached = false;
+                        }
+                        else if (!resourceCache.contains(key)) {
                             allResourcesCached = false;
                         }
                     }
@@ -1238,7 +1241,9 @@ run:
                         builder.build(task);
                         for (IResource r : outputResources) {
                             state.putSignature(r.getAbsPath(), taskSignature);
-                            resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
+                            if (r.isCacheable()) {
+                                resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
+                            }
                         }
                     }
                     monitor.worked(1);
