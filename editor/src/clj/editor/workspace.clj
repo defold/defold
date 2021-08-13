@@ -157,19 +157,6 @@ ordinary paths."
   ([workspace tag]
    (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
-(defn- template-path [resource-type]
-  (or (:template resource-type)
-      (some->> resource-type :ext (str "templates/template."))))
-
-(defn has-template? [resource-type]
-  (some? (some-> resource-type template-path io/resource)))
-
-(defn template [resource-type]
-  (when-let [template-path (template-path resource-type)]
-    (when-let [resource (io/resource template-path)]
-      (with-open [f (io/reader resource)]
-        (slurp f)))))
-
 (defn resource-icon [resource]
   (when resource
     (if (and (resource/read-only? resource)
@@ -226,6 +213,25 @@ ordinary paths."
                  (to-absolute-path (str (.getParent (File. (resource/proj-path base-resource)))) path))]
       (when-let [workspace (:workspace base-resource)]
         (resolve-workspace-resource workspace path)))))
+
+(defn- template-path [resource-type]
+  (or (:template resource-type)
+      (some->> resource-type :ext (str "templates/template."))))
+
+(defn- get-template-resource [workspace resource-type]
+  (let [path (template-path resource-type)
+        java-resource (when path (io/resource path))
+        editor-resource (when path (find-resource workspace path))]
+    (or java-resource editor-resource)))
+  
+(defn has-template? [workspace resource-type]
+  (let [resource (get-template-resource workspace resource-type)]
+    (not= resource nil)))
+
+(defn template [workspace resource-type]
+  (when-let [resource (get-template-resource workspace resource-type)]
+    (with-open [f (io/reader resource)]
+      (slurp f))))
 
 (defn set-project-dependencies! [workspace library-uris]
   (g/set-property! workspace :dependencies library-uris)
@@ -300,6 +306,9 @@ ordinary paths."
     (string/includes? (resource/proj-path resource) "/plugins/")
     (is-extension-file? workspace resource)))
 
+(defn- is-shared-library? [resource]
+  (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
+
 (defn- find-plugins-shared-libraries [workspace]
   (let [resources (filter (fn [x] (is-plugin-file? workspace x)) (g/node-value workspace :resource-list))]
     resources))
@@ -318,21 +327,38 @@ ordinary paths."
 (defn load-class! [class-name]
   (Class/forName class-name true class-loader))
 
+(defn- add-to-path-property [propertyname path]
+  (let [current (System/getProperty propertyname)
+        newvalue (if current
+                   (str current java.io.File/pathSeparator path)
+                   path)]
+    (System/setProperty propertyname newvalue)))
+
 (defn- register-jar-file! [workspace resource]
   (let [jar-file (plugin-path workspace (resource/proj-path resource))]
     (.addURL ^clojure.lang.DynamicClassLoader class-loader (io/as-url jar-file))))
 
+(defn- register-shared-library-file! [workspace resource]
+  (let [resource-file (plugin-path workspace (resource/proj-path resource))
+        parent-dir (.getParent resource-file)]
+; TODO: Only add files for the current platform (e.g. dylib on macOS)
+    (add-to-path-property "jna.library.path" parent-dir)
+    (add-to-path-property "java.library.path" parent-dir)))
+  
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
   (let [changed-resources (set (map resource/proj-path changed))
         all-plugin-resources (find-plugins-shared-libraries workspace)
         changed-plugin-resources (filter (fn [x] (contains? changed-resources (resource/proj-path x))) all-plugin-resources)
+        changed-shared-library-resources (filter is-shared-library? changed-plugin-resources)
         changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
     (doseq [x changed-plugin-resources]
       (unpack-resource! workspace x))
     (doseq [x changed-jar-resources]
-      (register-jar-file! workspace x))))
+      (register-jar-file! workspace x))
+    (doseq [x changed-shared-library-resources]
+      (register-shared-library-file! workspace x))))
 
 (defn resource-sync!
   ([workspace]
