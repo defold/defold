@@ -251,6 +251,16 @@ public class ExtenderUtil {
 	        return new File(rootDir).lastModified();
 		}
 
+        @Override
+        public IResource disableCache() {
+            return this;
+        }
+
+        @Override
+        public boolean isCacheable() {
+            return false;
+        }
+
     }
 
     // Used to rename a resource in the multipart request and prefix the content with a base variant
