@@ -218,18 +218,18 @@ ordinary paths."
   (or (:template resource-type)
       (some->> resource-type :ext (str "templates/template."))))
 
-(defn get-template [workspace resource-type]
+(defn- get-template-resource [workspace resource-type]
   (let [path (template-path resource-type)
         java-resource (when path (io/resource path))
         editor-resource (when path (find-resource workspace path))]
     (or java-resource editor-resource)))
   
 (defn has-template? [workspace resource-type]
-  (let [resource (get-template workspace resource-type)]
+  (let [resource (get-template-resource workspace resource-type)]
     (not= resource nil)))
 
 (defn template [workspace resource-type]
-  (when-let [resource (get-template workspace resource-type)]
+  (when-let [resource (get-template-resource workspace resource-type)]
     (with-open [f (io/reader resource)]
       (slurp f))))
 
@@ -327,7 +327,7 @@ ordinary paths."
 (defn load-class! [class-name]
   (Class/forName class-name true class-loader))
 
-(defn- addToPathProperty [propertyname path]
+(defn- add-to-path-property [propertyname path]
   (let [current (System/getProperty propertyname)
         newvalue (if current
                    (str current java.io.File/pathSeparator path)
@@ -342,8 +342,8 @@ ordinary paths."
   (let [resource-file (plugin-path workspace (resource/proj-path resource))
         parent-dir (.getParent resource-file)]
 ; TODO: Only add files for the current platform (e.g. dylib on macOS)
-    (addToPathProperty "jna.library.path" parent-dir)
-    (addToPathProperty "java.library.path" parent-dir)))
+    (add-to-path-property "jna.library.path" parent-dir)
+    (add-to-path-property "java.library.path" parent-dir)))
   
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc

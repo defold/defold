@@ -546,7 +546,7 @@
   (let [self (:_node-id user-data)
         project (project/get-project self)
         component-type (:resource-type user-data)
-        workspace (:workspace user-data) ; Is there a better way to get it?
+        workspace (:workspace user-data)
         template (workspace/template workspace component-type)
         id (gen-component-id self (:ext component-type))]
     (g/transact
