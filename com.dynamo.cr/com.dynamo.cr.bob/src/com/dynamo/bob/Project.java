@@ -924,16 +924,16 @@ public class Project {
     static void addToPath(String variable, String path) {
         String newPath = null;
 
-        // Check if jna.library.path is set externally.
+        // Check if variable is set externally.
         if (System.getProperty(variable) != null) {
             newPath = System.getProperty(variable);
         }
 
         if (newPath == null) {
-            // Set path where texc_shared library is found.
+            // Set path where the shared library is found.
             newPath = path;
         } else {
-            // Append path where texc_shared library is found.
+            // Append path where the shared library is found.
             newPath += File.pathSeparator + path;
         }
 
