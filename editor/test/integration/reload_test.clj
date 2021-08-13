@@ -93,7 +93,7 @@
 
 (defn- template [workspace name]
   (let [resource (workspace/file-resource workspace name)]
-    (workspace/template (resource/resource-type resource))))
+    (workspace/template workspace (resource/resource-type resource))))
 
 (def ^:dynamic *no-sync* nil)
 (def ^:dynamic *moved-files* nil)
