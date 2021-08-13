@@ -921,14 +921,53 @@ public class Project {
         }
     }
 
+    static void addToPath(String variable, String path) {
+        String newPath = null;
+
+        // Check if variable is set externally.
+        if (System.getProperty(variable) != null) {
+            newPath = System.getProperty(variable);
+        }
+
+        if (newPath == null) {
+            // Set path where the shared library is found.
+            newPath = path;
+        } else {
+            // Append path where the shared library is found.
+            newPath += File.pathSeparator + path;
+        }
+
+        // Set the concatenated jna.library path
+        System.setProperty(variable, newPath);
+        Bob.verbose("Set %s to '%s'", variable, newPath);
+    }
+
     private void registerPipelinePlugins() throws CompileExceptionError {
         // Find the plugins and register them now, before we're building the content
         BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
         List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
+        if (!plugins.isEmpty()) {
+            Bob.verbose("\nFound plugins:");
+        }
+
+        String hostPlatform = Platform.getHostPlatform().getExtenderPair();
+
         for (File plugin : plugins) {
             scanner.addUrl(plugin);
-            logInfo("Using plugin %s", plugin);
+
+            File pluginsDir = plugin.getParentFile().getParentFile(); // The <extension>/plugins dir
+            File libDir = new File(pluginsDir, "lib");
+            File platformDir = new File(libDir, hostPlatform);
+
+            if (platformDir.exists()) {
+                addToPath("jna.library.path", platformDir.getAbsolutePath());
+                addToPath("java.library.path", platformDir.getAbsolutePath());
+            }
+
+            String relativePath = new File(rootDirectory).toURI().relativize(plugin.toURI()).getPath();
+            Bob.verbose("  %s", relativePath);
         }
+        Bob.verbose("");
     }
 
     private boolean shouldBuildArtifact(String artifact) {
