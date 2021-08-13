@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 import com.dynamo.bob.fs.IResource;
 
@@ -119,6 +120,27 @@ public class Task<T> {
         return outputs.get(i);
     }
 
+    /**
+     * Update a message digest with a list of resources.
+     * A copy of the list of resources will be used and the copy will be sorted
+     * before added to the digest. This guarantees that we get the same digest
+     * each time given the same set of resources.
+     * @param, digest The digest to update with the resources
+     * @param resources A list of resources to add
+     */
+    private void updateDigestWithResources(MessageDigest digest, List<IResource> resources) throws IOException {
+        List<IResource> sortedResources = new ArrayList<IResource>(resources)
+        Collections.sort(sortedResources, new Comparator<IResource>() {
+            @Override
+            public int compare(IResource r1, IResource r2) {
+                return r1.getAbsPath().compareTo(r2.getAbsPath());
+            }
+        });
+        for (IResource r : sortedResources) {
+            digest.update(r.sha1());
+        }
+    }
+
     public MessageDigest calculateSignatureDigest() throws IOException {
         // TODO: Checksum of builder-class byte-code. Seems to be rather difficult though..
         MessageDigest digest;
@@ -128,13 +150,8 @@ public class Task<T> {
             throw new RuntimeException(e);
         }
 
-        for (IResource r : inputs) {
-            digest.update(r.sha1());
-        }
-
-        for (IResource r : dependencies) {
-            digest.update(r.sha1());
-        }
+        updateDigestWithResources(digest, inputs);
+        updateDigestWithResources(digest, dependencies);
 
         builder.signature(digest);
         digest.update(options.toString().getBytes());
