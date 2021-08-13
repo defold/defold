@@ -99,6 +99,10 @@ public class Task<T> {
         return data;
     }
 
+    public String getName() {
+        return name;
+    }
+
     @Override
     public String toString() {
         return String.format("task(%s) %s -> %s", name, inputs.toString(), outputs.toString());
