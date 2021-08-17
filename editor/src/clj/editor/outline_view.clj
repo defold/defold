@@ -15,7 +15,7 @@
             [editor.app-view :as app-view]
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.types :as types]
@@ -378,7 +378,7 @@
             data (outline/copy item-iterators)]
         (when-let [icon (and (= 1 (count item-iterators))
                              (:icon (outline/value (first item-iterators))))]
-          (.setDragView db (jfx/get-image icon 16) 0 16))
+          (.setDragView db (icons/get-image icon 16) 0 16))
         (.setContent db {(data-format-fn) data})
         (.consume e)))))
 
@@ -471,7 +471,7 @@
                                            (or outline-reference? outline-show-link?))
                            label (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)]
                        (proxy-super setText label)
-                       (proxy-super setGraphic (jfx/get-image-view icon 16))
+                       (proxy-super setGraphic (icons/get-image-view icon 16))
                        (if parent-reference?
                          (ui/add-style! this "parent-reference")
                          (ui/remove-style! this "parent-reference"))

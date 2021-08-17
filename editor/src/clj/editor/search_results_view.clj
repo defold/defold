@@ -16,7 +16,7 @@
             [editor.code.data :as data]
             [editor.core :as core]
             [editor.defold-project-search :as project-search]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -96,7 +96,7 @@
   [{:keys [resource] :as _item}]
   (-> resource
       workspace/resource-icon
-      (jfx/get-image-view 16)))
+      (icons/get-image-view 16)))
 
 (defn- make-matched-item-row-indicator
   ^Label [{:keys [^long row] :as _item}]
