@@ -15,26 +15,14 @@
 
 #include <stdint.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
-#include <pthread.h>
-#include <limits.h>
-#include <unistd.h>
-namespace dmThread
-{
-    typedef pthread_t Thread;
-    typedef pthread_key_t TlsKey;
-}
+// These headers define the dmThread::Thread and dmThread::TlsKey with the native types
 
-#elif defined(_WIN32)
-#include "safe_windows.h"
-namespace dmThread
-{
-    typedef HANDLE Thread;
-    typedef DWORD TlsKey;
-}
-
+#if defined(_WIN32)
+    #include <dmsdk/dlib/thread_native_win32.h>
+#elif defined(__NX__)
+    #include <dmsdk/dlib/thread_native_nx64.h>
 #else
-#error "Unsupported platform"
+    #include <dmsdk/dlib/thread_native_posix.h>
 #endif
 
 /*# SDK Thread API documentation

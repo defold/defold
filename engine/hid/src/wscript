@@ -3,14 +3,6 @@ import os
 from waf_dynamo import dmsdk_add_files
 from BuildUtility import create_build_utility
 
-
-def _get_native_file(target_os, name):
-    native_source = '%s/%s' % (target_os, name)
-    if not os.path.exists(os.path.join('src',native_source)):
-        native_source = name
-    return native_source
-
-
 def set_options(opt):
     pass
 
@@ -40,10 +32,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/hid', 'hid.h')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
-
-    header = _get_native_file(platform_folder, 'dmsdk/hid/hid_native_defines.h')
-    bld.install_as('${PREFIX}/sdk/include/dmsdk/hid/hid_native_defines.h', header)
-
 
 def configure(conf):
     pass

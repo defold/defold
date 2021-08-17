@@ -23,6 +23,7 @@ namespace dmGraphics
         t->m_Type                = TEXTURE_TYPE_2D;
         t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
         t->m_DeviceBuffer        = VK_IMAGE_USAGE_SAMPLED_BIT;
+        t->m_Format              = VK_FORMAT_UNDEFINED;
         t->m_Width               = 0;
         t->m_Height              = 0;
         t->m_OriginalWidth       = 0;
@@ -242,7 +243,7 @@ namespace dmGraphics
             vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
         }
 
-        const uint8_t sample_count_index_requested = (uint8_t) log2f((float) sampleCount);
+        const uint8_t sample_count_index_requested = (uint8_t) sampleCount == 0 ? 0 : log2f((float) sampleCount);
         const uint8_t sample_count_index_max       = (uint8_t) log2f((float) vk_sample_count);
         const VkSampleCountFlagBits vk_count_bits[] = {
             VK_SAMPLE_COUNT_1_BIT,

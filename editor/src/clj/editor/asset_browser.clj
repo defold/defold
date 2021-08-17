@@ -467,7 +467,7 @@
              rt (:resource-type user-data)]
          (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (when-let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
-             (spit new-file (workspace/template rt))
+             (spit new-file (workspace/template workspace rt))
              (workspace/resource-sync! workspace)
              (let [resource-map (g/node-value workspace :resource-map)
                    new-resource-path (resource/file->proj-path project-path new-file)
@@ -476,7 +476,7 @@
                (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
            (when (not user-data)
-             (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
+             (let [resource-types (filter (fn [rt] (workspace/template workspace rt)) (workspace/get-resource-types workspace))]
                (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                                                                                        :icon (:icon res-type)
                                                                                        :style (resource/ext-style-classes (:ext res-type))

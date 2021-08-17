@@ -158,7 +158,7 @@ namespace dmRender
         uint8_t                 m_LayerMask;
     };
 
-    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
+    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
 
     static void InitFontmap(FontMapParams& params, dmGraphics::TextureParams& tex_params, uint8_t init_val)
     {
@@ -478,9 +478,9 @@ namespace dmRender
         HFontMap m_FontMap;
         float m_Tracking;
         LayoutMetrics(HFontMap font_map, float tracking) : m_FontMap(font_map), m_Tracking(tracking) {}
-        float operator()(const char* text, uint32_t n)
+        float operator()(const char* text, uint32_t n, bool measure_trailing_space)
         {
-            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n);
+            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n, measure_trailing_space);
         }
     };
 
@@ -677,13 +677,15 @@ namespace dmRender
         const uint32_t max_lines = 128;
         TextLine lines[max_lines];
 
+        // Trailing space characters should be ignored when measuring and
+        // rendering multiline text.
+        // For single line text we still want to include spaces when the text
+        // layout is calculated (https://github.com/defold/defold/issues/5911)
+        bool measure_trailing_space = !te.m_LineBreak;
+
         LayoutMetrics lm(font_map, tracking);
         float layout_width;
-        // Whitespace characters should be ignored when rendering multiline text.
-        // For single line text we still want to include whitespaces when the
-        // text layout is calculated (https://github.com/defold/defold/issues/5911)
-        bool skip_whitespace = te.m_LineBreak;
-        int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, skip_whitespace);
+        int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
         float x_offset = OffsetX(te.m_Align, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
@@ -1119,7 +1121,7 @@ namespace dmRender
         text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
     }
 
-    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n)
+    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space)
     {
         float width = 0;
         const char* cursor = text;
@@ -1138,7 +1140,8 @@ namespace dmRender
         }
         if (n > 0 && 0 != last)
         {
-            float last_end_point = last->m_LeftBearing + last->m_Width;
+            uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? (int16_t)last->m_Advance : last->m_Width;
+            float last_end_point = last->m_LeftBearing + last_width;
             float last_right_bearing = last->m_Advance - last_end_point;
             width = width - last_right_bearing - tracking;
         }
@@ -1160,13 +1163,15 @@ namespace dmRender
 
         float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
 
+        // Trailing space characters should be ignored when measuring and
+        // rendering multiline text.
+        // For single line text we still want to include spaces when the text
+        // layout is calculated (https://github.com/defold/defold/issues/5911)
+        bool measure_trailing_space = !line_break;
+
         LayoutMetrics lm(font_map, tracking * line_height);
         float layout_width;
-        // Whitespace characters should be ignored for multiline text.
-        // For single line text we still want to include whitespaces in text
-        // metrics calculations (https://github.com/defold/defold/issues/5911)
-        bool skip_whitepace = line_break;
-        uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm, skip_whitepace);
+        uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
         metrics->m_Width = layout_width;
         metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
     }

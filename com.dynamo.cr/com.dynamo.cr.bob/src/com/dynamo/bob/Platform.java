@@ -21,7 +21,6 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 
 public enum Platform {
-    X86Darwin("x86", "darwin", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86-osx"),
     X86_64Darwin("x86_64", "darwin", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
     X86Win32("x86", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows32, "x86-win32"),
     X86_64Win32("x86_64", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows64, "x86_64-win32"),
@@ -193,11 +192,7 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            if (arch.equals("x86_64") || arch.equals("amd64")) {
-                return Platform.X86_64Darwin;
-            } else {
-                return Platform.X86Darwin;
-            }
+            return Platform.X86_64Darwin;
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;

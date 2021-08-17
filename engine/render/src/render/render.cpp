@@ -294,7 +294,7 @@ namespace dmRender
         {
             if (!context->m_OutOfResources)
             {
-                dmLogWarning("Renderer is out of resources, some objects will not be rendered.");
+                dmLogWarning("Max number of draw calls reached (%u), some objects will not be rendered. Increase the capacity with graphics.max_draw_calls", context->m_RenderObjects.Capacity());
                 context->m_OutOfResources = 1;
             }
             return RESULT_OUT_OF_RESOURCES;

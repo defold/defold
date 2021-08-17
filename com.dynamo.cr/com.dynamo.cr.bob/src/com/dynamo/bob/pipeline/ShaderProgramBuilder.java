@@ -490,7 +490,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         Platform platformKey = Platform.get(platform);
         if(platformKey != null) {
             switch(platformKey) {
-                case X86Darwin:
                 case X86_64Darwin:
                 {
                     shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));

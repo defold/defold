@@ -32,8 +32,6 @@ except:
             pass
         @classmethod
         def supports_feature(cls, platform, feature, data):
-            if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'x86_64-linux'):
-                return False
             return True
         @classmethod
         def transform_runnable_path(cls, platform, path):
@@ -44,7 +42,7 @@ except:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web']
+        return platform not in ['js-web', 'wasm-web', 'armv7-darwin', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -69,16 +67,18 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="14.0"
-IOS_SIMULATOR_SDK_VERSION="14.0"
+IOS_SDK_VERSION="14.5"
+IOS_SIMULATOR_SDK_VERSION="14.5"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
 
-OSX_SDK_VERSION="10.15"
+OSX_SDK_VERSION="11.3"
 MIN_OSX_SDK_VERSION="10.7"
 
-XCODE_VERSION="12.1"
+XCODE_VERSION="12.5"
+XCODE_CLANG_VERSION="12.0.5"
+SWIFT_VERSION="5.0"
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
@@ -327,6 +327,28 @@ def default_flags(self):
            self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
            self.env.append_value(f, self.env.CXXDEFINES_ST % "JC_TEST_USE_COLORS=1")
 
+    for f in ['CCFLAGS', 'CXXFLAGS']:
+        if '64' in build_util.get_target_architecture():
+            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
+        else:
+            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
+
+    libpath = build_util.get_library_path()
+
+    # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
+    if not os.path.exists(libpath):
+        os.makedirs(libpath)
+    self.env.append_value('LIBPATH', libpath)
+
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
+    self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
+
+    # Platform specific paths etc comes after the project specific stuff
+
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
@@ -334,35 +356,36 @@ def default_flags(self):
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
-    if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
+    if "linux" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-            # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
-            # some tests after we switched to -02 optimisations. We should refine these tests so that they
-            # don't rely on equal-compare floating point values, and/or verify that underlaying engine
-            # code don't rely on floats being of a certain precision level. When this is done, we can
-            # remove -ffloat-store. Jira Issue: DEF-1891
-            if 'linux' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
-                self.env.append_value(f, ['-ffloat-store'])
-            if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
-                self.env.append_value(f, ['-m32'])
-            if "osx" == build_util.get_target_os():
-                self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
-                self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
-                self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED'])
-                if 'linux' in self.env['BUILD_PLATFORM']:
-                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
+    elif "osx" == build_util.get_target_os():
 
-        if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
-            self.env.append_value('LINKFLAGS', ['-m32'])
-        if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+        sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)
+        swift_dir = "%s/usr/lib/swift-%s/macosx" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
+
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-rtti'])
+
+            self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
+            self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
+
+            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
             if 'linux' in self.env['BUILD_PLATFORM']:
-                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
+                self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
+
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '%s' % swift_dir])
+
+        if 'linux' in self.env['BUILD_PLATFORM']:
+            self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
 
@@ -371,30 +394,30 @@ def default_flags(self):
         if 'linux' in self.env['BUILD_PLATFORM']:
             target_triplet='arm-apple-darwin19'
             extra_ccflags += ['-target', target_triplet]
-            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/12.0.0/lib/darwin'),
+            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/%s/lib/darwin' % XCODE_CLANG_VERSION),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
             extra_linkflags += ['-fobjc-link-runtime']
 
-
-        if Options.options.with_asan:
-            MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
-
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)
+        swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
             sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)
+            swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
-                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
-                                            '-isysroot', sys_root, '-isysroot', sys_root])
+                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+
+            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
         self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION] + extra_linkflags)
+        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '%s' % swift_dir])
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
@@ -452,31 +475,10 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
-            self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
+            self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX' '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
-
-
-    for f in ['CCFLAGS', 'CXXFLAGS']:
-        if '64' in build_util.get_target_architecture():
-            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
-        else:
-            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
-
-    libpath = build_util.get_library_path()
-
-    # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
-    if not os.path.exists(libpath):
-        os.makedirs(libpath)
-    self.env.append_value('LIBPATH', libpath)
-
-    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
-    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
-    self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     platform_setup_vars(self, build_util)
 
@@ -562,6 +564,10 @@ def asan_cxxflags(self):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
+    if Options.options.with_ubsan and build_util.get_target_os() in ('osx','ios','android'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=undefined'])
+        self.env.append_value('CCFLAGS', ['-fsanitize=undefined'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
 
 @taskgen
 @feature('cprogram', 'cxxprogram')
@@ -1845,6 +1851,7 @@ def set_options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')

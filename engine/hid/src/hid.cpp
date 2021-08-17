@@ -332,11 +332,11 @@ namespace dmHID
         }
     }
 
-    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t& hat_value)
+    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t* out_hat_value)
     {
         if (packet != 0x0)
         {
-            hat_value = packet->m_Hat[hat];
+            *out_hat_value = packet->m_Hat[hat];
             return true;
         } else {
             return false;

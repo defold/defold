@@ -412,6 +412,7 @@ public class Bob {
         options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
         options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
+        options.addOption(null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4");
 
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
 
@@ -420,6 +421,9 @@ public class Bob {
         options.addOption(null, "settings", true, "a path to a game project settings file. more than one occurrance are allowed. the settings files are applied left to right.");
 
         options.addOption(null, "version", false, "Prints the version number to the output");
+
+        options.addOption(null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.");
+
 
         // debug options
         options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
@@ -483,6 +487,32 @@ public class Bob {
 
         Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
         project.findSources(sourceDirectory, skipDirs);
+    }
+
+    private static void validateChoices(String optionName, String value, List<String> validChoices) {
+        if (!validChoices.contains(value)) {
+            System.out.printf("%s option must be one of: ", optionName);
+            for (String choice : validChoices) {
+                System.out.printf("%s, ", choice);
+            }
+            System.out.printf("\n");
+            System.exit(1);
+        }
+    }
+
+    private static void validateChoicesList(Project project, String optionName, String[] validChoices) {
+        String str = project.option(optionName, "");
+        List<String> values = Arrays.asList(str.split(","));
+        for (String value : values) {
+            validateChoices(optionName, value, Arrays.asList(validChoices));
+        }
+    }
+
+    public static boolean isPowerOfTwo(int x)
+    {
+        // First x in the below expression is
+        // for the case when x is 0
+        return x != 0 && ((x & (x - 1)) == 0);
     }
 
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
@@ -620,8 +650,33 @@ public class Bob {
             project.setOption("use-vanilla-lua", "true");
         }
 
+        if (cmd.hasOption("archive-resource-padding")) {
+            String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
+            int resourcePadding = 0;
+            try {
+                resourcePadding = Integer.parseInt(resourcePaddingStr);
+            } catch (Exception e) {
+                System.out.printf("Could not parse --archive-resource-padding='%s' into a valid integer\n", resourcePaddingStr);
+                System.exit(1);
+                return;
+            }
+
+            if (!isPowerOfTwo(resourcePadding)) {
+                System.out.printf("Argument --archive-resource-padding='%s' isn't a power of two\n", resourcePaddingStr);
+                System.exit(1);
+                return;
+            }
+
+            project.setOption("archive-resource-padding", resourcePaddingStr);
+        }
+
         if (cmd.hasOption("bundle-format")) {
             project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
+        }
+
+        if (project.hasOption("build-artifacts")) {
+            String[] validArtifacts = {"engine", "plugins"};
+            validateChoicesList(project, "build-artifacts", validArtifacts);
         }
 
         boolean ret = true;

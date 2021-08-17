@@ -176,11 +176,18 @@ public class AndroidBundler implements IBundler {
      * the password stored in the file.
      */
     private static String getKeystorePassword(Project project) throws IOException, CompileExceptionError {
+        return readFile(getKeystorePasswordFile(project)).trim();
+    }
+
+    /**
+     * Get keystore password file.
+     */
+    private static String getKeystorePasswordFile(Project project) throws IOException, CompileExceptionError {
         String keystorePassword = project.option("keystore-pass", "");
         if (keystorePassword.length() == 0) {
             throw createCompileExceptionError("No keystore password");
         }
-        return readFile(keystorePassword).trim();
+        return keystorePassword;
     }
 
     /**
@@ -697,7 +704,7 @@ public class AndroidBundler implements IBundler {
     private static File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         log("Creating universal APK set");
         String keystore = getKeystore(project);
-        String keystorePassword = getKeystorePassword(project);
+        String keystorePasswordFile = getKeystorePasswordFile(project);
         String keystoreAlias = getKeystoreAlias(project);
 
         try {
@@ -711,11 +718,11 @@ public class AndroidBundler implements IBundler {
             args.add(getJavaBinFile("java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
             args.add("build-apks");
-            args.add("--mode"); args.add("universal");
+            args.add("--mode"); args.add("UNIVERSAL");
             args.add("--bundle"); args.add(aabPath);
             args.add("--output"); args.add(apksPath);
             args.add("--ks"); args.add(keystore);
-            args.add("--ks-pass"); args.add("pass:" + keystorePassword);
+            args.add("--ks-pass"); args.add("file:" + keystorePasswordFile);
             args.add("--ks-key-alias"); args.add(keystoreAlias);
 
             Result res = exec(args);

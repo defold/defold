@@ -1,6 +1,3 @@
-
-
-
 # Debugging
 
 ## Get the _crash / .dmp files

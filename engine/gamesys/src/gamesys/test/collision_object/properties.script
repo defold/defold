@@ -1,0 +1,20 @@
+-- This is the test script for collision object properties. Starting with 'bullet' property. More to come...
+
+function test_bullet_property()
+  -- test getters/setters of bullet property
+	assert(go.get("go#properties-co", "bullet") == false)
+  go.set("go#properties-co", "bullet", true)
+	assert(go.get("go#properties-co", "bullet"))
+end
+
+function init(self)
+  physics.set_gravity(vmath.vector3(0, -10, 0))
+
+  test_bullet_property()
+end
+
+tests_done = false -- flag end of test to C level
+
+function update(self, dt)
+    tests_done = true
+end
