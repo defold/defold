@@ -473,6 +473,7 @@ platforms:
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: '%s.lib'
     writeExePattern: 'dmengine.exe'
+    writeShLibPattern: 'lib%s.dll'
     zipContentPattern: 'dmengine.exe'
     symbolsPattern:  '.*pdb'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
@@ -507,7 +508,6 @@ platforms:
     stlibRe:        '(.+).lib'
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: '%s.lib'
-    writeShLibPattern: 'lib%s.dll'
     writeExePattern: 'dmengine.exe'
     zipContentPattern: 'dmengine.exe'
     symbolsPattern:  '.*pdb'
