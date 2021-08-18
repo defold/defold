@@ -18,7 +18,7 @@
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.progress :as progress]
             [editor.math :as math]
             [editor.util :as eutil]
@@ -803,7 +803,7 @@
                 (do
                   (proxy-super setText (:text render-data))
                   (when-let [icon (:icon render-data)]
-                    (proxy-super setGraphic (jfx/get-image-view icon 16)))))))
+                    (proxy-super setGraphic (icons/get-image-view icon 16)))))))
           (proxy-super setTooltip (:tooltip render-data)))))))
 
 (defn- make-list-cell-factory [render-fn]
@@ -838,7 +838,7 @@
                            (proxy-super setGraphic (when-let [icon (:icon render-data)]
                                                      (if (= :empty icon)
                                                        (ImageView.)
-                                                       (jfx/get-image-view icon (:icon-size render-data 16)))))))
+                                                       (icons/get-image-view icon (:icon-size render-data 16)))))))
                        (proxy-super setTooltip (:tooltip render-data))
                        (proxy-super setOnDragOver (:over-handler render-data))
                        (proxy-super setOnDragDropped (:dropped-handler render-data))
@@ -1203,7 +1203,7 @@
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (when icon
-        (.setGraphic menu (wrap-menu-image (jfx/get-image-view icon 16))))
+        (.setGraphic menu (wrap-menu-image (icons/get-image-view icon 16))))
       (when style-classes
         (assert (set? style-classes))
         (doto (.getStyleClass menu)
@@ -1239,7 +1239,7 @@
     (when (some? key-combo)
       (.setAccelerator menu-item key-combo))
     (when icon
-      (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
+      (.setGraphic menu-item (wrap-menu-image (icons/get-image-view icon 16))))
     (when style-classes
       (assert (set? style-classes))
       (doto (.getStyleClass menu-item)
@@ -1675,7 +1675,7 @@
                                                                                   (when new
                                                                                     (let [command-contexts (contexts scene)]
                                                                                       (execute-command command-contexts (:command new) (:user-data new))))))
-                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
+                                                   (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
@@ -1690,7 +1690,7 @@
                                                      (.setGraphic button (graphic-fn))
 
                                                      icon
-                                                     (.setGraphic button (jfx/get-image-view icon 16)))
+                                                     (.setGraphic button (icons/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
                                                                           (execute-command (contexts scene) command user-data))))
