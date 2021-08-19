@@ -34,8 +34,6 @@ public class Task<T> {
     private String name;
     private List<IResource> inputs = new ArrayList<IResource>();
     private List<IResource> outputs = new ArrayList<IResource>();
-    private List<IResource> dependencies = new ArrayList<IResource>();
-    private Map<String, String> options = new HashMap<String, String>();
     private Task<?> productOf;
 
     public T data;
@@ -155,10 +153,8 @@ public class Task<T> {
         }
 
         updateDigestWithResources(digest, inputs);
-        updateDigestWithResources(digest, dependencies);
 
         builder.signature(digest);
-        digest.update(options.toString().getBytes());
         return digest;
     }
 
