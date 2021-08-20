@@ -187,7 +187,9 @@ public class GameProjectBuilder extends Builder<Void> {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
         // When passing use vanilla lua, we want the Lua code as clear text
-        boolean use_vanilla_lua = project.option("use-vanilla-lua", "false").equals("true");
+        final boolean use_vanilla_lua = project.option("use-vanilla-lua", "false").equals("true");
+        final String encryptionKey = project.getProjectProperties().getStringValue("project", "encryption_key");;
+        final boolean encrypt = use_vanilla_lua ? false : true;
 
         int resourcePadding = 4;
         String resourcePaddingStr = project.option("archive-resource-padding", null);
@@ -200,7 +202,8 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, use_vanilla_lua ? false : true, resourcePadding);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, encrypt, resourcePadding);
+        archiveBuilder.setEncryptionKey(encryptionKey);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
 
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
@@ -478,6 +481,8 @@ public class GameProjectBuilder extends Builder<Void> {
     static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
         // Remove project dependencies list for security.
         properties.remove("project", "dependencies");
+
+        properties.remove("project", "encryption_key");
 
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");

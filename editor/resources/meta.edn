@@ -23,6 +23,10 @@
    :help "compress archive (not for Android)",
    :default true,
    :path ["project" "compress_archive"]}
+  {:type :string,
+   :help "key used when encrypting resources (blank for default key)",
+   :default "",
+   :path ["project" "encryption_key"]}
   {:type :library-list,
    :help
    "a comma separated list of URL:s to projects required by this project",

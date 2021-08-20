@@ -50,7 +50,7 @@ public class ArchiveBuilder {
     public static final int HASH_LENGTH = 20;
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
-    private static final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
+    private static final byte[] DEFAULT_KEY = "aQj8CScgNP4VsfXK".getBytes();
 
     private static final List<String> ENCRYPTED_EXTS = Arrays.asList("luac", "scriptc", "gui_scriptc", "render_scriptc");
 
@@ -62,6 +62,7 @@ public class ArchiveBuilder {
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private boolean encrypt = true;
     private int resourcePadding = 4;
+    private byte[] encryptionKey = null;
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, boolean encrypt, int resourcePadding) {
         this.root = new File(root).getAbsolutePath();
@@ -69,6 +70,16 @@ public class ArchiveBuilder {
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.encrypt = encrypt;
         this.resourcePadding = resourcePadding;
+        this.encryptionKey = DEFAULT_KEY;
+    }
+
+    public void setEncryptionKey(String key) {
+        if (key == null || key.isEmpty()) {
+            this.encryptionKey = DEFAULT_KEY;
+        }
+        else {
+            this.encryptionKey = key.getBytes();
+        }
     }
 
     private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
@@ -129,7 +140,7 @@ public class ArchiveBuilder {
     }
 
     public byte[] encryptResourceData(byte[] buffer) {
-        return Crypt.encryptCTR(buffer, KEY);
+        return Crypt.encryptCTR(buffer, encryptionKey);
     }
 
     public void writeResourcePack(String filename, String directory, byte[] buffer, byte flags, int size) throws IOException {
