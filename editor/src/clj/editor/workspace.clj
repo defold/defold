@@ -26,7 +26,8 @@ ordinary paths."
             [editor.resource-watch :as resource-watch]
             [editor.url :as url]
             [service.log :as log])
-  (:import [java.io File PushbackReader]
+  (:import [clojure.lang DynamicClassLoader RT]
+           [java.io File PushbackReader]
            [java.net URI]
            [editor.resource FileResource]
            [org.apache.commons.io FilenameUtils]))
@@ -322,10 +323,10 @@ ordinary paths."
     (io/copy input-stream target-path)))
 
 ; It's important to use the same class loader, so that the type signatures match
-(def class-loader (clojure.lang.DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
+(defonce ^:private class-loader (delay (RT/makeClassLoader)))
 
 (defn load-class! [class-name]
-  (Class/forName class-name true class-loader))
+  (Class/forName class-name true ^DynamicClassLoader @class-loader))
 
 (defn- add-to-path-property [propertyname path]
   (let [current (System/getProperty propertyname)
@@ -336,7 +337,7 @@ ordinary paths."
 
 (defn- register-jar-file! [workspace resource]
   (let [jar-file (plugin-path workspace (resource/proj-path resource))]
-    (.addURL ^clojure.lang.DynamicClassLoader class-loader (io/as-url jar-file))))
+    (.addURL ^DynamicClassLoader @class-loader (io/as-url jar-file))))
 
 (defn- register-shared-library-file! [workspace resource]
   (let [resource-file (plugin-path workspace (resource/proj-path resource))
