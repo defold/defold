@@ -310,7 +310,6 @@ namespace dmGameObject
                 }
                 else
                 {
-                    // TODO
                     PropertyOptions property_opt;
                     property_opt.m_Index = 0;
                     SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
