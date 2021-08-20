@@ -614,18 +614,21 @@
     (apply-user-css! root)
     root))
 
-(defn- load-xml [path]
+(defn- empty-svg []
+    {:tag :svg, :attrs nil, :content [{ :tag :path, :attrs {:d "M0,0"}, :content nil}]})
+
+(defn- load-svg-xml [path]
   (try
     (with-open [stream (io/input-stream (io/resource path))]
       (xml/parse stream))
     (catch Exception e
-      (nil))))
+      (empty-svg))))
 
 (defn load-svg-path
   "Loads the path data from a simple .svg file. Assumes the scene contains a
   single path, but is useful for things like monochrome vector icons."
   ^SVGPath [path]
-  (let [svg (load-xml path)
+  (let [svg (load-svg-xml path)
         content (:content svg)
         path (util/first-where #(= :path (:tag %)) content)
         path-data (get-in path [:attrs :d])]
