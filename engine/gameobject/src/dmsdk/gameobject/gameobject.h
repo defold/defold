@@ -364,7 +364,7 @@ namespace dmGameObject
         uint8_t  m_IsGamepad : 1;
         uint8_t  m_GamepadDisconnected : 1;
         uint8_t  m_GamepadConnected : 1;
-        uint32_t m_HasGamepadPacket : 1;
+        uint8_t m_HasGamepadPacket : 1;
         /// If input has a text payload (can be true even if text count is 0)
         uint8_t  m_HasText : 1;
         /// If the input was 0 last update
