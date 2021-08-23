@@ -49,6 +49,8 @@ public class ArchiveTest {
     private File outputData;
     private Path resourcePackDir;
 
+    private List<File> tempFiles = new ArrayList<>();
+
     private ManifestBuilder manifestBuilder;
 
     private String createDummyFile(String dir, String filepath, byte[] data) throws IOException {
@@ -61,6 +63,22 @@ public class ArchiveTest {
         fos.close();
 
         return tmp.getAbsolutePath();
+    }
+
+    private File createTempFile(String prefix, String suffix) throws IOException {
+        File file = Files.createTempFile("tmp.defold", "arci").toFile();
+        tempFiles.add(file);
+        return file;
+    }
+
+    private void writeArchive(ArchiveBuilder ab, File outputIndex, File outputData) throws IOException {
+        RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
+        RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
+        outFileIndex.setLength(0);
+        outFileData.setLength(0);
+        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
+        outFileIndex.close();
+        outFileData.close();
     }
 
     private int bitwiseCompare(byte b1, byte b2)
@@ -98,10 +116,9 @@ public class ArchiveTest {
     @Before
     public void setUp() throws Exception {
         contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
-        outputDarc = Files.createTempFile("tmp.darc", "").toFile();
-
-        outputIndex = Files.createTempFile("tmp.defold", "arci").toFile();
-        outputData = Files.createTempFile("tmp.defold", "arcd").toFile();
+        outputDarc = createTempFile("tmp.darc", "");
+        outputIndex = createTempFile("tmp.defold", "arci");
+        outputData = createTempFile("tmp.defold", "arcd");
 
         resourcePackDir = Files.createTempDirectory("tmp.defold.resourcepack_");
 
@@ -112,10 +129,9 @@ public class ArchiveTest {
     @After
     public void tearDown() throws IOException {
         FileUtils.deleteDirectory(new File(contentRoot));
-        FileUtils.deleteQuietly(outputDarc);
-
-        FileUtils.deleteQuietly(outputIndex);
-        FileUtils.deleteQuietly(outputData);
+        for(File file : tempFiles) {
+            FileUtils.deleteQuietly(file);
+        }
     }
 
     @Test
@@ -128,18 +144,39 @@ public class ArchiveTest {
         ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()));
 
         // Write
-        RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
-        RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        outFileIndex.setLength(0);
-        outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
-        outFileIndex.close();
-        outFileData.close();
+        writeArchive(ab, outputIndex, outputData);
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         ar.read();
         ar.close();
+    }
+
+    @Test
+    public void testBuilderEncryptionKey() throws IOException
+    {
+        ArchiveBuilder ab1 = new ArchiveBuilder(contentRoot, manifestBuilder, true, 4);
+        ab1.add(createDummyFile(contentRoot, "a.luac", "abc123".getBytes()));
+        File outputIndex1 = createTempFile("tmp.defold1", "arci");
+        File outputData1 = createTempFile("tmp.defold1", "arcd");
+        writeArchive(ab1, outputIndex1, outputData1);
+
+        ArchiveBuilder ab2 = new ArchiveBuilder(contentRoot, manifestBuilder, true, 4);
+        ab2.add(createDummyFile(contentRoot, "a.luac", "abc123".getBytes()));
+        File outputIndex2 = createTempFile("tmp.defold2", "arci");
+        File outputData2 = createTempFile("tmp.defold2", "arcd");
+        writeArchive(ab2, outputIndex2, outputData2);
+
+        ArchiveBuilder ab3 = new ArchiveBuilder(contentRoot, manifestBuilder, true, 4);
+        ab3.setEncryptionKey("foobar");
+        ab3.add(createDummyFile(contentRoot, "a.luac", "abc123".getBytes()));
+        File outputIndex3 = createTempFile("tmp.defold3", "arci");
+        File outputData3 = createTempFile("tmp.defold3", "arcd");
+        writeArchive(ab3, outputIndex3, outputData3);
+
+        assertTrue(FileUtils.contentEquals(outputIndex1, outputIndex2));
+        assertTrue(FileUtils.contentEquals(outputData1, outputData2));
+        assertFalse(FileUtils.contentEquals(outputData1, outputData3));
     }
 
     @Test
@@ -152,13 +189,7 @@ public class ArchiveTest {
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())));
 
         // Write
-        RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
-        RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        outFileIndex.setLength(0);
-        outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
-        outFileIndex.close();
-        outFileData.close();
+        writeArchive(ab, outputIndex, outputData);
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
@@ -191,15 +222,9 @@ public class ArchiveTest {
 			byte[] archiveIndexMD5 = new byte[16];
 			instance.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, filename, content.getBytes())));
 
-    		RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "rw");
-	        RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
-	        archiveIndex.setLength(0);
-	        archiveData.setLength(0);
-	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
-	        archiveIndex.close();
-	        archiveData.close();
+            writeArchive(instance, outputIndex, outputData);
 
-	        archiveIndex = new RandomAccessFile(outputIndex, "r");
+	        RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "r");
 
 	        archiveIndex.readInt();  					// Version
 	        archiveIndex.readInt();  					// Padding
