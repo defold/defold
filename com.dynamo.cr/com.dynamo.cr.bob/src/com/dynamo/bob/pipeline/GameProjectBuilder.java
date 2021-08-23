@@ -189,7 +189,18 @@ public class GameProjectBuilder extends Builder<Void> {
         // When passing use vanilla lua, we want the Lua code as clear text
         boolean use_vanilla_lua = project.option("use-vanilla-lua", "false").equals("true");
 
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, use_vanilla_lua ? false : true);
+        int resourcePadding = 4;
+        String resourcePaddingStr = project.option("archive-resource-padding", null);
+        if (resourcePaddingStr != null) {
+            // It's already verified by bob, but we have to still parse it again
+            try {
+                resourcePadding = Integer.parseInt(resourcePaddingStr);
+            } catch (Exception e) {
+                throw new CompileExceptionError(String.format("Could not parse --archive-resource-padding='%s' into a valid integer", resourcePaddingStr), e);
+            }
+        }
+
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, use_vanilla_lua ? false : true, resourcePadding);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
 
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();

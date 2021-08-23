@@ -609,7 +609,7 @@
   (assert (.startsWith proj-path "/"))
   (let [resource (resource workspace proj-path)
         resource-type (resource/resource-type resource)
-        template (workspace/template resource-type)]
+        template (workspace/template workspace resource-type)]
     (spit resource template)
     resource))
 

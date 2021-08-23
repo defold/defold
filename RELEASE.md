@@ -71,7 +71,7 @@ and add the "BETA" tag to the headline
 
 ### Publishing Stable Release
 
-1. If everything is OK, time to release stable
+1. If everything is OK, time to release stable.
 
 1. If there is a pending Native Extension server change, [publish the production server](https://github.com/defold/extender#releasing), which updates https://build.defold.com
 
@@ -81,16 +81,16 @@ and add the "BETA" tag to the headline
         $ ./scripts/build.py release --channel=stable
     Important: *Make sure the SHA1 and channel is correct!*
 
-1. Merge `master` into `editor-dev`
+1. Merge `master` into `editor-dev`:
 
-    $ git checkout editor-dev
-    $ git pull
-    $ git merge master
-    $ git push
+        $ git checkout editor-dev
+        $ git pull
+        $ git merge master
+        $ git push
 
 This will trigger a build of the engines and editors for editor-alpha.
 
-1. When the `editor-dev` is built, all channels have been updated
+1. When the `editor-dev` is built, all channels have been updated.
 
 1. Verify release by updating an old editor, OSX, Win and Linux.
 
@@ -103,7 +103,7 @@ This will trigger a build of the engines and editors for editor-alpha.
         $ git commit -am "Updated reference documentation to 1.2.xxx"
         $ git push
 
-1. Merge `master` into dev
+1. Merge `master` into `dev`:
 
         $ cd defold
         $ git checkout dev
@@ -115,8 +115,7 @@ This will trigger a build of the engines and editors for editor-alpha.
         $ ./scripts/build.py bump
         $ git diff
         $ git add VERSION
-        $ git commit
-        > Message: "Bumped version to 1.2.xx"
+        $ git commit -m "Bumped version to 1.2.xx"
         $ git push
 
 1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline

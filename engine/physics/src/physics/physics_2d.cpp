@@ -921,6 +921,7 @@ namespace dmPhysics
         def.linearDamping = data.m_LinearDamping;
         def.angularDamping = data.m_AngularDamping;
         def.fixedRotation = data.m_LockedRotation;
+        def.bullet = data.m_Bullet;
         def.active = data.m_Enabled;
         b2Body* body = world->m_World.CreateBody(&def);
         Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);
@@ -1138,6 +1139,17 @@ namespace dmPhysics
     float GetMass2D(HCollisionObject2D collision_object) {
         b2Body* body = ((b2Body*)collision_object);
         return body->GetMass();
+    }
+
+    bool IsBullet2D(HCollisionObject2D collision_object)
+    {
+        b2Body* body = ((b2Body*)collision_object);
+        return body->IsBullet();
+    }
+
+    void SetBullet2D(HCollisionObject2D collision_object, bool value) {
+        b2Body* body = ((b2Body*)collision_object);
+        body->SetBullet(value);
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)

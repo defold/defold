@@ -15,6 +15,12 @@ def build(bld):
                                   target = 'liveupdate')
 
     liveupdate.find_sources_in_dirs('.')
+    liveupdate.source = [x for x in liveupdate.source if not 'null' in x]
+
+    liveupdate_null = bld.new_task_gen(features = 'cxx cstaticlib',
+                                  includes = '.',
+                                  source = 'liveupdate_null.cpp',
+                                  target = 'liveupdate_null')
 
     bld.add_subdirs('test')
 

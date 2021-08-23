@@ -738,7 +738,7 @@
 (defn add-game-object [workspace project coll-node parent select-fn]
   (let [ext           "go"
         resource-type (workspace/get-resource-type workspace ext)
-        template      (workspace/template resource-type)
+        template      (workspace/template workspace resource-type)
         id (gen-instance-id coll-node ext)]
     (g/transact
       (concat

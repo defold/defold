@@ -175,8 +175,6 @@ static UpdateResult EngineUpdate(void* _engine)
             LOG("%s", pressed ? "*" : "_");
         }
 
-        //bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t& hat_value);
-
         LOG("AXIS: ");
 
         uint32_t numaxis = dmHID::GetGamepadAxisCount(pad);

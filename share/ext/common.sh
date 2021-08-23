@@ -182,9 +182,12 @@ function cmi_setup_vs2019_env() {
     export VCINSTALLDIR='${VSINSTALLDIR}VC\'
     export DevEnvDir='${VSINSTALLDIR}Common7\IDE\'
 
+    local platform=$1
+    shift
+
     arch="x64"
     export FrameworkDir=${FrameworkDir64}
-    if [ "$1" == "win32" ]; then
+    if [ "$platform" == "win32" ]; then
         arch="x86"
         export FrameworkDir=${FrameworkDir32}
     fi
@@ -193,32 +196,43 @@ function cmi_setup_vs2019_env() {
     export LIB="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\ucrt\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\um\\${arch}"
     export LIBPATH="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x86\\store\\references;${WindowsSdkDir}\\UnionMetadata\\${UCRTVersion};${WindowsSdkDir}\\References\\${UCRTVersion};${FrameworkDir64}\\${FrameworkVersion}"
 
-    c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
-    c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
-    c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir")
+    c_VSINSTALLDIR="$VSINSTALLDIR"
+    c_WindowsSdkDir="$WindowsSdkDir"
+    c_FrameworkDir64="$FrameworkDir"
+    PATHSEP=";"
+
+    local pathtype=$1
+    shift
+
+    if [ "$pathtype" == "bash" ]; then
+        c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
+        c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
+        c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir")
+        PATHSEP=":"
+    fi
 
     echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
     echo AFTER c_VSINSTALLDIR == $c_VSINSTALLDIR
 
     TMPPATH="${c_VSINSTALLDIR}Common7/IDE/Extensions/Microsoft/IntelliCode/CLI"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/Host${arch}/${arch}"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/VC/VCPackages"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TestWindow"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}MSBuild/Current/bin/Roslyn"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Team Tools/Performance Tools/${arch}"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Team Tools/Performance Tools"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/Tools/devinit"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}MSBuild/Current/Bin"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/Tools/"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"
-    TMPPATH="${TMPPATH}:${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
-    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/${UCRTVersion}/${arch}"
-    TMPPATH="${TMPPATH}:${c_WindowsSdkDir}bin/${arch}"
-    TMPPATH="${TMPPATH}:${c_FrameworkDir64}${FrameworkVersion}"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/Host${arch}/${arch}"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/VC/VCPackages"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TestWindow"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/bin/Roslyn"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools/${arch}"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/devinit"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/Bin"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${UCRTVersion}/${arch}"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${arch}"
+    TMPPATH="${TMPPATH}${PATHSEP}${c_FrameworkDir64}${FrameworkVersion}"
 
-    export PATH="$TMPPATH:${PATH}"
+    export PATH="$TMPPATH${PATHSEP}${PATH}"
 }
 
 function cmi() {

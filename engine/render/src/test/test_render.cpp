@@ -461,7 +461,7 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::DrawDebug3d(m_Context);
 }
 
-static float Metric(const char* text, int n)
+static float Metric(const char* text, int n, bool measure_trailing_space)
 {
     return n * 4;
 }
@@ -479,52 +479,52 @@ TEST(dmFontRenderer, Layout)
     int total_lines;
     const float char_width = 4;
     float w;
-    total_lines = dmRender::Layout("", 100, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("", 100, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(0, total_lines);
     ASSERT_EQ(0, w);
 
-    total_lines = dmRender::Layout("x", 100, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("x", 100, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_LINE(0, 1, lines, 0);
     ASSERT_EQ(char_width * 1, w);
 
-    total_lines = dmRender::Layout("x\x00 123", 100, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("x\x00 123", 100, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_LINE(0, 1, lines, 0);
     ASSERT_EQ(char_width * 1, w);
 
-    total_lines = dmRender::Layout("x", 0, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("x", 0, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_LINE(0, 1, lines, 0);
     ASSERT_EQ(char_width * 1, w);
 
-    total_lines = dmRender::Layout("foo", 3 * char_width, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo", 3 * char_width, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_LINE(0, 3, lines, 0);
     ASSERT_EQ(char_width * 3, w);
 
-    total_lines = dmRender::Layout("foo", 3 * char_width - 1, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo", 3 * char_width - 1, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_LINE(0, 3, lines, 0);
     ASSERT_EQ(char_width * 3, w);
 
-    total_lines = dmRender::Layout("foo bar", 3 * char_width, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo bar", 3 * char_width, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(2, total_lines);
     ASSERT_LINE(0, 3, lines, 0);
     ASSERT_LINE(4, 3, lines, 1);
     ASSERT_EQ(char_width * 3, w);
 
-    total_lines = dmRender::Layout("foo bar", 1000, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo bar", 1000, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_LINE(0, 7, lines, 0);
     ASSERT_EQ(char_width * 7, w);
 
-    total_lines = dmRender::Layout("foo  bar", 1000, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo  bar", 1000, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_LINE(0, 8, lines, 0);
     ASSERT_EQ(char_width * 8, w);
 
-    total_lines = dmRender::Layout("foo\n\nbar", 3 * char_width, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo\n\nbar", 3 * char_width, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(3, total_lines);
     ASSERT_LINE(0, 3, lines, 0);
     ASSERT_LINE(4, 0, lines, 1);
@@ -532,7 +532,7 @@ TEST(dmFontRenderer, Layout)
     ASSERT_EQ(char_width * 3, w);
 
     // 0x200B = Unicode "zero width space", UTF8 representation: E2 80 8B
-    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(2, total_lines);
     ASSERT_LINE(0, 3, lines, 0);
     ASSERT_LINE(6, 3, lines, 1);
@@ -540,20 +540,20 @@ TEST(dmFontRenderer, Layout)
 
     // Note that second line would include a "zero width space" as first
     // character since we don't trim whitespace currently.
-    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(2, total_lines);
     ASSERT_LINE(0, 3, lines, 0);
     ASSERT_LINE(6, 4, lines, 1);
     ASSERT_EQ(char_width * 4, w);
 
     // åäö
-    total_lines = dmRender::Layout("\xc3\xa5\xc3\xa4\xc3\xb6", 3 * char_width, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("\xc3\xa5\xc3\xa4\xc3\xb6", 3 * char_width, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(1, total_lines);
     ASSERT_EQ(char_width * 3, lines[0].m_Width);
     ASSERT_LINE(0, 3, lines, 0);
     ASSERT_EQ(char_width * 3, w);
 
-    total_lines = dmRender::Layout("Welcome to the Kingdom of Games...", 0, lines, lines_count, &w, Metric, skip_whitespace);
+    total_lines = dmRender::Layout("Welcome to the Kingdom of Games...", 0, lines, lines_count, &w, Metric, false);
     ASSERT_EQ(6, total_lines);
     ASSERT_LINE(0, 7, lines, 0);
     ASSERT_LINE(8, 2, lines, 1);
@@ -622,14 +622,22 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, leading), metrics.m_Height);
 }
 
-TEST_F(dmRenderTest, GetTextMetricsSkipWhitespace)
+TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
 {
-    dmRender::TextMetrics metricsSingleLine;
-    dmRender::TextMetrics metricsMultiLine;
+    dmRender::TextMetrics metricsHello;
+    dmRender::TextMetrics metricsMultiLineHelloAndSpace;
+    dmRender::TextMetrics metricsSingleLineHelloAndSpace;
+    dmRender::TextMetrics metricsSingleLineSpace;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLine);
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLine);
-    ASSERT_NE(metricsMultiLine.m_Width, metricsSingleLine.m_Width);
+    dmRender::GetTextMetrics(m_SystemFontMap, "Hello", 0, true, 1.0f, 0.0f, &metricsHello);
+    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLineHelloAndSpace);
+    ASSERT_EQ(metricsHello.m_Width, metricsMultiLineHelloAndSpace.m_Width);
+
+    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLineHelloAndSpace);
+    ASSERT_LT(metricsHello.m_Width, metricsSingleLineHelloAndSpace.m_Width);
+
+    dmRender::GetTextMetrics(m_SystemFontMap, " ", 0, false, 1.0f, 0.0f, &metricsSingleLineSpace);
+    ASSERT_GT(metricsSingleLineSpace.m_Width, 0);
 }
 
 TEST_F(dmRenderTest, TextAlignment)
