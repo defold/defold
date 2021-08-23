@@ -94,6 +94,7 @@ namespace dmGameSystem
      * @param constants [type: dmGameSystem::HComponentRenderConstants] the constants
      * @param material [type: dmRender::HMaterial] the material
      * @param name_hash [type: dmhash_t] the hashed name of the constant
+     * @param value_index [type: uint32_t] index of the constant value to set, if the constant is an array
      * @param element_index [type: uint32_t*] pointer to the index of the element (in range [0,3]). May be 0
      * @param var [type: const dmGameObject::PropertyVar&] the constant value
      */
@@ -146,6 +147,7 @@ namespace dmGameSystem
      * @name GetMaterialConstant
      * @param material [type: dmRender::HMaterial] the material
      * @param name_hash [type: dmhash_t] the name of the property
+     * @param value_index [type: int32_t] the index of the constant value to get, if it is an array
      * @param out_desc [type: dmGameObject::PropertyDesc&] the property descriptor
      * @param use_value_ptr [type: bool] should the property pointer be used (m_ValuePtr)
      * @param callback [type: CompGetConstantCallback] callback to resolve property
@@ -166,6 +168,7 @@ namespace dmGameSystem
      * @name SetMaterialConstant
      * @param material [type: dmRender::HMaterial] the material
      * @param name_hash [type: dmhash_t] the name of the property
+     * @param value_index [type: uint32_t] index of the constant value to set, if the material constant is an array
      * @param var [type: dmGameObject::PropertyVar] the property
      * @param callback [type: CompGetConstantCallback] the callback used to set the property
      * @param callback_user_data [type: void*] callback user data
