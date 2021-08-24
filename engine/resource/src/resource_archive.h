@@ -28,6 +28,12 @@ namespace dmResource
 namespace dmResourceArchive
 {
     /**
+     * Default encryption key for encrypted resources.
+     * Must match the value in ArchiveBuilder.java
+     */
+    const static char* DEFAULT_ENCRYPTION_KEY = "aQj8CScgNP4VsfXK";
+
+    /**
      * This specifies the version of the resource archive and allows the engine
      * to check a manifest to ensure that it's compatible with the engine's
      * version of the archive format.
@@ -178,6 +184,11 @@ namespace dmResourceArchive
 
     // Clears all registered archive loaders
     void ClearArchiveLoaders();
+
+    /*#
+     * Sets the encryption key to use when decrypting resource buffers
+     */
+    void SetEncryptionKey(const char* encryption_key);
 
     /*#
      * Registers an archive loader

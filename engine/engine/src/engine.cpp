@@ -795,6 +795,7 @@ namespace dmEngine
 
         dmResourceArchive::ClearArchiveLoaders(); // in case we've rebooted
         dmResourceArchive::RegisterDefaultArchiveLoader();
+        dmResourceArchive::SetEncryptionKey(dmConfigFile::GetString(engine->m_Config, "project.encryption_key", dmResourceArchive::DEFAULT_ENCRYPTION_KEY));
 
         if (dLib::IsDebugMode())
         {

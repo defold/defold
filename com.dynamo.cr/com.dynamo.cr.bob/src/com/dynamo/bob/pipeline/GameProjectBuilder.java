@@ -482,8 +482,6 @@ public class GameProjectBuilder extends Builder<Void> {
         // Remove project dependencies list for security.
         properties.remove("project", "dependencies");
 
-        properties.remove("project", "encryption_key");
-
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
         if (variableDt != null && variableDt == true) {

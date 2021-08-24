@@ -50,6 +50,7 @@ public class ArchiveBuilder {
     public static final int HASH_LENGTH = 20;
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
+    // Must match the value in resource_archive.h
     private static final byte[] DEFAULT_KEY = "aQj8CScgNP4VsfXK".getBytes();
 
     private static final List<String> ENCRYPTED_EXTS = Arrays.asList("luac", "scriptc", "gui_scriptc", "render_scriptc");

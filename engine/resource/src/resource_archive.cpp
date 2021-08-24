@@ -39,8 +39,8 @@
 namespace dmResourceArchive
 {
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
-    const char* KEY = "aQj8CScgNP4VsfXK";
 
+    char*           g_EncryptionKey = (char*)DEFAULT_ENCRYPTION_KEY;
     int             g_NumArchiveLoaders = 0;
     ArchiveLoader   g_ArchiveLoader[4];
 
@@ -54,6 +54,12 @@ namespace dmResourceArchive
     void ClearArchiveLoaders()
     {
         g_NumArchiveLoaders = 0;
+    }
+
+    void SetEncryptionKey(const char* encryption_key)
+    {
+        assert(encryption_key);
+        g_EncryptionKey = (char*)encryption_key;
     }
 
     void RegisterArchiveLoader(ArchiveLoader loader)
@@ -400,7 +406,7 @@ namespace dmResourceArchive
 
     Result DecryptBuffer(void* buffer, uint32_t buffer_len)
     {
-        dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
+        dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) g_EncryptionKey, strlen(g_EncryptionKey));
         if (cr != dmCrypt::RESULT_OK)
         {
             return RESULT_UNKNOWN;
@@ -498,7 +504,7 @@ namespace dmResourceArchive
         if(encrypted)
         {
             assert(temp_buffer || compressed_buf == buffer);
-            dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) compressed_buf, compressed_size, (const uint8_t*) KEY, strlen(KEY));
+            dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) compressed_buf, compressed_size, (const uint8_t*) g_EncryptionKey, strlen(g_EncryptionKey));
             if (cr != dmCrypt::RESULT_OK)
             {
                 if (temp_buffer)
