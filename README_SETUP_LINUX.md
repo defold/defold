@@ -44,7 +44,7 @@ Configure use of Easy Install (if it's not already installed: `which easy_instal
 
 ```sh
 > sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
-> sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+> sh -c "echo python2 /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
 > chmod +x /usr/local/bin/easy_install
 ```
 
