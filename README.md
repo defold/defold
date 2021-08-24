@@ -15,6 +15,8 @@ Repository for the Defold engine, editor and command line tools.
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/heroiclabs-blue.png)](https://www.heroiclabs.com)
 ![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/king-color.png)](http://king.com/)
+![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/gd-logo.png)](http://gamedistribution.com/)
 
 ## Folder Structure
