@@ -16,6 +16,7 @@ You need Java JDK 11 installed to build the tools. On Linux you can use apt-get 
 ```
 
 When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+(You can find the default installed java versions here `/usr/lib/jvm/`)
 
 ```sh
 > nano ~/.bashrc
@@ -36,7 +37,7 @@ Verify that Java is installed and working:
 You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.16. You also need `easy_install` to install additional packages. Install Python 2 using:
 
 ```sh
-> sudo apt install python-minimal python-setuptools
+> sudo apt install python2-minimal python-setuptools
 ```
 
 Configure use of Easy Install (if it's not already installed: `which easy_install`):
