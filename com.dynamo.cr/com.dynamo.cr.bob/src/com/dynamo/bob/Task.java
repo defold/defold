@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 import com.dynamo.bob.fs.IResource;
 
@@ -33,8 +34,6 @@ public class Task<T> {
     private String name;
     private List<IResource> inputs = new ArrayList<IResource>();
     private List<IResource> outputs = new ArrayList<IResource>();
-    private List<IResource> dependencies = new ArrayList<IResource>();
-    private Map<String, String> options = new HashMap<String, String>();
     private Task<?> productOf;
 
     public T data;
@@ -98,6 +97,10 @@ public class Task<T> {
         return data;
     }
 
+    public String getName() {
+        return name;
+    }
+
     @Override
     public String toString() {
         return String.format("task(%s) %s -> %s", name, inputs.toString(), outputs.toString());
@@ -119,7 +122,28 @@ public class Task<T> {
         return outputs.get(i);
     }
 
-    public byte[] calculateSignature(Project project) throws IOException {
+    /**
+     * Update a message digest with a list of resources.
+     * A copy of the list of resources will be used and the copy will be sorted
+     * before added to the digest. This guarantees that we get the same digest
+     * each time given the same set of resources.
+     * @param, digest The digest to update with the resources
+     * @param resources A list of resources to add
+     */
+    private void updateDigestWithResources(MessageDigest digest, List<IResource> resources) throws IOException {
+        List<IResource> sortedResources = new ArrayList<IResource>(resources);
+        Collections.sort(sortedResources, new Comparator<IResource>() {
+            @Override
+            public int compare(IResource r1, IResource r2) {
+                return r1.getAbsPath().compareTo(r2.getAbsPath());
+            }
+        });
+        for (IResource r : sortedResources) {
+            digest.update(r.sha1());
+        }
+    }
+
+    public MessageDigest calculateSignatureDigest() throws IOException {
         // TODO: Checksum of builder-class byte-code. Seems to be rather difficult though..
         MessageDigest digest;
         try {
@@ -128,17 +152,14 @@ public class Task<T> {
             throw new RuntimeException(e);
         }
 
-        for (IResource r : inputs) {
-            digest.update(r.sha1());
-        }
-
-        for (IResource r : dependencies) {
-            digest.update(r.sha1());
-        }
+        updateDigestWithResources(digest, inputs);
 
         builder.signature(digest);
-        digest.update(options.toString().getBytes());
+        return digest;
+    }
 
+    public byte[] calculateSignature() throws IOException {
+        MessageDigest digest = calculateSignatureDigest();
         signature = digest.digest();
         return signature;
     }

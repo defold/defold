@@ -18,7 +18,7 @@ import java.security.MessageDigest;
 import com.dynamo.bob.fs.IResource;
 
 /**
- * Abstract builder class. Extent this class to create a builder
+ * Abstract builder class. Extend this class to create a builder
  * @author Christian Murray
  *
  * @param <T> currently not used. The idea is to pass data directly. TODO: Remove?
