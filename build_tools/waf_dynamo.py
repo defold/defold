@@ -873,6 +873,49 @@ def create_app_bundle(self):
         codesign.exe = self.link_task.outputs[0]
         codesign.signed_exe = signed_exe
 
+def embed_build(task):
+    symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
+    in_file = open(task.inputs[0].bldpath(task.env), 'rb')
+    cpp_out_file = open(task.outputs[0].bldpath(task.env), 'wb')
+    h_out_file = open(task.outputs[1].bldpath(task.env), 'wb')
+
+    cpp_str = """
+#include <stdint.h>
+#include "dlib/align.h"
+unsigned char DM_ALIGNED(16) %s[] =
+"""
+    cpp_out_file.write(cpp_str % (symbol))
+    cpp_out_file.write('{\n    ')
+
+    data = in_file.read()
+
+    tmp = ''
+    for i,x in enumerate(data):
+        tmp += hex(ord(x)) + ', '
+        if i > 0 and i % 4 == 0:
+            tmp += '\n    '
+    cpp_out_file.write(tmp)
+
+    cpp_out_file.write('\n};\n')
+    cpp_out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
+
+    h_out_file.write('extern unsigned char %s[];\n' % (symbol))
+    h_out_file.write('extern uint32_t %s_SIZE;\n' % (symbol))
+
+    cpp_out_file.close()
+    h_out_file.close()
+
+    m = Utils.md5()
+    m.update(data)
+
+    task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
+    return 0
+
+Task.task_type_from_func('embed_file',
+                         func = embed_build,
+                         vars = ['SRC', 'DST'],
+                         color = 'RED',
+                         before  = 'cc cxx')
 @feature('embed')
 @before('apply_core')
 def embed_file(self):
