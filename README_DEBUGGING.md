@@ -44,9 +44,7 @@ iOS + OSX:
 
 ### Android
 
-1. Download the engine:
-
-	$ wget http://d.defold.com/archive/<sha1>/engine/armv7-android/dmengine.apk
+1. Download the engine from https://github.com/defold/dev-app/releases.
 
 1. Alternatively, get it from your build folder
 
@@ -60,7 +58,7 @@ iOS + OSX:
 
 	E.g. in the non symbolicated callstack on Crash Analytics, it could look like this
 
-	`#00 pc 00257224 libblossom_blast_saga.so`
+	`#00 pc 00257224 libmy_game_name.so`
 
 	Where *00257224* is the address
 

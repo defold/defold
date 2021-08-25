@@ -61,48 +61,7 @@ By convention we currently have a weak reference to struct android\_app \* calle
 g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c.
 Life-cycle support should probably be moved to dlib at some point.
 
-### Android Resources and R.java
-
-Long story short. Static resources on Android are referred by an integer identifier. These identifiers are generated to a file R.java.
-The id:s generated are conceptually a serial number and with no guarantees about uniqueness. Due to this limitations **all** identifiers
-must be generated when the final application is built. As a consequence all resources must be available and it's not possible to package
-library resources in a jar. Moreover, one identical *R.java* must be generated for every package/library linked with the final application.
-
-This is a known limitation on Android.
-
-**NOTE:** Never ever package compiled **R*.class-files** with third party libraries as it doesn't work in general.
-
-**NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
-
-### Android Bundling with Local Builds
-
-With the above in mind, since it may be desirable to create Android bundles using locally build versions of the editor, we will describe how
-to manually set up content under com.dynamo.cr. Note that this information has been derived from build.py and related scripts, since running
-those has the undesirable side effect of uploading content.
-
-Create apkc, by invoking the following from the root defold directory:
-
-    $ go install defold/...
-
-This will result in the production of apkc under “go/bin”.
-
-    $ PLATFORM=x86-64_darwin
-    $ cp go/bin/apkc com.dynamo.cr/com.dynamo.cr.target/libexec/$PLATFORM
-
-Copy classes.dex
-
-    $ cp $DYNAMO_HOME/share/java/classes.dex com.dynamo.cr/com.dynamo.cr.bob/lib/
-
-
-Copy all content from $DYNAMO_HOME/ext/share/java/res to com.dynamo.cr/com.dynamo.cr.target/res. You should expect to be copying material for
-Facebook and Google Play into this location:
-
-    $ mkdir com.dynamo.cr/com.dynamo.cr.target/res
-    $ cp -r $DYNAMO_HOME/ext/share/java/res/* com.dynamo.cr/com.dynamo.cr.target/res
-
-And finally
-
-    $ cp $DYNAMO_HOME/ext/share/java/android.jar com.dynamo.cr/com.dynamo.cr.bob/lib/
+**NOTE:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
 
 
 ### Android testing
@@ -166,11 +125,13 @@ Once you have an executable gdbserver on the device, and have downloaded the sys
 This fetches the `app_process` binary from the Android device to your machine which you will need when starting `gdb` later on.
 
     $ adb forward tcp:5039 tcp:5039
+
 This forwards the port 5039 from the Android device to your local machine.
 
 Start your application on the device and find its PID (for example via `adb logcat | grep "ENGINE"`).
 
     $ adb shell "run-as <your-app-package-name> /data/data/com.defold.dmengine/lib/gdbserver :5039 --attach <PID>"
+
 This will start the gdbserver (which in this case is located inside dmengine.apk) on port 5039 and attach to the running process id.
 
 Next you will need to start a local gdb instance and connect to the gdbserver. The correct gdb binaries are located in the Android NDK:

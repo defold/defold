@@ -39,9 +39,4 @@ def build(bld):
         exe.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
         exe.source.append('launcher.rc')
 
-        if waf_dynamo.authenticode_certificate_installed(bld):
-            exe.features.append('authenticode')
-            exe.install_path = None
-            bld.install_as("${PREFIX}/bin/${PLATFORM}/launcher.exe", "launcher_signed.exe")
-
     bld.add_subdirs('test')
