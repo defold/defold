@@ -72,10 +72,38 @@ static FILE* g_LogFile = 0;
 static dmCustomLogCallback g_CustomLogCallback = 0;
 static void* g_CustomLogCallbackUserData = 0;
 
+static bool LogAvailable()
+{
+    bool allowed = dLib::IsDebugMode();
+#if  MIN_LEVEL_SEVERITY_DEBUG || MIN_LEVEL_SEVERITY_USER_DEBUG || MIN_LEVEL_SEVERITY_INFO || MIN_LEVEL_SEVERITY_WARNING || MIN_LEVEL_SEVERITY_ERROR || MIN_LEVEL_SEVERITY_FATAL
+    allowed = true;
+#endif
+    return allowed;
+}
+
+static dmLogSeverity GetInitLogLevel()
+{
+#if MIN_LEVEL_SEVERITY_DEBUG
+    return DM_LOG_SEVERITY_DEBUG;
+#elif MIN_LEVEL_SEVERITY_USER_DEBUG
+    return DM_LOG_SEVERITY_USER_DEBUG;
+#elif MIN_LEVEL_SEVERITY_INFO
+    return DM_LOG_SEVERITY_INFO;
+#elif MIN_LEVEL_SEVERITY_WARNING
+    return DM_LOG_SEVERITY_WARNING;
+#elif MIN_LEVEL_SEVERITY_ERROR
+    return DM_LOG_SEVERITY_ERROR;
+#elif MIN_LEVEL_SEVERITY_FATAL
+    return DM_LOG_SEVERITY_FATAL;
+    
+#endif
+    return DM_LOG_SEVERITY_USER_DEBUG;
+}
+
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
 {
-    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+    if (!LogAvailable()|| !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
 
     dmSocket::Result r;
@@ -286,7 +314,7 @@ void dmLogInitialize(const dmLogParams* params)
 {
     g_TotalBytesLogged = 0;
 
-    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+    if (!LogAvailable()|| !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
 
     if (g_dmLogServer)
@@ -323,6 +351,7 @@ void dmLogInitialize(const dmLogParams* params)
     thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     g_dmLogServer->m_Thread = thread;
 
+    g_LogLevel = GetInitLogLevel();
     /*
      * This message is parsed by editor 2 - don't remove or change without
      * corresponding changes in engine.clj
@@ -423,7 +452,7 @@ static android_LogPriority ToAndroidPriority(dmLogSeverity severity)
 
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
 {
-    if (!dLib::IsDebugMode())
+    if (!LogAvailable())
         return;
 
     if (severity < g_LogLevel)
