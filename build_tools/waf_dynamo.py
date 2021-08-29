@@ -15,11 +15,20 @@ if not 'DYNAMO_HOME' in os.environ:
 def is_platform_private(platform):
     return platform in ['arm64-nx64']
 
-
-try:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'private'))
+for platform in ('nx64', 'ps4'):
+    path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_%s.py' % platform)
+    if not os.path.exists(path):
+        continue
+    import imp
+    sys.dont_write_bytecode = True
+    imp.load_source('waf_dynamo_private', path)
+    print("Imported %s from %s" % ('waf_dynamo_private', path))
     import waf_dynamo_private
-except:
+    sys.dont_write_bytecode = False
+    break
+
+if 'waf_dynamo_private' not in sys.modules:
+
     class waf_dynamo_private(object):
         @classmethod
         def set_options(cls, opt):

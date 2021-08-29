@@ -43,6 +43,20 @@ def put(url, token, data = None, json = None, headers = None):
         print(err)
         return None
 
+def patch(url, token, data = None, json = None, headers = None):
+    import requests
+    try:
+        if not headers:
+            headers = {}
+        headers["Authorization"] = "token %s" % (token)
+
+        response = requests.patch(_fix_url(url), data = data, json = json, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as err:
+        print(err)
+        return None
+
 def delete(url, token):
     import requests
     try:
