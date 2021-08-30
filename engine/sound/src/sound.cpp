@@ -301,20 +301,23 @@ namespace dmSound
             return r;
         }
 
-        HDevice device;
+        HDevice device = 0;
         OpenDeviceParams device_params;
         // TODO: m_BufferCount configurable?
         device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;
         device_params.m_FrameCount = params->m_FrameCount;
         DeviceType* device_type;
+        DeviceInfo device_info;
         r = OpenDevice(params->m_OutputDevice, &device_params, &device_type, &device);
         if (r != RESULT_OK) {
             dmLogError("Failed to Open device '%s'", params->m_OutputDevice);
-            return r;
+            device_info.m_MixRate = 44100;
+            device_type = 0;
         }
-
-        DeviceInfo device_info;
-        device_type->m_DeviceInfo(device, &device_info);
+        else
+        {
+            device_type->m_DeviceInfo(device, &device_info);
+        }
 
         float master_gain = params->m_MasterGain;
 
@@ -395,7 +398,7 @@ namespace dmSound
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
         }
 
-        return RESULT_OK;
+        return r;
     }
 
     Result Finalize()
@@ -439,7 +442,10 @@ namespace dmSound
                 }
             }
 
-            sound->m_DeviceType->m_Close(sound->m_Device);
+            if (sound->m_Device)
+            {
+                sound->m_DeviceType->m_Close(sound->m_Device);
+            }
 
             delete sound;
             g_SoundSystem = 0;
@@ -1357,6 +1363,10 @@ namespace dmSound
     static Result UpdateInternal(SoundSystem* sound)
     {
         DM_PROFILE(Sound, "Update")
+        if (!sound->m_Device)
+        {
+            return RESULT_OK;
+        }
 
         uint16_t active_instance_count = sound->m_InstancesPool.Size();
 
@@ -1498,4 +1508,3 @@ namespace dmSound
     }
 
 }
-
