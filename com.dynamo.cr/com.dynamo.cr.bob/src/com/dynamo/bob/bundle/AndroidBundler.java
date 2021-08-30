@@ -524,7 +524,7 @@ public class AndroidBundler implements IBundler {
             FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
             BundleHelper.throwIfCanceled(canceled);
 
-            // copy libs
+            // copy engine
             final String exeName = getBinaryNameFromProject(project);
             for (Platform architecture : getArchitectures(project)) {
                 File architectureDir = createDir(libDir, platformToLibMap.get(architecture));
@@ -532,6 +532,29 @@ public class AndroidBundler implements IBundler {
                 log("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest);
                 BundleHelper.throwIfCanceled(canceled);
+            }
+
+            // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)
+            if (ExtenderUtil.hasNativeExtensions(project)) {
+                final Platform platform = getFirstPlatform(project);
+                File jniDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/jni");
+                if (jniDir.exists()) {
+                    // the jni folder may include the following sub-folders:
+                    // - arm64-v8a
+                    // - armeabi-v7a
+                    // - x86
+                    // - x86_64
+                    // - include
+                    // we only copy files from the two architectures we support
+                    for (String architecture : platformToLibMap.values()) {
+                        File architectureDir = new File(jniDir, architecture);
+                        if (architectureDir.exists()) {
+                            File dest = new File(libDir, architecture);
+                            log("Copying shared library dir " + architectureDir + " to " + dest);
+                            FileUtils.copyDirectory(architectureDir, dest);
+                        }
+                    }
+                }
             }
 
             // create base.zip
