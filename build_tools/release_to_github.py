@@ -83,38 +83,37 @@ def release(config, tag_name, release_sha, s3_release):
         exit(1)
 
     release = None
-    response = github.get("%s/releases" % target_repo, config.github_token)
+    response = github.get("%s/releases/tags/%s" % (target_repo, tag_name), config.github_token)
     if response:
-        for r in response:
-            if r.get("tag_name") == tag_name:
-                release = r
-                break
+        release = response
+
+    data = {
+        "tag_name": tag_name,
+        "name": release_name,
+        "body": "Defold version %s channel=%s sha1=%s date='%s'" % (config.version, channel, release_sha, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        "draft": draft,
+        "prerelease": pre_release
+    }
 
     if not release:
         log("No release found with tag %s, creating a new one" % tag_name)
-
-        data = {
-            "tag_name": tag_name,
-            "name": release_name,
-            "body": "Defold version %s channel=%s" % (config.version, channel),
-            "draft": draft,
-            "prerelease": pre_release
-        }
         release = github.post("%s/releases" % target_repo, config.github_token, json = data)
-        if not release:
-            log("Unable to create new release")
-            exit(1)
+    else:
+        release_id = release['id']
+        log("Updating existing release: %s - %s - %s" % (tag_name, release_id, release.get('url')) )
+        release = github.patch("%s/releases/%s" % (target_repo, release_id), config.github_token, json = data)
 
-    # check that what we found/created a release
+    # check that what we created/updated a release
     if not release:
-        log("Unable to create GitHub release for %s" % (config.version))
+        log("Unable to update GitHub release for %s" % (config.version))
         exit(1)
 
-    # remove existing uploaded assets
+    # remove existing uploaded assets (It's not currently possible to update a release asset
     log("Deleting existing artifacts from the release")
     for asset in release.get("assets", []):
-        log("Deleting %s" % (asset.get("id")))
-        github.delete("%s/releases/assets/%s" % (target_repo, asset.get("id")), config.github_token)
+        asset_url = asset.get("url")
+        log("Deleting %s -  %s" % (asset.get("id"), asset.get("name")))
+        github.delete(asset_url, config.github_token)
 
     # upload_url is a Hypermedia link (https://developer.github.com/v3/#hypermedia)
     # Example: https://uploads.github.com/repos/defold/defold/releases/25677114/assets{?name,label}
@@ -160,111 +159,6 @@ def release(config, tag_name, release_sha, s3_release):
 
     log("Released Defold %s to GitHub" % tag_name)
 
-
-MARKDOWN_TEMPLATE="""
-<details><summary>%(version)s - <code>%(branch)s</code> - <code>%(sha1)s</code> - <code>%(date)s</code></summary>
-
-Branch: `%(branch)s`<br/>
-Sha1:   `%(sha1)s`<br/>
-
-* [bob.jar](%(url_bob)s)
-* [Editor OSX](%(url_editor_osx)s)
-* [Editor Windows](%(url_editor_win)s)
-* [Editor Linux](%(url_editor_lin)s)
-
-</details>
-"""
-
-def release_markdown(config):
-    """
-    Produce a markdown with each release item
-    Pushes changes to a file releases.md
-    Currently only grabs bob and editor
-    """
-
-    log("Releasing Defold %s to GitHub" % (config.version))
-    if config.github_token is None:
-        log("No GitHub authorization token")
-        return
-
-    repo = config.github_target_repo
-    if repo is None:
-        repo = get_default_repo()
-    repo = "/repos/%s" % repo
-
-    target_url = "%s/contents/RELEASES.md" % repo
-
-    release_sha = config.github_sha1
-    if not release_sha:
-        release_sha = get_git_sha1()
-
-    # get the release on S3
-    log("Getting S3 release for version %s with sha %s" % (config.version, release_sha))
-    s3_release = s3.get_single_release(config.archive_path, config.version, release_sha)
-    if not s3_release.get("files"):
-        log("No files found on S3")
-        exit(1)
-
-    def test_path(path):
-        if path.endswith('bob.jar'):
-            return True
-        if 'Defold-x86_64-' in path:
-            return True
-        return False
-
-    release_info = {}
-
-    base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
-    for file in s3_release.get("files", None):
-        # download file
-        download_url = base_url + file.get("path")
-        if not test_path(download_url):
-            continue
-
-        if download_url.endswith('bob.jar'):
-            release_info['url_bob'] = download_url
-        if 'Defold-x86_64-' in download_url:
-            editor_platform = 'osx'
-            if 'win32' in download_url:
-                editor_platform = 'win'
-            if 'linux' in download_url:
-                editor_platform = 'lin'
-            release_info['url_editor_%s' % editor_platform] = download_url
-
-        print "url", download_url
-
-    release_info['version'] = config.version
-    release_info['sha1'] = release_sha
-    release_info['branch'] = get_git_branch()
-    release_info['date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    response = github.get(target_url, config.github_token)
-    if not response:
-        log("Unable to get target_url: " + target_url)
-        exit(1)
-
-    release_data = ''
-    target_sha = None
-    for r in response:
-        if r == 'sha':
-            target_sha = response.get(r)
-        if r == 'content':
-            data = response.get(r)
-            release_data = base64.b64decode(data).decode('ascii')
-
-    new_data =  MARKDOWN_TEMPLATE % release_info
-    new_data += '\n\n' + release_data
-
-    log("Uploading to GitHub " + target_url)
-    post_data = {}
-    post_data['message'] = "Release %s - %s" % (config.version, release_sha)
-    post_data['content'] = base64.b64encode(new_data.encode('ascii')).decode('ascii')
-    post_data['sha'] = target_sha # we need the current sha of the target file in order to update it
-
-    headers = { "Content-Type": "application/octet-stream" }
-    github.put(target_url, config.github_token, json = post_data, headers = headers)
-
-    log("Released Defold %s - %s to %s" % (config.version, release_sha, target_url))
 
 if __name__ == '__main__':
     print("For testing only")
