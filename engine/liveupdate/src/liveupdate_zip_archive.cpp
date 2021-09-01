@@ -282,6 +282,11 @@ namespace dmLiveUpdate
 
         dmResourceArchive::Result result = dmResourceArchive::LoadManifestFromBuffer(manifest_data, manifest_len, out);
         dmMemory::AlignedFree(manifest_data);
+        if (dmResourceArchive::RESULT_OK != result)
+        {
+            dmLogError("Could not load manifest: %d", result);
+            return result;
+        }
 
         // Verify
         dmLiveUpdate::Result lu_result = dmLiveUpdate::VerifyManifest(*out);
