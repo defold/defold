@@ -186,6 +186,7 @@ void _glfwPlatformCloseWindow( void )
 
     if (_glfwWin.opened && _glfwWin.clientAPI != GLFW_NO_API) {
         destroy_gl_surface(&_glfwWinAndroid);
+        final_gl(&_glfwWinAndroid);
         _glfwWin.opened = 0;
     }
 }
