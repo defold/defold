@@ -274,10 +274,10 @@ namespace dmLiveUpdate
 
         uint32_t manifest_len = 0;
         uint8_t* manifest_data = GetZipResource(zip, LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, &manifest_len);
+        dmZip::Close(zip);
         if (!manifest_data)
         {
             dmLogError("Could not read entry name '%s' from archive", LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME);
-            dmZip::Close(zip);
             return dmResourceArchive::RESULT_NOT_FOUND;
         }
 
