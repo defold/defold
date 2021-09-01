@@ -81,6 +81,7 @@ namespace dmLiveUpdate
         {
             dmLogError("Could not read entry name '%s' from archive", LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME);
             dmZip::Close(zip);
+            return RESULT_INVALID_RESOURCE;
         }
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
