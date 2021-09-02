@@ -72,30 +72,38 @@ static FILE* g_LogFile = 0;
 static dmCustomLogCallback g_CustomLogCallback = 0;
 static void* g_CustomLogCallbackUserData = 0;
 
-static bool LogAvailable()
+static bool dmLogAvailable()
 {
-    bool allowed = dLib::IsDebugMode();
-#if  MIN_LEVEL_SEVERITY_DEBUG || MIN_LEVEL_SEVERITY_USER_DEBUG || MIN_LEVEL_SEVERITY_INFO || MIN_LEVEL_SEVERITY_WARNING || MIN_LEVEL_SEVERITY_ERROR || MIN_LEVEL_SEVERITY_FATAL
-    allowed = true;
+    bool available = dLib::IsDebugMode();
+#if DM_LOG_SEVERITY_LEVEL_FROM_DEBUG || DM_LOG_SEVERITY_LEVEL_FROM_USER_DEBUG || DM_LOG_SEVERITY_LEVEL_FROM_INFO || DM_LOG_SEVERITY_LEVEL_FROM_WARNING || DM_LOG_SEVERITY_LEVEL_FROM_ERROR || DM_LOG_SEVERITY_LEVEL_FROM_FATAL
+    available = true;
 #endif
-    return allowed;
+    return available;
 }
 
-static dmLogSeverity GetInitLogLevel()
+static bool dmSystemLogsEnabled()
 {
-#if MIN_LEVEL_SEVERITY_DEBUG
+    bool available = dLib::IsDebugMode();
+#if DM_SYSTEM_LOG_ENABLED
+    available = true;
+#endif
+    return available;
+}
+
+static dmLogSeverity dmGetInitLogLevel()
+{
+#if DM_LOG_SEVERITY_LEVEL_FROM_DEBUG
     return DM_LOG_SEVERITY_DEBUG;
-#elif MIN_LEVEL_SEVERITY_USER_DEBUG
+#elif DM_LOG_SEVERITY_LEVEL_FROM_USER_DEBUG
     return DM_LOG_SEVERITY_USER_DEBUG;
-#elif MIN_LEVEL_SEVERITY_INFO
+#elif DM_LOG_SEVERITY_LEVEL_FROM_INFO
     return DM_LOG_SEVERITY_INFO;
-#elif MIN_LEVEL_SEVERITY_WARNING
+#elif DM_LOG_SEVERITY_LEVEL_FROM_WARNING
     return DM_LOG_SEVERITY_WARNING;
-#elif MIN_LEVEL_SEVERITY_ERROR
+#elif DM_LOG_SEVERITY_LEVEL_FROM_ERROR
     return DM_LOG_SEVERITY_ERROR;
-#elif MIN_LEVEL_SEVERITY_FATAL
+#elif DM_LOG_SEVERITY_LEVEL_FROM_FATAL
     return DM_LOG_SEVERITY_FATAL;
-    
 #endif
     return DM_LOG_SEVERITY_USER_DEBUG;
 }
@@ -103,7 +111,7 @@ static dmLogSeverity GetInitLogLevel()
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
 {
-    if (!LogAvailable()|| !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
 
     dmSocket::Result r;
@@ -313,8 +321,9 @@ static void dmLogThread(void* args)
 void dmLogInitialize(const dmLogParams* params)
 {
     g_TotalBytesLogged = 0;
+    g_LogLevel = dmGetInitLogLevel();
 
-    if (!LogAvailable()|| !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
 
     if (g_dmLogServer)
@@ -351,7 +360,6 @@ void dmLogInitialize(const dmLogParams* params)
     thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     g_dmLogServer->m_Thread = thread;
 
-    g_LogLevel = GetInitLogLevel();
     /*
      * This message is parsed by editor 2 - don't remove or change without
      * corresponding changes in engine.clj
@@ -452,7 +460,7 @@ static android_LogPriority ToAndroidPriority(dmLogSeverity severity)
 
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
 {
-    if (!LogAvailable())
+    if (!dmLogAvailable())
         return;
 
     if (severity < g_LogLevel)
@@ -518,6 +526,9 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     if (g_CustomLogCallback != 0x0)
     {
         g_CustomLogCallback(g_CustomLogCallbackUserData, str_buf);
+    }
+
+    if(!dmSystemLogsEnabled()) {
         return;
     }
 
