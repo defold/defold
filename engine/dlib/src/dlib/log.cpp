@@ -84,7 +84,7 @@ static bool dmLogAvailable()
 static bool dmSystemLogsEnabled()
 {
     bool available = dLib::IsDebugMode();
-#if DM_SYSTEM_LOG_ENABLED
+#if DM_LOG_ENABLED
     available = true;
 #endif
     return available;
