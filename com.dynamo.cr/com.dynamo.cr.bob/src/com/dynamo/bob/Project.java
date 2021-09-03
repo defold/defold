@@ -521,6 +521,14 @@ public class Project {
         return propertyFiles;
     }
 
+    public List<IResource> getPropertyFilesAsResources() {
+        List<IResource> resources = new ArrayList<>();
+        for (String propertyFile : propertyFiles) {
+            resources.add(fileSystem.get(propertyFile));
+        }
+        return resources;
+    }
+
     /**
      * Build the project
      * @param monitor
