@@ -90,7 +90,8 @@ namespace dmGameSystem
     struct SpriteWorld
     {
         dmObjectPool<SpriteComponent>   m_Components;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmArray<dmRender::RenderObject*> m_RenderObjects;
+        uint32_t                        m_RenderObjectsInUse;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         SpriteVertex*                   m_VertexBufferData;
@@ -178,7 +179,7 @@ namespace dmGameSystem
 
         sprite_world->m_Components.SetCapacity(sprite_context->m_MaxSpriteCount);
         memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * sprite_context->m_MaxSpriteCount);
-        sprite_world->m_RenderObjects.SetCapacity(sprite_context->m_MaxSpriteCount);
+        sprite_world->m_RenderObjectsInUse = 0;
 
         dmGraphics::VertexElement ve[] =
         {
@@ -203,6 +204,12 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+
+        for (uint32_t i = 0; i < sprite_world->m_RenderObjects.Size(); ++i)
+        {
+            delete sprite_world->m_RenderObjects[i];
+        }
+
         dmGraphics::DeleteVertexDeclaration(sprite_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
         free(sprite_world->m_VertexBufferData);
@@ -565,9 +572,17 @@ namespace dmGameSystem
         SpriteResource* resource = first->m_Resource;
         TextureSetResource* texture_set = GetTextureSet(first, resource);
 
-        // Ninja in-place writing of render object.
-        dmRender::RenderObject& ro = *sprite_world->m_RenderObjects.End();
-        sprite_world->m_RenderObjects.SetSize(sprite_world->m_RenderObjects.Size()+1);
+        // Although we generally like to preallocate it, we cannot since we
+        // 1) don't want to preallocate max_sprite number of render objects and
+        // 2) We cannot keep the render object in a (small) fixed array and then reallocate it, since we pass the pointer to the render engine
+        if (sprite_world->m_RenderObjectsInUse == sprite_world->m_RenderObjects.Capacity())
+        {
+            sprite_world->m_RenderObjects.OffsetCapacity(1);
+            dmRender::RenderObject* ro = new dmRender::RenderObject;
+            sprite_world->m_RenderObjects.Push(ro);
+        }
+
+        dmRender::RenderObject& ro = *sprite_world->m_RenderObjects[sprite_world->m_RenderObjectsInUse++];
 
         // Fill in vertex buffer
         SpriteVertex* vb_begin = sprite_world->m_VertexBufferWritePtr;
@@ -859,7 +874,7 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
                 world->m_VertexBufferWritePtr = world->m_VertexBufferData;
                 world->m_IndexBufferWritePtr = world->m_IndexBufferData;
-                world->m_RenderObjects.SetSize(0);
+                world->m_RenderObjectsInUse = 0;
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
