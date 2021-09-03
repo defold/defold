@@ -408,11 +408,7 @@ TEST(Socket, Delete_InvalidSocket)
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::Delete(instance);
-#if defined(_WIN32)
-    ASSERT_EQ(dmSocket::RESULT_NOTSOCK, result);
-#else
     ASSERT_EQ(dmSocket::RESULT_BADF, result);
-#endif
 }
 
 // Accept

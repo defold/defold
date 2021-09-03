@@ -360,15 +360,15 @@ namespace dmSocket
 
     Result Delete(Socket socket)
     {
-        int result = 0;
-        if (socket != INVALID_SOCKET_HANDLE)
+        if (socket == INVALID_SOCKET_HANDLE)
         {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
-            result = close(socket);
-#else
-            result = closesocket(socket);
-#endif
+            return RESULT_BADF;
         }
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
+        int result = close(socket);
+#else
+        int result = closesocket(socket);
+#endif
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
