@@ -335,7 +335,7 @@
       (if-some [socket (try-connect! address port)]
         (let [debug-session (make-debug-session socket on-closed)]
           (on-connected debug-session))
-        (if (< retries 10)
+        (if (< retries 50)
           (do (Thread/sleep 200) (recur (inc retries)))
           (throw (ex-info (format "Failed to connect to debugger on %s:%d" address port)
                           {:address address
