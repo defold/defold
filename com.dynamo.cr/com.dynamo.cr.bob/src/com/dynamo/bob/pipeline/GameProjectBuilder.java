@@ -112,6 +112,11 @@ public class GameProjectBuilder extends Builder<Void> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc").disableCache());
+
+        for (IResource propertyFile : project.getPropertyFilesAsResources()) {
+            builder.addInput(propertyFile);
+        }
+
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".arci").disableCache());
             builder.addOutput(input.changeExt(".arcd").disableCache());
