@@ -201,7 +201,7 @@ TEST(Socket, New_IPv4)
 
     result = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     ASSERT_TRUE(dmSocket::IsSocketIPv4(instance));
     ASSERT_FALSE(dmSocket::IsSocketIPv6(instance));
 
@@ -218,7 +218,7 @@ TEST(Socket, New_IPv6)
 
     result = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     ASSERT_TRUE(dmSocket::IsSocketIPv6(instance));
     ASSERT_FALSE(dmSocket::IsSocketIPv4(instance));
 
@@ -235,24 +235,20 @@ TEST(Socket, New_InvalidDomain)
 
     result = dmSocket::New(dmSocket::DOMAIN_UNKNOWN, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &instance);
     ASSERT_EQ(dmSocket::RESULT_AFNOSUPPORT, result);
-    ASSERT_EQ(-1, instance);
+    ASSERT_EQ(dmSocket::INVALID_SOCKET_HANDLE, instance);
     ASSERT_FALSE(dmSocket::IsSocketIPv6(instance));
     ASSERT_FALSE(dmSocket::IsSocketIPv4(instance));
 
     // Teardown
     result = dmSocket::Delete(instance);
-#if defined(_WIN32)
-    ASSERT_EQ(dmSocket::RESULT_NOTSOCK, result);
-#else
     ASSERT_EQ(dmSocket::RESULT_BADF, result);
-#endif
 }
 
 TEST(Socket, SetReuseAddress_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     result = dmSocket::SetReuseAddress(instance, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -267,7 +263,7 @@ TEST(Socket, SetReuseAddress_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     result = dmSocket::SetReuseAddress(instance, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -282,7 +278,7 @@ TEST(Socket, AddMembership_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     // ASSERT_FALSE("This test has not been implemented yet");
 
@@ -296,7 +292,7 @@ TEST(Socket, AddMembership_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     // ASSERT_FALSE("This test has not been implemented yet");
 
@@ -310,7 +306,7 @@ TEST(Socket, SetMulticastIf_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     uint32_t tests = 0;
     uint32_t count = 0;
@@ -347,7 +343,7 @@ TEST(Socket, SetMulticastIf_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     uint32_t tests = 0;
     uint32_t count = 0;
@@ -384,7 +380,7 @@ TEST(Socket, Delete_IPv4)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -395,7 +391,7 @@ TEST(Socket, Delete_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
 
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -404,15 +400,11 @@ TEST(Socket, Delete_IPv6)
 
 TEST(Socket, Delete_InvalidSocket)
 {
-    dmSocket::Socket instance = -1;
+    dmSocket::Socket instance = dmSocket::INVALID_SOCKET_HANDLE;
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::Delete(instance);
-#if defined(_WIN32)
-    ASSERT_EQ(dmSocket::RESULT_NOTSOCK, result);
-#else
     ASSERT_EQ(dmSocket::RESULT_BADF, result);
-#endif
 }
 
 // Accept
@@ -431,7 +423,7 @@ TEST(Socket, Connect_IPv4_ThreadServer)
 
     // Setup client
     dmSocket::Socket socket = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, socket);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
 
@@ -472,7 +464,7 @@ TEST(Socket, Connect_IPv6_ThreadServer)
 
     // Setup client
     dmSocket::Socket socket = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, socket);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
 
@@ -511,9 +503,9 @@ static void RefusingServerThread(void* arg)
 TEST(Socket, Connect_IPv4_ConnectionRefused)
 {
     dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, server);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, server);
     dmSocket::Socket client = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, client);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, client);
     dmSocket::Result result = dmSocket::RESULT_OK;
     result = dmSocket::SetBlocking(client, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -544,9 +536,9 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
 TEST(Socket, Connect_IPv6_ConnectionRefused)
 {
     dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, server);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, server);
     dmSocket::Socket client = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, client);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, client);
     dmSocket::Result result = dmSocket::RESULT_OK;
     result = dmSocket::SetBlocking(client, true);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -589,7 +581,7 @@ TEST(Socket, GetName_IPv4_Connected)
 
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
 
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
     dmSocket::Address address;
@@ -636,7 +628,7 @@ TEST(Socket, GetName_IPv6_Connected)
 
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
 
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV6;
     dmSocket::Address address;
@@ -678,7 +670,7 @@ TEST(Socket, GetName_IPv6_Connected)
 TEST(Socket, SetBlocking_IPv4)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetBlocking(instance, true);
@@ -696,7 +688,7 @@ TEST(Socket, SetBlocking_IPv4)
 TEST(Socket, SetBlocking_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetBlocking(instance, true);
@@ -714,7 +706,7 @@ TEST(Socket, SetBlocking_IPv6)
 TEST(Socket, SetNoDelay_IPv4)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV4);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetNoDelay(instance, true);
@@ -732,7 +724,7 @@ TEST(Socket, SetNoDelay_IPv4)
 TEST(Socket, SetNoDelay_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
-    ASSERT_NE(-1, instance);
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
     dmSocket::Result result = dmSocket::RESULT_OK;
 
     result = dmSocket::SetNoDelay(instance, true);
