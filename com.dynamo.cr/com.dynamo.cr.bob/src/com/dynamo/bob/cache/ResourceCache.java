@@ -34,8 +34,11 @@ public class ResourceCache {
 		this.localCacheDir = localCacheDir;
 		this.remoteCacheUrl = remoteCacheUrl;
 		this.enabled = localCacheDir != null;
-		if (localCacheDir != null && !localCacheDir.exists()) {
-			localCacheDir.mkdirs();
+		if (localCacheDir != null) {
+			File f = new File(localCacheDir);
+			if (!f.exists()) {
+				f.mkdirs();
+			}
 		}
 	}
 
