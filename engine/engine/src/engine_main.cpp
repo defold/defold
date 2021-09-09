@@ -69,20 +69,8 @@ static void EngineMainThread(void* ctx)
     args->m_Finished = 1;
 }
 
-int engine_main(int argc, char *argv[])
+static void WaitForWindow()
 {
-    dmThread::SetThreadName(dmThread::GetCurrentThread(), "looper_main");
-
-    pthread_attr_t attr;
-    size_t stacksize;
-
-    pthread_getattr_np(pthread_self(), &attr);
-    pthread_attr_getstacksize(&attr, &stacksize);
-
-    g_AndroidApp->onAppCmd = glfwAndroidHandleCommand;
-    g_AndroidApp->onInputEvent = glfwAndroidHandleInput;
-
-    // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
     while (glfwAndroidWindowOpened() == 0)
     {
         int ident;
@@ -100,6 +88,23 @@ int engine_main(int argc, char *argv[])
         glfwAndroidFlushEvents();
         dmTime::Sleep(300);
     }
+}
+
+int engine_main(int argc, char *argv[])
+{
+    dmThread::SetThreadName(dmThread::GetCurrentThread(), "looper_main");
+
+    pthread_attr_t attr;
+    size_t stacksize;
+
+    pthread_getattr_np(pthread_self(), &attr);
+    pthread_attr_getstacksize(&attr, &stacksize);
+
+    g_AndroidApp->onAppCmd = glfwAndroidHandleCommand;
+    g_AndroidApp->onInputEvent = glfwAndroidHandleInput;
+
+    // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
+    WaitForWindow();
 
     glfwInit();
 
