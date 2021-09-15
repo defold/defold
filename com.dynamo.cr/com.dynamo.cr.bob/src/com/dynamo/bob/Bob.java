@@ -392,6 +392,7 @@ public class Bob {
         options.addOption("ks", "keystore", true, "Deployment keystore used to sign APKs (Android)");
         options.addOption("ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)");
         options.addOption("ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)");
+        options.addOption("kskp", "keystore-key-pass", true, "Password of the key referenced by the keystore alias. Will default to keystore-pass if omitted. (Android)");
 
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
         options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");

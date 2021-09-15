@@ -183,11 +183,31 @@ public class AndroidBundler implements IBundler {
      * Get keystore password file.
      */
     private static String getKeystorePasswordFile(Project project) throws IOException, CompileExceptionError {
-        String keystorePassword = project.option("keystore-pass", "");
-        if (keystorePassword.length() == 0) {
-            throw createCompileExceptionError("No keystore password");
+        String keystorePasswordFilename = project.option("keystore-pass", "");
+        if (keystorePasswordFilename.length() == 0) {
+            throw createCompileExceptionError("No keystore password filename specified in project options");
         }
-        return keystorePassword;
+        return keystorePasswordFilename;
+    }
+
+
+    /**
+     * Get keystore key password. This loads the keystore key password file and returns
+     * the password stored in the file.
+     */
+    private static String getKeystoreKeyPassword(Project project) throws IOException, CompileExceptionError {
+        String keystoreKeyPasswordFilename = getKeystoreKeyPasswordFile(project);
+        if (keystoreKeyPasswordFilename == null) {
+            keystoreKeyPasswordFilename = getKeystoreKeyPassword(project);;
+        }
+        return readFile(keystoreKeyPasswordFilename).trim();
+    }
+
+    /**
+     * Get keystore key password file.
+     */
+    private static String getKeystoreKeyPasswordFile(Project project) throws IOException, CompileExceptionError {
+        return project.option("keystore-key-pass", null);
     }
 
     /**
@@ -618,12 +638,14 @@ public class AndroidBundler implements IBundler {
 
         String keystore = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
+        String keystoreKeyPassword = getKeystoreKeyPassword(project);
         String keystoreAlias = getKeystoreAlias(project);
 
         Result r = exec(getJavaBinFile("jarsigner"),
             "-verbose",
             "-keystore", keystore,
             "-storepass", keystorePassword,
+            "-keypass", keystoreKeyPassword,
             signFile.getAbsolutePath(),
             keystoreAlias);
         if (r.ret != 0) {
@@ -728,6 +750,7 @@ public class AndroidBundler implements IBundler {
         log("Creating universal APK set");
         String keystore = getKeystore(project);
         String keystorePasswordFile = getKeystorePasswordFile(project);
+        String keystoreKeyPasswordFile = getKeystoreKeyPasswordFile(project);
         String keystoreAlias = getKeystoreAlias(project);
 
         try {
@@ -747,6 +770,10 @@ public class AndroidBundler implements IBundler {
             args.add("--ks"); args.add(keystore);
             args.add("--ks-pass"); args.add("file:" + keystorePasswordFile);
             args.add("--ks-key-alias"); args.add(keystoreAlias);
+
+            if (keystoreKeyPasswordFile != null) {
+                args.add("--key-pass"); args.add("file:" + keystoreKeyPasswordFile);
+            }
 
             Result res = exec(args);
             if (res.ret != 0) {
