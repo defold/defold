@@ -198,7 +198,7 @@ public class AndroidBundler implements IBundler {
     private static String getKeystoreKeyPassword(Project project) throws IOException, CompileExceptionError {
         String keystoreKeyPasswordFilename = getKeystoreKeyPasswordFile(project);
         if (keystoreKeyPasswordFilename == null) {
-            keystoreKeyPasswordFilename = getKeystoreKeyPassword(project);;
+            keystoreKeyPasswordFilename = getKeystorePassword(project);;
         }
         return readFile(keystoreKeyPasswordFilename).trim();
     }
