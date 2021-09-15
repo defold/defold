@@ -181,6 +181,14 @@ public class Project {
         return option("resource-cache-remote", null);
     }
 
+    public String getRemoteResourceCacheUser() {
+        return option("resource-cache-remote-user", null);
+    }
+
+    public String getRemoteResourceCachePass() {
+        return option("resource-cache-remote-pass", null);
+    }
+
     public BobProjectProperties getProjectProperties() {
         return projectProperties;
     }
@@ -907,7 +915,8 @@ public class Project {
                 try {
                     URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
                     File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
-                    HttpUtil.downloadToFile(url, file);
+                    HttpUtil http = new HttpUtil();
+                    http.downloadToFile(url, file);
                 }
                 catch (Exception e) {
                     throw new CompileExceptionError(e);
@@ -983,6 +992,7 @@ public class Project {
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
+        resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
