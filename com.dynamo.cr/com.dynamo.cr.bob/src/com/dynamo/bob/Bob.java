@@ -426,6 +426,8 @@ public class Bob {
 
         options.addOption(null, "resource-cache-local", true, "Path to local resource cache.");
         options.addOption(null, "resource-cache-remote", true, "URL to remote resource cache.");
+        options.addOption(null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.");
+        options.addOption(null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.");
 
         // debug options
         options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");

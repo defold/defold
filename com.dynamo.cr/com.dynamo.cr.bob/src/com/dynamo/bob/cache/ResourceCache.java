@@ -18,6 +18,7 @@ import java.net.URL;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.util.HttpUtil;
 
 public class ResourceCache {
@@ -26,11 +27,14 @@ public class ResourceCache {
 
 	private String remoteCacheUrl;
 
+	private HttpUtil http = new HttpUtil();
+
 	private boolean enabled = false;
 
 	public ResourceCache() {}
 
 	public void init(String localCacheDir, String remoteCacheUrl) {
+		Bob.verbose("Initialising resource cache with local cache dir '%s' and remote '%s'", localCacheDir, remoteCacheUrl);
 		this.localCacheDir = localCacheDir;
 		this.remoteCacheUrl = remoteCacheUrl;
 		this.enabled = localCacheDir != null;
@@ -42,6 +46,10 @@ public class ResourceCache {
 		}
 	}
 
+	public void setRemoteAuthentication(String user, String pass) {
+		http.setAuthentication(user, pass);
+	}
+
 	private File fileFromKey(String key) {
 		return new File(localCacheDir, key);
 	}
@@ -51,11 +59,13 @@ public class ResourceCache {
 	}
 
 	private void saveToLocalCache(File file, byte[] data) throws IOException {
+		Bob.verbose("Resource '%s' saved to the local cache", file);
 		Files.write(file.toPath(), data);
 	}
 
 	private byte[] loadFromLocalCache(File file) throws IOException {
 		if (file.exists()) {
+			Bob.verbose("Resource '%s' loaded from the local cache", file);
 			return Files.readAllBytes(file.toPath());
 		}
 		return null;
@@ -69,8 +79,12 @@ public class ResourceCache {
 			return;
 		}
 		URL url = urlFromFile(file);
-		if (!HttpUtil.exists(url)) {
-			HttpUtil.uploadFile(url, file);
+		if (!http.exists(url)) {
+			http.uploadFile(url, file);
+			Bob.verbose("Resource '%s' uploaded to the remote cache", file);
+		}
+		else {
+			Bob.verbose("Resource '%s' already exists in the remote cache", file);
 		}
 	}
 
@@ -79,8 +93,12 @@ public class ResourceCache {
 			return;
 		}
 		URL url = urlFromFile(file);
-		if (HttpUtil.exists(url)) {
-			HttpUtil.downloadToFile(url, file);
+		if (http.exists(url)) {
+			http.downloadToFile(url, file);
+			Bob.verbose("Resource '%s' downloaded from the remote cache", file);
+		}
+		else {
+			Bob.verbose("Resource '%s' does not exist in the remote cache", file);
 		}
 	}
 
@@ -99,6 +117,7 @@ public class ResourceCache {
 			return;
 		}
 
+		Bob.verbose("Caching resource '%s'", file);
 		saveToLocalCache(file, data);
 		uploadToRemoteCache(file);
 	}
