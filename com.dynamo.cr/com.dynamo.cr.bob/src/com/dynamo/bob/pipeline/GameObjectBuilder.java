@@ -33,52 +33,20 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
+import com.dynamo.bob.util.GameObjectUtil;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-import com.dynamo.gamesys.proto.Sound.SoundDesc;
-import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
 public class GameObjectBuilder extends Builder<Void> {
 
-    private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(input, b);
-
-        List<ComponentDesc> lst = b.getComponentsList();
-        List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
-
-
-        for (ComponentDesc componentDesc : lst) {
-            // Convert .wav resource component to an embedded sound
-            // We might generalize this in the future if necessary
-            if (componentDesc.getComponent().endsWith(".wav")) {
-                SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(componentDesc.getComponent());
-                EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
-                    .setId(componentDesc.getId())
-                    .setType("sound")
-                    .setData(TextFormat.printToString(sd.build()))
-                    .build();
-                b.addEmbeddedComponents(ec);
-            } else {
-                newList.add(componentDesc);
-            }
-        }
-
-        b.clearComponents();
-        b.addAllComponents(newList);
-
-
-        return b;
-    }
-
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = loadPrototype(input);
+        PrototypeDesc.Builder b = GameObjectUtil.loadPrototype(input);
 
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
@@ -147,7 +115,7 @@ public class GameObjectBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
         IResource input = task.getInputs().get(0);
-        PrototypeDesc.Builder protoBuilder = loadPrototype(input);
+        PrototypeDesc.Builder protoBuilder = GameObjectUtil.loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);
