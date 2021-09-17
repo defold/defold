@@ -39,7 +39,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
-import com.dynamo.bob.util.GameObjectUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
@@ -175,7 +174,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     private void findAllResourceComponents(Project project, IResource res, Map<String, Integer> target) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder prot = GameObjectUtil.loadPrototype(res);
+        PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
+        ProtoUtil.merge(res, prot);
 
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             String type = cd.getType();
@@ -190,7 +190,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
         for (ComponentDesc cd : prot.getComponentsList()) {
             String comp = cd.getComponent();
-            String type = comp.substring(comp.lastIndexOf(".") + 1, comp.length());
+            String type = FilenameUtils.getExtension(comp);
             addOneComponent(type, target);
             if (isFactoryType(type)) {
                 IResource resource = project.getResource(comp);
@@ -224,23 +224,27 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
+    private String replaceComponentName(Project project, String in) {
+        return project.replaceExt("." + in).substring(1);
+    }
+
     private void findAndAddComponentTypesData(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
         findAllColAndSubColComponents(this.project, builder, components);
 
         HashMap<String, Integer> mergedComponents =  new HashMap<>();
 
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
-            mergedComponents.put(entry.getKey(), entry.getValue());
+            mergedComponents.put(replaceComponentName(project, entry.getKey()), entry.getValue());
         }
 
         // if component is in factory or collectionfactory use 0xFFFFFFFF
         for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
-            mergedComponents.put(entry.getKey(), 0xFFFFFFFF);
+            mergedComponents.put(replaceComponentName(project, entry.getKey()), 0xFFFFFFFF);
         }
 
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
-            componentTypeDesc.setName(entry.getKey()).setMaxCount(entry.getValue());
+            componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
             builder.addComponentTypes(componentTypeDesc);
         }
     }

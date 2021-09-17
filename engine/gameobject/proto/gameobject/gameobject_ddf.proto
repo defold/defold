@@ -63,7 +63,7 @@ message ComponentPropertyDesc
 
 message ComponenTypeDesc
 {
-    required string name = 1;
+    required uint64 name_hash = 1;
     required uint32 max_count = 2;
 }
 
