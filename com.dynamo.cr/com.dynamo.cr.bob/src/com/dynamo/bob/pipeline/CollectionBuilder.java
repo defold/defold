@@ -64,6 +64,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     private Set<Long> productsOfThisTask = new HashSet<>();
     private List<Task<?>> embedTasks = new ArrayList<>();
 
+    private HashMap<String, Integer> components = new HashMap<>();
+    private HashMap<String, Integer> componentsInFactories = new HashMap<>();
+
     private void collectSubCollections(CollectionDesc.Builder collection, Set<IResource> subCollections) throws CompileExceptionError, IOException {
         for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
             IResource subResource = project.getResource(sub.getCollection());
@@ -148,9 +151,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         System.err.println(String.format(fmt, args));
     }
 
-    private Map<String, Integer> components = new HashMap<>();
-    private Map<String, Integer> componentsInFactories = new HashMap<>();
-
     private void addOneComponent(String component, Map<String, Integer> target) {
         Integer count = target.get(component);
         target.put(component, (count == null) ? 1 : count + 1);
@@ -184,6 +184,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     private void findAllResourceComponents(Project project, IResource res, Map<String, Integer> target) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder prot = GameObjectUtil.loadPrototype(res);
+
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             logWarning("EmbeddedComponent id:%s type:%s", cd.getId(), cd.getType());
             String type = cd.getType();
@@ -191,7 +192,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             if (isFactoryType(type)) {
                 byte[] data = cd.getData().getBytes();
                 long hash = MurmurHash.hash64(data, data.length);
-                IResource resource = project.createGeneratedResource(hash, type);
+                IResource resource = project.getGeneratedResource(hash, type);
                 logWarning("my~~~~~~~~~~~~~~~ hash:%x type:%s", hash, type);
                 resource.setContent(data);
                 factoryLoader(project, resource, type);
@@ -222,12 +223,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             byte[] data = desc.getData().getBytes();
             long hash = MurmurHash.hash64(data, data.length);
 
-            IResource res = uniqueResources.get(hash);
-            if (res == null)
-            {
-                res = project.createGeneratedResource(hash, "go");
-                res.setContent(data);
-            }
+            IResource res = project.getGeneratedResource(hash, "go");
+            // res.setContent(data);
             findAllResourceComponents(project, res, target);
         }
     }
@@ -239,6 +236,36 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
             ProtoUtil.merge(collResource, subCollBuilder);
             findAllColAndSubColComponents(project, subCollBuilder, target);
+        }
+    }
+
+    private void findAndAddComponentTypesData(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
+        findAllColAndSubColComponents(this.project, builder, components);
+        
+        logWarning("------------------------------------------");
+        for (Map.Entry<String, Integer> entry : components.entrySet()) {
+            logWarning("`%s`:%d", entry.getKey(), entry.getValue());
+        }
+        logWarning("----Factories:");
+        for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
+            logWarning("`%s`:%d", entry.getKey(), entry.getValue());
+        }
+
+        HashMap<String, Integer> mergedComponents =  new HashMap<>();
+
+        for (Map.Entry<String, Integer> entry : components.entrySet()) {
+            mergedComponents.put(entry.getKey(), entry.getValue());
+        }
+
+        // if component is in factory or collectionfactory use 0xFFFFFFFF
+        for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
+            mergedComponents.put(entry.getKey(), 0xFFFFFFFF);
+        }
+
+        for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
+            ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
+            componentTypeDesc.setName(entry.getKey()).setMaxCount(entry.getValue());
+            builder.addComponentTypes(componentTypeDesc);
         }
     }
 
@@ -257,30 +284,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         createGeneratedResources(this.project, builder);
-
-
-        logWarning("\n----- create collection:%s", input.getAbsPath());
-        findAllColAndSubColComponents(this.project, builder, components);
-        
-        logWarning("------------------------------------------%s", input.getAbsPath());
-        for (Map.Entry<String, Integer> entry : components.entrySet()) {
-            logWarning("`%s`:%d", entry.getKey(), entry.getValue());
-        }
-        logWarning("----Factories:");
-        for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
-            logWarning("`%s`:%d", entry.getKey(), entry.getValue());
-        }
-
-        for (Map.Entry<String, Integer> entry : components.entrySet()) {
-            ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
-            componentTypeDesc.setName(entry.getKey());
-            if (componentsInFactories.containsKey(entry.getKey())) {
-                componentTypeDesc.setMaxCount(0xFF);
-            } else {
-                componentTypeDesc.setMaxCount(entry.getValue());
-            }
-            builder.addComponentTypes(componentTypeDesc);
-        }
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
@@ -477,6 +480,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
+        
+        logWarning("\n----- create collection:%s", resource.getAbsPath());
+        findAndAddComponentTypesData(project, messageBuilder);
 
         mergeSubCollections(resource, messageBuilder);
 
