@@ -210,10 +210,12 @@ namespace dmConnectionPool
     {
         if (c->m_SSLSocket != dmSSLSocket::INVALID_SOCKET_HANDLE) {
             dmSSLSocket::Delete(c->m_SSLSocket);
+            c->m_SSLSocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
         }
         if (c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE) {
             dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
             dmSocket::Delete(c->m_Socket);
+            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
         }
         c->Clear();
     }
