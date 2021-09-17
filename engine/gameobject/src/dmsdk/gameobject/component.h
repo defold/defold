@@ -48,6 +48,9 @@ namespace dmGameObject
         uint32_t m_MaxInstances;
         /// Out-parameter of the pointer in which to store the created world
         void** m_World;
+        /// Max components count of this type in current collection counted at the build stage.
+        /// If component in factory then value is 0xFFFFFFFF
+        uint32_t m_MaxComponentIntances;
     };
 
     /*#

@@ -30,9 +30,8 @@ namespace dmGameObject
         dmResource::Result res = dmResource::RESULT_OK;
 
         uint32_t created_instances = 0;
-        uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
 
-        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity);
+        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_desc);
         if (hcollection == 0)
         {
             dmLogError("AcquireResources NewCollection RESULT_OUT_OF_RESOURCES");
@@ -46,12 +45,6 @@ namespace dmGameObject
         if(res != dmResource::RESULT_OK)
         {
             goto bail;
-        }
-
-        for (uint32_t i = 0; i < collection_desc->m_ComponentTypes.m_Count; ++i)
-        {
-            const dmGameObjectDDF::ComponenTypeDesc& type_desc = collection_desc->m_ComponentTypes[i];
-            dmLogWarning("Collection type name:`%s` count:0x%x -> %u", type_desc.m_Name, type_desc.m_MaxCount, type_desc.m_MaxCount);
         }
 
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;

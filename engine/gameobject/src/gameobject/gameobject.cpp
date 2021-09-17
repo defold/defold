@@ -71,7 +71,7 @@ namespace dmGameObject
     static bool InitInstance(Collection* collection, HInstance instance);
     static bool FinalInstance(Collection* collection, HInstance instance);
 
-    static Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances);
+    static Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc);
     static void DeallocCollection(Collection* collection);
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
@@ -259,7 +259,20 @@ namespace dmGameObject
         delete regist;
     }
 
-    Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances)
+    uint32_t GetMaxComponentIntances(uint64_t name_hash, dmGameObjectDDF::CollectionDesc* collection_desc)
+    {
+        for (uint32_t i = 0; i < collection_desc->m_ComponentTypes.m_Count; ++i)
+        {
+            const dmGameObjectDDF::ComponenTypeDesc& type_desc = collection_desc->m_ComponentTypes[i];
+            if (name_hash == type_desc.m_NameHash)
+            {
+                return type_desc.m_MaxCount;
+            }
+        }
+        return 0;
+    }
+
+    Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
         Collection* collection = new Collection(0, 0, max_instances, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
@@ -271,6 +284,7 @@ namespace dmGameObject
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
+                params.m_MaxComponentIntances = GetMaxComponentIntances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
@@ -384,15 +398,17 @@ namespace dmGameObject
         collection->m_HCollection = 0;
     }
 
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, HCollectionDesc collection_desc)
     {
+
+        uint32_t max_instances = GetCollectionDefaultCapacity(regist);
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
             dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX);
             return 0;
         }
 
-        Collection* collection = AllocCollection(name, regist, max_instances);
+        Collection* collection = AllocCollection(name, regist, max_instances, (dmGameObjectDDF::CollectionDesc*)collection_desc);
         if (!collection)
         {
             return 0;
