@@ -358,6 +358,10 @@ Result Delete(SSLSocket* socket)
     if (socket)
     {
         mbedtls_ssl_close_notify( socket->m_SSLContext );
+        // The underlying socket was created elsewhere and the socket file
+        // descriptor is not owned by mbedtls (see New() above). We set it to -1
+        // here to ensure that mbedtls_net_free doesn't close it when we called
+        socket->m_SSLNetContext->m_Context.fd = -1;
         mbedtls_net_free( (mbedtls_net_context*)socket->m_SSLNetContext );
         mbedtls_ssl_free( socket->m_SSLContext );
         free(socket->m_SSLNetContext);
