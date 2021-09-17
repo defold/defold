@@ -48,6 +48,12 @@ namespace dmGameObject
             goto bail;
         }
 
+        for (uint32_t i = 0; i < collection_desc->m_ComponentTypes.m_Count; ++i)
+        {
+            const dmGameObjectDDF::ComponenTypeDesc& type_desc = collection_desc->m_ComponentTypes[i];
+            dmLogWarning("Collection type name:`%s` count:%d", type_desc.m_Name, type_desc.m_MaxCount);
+        }
+
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {

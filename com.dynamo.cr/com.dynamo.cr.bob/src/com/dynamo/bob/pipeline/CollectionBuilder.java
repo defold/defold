@@ -47,6 +47,7 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
+import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
@@ -191,6 +192,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 byte[] data = cd.getData().getBytes();
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource resource = project.createGeneratedResource(hash, type);
+                logWarning("my~~~~~~~~~~~~~~~ hash:%x type:%s", hash, type);
                 resource.setContent(data);
                 factoryLoader(project, resource, type);
             }
@@ -255,6 +257,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         createGeneratedResources(this.project, builder);
+
+
         logWarning("\n----- create collection:%s", input.getAbsPath());
         findAllColAndSubColComponents(this.project, builder, components);
         
@@ -265,6 +269,17 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         logWarning("----Factories:");
         for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
             logWarning("`%s`:%d", entry.getKey(), entry.getValue());
+        }
+
+        for (Map.Entry<String, Integer> entry : components.entrySet()) {
+            ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
+            componentTypeDesc.setName(entry.getKey());
+            if (componentsInFactories.containsKey(entry.getKey())) {
+                componentTypeDesc.setMaxCount(0xFF);
+            } else {
+                componentTypeDesc.setMaxCount(entry.getValue());
+            }
+            builder.addComponentTypes(componentTypeDesc);
         }
 
         for (long hash : uniqueResources.keySet()) {
