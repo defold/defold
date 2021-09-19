@@ -267,6 +267,11 @@ namespace dmGui
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height)
     {
+        // If window size changed at the initialization phase, gui context doesn't exist.
+        if (!context)
+        {
+            return;
+        }
         context->m_PhysicalWidth = width;
         context->m_PhysicalHeight = height;
         dmArray<HScene>& scenes = context->m_Scenes;

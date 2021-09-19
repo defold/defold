@@ -935,6 +935,11 @@ namespace dmEngine
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
+
+        // If window size changed at the initialization phase, size should be actualized
+        physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+        physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+
         gui_params.m_PhysicalWidth = physical_width;
         gui_params.m_PhysicalHeight = physical_height;
         gui_params.m_DefaultProjectWidth = engine->m_Width;
