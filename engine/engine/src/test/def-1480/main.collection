@@ -2,8 +2,7 @@ name: "main"
 scale_along_z: 0
 embedded_instances {
   id: "go"
-  data:
-  "components {\n"
+  data: "components {\n"
   "  id: \"script\"\n"
   "  component: \"/def-1480/main.script\"\n"
   "  position {\n"
@@ -22,6 +21,7 @@ embedded_instances {
   "  id: \"proxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/first.collection\\\"\\n"
+  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
