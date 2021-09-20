@@ -34,7 +34,12 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            CompScriptWorld* w = new CompScriptWorld(params.m_MaxInstances);
+            uint32_t component_count = params.m_MaxComponentIntances;
+            if (component_count == 0xFFFFFFFF)
+            {
+                component_count = params.m_MaxInstances;
+            }
+            CompScriptWorld* w = new CompScriptWorld(component_count);
             w->m_ScriptWorld = dmScript::NewScriptWorld((dmScript::HContext)params.m_Context);
             *params.m_World = w;
 
