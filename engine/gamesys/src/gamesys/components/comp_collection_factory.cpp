@@ -58,7 +58,11 @@ namespace dmGameSystem
     {
         CollectionFactoryContext* context = (CollectionFactoryContext*)params.m_Context;
         FactoryWorld* fw = new FactoryWorld();
-        const uint32_t max_component_count = context->m_MaxCollectionFactoryCount;
+        uint32_t max_component_count = params.m_MaxComponentIntances;
+        if (max_component_count == 0xFFFFFFFF)
+        {
+            max_component_count = context->m_MaxCollectionFactoryCount;
+        }
         fw->m_Components.SetCapacity(max_component_count);
         fw->m_Components.SetSize(max_component_count);
         fw->m_IndexPool.SetCapacity(max_component_count);

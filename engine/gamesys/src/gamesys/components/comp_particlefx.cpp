@@ -80,7 +80,11 @@ namespace dmGameSystem
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         ParticleFXWorld* world = new ParticleFXWorld();
         world->m_Context = ctx;
-        uint32_t particle_fx_count = ctx->m_MaxParticleFXCount;
+        uint32_t particle_fx_count = params.m_MaxComponentIntances;
+        if (particle_fx_count == 0xFFFFFFFF)
+        {
+            particle_fx_count = ctx->m_MaxParticleFXCount;
+        }
         world->m_ParticleContext = dmParticle::CreateContext(particle_fx_count, ctx->m_MaxParticleCount);
         world->m_Components.SetCapacity(particle_fx_count);
         world->m_RenderObjects.SetCapacity(particle_fx_count);

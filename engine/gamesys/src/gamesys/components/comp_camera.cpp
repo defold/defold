@@ -54,7 +54,13 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CameraWorld* cam_world = new CameraWorld();
-        cam_world->m_Cameras.SetCapacity(MAX_COUNT);
+        uint32_t comp_count = params.m_MaxComponentIntances;
+        if (comp_count == 0xFFFFFFFF)
+        {
+            comp_count = MAX_COUNT;
+        }
+        
+        cam_world->m_Cameras.SetCapacity(comp_count);
         cam_world->m_FocusStack.SetCapacity(MAX_STACK_COUNT);
         *params.m_World = cam_world;
         return dmGameObject::CREATE_RESULT_OK;

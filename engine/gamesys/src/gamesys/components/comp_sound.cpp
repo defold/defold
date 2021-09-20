@@ -71,13 +71,18 @@ namespace dmGameSystem
         SoundContext* sound_context = (SoundContext*)params.m_Context;
 
         SoundWorld* world = new SoundWorld();
+        uint32_t comp_count = params.m_MaxComponentIntances;
+        if (comp_count == 0xFFFFFFFF)
+        {
+            comp_count = sound_context->m_MaxComponentCount;
+        }
         const uint32_t MAX_INSTANCE_COUNT = 32;
         world->m_Entries.SetCapacity(MAX_INSTANCE_COUNT);
         world->m_Entries.SetSize(MAX_INSTANCE_COUNT);
         world->m_EntryIndices.SetCapacity(MAX_INSTANCE_COUNT);
         memset(&world->m_Entries.Front(), 0, MAX_INSTANCE_COUNT * sizeof(PlayEntry));
 
-        world->m_Components.SetCapacity(sound_context->m_MaxComponentCount);
+        world->m_Components.SetCapacity(comp_count);
 
         *params.m_World = (void*)world;
         return dmGameObject::CREATE_RESULT_OK;

@@ -234,7 +234,14 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         HashMap<String, Integer> mergedComponents =  new HashMap<>();
 
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
-            mergedComponents.put(replaceComponentName(project, entry.getKey()), entry.getValue());
+            String name = replaceComponentName(project, entry.getKey());
+            // different input component names may have the same output name
+            // for example wav ans sound both are soundc
+            if (mergedComponents.containsKey(name)) {
+                mergedComponents.put(name, mergedComponents.get(name) + entry.getValue());
+            } else {
+                mergedComponents.put(name, entry.getValue());
+            }
         }
 
         // if component is in factory or collectionfactory use 0xFFFFFFFF
