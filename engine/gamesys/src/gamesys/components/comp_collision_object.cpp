@@ -162,6 +162,11 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
+        if (params.m_MaxComponentIntances == 0)
+        {
+            *params.m_World = 0x0;
+            return dmGameObject::CREATE_RESULT_OK;
+        }
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
@@ -200,7 +205,12 @@ namespace dmGameSystem
         }
         world->m_ComponentIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
-        world->m_Components.SetCapacity(32);
+        uint32_t comp_count = params.m_MaxComponentIntances;
+        if (comp_count == 0xFFFFFFFF)
+        {
+            comp_count = 32;
+        }
+        world->m_Components.SetCapacity(comp_count);
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
