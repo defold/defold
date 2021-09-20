@@ -85,7 +85,11 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
+import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+
+import com.dynamo.bob.cache.ResourceCache;
+import com.dynamo.bob.cache.ResourceCacheKey;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -104,6 +108,7 @@ public class Project {
         UNCOMPRESSED
     }
 
+    private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
     private Map<String, String> inextToOutext = new HashMap<>();
@@ -166,6 +171,22 @@ public class Project {
 
     public String getBuildCachePath() {
         return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
+    }
+
+    public String getLocalResourceCacheDirectory() {
+        return option("resource-cache-local", null);
+    }
+
+    public String getRemoteResourceCacheDirectory() {
+        return option("resource-cache-remote", null);
+    }
+
+    public String getRemoteResourceCacheUser() {
+        return option("resource-cache-remote-user", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_USER"));
+    }
+
+    public String getRemoteResourceCachePass() {
+        return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
     }
 
     public BobProjectProperties getProjectProperties() {
@@ -506,6 +527,14 @@ public class Project {
     // Returns the command line specified property files
     public List<String> getPropertyFiles() {
         return propertyFiles;
+    }
+
+    public List<IResource> getPropertyFilesAsResources() {
+        List<IResource> resources = new ArrayList<>();
+        for (String propertyFile : propertyFiles) {
+            resources.add(fileSystem.get(propertyFile));
+        }
+        return resources;
     }
 
     /**
@@ -849,36 +878,6 @@ public class Project {
         m.done();
     }
 
-    private void downloadToFile(URL url, File file) throws IOException, CompileExceptionError {
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        InputStream input = null;
-        try {
-            connection.connect();
-            int code = connection.getResponseCode();
-
-            if (code == 304) {
-                logInfo("Status %d: Already cached", code);
-            }
-            else if (code >= 400) {
-                logWarning("Status %d: Failed to download %s", code, url);
-                throw new CompileExceptionError(String.format("Status %d: Failed to download %s", code, url), new Exception());
-            }
-            else {
-                input = new BufferedInputStream(connection.getInputStream());
-                FileUtils.copyInputStreamToFile(input, file);
-            }
-            connection.disconnect();
-        } catch (ConnectException e) {
-            throw new CompileExceptionError(String.format("Connection refused by the server at %s", url.toString()), e);
-        } catch (FileNotFoundException e) {
-            throw new CompileExceptionError(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
-        } finally {
-            if(input != null) {
-                IOUtils.closeQuietly(input);
-            }
-        }
-    }
-
     private void downloadSymbols(IProgress progress) throws IOException, CompileExceptionError {
         final String[] platforms = getPlatformStrings();
 
@@ -913,9 +912,15 @@ public class Project {
             }
 
             if (symbolsFilename != null) {
-                URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
-                File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
-                downloadToFile(url, file);
+                try {
+                    URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+                    File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
+                    HttpUtil http = new HttpUtil();
+                    http.downloadToFile(url, file);
+                }
+                catch (Exception e) {
+                    throw new CompileExceptionError(e);
+                }
             }
             progress.worked(1);
         }
@@ -986,6 +991,8 @@ public class Project {
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
+        resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
+        resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
@@ -1165,9 +1172,10 @@ public class Project {
         return result;
     }
 
+
+
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks(IProgress monitor) throws IOException {
-
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
         // the set also contains failed tasks
@@ -1203,6 +1211,7 @@ run:
         while (completedTasks.size() < tasks.size()) {
             for (Task<?> task : tasks) {
                 BundleHelper.throwIfCanceled(monitor);
+
                 // deps are the task input files generated by another task not yet completed,
                 // i.e. "solve" the dependency graph
                 Set<IResource> deps = new HashSet<>(task.getInputs());
@@ -1213,11 +1222,11 @@ run:
                     continue;
                 }
 
-                byte[] taskSignature = task.calculateSignature(this);
+                final List<IResource> outputResources = task.getOutputs();
 
                 // do all output files exist?
                 boolean allOutputExists = true;
-                for (IResource r : task.getOutputs()) {
+                for (IResource r : outputResources) {
                     if (!r.exists()) {
                         allOutputExists = false;
                         break;
@@ -1226,14 +1235,11 @@ run:
 
                 // compare all task signature. current task signature between previous
                 // signature from state on disk
-                List<byte[]> outputSigs = new ArrayList<byte[]>();
-                for (IResource r : task.getOutputs()) {
-                    byte[] s = state.getSignature(r.getAbsPath());
-                    outputSigs.add(s);
-                }
+                byte[] taskSignature = task.calculateSignature();
                 boolean allSigsEquals = true;
-                for (byte[] sig : outputSigs) {
-                    if (!Arrays.equals(sig, taskSignature)) {
+                for (IResource r : outputResources) {
+                    byte[] s = state.getSignature(r.getAbsPath());
+                    if (!Arrays.equals(s, taskSignature)) {
                         allSigsEquals = false;
                         break;
                     }
@@ -1248,7 +1254,7 @@ run:
                         // Only if the conditions in the if-statements are true add the task to the completed set and the
                         // output files to the completed output set
                         completedTasks.add(task);
-                        completedOutputs.addAll(task.getOutputs());
+                        completedOutputs.addAll(outputResources);
                     }
 
                     monitor.worked(1);
@@ -1265,21 +1271,48 @@ run:
                 String message = null;
                 Throwable exception = null;
                 boolean abort = false;
+                Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
                 try {
-                    builder.build(task);
-                    monitor.worked(1);
-                    for (IResource r : task.getOutputs()) {
-                        state.putSignature(r.getAbsPath(), taskSignature);
+                    // check if all output resources exist in the resource cache
+                    boolean allResourcesCached = true;
+                    for (IResource r : outputResources) {
+                        final String key = ResourceCacheKey.calculate(task, options, r);
+                        outputResourceToCacheKey.put(r, key);
+                        if (!r.isCacheable()) {
+                            allResourcesCached = false;
+                        }
+                        else if (!resourceCache.contains(key)) {
+                            allResourcesCached = false;
+                        }
                     }
 
-                    for (IResource r : task.getOutputs()) {
+                    // all resources exist in the cache
+                    // copy them to the output
+                    if (allResourcesCached) {
+                        for (IResource r : outputResources) {
+                            r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
+                        }
+                    }
+                    // build task and cache output
+                    else {
+                        builder.build(task);
+                        for (IResource r : outputResources) {
+                            state.putSignature(r.getAbsPath(), taskSignature);
+                            if (r.isCacheable()) {
+                                resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
+                            }
+                        }
+                    }
+                    monitor.worked(1);
+
+                    for (IResource r : outputResources) {
                         if (!r.exists()) {
                             message = String.format("Output '%s' not found", r.getAbsPath());
                             ok = false;
                             break;
                         }
                     }
-                    completedOutputs.addAll(task.getOutputs());
+                    completedOutputs.addAll(outputResources);
 
                 } catch (CompileExceptionError e) {
                     ok = false;
@@ -1301,7 +1334,7 @@ run:
                     taskResult.setMessage(message);
                     taskResult.setException(exception);
                     // Clear sigs for all outputs when a task fails
-                    for (IResource r : task.getOutputs()) {
+                    for (IResource r : outputResources) {
                         state.putSignature(r.getAbsPath(), new byte[0]);
                     }
                     if (abort) {

@@ -23,7 +23,7 @@
             [editor.fxui :as fxui]
             [editor.github :as github]
             [editor.handler :as handler]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -626,7 +626,7 @@
           (fuzzy-text/runs (count text) matching-indices))))
 
 (defn- make-matched-list-item-graphic [icon text matching-indices]
-  (let [icon-view (jfx/get-image-view icon 16)
+  (let [icon-view (icons/get-image-view icon 16)
         text-view (TextFlow. (into-array Text (matched-text-runs text matching-indices)))]
     (doto (HBox. (ui/node-array [icon-view text-view]))
       (.setAlignment Pos/CENTER_LEFT)

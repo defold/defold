@@ -38,11 +38,20 @@ BASE_PLATFORMS = [  'x86_64-linux',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web']
 
+sys.dont_write_bytecode = True
 try:
-    sys.path.insert(0, os.path.dirname(__file__))
-    sys.dont_write_bytecode = True
+    import build_nx64
+    sys.modules['build_private'] = build_nx64
+except Exception, e:
+    pass
+
+sys.dont_write_bytecode = False
+try:
     import build_private
 except Exception, e:
+    pass
+
+if 'build_private' not in sys.modules:
     class build_private(object):
         @classmethod
         def get_target_platforms(cls):
@@ -65,9 +74,6 @@ except Exception, e:
         @classmethod
         def get_tag_suffix(self):
             return ''
-
-finally:
-    sys.dont_write_bytecode = False
 
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()

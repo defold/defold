@@ -111,12 +111,17 @@ public class GameProjectBuilder extends Builder<Void> {
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(".projectc"));
+                .addOutput(input.changeExt(".projectc").disableCache());
+
+        for (IResource propertyFile : project.getPropertyFilesAsResources()) {
+            builder.addInput(propertyFile);
+        }
+
         if (project.option("archive", "false").equals("true")) {
-            builder.addOutput(input.changeExt(".arci"));
-            builder.addOutput(input.changeExt(".arcd"));
-            builder.addOutput(input.changeExt(".dmanifest"));
-            builder.addOutput(input.changeExt(".public.der"));
+            builder.addOutput(input.changeExt(".arci").disableCache());
+            builder.addOutput(input.changeExt(".arcd").disableCache());
+            builder.addOutput(input.changeExt(".dmanifest").disableCache());
+            builder.addOutput(input.changeExt(".public.der").disableCache());
             for (IResource output : project.getPublisher().getOutputs(input)) {
                 builder.addOutput(output);
             }

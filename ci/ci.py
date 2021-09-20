@@ -338,23 +338,6 @@ def release(channel):
     cmd = ' '.join(args + opts)
     call(cmd)
 
-def release_to_github_markdown(token = None, repo = None, sha1 = None):
-    args = "python scripts/build.py release_to_github_markdown".split()
-    opts = []
-
-    if token:
-        opts.append("--github-token=%s" % token)
-
-    if repo:
-        opts.append("--github-target-repo=%s" % repo)
-
-    if sha1:
-        opts.append("--github-sha1=%s" % sha1)
-
-    cmd = ' '.join(args + opts)
-    call(cmd)
-
-
 def build_sdk(channel):
     args = "python scripts/build.py build_sdk".split()
     opts = []
@@ -419,6 +402,13 @@ def main(argv):
     if platform and not is_platform_supported(platform):
         print("Platform {} is private and the repo '{}' cannot build for this platform. Skipping".format(platform, os.environ.get('GITHUB_REPOSITORY', '')))
         return;
+
+    # saving lots of CI minutes and waiting by not building the editor, which we don't use
+    if is_repo_private():
+        for command in args.commands:
+            if 'editor' in command:
+                print("Platform {} is private we've disabled building the editor. Skipping".format(platform))
+                return
 
     branch = get_branch()
 
@@ -513,10 +503,6 @@ def main(argv):
                 release(release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
-        elif command == "release_to_github_markdown":
-            release_to_github_markdown(token = args.github_token,
-                                repo = args.github_target_repo,
-                                sha1 = args.github_sha1)
         else:
             print("Unknown command {0}".format(command))
 

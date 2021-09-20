@@ -98,7 +98,7 @@ platforms:
     compileCmdCXX:      'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#cxxFlags}}{{{.}}} {{/cxxFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     compileCmdCXXSh:    'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#cxxShFlags}}{{{.}}} {{/cxxShFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     linkCmdCXX:         'clang++ -o {{tgt}} {{#cxxLinkFlags}}{{{.}}} {{/cxxLinkFlags}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
-    linkCmdCXXSh:       'clang++ -shared -o {{tgt}} {{#cxxLinkShFlags}}{{{.}}} {{/cxxLinkShFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
+    linkCmdCXXSh:       'clang++ -shared -o {{tgt}} {{#cxxLinkShFlags}}{{{.}}} {{/cxxLinkShFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#src}}{{{.}}} {{/src}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}}'
 
     # Java
     javaSourceRe:   '(?i).+(\.java)$'
@@ -295,7 +295,7 @@ platforms:
         defines:    ["DM_PLATFORM_ANDROID", "DDF_EXPOSE_DESCRIPTORS", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
-        linkFlags:  []
+        linkFlags:  ["-Wl,--build-id=uuid"]
         libs:       []
         dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
         symbols:    ["AudioDecoderTremolo"]
@@ -340,7 +340,7 @@ platforms:
         defines:    ["DM_PLATFORM_ANDROID", "DDF_EXPOSE_DESCRIPTORS", "__aarch64__", "LUA_BYTECODE_ENABLE_64"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
-        linkFlags:  []
+        linkFlags:  ["-Wl,--build-id=uuid"]
         libs:       []
         dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
         symbols:    ["AudioDecoderTremolo"]
@@ -476,6 +476,7 @@ platforms:
     writeLibPattern: '%s.lib'
     writeShLibPattern: 'lib%s.dll'
     writeExePattern: 'dmengine.exe'
+    writeShLibPattern: 'lib%s.dll'
     zipContentPattern: 'dmengine.exe'
     symbolsPattern:  '.*pdb'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
@@ -511,7 +512,6 @@ platforms:
     stlibRe:        '(.+).lib'
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: '%s.lib'
-    writeShLibPattern: 'lib%s.dll'
     writeExePattern: 'dmengine.exe'
     zipContentPattern: 'dmengine.exe'
     symbolsPattern:  '.*pdb'

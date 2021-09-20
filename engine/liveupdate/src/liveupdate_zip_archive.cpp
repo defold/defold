@@ -81,6 +81,7 @@ namespace dmLiveUpdate
         {
             dmLogError("Could not read entry name '%s' from archive", LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME);
             dmZip::Close(zip);
+            return RESULT_INVALID_RESOURCE;
         }
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -274,14 +275,20 @@ namespace dmLiveUpdate
 
         uint32_t manifest_len = 0;
         uint8_t* manifest_data = GetZipResource(zip, LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, &manifest_len);
+        dmZip::Close(zip);
         if (!manifest_data)
         {
             dmLogError("Could not read entry name '%s' from archive", LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME);
-            dmZip::Close(zip);
+            return dmResourceArchive::RESULT_NOT_FOUND;
         }
 
         dmResourceArchive::Result result = dmResourceArchive::LoadManifestFromBuffer(manifest_data, manifest_len, out);
         dmMemory::AlignedFree(manifest_data);
+        if (dmResourceArchive::RESULT_OK != result)
+        {
+            dmLogError("Could not load manifest: %d", result);
+            return result;
+        }
 
         // Verify
         dmLiveUpdate::Result lu_result = dmLiveUpdate::VerifyManifest(*out);
