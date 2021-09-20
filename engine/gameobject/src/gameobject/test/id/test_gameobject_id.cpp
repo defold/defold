@@ -48,7 +48,7 @@ protected:
         dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         dmGameObject::SortComponentTypes(m_Register);
 
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
     }
 
     virtual void TearDown()

@@ -93,10 +93,11 @@ namespace dmGameObject
      * @param name Collection name, which must be unique and follow the same naming as for sockets
      * @param factory Resource factory. Must be valid during the life-time of the collection
      * @param regist Register
+     * @param max_instances Max instances in this collection
      * @param collection_desc description data of collections
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, HCollectionDesc collection_desc);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc);
 
     /**
      * Deletes a gameobject collection

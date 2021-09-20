@@ -261,6 +261,10 @@ namespace dmGameObject
 
     uint32_t GetMaxComponentIntances(uint64_t name_hash, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
+        if (!collection_desc)
+        {
+            return 0xFFFFFFFF;
+        }
         for (uint32_t i = 0; i < collection_desc->m_ComponentTypes.m_Count; ++i)
         {
             const dmGameObjectDDF::ComponenTypeDesc& type_desc = collection_desc->m_ComponentTypes[i];
@@ -398,10 +402,8 @@ namespace dmGameObject
         collection->m_HCollection = 0;
     }
 
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, HCollectionDesc collection_desc)
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc)
     {
-
-        uint32_t max_instances = GetCollectionDefaultCapacity(regist);
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
             dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX);

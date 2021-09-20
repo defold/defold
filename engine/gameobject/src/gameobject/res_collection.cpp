@@ -30,8 +30,9 @@ namespace dmGameObject
         dmResource::Result res = dmResource::RESULT_OK;
 
         uint32_t created_instances = 0;
+        uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
 
-        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_desc);
+        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity, collection_desc);
         if (hcollection == 0)
         {
             dmLogError("AcquireResources NewCollection RESULT_OUT_OF_RESOURCES");
