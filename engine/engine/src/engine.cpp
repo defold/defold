@@ -139,7 +139,7 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / width;
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
-        if (context)
+        if (engine->m_GuiContext.m_GuiContext)
         {
             dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
         }
