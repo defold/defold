@@ -261,7 +261,7 @@ namespace dmGameObject
 
     uint32_t GetMaxComponentIntances(uint64_t name_hash, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
-        if (!collection_desc)
+        if (!collection_desc || collection_desc->m_ComponentTypes.m_Count == 0)
         {
             return 0xFFFFFFFF;
         }
