@@ -21,7 +21,6 @@ embedded_instances {
   "  id: \"proxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/toomanyproxies.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"

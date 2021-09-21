@@ -26,7 +26,7 @@ embedded_instances {
   "    w: 1.0\n"
   "  }\n"
   "}\n"
-  ""
+
   position {
     x: 0.0
     y: 0.0
@@ -50,7 +50,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -88,7 +87,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -126,7 +124,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -164,7 +161,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -202,7 +198,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -240,7 +235,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -278,7 +272,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -316,7 +309,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
@@ -354,45 +346,6 @@ embedded_instances {
   "  id: \"collectionproxy\"\n"
   "  type: \"collectionproxy\"\n"
   "  data: \"collection: \\\"/def-1480/empty.collection\\\"\\n"
-  "exclude: false\\n"
-  "\"\n"
-  "  position {\n"
-  "    x: 0.0\n"
-  "    y: 0.0\n"
-  "    z: 0.0\n"
-  "  }\n"
-  "  rotation {\n"
-  "    x: 0.0\n"
-  "    y: 0.0\n"
-  "    z: 0.0\n"
-  "    w: 1.0\n"
-  "  }\n"
-  "}\n"
-  ""
-  position {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
-  }
-  scale3 {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-  }
-}
-embedded_instances {
-  id: "go_collectionproxy"
-  data: "embedded_components {\n"
-  "  id: \"factory\"\n"
-  "  type: \"factory\"\n"
-  "  data: \"prototype: \\\"/def-1480/object_with_collectionproxy.go\\\"\\n"
-  "load_dynamically: false\\n"
   "\"\n"
   "  position {\n"
   "    x: 0.0\n"
