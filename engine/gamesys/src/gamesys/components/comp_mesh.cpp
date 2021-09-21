@@ -194,11 +194,7 @@ namespace dmGameSystem
         MeshContext* context = (MeshContext*)params.m_Context;
 
         MeshWorld* world = new MeshWorld();
-        uint32_t comp_count = params.m_MaxComponentIntances;
-        if (comp_count == 0xFFFFFFFF)
-        {
-            comp_count = context->m_MaxMeshCount;
-        }
+        uint32_t comp_count = MIN(params.m_MaxComponentIntances, context->m_MaxMeshCount);
         world->m_ResourceFactory = context->m_Factory;
         world->m_Components.SetCapacity(comp_count);
         world->m_RenderObjects.SetCapacity(comp_count);

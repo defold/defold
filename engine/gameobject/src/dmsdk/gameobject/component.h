@@ -681,7 +681,9 @@ namespace dmGameObject
         uint8_t DM_ALIGNED(16) DM_COMPONENT_PASTE_SYMREG2(symbol, __LINE__)[dmGameObject::s_ComponentTypeDescBufferSize]; \
         DM_REGISTER_COMPONENT_TYPE(symbol, DM_COMPONENT_PASTE_SYMREG2(symbol, __LINE__), name, type_create_fn);
 
-
+#ifndef MIN
+   #define MIN(x, y) ((x) < (y) ? x : y)
+#endif
 }
 
 #endif // #ifndef DMSDK_GAMEOBJECT_COMPONENT_H

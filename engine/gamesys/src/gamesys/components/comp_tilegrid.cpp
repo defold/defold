@@ -147,12 +147,7 @@ namespace dmGameSystem
         TileGridWorld* world = new TileGridWorld;
         TilemapContext* context = (TilemapContext*)params.m_Context;
         world->m_RenderContext = context->m_RenderContext;
-        uint32_t comp_count = params.m_MaxComponentIntances;
-        if (comp_count == 0xFFFFFFFF)
-        {
-            comp_count = context->m_MaxTilemapCount;
-        }
-
+        uint32_t comp_count = MIN(params.m_MaxComponentIntances, context->m_MaxTilemapCount);
         world->m_MaxTilemapCount = comp_count;
         world->m_MaxTileCount = context->m_MaxTileCount;
 
