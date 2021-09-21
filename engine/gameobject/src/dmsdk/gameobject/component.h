@@ -50,7 +50,7 @@ namespace dmGameObject
         void** m_World;
         /// Max components count of this type in current collection counted at the build stage.
         /// If component in factory then value is 0xFFFFFFFF
-        uint32_t m_MaxComponentIntances;
+        uint32_t m_MaxComponentInstances;
     };
 
     /*#

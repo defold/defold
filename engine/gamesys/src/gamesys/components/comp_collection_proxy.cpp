@@ -130,7 +130,7 @@ namespace dmGameSystem
     {
         CollectionProxyWorld* proxy_world = new CollectionProxyWorld();
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
-        uint32_t component_count = MIN(params.m_MaxComponentIntances, context->m_MaxCollectionProxyCount);
+        uint32_t component_count = MIN(params.m_MaxComponentInstances, context->m_MaxCollectionProxyCount);
         proxy_world->m_Components.SetCapacity(component_count);
         proxy_world->m_Components.SetSize(component_count);
         if(component_count > 0)

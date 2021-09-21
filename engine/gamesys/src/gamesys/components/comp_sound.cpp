@@ -71,7 +71,7 @@ namespace dmGameSystem
         SoundContext* sound_context = (SoundContext*)params.m_Context;
 
         SoundWorld* world = new SoundWorld();
-        uint32_t comp_count = MIN(params.m_MaxComponentIntances, sound_context->m_MaxComponentCount);
+        uint32_t comp_count = MIN(params.m_MaxComponentInstances, sound_context->m_MaxComponentCount);
         const uint32_t MAX_INSTANCE_COUNT = 32;
         world->m_Entries.SetCapacity(MAX_INSTANCE_COUNT);
         world->m_Entries.SetSize(MAX_INSTANCE_COUNT);

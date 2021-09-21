@@ -162,7 +162,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        if (params.m_MaxComponentIntances == 0)
+        if (params.m_MaxComponentInstances == 0)
         {
             *params.m_World = 0x0;
             return dmGameObject::CREATE_RESULT_OK;
@@ -205,7 +205,7 @@ namespace dmGameSystem
         }
         world->m_ComponentIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
-        uint32_t comp_count = params.m_MaxComponentIntances;
+        uint32_t comp_count = params.m_MaxComponentInstances;
         if (comp_count == 0xFFFFFFFF)
         {
             comp_count = 32;

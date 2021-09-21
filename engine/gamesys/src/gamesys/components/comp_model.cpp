@@ -105,7 +105,7 @@ namespace dmGameSystem
         ModelContext* context = (ModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = new ModelWorld();
-        uint32_t comp_count = MIN(params.m_MaxComponentIntances, context->m_MaxModelCount);
+        uint32_t comp_count = MIN(params.m_MaxComponentInstances, context->m_MaxModelCount);
 
         dmRig::NewContextParams rig_params = {0};
         rig_params.m_Context = &world->m_RigContext;

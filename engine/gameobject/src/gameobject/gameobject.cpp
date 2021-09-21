@@ -288,7 +288,7 @@ namespace dmGameObject
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
-                params.m_MaxComponentIntances = GetMaxComponentIntances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
+                params.m_MaxComponentInstances = GetMaxComponentIntances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
