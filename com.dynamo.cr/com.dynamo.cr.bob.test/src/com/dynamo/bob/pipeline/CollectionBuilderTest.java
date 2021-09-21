@@ -34,11 +34,13 @@ import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
+import com.dynamo.bob.pipeline.ResourceNode;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
@@ -495,5 +497,49 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         PrototypeDesc go = (PrototypeDesc)messages.get(2);
         Assert.assertEquals(1, go.getComponentsCount());
         SpriteDesc sprite = (SpriteDesc)messages.get(4);
+    }
+
+    /**
+     * Test that component counter counts components right in embeded instances
+     * Structure:
+     * - go [emb_instance]
+     *   - sprite [emb_component]
+     *   - sprite [emb_component]
+     * @throws Exception
+     */
+    @Test
+    public void testEmbeddedInstanceComponentCounter() throws Exception {
+        addFile("/test.atlas", "");
+
+        StringBuilder spriteSrc = new StringBuilder();
+        spriteSrc.append("tile_set: \"/test.atlas\"\n");
+        spriteSrc.append("default_animation: \"\"\n");
+
+        StringBuilder goSrc = new StringBuilder();
+        goSrc.append("embedded_components {\n");
+        goSrc.append("  id: \"sprite\"\n");
+        goSrc.append("  type: \"sprite\"\n");
+        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
+        goSrc.append("}\n");
+        goSrc.append("embedded_components {\n");
+        goSrc.append("  id: \"sprite\"\n");
+        goSrc.append("  type: \"sprite\"\n");
+        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
+        goSrc.append("}\n");
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"go\"\n");
+        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
+        src.append("}\n");
+
+        List<Message> messages = build("/test.collection", src.toString());
+        Assert.assertEquals(5, messages.size());
+
+        CollectionDesc collection = (CollectionDesc)messages.get(0);
+        List<ComponenTypeDesc> types = collection.getComponentTypesList();
+        Assert.assertEquals(1, types.size());
+        Assert.assertEquals(2, types.get(0).getMaxCount());
     }
 }
