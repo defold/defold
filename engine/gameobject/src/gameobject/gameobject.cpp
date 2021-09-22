@@ -259,7 +259,7 @@ namespace dmGameObject
         delete regist;
     }
 
-    uint32_t GetMaxComponentIntances(uint64_t name_hash, dmGameObjectDDF::CollectionDesc* collection_desc)
+    uint32_t GetMaxComponentInstances(uint64_t name_hash, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
         if (!collection_desc || collection_desc->m_ComponentTypes.m_Count == 0)
         {
@@ -288,7 +288,7 @@ namespace dmGameObject
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
-                params.m_MaxComponentInstances = GetMaxComponentIntances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
+                params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
