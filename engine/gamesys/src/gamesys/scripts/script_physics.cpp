@@ -411,7 +411,9 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
-
+        if (world == 0x0)
+            lua_pushnil(L);
+            return 1;
         Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
         Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
 

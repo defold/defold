@@ -1539,6 +1539,8 @@ namespace dmGameSystem
     void SetGravity(void* _world, const Vectormath::Aos::Vector3& gravity)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
+        if (world == 0x0)
+            return;
         if (world->m_3D)
         {
             dmPhysics::SetGravity3D(world->m_World3D, gravity);
@@ -1552,6 +1554,8 @@ namespace dmGameSystem
     Vectormath::Aos::Vector3 GetGravity(void* _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
+        if (world == 0x0)
+            return Vectormath::Aos::Vector3();
         if (world->m_3D)
         {
             return dmPhysics::GetGravity3D(world->m_World3D);
