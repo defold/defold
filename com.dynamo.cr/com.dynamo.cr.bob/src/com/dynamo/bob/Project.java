@@ -415,17 +415,16 @@ public class Project {
         excludeFolders.addAll(loadDefoldIgnore());
 
         for (String input : sortedInputs) {
-            Task<?> task = doCreateTask(input);
-            if (task != null) {
-                boolean skipped = false;
-                for (String excludeFolder : excludeFolders) {
-                    if (input.startsWith(excludeFolder)) {
-                        skipped = true;
-                        break;
-                    }
+            boolean skipped = false;
+            for (String excludeFolder : excludeFolders) {
+                if (input.startsWith(excludeFolder)) {
+                    skipped = true;
+                    break;
                 }
-
-                if (!skipped) {
+            }
+            if (!skipped) {
+                Task<?> task = doCreateTask(input);
+                if (task != null) {
                     newTasks.add(task);
                 }
             }
