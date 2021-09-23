@@ -147,17 +147,16 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     private void addOneComponent(String component, Map<String, Integer> target) {
-        Integer count = target.get(component);
-        target.put(component, (count == null) ? 1 : count + 1);
+        target.put(component, target.getOrDefault(component, 0) + 1);
     }
 
-    private void factoryLoader(Project project, IResource input, String type) throws IOException, CompileExceptionError {
+    private void countComponentsInFactory(Project project, IResource input, String type) throws IOException, CompileExceptionError {
         if (type.equals("factory")) {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
             ProtoUtil.merge(input, factoryDesc);
             IResource res = project.getResource(factoryDesc.getPrototype());
 
-            findAllResourceComponents(project, res, componentsInFactories);
+            countComponentInResource(project, res, componentsInFactories);
         } else if (type.equals("collectionfactory")) {
             CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
             ProtoUtil.merge(input, factoryDesc);
@@ -165,7 +164,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             CollectionDesc.Builder builder = CollectionDesc.newBuilder();
             ProtoUtil.merge(res, builder);
 
-            findAllCollectionComponents(project, builder, componentsInFactories);
+            countComponentsInCollectionRecursively(project, builder, componentsInFactories);
         }
     }
 
@@ -173,7 +172,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return type.equals("factory") || type.equals("collectionfactory");
     }
 
-    private void findAllResourceComponents(Project project, IResource res, Map<String, Integer> target) throws IOException, CompileExceptionError {
+    private void countComponentInResource(Project project, IResource res, Map<String, Integer> target) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
         ProtoUtil.merge(res, prot);
 
@@ -185,7 +184,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource resource = project.getGeneratedResource(hash, type);
                 resource.setContent(data);
-                factoryLoader(project, resource, type);
+                countComponentsInFactory(project, resource, type);
             }
         }
         for (ComponentDesc cd : prot.getComponentsList()) {
@@ -194,33 +193,28 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             addOneComponent(type, target);
             if (isFactoryType(type)) {
                 IResource resource = project.getResource(comp);
-                factoryLoader(project, resource, type);
+                countComponentsInFactory(project, resource, type);
             }
         }
     }
 
-    private void findAllCollectionComponents(Project project, CollectionDesc.Builder builder, Map<String, Integer> target) throws IOException, CompileExceptionError {
+    private void countComponentsInCollectionRecursively(Project project, CollectionDesc.Builder builder, Map<String, Integer> target) throws IOException, CompileExceptionError {
         for (InstanceDesc inst : builder.getInstancesList()) {
             IResource res = project.getResource(inst.getPrototype());
-            findAllResourceComponents(project, res, target);
+            countComponentInResource(project, res, target);
         }
-
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource res = project.getGeneratedResource(hash, "go");
-            findAllResourceComponents(project, res, target);
+            countComponentInResource(project, res, target);
         }
-    }
-
-    private void findAllColAndSubColComponents(Project project, CollectionDesc.Builder builder, Map<String, Integer> target) throws IOException, CompileExceptionError {
-        findAllCollectionComponents(project, builder, target);
         for (CollectionInstanceDesc collInst : builder.getCollectionInstancesList()) {
             IResource collResource = project.getResource(collInst.getCollection());
             CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
             ProtoUtil.merge(collResource, subCollBuilder);
-            findAllColAndSubColComponents(project, subCollBuilder, target);
+            countComponentsInCollectionRecursively(project, subCollBuilder, target);
         }
     }
 
@@ -228,8 +222,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return project.replaceExt("." + in).substring(1);
     }
 
-    private void findAndAddComponentTypesData(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
-        findAllColAndSubColComponents(this.project, builder, components);
+    private void countAllComponentTypes(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
+        countComponentsInCollectionRecursively(this.project, builder, components);
 
         HashMap<String, Integer> mergedComponents =  new HashMap<>();
 
@@ -467,7 +461,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
-        findAndAddComponentTypesData(project, messageBuilder);
+        countAllComponentTypes(project, messageBuilder);
 
         mergeSubCollections(resource, messageBuilder);
 
