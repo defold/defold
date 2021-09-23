@@ -133,10 +133,7 @@ namespace dmGameSystem
         uint32_t component_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxCollectionProxyCount);
         proxy_world->m_Components.SetCapacity(component_count);
         proxy_world->m_Components.SetSize(component_count);
-        if(component_count > 0)
-        {
-            memset(&proxy_world->m_Components[0], 0, sizeof(CollectionProxyComponent) * component_count);
-        }
+        memset(proxy_world->m_Components.Begin(), 0, sizeof(CollectionProxyComponent) * component_count);
         proxy_world->m_IndexPool.SetCapacity(component_count);
         *params.m_World = proxy_world;
         return dmGameObject::CREATE_RESULT_OK;
