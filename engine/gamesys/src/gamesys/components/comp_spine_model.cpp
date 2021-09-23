@@ -92,7 +92,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         SpineModelWorld* world = new SpineModelWorld();
 
-        uint32_t comp_count = MIN(params.m_MaxComponentInstances, context->m_MaxSpineModelCount);
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxSpineModelCount);
 
         dmRig::NewContextParams rig_params = {0};
         rig_params.m_Context = &world->m_RigContext;
