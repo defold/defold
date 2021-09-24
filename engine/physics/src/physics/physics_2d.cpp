@@ -21,6 +21,7 @@
 #include <dlib/profile.h>
 
 #include "Box2D/Box2D.h"
+#include "Box2D/Dynamics/Contacts/b2ContactSolver.h"
 
 #include "physics_2d.h"
 

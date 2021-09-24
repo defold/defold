@@ -26,6 +26,13 @@
 
 #define B2_DEBUG_SOLVER 0
 
+
+// defold: overrides #define b2_velocityThreshold in b2Settings.h
+float b2velocityThresholdOverride = 0;
+void b2ContactSolver::setVelocityThreshold(float value) {
+	b2velocityThresholdOverride = value;
+}
+
 struct b2ContactPositionConstraint
 {
 	b2Vec2 localPoints[b2_maxManifoldPoints];
@@ -205,7 +212,7 @@ void b2ContactSolver::InitializeVelocityConstraints()
 			// Setup a velocity bias for restitution.
 			vcp->velocityBias = 0.0f;
 			float32 vRel = b2Dot(vc->normal, vB + b2Cross(wB, vcp->rB) - vA - b2Cross(wA, vcp->rA));
-			if (vRel < b2ContactSolver::velocityThresholdOverride ? -b2ContactSolver::velocityThresholdOverride : -b2_velocityThreshold) // defold: take into account velocityOverride if non-zero
+			if (vRel < (b2velocityThresholdOverride ? -b2velocityThresholdOverride : -b2_velocityThreshold)) // defold: take into account velocityOverride if non-zero
 			{
 				vcp->velocityBias = -vc->restitution * vRel; // this happens when objects bounce off one another
 			}
@@ -831,7 +838,5 @@ bool b2ContactSolver::SolveTOIPositionConstraints(int32 toiIndexA, int32 toiInde
 	return minSeparation >= -1.5f * b2_linearSlop;
 }
 
-void b2ContactSolver::setVelocityThreshold(float value) {
-  velocityThresholdOverride = value;
-}
+
 

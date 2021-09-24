@@ -89,9 +89,9 @@ public:
 	b2Contact** m_contacts;
 	int m_count;
 
-  static void b2ContactSolver::setVelocityThreshold(float value); // defold: overrides #define b2_velocityThreshold in b2Settings.h
-	static float velocityThresholdOverride = 0.0f; // stored here
+	static void setVelocityThreshold(float value); // defold: overrides #define b2_velocityThreshold in b2Settings.h
 };
+
 
 
 
