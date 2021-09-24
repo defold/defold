@@ -971,7 +971,8 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
-
+        if (world == 0x0)
+            return 0;
         Vectormath::Aos::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
 
         dmGameSystem::SetGravity(world, new_gravity);
@@ -1015,7 +1016,11 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
-
+        if (world == 0x0)
+        {
+            lua_pushnil(L);
+            return 1;
+        }
         Vectormath::Aos::Vector3 gravity = dmGameSystem::GetGravity(world);
         dmScript::PushVector3(L, gravity);
 
