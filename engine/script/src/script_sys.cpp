@@ -1130,6 +1130,25 @@ union SaveLoadBuffer
         return 0;
     }
 
+    static int Sys_Serialize(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        luaL_checktype(L, 1, LUA_TTABLE);
+        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 1);
+        lua_pushlstring(L, (const char*)g_saveload.m_buffer, n_used);
+        return 1;
+
+    }
+
+    static int Sys_Deserialize(lua_State* L)
+    {   
+        DM_LUA_STACK_CHECK(L, 1);
+        size_t bytes_lenght;
+        const char* bytes = luaL_checklstring(L, 1, &bytes_lenght);
+        PushTable(L, bytes, bytes_lenght);
+        return 1;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -1150,6 +1169,8 @@ union SaveLoadBuffer
         {"reboot", Sys_Reboot},
         {"set_update_frequency", Sys_SetUpdateFrequency},
         {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
+        {"serialize", Sys_Serialize},
+        {"deserialize", Sys_Deserialize},
         {0, 0}
     };
 
