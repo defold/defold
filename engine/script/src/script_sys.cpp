@@ -1130,6 +1130,24 @@ union SaveLoadBuffer
         return 0;
     }
 
+    /*# serializes a lua table to a buffer and returns it
+     * The buffer can later deserialized by <code>sys.deserialize</code>.
+     * This method has all the same limitations as <code>sys.save</code>.
+     *
+     * @name sys.serialize
+     * @param table [type:table] lua table to serialize
+     * @return buffer [type:string] serialized data buffer
+     * @examples
+     *
+     * Serialize table:
+     *
+     * ```lua
+     * local my_table = {}
+     * table.insert(my_table, "my_value")
+     * local buffer = sys.serialize(my_table)
+     * ```
+     */
+
     static int Sys_Serialize(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -1139,6 +1157,21 @@ union SaveLoadBuffer
         return 1;
 
     }
+
+    /*# deserializes buffer into a lua table
+     *
+     * @name sys.deserialize
+     * @param buffer [type:string] buffer to deserialize from
+     * @return table [type:table] lua table with deserialized data
+     * @examples
+     *
+     * Deserialize a lua table that was previously serialized:
+     *
+     * ```lua
+     * local buffer = sys.serialize(my_table)
+     * local table = sys.deserialize(buffer)
+     * ```
+     */
 
     static int Sys_Deserialize(lua_State* L)
     {   
