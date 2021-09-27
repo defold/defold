@@ -303,7 +303,7 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
-            return 0;
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection");
 
         Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
         Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
@@ -414,10 +414,8 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
-        {
-            lua_pushnil(L);
-            return 1;
-        }
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
+        
         Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
         Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
 
@@ -972,7 +970,7 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
-            return 0;
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         Vectormath::Aos::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
 
         dmGameSystem::SetGravity(world, new_gravity);
@@ -1017,10 +1015,7 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
-        {
-            lua_pushnil(L);
-            return 1;
-        }
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         Vectormath::Aos::Vector3 gravity = dmGameSystem::GetGravity(world);
         dmScript::PushVector3(L, gravity);
 
