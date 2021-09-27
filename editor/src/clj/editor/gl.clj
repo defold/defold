@@ -163,6 +163,7 @@
 (defmacro gl-disable [gl cap]                                            `(.glDisable ~gl ~cap))
 (defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~gl ~mode))
 (defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~gl ~sfactor ~dfactor))
+(defmacro gl-front-face [gl mode]                                        `(.glFrontFace ~gl ~mode))
 
 (defn gl-get-integer-v
   [^GL2 gl ^Integer param sz]
@@ -293,7 +294,8 @@
 
 (defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 
-(defmacro gl-draw-arrays [gl t s c]     `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~t ~s ~c))
+(defmacro gl-draw-arrays [gl prim-type start count]      `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
+(defmacro gl-draw-elements [gl prim-type start count]    `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count GL/GL_UNSIGNED_INT ~start))
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 
