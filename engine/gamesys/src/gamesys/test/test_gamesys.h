@@ -41,6 +41,8 @@ struct ProjectOptions {
   uint32_t m_MaxCollisionCount;
   uint32_t m_MaxContactPointCount;
   bool m_3D;
+  float m_Scale;
+  float m_VelocityThreshold;
 };
 
 template<typename T>
@@ -69,6 +71,8 @@ public:
         this->m_projectOptions.m_MaxCollisionCount = 0;
         this->m_projectOptions.m_MaxContactPointCount = 0;
         this->m_projectOptions.m_3D = false;
+        this->m_projectOptions.m_Scale = 1.0f;
+        this->m_projectOptions.m_VelocityThreshold = 1.0f;
     }
 protected:
     virtual void SetUp();
@@ -367,6 +371,8 @@ void GamesysTest<T>::SetUp()
     m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
     m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
     m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
+    m_PhysicsContext.m_Scale = this->m_projectOptions.m_Scale;
+    m_PhysicsContext.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
 
     m_ParticleFXContext.m_Factory = m_Factory;
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
