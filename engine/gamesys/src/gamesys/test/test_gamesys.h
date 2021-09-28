@@ -119,6 +119,15 @@ public:
     }
 };
 
+class VelocityThreshold2DTest : public CollisionObject2DTest<const char*>
+{
+public:
+	VelocityThresholdTest() {
+		m_projectOptions.m_Scale = 0.1;
+		m_projectOptions.velocityThreshold = 20;
+	}
+};
+
 class ResourceTest : public GamesysTest<const char*>
 {
 public:
