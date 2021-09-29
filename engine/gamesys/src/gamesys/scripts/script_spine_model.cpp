@@ -19,7 +19,7 @@ namespace dmGamesystem
 
 static int SpineModel_ThrowError(lua_State* L)
 {
-    return luaL_error(L, "webview has been removed from core, please read /builtins/docs/webview.md for more information.");
+    return luaL_error(L, "spine module support has been removed from core. Support has been moved to https://github.com/defold/extension-spine");
 }
 
 static const luaL_reg SPINE_COMP_FUNCTIONS[] =
