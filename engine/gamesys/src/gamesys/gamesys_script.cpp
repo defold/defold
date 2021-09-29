@@ -27,7 +27,6 @@
 #include "scripts/script_sprite.h"
 #include "scripts/script_factory.h"
 #include "scripts/script_collection_factory.h"
-#include "scripts/script_spine_model.h"
 #include "scripts/script_resource.h"
 #include "scripts/script_model.h"
 #include "scripts/script_window.h"
@@ -120,7 +119,6 @@ namespace dmGameSystem
         ScriptCollectionFactoryRegister(context);
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
-        ScriptSpineModelRegister(context);
         ScriptResourceRegister(context);
         ScriptModelRegister(context);
         ScriptWindowRegister(context);

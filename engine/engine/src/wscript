@@ -46,8 +46,8 @@ def build(bld):
 
     additional_libs = ['CRASH']
 
-    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeSpineModel']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeSpineModel']
+    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim', 'ResourceTypeAnimationSet']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript']
     exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
