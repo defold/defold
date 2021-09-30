@@ -138,8 +138,11 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         engine->m_InvPhysicalWidth = 1.0f / width;
         engine->m_InvPhysicalHeight = 1.0f / height;
-        // update gui context
-        dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
+        // update gui context if it exists
+        if (engine->m_GuiContext.m_GuiContext)
+        {
+            dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
+        }
 
         dmGameSystem::OnWindowResized(width, height);
     }
@@ -935,6 +938,11 @@ namespace dmEngine
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
+
+      // If an extension changes window size at extensions initialization phase, engine should read that.  
+        physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+        physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+
         gui_params.m_PhysicalWidth = physical_width;
         gui_params.m_PhysicalHeight = physical_height;
         gui_params.m_DefaultProjectWidth = engine->m_Width;

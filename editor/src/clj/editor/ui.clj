@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,7 @@
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.progress :as progress]
             [editor.math :as math]
             [editor.util :as eutil]
@@ -614,15 +614,21 @@
     (apply-user-css! root)
     root))
 
-(defn- load-xml [path]
-  (with-open [stream (io/input-stream (io/resource path))]
-    (xml/parse stream)))
+(defn- empty-svg []
+    {:tag :svg, :attrs nil, :content [{ :tag :path, :attrs {:d "M0,0"}, :content nil}]})
+
+(defn- load-svg-xml [path]
+  (try
+    (with-open [stream (io/input-stream (io/resource path))]
+      (xml/parse stream))
+    (catch Exception e
+      (empty-svg))))
 
 (defn load-svg-path
   "Loads the path data from a simple .svg file. Assumes the scene contains a
   single path, but is useful for things like monochrome vector icons."
   ^SVGPath [path]
-  (let [svg (load-xml path)
+  (let [svg (load-svg-xml path)
         content (:content svg)
         path (util/first-where #(= :path (:tag %)) content)
         path-data (get-in path [:attrs :d])]
@@ -803,7 +809,7 @@
                 (do
                   (proxy-super setText (:text render-data))
                   (when-let [icon (:icon render-data)]
-                    (proxy-super setGraphic (jfx/get-image-view icon 16)))))))
+                    (proxy-super setGraphic (icons/get-image-view icon 16)))))))
           (proxy-super setTooltip (:tooltip render-data)))))))
 
 (defn- make-list-cell-factory [render-fn]
@@ -838,7 +844,7 @@
                            (proxy-super setGraphic (when-let [icon (:icon render-data)]
                                                      (if (= :empty icon)
                                                        (ImageView.)
-                                                       (jfx/get-image-view icon (:icon-size render-data 16)))))))
+                                                       (icons/get-image-view icon (:icon-size render-data 16)))))))
                        (proxy-super setTooltip (:tooltip render-data))
                        (proxy-super setOnDragOver (:over-handler render-data))
                        (proxy-super setOnDragDropped (:dropped-handler render-data))
@@ -1203,7 +1209,7 @@
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (when icon
-        (.setGraphic menu (wrap-menu-image (jfx/get-image-view icon 16))))
+        (.setGraphic menu (wrap-menu-image (icons/get-image-view icon 16))))
       (when style-classes
         (assert (set? style-classes))
         (doto (.getStyleClass menu)
@@ -1239,7 +1245,7 @@
     (when (some? key-combo)
       (.setAccelerator menu-item key-combo))
     (when icon
-      (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
+      (.setGraphic menu-item (wrap-menu-image (icons/get-image-view icon 16))))
     (when style-classes
       (assert (set? style-classes))
       (doto (.getStyleClass menu-item)
@@ -1675,7 +1681,7 @@
                                                                                   (when new
                                                                                     (let [command-contexts (contexts scene)]
                                                                                       (execute-command command-contexts (:command new) (:user-data new))))))
-                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
+                                                   (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
@@ -1690,7 +1696,7 @@
                                                      (.setGraphic button (graphic-fn))
 
                                                      icon
-                                                     (.setGraphic button (jfx/get-image-view icon 16)))
+                                                     (.setGraphic button (icons/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
                                                                           (execute-command (contexts scene) command user-data))))

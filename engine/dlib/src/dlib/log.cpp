@@ -257,6 +257,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
             {
                 dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
                 dmSocket::Delete(c->m_Socket);
+                c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                 self->m_Connections.EraseSwap(i);
                 --n;
                 --i;
@@ -362,11 +363,13 @@ void dmLogFinalize()
         dmLogConnection* c = &self->m_Connections[i];
         dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
         dmSocket::Delete(c->m_Socket);
+        c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
     }
 
     if (self->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
     {
         dmSocket::Delete(self->m_ServerSocket);
+        self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
     }
 
     if (self->m_MessgeSocket != 0)

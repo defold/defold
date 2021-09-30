@@ -15,7 +15,7 @@
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
             [editor.handler :as handler]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -194,7 +194,7 @@
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
                 #{"severity-error"})
-        image (jfx/get-image-view icon 16)
+        image (icons/get-image-view icon 16)
         text (Text. message)]
     {:graphic (HBox. (ui/node-array [image text]))
      :style style}))

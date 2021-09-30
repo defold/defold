@@ -208,12 +208,14 @@ namespace dmConnectionPool
 
     static void DoClose(HPool pool, Connection* c)
     {
+        if (c->m_SSLSocket != dmSSLSocket::INVALID_SOCKET_HANDLE) {
+            dmSSLSocket::Delete(c->m_SSLSocket);
+            c->m_SSLSocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
+        }
         if (c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE) {
             dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
             dmSocket::Delete(c->m_Socket);
-        }
-        if (c->m_SSLSocket != dmSSLSocket::INVALID_SOCKET_HANDLE) {
-            dmSSLSocket::Delete(c->m_SSLSocket);
+            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
         }
         c->Clear();
     }
@@ -504,8 +506,8 @@ namespace dmConnectionPool
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_CONNECTED)
             {
-                dmSocket::Delete(c->m_Socket);
                 dmSSLSocket::Delete(c->m_SSLSocket);
+                dmSocket::Delete(c->m_Socket);
                 c->Clear();
             }
         }

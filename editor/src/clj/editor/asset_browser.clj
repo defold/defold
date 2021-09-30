@@ -18,7 +18,7 @@
             [editor.fs :as fs]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
@@ -621,7 +621,7 @@
         db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
         content (ClipboardContent.)]
     (when (= 1 (count resources))
-      (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)) 16)
+      (.setDragView db (icons/get-image (workspace/resource-icon (first resources)) 16)
                     0 16))
     (.putFiles content files)
     (.setContent db content)

@@ -23,7 +23,7 @@
             [editor.field-expression :as field-expression]
             [editor.form :as form]
             [editor.fxui :as fxui]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.settings :as settings]
@@ -131,7 +131,7 @@
   (cond-> (-> props
               (dissoc :image)
               (assoc :graphic {:fx/type :image-view
-                               :image (jfx/get-image (:image props))}))
+                               :image (icons/get-image (:image props))}))
 
           (contains? props :fit-size)
           add-image-fit-size))

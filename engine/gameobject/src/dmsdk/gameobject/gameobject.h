@@ -241,6 +241,14 @@ namespace dmGameObject
         UPDATE_RESULT_UNKNOWN_ERROR = -1000,
     };
 
+    /*# Property Options
+     *
+     * A table of options for getting and setting properties.
+     *
+     * @struct
+     * @name PropertyOptions
+     * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
+     */
     struct PropertyOptions
     {
         int32_t m_Index;
@@ -369,7 +377,7 @@ namespace dmGameObject
         uint8_t  m_IsGamepad : 1;
         uint8_t  m_GamepadDisconnected : 1;
         uint8_t  m_GamepadConnected : 1;
-        uint32_t m_HasGamepadPacket : 1;
+        uint8_t  m_HasGamepadPacket : 1;
         /// If input has a text payload (can be true even if text count is 0)
         uint8_t  m_HasText : 1;
         /// If the input was 0 last update

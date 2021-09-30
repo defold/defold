@@ -90,6 +90,14 @@ function test_sys()
         print(s)
     end
 
+    -- serialize/deserialize
+    data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player", [1] = "lala" }
+    local serialized = sys.serialize(data)
+    local deserialized = sys.deserialize(serialized)
+    for k, v in pairs(data) do
+        assert(deserialized[k] == v)
+    end
+
 end
 
 functions = { test_sys = test_sys }

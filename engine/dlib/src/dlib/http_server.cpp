@@ -113,7 +113,7 @@ namespace dmHttpServer
 
     static Result Connect(Server* server, uint16_t port)
     {
-        dmSocket::Socket socket = -1;
+        dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Address bind_address;
         dmSocket::Result r = dmSocket::RESULT_OK;
 
@@ -641,6 +641,7 @@ bail:
             {
                 dmSocket::Shutdown(connection->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
                 dmSocket::Delete(connection->m_Socket);
+                connection->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                 server->m_Connections.EraseSwap(i);
                 --i;
             }
@@ -668,6 +669,7 @@ bail:
                 {
                     dmSocket::Shutdown(connection->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
                     dmSocket::Delete(connection->m_Socket);
+                    connection->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                     server->m_Connections.EraseSwap(i);
                     --i;
                 }
@@ -683,4 +685,3 @@ bail:
     }
 
 }
-

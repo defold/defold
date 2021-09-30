@@ -360,6 +360,10 @@ namespace dmSocket
 
     Result Delete(Socket socket)
     {
+        if (socket == INVALID_SOCKET_HANDLE)
+        {
+            return RESULT_BADF;
+        }
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
         int result = close(socket);
 #else

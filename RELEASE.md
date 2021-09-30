@@ -60,12 +60,11 @@ and add the "BETA" tag to the headline
  1. Tag the release in git:
 
         $ git checkout master
-        $ git tag -a X.Y.Z (same as version produced by the bump)
+        $ git tag -a X.Y.Z -m "Release X.Y.Z"
 
-    Use tag message: Release X.Y.Z
     Add `-f` to force update the tag (in the case you need to amend an existing release for some reason).
 
-        $ git push origin --tags
+        $ git push origin --tags -f
 
     This will push the tags to GitHub, which is then used later in the release step. Add `-f` to force update the tags.
 
@@ -85,7 +84,7 @@ and add the "BETA" tag to the headline
 
         $ git checkout editor-dev
         $ git pull
-        $ git merge master
+        $ git merge master -m "Merged master into editor-dev"
         $ git push
 
 This will trigger a build of the engines and editors for editor-alpha.
@@ -100,7 +99,7 @@ This will trigger a build of the engines and editors for editor-alpha.
         $ git checkout master
         $ git pull
         $ ./update.py --download refdoc
-        $ git commit -am "Updated reference documentation to 1.2.xxx"
+        $ git commit -am "Updated reference documentation to X.Y.Z"
         $ git push
 
 1. Merge `master` into `dev`:
@@ -108,14 +107,14 @@ This will trigger a build of the engines and editors for editor-alpha.
         $ cd defold
         $ git checkout dev
         $ git pull
-        $ git merge master
+        $ git merge master -m "Merged master into dev"
 
 1. Bump version:
 
         $ ./scripts/build.py bump
         $ git diff
         $ git add VERSION
-        $ git commit -m "Bumped version to 1.2.xx"
+        $ git commit -m "Bumped version to X.Y.Z"
         $ git push
 
 1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline

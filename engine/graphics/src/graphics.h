@@ -596,7 +596,7 @@ namespace dmGraphics
     bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
 
     /** checks if the texture format is compressed
-     * @name IsFormatTranscoded
+     * @name Transcode
      * @param path The path of the texture
      * @param image The input image
      * @param format The desired output format

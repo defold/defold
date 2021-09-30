@@ -31,6 +31,7 @@ namespace dmVMath
     typedef Vectormath::Aos::Vector4    Vector4;
     typedef Vectormath::Aos::Quat       Quat;
     typedef Vectormath::Aos::Matrix4    Matrix4;
+    typedef Vectormath::Aos::Matrix3    Matrix3;
 
 } // dmVMath
 

@@ -43,7 +43,7 @@ the `do-gl` macro from `editor.gl`."
             [internal.util :as util])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
            [com.jogamp.common.nio Buffers]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer IntBuffer]
            [java.util.concurrent.atomic AtomicLong AtomicBoolean]
            [com.jogamp.opengl GL GL2]))
 
@@ -510,6 +510,13 @@ the `do-gl` macro from `editor.gl`."
     (vertex-disable-attribs gl attrib-locs)
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))
 
+(defn- bind-index-buffer! [^GL2 gl request-id ^"[I" index-buffer]
+  (let [ibo (scene-cache/request-object! ::ibo request-id gl index-buffer)]
+    (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)))
+
+(defn- unbind-index-buffer! [^GL2 gl]
+  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER 0))
+
 (defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
   GlBind
   (bind [_this gl render-args]
@@ -518,13 +525,25 @@ the `do-gl` macro from `editor.gl`."
   (unbind [_this gl render-args]
     (unbind-vertex-buffer-with-shader! gl vertex-buffer shader)))
 
+(defrecord VertexIndexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer ^"[I" index-buffer shader]
+  GlBind
+  (bind [_this gl render-args]
+    (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
+    (bind-index-buffer! gl request-id index-buffer))
+
+  (unbind [_this gl render-args]
+    (unbind-vertex-buffer-with-shader! gl vertex-buffer shader)
+    (unbind-index-buffer! gl)))
+
 (defn use-with
   "Return a GlBind implementation that can match vertex buffer attributes to the
   given shader's attributes. Matching is done by attribute names. An attribute
   that exists in the vertex buffer but is not used by the shader will simply be
   ignored."
-  [request-id ^PersistentVertexBuffer vertex-buffer shader]
-  (->VertexBufferShaderLink request-id vertex-buffer shader))
+  ([request-id ^PersistentVertexBuffer vertex-buffer shader]
+   (->VertexBufferShaderLink request-id vertex-buffer shader))
+  ([request-id ^PersistentVertexBuffer vertex-buffer ^"[I" index-buffer shader]
+   (->VertexIndexBufferShaderLink request-id vertex-buffer index-buffer shader)))
 
 (defn- update-vbo [^GL2 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
@@ -540,3 +559,20 @@ the `do-gl` macro from `editor.gl`."
   (apply gl/gl-delete-buffers gl vbos))
 
 (scene-cache/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)
+
+(defn- update-ibo [^GL2 gl ibo data]
+  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)
+  (let [int-buffer (IntBuffer/wrap (int-array data))
+        count (.remaining int-buffer)
+        size (* count 4)]
+    (gl/gl-buffer-data ^GL2 gl GL/GL_ELEMENT_ARRAY_BUFFER size int-buffer GL2/GL_STATIC_DRAW))
+  ibo)
+
+(defn- make-ibo [^GL2 gl data]
+  (let [ibo (first (gl/gl-gen-buffers gl 1))]
+    (update-ibo gl ibo data)))
+
+(defn- destroy-ibos [^GL2 gl ibos _]
+  (apply gl/gl-delete-buffers gl ibos))
+
+(scene-cache/register-object-cache! ::ibo make-ibo update-ibo destroy-ibos)

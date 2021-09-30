@@ -2,10 +2,12 @@
 
 Defold uses the Python based build system [Waf](https://waf.io/). Most of the interaction is done through the `build.py` script but it is also possible to use Waf directly.
 
-## IMPORTANT PREREQUISITE!
+## IMPORTANT PREREQUISITE - SETUP!
 
 Make sure you have followed the [setup guide](/README_SETUP.md) before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
 
+## IMPORTANT PREREQUISITE - PACKAGE SDKs!
+Due to licensing restrictions **the SDKs are not distributed with Defold**. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
 
 ## Standard workflow
 
@@ -57,17 +59,13 @@ $ ./scripts/build.py install_ext --platform=... --package-path=...
 It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
 
 **IMPORTANT!**
-You need to rerun this command whenever you switch target platform, as different packages and SDKs are installed.
+You need to rerun the `install_ext` command whenever you switch target platform, as different packages and SDKs are installed.
 
 #### Installing packages
-The command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet, Protocol Buffers (a.k.a. protobuf), WebP and c-ares. This step also installs some Python dependencies such as `requests`, `boto` and `Pygments`.
+The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf). This step also installs some Python dependencies such as `requests`, `boto` and `Pygments`.
 
 #### Installing SDKs
 The second step of the `install_ext` command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
-
-**IMPORTANT!**
-Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
-
 
 ### STEP 3 - Build the engine
 

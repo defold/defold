@@ -53,18 +53,37 @@ def configure(conf):
 
 def build(bld):
 
+    private_platforms = ('nx64', 'ps4')
+
     source = ['build.yml']
-    if os.path.exists('build_private.yml'):
-        source += ['build_private.yml']
+    for platform in private_platforms:
+        private_source = 'build_%s.yml' % platform
+        if os.path.exists(private_source):
+            source += [private_source]
 
     bld.new_task_gen(features = 'merge_yaml',
                      yaml_source = source,
                      yaml_target = 'build.yml',
                      name='Build Yaml')
 
+    variants = ('debug', 'release', 'headless')
+    for variant in variants:
+        source = ['variants/%s.appmanifest' % variant]
+        for platform in private_platforms:
+            private_source = 'variants/%s_%s.appmanifest' % (variant, platform)
+            if os.path.exists(private_source):
+                source += [private_source]
+
+        bld.new_task_gen(features = 'merge_yaml',
+                         yaml_source = source,
+                         yaml_target = source[0],
+                         name='Build Yaml %s' % variant)
+
     bld.add_group()
     bld.install_files('${PREFIX}/extender', 'build.yml')
-    bld.install_files('${PREFIX}/extender/variants', 'variants/*.appmanifest')
+    bld.install_files('${PREFIX}/extender/variants', 'variants/debug.appmanifest')
+    bld.install_files('${PREFIX}/extender/variants', 'variants/release.appmanifest')
+    bld.install_files('${PREFIX}/extender/variants', 'variants/headless.appmanifest')
 
 def shutdown():
     pass

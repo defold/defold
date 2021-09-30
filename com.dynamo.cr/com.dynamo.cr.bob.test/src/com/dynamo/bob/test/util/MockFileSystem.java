@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,24 +33,28 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
     // To easier handle walking we want the resources to be sorted by their key.
     protected Map<String, MockResource> resources = new TreeMap<String, MockResource>();
 
-    public void addFile(String path, byte[] content, long lastModified) {
+    public MockResource addFile(String path, byte[] content, long lastModified) {
         path = FilenameUtils.normalize(path, true);
         // Paths are always root relative.
         if (path.startsWith("/"))
             path = path.substring(1);
-        resources.put(path, new MockResource(this, path, content, lastModified));
+        MockResource resource = new MockResource(this, path, content, lastModified);
+        resources.put(path, resource);
+        return resource;
     }
 
-    public void addFile(String path, byte[] content) {
-        addFile(path, content, System.currentTimeMillis());
+    public MockResource addFile(String path, byte[] content) {
+        return addFile(path, content, System.currentTimeMillis());
     }
 
-    public void addDirectory(String path) {
+    public MockResource addDirectory(String path) {
         path = FilenameUtils.normalize(path, true);
         // Paths are always root relative.
         if (path.startsWith("/"))
             path = path.substring(1);
-        resources.put(path, new MockResource(this, path));
+        MockResource resource = new MockResource(this, path);
+        resources.put(path, resource);
+        return resource;
     }
 
     @Override

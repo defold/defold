@@ -1130,6 +1130,58 @@ union SaveLoadBuffer
         return 0;
     }
 
+    /*# serializes a lua table to a buffer and returns it
+     * The buffer can later deserialized by <code>sys.deserialize</code>.
+     * This method has all the same limitations as <code>sys.save</code>.
+     *
+     * @name sys.serialize
+     * @param table [type:table] lua table to serialize
+     * @return buffer [type:string] serialized data buffer
+     * @examples
+     *
+     * Serialize table:
+     *
+     * ```lua
+     * local my_table = {}
+     * table.insert(my_table, "my_value")
+     * local buffer = sys.serialize(my_table)
+     * ```
+     */
+
+    static int Sys_Serialize(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        luaL_checktype(L, 1, LUA_TTABLE);
+        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 1);
+        lua_pushlstring(L, (const char*)g_saveload.m_buffer, n_used);
+        return 1;
+
+    }
+
+    /*# deserializes buffer into a lua table
+     *
+     * @name sys.deserialize
+     * @param buffer [type:string] buffer to deserialize from
+     * @return table [type:table] lua table with deserialized data
+     * @examples
+     *
+     * Deserialize a lua table that was previously serialized:
+     *
+     * ```lua
+     * local buffer = sys.serialize(my_table)
+     * local table = sys.deserialize(buffer)
+     * ```
+     */
+
+    static int Sys_Deserialize(lua_State* L)
+    {   
+        DM_LUA_STACK_CHECK(L, 1);
+        size_t bytes_lenght;
+        const char* bytes = luaL_checklstring(L, 1, &bytes_lenght);
+        PushTable(L, bytes, bytes_lenght);
+        return 1;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -1150,6 +1202,8 @@ union SaveLoadBuffer
         {"reboot", Sys_Reboot},
         {"set_update_frequency", Sys_SetUpdateFrequency},
         {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
+        {"serialize", Sys_Serialize},
+        {"deserialize", Sys_Deserialize},
         {0, 0}
     };
 

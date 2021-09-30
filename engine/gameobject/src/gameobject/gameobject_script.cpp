@@ -566,7 +566,12 @@ namespace dmGameObject
             lua_pushvalue(L, 3);
 
             lua_getfield(L, -1, "index");
-            property_options.m_Index = lua_isnil(L, -1) ? 0.0 : luaL_checkinteger(L, -1);
+            if (!lua_isnumber(L, -1))
+            {
+                return luaL_error(L, "Invalid number passed as index argument in options table.");
+            }
+            // TODO: Check if property is an array and throw error if it isn't
+            property_options.m_Index = luaL_checkinteger(L, -1) - 1;
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -592,7 +597,7 @@ namespace dmGameObject
                 }
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
+            return luaL_error(L, "Could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.get failed with error code %d", result);
@@ -679,7 +684,12 @@ namespace dmGameObject
             lua_pushvalue(L, 4);
 
             lua_getfield(L, -1, "index");
-            property_options.m_Index = lua_isnil(L, -1) ? 0.0 : luaL_checkinteger(L, -1);
+            if (!lua_isnumber(L, -1))
+            {
+                return luaL_error(L, "Invalid number passed as index argument in options table.");
+            }
+            // TODO: Check if property is an array and throw error if it isn't
+            property_options.m_Index = luaL_checkinteger(L, -1) - 1;
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -1356,7 +1366,8 @@ namespace dmGameObject
      * [icon:attention] If you call `go.animate()` from a game object's `final()` function,
      * any passed `complete_function` will be ignored and never called upon animation completion.
      *
-     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how to animate them.
+     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how 
+     them.
      *
      * @name go.animate
      * @param url [type:string|hash|url] url of the game object or component having the property
@@ -1542,7 +1553,7 @@ namespace dmGameObject
      *
      * @name go.cancel_animations
      * @param url [type:string|hash|url] url of the game object or component having the property
-     * @param property [type:string|hash] ide of the property to animate
+     * @param property [type:string|hash] id of the property to cancel
      * @examples
      *
      * Cancel the animation of the position of a game object:

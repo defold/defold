@@ -774,7 +774,7 @@ namespace dmRender
                 memcpy(c->m_ValuePtr, values, sizeof(values[0]) * num_values);
 
                 c->m_NameHash = name_hash;
-                c->m_Type     = num_values > 1 ? dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_ARRAY : dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+                c->m_Type     = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
                 c->m_Location = location;
                 return;
             }

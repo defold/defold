@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -96,7 +96,7 @@ public interface IResource {
     IResource output();
 
     /**
-     * Check is the resource is an output-resource, see {@link IResource#output()}
+     * Check if the resource is an output-resource, see {@link IResource#output()}
      * @return true if an output-resource
      */
     boolean isOutput();
@@ -113,4 +113,16 @@ public interface IResource {
      * @return long representing Unix time when the resource was modified
      */
     long getLastModified();
+
+    /**
+     * Disable caching of this resource
+     * @return This instance (for function chaining)
+     */
+    IResource disableCache();
+
+    /**
+     * Check if this resource should can be cached
+     * @return True if resource can be cached. Defaults to true
+     */
+    boolean isCacheable();
 }

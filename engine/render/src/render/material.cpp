@@ -183,7 +183,6 @@ namespace dmRender
             int32_t location = constant.m_Location;
             switch (constant.m_Type)
             {
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_ARRAY:
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                 {
                     dmGraphics::SetConstantV4(graphics_context, constant.m_ValuePtr, constant.m_NumComponents, location);
