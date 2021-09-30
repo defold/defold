@@ -247,7 +247,6 @@ int Launch(int argc, char **argv) {
     char ram_str_buf[100];
     GetThreeQuartersRAMStr(ram_str_buf, 34359738368ull); // Max 32 gigs.
     args[i++] = ram_str_buf;
-    dmLogDebug("ram_str_buf %s", ram_str_buf);
 
     args[i++] = (char*) main;
 #if defined(__MACH__)
