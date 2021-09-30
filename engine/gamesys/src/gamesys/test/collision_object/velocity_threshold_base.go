@@ -1,6 +1,6 @@
 components {
   id: "velocity-threshold-script"
-  component: "/collision_object/velocity_threashold.script"
+  component: "/collision_object/velocity_threshold.script"
 }
 components {
   id: "base-co"

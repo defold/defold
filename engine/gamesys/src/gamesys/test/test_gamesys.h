@@ -119,12 +119,12 @@ public:
     }
 };
 
-class VelocityThreshold2DTest : public CollisionObject2DTest<const char*>
+class VelocityThreshold2DTest : public CollisionObject2DTest
 {
 public:
-	VelocityThresholdTest() {
+	VelocityThreshold2DTest() {
 		m_projectOptions.m_Scale = 0.1;
-		m_projectOptions.velocityThreshold = 20;
+		m_projectOptions.m_VelocityThreshold = 20;
 	}
 };
 
@@ -379,9 +379,10 @@ void GamesysTest<T>::SetUp()
     m_PhysicsContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
     m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
     m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
-    m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
-    m_PhysicsContext.m_Scale = this->m_projectOptions.m_Scale;
-    m_PhysicsContext.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
+    dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
+    context2DParams.m_Scale = this->m_projectOptions.m_Scale;
+    context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
+    m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(context2DParams);
 
     m_ParticleFXContext.m_Factory = m_Factory;
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
