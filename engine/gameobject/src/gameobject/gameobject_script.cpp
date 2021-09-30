@@ -1325,7 +1325,8 @@ namespace dmGameObject
      * [icon:attention] If you call `go.animate()` from a game object's `final()` function,
      * any passed `complete_function` will be ignored and never called upon animation completion.
      *
-     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how to animate them.
+     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how 
+     them.
      *
      * @name go.animate
      * @param url [type:string|hash|url] url of the game object or component having the property
@@ -1511,7 +1512,7 @@ namespace dmGameObject
      *
      * @name go.cancel_animations
      * @param url [type:string|hash|url] url of the game object or component having the property
-     * @param property [type:string|hash] ide of the property to animate
+     * @param property [type:string|hash] id of the property to cancel
      * @examples
      *
      * Cancel the animation of the position of a game object:
