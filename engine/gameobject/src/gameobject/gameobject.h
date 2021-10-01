@@ -94,9 +94,10 @@ namespace dmGameObject
      * @param factory Resource factory. Must be valid during the life-time of the collection
      * @param regist Register
      * @param max_instances Max instances in this collection
+     * @param collection_desc description data of collections
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc);
 
     /**
      * Deletes a gameobject collection
@@ -155,7 +156,7 @@ namespace dmGameObject
      * object is created under which all spawned children are placed.
      *
      * @param collection Gameobject collection to spawn into
-     * @param prototype_name Collection file name
+     * @param collection_desc Description data of collections
      * @param property_buffers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
      * @param position Position for the root object
      * @param rotation Rotation for the root object

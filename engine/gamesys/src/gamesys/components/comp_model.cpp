@@ -105,10 +105,11 @@ namespace dmGameSystem
         ModelContext* context = (ModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = new ModelWorld();
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxModelCount);
 
         dmRig::NewContextParams rig_params = {0};
         rig_params.m_Context = &world->m_RigContext;
-        rig_params.m_MaxRigInstanceCount = context->m_MaxModelCount;
+        rig_params.m_MaxRigInstanceCount = comp_count;
         dmRig::Result rr = dmRig::NewContext(rig_params);
         if (rr != dmRig::RESULT_OK)
         {
@@ -116,8 +117,8 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        world->m_Components.SetCapacity(context->m_MaxModelCount);
-        world->m_RenderObjects.SetCapacity(context->m_MaxModelCount);
+        world->m_Components.SetCapacity(comp_count);
+        world->m_RenderObjects.SetCapacity(comp_count);
 
         dmGraphics::VertexElement ve[] =
         {
