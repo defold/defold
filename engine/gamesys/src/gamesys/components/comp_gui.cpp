@@ -36,6 +36,7 @@
 #include "../resources/res_animationset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include <gamesys/spine_ddf.h>
 
 extern unsigned char GUI_VPC[];
 extern uint32_t GUI_VPC_SIZE;

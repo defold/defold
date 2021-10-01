@@ -1,3 +1,5 @@
+// NOTE: STILL NEEDED FOR THE MESSAGES IN GUI
+
 package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
