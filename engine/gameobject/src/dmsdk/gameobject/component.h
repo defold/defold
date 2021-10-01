@@ -48,6 +48,9 @@ namespace dmGameObject
         uint32_t m_MaxInstances;
         /// Out-parameter of the pointer in which to store the created world
         void** m_World;
+        /// Max components count of this type in current collection counted at the build stage.
+        /// If component in factory then value is 0xFFFFFFFF
+        uint32_t m_MaxComponentInstances;
     };
 
     /*#
@@ -677,7 +680,6 @@ namespace dmGameObject
     #define DM_DECLARE_COMPONENT_TYPE(symbol, name, type_create_fn) \
         uint8_t DM_ALIGNED(16) DM_COMPONENT_PASTE_SYMREG2(symbol, __LINE__)[dmGameObject::s_ComponentTypeDescBufferSize]; \
         DM_REGISTER_COMPONENT_TYPE(symbol, DM_COMPONENT_PASTE_SYMREG2(symbol, __LINE__), name, type_create_fn);
-
 
 }
 

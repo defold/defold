@@ -54,7 +54,7 @@ protected:
         dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         dmGameObject::SortComponentTypes(m_Register);
 
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register), 0x0);
         m_FinishCount = 0;
         m_CancelCount = 0;
     }

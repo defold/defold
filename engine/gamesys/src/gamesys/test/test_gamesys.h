@@ -432,7 +432,7 @@ void GamesysTest<T>::SetUp()
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
 
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
 }
 
 template<typename T>

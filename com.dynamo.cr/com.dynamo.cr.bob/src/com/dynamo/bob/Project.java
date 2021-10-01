@@ -293,7 +293,35 @@ public class Project {
         }
     }
 
+    static String[][] extensionMapping = new String[][] {
+        {".camera", ".camerac"},
+        {".buffer", ".bufferc"},
+        {".mesh", ".meshc"},
+        {".collectionproxy", ".collectionproxyc"},
+        {".collisionobject", ".collisionobjectc"},
+        {".emitter", ".emitterc"},
+        {".particlefx", ".particlefxc"},
+        {".gui", ".guic"},
+        {".model", ".modelc"},
+        {".script", ".scriptc"},
+        {".sound", ".soundc"},
+        {".wav", ".soundc"},
+        {".collectionfactory", ".collectionfactoryc"},
+        {".factory", ".factoryc"},
+        {".light", ".lightc"},
+        {".label", ".labelc"},
+        {".sprite", ".spritec"},
+        {".tilegrid", ".tilemapc"},
+        {".tilemap", ".tilemapc"},
+    };
+
     public String replaceExt(String inExt) {
+        for (int i = 0; i < extensionMapping.length; i++) {
+            if (extensionMapping[i][0].equals(inExt))
+            {
+                return extensionMapping[i][1];
+            }
+        }
         String outExt = inextToOutext.get(inExt); // Get the output ext, or use the inExt as default
         if (outExt != null)
             return outExt;
