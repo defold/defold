@@ -16,7 +16,6 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/array.h>
-#include <gamesys/spine_ddf.h>
 #include <dmsdk/rig/rig.h>
 #include <rig/rig_ddf.h>
 

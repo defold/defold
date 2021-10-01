@@ -6,7 +6,7 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "ModelProto";
 
-// TODO: Add documentation for messages, see spine_ddf.proto
+// TODO: Add documentation for messages, see https://github.com/defold/extension-spine/blob/main/defold-spine/commonsrc/spine_ddf.proto
 
 message ModelDesc
 {

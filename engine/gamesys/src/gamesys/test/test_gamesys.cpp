@@ -1972,19 +1972,6 @@ ResourceFailParams invalid_vp_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, jc_test_values_in(invalid_vp_resources));
 
-/* Spine Scene */
-
-const char* valid_spine_scene_resources[] = {"/spine/valid.rigscenec"};
-INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, jc_test_values_in(valid_spine_scene_resources));
-
-/* Spine Model */
-
-const char* valid_spine_model_resources[] = {"/spine/valid.spinemodelc"};
-INSTANTIATE_TEST_CASE_P(SpineModel, ResourceTest, jc_test_values_in(valid_spine_model_resources));
-
-const char* valid_spine_gos[] = {"/spine/valid_spine.goc"};
-INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, jc_test_values_in(valid_spine_gos));
-
 /* Label */
 
 void AssertPointEquals(const Vector4& p, float x, float y)
@@ -2064,7 +2051,6 @@ const char* invalid_vertexspace_resources[] =
 {
     "/sprite/invalid_vertexspace.spritec",
     "/model/invalid_vertexspace.modelc",
-    "/spine/invalid_vertexspace.spinemodelc",
     "/tile/invalid_vertexspace.tilegridc",
     "/particlefx/invalid_vertexspace.particlefxc",
     "/gui/invalid_vertexspace.guic",
@@ -2077,7 +2063,7 @@ INSTANTIATE_TEST_CASE_P(InvalidVertexSpace, InvalidVertexSpaceTest, jc_test_valu
 ResourcePropParams res_prop_params[] =
 {
     // property, val, val-not-found, val-invalid-ext, component0, ..., componentN
-    {"material", "/resource/resource_alt.materialc", "/not_found.materialc", "/resource/res_getset_prop.goc", "label", "model", "gui", "spine", "tilemap", 0},
+    {"material", "/resource/resource_alt.materialc", "/not_found.materialc", "/resource/res_getset_prop.goc", "label", "model", "gui", "tilemap", 0},
     {"font", "/resource/font.fontc", "/not_found.fontc", "/resource/res_getset_prop.goc", "label", 0},
     {"image", "/tile/valid2.texturesetc", "", "/resource/res_getset_prop.goc", "sprite", 0},
     {"texture0", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
@@ -2113,7 +2099,7 @@ INSTANTIATE_TEST_CASE_P(CollectionFactory, CollectionFactoryTest, jc_test_values
 
 DrawCountParams draw_count_params[] =
 {
-    {"/gui/draw_count_test.goc", 2},
+    {"/gui/draw_count_test.goc", 1},
     {"/gui/draw_count_test2.goc", 1},
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
