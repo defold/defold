@@ -19,6 +19,9 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Base64;
 import java.net.URL;
 import java.net.HttpURLConnection;
 import java.net.ConnectException;
@@ -32,16 +35,40 @@ import com.dynamo.bob.CompileExceptionError;
 
 public class HttpUtil {
 
-	private static void logWarning(String fmt, Object... args) {
-        System.err.println(String.format(fmt, args));
-    }
-    private static void logInfo(String fmt, Object... args) {
-        System.out.println(String.format(fmt, args));
-    }
+	private Map<String, String> headers = new HashMap<>();
 
-	public static void downloadToFile(URL url, File file) {
+	public HttpUtil() {}
+
+	private void logWarning(String fmt, Object... args) {
+		System.err.println(String.format(fmt, args));
+	}
+	private void logInfo(String fmt, Object... args) {
+		System.out.println(String.format(fmt, args));
+	}
+
+	public void setHeader(String key, String value) {
+		headers.put(key, value);
+	}
+
+	public void setAuthentication(String user, String pass) {
+		String userAndPass = user + ":" + pass;
+		String authorization = "Basic " + Base64.getEncoder().encodeToString(userAndPass.getBytes());
+		setHeader("Authorization", authorization);
+	}
+
+	private HttpURLConnection openConnection(URL url, String method) throws IOException {
+		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+		connection.setRequestMethod(method);
+		for (String key : headers.keySet()) {
+			String value = headers.get(key);
+			connection.setRequestProperty(key, value);
+		}
+		return connection;
+	}
+
+	public void downloadToFile(URL url, File file) {
 		try {
-			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+			HttpURLConnection connection = openConnection(url, "GET");
 			connection.connect();
 			int code = connection.getResponseCode();
 
@@ -70,10 +97,9 @@ public class HttpUtil {
 		}
 	}
 
-	public static void uploadFile(URL url, File file) {
+	public void uploadFile(URL url, File file) {
 		try {
-			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("PUT");
+			HttpURLConnection connection = openConnection(url, "PUT");
 			connection.setRequestProperty("Content-type", "application/octet-stream");
 			connection.setDoOutput(true);
 			connection.connect();
@@ -102,10 +128,9 @@ public class HttpUtil {
 		}
 	}
 
-	public static boolean exists(URL url) {
+	public boolean exists(URL url) {
 		try {
-			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("HEAD");
+			HttpURLConnection connection = openConnection(url, "HEAD");
 			connection.connect();
 			int code = connection.getResponseCode();
 			connection.disconnect();

@@ -99,7 +99,9 @@ and it will output files in `local_sdks`:
 
 ## Windows
 
-...
+Run the script
+
+	./scripts/package/package_win32_sdk.sh
 
 ## HTML5
 

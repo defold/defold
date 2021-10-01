@@ -15,6 +15,7 @@
 #include "android_log.h"
 
 #include <pthread.h>
+#include <unistd.h>
 
 typedef struct EglAttribSetting_t {
     EGLint m_Attribute;
@@ -123,9 +124,38 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
     return result;
 }
 
+static int IsAppAndWindowReady(_GLFWwin_android* win)
+{
+    return win != 0 && win->app != 0 && win->app->window != 0;
+}
+
+static int WaitForAppAndWindow(_GLFWwin_android* win)
+{
+    useconds_t  wait_period = 50*1000;
+    int         num_waits = 10;
+    do {
+        if (IsAppAndWindowReady(win)) {
+
+            LOGI("ENGINE THREAD: Window ready!");
+            return 1;
+        }
+        LOGI("ENGINE THREAD: Window not ready. Waiting...");
+        usleep(wait_period);
+    } while(--num_waits > 0);
+
+    LOGI("ENGINE THREAD: Window not ready. Exiting!");
+    return 0;
+}
+
 int init_gl(_GLFWwin_android* win)
 {
     LOGV("init_gl");
+
+    if (!WaitForAppAndWindow(win))
+    {
+        LOGE("ENGINE THREAD: Window not ready. Returning from init_gl()");
+        return 0;
+    }
 
     /*
      * NOTE: The example simple_gles2 doesn't work with EGL_CONTEXT_CLIENT_VERSION

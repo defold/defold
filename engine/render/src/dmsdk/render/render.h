@@ -343,6 +343,23 @@ namespace dmRender
      * @return listkey [type: uint32_t] the list key
      */
     uint32_t GetMaterialTagListKey(HMaterial material);
+
+    /*#
+     * Sets a render constant on a render object
+     * @name EnableRenderObjectConstant
+     * @param ro [type: dmRender::RenderObject*] the render object
+     * @param name_hash [type: dmhash_t] the name of the material constant
+     * @param value [type: dmVMath::Vector4] the constant
+     */
+    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vectormath::Aos::Vector4& value);
+
+    /*#
+     * Disables a previously set render constant on a render object
+     * @name DisableRenderObjectConstant
+     * @param ro [type: dmRender::RenderObject*] the render object
+     * @param name_hash [type: dmhash_t] the name of the material constant
+    */
+    void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash);
 }
 
 #endif /* DMSDK_RENDER_H */

@@ -181,6 +181,14 @@ public class Project {
         return option("resource-cache-remote", null);
     }
 
+    public String getRemoteResourceCacheUser() {
+        return option("resource-cache-remote-user", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_USER"));
+    }
+
+    public String getRemoteResourceCachePass() {
+        return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
+    }
+
     public BobProjectProperties getProjectProperties() {
         return projectProperties;
     }
@@ -407,17 +415,16 @@ public class Project {
         excludeFolders.addAll(loadDefoldIgnore());
 
         for (String input : sortedInputs) {
-            Task<?> task = doCreateTask(input);
-            if (task != null) {
-                boolean skipped = false;
-                for (String excludeFolder : excludeFolders) {
-                    if (input.startsWith(excludeFolder)) {
-                        skipped = true;
-                        break;
-                    }
+            boolean skipped = false;
+            for (String excludeFolder : excludeFolders) {
+                if (input.startsWith(excludeFolder)) {
+                    skipped = true;
+                    break;
                 }
-
-                if (!skipped) {
+            }
+            if (!skipped) {
+                Task<?> task = doCreateTask(input);
+                if (task != null) {
                     newTasks.add(task);
                 }
             }
@@ -907,7 +914,8 @@ public class Project {
                 try {
                     URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
                     File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
-                    HttpUtil.downloadToFile(url, file);
+                    HttpUtil http = new HttpUtil();
+                    http.downloadToFile(url, file);
                 }
                 catch (Exception e) {
                     throw new CompileExceptionError(e);
@@ -983,6 +991,7 @@ public class Project {
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
+        resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
