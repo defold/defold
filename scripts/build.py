@@ -1084,16 +1084,6 @@ class Configuration(object):
         if self.verbose:
             print s
 
-        self._log('Building extensions')
-        extension_dir = join(self.defold_root, 'com.dynamo.cr/extensions')
-        for d in os.listdir(extension_dir):
-            cwd = os.path.join(extension_dir, d)
-            if os.path.isdir(cwd):
-                self._log('Building %s' % d)
-                s = run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
-                if self.verbose:
-                    print s
-
         s = run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
             print s
@@ -1281,14 +1271,6 @@ class Configuration(object):
         env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
         run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
-
-        self._log('Building extensions')
-        extension_dir = join(self.defold_root, 'com.dynamo.cr/extensions')
-        for d in os.listdir(extension_dir):
-            cwd = os.path.join(extension_dir, d)
-            if os.path.isdir(cwd):
-                self._log('Building %s' % d)
-                run.command(" ".join([ant, 'clean', 'install'] + ant_args), cwd = cwd, shell = True, env = env)
 
         run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
