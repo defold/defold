@@ -19,13 +19,10 @@
 #include <dlib/mutex.h>
 #include <dlib/time.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/android.h>
 #include "sound.h"
 
-#include <android_native_app_glue.h>
-
 #include <SLES/OpenSLES.h>
-
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
 
 /**
  * OpenSL ES audio device
@@ -189,33 +186,21 @@ namespace dmDeviceOpenSL
         }
     }
 
-    static jclass LoadClass(JNIEnv* env, const char* class_name)
-    {
-        jclass activity_class = env->FindClass("android/app/NativeActivity");
-        jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
-        jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
-        jclass class_loader = env->FindClass("java/lang/ClassLoader");
-        jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-        jstring str_class_name = env->NewStringUTF(class_name);
-        jclass klass = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
-        assert(klass);
-        env->DeleteLocalRef(str_class_name);
-        return klass;
-    }
-
     static int GetSampleRate()
     {
-        JNIEnv* env;
-        g_AndroidApp->activity->vm->AttachCurrentThread(&env, NULL);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (env == 0)
+        {
+            return 44100;
+        }
 
-        jclass sound_class = LoadClass(env, "com.defold.sound.Sound");
+        jclass sound_class = dmAndroid::LoadClass(env, "com.defold.sound.Sound");
 
         jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
         assert(get_sample_rate);
-        jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, g_AndroidApp->activity->clazz);
-        g_AndroidApp->activity->vm->DetachCurrentThread();
-
-        return sample_rate;
+        jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz);
+        return (int)sample_rate;
     }
 
     dmSound::Result DeviceOpenSLOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
