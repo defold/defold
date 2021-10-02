@@ -71,7 +71,7 @@ public:
         Detach();
     }
 
-    /*# Is the environment attached and valid?
+    /*# Detaches the jni environment
      *
      * @name Detach
      * @return ok [type:bool] true if there was no java exceptions. False if there was an exception.
