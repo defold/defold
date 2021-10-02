@@ -3001,6 +3001,10 @@ namespace dmGameObject
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
+
+        // Default to 1, overwritten by functions is array is supported
+        out_value.m_NumComponents = 1;
+
         if (component_id == 0)
         {
             out_value.m_ValuePtr = 0x0;

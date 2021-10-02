@@ -64,13 +64,17 @@ namespace dmGameSystem
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
         uint32_t element_index = ~0u;
-        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index);
+        uint16_t num_components = 0;
+        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &num_components);
         if (result)
         {
             Vector4* value = 0x0;
             dmRender::Constant* comp_constant = 0x0;
             if (callback(callback_user_data, constant_id, &comp_constant))
                 value = &comp_constant->m_ValuePtr[value_index];
+
+            out_desc.m_NumComponents = num_components;
+
             if (constant_id == name_hash)
             {
                 if (element_ids != 0x0)
@@ -125,7 +129,8 @@ namespace dmGameSystem
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
         uint32_t element_index = ~0u;
-        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index);
+        uint16_t num_components = 0;
+        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &num_components);
         if (result)
         {
             int32_t location = dmRender::GetMaterialConstantLocation(material, constant_id);
