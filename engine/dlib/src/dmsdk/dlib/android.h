@@ -31,17 +31,8 @@ namespace dmAndroid {
 
 /*#
  * Struct attaching the JNI environment. Detaches the
- * @struct
+ * @class
  * @name ThreadAttacher
- * @member m_Func [type: dmGraphics::CompareFunc] the compare function
- * @member m_OpSFail [type: dmGraphics::StencilOp] the stencil fail operation
- * @member m_OpDPFail [type: dmGraphics::StencilOp] the depth pass fail operation
- * @member m_OpDPPass [type: dmGraphics::StencilOp] the depth pass pass operation
- * @member m_Ref [type: uint8_t]
- * @member m_RefMask [type: uint8_t]
- * @member m_BufferMask [type: uint8_t]
- * @member m_ColorBufferMask [type: uint8_t:4]
- * @member m_ClearBuffer [type: uint8_t:1]
  */
 class ThreadAttacher
 {
@@ -57,16 +48,16 @@ public:
      *
      * ```cpp
      * {
-     *   ThreadAttacher jni;
-     *   SomeFunction( jni.GetEnv() );
+     *   ThreadAttacher thread;
+     *   SomeFunction( thread.GetEnv() );
      *   // Automatically detaches
      * }
      * ```
      *
      * ```cpp
      * {
-     *   ThreadAttacher jni;
-     *   JNIEnv* env = jni.GetEnv();
+     *   ThreadAttacher thread;
+     *   JNIEnv* env = thread.GetEnv();
      *   if (!env)
      *     return;
      *   ...
@@ -91,6 +82,19 @@ public:
      *
      * @name IsAttached
      * @return isattached [type:bool] true if the environment is valid
+     *
+     * @examples
+     *
+     * ```cpp
+     * Result SomeFunc() {
+     *   ThreadAttacher thread;
+     *   JNIEnv* env = thread.GetEnv();
+     *   if (!env)
+     *     return RESULT_ATTACH_FAILED;
+     *   ... calls using jni
+     *   return thread.Detach() ? RESULT_OK : RESULT_JNI_CALLS_FAILED;
+     * }
+     * ```
      */
     bool IsAttached()
     {

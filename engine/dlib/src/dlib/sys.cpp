@@ -96,14 +96,15 @@ namespace dmSys
     {
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
-        if (env)
+        if (!env)
         {
-            jclass def_activity_class = env->GetObjectClass(thread.GetActivity()->clazz);
-            jmethodID get_connectivity_method = env->GetMethodID(def_activity_class, "getConnectivity", "()I");
-            int reti = (int)env->CallIntMethod(thread.GetActivity()->clazz, get_connectivity_method);
-            return (NetworkConnectivity)reti;
+            return NETWORK_DISCONNECTED;
         }
-        return NETWORK_DISCONNECTED;
+
+        jclass def_activity_class = env->GetObjectClass(thread.GetActivity()->clazz);
+        jmethodID get_connectivity_method = env->GetMethodID(def_activity_class, "getConnectivity", "()I");
+        int reti = (int)env->CallIntMethod(thread.GetActivity()->clazz, get_connectivity_method);
+        return (NetworkConnectivity)reti;
     }
 
 #elif !defined(__MACH__) // OS X and iOS implementations in sys_cocoa.mm
