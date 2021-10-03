@@ -306,10 +306,6 @@
                 <include name="lib/luajit-share.zip"/>
             </fileset>
 
-            <fileset dir="${env.DYNAMO_HOME}">
-                <include name="share/java/fmt-spine.jar"/>
-            </fileset>
-
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
                 <attribute name="is-bob-light" value="true"/>
@@ -361,9 +357,6 @@
                 <include name="lib/android.jar"/>
                 <include name="lib/classes.dex"/>
                 <include name="lib/*.zip"/>
-            </fileset>
-            <fileset dir="${env.DYNAMO_HOME}">
-                <include name="share/java/fmt-spine.jar"/>
             </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>

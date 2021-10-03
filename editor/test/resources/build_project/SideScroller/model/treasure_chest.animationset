@@ -1,6 +1,0 @@
-animations {
-  animation: "/model/treasure_chest.dae"
-}
-animations {
-  animation: "/model/treasure_chest_sub_animation.animationset"
-}

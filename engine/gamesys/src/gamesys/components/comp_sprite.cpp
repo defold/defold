@@ -176,9 +176,9 @@ namespace dmGameSystem
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = new SpriteWorld();
-
-        sprite_world->m_Components.SetCapacity(sprite_context->m_MaxSpriteCount);
-        memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * sprite_context->m_MaxSpriteCount);
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
+        sprite_world->m_Components.SetCapacity(comp_count);
+        memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
 
         dmGraphics::VertexElement ve[] =

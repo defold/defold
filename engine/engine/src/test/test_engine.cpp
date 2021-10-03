@@ -254,33 +254,9 @@ TEST_F(EngineTest, DEF_3086)
     ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
-TEST_F(EngineTest, DEF_3154)
-{
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3154/def-3154.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-    ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
-}
-
-TEST_F(EngineTest, DEF_3456)
-{
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3456/def-3456.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-    ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
-}
-
 TEST_F(EngineTest, DEF_3575)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3575/def-3575.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-    ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
-}
-
-TEST_F(EngineTest, SpineAnim)
-{
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_anim/spine.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-    ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
-}
-
-TEST_F(EngineTest, SpineIK)
-{
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_ik/spine_ik.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
@@ -379,23 +355,6 @@ DrawCountParams draw_count_params[] =
     {"/game.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
-
-#if !defined(__NX__) // until we support connections
-// Test that we can reload a full collection containing a spine scene
-// while the first gameobject has been already been deleted (marked for
-// deletion through a `go.delete()` call, invalidating any "delayed delete"
-// list entries).
-TEST_F(EngineTest, DEF_3652)
-{
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3652/def-3652.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-    HttpTestContext ctx;
-    ctx.m_Script = "/def-3652/post_reload_collection.py";
-
-    ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, PreRunHttpPort, 0, &ctx));
-    dmThread::Join(ctx.m_Thread);
-    ASSERT_EQ(0, g_PostExitResult);
-}
-#endif
 
 TEST_F(EngineTest, ISSUE_4775)
 {

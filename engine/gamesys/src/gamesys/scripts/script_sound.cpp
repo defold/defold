@@ -471,6 +471,8 @@ namespace dmGameSystem
      * `sender`
      * : [type:url] The invoker of the callback: the sound component.
      *
+     * @return id [type:number] The identifier for the sound voice
+     *
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:

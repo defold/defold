@@ -61,6 +61,12 @@ message ComponentPropertyDesc
     optional dmPropertiesDDF.PropertyDeclarations property_decls = 3;
 }
 
+message ComponenTypeDesc
+{
+    required uint64 name_hash = 1;
+    required uint32 max_count = 2;
+}
+
 message InstanceDesc
 {
     required string         id          = 1;
@@ -110,6 +116,7 @@ message CollectionDesc
     optional uint32                 scale_along_z           = 4 [default = 0];
     repeated EmbeddedInstanceDesc   embedded_instances      = 5;
     repeated string                 property_resources      = 6 [(resource)=true];
+    repeated ComponenTypeDesc       component_types         = 7;
 }
 
 /*# Game object API documentation

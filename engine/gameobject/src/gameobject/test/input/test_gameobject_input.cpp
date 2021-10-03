@@ -59,7 +59,7 @@ protected:
         dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         dmGameObject::SortComponentTypes(m_Register);
 
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
 
         dmResource::Result e = dmResource::RegisterType(m_Factory, "it", this, 0, ResInputTargetCreate, 0, ResInputTargetDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);

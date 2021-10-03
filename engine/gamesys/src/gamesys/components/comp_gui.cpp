@@ -36,6 +36,7 @@
 #include "../resources/res_animationset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include <gamesys/spine_ddf.h>
 
 extern unsigned char GUI_VPC[];
 extern uint32_t GUI_VPC_SIZE;
@@ -101,8 +102,8 @@ namespace dmGameSystem
             dmLogFatal("Unable to create gui rig context: %d", rr);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-
-        gui_world->m_Components.SetCapacity(gui_context->m_MaxGuiComponents);
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, gui_context->m_MaxGuiComponents);
+        gui_world->m_Components.SetCapacity(comp_count);
 
         dmGraphics::VertexElement ve[] =
         {

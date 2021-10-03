@@ -37,7 +37,6 @@ namespace dmGameSystem
     EXT_CONSTANTS(MATERIAL, "materialc")
     EXT_CONSTANTS(BUFFER, "bufferc")
     EXT_CONSTANTS(MODEL, "modelc")
-    EXT_CONSTANTS(SPINE_MODEL, "spinemodelc")
     EXT_CONSTANTS(TEXTURE, "texturec")
     EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
     EXT_CONSTANTS(TILE_MAP, "tilemapc")

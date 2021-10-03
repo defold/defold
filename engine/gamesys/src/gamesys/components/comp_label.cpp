@@ -91,9 +91,9 @@ namespace dmGameSystem
 
         LabelContext* label_context = (LabelContext*)params.m_Context;
         LabelWorld* world = new LabelWorld();
-
-        world->m_Components.SetCapacity(label_context->m_MaxLabelCount);
-        memset(world->m_Components.m_Objects.Begin(), 0, sizeof(LabelComponent) * label_context->m_MaxLabelCount);
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
+        world->m_Components.SetCapacity(comp_count);
+        memset(world->m_Components.m_Objects.Begin(), 0, sizeof(LabelComponent) * comp_count);
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;

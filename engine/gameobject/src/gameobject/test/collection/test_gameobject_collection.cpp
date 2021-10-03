@@ -54,7 +54,7 @@ protected:
         dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         dmGameObject::SortComponentTypes(m_Register);
 
-        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
+        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register), 0x0);
 
         dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0);
@@ -265,7 +265,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     const uint32_t max = 100;
 
     dmGameObject::HCollection coll;
-    coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max);
+    coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max, 0x0);
     dmGameObject::Init(coll);
 
     Vectormath::Aos::Point3 pos(0,0,0);
