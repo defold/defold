@@ -34,6 +34,7 @@ function init(self, config)
     -- Test index out of bounds
     assert_error(function() go.get("#sprite", "uniform_array", { index = 0 }) end)
     assert_error(function() go.get("#sprite", "uniform_array", { index = 17 }) end)
+    assert_error(function() go.get("#sprite", "uniform_array", { index = -1 }) end)
 
     -- Test setting a value and then getting it
     local v_to_set = vmath.vector4(0, 0, 1, 1)
