@@ -90,7 +90,7 @@ namespace dmRender
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
         int32_t                                 m_Location;
-        uint16_t                                m_NumComponents;
+        uint16_t                                m_ArraySize;
 
         Constant();
         Constant(dmhash_t name_hash, int32_t location);

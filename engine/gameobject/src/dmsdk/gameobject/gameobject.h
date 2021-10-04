@@ -313,6 +313,8 @@ namespace dmGameObject
      * @member m_Variant [type: PropertyVar] Variant holding the value
      * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
      * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
+     * @member m_ArraySize [type: uint8_t] The number of elements the property holds (if array).
+     * @member m_IsArray [type: uint8_t] Indicates if this property is an array or not.
      */
     struct PropertyDesc
     {
@@ -321,7 +323,8 @@ namespace dmGameObject
         PropertyVar m_Variant;
         float* m_ValuePtr;
         bool m_ReadOnly;
-        uint16_t m_NumComponents;
+        uint8_t m_ArraySize : 7;
+        uint8_t m_IsArray   : 1;
     };
 
     /*#

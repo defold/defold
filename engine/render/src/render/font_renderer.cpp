@@ -1022,7 +1022,7 @@ namespace dmRender
         for (uint32_t i = 0; i < size; ++i)
         {
             const dmRender::Constant& c = constants[i];
-            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_NumComponents);
+            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_ArraySize);
         }
 
         for (uint32_t *i = begin;i != end; ++i)

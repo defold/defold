@@ -769,8 +769,9 @@ namespace dmRender
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                c->m_ValuePtr      = value_ptr;
-                c->m_NumComponents = material_constant.m_NumComponents;
+                c->m_ValuePtr  = value_ptr;
+                c->m_ArraySize = material_constant.m_ArraySize;
+                c->m_IsArray   = material_constant.m_IsArray;
                 memcpy(c->m_ValuePtr, values, sizeof(values[0]) * num_values);
 
                 c->m_NameHash = name_hash;
@@ -779,7 +780,7 @@ namespace dmRender
                 return;
             }
 
-            value_ptr += c->m_NumComponents;
+            value_ptr += c->m_ArraySize;
         }
 
         dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));

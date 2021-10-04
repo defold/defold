@@ -397,7 +397,7 @@ void HashRenderConstants(HComponentRenderConstants constants, HashState32* state
         dmRender::Constant& c = constants->m_RenderConstants[i];
         dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(c.m_NameHash));
 
-        for (int j = 0; j < c.m_NumComponents; ++j)
+        for (int j = 0; j < c.m_ArraySize; ++j)
         {
             dmHashUpdateBuffer32(state, &c.m_ValuePtr[j], sizeof(c.m_ValuePtr[0]));
         }
@@ -411,13 +411,12 @@ int AreRenderConstantsUpdated(HComponentRenderConstants constants)
     uint32_t size = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
-        // JG: Can this even happen?
-        if (constants->m_RenderConstants[i].m_NumComponents != constants->m_PrevRenderConstants[i].m_NumComponents)
+        if (constants->m_RenderConstants[i].m_ArraySize != constants->m_PrevRenderConstants[i].m_ArraySize)
         {
             return 1;
         }
 
-        for (int j = 0; j < constants->m_RenderConstants[i].m_NumComponents; ++j)
+        for (int j = 0; j < constants->m_RenderConstants[i].m_ArraySize; ++j)
         {
             // TODO: Do a faster check for equality!
             if (lengthSqr(constants->m_RenderConstants[i].m_ValuePtr[j] - constants->m_PrevRenderConstants[i].m_ValuePtr[j]) > 0)
@@ -436,7 +435,7 @@ void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderCon
     for (uint32_t i = 0; i < size; ++i)
     {
         const dmRender::Constant& c = constants[i];
-        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_NumComponents);
+        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_ArraySize);
     }
 }
 

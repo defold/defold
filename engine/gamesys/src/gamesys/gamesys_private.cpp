@@ -64,8 +64,8 @@ namespace dmGameSystem
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
         uint32_t element_index = ~0u;
-        uint16_t num_components = 0;
-        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &num_components);
+        uint16_t constant_array_size = 0;
+        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &constant_array_size);
         if (result)
         {
             Vector4* value = 0x0;
@@ -73,7 +73,7 @@ namespace dmGameSystem
             if (callback(callback_user_data, constant_id, &comp_constant))
                 value = &comp_constant->m_ValuePtr[value_index];
 
-            out_desc.m_NumComponents = num_components;
+            out_desc.m_ArraySize = constant_array_size;
 
             if (constant_id == name_hash)
             {

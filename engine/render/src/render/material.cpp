@@ -119,9 +119,9 @@ namespace dmRender
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
                 Constant render_constant(name_hash, location);
-                render_constant.m_NumComponents      = size;
-                render_constant.m_ValuePtr           = constant_data_ptr;
-                constant_data_ptr                   += size;
+                render_constant.m_ArraySize = size;
+                render_constant.m_ValuePtr  = constant_data_ptr;
+                constant_data_ptr          += size;
 
                 MaterialConstant constant;
                 constant.m_Constant = render_constant;
@@ -185,7 +185,7 @@ namespace dmRender
             {
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                 {
-                    dmGraphics::SetConstantV4(graphics_context, constant.m_ValuePtr, constant.m_NumComponents, location);
+                    dmGraphics::SetConstantV4(graphics_context, constant.m_ValuePtr, constant.m_ArraySize, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
@@ -362,7 +362,7 @@ namespace dmRender
             {
                 *out_element_ids    = c.m_ElementIds;
                 *out_constant_id    = c.m_Constant.m_NameHash;
-                *out_num_components = c.m_Constant.m_NumComponents;
+                *out_num_components = c.m_Constant.m_ArraySize;
                 return true;
             }
             for (uint32_t elem_i = 0; elem_i < 4; ++elem_i)
@@ -371,7 +371,7 @@ namespace dmRender
                 {
                     *out_element_index  = elem_i;
                     *out_constant_id    = c.m_Constant.m_NameHash;
-                    *out_num_components = c.m_Constant.m_NumComponents;
+                    *out_num_components = c.m_Constant.m_ArraySize;
                     return true;
                 }
             }
@@ -402,7 +402,7 @@ namespace dmRender
         for (uint32_t i = 0; i < n; ++i)
         {
             MaterialConstant& c = constants[i];
-            if (c.m_Constant.m_NameHash == name_hash && count <= c.m_Constant.m_NumComponents)
+            if (c.m_Constant.m_NameHash == name_hash && count <= c.m_Constant.m_ArraySize)
             {
                 memcpy(c.m_Constant.m_ValuePtr, values, sizeof(c.m_Constant.m_ValuePtr[0]) * count);
             }

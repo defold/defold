@@ -586,7 +586,7 @@ namespace dmGameObject
         {
         case dmGameObject::PROPERTY_RESULT_OK:
             {
-                if (index_requested && property_desc.m_NumComponents <= 1)
+                if (index_requested && !property_desc.m_IsArray)
                 {
                     return luaL_error(L, "Options table contains index, but property '%s' is not an array.", dmHashReverseSafe64(property_id));
                 }
