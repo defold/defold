@@ -65,6 +65,7 @@ namespace dmPhysics
         float                       m_InvScale;
         float                       m_ContactImpulseLimit;
         float                       m_TriggerEnterLimit;
+        float                       m_VelocityThreshold;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
         uint8_t                     m_AllowDynamicTransforms:1;

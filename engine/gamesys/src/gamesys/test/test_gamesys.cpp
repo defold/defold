@@ -1457,7 +1457,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     ASSERT_NE((void*)0, base_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
-    const char* path_body_go = "/collision_object/sleepy_body.goc";
+    const char* path_body_go = "/collision_object/body.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (10,10)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -1512,6 +1512,51 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+
+TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body_go = "/collision_object/body.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+
+    // a 'base' gameobject works as the base for other dynamic objects to stand on
+    const char* path_sleepy_go = "/collision_object/velocity_threshold_base.goc";
+    dmhash_t hash_base_go = dmHashString64("/base-go");
+    // place the base object so that the upper level of base is at Y = 0
+    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, base_go);
+
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
         lua_getglobal(L, "tests_done");
         tests_done = lua_toboolean(L, -1);
