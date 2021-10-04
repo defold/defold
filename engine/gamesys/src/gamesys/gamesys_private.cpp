@@ -74,6 +74,7 @@ namespace dmGameSystem
                 value = &comp_constant->m_ValuePtr[value_index];
 
             out_desc.m_ArraySize = constant_array_size;
+            out_desc.m_IsArray   = constant_array_size > 1;
 
             if (constant_id == name_hash)
             {

@@ -350,7 +350,7 @@ namespace dmRender
         return false;
     }
 
-    bool GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components)
+    bool GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_array_size)
     {
         dmArray<MaterialConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
@@ -360,18 +360,18 @@ namespace dmRender
             MaterialConstant& c = constants[i];
             if (c.m_Constant.m_NameHash == name_hash)
             {
-                *out_element_ids    = c.m_ElementIds;
-                *out_constant_id    = c.m_Constant.m_NameHash;
-                *out_num_components = c.m_Constant.m_ArraySize;
+                *out_element_ids = c.m_ElementIds;
+                *out_constant_id = c.m_Constant.m_NameHash;
+                *out_array_size  = c.m_Constant.m_ArraySize;
                 return true;
             }
             for (uint32_t elem_i = 0; elem_i < 4; ++elem_i)
             {
                 if (c.m_ElementIds[elem_i] == name_hash)
                 {
-                    *out_element_index  = elem_i;
-                    *out_constant_id    = c.m_Constant.m_NameHash;
-                    *out_num_components = c.m_Constant.m_ArraySize;
+                    *out_element_index = elem_i;
+                    *out_constant_id   = c.m_Constant.m_NameHash;
+                    *out_array_size    = c.m_Constant.m_ArraySize;
                     return true;
                 }
             }

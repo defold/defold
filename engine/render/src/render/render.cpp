@@ -771,7 +771,6 @@ namespace dmRender
                 // New or current slot found
                 c->m_ValuePtr  = value_ptr;
                 c->m_ArraySize = material_constant.m_ArraySize;
-                c->m_IsArray   = material_constant.m_IsArray;
                 memcpy(c->m_ValuePtr, values, sizeof(values[0]) * num_values);
 
                 c->m_NameHash = name_hash;
