@@ -572,8 +572,14 @@ namespace dmGameObject
             {
                 return luaL_error(L, "Invalid number passed as index argument in options table.");
             }
-            // TODO: Check if property is an array and throw error if it isn't
+
             property_options.m_Index = luaL_checkinteger(L, -1) - 1;
+
+            if (property_options.m_Index < 0)
+            {
+                return luaL_error(L, "Trying to get property value from '%s' with a negative index.", dmHashReverseSafe64(property_id));
+            }
+
             lua_pop(L, 1);
 
             lua_pop(L, 1);
