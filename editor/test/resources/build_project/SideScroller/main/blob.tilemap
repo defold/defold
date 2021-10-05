@@ -1,0 +1,2 @@
+tile_set: "/tile_source/simple.tilesource"
+material: "/builtins/materials/tile_map.material"
