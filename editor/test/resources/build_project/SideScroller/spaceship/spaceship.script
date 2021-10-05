@@ -1,0 +1,34 @@
+local max_speed = 60
+local min_y = 60
+local max_y = 600
+
+function init(self)
+	-- Let the script receive input from the player
+	msg.post(".", "acquire_input_focus")
+	-- the current speed of the space ship
+	self.speed = 0
+	
+	-- Animate the ship so it's swaying back and forth
+	go.set(".", "euler.z", -5)
+	go.animate(".", "euler.z", go.PLAYBACK_LOOP_PINGPONG, 5, go.EASING_INOUTSINE, 2)
+end
+
+function update(self, dt)
+	local p = go.get_position()
+	p.y = p.y + self.speed * dt
+	if p.y < min_y then
+		p.y = min_y
+	elseif p.y > max_y then
+		p.y = max_y
+	end
+	go.set_position(p)
+	self.speed = 0
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("up") then
+		self.speed = max_speed
+	elseif action_id == hash("down") then
+		self.speed = -max_speed
+	end
+end

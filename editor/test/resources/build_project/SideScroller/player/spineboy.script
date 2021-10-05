@@ -1,0 +1,41 @@
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	--[[
+	local blend = 0.5
+	spine.play("#spinemodel", "idle", go.PLAYBACK_ONCE_FORWARD, blend, function (self)
+		spine.play("#spinemodel", "run", go.PLAYBACK_ONCE_FORWARD, blend, function (self)
+			spine.play("#spinemodel", "jump", go.PLAYBACK_ONCE_FORWARD, blend, function (self)
+				spine.play("#spinemodel", "idle", go.PLAYBACK_ONCE_FORWARD, blend)
+			end)
+		end)
+	end)
+	--]]
+	self.timer = 0
+	--go.animate("#spinemodel", "tint.w", go.PLAYBACK_LOOP_PINGPONG, 0, go.EASING_INOUTSINE, 1)
+	--spine.play("#spinemodel", "run", go.PLAYBACK_LOOP_PINGPONG)
+end
+
+function update(self, dt)
+	self.timer = self.timer + dt
+	if self.timer > 1 then
+		--spine.cancel("#spinemodel")
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("spine_event") then
+		if message.event_id == hash("footstep") then
+			msg.post("#sound", "play_sound")
+			pprint(message)
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("touch") and action.pressed then
+		local blend = 0.2
+		spine.play("#spinemodel", "jump", go.PLAYBACK_ONCE_FORWARD, blend, function (self)
+			spine.play("#spinemodel", "idle", go.PLAYBACK_LOOP_FORWARD, blend)
+		end)
+	end
+end
