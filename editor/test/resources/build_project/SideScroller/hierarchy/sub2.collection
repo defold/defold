@@ -1,0 +1,50 @@
+name: "sub2"
+instances {
+  id: "empty"
+  prototype: "/hierarchy/empty.go"
+  position {
+    x: 10.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+  children: "empty_child"
+}
+instances {
+  id: "empty_child"
+  prototype: "/hierarchy/empty.go"
+  position {
+    x: 10.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}
+embedded_instances {
+  id: "empty_embedded"
+  data: ""
+  position {
+    x: 10.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}
