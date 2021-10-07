@@ -387,7 +387,7 @@ def default_flags(self):
             self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
 
             self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
-            if 'linux' in self.env['BUILD_PLATFORM']:
+            if self.env['BUILD_PLATFORM'] in ('linux', 'darwin'):
                 self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
