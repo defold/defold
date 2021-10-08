@@ -695,6 +695,21 @@ namespace dmPhysics
         filter.maskBits = mask;
         fixture->SetFilterData(filter, child);
     }
+    
+    // Informs filter information to all fixtures of a collision object. Ignores fixtures of grids 
+    void SetCollisionObjectFilter(HCollisionObject2D collision_object, uint16_t group, uint16_t mask) {
+		b2Fixture* fixture = ((b2Body*)body)->GetFixtureList();
+		while (fixture) {
+			// do sth with the fixture
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+				filter.categoryBits = group;
+				filter.maskBits  = mask;
+				fixture.SetFilterData(filter, 0);
+			}
+			fixture = fixture->GetNext();
+		}
+	}
 
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
@@ -1155,6 +1170,10 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         body->SetBullet(value);
     }
+    
+    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbits) {
+		
+	}
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {

@@ -45,6 +45,9 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
     static const dmhash_t PROP_MASS = dmHashString64("mass");
     static const dmhash_t PROP_BULLET = dmHashString64("bullet");
+    static const dmhash_t PROP_GROUP = dmHashString64("group");
+    static const dmhash_t PROP_MASK = dmHashString64("mask");
+    
 
 
     struct CollisionComponent;
@@ -1240,6 +1243,19 @@ namespace dmGameSystem
                 dmPhysics::SetLinearDamping3D(component->m_Object3D, params.m_Value.m_Number);
             } else {
                 dmPhysics::SetLinearDamping2D(component->m_Object2D, params.m_Value.m_Number);
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_GROUP) {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (physics_context->m_3D) {
+                dmLogWarning("'bullet' property not supported in 3d physics mode");
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            } else {
+				uint16_t groupbit = CompCollisionGetGroupBitIndex(params.m_World, params.m_Value.m_Hash);
+				
+				
+                //dmPhysics::SetAngularDamping2D(component->m_Object2D, params.m_Value.m_Number);
             }
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_ANGULAR_DAMPING) {
