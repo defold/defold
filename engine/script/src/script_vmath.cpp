@@ -299,9 +299,9 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
-        size_t size = 48 + strlen(s);
+        size_t size = 61 + strlen(s);
         char* buffer = new char[size];
-        dmSnPrintf(buffer, size, "%s[%f, %f, %f]", s, v->getX(), v->getY(), v->getZ());
+        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f)", s, SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -462,9 +462,9 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
-        size_t size = 64 + strlen(s);
+        size_t size = 77 + strlen(s);
         char* buffer = new char[size];
-        dmSnPrintf(buffer, size, "%s[%f, %f, %f, %f]", s, v->getX(), v->getY(), v->getZ(), v->getW());
+        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -581,9 +581,9 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         Vectormath::Aos::Quat* q = CheckQuat(L, 2);
-        size_t size = 64 + strlen(s);
+        size_t size = 74 + strlen(s);
         char* buffer = new char[size];
-        dmSnPrintf(buffer, size, "%s[%f, %f, %f, %f]", s, q->getX(), q->getY(), q->getZ(), q->getW());
+        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -722,9 +722,9 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 2);
-        size_t size = 256 + strlen(s);
+        size_t size = 268 + strlen(s);
         char* buffer = new char[size];
-        dmSnPrintf(buffer, size, "%s[%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f]", s,
+        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
