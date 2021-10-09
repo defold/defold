@@ -520,9 +520,9 @@ namespace dmGraphics
     {
         return g_functions.m_ReloadProgram(context, program, vert_program, frag_program);
     }
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
-        return g_functions.m_GetUniformName(prog, index, buffer, buffer_size, type);
+        return g_functions.m_GetUniformName(prog, index, buffer, buffer_size, type, size);
     }
     uint32_t GetUniformCount(HProgram prog)
     {
@@ -532,9 +532,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetUniformLocation(prog, name);
     }
-    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
+    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register)
     {
-        g_functions.m_SetConstantV4(context, data, base_register);
+        g_functions.m_SetConstantV4(context, data, count, base_register);
     }
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
     {

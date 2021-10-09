@@ -264,6 +264,7 @@ namespace dmGraphics
         char*                      m_Name;
         uint64_t                   m_NameHash;
         ShaderDesc::ShaderDataType m_Type;
+        uint16_t                   m_ElementCount;
         uint16_t                   m_Set;
         uint16_t                   m_Binding;
         union

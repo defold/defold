@@ -983,7 +983,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < first_emitter_render_data->m_RenderConstantsSize; ++i)
         {
             dmParticle::RenderConstant* c = &first_emitter_render_data->m_RenderConstants[i];
-            dmRender::EnableRenderObjectConstant(&ro, c->m_NameHash, c->m_Value);
+            dmRender::EnableRenderObjectConstant(&ro, c->m_NameHash, &c->m_Value, 1);
         }
 
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
