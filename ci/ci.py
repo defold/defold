@@ -339,7 +339,7 @@ def release(channel):
     call(cmd)
 
 def build_sdk(channel):
-    args = "python scripts/build.py build_sdk".split()
+    args = "python scripts/build.py install_ext build_sdk".split()
     opts = []
     opts.append("--channel=%s" % channel)
 
