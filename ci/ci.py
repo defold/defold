@@ -244,7 +244,7 @@ def download_editor2(channel, platform = None):
     opts.append('--channel=%s' % channel)
 
     for platform in platforms:
-        call('python scripts/build.py download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
+        call('python scripts/build.py install_ext download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
 
 
 def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
@@ -304,7 +304,7 @@ def archive_editor2(channel, engine_artifacts = None, platform = None):
 
     opts_string = ' '.join(opts)
     for platform in platforms:
-        call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
+        call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
 
 def distclean():
     call("python scripts/build.py distclean")
@@ -327,7 +327,7 @@ def build_bob(channel, branch = None):
 
 
 def release(channel):
-    args = "python scripts/build.py release".split()
+    args = "python scripts/build.py install_ext release".split()
     opts = []
     opts.append("--channel=%s" % channel)
 
