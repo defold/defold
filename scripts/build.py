@@ -556,12 +556,11 @@ class Configuration(object):
                 self._extract_tgz(path, self.ext)
             installed_packages.update(target_package_paths)
 
-        print("Installing python eggs")
-        run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pip==19.3.1'])
+        print("Installing python wheels")
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
-        for egg in glob(join(self.defold_root, 'packages', '*.egg')):
-            self._log('Installing %s' % basename(egg))
-            run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
+        for whl in glob(join(self.defold_root, 'packages', '*.whl')):
+            self._log('Installing %s' % basename(whl))
+            run.env_command(self._form_env(), ['python2', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), whl])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
