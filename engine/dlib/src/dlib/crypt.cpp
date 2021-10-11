@@ -20,6 +20,7 @@
 #include <dlib/endian.h>
 #include <mbedtls/md5.h>
 #include <mbedtls/base64.h>
+#include <mbedtls/error.h>
 #include <mbedtls/sha1.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/sha512.h>
@@ -104,6 +105,13 @@ namespace dmCrypt
                     MBEDTLS_RSA_PUBLIC, olen, input, output, osize ) );
     }
 
+    static void LogMbedTlsError(int result)
+    {
+        char buffer[512] = "";
+        mbedtls_strerror(result, buffer, sizeof(buffer));
+        dmLogError("mbedtls: %s0x%04x - %s", result < 0 ? "-":"", result < 0 ? -result:result, buffer);
+    }
+
     Result Decrypt(const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t datalen, uint8_t** output, uint32_t* outputlen)
     {
         // https://tls.mbed.org/discussions/generic/parsing-public-key-from-memory
@@ -122,6 +130,7 @@ namespace dmCrypt
         int ret;
         if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen(pers) ) ) != 0 )
         {
+            LogMbedTlsError(ret);
             dmLogError("Decrypt: mbedtls_ctr_drbg_seed failed: %d", ret);
             result = RESULT_ERROR;
             goto exit;
@@ -129,6 +138,7 @@ namespace dmCrypt
 
         if ((ret = mbedtls_pk_parse_public_key(&pk, key, keylen) != 0))
         {
+            LogMbedTlsError(ret);
             dmLogError("Decrypt: mbedtls_pk_parse_public_key failed: %d", ret);
             result = RESULT_ERROR;
             goto exit;
@@ -141,6 +151,7 @@ namespace dmCrypt
                     (uint8_t*)*output, &_outputlen, signature_hash_len,
                     mbedtls_ctr_drbg_random, &ctr_drbg )) != 0)
         {
+            LogMbedTlsError(ret);
             dmLogError("Decrypt: rsa_alt_decrypt_public_wrap failed: %d", ret);
             free(*output);
             result = RESULT_ERROR;
