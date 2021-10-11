@@ -620,7 +620,7 @@ namespace dmScript
     static int Matrix4_tostring(lua_State *L)
     {
         Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
-        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
+        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
