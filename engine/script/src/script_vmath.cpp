@@ -297,10 +297,10 @@ namespace dmScript
 
     static int Vector3_concat(lua_State *L)
     {
-        const char* s = luaL_checkstring(L, 1);
+        size_t size = 0;
+        const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
-        size_t size = 61 + strlen(s);
-        char* buffer = new char[size];
+        char* buffer = new char[size + 61];
         dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f)", s, SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         lua_pushstring(L, buffer);
         delete [] buffer;
@@ -460,10 +460,10 @@ namespace dmScript
 
     static int Vector4_concat(lua_State *L)
     {
-        const char* s = luaL_checkstring(L, 1);
+        size_t size = 0;
+        const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
-        size_t size = 77 + strlen(s);
-        char* buffer = new char[size];
+        char* buffer = new char[size + 77];
         dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
@@ -579,10 +579,10 @@ namespace dmScript
 
     static int Quat_concat(lua_State *L)
     {
-        const char* s = luaL_checkstring(L, 1);
+        size_t size = 0;
+        const char* s = luaL_checkstring(L, 1, &size);
         Vectormath::Aos::Quat* q = CheckQuat(L, 2);
-        size_t size = 74 + strlen(s);
-        char* buffer = new char[size];
+        char* buffer = new char[size + 74];
         dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
@@ -620,7 +620,7 @@ namespace dmScript
     static int Matrix4_tostring(lua_State *L)
     {
         Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
-        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
+        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
@@ -632,8 +632,9 @@ namespace dmScript
     {
         Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
-        if (strlen(key) == 3)
+        size_t keyLen = 0;
+        const char* key = luaL_checklstring(L, 2, &keyLen);
+        if (keyLen == 3)
         {
             int row = key[1] - (char)'0';
             int col = key[2] - (char)'0';
@@ -643,7 +644,7 @@ namespace dmScript
                 return 1;
             }
         }
-        else if (strlen(key) == 2)
+        else if (keyLen == 2)
         {
             int col = key[1] - (char)'0';
             if (0 <= col && col < 4)
@@ -659,8 +660,9 @@ namespace dmScript
     {
         Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
-        if (strlen(key) == 3)
+        size_t keyLen = 0;
+        const char* key = luaL_checklstring(L, 2, &keyLen);
+        if (keyLen == 3)
         {
             int row = key[1] - (char)'0';
             int col = key[2] - (char)'0';
@@ -670,7 +672,7 @@ namespace dmScript
                 return 0;
             }
         }
-        else if (strlen(key) == 2)
+        else if (keyLen == 2)
         {
             int col = key[1] - (char)'0';
             if (0 <= col && col < 4)
@@ -720,11 +722,11 @@ namespace dmScript
 
     static int Matrix4_concat(lua_State *L)
     {
-        const char* s = luaL_checkstring(L, 1);
+        size_t size = 0;
+        const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 2);
-        size_t size = 268 + strlen(s);
-        char* buffer = new char[size];
-        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_MATRIX4,
+        char* buffer = new char[size + 268];
+        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
