@@ -25,7 +25,7 @@ message MaterialDesc
     {
         required string name = 1;
         required ConstantType type = 2;
-        optional dmMath.Vector4 value = 3;
+        repeated dmMath.Vector4 value = 3;
     }
 
     enum VertexSpace
