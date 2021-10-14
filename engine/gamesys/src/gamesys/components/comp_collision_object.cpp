@@ -1657,6 +1657,39 @@ namespace dmGameSystem
             dmhash_t grouphash = GetLSBGroupHash(world, groupbit);
             return grouphash;
         }
-    }    
+    } 
+    
+    void SetMask(void* _world, void* _component, dmhash_t group_hash, bool boolvalue)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+        
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
+        if (world->m_3D)
+        {
+			// TODO
+            //dmPhysics::Wakeup3D(component->m_Object3D);
+        } else
+        {
+            dmPhysics::SetMask2D(component->m_Object2D, groupbit, boolvalue);
+        }
+    }
+    
+    bool GetMask(void* _world, void* _component, dmhash_t group_hash)
+    {
+		CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+        
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
+        if (world->m_3D)
+        {
+			// TODO
+            //dmPhysics::Wakeup3D(component->m_Object3D);
+        } else
+        {
+            return dmPhysics::GetMask2D(component->m_Object2D, groupbit);
+        }
+	}
+      
 
 }

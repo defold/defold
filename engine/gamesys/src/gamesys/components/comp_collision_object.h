@@ -71,6 +71,9 @@ namespace dmGameSystem
     void WakeupCollision(void* _world, void* _component);
     void SetGroup(void* _world, void* _component, dmhash_t groupid);
     dmhash_t GetGroup(void* _world, void* _component);
+    void SetMask(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);
+    bool GetMask(void* _world, void* _component, dmhash_t group_hash);
+    
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

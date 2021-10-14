@@ -1068,6 +1068,8 @@ namespace dmPhysics
 
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit);
 	uint16_t GetGroup2D(HCollisionObject2D collision_object);
+	void SetMask2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue);
+	bool GetMask2D(HCollisionObject2D collision_object, uint16_t groupbit);
 
     /**
      * Container of data for ray cast queries.

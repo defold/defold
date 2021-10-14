@@ -557,6 +557,14 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
     }
+    
+    static bool CheckBoolean(lua_State* L, int index)
+    {
+        if ( lua_isboolean( L, index ) )
+            return lua_toboolean( L, index );
+
+        return luaL_error(L, "Argument %d must be a boolean", index);
+    }
 
     static void UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
     {
@@ -1161,6 +1169,37 @@ namespace dmGameSystem
         return 1;
     }    
 
+    static int Physics_SetMask(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
+        bool boolvalue = CheckBoolean(L, 3);
+        
+        dmGameSystem::SetMask(comp_world, comp, group_id, boolvalue);
+
+        return 0;
+    }    
+    
+    static int Physics_GetMask(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
+        
+        bool boolvalue = dmGameSystem::GetMask(comp_world, comp, group_id);
+        lua_pushboolean(L, (int) boolvalue);
+        
+        return 1;
+    } 
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
@@ -1183,8 +1222,8 @@ namespace dmGameSystem
         {"wakeup",          Physics_Wakeup},
         {"set_group",		Physics_SetGroup},
 		{"get_group",		Physics_GetGroup},
-        //{"set_mask",		Physics_SetMask},
-        //{"get_mask",		Physics_GetMask},
+        {"set_mask",		Physics_SetMask},
+        {"get_mask",		Physics_GetMask},
         {0, 0}
     };
 

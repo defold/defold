@@ -1180,17 +1180,34 @@ namespace dmPhysics
 		return 0;
 	}
 	
-/*	// ORs a collision objects current mask the groupbits 
-	void SetMask2D(HCollisionObject2D collision_object, uint16_t groupbits) {
-		
+	// updates a specific group bit of a collision object's current mask
+	void SetMask2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		while (fixture) {
+			// do sth with the fixture
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+				if (boolvalue)
+					filter.maskBits |= groupbit;
+				else
+					filter.maskBits &= ~groupbit;
+				fixture->SetFilterData(filter, 0);
+			}
+			fixture = fixture->GetNext();
+		}			
 	}
 	
-	uint16_t GetMask2D(HCollisionObject2D collision_object) {
-		
+	bool GetMask2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		if (fixture) {
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0);
+				return !!(filter.maskBits & groupbit);
+			}
+		}	
+		return false;		
 	}
-	*/
 	
-
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
