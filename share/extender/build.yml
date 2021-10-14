@@ -88,9 +88,9 @@ platforms:
       javaPipelineClasspath: ['{{dynamo_home}}/share/java/bob-light.jar']
 
     # Generates the ddf format files for use in the engine
-    protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
+    protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/{{host_platform}}/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
     # Generates the language specific (cpp, java and python) format bindings for use in the pipeline plugins
-    protoPipelineCmd:       '{{dynamo_home}}/ext/bin/x86_64-linux/protoc --proto_path={{proto_path}} --{{language}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
+    protoPipelineCmd:       '{{dynamo_home}}/ext/bin/{{host_platform}}/protoc --proto_path={{proto_path}} --{{language}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
     protoPipelineOutputRe:  '*.pb.h|*.pb.cc|*_pb2.py'
 
     # C++
