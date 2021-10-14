@@ -234,6 +234,11 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    /*
+     * Looks into world->m_Groups index for the speficied group_hash. It returns its position as 
+     * bit index (a uint16_t with n-th bit set). If the hash is not found there it assigns it to 
+     * the first empty slot. If there are no positions are left, it returns 0.
+     */
     static uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
     {
         if (group_hash != 0)
@@ -260,6 +265,7 @@ namespace dmGameSystem
         return 0;
     }
 
+	// Converts a collision mask bitfield to the respective group hash. Takes into account only the least significant bit.
     uint64_t GetLSBGroupHash(void* _world, uint16_t mask)
     {
         if (mask > 0)
@@ -1619,5 +1625,38 @@ namespace dmGameSystem
             dmPhysics::Wakeup2D(component->m_Object2D);
         }
     }
+
+    void SetGroup(void* _world, void* _component, dmhash_t group_hash)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+        
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
+        if (world->m_3D)
+        {
+			// TODO
+            //dmPhysics::Wakeup3D(component->m_Object3D);
+        } else
+        {
+            dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
+        }
+    }
+    
+    dmhash_t GetGroup(void* _world, void* _component)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+        
+        if (world->m_3D)
+        {
+			// TODO
+            //dmPhysics::Wakeup3D(component->m_Object3D);
+        } else
+        {
+            uint16_t groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
+            dmhash_t grouphash = GetLSBGroupHash(world, groupbit);
+            return grouphash;
+        }
+    }    
 
 }

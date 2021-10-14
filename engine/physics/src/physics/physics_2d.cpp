@@ -696,21 +696,6 @@ namespace dmPhysics
         fixture->SetFilterData(filter, child);
     }
     
-    // Informs filter information to all fixtures of a collision object. Ignores fixtures of grids 
-    void SetCollisionObjectFilter(HCollisionObject2D collision_object, uint16_t group, uint16_t mask) {
-		b2Fixture* fixture = ((b2Body*)body)->GetFixtureList();
-		while (fixture) {
-			// do sth with the fixture
-			if (fixture->GetType() != b2Shape::e_grid) {
-				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
-				filter.categoryBits = group;
-				filter.maskBits  = mask;
-				fixture.SetFilterData(filter, 0);
-			}
-			fixture = fixture->GetNext();
-		}
-	}
-
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
         delete (b2Shape*)shape;
@@ -1170,10 +1155,41 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         body->SetBullet(value);
     }
-    
-    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbits) {
+        
+    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		while (fixture) {
+			// do sth with the fixture
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+				filter.categoryBits = groupbit;
+				fixture->SetFilterData(filter, 0);
+			}
+			fixture = fixture->GetNext();
+		}		
+	}
+	
+	uint16_t GetGroup2D(HCollisionObject2D collision_object) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		if (fixture) {
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0);
+				return filter.categoryBits;
+			}
+		}	
+		return 0;
+	}
+	
+/*	// ORs a collision objects current mask the groupbits 
+	void SetMask2D(HCollisionObject2D collision_object, uint16_t groupbits) {
 		
 	}
+	
+	uint16_t GetMask2D(HCollisionObject2D collision_object) {
+		
+	}
+	*/
+	
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {

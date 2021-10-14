@@ -1130,6 +1130,38 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Physics_SetGroup(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
+        
+        dmGameSystem::SetGroup(comp_world, comp, group_id);
+
+        return 0;
+    }    
+    
+    static int Physics_GetGroup(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        
+        dmhash_t group_hash = dmGameSystem::GetGroup(comp_world, comp);
+        //dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+        dmScript::PushHash(L, group_hash);
+        
+        return 1;
+    }    
+
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -1149,6 +1181,10 @@ namespace dmGameSystem
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
         {"wakeup",          Physics_Wakeup},
+        {"set_group",		Physics_SetGroup},
+		{"get_group",		Physics_GetGroup},
+        //{"set_mask",		Physics_SetMask},
+        //{"get_mask",		Physics_GetMask},
         {0, 0}
     };
 

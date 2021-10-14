@@ -1066,6 +1066,9 @@ namespace dmPhysics
      */
     void SetBullet2D(HCollisionObject2D collision_object, bool value);
 
+    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit);
+	uint16_t GetGroup2D(HCollisionObject2D collision_object);
+
     /**
      * Container of data for ray cast queries.
      */
