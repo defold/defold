@@ -632,9 +632,9 @@ namespace dmScript
     {
         Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
 
-        size_t keyLen = 0;
-        const char* key = luaL_checklstring(L, 2, &keyLen);
-        if (keyLen == 3)
+        size_t key_len = 0;
+        const char* key = luaL_checklstring(L, 2, &key_len);
+        if (key_len == 3)
         {
             int row = key[1] - (char)'0';
             int col = key[2] - (char)'0';
@@ -644,7 +644,7 @@ namespace dmScript
                 return 1;
             }
         }
-        else if (keyLen == 2)
+        else if (key_len == 2)
         {
             int col = key[1] - (char)'0';
             if (0 <= col && col < 4)
@@ -660,9 +660,9 @@ namespace dmScript
     {
         Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
 
-        size_t keyLen = 0;
-        const char* key = luaL_checklstring(L, 2, &keyLen);
-        if (keyLen == 3)
+        size_t key_len = 0;
+        const char* key = luaL_checklstring(L, 2, &key_len);
+        if (key_len == 3)
         {
             int row = key[1] - (char)'0';
             int col = key[2] - (char)'0';
@@ -672,7 +672,7 @@ namespace dmScript
                 return 0;
             }
         }
-        else if (keyLen == 2)
+        else if (key_len == 2)
         {
             int col = key[1] - (char)'0';
             if (0 <= col && col < 4)
