@@ -243,6 +243,39 @@ namespace dmMessage
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
                 uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
 
+    /** post a ddf message to a socket
+     * Post a DDF message to a socket. A helper wrapper for Post()'ing a DDF message
+     * @note Message data is copied by value
+     * @name PostDDF
+     * @tparam TDDFType [type: TDDFType] Must be a DDF type
+     * @param message [type: TDDFType*] Message data reference
+     * @param sender [type: dmMessage::URL*] The sender URL if the receiver wants to respond. 0x0 is accepted
+     * @param receiver [type: dmMessage::URL*] The receiver URL, must not be 0x0
+     * @param user_data1 [type: uintptr_t] User data that can be used when both the sender and receiver are known
+     * @param user_data2 [type: uintptr_t] User data that can be used when both the sender and receiver are known.
+     * @param destroy_callback [type: dmMessage::MessageDestroyCallback] if set, will be called after each message dispatch
+     * @return RESULT_OK if the message was posted
+     * @examples
+     *
+     * ```cpp
+     * // dmMessage::URL sender, receiver;
+     * // dmGameObject::HInstance go;
+     *
+     * dmGameSystemDDF::PlayAnimation msg;
+     * msg.m_Id = animation_id;
+     * msg.m_Offset = params.m_CursorStart;
+     * msg.m_PlaybackRate = params.m_PlaybackRate;
+     *
+     * dmMessage::Result result = dmMessage::Post(&msg, &sender, &receiver, (uintptr_t)go, 0, 0));
+     * ```
+     */
+    template <typename TDDFType>
+    Result PostDDF(const TDDFType* message, const URL* sender, const URL* receiver, uintptr_t user_data1, uintptr_t user_data2, MessageDestroyCallback destroy_callback)
+    {
+        return Post(sender, receiver, TDDFType::m_DDFDescriptor->m_NameHash, user_data1, user_data2,
+                    (uintptr_t)TDDFType::m_DDFDescriptor, message, sizeof(TDDFType), destroy_callback);
+    }
+
     /*#
      * Convert a string to a URL struct
      * @note No allocation occurs, thus no cleanup is needed.
