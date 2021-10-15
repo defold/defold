@@ -843,7 +843,7 @@ TEST_P(CursorTest, Cursor)
     msg.m_Offset = params.m_CursorStart;
     msg.m_PlaybackRate = params.m_PlaybackRate;
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&msg_url, &msg_url, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)go, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&msg, &msg_url, &msg_url, (uintptr_t)go, 0, 0));
 
     m_UpdateContext.m_DT = 0.0f;
     dmGameObject::Update(m_Collection, &m_UpdateContext);
