@@ -580,7 +580,7 @@ namespace dmScript
     static int Quat_concat(lua_State *L)
     {
         size_t size = 0;
-        const char* s = luaL_checkstring(L, 1, &size);
+        const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Quat* q = CheckQuat(L, 2);
         char* buffer = new char[size + 74];
         dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
