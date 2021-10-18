@@ -381,23 +381,22 @@ TEST_F(dmGraphicsTest, TestProgram)
     ASSERT_EQ(3, dmGraphics::GetUniformLocation(program, "tint"));
     char buffer[64];
     dmGraphics::Type type;
-    int32_t size;
-    dmGraphics::GetUniformName(program, 0, buffer, 64, &type, &size);
+    dmGraphics::GetUniformName(program, 0, buffer, 64, &type);
     ASSERT_STREQ("view_proj", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
-    dmGraphics::GetUniformName(program, 1, buffer, 64, &type, &size);
+    dmGraphics::GetUniformName(program, 1, buffer, 64, &type);
     ASSERT_STREQ("world", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
-    dmGraphics::GetUniformName(program, 2, buffer, 64, &type, &size);
+    dmGraphics::GetUniformName(program, 2, buffer, 64, &type);
     ASSERT_STREQ("texture_sampler", buffer);
     ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, type);
-    dmGraphics::GetUniformName(program, 3, buffer, 64, &type, &size);
+    dmGraphics::GetUniformName(program, 3, buffer, 64, &type);
     ASSERT_STREQ("tint", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
 
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
-    dmGraphics::SetConstantV4(m_Context, &constant, 1, 0);
+    dmGraphics::SetConstantV4(m_Context, &constant, 0);
     Vector4 matrix[4] = {   Vector4(1.0f, 2.0f, 3.0f, 4.0f),
                             Vector4(5.0f, 6.0f, 7.0f, 8.0f),
                             Vector4(9.0f, 10.0f, 11.0f, 12.0f),

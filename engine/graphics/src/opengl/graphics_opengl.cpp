@@ -1863,14 +1863,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    static uint32_t OpenGLGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
+    static uint32_t OpenGLGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
         GLenum uniform_type;
         GLsizei uniform_name_length;
         glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
         *type = GetGraphicsType(uniform_type);
-        *size = uniform_size;
         CHECK_GL_ERROR;
         return (uint32_t)uniform_name_length;
     }
@@ -1894,11 +1893,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, int base_register)
+    static void OpenGLSetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
 
-        glUniform4fv(base_register, count, (const GLfloat*) data);
+        glUniform4fv(base_register,  1, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 

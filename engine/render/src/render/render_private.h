@@ -60,12 +60,12 @@ namespace dmRender
 
     struct Material
     {
+
         Material()
         : m_RenderContext(0)
         , m_Program(0)
         , m_VertexProgram(0)
         , m_FragmentProgram(0)
-        , m_ConstantData(0)
         , m_UserData1(0)
         , m_UserData2(0)
         , m_VertexSpace(dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
@@ -79,7 +79,6 @@ namespace dmRender
         dmHashTable64<int32_t>                  m_NameHashToLocation;
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
-        dmVMath::Vector4*                       m_ConstantData;
         uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;

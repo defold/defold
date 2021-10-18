@@ -85,8 +85,7 @@ TEST(dmMaterialTest, TestMaterialConstants)
     // renderobject default setup
     dmRender::RenderObject ro;
     ro.m_Material = material;
-    Vector4 test_v(1.0f, 0.0f, 0.0f, 0.0f);
-    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), &test_v, 1);
+    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), Vector4(1.0f, 0.0f, 0.0f, 0.0f));
 
     // test setting constant
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
@@ -136,8 +135,7 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     // renderobject default setup
     dmRender::RenderObject ro;
     ro.m_Material = material;
-    Vector4 test_v(1.0f, 0.0f, 0.0f, 0.0f);
-    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), &test_v, 1);
+    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), Vector4(1.0f, 0.0f, 0.0f, 0.0f));
 
     // using the null graphics device, constant locations are assumed to be in declaration order.
     // test setting constant, no override material
@@ -152,8 +150,7 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     ASSERT_EQ(0.0f, v.getW());
 
     // test setting constant, override material
-    test_v = Vector4(2.0f, 1.0f, 1.0f, 1.0f);
-    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), &test_v, 1);
+    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), Vector4(2.0f, 1.0f, 1.0f, 1.0f));
     ASSERT_EQ(0,  ro.m_Constants[0].m_Location);
     ASSERT_EQ(-1, ro.m_Constants[1].m_Location);
     ASSERT_EQ(-1, ro.m_Constants[2].m_Location);

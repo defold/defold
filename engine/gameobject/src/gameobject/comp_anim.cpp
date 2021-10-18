@@ -203,9 +203,7 @@ namespace dmGameObject
                     else
                     {
                         PropertyDesc desc;
-                        PropertyOptions property_opt;
-                        property_opt.m_Index = 0;
-                        GetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, desc);
+                        GetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, desc);
                         anim.m_From = (float)desc.m_Variant.m_Number;
                     }
                 }
@@ -310,9 +308,7 @@ namespace dmGameObject
                 }
                 else
                 {
-                    PropertyOptions property_opt;
-                    property_opt.m_Index = 0;
-                    SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
+                    SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, PropertyVar(v));
                 }
             }
             if (completed)
@@ -537,9 +533,7 @@ namespace dmGameObject
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyDesc prop_desc;
-        PropertyOptions property_opt;
-        property_opt.m_Index = 0;
-        PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
+        PropertyResult prop_result = GetProperty(instance, component_id, property_id, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {
             return prop_result;
@@ -604,9 +598,7 @@ namespace dmGameObject
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyDesc prop_desc;
-        PropertyOptions property_opt;
-        property_opt.m_Index = 0;
-        PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
+        PropertyResult prop_result = GetProperty(instance, component_id, property_id, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {
             return prop_result;

@@ -56,7 +56,7 @@ namespace dmRender
 
     Constant::Constant() {}
     Constant::Constant(dmhash_t name_hash, int32_t location)
-        : m_ValuePtr(0)
+        : m_Value(Vectormath::Aos::Vector4(0))
         , m_NameHash(name_hash)
         , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
         , m_Location(location)
@@ -365,7 +365,7 @@ namespace dmRender
                 const Constant* c = &ro->m_Constants[i];
                 if (c->m_Location != -1)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, c->m_ValuePtr, 1, c->m_Location);
+                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, c->m_Location);
                 }
             }
             return;
@@ -378,7 +378,7 @@ namespace dmRender
                 int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
                 if (location)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, c->m_ValuePtr, 1, *location);
+                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, *location);
                 }
             }
         }
@@ -737,7 +737,7 @@ namespace dmRender
         return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
     }
 
-    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4* values, uint32_t num_values)
+    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4& value)
     {
         assert(ro);
         HMaterial material = ro->m_Material;
@@ -750,36 +750,18 @@ namespace dmRender
             return;
         }
 
-        Constant material_constant;
-        GetMaterialProgramConstant(material, name_hash, material_constant);
-
-        Vector4* value_ptr     = ro->m_ConstantsData;
-        Vector4* value_ptr_end = value_ptr + RenderObject::MAX_CONSTANT_COUNT;
-
         for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
         {
             Constant* c = &ro->m_Constants[i];
-
-            if ((value_ptr + num_values) > value_ptr_end)
-            {
-                dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
-                return;
-            }
-
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                c->m_ValuePtr  = value_ptr;
-                c->m_ArraySize = material_constant.m_ArraySize;
-                memcpy(c->m_ValuePtr, values, sizeof(values[0]) * num_values);
-
+                c->m_Value = value;
                 c->m_NameHash = name_hash;
-                c->m_Type     = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+                c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
                 c->m_Location = location;
                 return;
             }
-
-            value_ptr += c->m_ArraySize;
         }
 
         dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
@@ -881,7 +863,7 @@ namespace dmRender
         int32_t* location = context->m_Material->m_NameHashToLocation.Get(*name_hash);
         if (location)
         {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, value, 1, *location);
+            dmGraphics::SetConstantV4(context->m_GraphicsContext, value, *location);
         }
     }
 

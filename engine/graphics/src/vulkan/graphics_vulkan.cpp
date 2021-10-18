@@ -1726,7 +1726,7 @@ bail:
             else
             {
                 dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(res.m_Type) * res.m_ElementCount;
+                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(res.m_Type);
                 const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
                 // Copy client data to aligned host memory
@@ -2005,7 +2005,6 @@ bail:
                 res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
                 res.m_Set                  = ddf->m_Uniforms[i].m_Set;
                 res.m_Type                 = ddf->m_Uniforms[i].m_Type;
-                res.m_ElementCount         = ddf->m_Uniforms[i].m_ElementCount;
                 res.m_Name                 = strdup(ddf->m_Uniforms[i].m_Name);
                 res.m_NameHash             = 0;
 
@@ -2021,7 +2020,7 @@ bail:
                 else
                 {
                     res.m_UniformDataIndex     = uniform_buffer_count;
-                    uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type) * res.m_ElementCount, dynamicAlignment);
+                    uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
                     uniform_buffer_count++;
                 }
             }
@@ -2095,7 +2094,7 @@ bail:
             {
                 assert(num_uniform_buffers < byte_offset_list_size);
                 byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                                 += GetShaderTypeSize(res.m_Type) * res.m_ElementCount;
+                byte_offset                                 += GetShaderTypeSize(res.m_Type);
                 vk_descriptor_type                           = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                 num_uniform_buffers++;
             }
@@ -2362,7 +2361,7 @@ bail:
         return (Type) 0xffffffff;
     }
 
-    static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
+    static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
@@ -2381,7 +2380,6 @@ bail:
 
         ShaderResourceBinding* res = &module->m_Uniforms[index];
         *type = shaderDataTypeToGraphicsType(res->m_Type);
-        *size = res->m_ElementCount;
 
         return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
     }
@@ -2435,7 +2433,7 @@ bail:
         return -1;
     }
 
-    static void VulkanSetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register)
+    static void VulkanSetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
     {
         assert(context->m_CurrentProgram);
         assert(base_register >= 0);
@@ -2452,7 +2450,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * count);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2463,7 +2461,7 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * count);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
     }
 

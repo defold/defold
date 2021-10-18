@@ -74,8 +74,8 @@ namespace dmRender
 
     struct MaterialConstant
     {
-        Constant  m_Constant;
-        dmhash_t  m_ElementIds[4];
+        Constant m_Constant;
+        dmhash_t m_ElementIds[4];
     };
 
     struct RenderContextParams
@@ -207,7 +207,7 @@ namespace dmRender
      * @param out_element_index Set if the hash matched an element
      * @return True if a constant or element was found
      */
-    bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
+    bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index);
 
     /** Retrieve the value of a constant element
      * @param material Material containing the constant
@@ -217,7 +217,7 @@ namespace dmRender
      * @return True if the value was retrieved
      */
     bool                            GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value);
-    void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4* constant, uint32_t count);
+    void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4 constant);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);

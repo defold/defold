@@ -19,7 +19,6 @@ import java.util.regex.Pattern;
 import java.io.IOException;
 
 import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.CompileExceptionError;
@@ -39,7 +38,6 @@ public class ShaderUtil {
         {
             public String name;
             public String type;
-            public int    elementCount;
             public int    binding;
             public int    set;
         }
@@ -74,21 +72,15 @@ public class ShaderUtil {
                 JsonNode membersNode = typeNode.get("members");
 
                 for (Iterator<JsonNode> membersNodeIt = membersNode.getElements(); membersNodeIt.hasNext();) {
-                    JsonNode uniformNode = membersNodeIt.next();
-                    Resource res         = new Resource();
-                    res.name             = uniformNode.get("name").asText();
-                    res.type             = uniformNode.get("type").asText();
-                    res.elementCount     = 1;
-                    res.binding          = 0;
-                    res.set              = 0;
+                    JsonNode uniformNode   = membersNodeIt.next();
+                    String uniformNodeName = uniformNode.get("name").asText();
+                    String uniformNodeType = uniformNode.get("type").asText();
 
-                    JsonNode arrayNode = uniformNode.get("array");
-                    if (arrayNode != null && arrayNode.isArray())
-                    {
-                        ArrayNode array = (ArrayNode) arrayNode;
-                        res.elementCount = arrayNode.get(0).asInt();
-                    }
-
+                    Resource res = new Resource();
+                    res.name     = uniformNode.get("name").asText();
+                    res.type     = uniformNode.get("type").asText();
+                    res.binding  = 0;
+                    res.set      = 0;
                     ubo.uniforms.add(res);
                 }
 
@@ -109,12 +101,11 @@ public class ShaderUtil {
 
             for (Iterator<JsonNode> iter = texturesNode.getElements(); iter.hasNext();) {
                 JsonNode textureNode = iter.next();
-                Resource res     = new Resource();
-                res.name         = textureNode.get("name").asText();
-                res.type         = textureNode.get("type").asText();
-                res.binding      = textureNode.get("binding").asInt();
-                res.set          = textureNode.get("set").asInt();
-                res.elementCount = 1;
+                Resource res = new Resource();
+                res.name     = textureNode.get("name").asText();
+                res.type     = textureNode.get("type").asText();
+                res.binding  = textureNode.get("binding").asInt();
+                res.set      = textureNode.get("set").asInt();
                 textures.add(res);
             }
 

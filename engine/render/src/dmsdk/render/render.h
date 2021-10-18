@@ -86,12 +86,12 @@ namespace dmRender
      */
     struct Constant
     {
-        dmVMath::Vector4*                       m_ValuePtr;
+        dmVMath::Vector4                        m_Value;
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
         int32_t                                 m_Location;
-        uint16_t                                m_ArraySize;
 
+    // Private
         Constant();
         Constant(dmhash_t name_hash, int32_t location);
     };
@@ -158,7 +158,6 @@ namespace dmRender
      * @struct
      * @name RenderObject
      * @member m_Constants [type: dmRender::Constant[]] the shader constants
-     * @member m_ConstantsData [type: dmVMath::Vector4[]] the data memory block for the constant values
      * @member m_WorldTransform [type: dmVMath::Matrix4] the world transform (usually identity for batched objects)
      * @member m_TextureTransform [type: dmVMath::Matrix4] the texture transform
      * @member m_VertexBuffer [type: dmGraphics::HVertexBuffer] the vertex buffer
@@ -185,7 +184,6 @@ namespace dmRender
         static const uint32_t MAX_TEXTURE_COUNT = 8;
         static const uint32_t MAX_CONSTANT_COUNT = 16;
         Constant                        m_Constants[MAX_CONSTANT_COUNT];
-        dmVMath::Vector4                m_ConstantsData[MAX_CONSTANT_COUNT];
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -351,10 +349,9 @@ namespace dmRender
      * @name EnableRenderObjectConstant
      * @param ro [type: dmRender::RenderObject*] the render object
      * @param name_hash [type: dmhash_t] the name of the material constant
-     * @param values [type: dmVMath::Vector4*] the constant values
-     * @param num_values [type: uint32_t] length of value array
+     * @param value [type: dmVMath::Vector4] the constant
      */
-    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vectormath::Aos::Vector4* values, uint32_t num_values);
+    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vectormath::Aos::Vector4& value);
 
     /*#
      * Disables a previously set render constant on a render object

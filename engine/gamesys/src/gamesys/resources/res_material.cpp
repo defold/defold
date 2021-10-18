@@ -143,8 +143,7 @@ namespace dmGameSystem
             const char* name = fragment_constant[i].m_Name;
             dmhash_t name_hash = dmHashString64(name);
             dmRender::SetMaterialProgramConstantType(material, name_hash, fragment_constant[i].m_Type);
-            dmRender::SetMaterialProgramConstant(material, name_hash,
-                (Vectormath::Aos::Vector4*) fragment_constant[i].m_Value.m_Data, fragment_constant[i].m_Value.m_Count);
+            dmRender::SetMaterialProgramConstant(material, name_hash, fragment_constant[i].m_Value);
         }
         // do the same for vertex constants
         for (uint32_t i = 0; i < vertex_count; i++)
@@ -152,8 +151,7 @@ namespace dmGameSystem
             const char* name = vertex_constant[i].m_Name;
             dmhash_t name_hash = dmHashString64(name);
             dmRender::SetMaterialProgramConstantType(material, name_hash, vertex_constant[i].m_Type);
-            dmRender::SetMaterialProgramConstant(material, name_hash,
-                (Vectormath::Aos::Vector4*) vertex_constant[i].m_Value.m_Data, vertex_constant[i].m_Value.m_Count);
+            dmRender::SetMaterialProgramConstant(material, name_hash, vertex_constant[i].m_Value);
         }
 
 

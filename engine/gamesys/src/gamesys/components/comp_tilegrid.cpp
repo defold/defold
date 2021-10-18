@@ -810,7 +810,7 @@ namespace dmGameSystem
         return ~0u;
     }
 
-    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
 
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
@@ -882,7 +882,7 @@ namespace dmGameSystem
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
             if (!component->m_RenderConstants)
                 component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-            SetRenderConstant(component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, 0, ddf->m_Value);
+            SetRenderConstant(component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, ddf->m_Value);
             ReHash(component);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
@@ -921,12 +921,12 @@ namespace dmGameSystem
         return GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         TileGridComponent* component = (TileGridComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component), name_hash, value_index, element_index, var);
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component), name_hash, element_index, var);
         ReHash(component);
     }
 
@@ -941,7 +941,7 @@ namespace dmGameSystem
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component), out_value);
         }
-        return GetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompTileGridGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component), params.m_PropertyId, out_value, true, CompTileGridGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -955,6 +955,6 @@ namespace dmGameSystem
         {
             return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
         }
-        return SetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompTileGridSetConstantCallback, component);
+        return SetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Value, CompTileGridSetConstantCallback, component);
     }
 }

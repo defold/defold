@@ -1015,14 +1015,14 @@ namespace dmRender
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
         Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
-        EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, &texture_size_recip, 1);
+        EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, texture_size_recip);
 
         const dmRender::Constant* constants = first_te.m_RenderConstants;
         uint32_t size = first_te.m_NumRenderConstants;
         for (uint32_t i = 0; i < size; ++i)
         {
             const dmRender::Constant& c = constants[i];
-            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_ArraySize);
+            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Value);
         }
 
         for (uint32_t *i = begin;i != end; ++i)
