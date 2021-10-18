@@ -960,9 +960,9 @@ def android_package(task):
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-    exe_path = task.exe_path.abspath(task.env)
-    dme_and = os.path.normpath(os.path.join(os.path.dirname(task.exe_path.abspath(task.env)), '..', '..'))
 
+    manifest = task.manifest.abspath(task.env)
+    dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
     libs = os.path.join(dme_and, 'libs')
     bin = os.path.join(dme_and, 'bin')
     bin_cls = os.path.join(bin, 'classes')
@@ -1047,7 +1047,9 @@ def create_android_package(self):
     lib_name = self.link_task.outputs[0].name
 
     android_package_task.exe_name = exe_name
-    android_package_task.exe_path = self.path.exclusive_build_node("%s.android" % exe_name)
+
+    manifest = self.path.exclusive_build_node("%s.android/foo.boo" % exe_name)
+    android_package_task.manifest = manifest
 
     try:
         build_util = create_build_utility(android_package_task.env)
