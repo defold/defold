@@ -81,7 +81,7 @@
 
 (defn render-cubemap
   [^GL2 gl render-args camera gpu-texture vertex-binding]
-  (gl/with-gl-bindings gl render-args [gpu-texture cubemap-shader vertex-binding]
+  (gl/with-gl-bindings gl render-args [cubemap-shader vertex-binding gpu-texture]
     (shader/set-uniform cubemap-shader gl "world" geom/Identity4d)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (types/position camera))
     (shader/set-uniform cubemap-shader gl "envMap" 0)
