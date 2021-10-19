@@ -43,6 +43,10 @@ jobs:
     if: |
       !contains(github.event.head_commit.message, 'skip-ci') &&
       (github.event_name != 'pull_request_target' || (github.event_name == 'pull_request_target' && contains(github.event.pull_request.labels.*.name, 'ok to test')))
+    steps: [
+      {
+        shell: bash, run: 'Pre-check ok'
+      }]
 
 # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-windows:
