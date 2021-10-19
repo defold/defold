@@ -837,7 +837,7 @@ TEST_P(CursorTest, Cursor)
     msg.m_Offset = params.m_CursorStart;
     msg.m_PlaybackRate = params.m_PlaybackRate;
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&msg, &msg_url, &msg_url, (uintptr_t)go, 0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&msg, &msg_url, &msg_url, (uintptr_t)go, 0, 0));
 
     m_UpdateContext.m_DT = 0.0f;
     dmGameObject::Update(m_Collection, &m_UpdateContext);
