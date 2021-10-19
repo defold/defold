@@ -475,6 +475,7 @@ namespace dmGameSystem
         dmGameSystemDDF::SetConstant msg;
         msg.m_NameHash = name_hash;
         msg.m_Value = *value;
+        msg.m_Index = 0; // TODO: Pass a real index here?
 
         dmMessage::URL receiver;
         dmMessage::URL sender;

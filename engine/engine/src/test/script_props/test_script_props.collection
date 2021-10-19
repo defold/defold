@@ -11,3 +11,8 @@ instances {
     }
   }
 }
+instances {
+  id: "uniform_property"
+  prototype: "/script_props/uniform_property.go"
+}
+
