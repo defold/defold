@@ -46,7 +46,7 @@ jobs:
     steps: [
       {
         shell: bash,
-        run: 'Pre-check ok'
+        run: 'echo "Pre-check ok"'
       }]
 
 # ---- BUILD ENGINE VERSIONS ------------------
