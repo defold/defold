@@ -127,6 +127,7 @@
 (defn- shader-resource->map [^ShaderUtil$SPIRVReflector$Resource shader-resource]
   {:name (.name shader-resource)
    :type (shader-type-from-str (.type shader-resource))
+   :element-count (.elementCount shader-resource)
    :set (.set shader-resource)
    :binding (.binding shader-resource)})
 

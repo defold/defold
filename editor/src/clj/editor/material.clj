@@ -40,11 +40,43 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- hack-downgrade-constant-value
+  "HACK/FIXME: The value field in MaterialDesc$Constant was changed from
+  `optional` to `repeated` in material.proto so that we can set uniform array
+  values in the runtime. However, we do not yet support editing of array values
+  in the material constant editing widget, and MaterialDesc$Constant is used for
+  both the runtime binary format and the material file format. For the time
+  being, we only read (and allow editing of) the first value from uniform
+  arrays. Since there is no way to add more uniform array entries from the
+  editor, it should be safe to do so until we can support uniform arrays fully."
+  [upgraded-constant-value]
+  (first upgraded-constant-value))
+
+(defn- hack-upgrade-constant-value
+  "HACK/FIXME: See above for the detailed background. We must convert the legacy
+  `optional` value to a `repeated` value when writing the runtime binary format."
+  [downgraded-constant-value]
+  (if (some? downgraded-constant-value)
+    [downgraded-constant-value]
+    []))
+
+(defn- hack-downgrade-constant [constant]
+  (update constant :value hack-downgrade-constant-value))
+
+(defn- hack-upgrade-constant [constant]
+  (update constant :value hack-upgrade-constant-value))
+
+(def ^:private hack-downgrade-constants (partial mapv hack-downgrade-constant))
+
+(def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
+
 (g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space :as pb-msg]
   (-> pb-msg
       (dissoc :_node-id :basis)
       (update :vertex-program resource/resource->proj-path)
-      (update :fragment-program resource/resource->proj-path)))
+      (update :fragment-program resource/resource->proj-path)
+      (update :vertex-constants hack-upgrade-constants)
+      (update :fragment-constants hack-upgrade-constants)))
 
 (defn- build-material [resource dep-resources user-data]
   (let [pb (reduce (fn [pb [label resource]] (assoc pb label resource))
@@ -265,7 +297,9 @@
   (concat
     (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
-    (for [field [:name :vertex-constants :fragment-constants :samplers :tags :vertex-space]]
+    (g/set-property self :vertex-constants (hack-downgrade-constants (:vertex-constants pb)))
+    (g/set-property self :fragment-constants (hack-downgrade-constants (:fragment-constants pb)))
+    (for [field [:name :samplers :tags :vertex-space]]
       (g/set-property self field (field pb)))))
 
 (defn- convert-textures-to-samplers
