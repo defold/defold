@@ -1626,6 +1626,23 @@ namespace dmGameSystem
         }
     }
 
+    dmhash_t GetGroup(void* _world, void* _component)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+        
+        uint16_t groupbit;
+        if (world->m_3D)
+        {
+            groupbit = dmPhysics::GetGroup3D(component->m_Object3D);
+        } else
+        {
+            groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
+        }
+        dmhash_t grouphash = GetLSBGroupHash(world, groupbit);
+        return grouphash;
+    } 
+
     void SetGroup(void* _world, void* _component, dmhash_t group_hash)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
@@ -1634,47 +1651,13 @@ namespace dmGameSystem
         uint16_t groupbit = GetGroupBitIndex(world, group_hash);
         if (world->m_3D)
         {
-			// TODO
-            //dmPhysics::Wakeup3D(component->m_Object3D);
+            dmPhysics::SetGroup3D(world->m_World3D, component->m_Object3D, groupbit);
         } else
         {
             dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
         }
     }
-    
-    dmhash_t GetGroup(void* _world, void* _component)
-    {
-        CollisionWorld* world = (CollisionWorld*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-        
-        if (world->m_3D)
-        {
-			// TODO
-            //dmPhysics::Wakeup3D(component->m_Object3D);
-        } else
-        {
-            uint16_t groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
-            dmhash_t grouphash = GetLSBGroupHash(world, groupbit);
-            return grouphash;
-        }
-    } 
-    
-    void SetMask(void* _world, void* _component, dmhash_t group_hash, bool boolvalue)
-    {
-        CollisionWorld* world = (CollisionWorld*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-        
-        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
-        if (world->m_3D)
-        {
-			// TODO
-            //dmPhysics::Wakeup3D(component->m_Object3D);
-        } else
-        {
-            dmPhysics::SetMask2D(component->m_Object2D, groupbit, boolvalue);
-        }
-    }
-    
+
     bool GetMask(void* _world, void* _component, dmhash_t group_hash)
     {
 		CollisionWorld* world = (CollisionWorld*)_world;
@@ -1683,13 +1666,26 @@ namespace dmGameSystem
         uint16_t groupbit = GetGroupBitIndex(world, group_hash);
         if (world->m_3D)
         {
-			// TODO
-            //dmPhysics::Wakeup3D(component->m_Object3D);
+            return dmPhysics::GetMask3D(component->m_Object3D, groupbit);
         } else
         {
             return dmPhysics::GetMask2D(component->m_Object2D, groupbit);
         }
 	}
-      
 
+    void SetMask(void* _world, void* _component, dmhash_t group_hash, bool boolvalue)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+        
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
+        if (world->m_3D)
+        {
+            dmPhysics::SetMask3D(world->m_World3D, component->m_Object3D, groupbit, boolvalue);
+        } else
+        {
+            dmPhysics::SetMask2D(component->m_Object2D, groupbit, boolvalue);
+        }
+    }
+    
 }

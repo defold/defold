@@ -1220,10 +1220,10 @@ namespace dmGameSystem
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
         {"wakeup",          Physics_Wakeup},
-        {"set_group",		Physics_SetGroup},
 		{"get_group",		Physics_GetGroup},
-        {"set_mask",		Physics_SetMask},
+        {"set_group",		Physics_SetGroup},
         {"get_mask",		Physics_GetMask},
+        {"set_mask",		Physics_SetMask},
         {0, 0}
     };
 

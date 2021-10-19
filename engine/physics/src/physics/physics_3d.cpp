@@ -1077,6 +1077,73 @@ namespace dmPhysics
         }
     }
 
+	uint16_t GetGroup3D(HCollisionObject3D collision_object) {
+		CollisionObject3D* co = (CollisionObject3D*) collision_object;
+		uint16_t groupbit = co->m_CollisionGroup;
+		return groupbit;
+	}
+
+    void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit) {
+		CollisionObject3D* co = (CollisionObject3D*) collision_object;
+		btCollisionObject* bt_co = co->m_CollisionObject;
+		
+		bool enabled = IsEnabled3D(collision_object);
+		
+		if (!enabled) { 
+			// the collision object off the world. We just have to update the group property in CollisionObject3D. When the co is enabled, the group property will get applied.
+			co->m_CollisionGroup = groupbit;
+		} else {
+			// we should remove and re-add the object to the 3d world to update group effectively
+			btRigidBody* body = btRigidBody::upcast(bt_co); // rigidbody and collisionobject share the same pointer
+			if (body != 0x0) {
+				world->m_DynamicsWorld->removeRigidBody(body);
+				co->m_CollisionGroup = groupbit;
+				world->m_DynamicsWorld->addRigidBody(body, co->m_CollisionGroup, co->m_CollisionMask);
+			} else {
+				world->m_DynamicsWorld->removeCollisionObject(bt_co);
+				co->m_CollisionGroup = groupbit;
+				world->m_DynamicsWorld->addCollisionObject(bt_co, co->m_CollisionGroup, co->m_CollisionMask);
+			}
+		}
+	}
+
+	bool GetMask3D(HCollisionObject3D collision_object, uint16_t groupbit) {
+		CollisionObject3D* co = (CollisionObject3D*) collision_object;
+		uint16_t maskbits = co->m_CollisionMask;
+		return !!(maskbits & groupbit);		
+	}
+	
+    void SetMask3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue) {
+		CollisionObject3D* co = (CollisionObject3D*) collision_object;
+		btCollisionObject* bt_co = co->m_CollisionObject;
+		
+		bool enabled = IsEnabled3D(collision_object);
+		
+		//calculate new mask once
+		uint16_t newmask = co->m_CollisionMask;
+		if (boolvalue)
+			newmask |= groupbit;
+		else
+			newmask &= ~groupbit;
+		
+		if (!enabled) { 
+			// the collision object off the world. We just have to update the mask property in CollisionObject3D. When the co is enabled, the mask property will get applied.
+			co->m_CollisionMask = newmask;
+		} else {
+			// we should remove and re-add the object to the 3d world to update mask effectively
+			btRigidBody* body = btRigidBody::upcast(bt_co); // rigidbody and collisionobject share the same pointer
+			if (body != 0x0) {
+				world->m_DynamicsWorld->removeRigidBody(body);
+				co->m_CollisionMask = newmask;
+				world->m_DynamicsWorld->addRigidBody(body, co->m_CollisionGroup, co->m_CollisionMask);
+			} else {
+				world->m_DynamicsWorld->removeCollisionObject(bt_co);
+				co->m_CollisionMask = newmask;
+				world->m_DynamicsWorld->addCollisionObject(bt_co, co->m_CollisionGroup, co->m_CollisionMask);
+			}
+		}
+	}	
+    
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
