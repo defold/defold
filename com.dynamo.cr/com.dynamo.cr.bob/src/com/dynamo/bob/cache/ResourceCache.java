@@ -99,6 +99,15 @@ public class ResourceCache {
 	}
 
 	/**
+	 * Check if the resource cache is enabled
+	 * The cache is considered enabled if a local cache dir was provided
+	 * @return true if resource cache is enabled
+	 */
+	public boolean isCacheEnabled() {
+		return localCacheDir != null;
+	}
+
+	/**
 	 * Set authentication information to use when communicating with the
 	 * remote cache.
 	 * The provided username and password/token will be used to set an
