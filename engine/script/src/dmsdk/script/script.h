@@ -559,7 +559,6 @@ namespace dmScript
      */
     int PCall(lua_State* L, int nargs, int nresult);
 
-
     /*#
      * Creates a reference to the value at top of stack, the ref is done in the
      * current instances context table.
@@ -568,8 +567,8 @@ namespace dmScript
      * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
      *
      * @name RefInInstance
-     * @param L Lua state
-     * @return lua ref to value or LUA_NOREF
+     * @param L [type: lua_State*] Lua state
+     * @return lua [type: int] ref to value or LUA_NOREF
      *
      * Lua stack on entry
      *  [-1] value
@@ -577,6 +576,22 @@ namespace dmScript
      * Lua stack on exit
     */
     int RefInInstance(lua_State* L);
+
+    /*#
+     * Deletes the instance local lua reference
+     *
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     *
+     * @name UnrefInInstance
+     * @param L [type: lua_State*] Lua state
+     * @param ref [type: int] ref to value or LUA_NOREF
+     *
+     * Lua stack on entry
+     *
+     * Lua stack on exit
+     */
+    void UnrefInInstance(lua_State* L, int ref);
 
     /*#
      * Resolves the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
