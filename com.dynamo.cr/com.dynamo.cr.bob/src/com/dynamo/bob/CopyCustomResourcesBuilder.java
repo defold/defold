@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import com.dynamo.bob.Project.Walker;
 import com.dynamo.bob.Task.TaskBuilder;
@@ -52,9 +53,11 @@ public class CopyCustomResourcesBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws IOException {
-        int n = task.getInputs().size();
+        final List<IResource> outputs = task.getOutputs();
+        final List<IResource> inputs = task.getInputs();
+        final int n = inputs.size();
         for (int i = 0; i < n; i++) {
-            task.getOutputs().get(i).setContent(task.getInputs().get(i).getContent());
+            outputs.get(i).setContent(inputs.get(i).getContent());
         }
     }
 }
