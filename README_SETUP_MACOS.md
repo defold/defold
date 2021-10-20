@@ -24,8 +24,8 @@ Verify that Java is installed and working:
 
 ### Required Software - Python 2
 
-You need a 64 bit Python 2 version (x86_64) to build the engine and tools. The latest tested on all platforms is Python 2.7.16. You also need `easy_install` to install additional packages.
-Big Sur comes with both Python 2.7.16 and Easy Install installed.
+You need a 64 bit Python 2 version (x86_64) to build the engine and tools. The latest tested on all platforms is Python 2.7.16.
+Big Sur comes with both Python 2.7.16 and pip installed.
 On Big Sur Python is a universal binary (x86_64 + arm64), and there's no guarantuee which version it will pick. Using the x86_64 version is a requirement for our tools to work (we load shared libraries, which we build for x86_64).
 
 For older versions of macOS you may need to install using [Brew](https://brew.sh/):
