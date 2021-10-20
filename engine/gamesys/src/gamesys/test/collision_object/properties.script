@@ -7,10 +7,29 @@ function test_bullet_property()
 	assert(go.get("go#properties-co", "bullet"))
 end
 
+function test_collision_group()
+    --print(physics.get_group("go#properties-co"))
+    assert( physics.get_group("go#properties-co") == hash("default"))
+    physics.set_group("go#properties-co","user")
+    assert( physics.get_group("go#properties-co") == hash("user"))
+    --print(physics.get_group("go#properties-co"))
+end
+
+function test_collision_mask()
+    assert( physics.get_mask("go#properties-co", "default") )
+    physics.set_mask("go#properties-co","default", false)
+    assert( not physics.get_mask("go#properties-co","default") )
+    
+    physics.set_mask("go#properties-co","enemy", true)
+    assert( physics.get_mask("go#properties-co","enemy") )
+end
+
 function init(self)
   physics.set_gravity(vmath.vector3(0, -10, 0))
 
   test_bullet_property()
+  test_collision_group()
+  test_collision_mask()
 end
 
 tests_done = false -- flag end of test to C level
