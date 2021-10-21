@@ -808,7 +808,7 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -816,6 +816,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
+        *size = 1; // TODO
         return (uint32_t)strlen(buffer);
     }
 
@@ -847,7 +848,7 @@ namespace dmGraphics
         return context->m_ProgramRegisters[base_register];
     }
 
-    static void NullSetConstantV4(HContext context, const Vector4* data, int base_register)
+    static void NullSetConstantV4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
         assert(context->m_Program != 0x0);

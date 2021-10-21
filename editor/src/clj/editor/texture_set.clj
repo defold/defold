@@ -208,6 +208,6 @@
                 (.glVertex3d gl x1 y1 0)
                 (.glVertex3d gl x1 y0 0)
                 (.glEnd gl)
-                (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+                (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
                   (shader/set-uniform shader gl "texture_sampler" 0)
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* n 6)))))))))))
