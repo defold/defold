@@ -115,34 +115,9 @@ namespace dmDeviceOpenAL
 
         alcMakeContextCurrent(openal->m_Context);
 
-        int iter = 0;
-        while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
-        {
-            int processed;
-            alGetSourcei(openal->m_Source, AL_BUFFERS_PROCESSED, &processed);
-            while (processed > 0) {
-                ALuint buffer;
-                alSourceUnqueueBuffers(openal->m_Source, 1, &buffer);
-                CheckAndPrintError();
-                openal->m_Buffers.Push(buffer);
-                --processed;
-            }
-
-            if ((iter + 1) % 10 == 0) {
-                dmLogInfo("Waiting for OpenAL device to complete");
-            }
-            ++iter;
-            dmTime::Sleep(10 * 1000);
-
-            if (iter > 1000) {
-                dmLogError("Still buffers in OpenAL. Bailing.");
-            }
-        }
-
         alSourceStop(openal->m_Source);
         alDeleteSources(1, &openal->m_Source);
 
-        alDeleteBuffers(openal->m_Buffers.Size(), openal->m_Buffers.Begin());
         CheckAndPrintError();
 
         if (alcMakeContextCurrent(0)) {
