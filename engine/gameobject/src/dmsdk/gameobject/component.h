@@ -397,6 +397,8 @@ namespace dmGameObject
         dmhash_t m_PropertyId;
         /// User data storage pointer
         uintptr_t* m_UserData;
+        /// Options for getting the property
+        PropertyOptions m_Options;
     };
 
     /*#
@@ -421,6 +423,8 @@ namespace dmGameObject
         uintptr_t* m_UserData;
         /// New value of the property
         PropertyVar m_Value;
+        /// Options for setting the property
+        PropertyOptions m_Options;
     };
 
     /*#

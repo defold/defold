@@ -470,13 +470,13 @@ namespace dmGameSystem
         return component->m_RenderConstants && dmGameSystem::GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         LabelComponent* component = (LabelComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
 
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -576,7 +576,7 @@ namespace dmGameSystem
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFontMap(component, component->m_Resource), out_value);
         }
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, out_value, false, CompLabelGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompLabelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompLabelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -617,6 +617,6 @@ namespace dmGameSystem
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }
-        return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, CompLabelSetConstantCallback, component);
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, params.m_Options.m_Index, CompLabelSetConstantCallback, component);
     }
 }

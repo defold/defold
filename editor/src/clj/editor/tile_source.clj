@@ -359,7 +359,7 @@
   (let [vbuf (gen-tiles-vbuf tile-source-attributes uv-transforms scale-factor)
         vb (vtx/use-with node-id vbuf tile-shader)
         gpu-texture (texture/set-params gpu-texture texture-params)]
-    (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vb]
+    (gl/with-gl-bindings gl render-args [tile-shader vb gpu-texture]
       (shader/set-uniform tile-shader gl "texture_sampler" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
