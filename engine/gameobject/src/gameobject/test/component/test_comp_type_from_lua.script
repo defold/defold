@@ -1,0 +1,15 @@
+function update(self, dt)
+    test_comp_type_from_lua("#script", "scriptc", 0)
+    test_comp_type_from_lua("#a", "a", 0)
+
+    print("Testing expected error -->")
+
+    if (pcall(test_comp_type_from_lua("#a", "a", 1))) then
+        print("MAWE The call succeeded unexpectedly")
+        -- function didn't throw an error, but we did want it to!
+        assert(false and "The call succeeded unexpectedly")
+    else
+        print("------------------")
+    end
+
+end

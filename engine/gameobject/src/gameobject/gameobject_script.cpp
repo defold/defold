@@ -454,7 +454,8 @@ namespace dmGameObject
             dmGameObject::Result result = GetComponentUserData(instance, receiver.m_Fragment, &component_type_index, user_data);
             if ((component_ext != 0x0 || user_data != 0x0) && result != dmGameObject::RESULT_OK)
             {
-                luaL_error(L, "The component could not be found");
+                char buffer[128];
+                luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
                 return; // Actually never reached
             }
 

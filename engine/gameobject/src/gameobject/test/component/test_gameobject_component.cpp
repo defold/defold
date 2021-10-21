@@ -26,6 +26,8 @@
 
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
 
+#include <dmsdk/gameobject/script.h>
+
 class ComponentTest : public jc_test_base_class
 {
 protected:
@@ -506,6 +508,71 @@ TEST_F(ComponentTest, TestComponentType)
 
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_FALSE(ret);
+
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+static int LuaTestGetComponentFromLua(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    const char* component_ext = luaL_checkstring(L, 2);
+    int expect_fail = luaL_checkinteger(L, 3);
+
+    lua_pushnumber(L, 1);
+    lua_setglobal(L, "test_error");
+
+    lua_pushnumber(L, expect_fail);
+    lua_setglobal(L, "expected_error");
+
+    void* component = 0;
+    dmMessage::URL receiver; // needed for error output
+    dmGameObject::GetComponentFromLua(L, 1, component_ext, 0, (void**)&component, &receiver);
+
+    // If it fails, it will not return here
+
+    bool call_failed = component == 0;
+
+    lua_pushnumber(L, call_failed?1:0);
+    lua_setglobal(L, "test_error");
+
+    if (expect_fail && !call_failed)
+    {
+        return luaL_error(L, "GetComponentUserDataFromLua succeeded unexpectedly");
+    }
+    else if(!expect_fail && call_failed)
+    {
+        return luaL_error(L, "GetComponentUserDataFromLua failed unexpectedly");
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
+
+TEST_F(ComponentTest, TestGetComponentFromLua)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    lua_pushcfunction(L, LuaTestGetComponentFromLua);
+    lua_setglobal(L, "test_comp_type_from_lua");
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_comp_type_from_lua.goc");
+    dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_FALSE(ret);
+
+    lua_getglobal(L, "expected_error");
+    int expected_error = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "test_error");
+    int test_error = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(expected_error, test_error);
 
     dmGameObject::Delete(m_Collection, go, false);
 }
