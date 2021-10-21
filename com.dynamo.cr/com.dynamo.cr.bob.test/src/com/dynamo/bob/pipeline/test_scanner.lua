@@ -60,6 +60,12 @@ local t = {
     ["foo13"] = require('foo13')
 }
 
+-- Issue 6111
+local foo = require('foo14')("ABC")
+local foo = require('foo15') {
+    some_table = "abc"
+}
+
 -- REQUIRE USING A VARIABLE SHOULD NOT BE INCLUDED
 local modname = "foo.bar"
 local module = require(modname)
