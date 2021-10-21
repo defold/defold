@@ -336,6 +336,15 @@ namespace dmScript
      */
     Vectormath::Aos::Quat* ToQuat(lua_State* L, int index);
 
+    /*#
+     * Check if the value at #index is a Vectormath::Aos::Quat*
+     * @name dmScript::IsQuat
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a Vectormath::Aos::Quat*
+     */
+    bool IsQuat(lua_State* L, int index);
+
     /*# push a Vectormath::Aos::Quat onto the Lua stack
      * Push a quaternion value onto Lua stack. Will increase the stack by 1.
      * @name dmScript::PushQuat
@@ -363,6 +372,15 @@ namespace dmScript
      * @return quat [type:Vectormath::Aos::Matrix4*] The pointer to the value, or 0 if not correct type
      */
     Vectormath::Aos::Matrix4* ToMatrix4(lua_State* L, int index);
+
+    /*#
+     * Check if the value at #index is a Vectormath::Aos::Matrix4*
+     * @name dmScript::IsMatrix4
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a Vectormath::Aos::Matrix4*
+     */
+    bool IsMatrix4(lua_State* L, int index);
 
     /*# push a Vectormath::Aos::Matrix4 onto the Lua stack
      * Push a matrix4 value onto the Lua stack. Will increase the stack by 1.
