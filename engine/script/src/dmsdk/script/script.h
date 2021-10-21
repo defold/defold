@@ -603,6 +603,16 @@ namespace dmScript
      * @return result [type:dmMessage::Result] dmMessage::RESULT_OK if the conversion succeeded
     */
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
+
+    /*#
+     * Converts a URL into a readable string. Useful for e.g. error messages
+     * @name UrlToString
+     * @param url [type:dmMessage::URL*] url
+     * @param buffer [type:char*] the output buffer
+     * @param buffer_size [type:uint32_t] the output buffer size
+     * @return buffer [type:const char*] returns the passed in buffer
+     */
+    const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size);
 }
 
 #endif // DMSDK_SCRIPT_SCRIPT_H
