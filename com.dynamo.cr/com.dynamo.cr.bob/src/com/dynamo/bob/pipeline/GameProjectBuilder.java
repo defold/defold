@@ -112,6 +112,7 @@ public class GameProjectBuilder extends Builder<Void> {
         project.createPublisher(shouldPublish);
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
+                .disableCache()
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc").disableCache());
 
