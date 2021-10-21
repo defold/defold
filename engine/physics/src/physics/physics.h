@@ -231,8 +231,6 @@ namespace dmPhysics
         float m_ContactImpulseLimit;
         /// Contacts with penetration depths below this limit will not be considered inside a trigger
         float m_TriggerEnterLimit;
-        /// Min velocity over which colliding objects will still bounce
-        float m_VelocityThreshold;
         /// Maximum number of ray casts per frame when using 2D physics
         uint32_t m_RayCastLimit2D;
         /// Maximum number of ray casts per frame when using 3D physics

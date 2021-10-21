@@ -422,7 +422,9 @@ static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::H
 
 static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {
     dmGameObject::PropertyDesc desc;
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, desc));
+    dmGameObject::PropertyOptions opt;
+    opt.m_Index = 0;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, opt, desc));
     dmGameObject::PropertyType type = desc.m_Variant.m_Type;
     ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_HASH == type);
     *out_val = desc.m_Variant.m_Hash;
@@ -430,7 +432,9 @@ static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_
 
 static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t in_val) {
     dmGameObject::PropertyVar prop_var(in_val);
-    return dmGameObject::SetProperty(instance, comp_name, prop_name, prop_var);
+    dmGameObject::PropertyOptions opt;
+    opt.m_Index = 0;
+    return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
 }
 
 TEST_F(SoundTest, UpdateSoundResource)
@@ -721,7 +725,9 @@ TEST_F(ParticleFxTest, PlayAnim)
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
 {
     dmGameObject::PropertyDesc property_desc;
-    dmGameObject::GetProperty(go, component_id, property_id, property_desc);
+    dmGameObject::PropertyOptions property_opt;
+    property_opt.m_Index = 0;
+    dmGameObject::GetProperty(go, component_id, property_id, property_opt, property_desc);
     return property_desc.m_Variant.m_Number;
 }
 
@@ -837,7 +843,7 @@ TEST_P(CursorTest, Cursor)
     msg.m_Offset = params.m_CursorStart;
     msg.m_PlaybackRate = params.m_PlaybackRate;
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&msg_url, &msg_url, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)go, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&msg, &msg_url, &msg_url, (uintptr_t)go, 0, 0));
 
     m_UpdateContext.m_DT = 0.0f;
     dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -1457,7 +1463,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     ASSERT_NE((void*)0, base_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
-    const char* path_body_go = "/collision_object/body.goc";
+    const char* path_body_go = "/collision_object/sleepy_body.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (10,10)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -1512,51 +1518,6 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-}
-
-
-TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
-{
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = L;
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
-    // two dynamic 'body' objects will get spawned and placed apart
-    const char* path_body_go = "/collision_object/body.goc";
-    dmhash_t hash_body1_go = dmHashString64("/body1-go");
-    // place this body standing on the base with its center at (5,5)
-    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, body1_go);
-    dmhash_t hash_body2_go = dmHashString64("/body2-go");
-    // place this body standing on the base with its center at (20,5)
-    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, body2_go);
-
-    // a 'base' gameobject works as the base for other dynamic objects to stand on
-    const char* path_sleepy_go = "/collision_object/velocity_threshold_base.goc";
-    dmhash_t hash_base_go = dmHashString64("/base-go");
-    // place the base object so that the upper level of base is at Y = 0
-    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, base_go);
-
-    // iterate until the lua env signals the end of the test of error occurs
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
         lua_getglobal(L, "tests_done");
         tests_done = lua_toboolean(L, -1);
@@ -2990,7 +2951,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     ASSERT_EQ(0, constant);
 
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, var1); // stores the previous value
+    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
 
     result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_TRUE(result);
@@ -2999,7 +2960,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
     dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, var2);
+    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, 0, var2);
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 

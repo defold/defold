@@ -43,8 +43,6 @@
                                     "/test.dae"
                                     "/builtins/materials/model.material"
                                     "/test.wav"
-                                    "/test.spinescene"
-                                    "/builtins/materials/spine.material"
                                     "/test.atlas"
                                     "/builtins/materials/sprite.material"]
    "/test_embedded_gos_referenced_components.collection" ["/test.camera"
@@ -58,7 +56,6 @@
                                                           "/test.particlefx"
                                                           "/test.script"
                                                           "/test.sound"
-                                                          "/test.spinemodel"
                                                           "/test.sprite"
                                                           "/test.tilemap"
                                                           "/test.wav"]
@@ -84,7 +81,6 @@
                "/test.particlefx"
                "/test.script"
                "/test.sound"
-               "/test.spinemodel"
                "/test.sprite"
                "/test.tilemap"
                "/test.wav"]
@@ -98,14 +94,11 @@
                                    "/test.dae"
                                    "/builtins/materials/model.material"
                                    "/test.wav"
-                                   "/test.spinescene"
-                                   "/builtins/materials/spine.material"
                                    "/test.atlas"
                                    "/builtins/materials/sprite.material"]
    "/test.gui" ["/test.gui_script"
                 "/test2.gui"
                 "/test.atlas"
-                "/test.spinescene"
                 "/test.particlefx"
                 "/test.material"
                 "/test.font"]
@@ -127,10 +120,6 @@
    "/test.render_script" []
    "/test.script" []
    "/test.sound" ["/test.wav"]
-   "/test.spinemodel" ["/test.spinescene"
-                       "/test.material"]
-   "/test.spinescene" ["/test.json"
-                       "/test.atlas"]
    "/test.sprite" ["/test.atlas"
                    "/test.material"]
    "/test.texture_profiles" []
@@ -194,8 +183,6 @@
                                      "/test.dae"
                                      "/builtins/materials/model.material"
                                      "/test.wav"
-                                     "/test.spinescene"
-                                     "/builtins/materials/spine.material"
                                      "/test.atlas"
                                      "/builtins/materials/sprite.material"]})
 

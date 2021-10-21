@@ -23,8 +23,6 @@
  * Test file foo.lz4 created with lz4 0.6.1 in python
  *
  * $> pip install lz4
- * or
- * $> easy_install lz4
  *
  * testfile.py:
  *

@@ -1,0 +1,19 @@
+name: "props"
+collection_instances {
+    id: "sub_props"
+    collection: "/script/props.collection"
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+    instance_properties {
+        id: "props"
+        properties {
+            id: "script"
+            properties {id: "number" value: "4.0" type: PROPERTY_TYPE_NUMBER}
+	        properties {id: "hash" value: "hash4" type: PROPERTY_TYPE_HASH}
+            properties {id: "url" value: "/url3" type: PROPERTY_TYPE_URL}
+            properties {id: "vec3" value: "3.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR3}
+            properties {id: "quat" value: "2.0,0.0,0.0,0.0" type: PROPERTY_TYPE_QUAT}
+            properties {id: "vec4" value: "2.0,2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR4}
+            properties {id: "bool" value: "false" type: PROPERTY_TYPE_BOOLEAN}
+        }
+    }
+}

@@ -37,7 +37,6 @@
            [com.dynamo.gamesys.proto ModelProto$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontDesc]
-           [com.dynamo.spine.proto Spine$SpineModelDesc Spine$SpineSceneDesc]
            [com.dynamo.gamesys.proto Tile$TileSet]
            [java.io StringReader File]
            [org.apache.commons.io FileUtils]
@@ -51,8 +50,6 @@
                            "label" Label$LabelDesc
                            "model" ModelProto$ModelDesc
                            "particlefx" Particle$ParticleFX
-                           "spinescene" Spine$SpineSceneDesc
-                           "spinemodel" Spine$SpineModelDesc
                            "tileset" Tile$TileSet
                            "tilesource" Tile$TileSet})
 
@@ -74,7 +71,6 @@
                  "**/super_scene.gui"
                  "**/scene.gui"
                  "**/simple.gui"
-                 "**/spine.gui"
                  "**/gui_resources.gui"
                  "**/gui_resources_missing_files.gui"
                  "**/broken_gui_resources.gui"
@@ -88,8 +84,6 @@
                  "**/new.collisionobject"
                  "**/three_shapes.collisionobject"
                  "**/tile_map_collision_shape.collisionobject"
-                 "**/spineboy.spinescene"
-                 "**/spineboy.spinemodel"
                  "**/treasure_chest.model"
                  "**/new.factory"
                  "**/with_prototype.factory"

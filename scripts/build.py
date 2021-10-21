@@ -81,7 +81,6 @@ def get_target_platforms():
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
-PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
@@ -556,12 +555,12 @@ class Configuration(object):
                 self._extract_tgz(path, self.ext)
             installed_packages.update(target_package_paths)
 
-        print("Installing python eggs")
-        run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pip==19.3.1'])
+        print("Installing python wheels")
+        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==19.3.1'])
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
-        for egg in glob(join(self.defold_root, 'packages', '*.egg')):
-            self._log('Installing %s' % basename(egg))
-            run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
+        for whl in glob(join(self.defold_root, 'packages', '*.whl')):
+            self._log('Installing %s' % basename(whl))
+            run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), whl])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
@@ -881,9 +880,24 @@ class Configuration(object):
                 ddf_extensions_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_extensions_pb2.py')
                 ddf_math_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_math_pb2.py')
                 dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
-                protobuf_egg = os.path.join(self.dynamo_home, 'ext/lib/python/protobuf-2.3.0-py2.5.egg')
 
-                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init, protobuf_egg], self.dynamo_home, topfolder)
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init], self.dynamo_home, topfolder)
+
+                # we don't want to run "pip install" on individual sdk files., so we copy the python files as-is
+                protobuf_files = []
+                for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/lib/python/google')):
+                    for f in files:
+                        _, ext = os.path.splitext(f)
+                        print root, f
+                        if ext in ('.pyc',):
+                            continue
+                        path = os.path.join(root, f)
+                        protobuf_files.append(path)
+
+                if not protobuf_files:
+                    raise Exception("Failed to find python protobuf folder")
+
+                self._add_files_to_zip(zip, protobuf_files, self.dynamo_home, topfolder)
 
                 # bob pipeline classes
                 bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
@@ -2065,7 +2079,7 @@ class Configuration(object):
         return env
 
 if __name__ == '__main__':
-    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
+    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.whl'))
     sys.path.insert(0, boto_path)
     usage = '''usage: %prog [options] command(s)
 

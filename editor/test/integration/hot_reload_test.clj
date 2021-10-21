@@ -66,7 +66,7 @@
             data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
         (is (= 200 (:status res)))
         (is (= "parallax" (:name data)))
-        (is (= 14 (count (:instances data)))))
+        (is (= 13 (count (:instances data)))))
       (is (= 404 (:status (handler-get (partial hot-reload/build-handler workspace project) (->build-url "foobar") nil "GET")))))))
 
 (deftest etags-endpoint-test

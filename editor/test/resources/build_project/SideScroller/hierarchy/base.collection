@@ -1,0 +1,17 @@
+name: "base"
+collection_instances {
+  id: "sub1"
+  collection: "/hierarchy/sub1.collection"
+  position {
+    x: 10.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}

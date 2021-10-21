@@ -526,6 +526,20 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     // We have an intermittent fail here, so let's output the info so we can start investigating it.
     // We always print these so that we can compare the failed build with a successful one
     {
+        // Print out the source data, so that we can perhaps reproduce locally
+        printf("\nRESOURCES_DMANIFEST (sz: %u):\n\n", RESOURCES_DMANIFEST_SIZE);
+        PrintArray(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE);
+        printf("\n");
+
+        printf("\nRESOURCES_ARCD (sz: %u):\n\n", RESOURCES_ARCD_SIZE);
+        PrintArray(RESOURCES_ARCD, RESOURCES_ARCD_SIZE);
+        printf("\n");
+
+        printf("\nRESOURCES_ARCI (sz: %u):\n\n", RESOURCES_ARCI_SIZE);
+        PrintArray(RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
+        printf("\n");
+
+        //
         printf("\nPUBLIC KEY (sz: %u):\n\n", RESOURCES_PUBLIC_SIZE);
         PrintArray(RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
         printf("\n");
@@ -535,14 +549,15 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
         printf("\nMANIFEST SIGNATURE (sz: %u):\n\n", signature_len);
         PrintArray(signature, signature_len);
         printf("\n");
+
+        printf("Expected digest (%u bytes):\n", expected_digest_len);
+        PrintHash((const uint8_t*)expected_digest, expected_digest_len);
     }
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
 
-    // debug prints to determine cause of intermittent test fail on linux 32-bit
-    printf("Expected digest (%u bytes):\n", expected_digest_len);
-    PrintHash((const uint8_t*)expected_digest, expected_digest_len);
+    // debug prints to determine cause of intermittent test fail on both Linux/macOS
     printf("Actual digest (%u bytes):\n", hex_digest_len);
     PrintHash((const uint8_t*)hex_digest, hex_digest_len);
     // end debug

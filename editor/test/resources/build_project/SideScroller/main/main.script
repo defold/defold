@@ -1,0 +1,21 @@
+function init(self)
+	-- set blue background
+    msg.post("@render:", "clear_color", { color = vmath.vector4(0.52, 0.80, 1, 0) } )
+	msg.post(".", "acquire_input_focus")
+end
+
+function update(self, dt)
+end
+
+function on_message(self, message_id, message)
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("ok") and action.pressed then
+        print('OK')
+	elseif action_id == hash("profiler_toggle") and action.pressed then
+		msg.post("@system:", "toggle_profile")
+		return true
+	end
+	return false
+end
