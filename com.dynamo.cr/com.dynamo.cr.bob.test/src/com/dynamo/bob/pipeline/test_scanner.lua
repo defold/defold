@@ -13,15 +13,15 @@
 
 -- TEST SOME NORMAL REQUIRE STATEMENTS WITH SINGLE OR DOUBLE QUOTES WITH OR WITHOUT PARENTHESIS AND ADDITIONAL SPACE
 require "a"
-require ("a")
-require "a.b"
-require (   "a.b")
-require 'a'
-require ('a')
-require 'a.b'
-require (   'a.b')
-require "a.b.c"
-require (  "a.b.c"     )
+require ("b")
+require "c.d"
+require (   "e.f")
+require 'g'
+require ('h')
+require 'i.j'
+require (   'k.l')
+require "m.n.o"
+require (  "p.q.r"     )
 
 -- REQUIRE IN COMMENTS SHOULD NOT BE INCLUDED
 --require "foo"

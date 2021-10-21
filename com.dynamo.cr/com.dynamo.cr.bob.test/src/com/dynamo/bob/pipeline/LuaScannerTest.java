@@ -51,15 +51,15 @@ public class LuaScannerTest {
         List<String> modules = LuaScanner.scan(file);
 
         assertEquals("a", modules.get(0));
-        assertEquals("a", modules.get(1));
-        assertEquals("a.b", modules.get(2));
-        assertEquals("a.b", modules.get(3));
-        assertEquals("a", modules.get(4));
-        assertEquals("a", modules.get(5));
-        assertEquals("a.b", modules.get(6));
-        assertEquals("a.b", modules.get(7));
-        assertEquals("a.b.c", modules.get(8));
-        assertEquals("a.b.c", modules.get(9));
+        assertEquals("b", modules.get(1));
+        assertEquals("c.d", modules.get(2));
+        assertEquals("e.f", modules.get(3));
+        assertEquals("g", modules.get(4));
+        assertEquals("h", modules.get(5));
+        assertEquals("i.j", modules.get(6));
+        assertEquals("k.l", modules.get(7));
+        assertEquals("m.n.o", modules.get(8));
+        assertEquals("p.q.r", modules.get(9));
         assertEquals("foo1", modules.get(10));
         assertEquals("foo2", modules.get(11));
         assertEquals("foo3", modules.get(12));

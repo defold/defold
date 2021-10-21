@@ -221,7 +221,8 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 			if (module.startsWith("\"") || module.startsWith("'")) {
 				module = module.replace("\"", "").replace("'", "");
 				// ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
-				if (!LUA_LIBRARIES.contains(module)) {
+				// and also don't add the same module twice
+				if (!LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
 					modules.add(module);
 				}
 			}
