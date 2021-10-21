@@ -4,7 +4,7 @@ function update(self, dt)
 
     print("Testing expected error -->")
 
-    if (pcall(test_comp_type_from_lua("#a", "a", 1))) then
+    if (pcall(test_comp_type_from_lua("#notexist", "a", 1))) then
         print("MAWE The call succeeded unexpectedly")
         -- function didn't throw an error, but we did want it to!
         assert(false and "The call succeeded unexpectedly")
