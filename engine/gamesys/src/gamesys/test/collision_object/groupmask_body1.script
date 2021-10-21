@@ -1,0 +1,59 @@
+-- scenario: mask/group status of bodies set up, body1-go is thrown to body2-go, collision result is asserted
+-- globals IN: actions, collision_expected
+
+function executeAction(command, co, argument)
+  print("command: ", command, ", object: ", "'"..co.."'", ", argument:", argument)  
+  if command == "group" then
+    physics.set_group(co, argument)
+  elseif command == "addmask" then
+    physics.set_mask(co, argument, true)
+  elseif command == "removemask" then
+    physics.set_mask(co, argument,false)
+  end
+
+end
+
+function init(self)
+  --physics.set_gravity(vmath.vector3(0, -10, 0))
+  --go.set("/body1-go#body-co", "linear_velocity", vmath.vector3(21, 0, 0) )
+  --go.set("/body2-go#body-co", "linear_velocity", vmath.vector3(0, 0, 0) )
+    
+  -- set up group and mask properties
+  for action in actions:gmatch("[^\r\n]+") do -- split multiline string
+    --table.insert(lines, s)
+    print(action)
+    --executeAction( string.match(action, "(%g+)%s+(%g+)%s+(%g+)%s*") ) -- split each line command/co/argument parts
+  end
+  
+  --print("collision_expected: ", collision_expected)
+  
+  -- throw object
+  --physics.wakeup("body1-go#co")
+  --physics.wakeup("body2-go#co")
+  go.set("/body1-go#co", "linear_velocity", vmath.vector3(100,0,0))
+  --go.set("/body2-go#co", "linear_velocity", vmath.vector3(100,0,0))
+  
+end
+
+tests_done = false -- flag end of test to C level
+--local zero_velocity = vmath.vector3(0,0,0)
+local counter = 0
+
+local collision_detected = false
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		--print("collision detected at frame ", counter )
+        collision_detected = true
+	end	
+end
+
+
+function update(self, dt)
+  counter = counter + 1    
+
+  if counter >= 120 then
+    assert(collision_expected == collision_detected)
+    tests_done = true
+  end
+end
+
