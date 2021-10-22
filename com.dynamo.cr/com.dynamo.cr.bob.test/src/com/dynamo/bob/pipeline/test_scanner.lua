@@ -23,6 +23,10 @@ require (   'k.l')
 require "m.n.o"
 require (  "p.q.r"     )
 
+-- REQUIRE WITH A COMMENT
+require "s" -- comment
+require ("t") -- comment
+
 -- REQUIRE IN COMMENTS SHOULD NOT BE INCLUDED
 --require "foo"
 --require "foo.bar"
