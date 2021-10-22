@@ -235,7 +235,7 @@ namespace dmSound
         return false;
     }
 
-    bool IsPhoneCallActive()
+    bool IsAudioInterrupted()
     {
         return false;
     }

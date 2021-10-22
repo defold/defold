@@ -211,7 +211,7 @@ namespace dmSound
         return [[AVAudioSession sharedInstance] secondaryAudioShouldBeSilencedHint];
     }
 
-    bool PlatformIsPhoneCallActive()
+    bool PlatformIsAudioInterrupted()
     {
         return ::g_audioInterrupted;
     }

@@ -119,7 +119,7 @@ namespace dmSound
         return ::CallZ(g_SoundManager.m_IsMusicPlaying, false);
     }
 
-    bool PlatformIsPhoneCallActive()
+    bool PlatformIsAudioInterrupted()
     {
         return g_SoundManager.m_IsPhoneCallActive;
     }
