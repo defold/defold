@@ -115,6 +115,34 @@ public:
     }
 };
 
+struct GroupAndMaskParams {
+    const char* m_Actions;
+    const bool m_CollisionExpected;
+};
+
+class GroupAndMask2DTest : public GamesysTest<GroupAndMaskParams>
+{
+public:
+    GroupAndMask2DTest() {
+      // override configuration values specified in GamesysTest()
+      m_projectOptions.m_MaxCollisionCount = 32;
+      m_projectOptions.m_MaxContactPointCount = 64;
+      m_projectOptions.m_3D = false;
+    }
+};
+
+class GroupAndMask3DTest : public GamesysTest<GroupAndMaskParams>
+{
+public:
+    GroupAndMask3DTest() {
+      // override configuration values specified in GamesysTest()
+      m_projectOptions.m_MaxCollisionCount = 32;
+      m_projectOptions.m_MaxContactPointCount = 64;
+      m_projectOptions.m_3D = true;
+    }
+};
+
+
 class ResourceTest : public GamesysTest<const char*>
 {
 public:
@@ -366,7 +394,11 @@ void GamesysTest<T>::SetUp()
     m_PhysicsContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
     m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
     m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
-    m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
+    if (m_PhysicsContext.m_3D) {
+        m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
+    } else {
+        m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
+    }
 
     m_ParticleFXContext.m_Factory = m_Factory;
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
@@ -452,7 +484,11 @@ void GamesysTest<T>::TearDown()
     dmInput::DeleteContext(m_InputContext);
     dmHID::Final(m_HidContext);
     dmHID::DeleteContext(m_HidContext);
-    dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
+    if (m_PhysicsContext.m_3D) {
+        dmPhysics::DeleteContext3D(m_PhysicsContext.m_Context3D);
+    } else {
+        dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
+    }
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);
 }

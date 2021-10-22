@@ -1527,8 +1527,10 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(CollisionObject2DTest, GroupAndMaskTest )
+TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
 {
+    const GroupAndMaskParams& params = GetParam();
+    
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -1538,19 +1540,21 @@ TEST_F(CollisionObject2DTest, GroupAndMaskTest )
     scriptlibcontext.m_LuaState = L;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
-    const char* actions = "group body1-go#co user\n"
+/*
+    An example actions set: 
+    
+    "group body1-go#co user\n"
     "addmask body1-go#co enemy\n"
     "removemask body1-go#co default\n"
     "group body2-go#co enemy\n"
     "addmask body2-go#co user\n"
     "removemask body2-go#co default"
     ;
-    
-//    const char* actions = "group body1-go#co user\ngroup body2-go#co enemy";
+*/    
 
-    lua_pushstring(L, actions);
+    lua_pushstring(L, params.m_Actions); //actions);
     lua_setglobal(L, "actions");
-    lua_pushboolean(L, true);
+    lua_pushboolean(L, params.m_CollisionExpected); //true);
     lua_setglobal(L, "collision_expected");
 
     // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
@@ -1581,6 +1585,77 @@ TEST_F(CollisionObject2DTest, GroupAndMaskTest )
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
+{
+    const GroupAndMaskParams& params = GetParam();
+    
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+/*
+    An example actions set: 
+    
+    "group body1-go#co user\n"
+    "addmask body1-go#co enemy\n"
+    "removemask body1-go#co default\n"
+    "group body2-go#co enemy\n"
+    "addmask body2-go#co user\n"
+    "removemask body2-go#co default"
+    ;
+*/    
+
+    lua_pushstring(L, params.m_Actions); //actions);
+    lua_setglobal(L, "actions");
+    lua_pushboolean(L, params.m_CollisionExpected); //true);
+    lua_setglobal(L, "collision_expected");
+
+    // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
+    const char* path_body2_go = "/collision_object/groupmask_body2.goc";
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+    
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body1_go = "/collision_object/groupmask_body1.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+  
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+GroupAndMaskParams groupandmask_params[] = {
+    {"", true}, // group1: default, mask1: default, group2: default, mask2: default
+    {"removemask body1-go#co default", false}, //group1: '', mask1:default, group2:default, mask2:default
+    {"removemask body2-go#co default", false}, 
+    {"group body1-go#co user\naddmask body1-go#co enemy\nremovemask body1-go#co default\ngroup body2-go#co enemy\naddmask body2-go#co user\nremovemask body2-go#co default", true},
+    {"group body1-go#co user\naddmask body1-go#co enemy\naddmask body1-go#co walls\nremovemask body1-go#co default\ngroup body2-go#co enemy\naddmask body2-go#co user\naddmask body2-go#co walls\nremovemask body2-go#co default", true},
+};
+INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask2DTest, jc_test_values_in(groupandmask_params));
+INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask3DTest, jc_test_values_in(groupandmask_params));
+
+
 
 
 /* Physics joints */
