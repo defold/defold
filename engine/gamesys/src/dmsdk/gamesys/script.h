@@ -30,6 +30,7 @@ namespace dmScript
      * Get current game object instance
      * Works in both gameobjects and gui scripts
      *
+     * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
      * @return instance [type: dmGameObject::HInstance]
      */
@@ -41,6 +42,7 @@ namespace dmScript
      * The instance reference (url) at stack index "index" will be resolved to an instance.
      * @note The function only accepts instances in "this" collection. Otherwise a lua-error will be raised.
      *
+     * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
      * @param index [type: int] lua-arg
      * @return instance [type: lua_State*] gameobject instance
