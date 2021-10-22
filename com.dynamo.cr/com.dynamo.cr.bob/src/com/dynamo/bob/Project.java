@@ -112,6 +112,7 @@ public class Project {
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
     private Map<String, String> inextToOutext = new HashMap<>();
+    private List<Class<? extends Builder<?>>> ignoreTaskAutoCreation = new ArrayList<Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private ArrayList<Task<?>> newTasks;
@@ -270,8 +271,10 @@ public class Project {
                     if (builderParams != null) {
                         for (String inExt : builderParams.inExts()) {
                             extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
-
                             inextToOutext.put(inExt, builderParams.outExt());
+                            if (builderParams.ignoreTaskAutoCreation()) {
+                                ignoreTaskAutoCreation.add((Class<? extends Builder<?>>) klass);
+                            }
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -328,16 +331,6 @@ public class Project {
         return inExt;
     }
 
-    private Task<?> doCreateTask(String input) throws CompileExceptionError {
-        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
-        if (builderClass != null) {
-            return doCreateTask(input, builderClass);
-        } else {
-            logWarning("No builder for '%s' found", input);
-        }
-        return null;
-    }
-
     private Task<?> doCreateTask(String input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
         Builder<?> builder;
         try {
@@ -345,6 +338,7 @@ public class Project {
             builder.setProject(this);
             IResource inputResource = fileSystem.get(input);
             Task<?> task = builder.create(inputResource);
+            System.out.println("Build: " + String.format("%s input:%s output:", input, task.getInputs(), task.getOutputs()));
             return task;
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
@@ -361,6 +355,16 @@ public class Project {
     }
 
     /**
+     * Returns builder class for resource
+     * @param input input resource
+     * @return class
+     */
+    public Class<? extends Builder<?>> getBuilderFromExtension(IResource input) {
+        return getBuilderFromExtension(input.getPath());
+    }
+
+    
+    /**
      * Create task from resource. Typically called from builder
      * that create intermediate output/input-files
      * @param input input resource
@@ -368,7 +372,7 @@ public class Project {
      * @throws CompileExceptionError
      */
     public Task<?> buildResource(IResource input) throws CompileExceptionError {
-        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input.getPath());
+        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
         if (builderClass == null) {
             logWarning("No builder for '%s' found", input);
             return null;
@@ -448,9 +452,16 @@ public class Project {
                 }
             }
             if (!skipped) {
-                Task<?> task = doCreateTask(input);
-                if (task != null) {
-                    newTasks.add(task);
+                Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
+                if (!ignoreTaskAutoCreation.contains(builderClass)) {
+                    Task<?> task = doCreateTask(input, builderClass);
+                    if (task != null) {
+                        newTasks.add(task);
+                    }
+                }
+                else {
+
+                    System.out.println("Ignore: " + String.format("%s", input));
                 }
             }
         }

@@ -49,6 +49,13 @@ public class MeshBuilder extends Builder<Void> {
         for (String t : meshDescBuilder.getTexturesList()) {
             res = BuilderUtil.checkResource(this.project, input, "texture", t);
             taskBuilder.addInput(res);
+            System.out.println("MeshBuilder: " + String.format("%s", res));
+            Task<?> embedTask = this.project.buildResource(res, TextureBuilder.class);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", res.getPath()));
+            }
         }
 
         return taskBuilder.build();

@@ -55,8 +55,17 @@ public class ModelBuilder extends Builder<Void> {
         if((!modelDescBuilder.getAnimations().isEmpty()) && modelDescBuilder.getAnimations().endsWith(".dae")) {
             IResource animations = BuilderUtil.checkResource(this.project, input, "animation", modelDescBuilder.getAnimations());
             taskBuilder.addInput(animations);
+            for (String t : modelDescBuilder.getTexturesList()) {
+                IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
+                taskBuilder.addInput(res);
+                Task<?> embedTask = this.project.buildResource(res, TextureBuilder.class);
+                if (embedTask == null) {
+                    throw new CompileExceptionError(input,
+                                                    0,
+                                                    String.format("Failed to create build task for component '%s'", res.getPath()));
+                }
+            }
         }
-
         return taskBuilder.build();
     }
 
