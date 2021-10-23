@@ -58,7 +58,7 @@ public class ModelBuilder extends Builder<Void> {
             for (String t : modelDescBuilder.getTexturesList()) {
                 IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
                 taskBuilder.addInput(res);
-                Task<?> embedTask = this.project.buildResource(res, TextureBuilder.class);
+                Task<?> embedTask = this.project.buildUniqueResource(res, TextureBuilder.class);
                 if (embedTask == null) {
                     throw new CompileExceptionError(input,
                                                     0,

@@ -116,6 +116,7 @@ public class Project {
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private ArrayList<Task<?>> newTasks;
+    private HashMap<String, Task<?>> newUniqueTasks = new HashMap<String, Task<?>>();
     private State state;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
@@ -338,7 +339,6 @@ public class Project {
             builder.setProject(this);
             IResource inputResource = fileSystem.get(input);
             Task<?> task = builder.create(inputResource);
-            System.out.println("Build: " + String.format("%s input:%s output:", input, task.getInputs(), task.getOutputs()));
             return task;
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
@@ -389,13 +389,36 @@ public class Project {
      * Create task from resource with explicit builder.
      * @param input input resource
      * @param builderClass class to build resource with
-     * @return
+     * @return task
      * @throws CompileExceptionError
      */
     public Task<?> buildResource(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
         Task<?> task = doCreateTask(input.getPath(), builderClass);
         if (task != null) {
             newTasks.add(task);
+        }
+        return task;
+    }
+
+    /**
+     * Create task from resource with explicit builder and add task if it's unique.
+     * Use only for possibly non-unique resources.
+     * @param input input resource
+     * @param builderClass class to build resource with
+     * @return task
+     * @throws CompileExceptionError
+     */
+    public Task<?> buildUniqueResource(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        Task<?> task = doCreateTask(input.getPath(), builderClass);
+        if (task != null) {
+            String key = task.toString();
+            if (newUniqueTasks.containsKey(key)) {
+                task = newUniqueTasks.get(key);
+            }
+            else {
+                newUniqueTasks.put(key, task);
+                newTasks.add(task);
+            }
         }
         return task;
     }
@@ -458,10 +481,6 @@ public class Project {
                     if (task != null) {
                         newTasks.add(task);
                     }
-                }
-                else {
-
-                    System.out.println("Ignore: " + String.format("%s", input));
                 }
             }
         }
