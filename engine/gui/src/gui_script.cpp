@@ -2153,7 +2153,7 @@ namespace dmGui
         lua_rawset(L, -3);
     }
 
-    /* DEPRECATED in favor of resoruce.get_text_metrics
+    /* DEPRECATED in favor of resource.get_text_metrics
      */
     static int LuaGetTextMetricsFromNode(lua_State* L)
     {
@@ -2196,7 +2196,7 @@ namespace dmGui
         return lua_toboolean(L, index);
     }
 
-    /* DEPRECATED in favor of resoruce.get_text_metrics
+    /* DEPRECATED in favor of resource.get_text_metrics
      */
     static int LuaGetTextMetrics(lua_State* L)
     {

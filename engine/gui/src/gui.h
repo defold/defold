@@ -670,7 +670,7 @@ namespace dmGui
      * Gets a font by name hash
      * @name GetFont
      * @param scene Scene to get font from
-     * @param font_hash Hashed name of the font
+     * @param font_hash Hashed name of the font. 0 if unsuccessful
      */
     dmhash_t GetFontPath(HScene scene, dmhash_t font_hash);
 
