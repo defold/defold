@@ -181,6 +181,9 @@ namespace dmGameSystem
  * ```
  */
 
+// As seen in gamesys_private.h (which makes it a _lot_ harder to search for)
+static const char* LABEL_EXT = "labelc";
+
 /*# set the text for a label
  *
  * Sets the text of a label component
@@ -199,12 +202,6 @@ namespace dmGameSystem
  * end
  * ```
  */
-
-
-    // As seen in gamesys_private.h (which makes it a _lot_ harder to search for)
-    static const char* LABEL_EXT = "labelc";
-    //static const dmhash_t LABEL_EXT_HASH = dmHashString64(LABEL_EXT);
-
 static int SetText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -239,27 +236,7 @@ static int SetText(lua_State* L)
 }
 
 
-/*# gets the text metrics for a label
- *
- * Gets the text metrics from a label component
- *
- * @name label.get_text_metrics
- * @param url [type:string|hash|url] the label to get the (unscaled) metrics from
- * @return metrics [type:table] a table with the following fields:
- *
- * - width
- * - height
- * - max_ascent
- * - max_descent
- *
- * @examples
- *
- * ```lua
- * function init(self)
- *     local metrics = label.get_text_metrics("#label")
- *     pprint(metrics)
- * end
- * ```
+/** DEPRECATED
  */
 static int GetTextMetrics(lua_State* L)
 {

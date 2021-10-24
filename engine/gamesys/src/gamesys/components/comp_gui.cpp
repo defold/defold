@@ -386,7 +386,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
             const char* name = scene_desc->m_Fonts[i].m_Name;
-            dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i]);
+            dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
                 return false;

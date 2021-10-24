@@ -332,16 +332,6 @@ namespace dmResource
     */
     bool IsPathTagged(const char* name);
 
-
-    /**
-     * Returns the canonical path hash of a resource
-     * @param factory Factory handle
-     * @param resource Resource
-     * @param hash Returned hash
-     * @return RESULT_OK on success
-    */
-    Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
-
     /**
      * Returns the mutex held when loading asynchronous
      * @param factory Factory handle

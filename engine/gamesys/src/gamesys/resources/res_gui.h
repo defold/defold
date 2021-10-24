@@ -36,6 +36,7 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc*            m_SceneDesc;
         dmGui::HScript                  m_Script;
         dmArray<dmRender::HFontMap>     m_FontMaps;
+        dmArray<dmhash_t>               m_FontMapPaths;
         dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
         dmArray<RigSceneResource*>      m_RigScenes;
         dmArray<dmParticle::HPrototype> m_ParticlePrototypes;

@@ -1880,6 +1880,34 @@ namespace dmGui
         return 1;
     }
 
+    /*# gets the node font resource
+     * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_font_resource
+     * @param font_name [type:hash|string] font of which to get the path hash
+     * @return hash [type:hash] path hash to resource
+     */
+    static int LuaGetFontResource(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmhash_t font_id_hash = dmScript::CheckHashOrString(L, 1);
+
+        dmhash_t path_hash = dmGui::GetFontPath(scene, font_id_hash);
+        if (path_hash) {
+            dmScript::PushHash(L, path_hash);
+        } else {
+            return luaL_error(L, "Failed to get path hash for resource %s", dmHashReverseSafe64(font_id_hash));
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+
     /*# sets the node font
      * This is only useful for text nodes.
      * The font must be mapped to the gui scene in the gui editor.
@@ -4559,6 +4587,7 @@ namespace dmGui
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
         {"get_font",        LuaGetFont},
+        {"get_font_resource", LuaGetFontResource},
         {"set_font",        LuaSetFont},
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},

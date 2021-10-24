@@ -121,7 +121,7 @@ namespace dmGameSystem
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    static inline dmRender::HFontMap GetFontMap(LabelComponent* component, LabelResource* resource) {
+    static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource) {
         return component->m_FontMap ? component->m_FontMap : resource->m_FontMap;
     }
 
@@ -527,8 +527,10 @@ namespace dmGameSystem
 
     void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics)
     {
-        dmGameSystemDDF::LabelDesc* ddf = component->m_Resource->m_DDF;
-        dmRender::GetTextMetrics(component->m_Resource->m_FontMap, component->m_Text, component->m_Size.getX(),
+        LabelResource* resource = component->m_Resource;
+        dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
+        dmRender::HFontMap font_map = GetFontMap(component, resource);
+        dmRender::GetTextMetrics(font_map, component->m_Text, component->m_Size.getX(),
                                     ddf->m_LineBreak, ddf->m_Leading, ddf->m_Tracking, &metrics);
 
         metrics.m_Width      = metrics.m_Width;
