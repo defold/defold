@@ -76,7 +76,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
                     taskBuilder.addInput(resource);
                     if (this.project.getBuilderFromExtension(resource) == TextureBuilder.class) {
-                        Task<?> embedTask = this.project.buildUniqueResource(resource, TextureBuilder.class);
+                        Task<?> embedTask = this.project.buildResourceIfUnique(resource, TextureBuilder.class);
                         if (embedTask == null) {
                             throw new CompileExceptionError(input,
                                                             0,
