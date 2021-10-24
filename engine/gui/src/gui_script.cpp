@@ -2153,17 +2153,7 @@ namespace dmGui
         lua_rawset(L, -3);
     }
 
-    /*# get text metrics from node
-     * Get the text metrics from a text node.
-     *
-     * @name gui.get_text_metrics_from_node
-     * @param node [type:node] text node to measure text from
-     * @return metrics [type:table] a table with the following fields:
-     *
-     * - width
-     * - height
-     * - max_ascent
-     * - max_descent
+    /* DEPRECATED in favor of resoruce.get_text_metrics
      */
     static int LuaGetTextMetricsFromNode(lua_State* L)
     {
@@ -2206,22 +2196,7 @@ namespace dmGui
         return lua_toboolean(L, index);
     }
 
-    /*# get text metrics
-     * Get text metrics given the provided font, text and parameters.
-     *
-     * @name gui.get_text_metrics
-     * @param font [type:string|hash] font id
-     * @param text [type:string] text to measure
-     * @param width [type:number] max-width. Use for line-breaks (default=FLT_MAX)
-     * @param line_break [type:boolean] true to break lines accordingly to width (default=false)
-     * @param leading [type:number] scale value for line spacing (default=1)
-     * @param tracking [type:number] scale value for letter spacing (default=0)
-     * @return metrics [type:table] a table with the following fields:
-     *
-     * - width
-     * - height
-     * - max_ascent
-     * - max_descent
+    /* DEPRECATED in favor of resoruce.get_text_metrics
      */
     static int LuaGetTextMetrics(lua_State* L)
     {
