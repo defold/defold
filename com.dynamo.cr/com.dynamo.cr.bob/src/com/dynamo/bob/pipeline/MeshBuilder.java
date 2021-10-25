@@ -49,7 +49,7 @@ public class MeshBuilder extends Builder<Void> {
         for (String t : meshDescBuilder.getTexturesList()) {
             res = BuilderUtil.checkResource(this.project, input, "texture", t);
             taskBuilder.addInput(res);
-            Task<?> embedTask = this.project.buildResourceIfUnique(res, TextureBuilder.class);
+            Task<?> embedTask = this.project.createAndScheduleTask(res, TextureBuilder.class);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,

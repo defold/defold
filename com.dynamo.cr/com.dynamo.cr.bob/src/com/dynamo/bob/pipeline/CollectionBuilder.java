@@ -126,7 +126,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             // How to solve?
             genResource.setContent(desc.getData().getBytes());
 
-            Task<?> embedTask = project.buildResource(genResource);
+            Task<?> embedTask = project.createAndScheduleTask(genResource);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,
@@ -273,7 +273,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
             if (productsOfThisTask.contains(hash)) {
 
-                Task<?> embedTask = project.buildResource(genResource);
+                Task<?> embedTask = project.createAndScheduleTask(genResource);
                 if (embedTask == null) {
                     throw new CompileExceptionError(input,
                                                     0,

@@ -155,7 +155,7 @@ public class JBobTest {
                 String numberName = String.format("%s_%d.number", baseName, i);
                 IResource numberInput = input.getResource(numberName).output();
                 builder.addOutput(numberInput);
-                Task<?> numberTask = project.buildResource(numberInput);
+                Task<?> numberTask = project.createAndScheduleTask(numberInput);
                 numberTasks.add(numberTask);
                 ++i;
             }
