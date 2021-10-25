@@ -26,10 +26,12 @@ namespace {
 
     bool g_audioInterrupted = false;
     bool g_isSessionRouteChangeReasonCategoryChange = false;
+    bool g_ignoreRouteChange = false;
 
     id<UIApplicationDelegate> g_soundApplicationDelegate;
 
     void activateAudioSession() {
+        g_ignoreRouteChange = false;
         g_isSessionRouteChangeReasonCategoryChange = false;
         NSError *error = nil;
         [[AVAudioSession sharedInstance] setActive:YES error:&error];
@@ -74,6 +76,7 @@ namespace {
  / 8. Close notification
  / (AVAudioSessionInterruptionTypeBegan and AVAudioSessionInterruptionTypeEnded)
  / 9. Tap to notification
+ / 10. User asked Siri to open another app and then ask Siri to open the game
 */
 
 @implementation SoundApplicationDelegate
@@ -109,6 +112,8 @@ namespace {
             {
                 // When ask Siri to open another app
                 ::g_isSessionRouteChangeReasonCategoryChange = false;
+                // This flag handles only one case #10 when user return to the app using Siri
+                g_ignoreRouteChange = true;
             }
         }
     }
@@ -116,6 +121,7 @@ namespace {
     // This helps to handle situation when user end a phone call when playing game
     - (void) handleSecondaryAudio:(NSNotification *) notification {
         NSInteger type = [[[notification userInfo] objectForKey:AVAudioSessionSilenceSecondaryAudioHintTypeKey] integerValue];
+
         if (type == AVAudioSessionSilenceSecondaryAudioHintTypeEnd)
         {
             if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
@@ -140,7 +146,10 @@ namespace {
             }
             else
             {
-                ::g_isSessionRouteChangeReasonCategoryChange = true;
+                if (!g_ignoreRouteChange)
+                {
+                    ::g_isSessionRouteChangeReasonCategoryChange = true;
+                }
             }
         }
     }
