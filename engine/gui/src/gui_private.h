@@ -280,6 +280,7 @@ namespace dmGui
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
         dmArray<SpineAnimation> m_SpineAnimations;
+        dmHashTable<uintptr_t, dmhash_t> m_ResourceToPath;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;

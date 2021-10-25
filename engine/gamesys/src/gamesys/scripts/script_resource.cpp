@@ -10,17 +10,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "script_resource.h"
 #include <dlib/buffer.h>
-#include <dlib/log.h>
 #include <dlib/dstrings.h>
-#include <resource/resource.h>
-#include <graphics/graphics_ddf.h>
+#include <dlib/hash.h>
+#include <dlib/log.h>
 #include <gamesys/mesh_ddf.h>
+#include <graphics/graphics_ddf.h>
 #include <liveupdate/liveupdate.h>
+#include <render/font_renderer.h>
+#include <resource/resource.h>
+
+#include "script_resource.h"
 #include "../gamesys.h"
-#include "script_resource_liveupdate.h"
 #include "../resources/res_buffer.h"
+#include "script_resource_liveupdate.h"
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
@@ -299,21 +302,111 @@ static int Load(lua_State* L)
     return 1;
 }
 
-static int CheckTableNumber(lua_State* L, int index, const char* name)
+
+static int DoCheckError(lua_State* L, const char* attr_name, const char* expected_type)
 {
-    int result = -1;
+    char msg[256];
+    dmSnPrintf(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected %s, got %s", attr_name, expected_type, luaL_typename(L, -1) );
+    return luaL_error(L, "%s", msg);
+}
+
+////////////////////////////////////
+
+template<typename T>
+T CheckValue(lua_State* L, int index, const char* attr_name)
+{
+    (void)L;
+    (void)index;
+    (void)attr_name;
+    T t = 0;
+    return t; // SHouldn't be used
+}
+
+template<>
+bool CheckValue<bool>(lua_State* L, int index, const char* attr_name)
+{
+    if (!lua_isboolean(L, index)) {
+        return DoCheckError(L, attr_name, "boolean");
+    }
+    return lua_toboolean(L, index);
+}
+
+template<>
+float CheckValue<float>(lua_State* L, int index, const char* attr_name)
+{
+    if (!lua_isnumber(L, index)) {
+        return DoCheckError(L, attr_name, "number");
+    }
+    return lua_tonumber(L, index);
+}
+
+template<>
+int CheckValue<int>(lua_State* L, int index, const char* attr_name)
+{
+    if (!lua_isnumber(L, index)) {
+        return DoCheckError(L, attr_name, "integer");
+    }
+    return lua_tointeger(L, index);
+}
+
+template<typename T>
+T CheckValueDefault(lua_State* L, int index, const char* attr_name, T default_value)
+{
+    if (lua_isnil(L, -1)) {
+        return default_value;
+    }
+    return CheckValue<T>(L, -1, attr_name);
+}
+
+////////////////////////////////////
+
+template<typename T>
+T CheckTableValue(lua_State* L, int index, const char* name)
+{
     lua_pushstring(L, name);
     lua_gettable(L, index);
-    if (lua_isnumber(L, -1)) {
-        result = lua_tointeger(L, -1);
-    } else {
-        char msg[256];
-        dmSnPrintf(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
-        return luaL_error(L, "%s", msg);
-    }
+    T result = CheckValue<T>(L, -1, name);
     lua_pop(L, 1);
     return result;
 }
+
+template<typename T>
+T CheckTableValue(lua_State* L, int index, const char* name, T default_value)
+{
+    lua_pushstring(L, name);
+    lua_gettable(L, index);
+    T result = CheckValueDefault<T>(L, -1, name, default_value);
+    lua_pop(L, 1);
+    return result;
+}
+
+////////////////////////////////////
+
+static bool CheckTableBoolean(lua_State* L, int index, const char* name)
+{
+    return CheckTableValue<bool>(L, index, name);
+}
+static bool CheckTableBoolean(lua_State* L, int index, const char* name, bool default_value)
+{
+    return CheckTableValue<bool>(L, index, name, default_value);
+}
+static int CheckTableInteger(lua_State* L, int index, const char* name)
+{
+    return CheckTableValue<int>(L, index, name);
+}
+static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
+{
+    return CheckTableValue<int>(L, index, name, default_value);
+}
+static float CheckTableNumber(lua_State* L, int index, const char* name)
+{
+    return CheckTableValue<float>(L, index, name);
+}
+static float CheckTableNumber(lua_State* L, int index, const char* name, float default_value)
+{
+    return CheckTableValue<float>(L, index, name, default_value);
+}
+
 
 static int GraphicsTextureFormatToImageFormat(int textureformat)
 {
@@ -409,10 +502,10 @@ static int SetTexture(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type = (uint32_t)CheckTableNumber(L, 2, "type");
-    uint32_t width = (uint32_t)CheckTableNumber(L, 2, "width");
-    uint32_t height = (uint32_t)CheckTableNumber(L, 2, "height");
-    uint32_t format = (uint32_t)CheckTableNumber(L, 2, "format");
+    uint32_t type = (uint32_t)CheckTableInteger(L, 2, "type");
+    uint32_t width = (uint32_t)CheckTableInteger(L, 2, "width");
+    uint32_t height = (uint32_t)CheckTableInteger(L, 2, "height");
+    uint32_t format = (uint32_t)CheckTableInteger(L, 2, "format");
 
     uint32_t num_mip_maps = 1;
 
@@ -502,6 +595,36 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
+static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+{
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
+    if (!rd) {
+        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
+        return 0;
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    dmResource::ResourceType expected_resource_type;
+    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    if (resource_type != expected_resource_type) {
+        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
+        return 0;
+    }
+
+    return rd->m_Resource;
+}
+
 
 /*# get resource buffer
  * gets the buffer from a resource
@@ -532,24 +655,9 @@ static int GetBuffer(lua_State* L)
     int top = lua_gettop(L);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
-    if (!rd) {
-        return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
-    }
+    void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
 
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(g_ResourceModule.m_Factory, rd->m_Resource, &resource_type);
-    assert(r == dmResource::RESULT_OK);
-
-    dmResource::ResourceType buffer_resource_type;
-    r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "bufferc", &buffer_resource_type);
-    assert(r == dmResource::RESULT_OK);
-
-    if (resource_type != buffer_resource_type) {
-        return luaL_error(L, "Resource %s is not of bufferc type.", dmHashReverseSafe64(path_hash));
-    }
-
-    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
+    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
     dmScript::LuaHBuffer luabuf;
     luabuf.m_BufferRes = (void*)buffer_resource;
@@ -614,24 +722,9 @@ static int SetBuffer(lua_State* L)
         src_buffer = ((BufferResource*)luabuf->m_BufferRes)->m_Buffer;
     }
 
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
-    if (!rd) {
-        return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
-    }
+    void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
 
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(g_ResourceModule.m_Factory, rd->m_Resource, &resource_type);
-    assert(r == dmResource::RESULT_OK);
-
-    dmResource::ResourceType buffer_resource_type;
-    r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "bufferc", &buffer_resource_type);
-    assert(r == dmResource::RESULT_OK);
-
-    if (resource_type != buffer_resource_type) {
-        return luaL_error(L, "Resource %s is not of bufferc type.", dmHashReverseSafe64(path_hash));
-    }
-
-    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
+    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmBuffer::HBuffer dst_buffer = buffer_resource->m_Buffer;
 
     // Make sure the destination buffer has enough size (otherwise, resize it).
@@ -696,6 +789,93 @@ static int SetBuffer(lua_State* L)
     return 0;
 }
 
+static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metrics)
+{
+    lua_createtable(L, 0, 4);
+    lua_pushliteral(L, "width");
+    lua_pushnumber(L, metrics->m_Width);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "height");
+    lua_pushnumber(L, metrics->m_Height);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "max_ascent");
+    lua_pushnumber(L, metrics->m_MaxAscent);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "max_descent");
+    lua_pushnumber(L, metrics->m_MaxDescent);
+    lua_rawset(L, -3);
+}
+
+/*#  gets the text metrics for a font
+ *
+ * Gets the text metrics from a font
+ *
+ * @name resource.get_text_metrics
+ * @param url [type:hash] the font to get the (unscaled) metrics from
+ * @param options [type:table] A table containing parameters for the text. Supported entries:
+ *
+ * `width`
+ * : [type:integer] The width of the text field. Not used if `line_break` is false.
+ *
+ * `leading`
+ * : [type:number] The leading (default 1.0)
+ *
+ * `tracking`
+ * : [type:number] The leading (default 0.0)
+ *
+ * `line_break`
+ * : [type:boolean] If the calculation should consider line breaks (default false)
+ *
+ * @return metrics [type:table] a table with the following fields:
+ *
+ * - width
+ * - height
+ * - max_ascent
+ * - max_descent
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *     local font = go.get("#label", "font")
+ *     local metrics = resource.get_text_metrics(font, "The quick brown fox\n jumps over the lazy dog")
+ *     pprint(metrics)
+ * end
+ * ```
+ */
+static int GetTextMetrics(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+
+    size_t len = 0;
+    const char* text = luaL_checklstring(L, 2, &len);
+
+    dmRender::HFontMap font_map = (dmRender::HFontMap)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
+
+    bool line_break = false;
+    float leading = 1.0f;
+    float tracking = 0.0f;
+    float width = 100000.0f;
+    if (top >= 3)
+    {
+        int table_index = 3;
+        luaL_checktype(L, table_index, LUA_TTABLE); // Make sure it's actually a table
+        width = (float)CheckTableNumber(L, table_index, "width", width);
+        leading = (float)CheckTableNumber(L, table_index, "leading", leading);
+        tracking = (float)CheckTableNumber(L, table_index, "tracking", tracking);
+        line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
+    }
+    printf("options: %d, %f, %f, %f\n", line_break?1:0, leading, tracking, width);
+
+    dmRender::TextMetrics metrics;
+    dmRender::GetTextMetrics(font_map, text, width, line_break, leading, tracking, &metrics);
+    PushTextMetricsTable(L, &metrics);
+
+    return 1;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
@@ -704,6 +884,7 @@ static const luaL_reg Module_methods[] =
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},
+    {"get_text_metrics", GetTextMetrics},
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
