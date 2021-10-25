@@ -1187,8 +1187,8 @@ namespace dmGameSystem
                 }
                 sprite_world->m_ReallocBuffers |= (sprite_world->m_UseGeometries == 0 && texture_set->m_TextureSet->m_UseGeometries != 0) ? 1 : 0;
                 sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
-                return res;
             }
+            return res;
         }
         return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpriteSetConstantCallback, component);
     }
