@@ -98,8 +98,7 @@ namespace {
             // Also for Siri but we paused audio earlier in applicationWillResignActive in this case
             ::g_audioInterrupted = true;
         }
-
-        if (type == AVAudioSessionInterruptionTypeEnded)
+        else if (type == AVAudioSessionInterruptionTypeEnded)
         {
             if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
             {
@@ -114,9 +113,9 @@ namespace {
         }
     }
 
+    // This helps to handle situation when user end a phone call when playing game
     - (void) handleSecondaryAudio:(NSNotification *) notification {
         NSInteger type = [[[notification userInfo] objectForKey:AVAudioSessionSilenceSecondaryAudioHintTypeKey] integerValue];
-        dmLogInfo("handleSecondaryAudio AVAudioSessionSilenceSecondaryAudioHintTypeEnd active:%d", [UIApplication sharedApplication].applicationState == UIApplicationStateActive);
         if (type == AVAudioSessionSilenceSecondaryAudioHintTypeEnd)
         {
             if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
@@ -126,6 +125,8 @@ namespace {
         }
     }
 
+    // In testcase #2 with Siri, OS sends only AVAudioSessionRouteChangeNotification and nothing else.
+    // It's the only way to handle this case. Also it's important in #1 test case.
     - (void) handleRouteChange:(NSNotification *) notification {
         NSInteger reason = [[[notification userInfo] objectForKey:AVAudioSessionRouteChangeReasonKey] integerValue];
         if (reason == AVAudioSessionRouteChangeReasonCategoryChange)
