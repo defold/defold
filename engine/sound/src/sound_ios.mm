@@ -33,6 +33,7 @@ namespace {
         g_isSessionRouteChangeReasonCategoryChange = false;
         NSError *error = nil;
         [[AVAudioSession sharedInstance] setActive:YES error:&error];
+        g_audioInterrupted = false;
         if(error != nil){
             dmLogError("Failed to activate AudioSession (%ld)", error.code);
             return;
@@ -81,7 +82,6 @@ namespace {
         if (!::g_isSessionRouteChangeReasonCategoryChange)
         {
             ::activateAudioSession();
-            ::g_audioInterrupted = false;
         }
     }
 
@@ -105,7 +105,6 @@ namespace {
             {
                 //Alarm clock, call-in declined
                 ::activateAudioSession();
-                ::g_audioInterrupted = false;
             }
             else
             {
@@ -117,12 +116,12 @@ namespace {
 
     - (void) handleSecondaryAudio:(NSNotification *) notification {
         NSInteger type = [[[notification userInfo] objectForKey:AVAudioSessionSilenceSecondaryAudioHintTypeKey] integerValue];
+        dmLogInfo("handleSecondaryAudio AVAudioSessionSilenceSecondaryAudioHintTypeEnd active:%d", [UIApplication sharedApplication].applicationState == UIApplicationStateActive);
         if (type == AVAudioSessionSilenceSecondaryAudioHintTypeEnd)
         {
             if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
             {
                 ::activateAudioSession();
-                ::g_audioInterrupted = false;
             }
         }
     }
@@ -136,7 +135,6 @@ namespace {
                 if (::g_isSessionRouteChangeReasonCategoryChange)
                 {
                     ::activateAudioSession();
-                    ::g_audioInterrupted = false;
                 }
             }
             else
