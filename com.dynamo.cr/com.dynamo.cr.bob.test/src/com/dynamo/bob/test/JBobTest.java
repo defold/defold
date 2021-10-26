@@ -267,7 +267,7 @@ public class JBobTest {
         IResource test2Out = fileSystem.get("test2.out").output();
         assertThat(new String(test2Out.getContent()), is("B"));
         IResource arcOut = fileSystem.get("test.arc").output();
-        assertThat(new String(arcOut.getContent()), is("AB"));
+        assertThat(new String(arcOut.getContent()), anyOf("AB", "BA"));
     }
 
     @Test
