@@ -33,7 +33,7 @@ namespace dmSound
         return false;
     }
 
-    bool PlatformIsPhoneCallActive()
+    bool PlatformIsAudioInterrupted()
     {
         return false;
     }

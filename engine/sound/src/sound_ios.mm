@@ -16,33 +16,31 @@
 
 #include <dmsdk/graphics/glfw/glfw.h>
 
-#include <AudioToolbox/AudioSession.h>
-
+#import <AVFAudio/AVFAudio.h>
 #import <UIKit/UIKit.h>
-#import <CoreTelephony/CTCallCenter.h>
-#import <CoreTelephony/CTCall.h>
 
 // ---------------------------------------------------------------------------
 // Anonymous namespace
 // ---------------------------------------------------------------------------
 namespace {
 
-    CTCallCenter* g_callCenter = NULL;
-    bool g_phoneCallActive = false;
+    bool g_audioInterrupted = false;
+    bool g_isSessionRouteChangeReasonCategoryChange = false;
+    bool g_ignoreRouteChange = false;
+
     id<UIApplicationDelegate> g_soundApplicationDelegate;
 
-    bool checkPhoneCallActive() {
-        for (CTCall* call in ::g_callCenter.currentCalls)  {
-            if (call.callState == CTCallStateConnected
-                || call.callState == CTCallStateDialing
-                || call.callState == CTCallStateIncoming) {
-                return true;
-            }
+    void activateAudioSession() {
+        g_ignoreRouteChange = false;
+        g_isSessionRouteChangeReasonCategoryChange = false;
+        NSError *error = nil;
+        [[AVAudioSession sharedInstance] setActive:YES error:&error];
+        g_audioInterrupted = false;
+        if(error != nil){
+            dmLogError("Failed to activate AudioSession (%ld)", error.code);
+            return;
         }
-
-        return false;
     }
-
 };
 
 // ---------------------------------------------------------------------------
@@ -51,26 +49,111 @@ namespace {
 @interface SoundApplicationDelegate : NSObject <UIApplicationDelegate>
 
     - (void) applicationDidBecomeActive:(UIApplication *) application;
+    - (void) applicationWillResignActive:(UIApplication *) application;
+
+    - (void) handleInterruption:(NSNotification *) notification;
+    - (void) handleSecondaryAudio:(NSNotification *) notification;
+    - (void) handleRouteChange:(NSNotification *) notification;
 
 @end
+
+/* We should hadle different cases of sound interruption:
+ / There are 3 different Siri cases handled in a bit different way:
+ / 1. User open Siri by mistake and close it fast
+ /   (we can't restore audio by applicationDidBecomeActive, it will break audio context)
+ / 2. User open Siri, ask somehthing then close it
+ /   (applicationWillResignActive and applicationDidBecomeActive)
+ / 3. User asked Siri to open another app
+ /    (applicationWillResignActive and applicationDidBecomeActive)
+ / Phone call:
+ / 4. User get call when plays the game, answers it and keep playing the game
+ /    (AVAudioSessionInterruptionTypeBegan and AVAudioSessionSilenceSecondaryAudioHintTypeEnd)
+ / 5. User declines call
+ /    (AVAudioSessionInterruptionTypeBegan and AVAudioSessionInterruptionTypeEnded)
+ / 6. User tap to call notification (leave game)
+ / 7. User get call outside of the game, and then launch the game
+ / Alarm clock:
+ / 8. Close notification
+ / (AVAudioSessionInterruptionTypeBegan and AVAudioSessionInterruptionTypeEnded)
+ / 9. Tap to notification
+ / 10. User asked Siri to open another app and then ask Siri to open the game
+*/
 
 @implementation SoundApplicationDelegate
 
     - (void) applicationDidBecomeActive:(UIApplication *) application {
-
-        if (::g_callCenter != NULL)
+        if (!::g_isSessionRouteChangeReasonCategoryChange)
         {
-            [::g_callCenter release];
-            ::g_callCenter = [[CTCallCenter alloc] init];
-            ::g_callCenter.callEventHandler = ^(CTCall *call) {
-                ::g_phoneCallActive = (call.callState == CTCallStateConnected
-                                        || call.callState == CTCallStateDialing
-                                        || call.callState == CTCallStateIncoming);
-            };
+            ::activateAudioSession();
         }
-
-        ::g_phoneCallActive = ::checkPhoneCallActive();
     }
+
+    - (void) applicationWillResignActive:(UIApplication *) application {
+        ::g_audioInterrupted = true;
+    }
+
+    // This should be handled for Alarm Clock and Phone Call
+    - (void) handleInterruption:(NSNotification *) notification {
+        NSInteger type = [[[notification userInfo] objectForKey:AVAudioSessionInterruptionTypeKey] integerValue];
+        if (type == AVAudioSessionInterruptionTypeBegan)
+        {
+            // When Call-in and Alarm Clock
+            // Also for Siri but we paused audio earlier in applicationWillResignActive in this case
+            ::g_audioInterrupted = true;
+        }
+        else if (type == AVAudioSessionInterruptionTypeEnded)
+        {
+            if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
+            {
+                //Alarm clock, call-in declined
+                ::activateAudioSession();
+            }
+            else
+            {
+                // When ask Siri to open another app
+                ::g_isSessionRouteChangeReasonCategoryChange = false;
+                // This flag handles only one case #10 when user return to the app using Siri
+                g_ignoreRouteChange = true;
+            }
+        }
+    }
+
+    // This helps to handle situation when user end a phone call when playing game
+    - (void) handleSecondaryAudio:(NSNotification *) notification {
+        NSInteger type = [[[notification userInfo] objectForKey:AVAudioSessionSilenceSecondaryAudioHintTypeKey] integerValue];
+
+        if (type == AVAudioSessionSilenceSecondaryAudioHintTypeEnd)
+        {
+            if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
+            {
+                ::activateAudioSession();
+            }
+        }
+    }
+
+    // In testcase #2 with Siri, OS sends only AVAudioSessionRouteChangeNotification and nothing else.
+    // It's the only way to handle this case. Also it's important in #1 test case.
+    - (void) handleRouteChange:(NSNotification *) notification {
+        NSInteger reason = [[[notification userInfo] objectForKey:AVAudioSessionRouteChangeReasonKey] integerValue];
+        if (reason == AVAudioSessionRouteChangeReasonCategoryChange)
+        {
+            if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
+            {
+                if (::g_isSessionRouteChangeReasonCategoryChange)
+                {
+                    ::activateAudioSession();
+                }
+            }
+            else
+            {
+                if (!g_ignoreRouteChange)
+                {
+                    ::g_isSessionRouteChangeReasonCategoryChange = true;
+                }
+            }
+        }
+    }
+
 
 @end
 
@@ -85,38 +168,31 @@ namespace dmSound
     Result PlatformInitialize(dmConfigFile::HConfig config,
             const InitializeParams* params)
     {
-        // NOTE: We actually ignore errors here. "Should never happen"
         ::g_soundApplicationDelegate = [[SoundApplicationDelegate alloc] init];
         glfwRegisterUIApplicationDelegate(::g_soundApplicationDelegate);
 
-        ::g_callCenter = [[CTCallCenter alloc] init];
-        ::g_phoneCallActive = ::checkPhoneCallActive();
-        ::g_callCenter.callEventHandler = ^(CTCall *call) {
-            ::g_phoneCallActive = (call.callState == CTCallStateConnected
-                                    || call.callState == CTCallStateDialing
-                                    || call.callState == CTCallStateIncoming);
-        };
+        [[NSNotificationCenter defaultCenter] addObserver:g_soundApplicationDelegate
+                                              selector:@selector(handleInterruption:)
+                                              name:AVAudioSessionInterruptionNotification
+                                              object:[AVAudioSession sharedInstance]];
+        [[NSNotificationCenter defaultCenter] addObserver:g_soundApplicationDelegate
+                                              selector:@selector(handleSecondaryAudio:)
+                                              name:AVAudioSessionSilenceSecondaryAudioHintNotification
+                                              object:[AVAudioSession sharedInstance]];
+        [[NSNotificationCenter defaultCenter] addObserver:g_soundApplicationDelegate
+                                              selector:@selector(handleRouteChange:)
+                                              name:AVAudioSessionRouteChangeNotification
+                                              object:[AVAudioSession sharedInstance]];
 
-        OSStatus status = 0;
-        if (!AudioSessionInitialized) {
-            status = AudioSessionInitialize(0, 0, 0, 0);
-            if (status != 0) {
-                dmLogError("Failed to initialize AudioSession (%x)", (uint32_t) status);
-            } else {
-                AudioSessionInitialized = true;
-            }
+        NSError *error = nil;
+        BOOL success = [[AVAudioSession sharedInstance] setCategory: AVAudioSessionCategoryAmbient error: &error];
+        if (success)
+        {
+            AudioSessionInitialized = false;
         }
-
-        UInt32 sessionCategory = kAudioSessionCategory_AmbientSound;
-        status = AudioSessionSetProperty(kAudioSessionProperty_AudioCategory, sizeof(sessionCategory), &sessionCategory);
-        if (status != 0) {
-            dmLogError("Failed to set ambient sound category (%x)", (uint32_t) status);
-        }
-
-        UInt32 allowMixing = 1;
-        status = AudioSessionSetProperty( kAudioSessionProperty_OverrideCategoryMixWithOthers, sizeof(allowMixing), &allowMixing);
-        if (status != 0) {
-            dmLogError("Failed to set category 'MixWithOthers' category (%x)", (uint32_t) status);
+        else
+        {
+            dmLogError("Failed to initialize AudioSession (%d)", (int)error.code);
         }
 
         return RESULT_OK;
@@ -125,23 +201,27 @@ namespace dmSound
     Result PlatformFinalize()
     {
         glfwUnregisterUIApplicationDelegate(::g_soundApplicationDelegate);
+        [[NSNotificationCenter defaultCenter] removeObserver:g_soundApplicationDelegate
+                                              name:AVAudioSessionInterruptionNotification
+                                              object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:g_soundApplicationDelegate
+                                              name:AVAudioSessionSilenceSecondaryAudioHintNotification
+                                              object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:g_soundApplicationDelegate
+                                              name:AVAudioSessionRouteChangeNotification
+                                              object:nil];
         [::g_soundApplicationDelegate release];
         return RESULT_OK;
     }
 
     bool PlatformIsMusicPlaying(bool is_device_started, bool has_window_focus)
     {
-        (void)is_device_started;
-        (void)has_window_focus;
-        UInt32 other_playing;
-        UInt32 size = sizeof(other_playing);
-        AudioSessionGetProperty(kAudioSessionProperty_OtherAudioIsPlaying, &size, &other_playing);
-        return (bool) other_playing;
+        return [[AVAudioSession sharedInstance] secondaryAudioShouldBeSilencedHint];
     }
 
-    bool PlatformIsPhoneCallActive()
+    bool PlatformIsAudioInterrupted()
     {
-        return ::g_phoneCallActive;
+        return ::g_audioInterrupted;
     }
 
 }

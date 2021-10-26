@@ -422,7 +422,7 @@ namespace dmGameSystem
     static int Sound_IsPhoneCallActive(lua_State* L)
     {
         int top = lua_gettop(L);
-        lua_pushboolean(L, (int) dmSound::IsPhoneCallActive());
+        lua_pushboolean(L, (int) dmSound::IsAudioInterrupted());
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
