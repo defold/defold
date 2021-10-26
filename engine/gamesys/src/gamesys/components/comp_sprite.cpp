@@ -1154,10 +1154,18 @@ namespace dmGameSystem
             // Since the animation referred to the old texture, we need to update it
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                // Try to maintain offset and rate
-                PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
-
                 TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+                uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+                if (anim_id)
+                {
+                    PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
+                }
+                else
+                {
+                    component->m_Playing = 0;
+                    component->m_CurrentAnimation = 0x0;
+                    component->m_CurrentAnimationFrame = 0;
+                }
                 sprite_world->m_ReallocBuffers |= (sprite_world->m_UseGeometries == 0 && texture_set->m_TextureSet->m_UseGeometries != 0) ? 1 : 0;
                 sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
             }
