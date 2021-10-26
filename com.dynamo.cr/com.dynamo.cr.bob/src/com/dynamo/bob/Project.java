@@ -40,7 +40,6 @@ import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +115,8 @@ public class Project {
     private List<Class<? extends Builder<?>>> ignoreTaskAutoCreation = new ArrayList<Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private LinkedHashMap<String, Task<?>> newTasks;
+    private ArrayList<Task<?>> newTasks;
+    private HashMap<String, Task<?>> cachedFilterForPossiblyNonUniqueTasks;
     private State state;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
@@ -395,12 +395,13 @@ public class Project {
         if (possiblyNonUniqueTask != null) {
             String key = possiblyNonUniqueTask.toString();
             // if non unique then return exist task
-            if (newTasks.containsKey(key)) {
-                uniqueTask = newTasks.get(key);
+            if (cachedFilterForPossiblyNonUniqueTasks.containsKey(key)) {
+                uniqueTask = cachedFilterForPossiblyNonUniqueTasks.get(key);
             }
-            // if task is unique then schedule task for building
+            // if task is unique then schedule task for building and add into filter hashmap
             else {
-                newTasks.put(key, possiblyNonUniqueTask);
+                newTasks.add(possiblyNonUniqueTask);
+                cachedFilterForPossiblyNonUniqueTasks.put(key, possiblyNonUniqueTask);
             }
         }
         return uniqueTask;
@@ -439,7 +440,8 @@ public class Project {
     }
 
     private void createTasks() throws CompileExceptionError {
-        newTasks = new LinkedHashMap<String, Task<?>>();
+        newTasks = new ArrayList<Task<?>>();
+        cachedFilterForPossiblyNonUniqueTasks = new HashMap<String, Task<?>>();
         List<String> sortedInputs = sortInputs(); // from findSources
 
         // To currently know the output resources, we need to parse the main.collectionc
@@ -463,7 +465,7 @@ public class Project {
                     if (task != null) {
                         // Here we create one task for each resource, so we know every task is unique.
                         // That's why we put them directly without calling `createAndScheduleTask()`
-                        newTasks.put(task.toString(), task);
+                        newTasks.add(task);
                     }
                 }
             }
@@ -675,7 +677,7 @@ public class Project {
      */
     private void validateBuildResourceMapping() throws CompileExceptionError {
         Map<String, List<IResource>> build_map = new HashMap<String, List<IResource>>();
-        for (Task<?> t : this.newTasks.values()) {
+        for (Task<?> t : this.newTasks) {
             List<IResource> inputs = t.getInputs();
             List<IResource> outputs = t.getOutputs();
             for (IResource output : outputs) {
@@ -1225,10 +1227,10 @@ public class Project {
 
         List<TaskResult> result = new ArrayList<>();
 
-        List<Task<?>> tasks = new ArrayList<>(newTasks.values());
+        List<Task<?>> tasks = new ArrayList<>(newTasks);
         // set of *all* possible output files
         Set<IResource> allOutputs = new HashSet<>();
-        for (Task<?> task : newTasks.values()) {
+        for (Task<?> task : newTasks) {
             allOutputs.addAll(task.getOutputs());
         }
         newTasks.clear();
@@ -1392,10 +1394,10 @@ run:
                 break;
             }
             // set of *all* possible output files
-            for (Task<?> task : newTasks.values()) {
+            for (Task<?> task : newTasks) {
                 allOutputs.addAll(task.getOutputs());
             }
-            tasks.addAll(newTasks.values());
+            tasks.addAll(newTasks);
             newTasks.clear();
         }
         return result;
@@ -1749,7 +1751,7 @@ run:
     }
 
     public List<Task<?>> getTasks() {
-        return Collections.unmodifiableList(new ArrayList<Task<?>>(this.newTasks.values()));
+        return Collections.unmodifiableList(this.newTasks);
     }
 
     public TextureProfiles getTextureProfiles() {
