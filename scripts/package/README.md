@@ -82,7 +82,7 @@ And repackage into a tar file:
 
 ### Prerequisites
 
-This script cannot download the sdk's by itself, but instead relies on the user having downloaded the latest XCode on the local machine
+This script cannot download the sdk's by itself, but instead relies on the user having downloaded the [XCode 12.5](https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_12.5/Xcode_12.5.xip) on the local machine
 
 ### Packaging
 
@@ -92,10 +92,10 @@ Run the script
 
 and it will output files in `local_sdks`:
 
-	./local_sdks/MacOSX10.14.sdk.tar.gz
-	./local_sdks/XcodeDefault10.2.1.xctoolchain.tar.gz
-	./local_sdks/iPhoneOS12.2.sdk.tar.gz
-	./local_sdks/iPhoneSimulator12.2.sdk.tar.gz
+	./local_sdks/MacOSX11.3.sdk.tar.gz
+	./local_sdks/XcodeDefault12.5.xctoolchain.tar.gz
+	./local_sdks/iPhoneOS14.5.sdk.tar.gz
+	./local_sdks/iPhoneSimulator14.5.sdk.tar.gz
 
 ## Windows
 
