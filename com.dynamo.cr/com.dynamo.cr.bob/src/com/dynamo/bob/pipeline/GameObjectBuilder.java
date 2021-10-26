@@ -125,7 +125,7 @@ public class GameObjectBuilder extends Builder<Void> {
 
             if (productsOfThisTask.contains(hash)) {
 
-                Task<?> embedTask = project.createAndScheduleTask(genResource);
+                Task<?> embedTask = project.createTask(genResource);
                 if (embedTask == null) {
                     throw new CompileExceptionError(input,
                                                     0,

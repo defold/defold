@@ -130,7 +130,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        project.createAndScheduleTask(input, CopyCustomResourcesBuilder.class);
+        project.createTask(input, CopyCustomResourcesBuilder.class);
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");

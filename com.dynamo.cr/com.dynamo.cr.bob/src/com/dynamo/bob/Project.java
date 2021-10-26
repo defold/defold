@@ -371,14 +371,14 @@ public class Project {
      * @return task
      * @throws CompileExceptionError
      */
-    public Task<?> createAndScheduleTask(IResource input) throws CompileExceptionError {
+    public Task<?> createTask(IResource input) throws CompileExceptionError {
         Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
         if (builderClass == null) {
             logWarning("No builder for '%s' found", input);
             return null;
         }
 
-        return createAndScheduleTask(input, builderClass);
+        return createTask(input, builderClass);
     }
 
     /**
@@ -389,22 +389,16 @@ public class Project {
      * @return task
      * @throws CompileExceptionError
      */
-    public Task<?> createAndScheduleTask(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
-        Task<?> possiblyNonUniqueTask = doCreateTask(input.getPath(), builderClass);
-        Task<?> uniqueTask = possiblyNonUniqueTask;
-        if (possiblyNonUniqueTask != null) {
-            String key = possiblyNonUniqueTask.toString();
-            // if non unique then return exist task
-            if (cachedFilterForPossiblyNonUniqueTasks.containsKey(key)) {
-                uniqueTask = cachedFilterForPossiblyNonUniqueTasks.get(key);
-            }
-            // if task is unique then schedule task for building and add into filter hashmap
-            else {
-                newTasks.add(possiblyNonUniqueTask);
-                cachedFilterForPossiblyNonUniqueTasks.put(key, possiblyNonUniqueTask);
-            }
+    public Task<?> createTask(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        String key = input.getPath();
+        Task<?> task = cachedFilterForPossiblyNonUniqueTasks.get(key);
+        if (task != null) {
+            return task;
         }
-        return uniqueTask;
+        task = doCreateTask(key, builderClass);
+        cachedFilterForPossiblyNonUniqueTasks.put(key, task);
+        newTasks.add(task);
+        return task;
     }
 
     private List<String> sortInputs() {
@@ -464,7 +458,7 @@ public class Project {
                     Task<?> task = doCreateTask(input, builderClass);
                     if (task != null) {
                         // Here we create one task for each resource, so we know every task is unique.
-                        // That's why we put them directly without calling `createAndScheduleTask()`
+                        // That's why we put them directly without calling `createTask()`
                         newTasks.add(task);
                     }
                 }
