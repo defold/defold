@@ -24,6 +24,15 @@ extern "C"
 }
 
 
+/*# SDK Script API documentation
+ *
+ * Built-in scripting functions.
+ *
+ * @document
+ * @name Script
+ * @namespace dmScript
+ * @path engine/gamesys/src/dmsdk/gamesys/script.h
+ */
 namespace dmScript
 {
     /*#
