@@ -115,8 +115,7 @@ public class Project {
     private List<Class<? extends Builder<?>>> ignoreTaskAutoCreation = new ArrayList<Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private ArrayList<Task<?>> newTasks;
-    private HashMap<String, Task<?>> cachedFilterForPossiblyNonUniqueTasks;
+    private HashMap<String, Task<?>> newTasks;
     private State state;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
@@ -332,22 +331,6 @@ public class Project {
         return inExt;
     }
 
-    private Task<?> doCreateTask(String input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
-        Builder<?> builder;
-        try {
-            builder = builderClass.newInstance();
-            builder.setProject(this);
-            IResource inputResource = fileSystem.get(input);
-            Task<?> task = builder.create(inputResource);
-            return task;
-        } catch (CompileExceptionError e) {
-            // Just pass CompileExceptionError on unmodified
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private Class<? extends Builder<?>> getBuilderFromExtension(String input) {
         String ext = "." + FilenameUtils.getExtension(input);
         Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
@@ -363,7 +346,18 @@ public class Project {
         return getBuilderFromExtension(input.getPath());
     }
 
-    
+    /**
+     * Create task from resource path with explicit builder.
+     * @param inputPath input resource path
+     * @param builderClass class to build resource with
+     * @return task
+     * @throws CompileExceptionError
+     */
+    public Task<?> createTask(String inputPath, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        IResource inputResource = fileSystem.get(inputPath);
+        return createTask(inputResource, builderClass);
+    }
+
     /**
      * Create task from resource. Typically called from builder
      * that create intermediate output/input-files
@@ -371,34 +365,46 @@ public class Project {
      * @return task
      * @throws CompileExceptionError
      */
-    public Task<?> createTask(IResource input) throws CompileExceptionError {
-        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
+    public Task<?> createTask(IResource inputResource) throws CompileExceptionError {
+        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(inputResource);
         if (builderClass == null) {
-            logWarning("No builder for '%s' found", input);
+            logWarning("No builder for '%s' found", inputResource);
             return null;
         }
 
-        return createTask(input, builderClass);
+        return createTask(inputResource, builderClass);
     }
 
     /**
-     * Create task from resource with explicit builder and schedule task.
+     * Create task from resource with explicit builder.
      * Make sure that task is unique.
      * @param input input resource
      * @param builderClass class to build resource with
      * @return task
      * @throws CompileExceptionError
      */
-    public Task<?> createTask(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
-        String key = input.getPath();
-        Task<?> task = cachedFilterForPossiblyNonUniqueTasks.get(key);
+    public Task<?> createTask(IResource inputResource, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        // It's possible to build the same resource using different builders
+        String key = inputResource.getPath()+" "+builderClass;
+        Task<?> task = newTasks.get(key);
         if (task != null) {
             return task;
         }
-        task = doCreateTask(key, builderClass);
-        cachedFilterForPossiblyNonUniqueTasks.put(key, task);
-        newTasks.add(task);
-        return task;
+        Builder<?> builder;
+        try {
+            builder = builderClass.newInstance();
+            builder.setProject(this);
+            task = builder.create(inputResource);
+            if (task != null) {
+                newTasks.put(key, task);
+            }
+            return task;
+        } catch (CompileExceptionError e) {
+            // Just pass CompileExceptionError on unmodified
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private List<String> sortInputs() {
@@ -434,8 +440,7 @@ public class Project {
     }
 
     private void createTasks() throws CompileExceptionError {
-        newTasks = new ArrayList<Task<?>>();
-        cachedFilterForPossiblyNonUniqueTasks = new HashMap<String, Task<?>>();
+        newTasks = new HashMap<String, Task<?>>();
         List<String> sortedInputs = sortInputs(); // from findSources
 
         // To currently know the output resources, we need to parse the main.collectionc
@@ -455,12 +460,7 @@ public class Project {
             if (!skipped) {
                 Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
                 if (!ignoreTaskAutoCreation.contains(builderClass)) {
-                    Task<?> task = doCreateTask(input, builderClass);
-                    if (task != null) {
-                        // Here we create one task for each resource, so we know every task is unique.
-                        // That's why we put them directly without calling `createTask()`
-                        newTasks.add(task);
-                    }
+                    createTask(input, builderClass);
                 }
             }
         }
@@ -671,7 +671,7 @@ public class Project {
      */
     private void validateBuildResourceMapping() throws CompileExceptionError {
         Map<String, List<IResource>> build_map = new HashMap<String, List<IResource>>();
-        for (Task<?> t : this.newTasks) {
+        for (Task<?> t : this.newTasks.values()) {
             List<IResource> inputs = t.getInputs();
             List<IResource> outputs = t.getOutputs();
             for (IResource output : outputs) {
@@ -1221,10 +1221,10 @@ public class Project {
 
         List<TaskResult> result = new ArrayList<>();
 
-        List<Task<?>> tasks = new ArrayList<>(newTasks);
+        List<Task<?>> tasks = new ArrayList<>(newTasks.values());
         // set of *all* possible output files
         Set<IResource> allOutputs = new HashSet<>();
-        for (Task<?> task : newTasks) {
+        for (Task<?> task : newTasks.values()) {
             allOutputs.addAll(task.getOutputs());
         }
         newTasks.clear();
@@ -1388,10 +1388,10 @@ run:
                 break;
             }
             // set of *all* possible output files
-            for (Task<?> task : newTasks) {
+            for (Task<?> task : newTasks.values()) {
                 allOutputs.addAll(task.getOutputs());
             }
-            tasks.addAll(newTasks);
+            tasks.addAll(newTasks.values());
             newTasks.clear();
         }
         return result;
@@ -1745,7 +1745,7 @@ run:
     }
 
     public List<Task<?>> getTasks() {
-        return Collections.unmodifiableList(this.newTasks);
+        return Collections.unmodifiableList(new ArrayList(this.newTasks.values()));
     }
 
     public TextureProfiles getTextureProfiles() {
