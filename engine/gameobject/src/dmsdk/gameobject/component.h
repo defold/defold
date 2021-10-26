@@ -610,11 +610,11 @@ namespace dmGameObject
 
     /*# set the component child iterator function
      * set the component child iterator function. Called during inspection
-     * @name ComponentTypeSetChilldIteratorFn
+     * @name ComponentTypeSetChildIteratorFn
      * @param type [type: ComponentType*] the type
      * @param fn [type: FIteratorChildren] child iterator function
      */
-    void ComponentTypeSetChilldIteratorFn(ComponentType* type, FIteratorChildren fn);
+    void ComponentTypeSetChildIteratorFn(ComponentType* type, FIteratorChildren fn);
 
     /*# set the component property iterator function
      * set the component property iterator function. Called during inspection
