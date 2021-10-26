@@ -514,6 +514,33 @@ namespace dmGameObject
         }
     }
 
+    Result PostScriptMessage(const dmDDF::Descriptor* payload_descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
+    {
+        dmArray<uint8_t> msg_buffer;
+        msg_buffer.SetCapacity(sizeof(dmGameObjectDDF::ScriptMessage) + payload_size);
+        msg_buffer.SetSize(msg_buffer.Capacity());
+
+        dmGameObjectDDF::ScriptMessage* script_msg = (dmGameObjectDDF::ScriptMessage*)msg_buffer.Begin();
+        script_msg->m_PayloadSize = payload_size;
+        script_msg->m_DescriptorHash = payload_descriptor->m_NameHash;
+        script_msg->m_Function = function_ref;
+        script_msg->m_UnrefFunction = unref_function_after_call;
+
+        uint8_t* message_payload = msg_buffer.Begin() + sizeof(dmGameObjectDDF::ScriptMessage);
+        memcpy(message_payload, payload, payload_size);
+
+        dmDDF::Descriptor* descriptor = dmGameObjectDDF::ScriptMessage::m_DDFDescriptor;
+        dmMessage::Result result = Post(sender, receiver, descriptor->m_NameHash, 0, 0,
+                                        (uintptr_t)descriptor, msg_buffer.Begin(), msg_buffer.Size(), 0);
+
+        if (dmMessage::RESULT_OK != result)
+        {
+            dmLogError("Failed to send message %s to %s:%s/%s", dmHashReverseSafe64(descriptor->m_NameHash), dmMessage::GetSocketName(receiver->m_Socket), dmHashReverseSafe64(receiver->m_Path), dmHashReverseSafe64(receiver->m_Fragment));
+            return RESULT_UNKNOWN_ERROR;
+        }
+        return RESULT_OK;
+    }
+
     /*# gets a named property of the specified game object or component
      *
      * @name go.get
