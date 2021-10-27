@@ -115,6 +115,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
+    // TODO: do we really need this?
+    // This method is never called. Is it mistake?
     private int buildEmbedded(IResource input, CollectionDesc.Builder builder, Task<Void> task, int embedIndex) throws IOException, CompileExceptionError {
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             IResource genResource = task.getOutputs().get(embedIndex+1);
