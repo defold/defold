@@ -671,7 +671,7 @@ public class Project {
      */
     private void validateBuildResourceMapping() throws CompileExceptionError {
         Map<String, List<IResource>> build_map = new HashMap<String, List<IResource>>();
-        for (Task<?> t : this.tasks.values()) {
+        for (Task<?> t : this.getTasks()) {
             List<IResource> inputs = t.getInputs();
             List<IResource> outputs = t.getOutputs();
             for (IResource output : outputs) {
@@ -1221,10 +1221,10 @@ public class Project {
 
         List<TaskResult> result = new ArrayList<>();
 
-        List<Task<?>> buildTasks = new ArrayList<>(tasks.values());
+        List<Task<?>> buildTasks = new ArrayList<>(this.getTasks());
         // set of *all* possible output files
         Set<IResource> allOutputs = new HashSet<>();
-        for (Task<?> task : tasks.values()) {
+        for (Task<?> task : this.getTasks()) {
             allOutputs.addAll(task.getOutputs());
         }
         tasks.clear();
@@ -1390,10 +1390,10 @@ run:
             // set of *all* possible output files
             // TODO: do we really need this?
             // It seems like we never create new tasks during building process
-            for (Task<?> task : tasks.values()) {
+            for (Task<?> task : this.getTasks()) {
                 allOutputs.addAll(task.getOutputs());
             }
-            buildTasks.addAll(tasks.values());
+            buildTasks.addAll(this.getTasks());
             tasks.clear();
         }
         return result;
