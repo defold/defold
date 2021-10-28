@@ -93,11 +93,6 @@ namespace dmRender
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
-        dmLogWarning("sizeof(RenderObject) == %u", (uint32_t)sizeof(RenderObject));
-        dmLogWarning("sizeof(Material) == %u", (uint32_t)sizeof(Material));
-        dmLogWarning("sizeof(Constant) == %u", (uint32_t)sizeof(Constant));
-
-
         RenderContext* context = new RenderContext;
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);

@@ -99,7 +99,8 @@ namespace dmRender
         HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         assert(cb);
 
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        const char* name = luaL_checkstring(L, 2);
+        dmhash_t name_hash = dmHashString64(name);
         Vectormath::Aos::Vector4* values;
         uint32_t num_values = 0;
         if (GetNamedConstant(*cb, name_hash, &values, &num_values))
@@ -120,7 +121,8 @@ namespace dmRender
         HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         assert(cb);
 
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        const char* name = luaL_checkstring(L, 2);
+        dmhash_t name_hash = dmHashString64(name);
         Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
         SetNamedConstant(*cb, name_hash, value, 1);
         assert(top == lua_gettop(L));

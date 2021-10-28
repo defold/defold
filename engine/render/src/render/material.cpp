@@ -183,7 +183,6 @@ namespace dmRender
                     uint32_t num_values;
                     dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
                     dmGraphics::SetConstantV4(graphics_context, values, num_values, location);
-                    //dmGraphics::SetConstantV4(graphics_context, constant.m_ValuePtr, constant.m_ArraySize, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
