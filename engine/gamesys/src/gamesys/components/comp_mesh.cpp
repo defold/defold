@@ -360,10 +360,9 @@ namespace dmGameSystem
 
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
-
-            if (component->m_BufferResource) {
-                dmResource::Release(factory, component->m_BufferResource);
-            }
+        }
+        if (component->m_BufferResource) {
+            dmResource::Release(factory, component->m_BufferResource);
         }
         if (!component->m_RenderConstants)
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
