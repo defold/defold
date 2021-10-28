@@ -387,7 +387,6 @@ namespace dmRender
     {
         DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
         DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == MAX_TEXT_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
-        DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == dmRender::RenderObject::MAX_CONSTANT_COUNT, Constant_Count_Must_Be_Equal );
 
         TextContext& text_context = render_context->m_TextContext;
 
@@ -422,6 +421,7 @@ namespace dmRender
 
         // Arbitrary number
         const uint32_t max_batches = 128;
+        text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object
         text_context.m_RenderObjects.SetCapacity(max_batches);
         text_context.m_RenderObjectIndex = 0;
 
@@ -440,12 +440,17 @@ namespace dmRender
             ro.m_VertexDeclaration = text_context.m_VertexDecl;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             text_context.m_RenderObjects.Push(ro);
+            text_context.m_ConstantBuffers.Push(dmRender::NewNamedConstantBuffer());
         }
     }
 
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        for (uint32_t i = 0; i < text_context.m_ConstantBuffers.Size(); ++i)
+        {
+            dmRender::DeleteNamedConstantBuffer(text_context.m_ConstantBuffers[i]);
+        }
         dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
@@ -552,7 +557,7 @@ namespace dmRender
 
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
         te.m_NumRenderConstants = params.m_NumRenderConstants;
-        memcpy( te.m_RenderConstants, params.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
+        memcpy( te.m_RenderConstants, params.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::HConstant));
 
         text_context->m_TextEntries.Push(te);
     }
@@ -1003,8 +1008,10 @@ namespace dmRender
             return;
         }
 
-        RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
-        ro->ClearConstants();
+        dmRender::HNamedConstantBuffer constants_buffer = text_context.m_ConstantBuffers[text_context.m_RenderObjectIndex];
+        RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex];
+        text_context.m_RenderObjectIndex++;
+
         ro->m_SourceBlendFactor = first_te.m_SourceBlendFactor;
         ro->m_DestinationBlendFactor = first_te.m_DestinationBlendFactor;
         ro->m_SetBlendFactors = 1;
@@ -1015,15 +1022,12 @@ namespace dmRender
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
         Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
-        EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, &texture_size_recip, 1);
 
-        const dmRender::Constant* constants = first_te.m_RenderConstants;
-        uint32_t size = first_te.m_NumRenderConstants;
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            const dmRender::Constant& c = constants[i];
-            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_ArraySize);
-        }
+        dmRender::ClearNamedConstantBuffer(constants_buffer);
+        dmRender::SetNamedConstants(constants_buffer, (HConstant*)first_te.m_RenderConstants, first_te.m_NumRenderConstants);
+        dmRender::SetNamedConstant(constants_buffer, g_TextureSizeRecipHash, &texture_size_recip, 1);
+
+        ro->m_ConstantBuffer = constants_buffer;
 
         for (uint32_t *i = begin;i != end; ++i)
         {

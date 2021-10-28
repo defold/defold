@@ -34,7 +34,6 @@ namespace dmRender
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
-    typedef struct NamedConstantBuffer*     HNamedConstantBuffer;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -72,10 +71,22 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
+    struct Constant
+    {
+        dmVMath::Vector4*                       m_Values;
+        dmhash_t                                m_NameHash;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
+        int16_t                                 m_Location;
+        uint16_t                                m_NumValues;
+
+        Constant();
+        Constant(dmhash_t name_hash, int32_t location);
+    };
+
     struct MaterialConstant
     {
-        Constant  m_Constant;
-        dmhash_t  m_ElementIds[4];
+        HConstant           m_Constant;
+        dmhash_t            m_ElementIds[4];
     };
 
     struct RenderContextParams
@@ -194,7 +205,7 @@ namespace dmRender
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
-    bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, Constant& out_value);
+    bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.
@@ -228,10 +239,6 @@ namespace dmRender
     uint64_t                        GetMaterialUserData2(HMaterial material);
     void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
 
-    HNamedConstantBuffer            NewNamedConstantBuffer();
-    void                            DeleteNamedConstantBuffer(HNamedConstantBuffer buffer);
-    void                            SetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4 value);
-    bool                            GetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4& value);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
 
     void                            ClearMaterialTags(HMaterial material);
