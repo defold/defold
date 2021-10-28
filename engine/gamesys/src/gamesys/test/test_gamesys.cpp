@@ -2945,11 +2945,12 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
 
-    dmRender::Constant* constant = 0;
+    dmRender::HConstant constant = 0;
     bool result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_FALSE(result);
     ASSERT_EQ(0, constant);
 
+    // Setting property value
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
     dmGameSystem::SetRenderConstant(constants, name_hash1, 0, 0, var1); // stores the previous value
 
@@ -2969,9 +2970,58 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
     ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
 
+    // Setting raw value
+    dmVMath::Vector4 value(1,2,3,4);
+    dmGameSystem::SetRenderConstant(constants, name_hash1, &value, 1);
+
+    result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
+    ASSERT_TRUE(result);
+
+    uint32_t num_values;
+    dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    ASSERT_EQ(1U, num_values);
+    ASSERT_TRUE(values != 0);
+    ASSERT_ARRAY_EQ_LEN(&value, values, num_values);
+
     dmGameSystem::DestroyRenderConstants(constants);
 
     dmResource::Release(m_Factory, material);
+}
+
+
+TEST_F(RenderConstantsTest, HashRenderConstants)
+{
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+    bool result;
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_FALSE(result);
+
+    dmhash_t name_hash1 = dmHashString64("user_var1");
+    dmVMath::Vector4 value(1,2,3,4);
+    dmGameSystem::SetRenderConstant(constants, name_hash1, &value, 1);
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_TRUE(result);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Update frame
+    HashState32 state;
+    dmHashInit32(&state, false);
+    dmGameSystem::HashRenderConstants(constants, &state);
+    // No need to finalize, since we're not actually looking at the outcome
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_FALSE(result);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Set the same value again, and the "updated" flag should still be set to false
+    dmGameSystem::SetRenderConstant(constants, name_hash1, &value, 1);
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_FALSE(result);
+
+    dmGameSystem::DestroyRenderConstants(constants);
 }
 
 
