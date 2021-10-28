@@ -141,23 +141,6 @@ static inline void ShiftConstantIndices(ShiftConstantsContext* context, const ui
     }
 }
 
-// static inline void PrintNamedConstant(HNamedConstantBuffer buffer, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
-// {
-//     printf("%s index: %u  num_values: %u\n", dmHashReverseSafe64(constant->m_NameHash), constant->m_ValueIndex, constant->m_NumValues);
-
-//     for (uint32_t i = 0; i < buffer->m_Values.Size(); ++i)
-//     {
-//         dmVMath::Vector4& v = buffer->m_Values[i];
-//         printf("  %u: %.3f, %.3f, %.3f, %.3f\n", i, v.getX(),v.getY(),v.getZ(),v.getW());
-//     }
-//     printf("\n");
-// }
-
-// static void DebugPrintNamedConstants(HNamedConstantBuffer buffer)
-// {
-//     buffer->m_Constants.Iterate(PrintNamedConstant, buffer);
-// }
-
 void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
 {
     NamedConstantBuffer::Constant* c = buffer->m_Constants.Get(name_hash);

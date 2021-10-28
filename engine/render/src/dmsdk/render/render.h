@@ -326,17 +326,6 @@ namespace dmRender
     Result AddToRender(HRenderContext context, RenderObject* ro);
 
     /*#
-     * Adds a render object to the current render frame, along with a set of constants
-     * @name AddToRender
-     * @param context [type: dmRender::HRenderContext] the context
-     * @param ro [type: dmRender::RenderObject*] the render object
-     * @param constants [type: dmRender::HConstant*] the constants
-     * @param num_constants [type: uint32_t] the number of constants
-     * @return result [type: dmRender::Result] the result
-     */
-    Result AddToRender(HRenderContext context, RenderObject* ro, HNamedConstantBuffer constant_buffer);
-
-    /*#
      * Gets the key to the material tag list
      * @name GetMaterialTagListKey
      * @param material [type: dmGraphics::HMaterial] the material

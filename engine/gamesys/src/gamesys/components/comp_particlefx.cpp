@@ -265,7 +265,7 @@ namespace dmGameSystem
         uint32_t ro_index = pfx_world->m_RenderObjects.Size();
         pfx_world->m_RenderObjects.SetSize(ro_index+1);
 
-        dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];//.End();
+        dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
         ro.m_Material = (dmRender::HMaterial)first->m_Material;
         ro.m_Textures[0] = (dmGraphics::HTexture)first->m_Texture;
