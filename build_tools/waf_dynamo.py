@@ -359,9 +359,9 @@ def default_flags(self):
     # Platform specific paths etc comes after the project specific stuff
 
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
-        self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
+        self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation', '-weak_framework', 'AVFAudio'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFAudio'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
