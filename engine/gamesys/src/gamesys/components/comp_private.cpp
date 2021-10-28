@@ -18,20 +18,6 @@ using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
 
-struct CompRenderConstants
-{
-    CompRenderConstants();
-    dmArray<dmRender::Constant> m_RenderConstants;
-    dmArray<dmRender::Constant> m_PrevRenderConstants;
-};
-
-CompRenderConstants::CompRenderConstants()
-{
-    // We need to make sure these arrays aren't reallocated, since we might hand pointers off to comp_anim.cpp
-    m_RenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
-    m_PrevRenderConstants.SetCapacity(MAX_COMP_RENDER_CONSTANTS);
-}
-
 dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vector3& ref_value, const PropVector3& property)
 {
     dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
@@ -301,6 +287,24 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
 
 // ********************************************************************************************************************************************
 
+struct CompRenderConstants
+{
+    CompRenderConstants();
+    dmArray<dmRender::HConstant>    m_RenderConstants;
+    dmHashTable64<dmhash_t>         m_ConstantChecksums; // Maps name_hash to data hash
+    dmRender::HNamedConstantBuffer  m_ConstantBuffer;
+    bool                            m_Updated; // true if the hashes of the values has changed
+};
+
+CompRenderConstants::CompRenderConstants()
+{
+    // We need to make sure these arrays aren't reallocated, since we might hand pointers off to comp_anim.cpp
+    m_RenderConstants.SetCapacity(4);
+    m_ConstantChecksums.SetCapacity(5, 8);
+    m_ConstantBuffer = dmRender::NewNamedConstantBuffer();
+    m_Updated = false;
+}
+
 HComponentRenderConstants CreateRenderConstants()
 {
     return new CompRenderConstants;
@@ -308,6 +312,7 @@ HComponentRenderConstants CreateRenderConstants()
 
 void DestroyRenderConstants(HComponentRenderConstants constants)
 {
+    dmRender::DeleteNamedConstantBuffer(constants->m_ConstantBuffer);
     delete constants;
 }
 
@@ -316,127 +321,158 @@ uint32_t GetRenderConstantCount(HComponentRenderConstants constants)
     return constants->m_RenderConstants.Size();
 }
 
-void GetRenderConstant(HComponentRenderConstants constants, uint32_t index, dmRender::Constant* constant)
+dmRender::HConstant GetRenderConstant(HComponentRenderConstants constants, uint32_t index)
 {
-    *constant = constants->m_RenderConstants[index];
+    return constants->m_RenderConstants[index];
 }
 
-bool GetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmRender::Constant** out_constant)
+static int FindRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash)
 {
-    uint32_t count = constants->m_RenderConstants.Size();
-    for (uint32_t i = 0; i < count; ++i)
+    int count = (int)constants->m_RenderConstants.Size();
+    for (int i = 0; i < count; ++i)
     {
-        dmRender::Constant& c = constants->m_RenderConstants[i];
-        if (c.m_NameHash == name_hash)
+        dmhash_t constant_name_hash = GetConstantName(constants->m_RenderConstants[i]);
+        if (constant_name_hash == name_hash)
         {
-            *out_constant = &c;
-            return true;
+            return i;
         }
     }
-    return false;
+    return -1;
 }
 
-void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+bool GetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmRender::HConstant* out_constant)
 {
-    Vector4* v = 0x0;
-    uint32_t count = constants->m_RenderConstants.Size();
-    for (uint32_t i = 0; i < count; ++i)
+    int index = FindRenderConstant(constants, name_hash);
+    if (index < 0)
+        return false;
+    *out_constant = constants->m_RenderConstants[index];
+    return true;
+}
+
+static inline dmhash_t HashConstant(dmhash_t name_hash, const dmVMath::Vector4* values, uint32_t num_values)
+{
+    HashState32 state;
+    dmHashInit32(&state, false);
+    dmHashUpdateBuffer32(&state, &name_hash, sizeof(name_hash));
+    dmHashUpdateBuffer32(&state, values, sizeof(values[0]) * num_values);
+    return dmHashFinal32(&state);
+}
+
+// TODO: Is a hash really necessary? Isn't enough to compare the bits before/after?
+//       Previously we did "if (lengthSqr(value - prev_value) > 0)"
+static void UpdateChecksums(HComponentRenderConstants constants, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values)
+{
+    // Update hash
+    dmhash_t new_hash = HashConstant(name_hash, values, num_values);
+    dmhash_t* old_hash = constants->m_ConstantChecksums.Get(name_hash);
+
+    if (old_hash == 0 || *old_hash != new_hash)
     {
-        dmRender::Constant& c = constants->m_RenderConstants[i];
-        if (c.m_NameHash == name_hash)
-        {
-            v = &c.m_ValuePtr[value_index];
-            break;
-        }
+        constants->m_Updated = true;
     }
 
-    if (v == 0x0)
+    if (constants->m_ConstantChecksums.Full())
     {
-        if (count == MAX_COMP_RENDER_CONSTANTS)
-        {
-            dmLogWarning("Out of component constants (%d)", MAX_COMP_RENDER_CONSTANTS);
-            return;
-        }
-
-        constants->m_RenderConstants.SetSize(count+1);
-        constants->m_PrevRenderConstants.SetSize(count+1);
-
-        dmRender::Constant c;
-        dmRender::GetMaterialProgramConstant(material, name_hash, c);
-        constants->m_RenderConstants[count] = c;
-        constants->m_PrevRenderConstants[count] = c;
-        v = &(constants->m_RenderConstants[count].m_ValuePtr[value_index]);
+        uint32_t capacity = constants->m_ConstantChecksums.Capacity() + 8;
+        constants->m_ConstantChecksums.SetCapacity(capacity, capacity*2);
     }
+
+    constants->m_ConstantChecksums.Put(name_hash, new_hash);
+}
+
+static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmVMath::Vector4* default_values, uint32_t num_values)
+{
+    int index = FindRenderConstant(constants, name_hash);
+    if (index >= 0)
+    {
+        return constants->m_RenderConstants[index];
+    }
+    // it didn't exist, so we'll add it
+    dmRender::HConstant constant = dmRender::NewConstant(name_hash);
+    constants->m_RenderConstants.Push(constant);
+
+    if (default_values)
+    {
+        dmRender::SetConstantValues(constant, default_values, num_values);
+    }
+    return constant;
+}
+
+void SetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+{
+    dmVMath::Vector4 default_value(0,0,0,0);
+    dmRender::HConstant constant = FindOrCreateConstant(constants, name_hash, &default_value, 1);
+
+    uint32_t num_values = 0;
+    dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+
+    dmVMath::Vector4* v = &values[value_index];
     if (element_index == 0x0)
         *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
     else
         v->setElem(*element_index, (float)var.m_Number);
+
+    UpdateChecksums(constants, name_hash, values, num_values);
+}
+
+void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+{
+    (void)material;
+    SetRenderConstant(constants, name_hash, value_index, element_index, var);
+}
+
+void SetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values)
+{
+    dmRender::HConstant constant = FindOrCreateConstant(constants, name_hash, 0, 0);
+    dmRender::SetConstantValues(constant, values, num_values);
+    UpdateChecksums(constants, name_hash, values, num_values);
 }
 
 int ClearRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash)
 {
-    uint32_t size = constants->m_RenderConstants.Size();
-    for (uint32_t i = 0; i < size; ++i)
+    int index = FindRenderConstant(constants, name_hash);
+    if (index >= 0)
     {
-        if (constants->m_RenderConstants[i].m_NameHash == name_hash)
-        {
-            constants->m_RenderConstants.EraseSwap(i);
-            constants->m_PrevRenderConstants.EraseSwap(i);
-            return 1;
-        }
+        constants->m_RenderConstants.EraseSwap(index);
     }
-    return 0;
+
+    dmhash_t* checksum = constants->m_ConstantChecksums.Get(name_hash);
+    if (checksum)
+    {
+        constants->m_ConstantChecksums.Erase(name_hash);
+        constants->m_Updated |= checksum != 0; // did it exist?
+    }
+    return checksum != 0 ? 1 : 0;
 }
 
 void HashRenderConstants(HComponentRenderConstants constants, HashState32* state)
 {
     // Padding in the SetConstant-struct forces us to hash the individual fields
+
     uint32_t size = constants->m_RenderConstants.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
-        dmRender::Constant& c = constants->m_RenderConstants[i];
-        dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(c.m_NameHash));
-
-        for (int j = 0; j < c.m_ArraySize; ++j)
-        {
-            dmHashUpdateBuffer32(state, &c.m_ValuePtr[j], sizeof(c.m_ValuePtr[0]));
-        }
-
-        constants->m_PrevRenderConstants[i] = c;
+        dmRender::HConstant constant = constants->m_RenderConstants[i];
+        uint32_t num_values;
+        dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+        dmhash_t name_hash = dmRender::GetConstantName(constant);
+        dmHashUpdateBuffer32(state, &name_hash, sizeof(name_hash));
+        dmHashUpdateBuffer32(state, values, sizeof(values[0]) * num_values);
     }
+
+    constants->m_Updated = false;
 }
 
 int AreRenderConstantsUpdated(HComponentRenderConstants constants)
 {
-    uint32_t size = constants->m_RenderConstants.Size();
-    for (uint32_t i = 0; i < size; ++i)
-    {
-        if (constants->m_RenderConstants[i].m_ArraySize != constants->m_PrevRenderConstants[i].m_ArraySize)
-        {
-            return 1;
-        }
-
-        for (int j = 0; j < constants->m_RenderConstants[i].m_ArraySize; ++j)
-        {
-            // TODO: Do a faster check for equality!
-            if (lengthSqr(constants->m_RenderConstants[i].m_ValuePtr[j] - constants->m_PrevRenderConstants[i].m_ValuePtr[j]) > 0)
-            {
-                return 1;
-            }
-        }
-    }
-    return 0;
+    return constants->m_Updated ? 1 : 0;
 }
 
-void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderConstants _constants)
+void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderConstants constants)
 {
-    const dmArray<dmRender::Constant>& constants = _constants->m_RenderConstants;
-    uint32_t size = constants.Size();
-    for (uint32_t i = 0; i < size; ++i)
-    {
-        const dmRender::Constant& c = constants[i];
-        dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_ValuePtr, c.m_ArraySize);
-    }
+    ro->m_ConstantBuffer = constants->m_ConstantBuffer;
+    dmRender::ClearNamedConstantBuffer(ro->m_ConstantBuffer);
+    dmRender::SetNamedConstants(ro->m_ConstantBuffer, constants->m_RenderConstants.Begin(), constants->m_RenderConstants.Size());
 }
 
 

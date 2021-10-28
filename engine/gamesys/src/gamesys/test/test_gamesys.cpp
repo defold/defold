@@ -2938,7 +2938,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
         ASSERT_NE((void*)0, material);
 
-        dmRender::Constant rconstant;
+        dmRender::HConstant rconstant;
         ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
         ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
     }

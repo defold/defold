@@ -261,10 +261,6 @@ namespace dmGameSystem
         return component->m_VertexDeclaration ? component->m_VertSize : component->m_Resource->m_VertSize;
     }
 
-    static inline uint32_t GetElementCount(const MeshComponent* component) {
-        return component->m_BufferResource ? component->m_BufferResource->m_ElementCount : component->m_Resource->m_ElementCount;
-    }
-
     static inline dmGraphics::HVertexDeclaration GetVertexDeclaration(const MeshComponent* component) {
         return component->m_VertexDeclaration ? component->m_VertexDeclaration : component->m_Resource->m_VertexDeclaration;
     }
@@ -369,7 +365,7 @@ namespace dmGameSystem
                 dmResource::Release(factory, component->m_BufferResource);
             }
         }
-        if (!component->m_RenderConstants)
+        if (component->m_RenderConstants)
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
 
         delete component;

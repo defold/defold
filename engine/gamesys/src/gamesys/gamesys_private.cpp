@@ -59,7 +59,8 @@ namespace dmGameSystem
 
     }
 
-    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data)
+    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc,
+                                                        bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data)
     {
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
@@ -68,10 +69,14 @@ namespace dmGameSystem
         bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &constant_array_size);
         if (result)
         {
+            uint32_t num_values;
             Vector4* value = 0x0;
-            dmRender::Constant* comp_constant = 0x0;
+            dmRender::HConstant comp_constant;
             if (callback(callback_user_data, constant_id, &comp_constant))
-                value = &comp_constant->m_ValuePtr[value_index];
+            {
+                value = dmRender::GetConstantValues(comp_constant, &num_values);
+                value = &value[value_index];
+            }
 
             out_desc.m_ArraySize = constant_array_size;
             out_desc.m_IsArray   = constant_array_size > 1;
@@ -93,9 +98,11 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmRender::Constant c;
-                    dmRender::GetMaterialProgramConstant(material, constant_id, c);
-                    out_desc.m_Variant = dmGameObject::PropertyVar(c.m_ValuePtr[value_index]);
+                    dmRender::HConstant constant;
+                    dmRender::GetMaterialProgramConstant(material, constant_id, constant);
+
+                    value = dmRender::GetConstantValues(constant, &num_values);
+                    out_desc.m_Variant = dmGameObject::PropertyVar(value[value_index]);
                 }
             }
             else
