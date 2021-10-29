@@ -156,10 +156,16 @@ public class ResourceCache {
 		return loadFromLocalCache(file);
 	}
 
+	/**
+	 * Check if the cache contains a resource
+	 * @param key The key to check for in the cache
+	 * @return true if a resource with the specified key exists
+	 */
 	public boolean contains(String key) {
 		if (!enabled) {
 			return false;
 		}
-		return fileFromKey(key).exists();
+		File f = fileFromKey(key);
+		return f.exists() || http.exists(urlFromFile(f));
 	}
 }
