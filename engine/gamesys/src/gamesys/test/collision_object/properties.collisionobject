@@ -3,8 +3,10 @@ type: COLLISION_OBJECT_TYPE_DYNAMIC
 mass: 1.0
 friction: 0.1
 restitution: 0.5
-group: "default"
+group: "user"
 mask: "default"
+mask: "user"
+mask: "enemy"
 embedded_collision_shape {
   shapes {
     shape_type: TYPE_BOX

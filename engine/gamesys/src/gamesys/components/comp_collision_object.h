@@ -69,10 +69,10 @@ namespace dmGameSystem
     void SetCollisionFlipH(void* _component, bool flip);
     void SetCollisionFlipV(void* _component, bool flip);
     void WakeupCollision(void* _world, void* _component);
-    dmhash_t GetGroup(void* _world, void* _component);
-    void SetGroup(void* _world, void* _component, dmhash_t groupid);
-    bool GetMask(void* _world, void* _component, dmhash_t group_hash);
-    void SetMask(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);   
+    dmhash_t GetCollisionGroup(void* _world, void* _component);
+    void SetCollisionGroup(void* _world, void* _component, dmhash_t groupid);
+    bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash);
+    void SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);   
 
 }
 

@@ -6,9 +6,9 @@ function executeAction(command, co, argument)
   if command == "group" then
     physics.set_group(co, argument)
   elseif command == "addmask" then
-    physics.set_mask(co, argument, true)
+    physics.set_maskbit(co, argument, true)
   elseif command == "removemask" then
-    physics.set_mask(co, argument,false)
+    physics.set_maskbit(co, argument,false)
   end
 
 end
@@ -19,9 +19,7 @@ function init(self)
     --print(action)
     executeAction( string.match(action, "(%g+)%s+(%g+)%s+(%g+)%s*") ) -- split each line command/co/argument parts
   end
-  
-  --print("collision_expected: ", collision_expected)
-  
+    
   -- throw object
   --physics.wakeup("body1-go#co")
   go.set("/body1-go#co", "linear_velocity", vmath.vector3(100,0,0))

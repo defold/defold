@@ -5,6 +5,8 @@ friction: 0.1
 restitution: 0.5
 group: "default"
 mask: "default"
+mask: "user"
+mask: "enemy"
 embedded_collision_shape {
   shapes {
     shape_type: TYPE_BOX

@@ -1646,11 +1646,11 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
 }
 
 GroupAndMaskParams groupandmask_params[] = {
-    {"", true}, // group1: default, mask1: default, group2: default, mask2: default
-    {"removemask body1-go#co default", false}, //group1: '', mask1:default, group2:default, mask2:default
-    {"removemask body2-go#co default", false}, 
-    {"group body1-go#co user\naddmask body1-go#co enemy\nremovemask body1-go#co default\ngroup body2-go#co enemy\naddmask body2-go#co user\nremovemask body2-go#co default", true},
-    {"group body1-go#co user\naddmask body1-go#co enemy\naddmask body1-go#co walls\nremovemask body1-go#co default\ngroup body2-go#co enemy\naddmask body2-go#co user\naddmask body2-go#co walls\nremovemask body2-go#co default", true},
+    {"", true}, // group1: default, mask1: default,user,enemy group2: default, mask2: default,user,enemy
+    {"removemask body1-go#co default", false},
+    {"removemask body2-go#co default", false},
+    {"group body1-go#co user\nremovemask body1-go#co enemy\naddmask body1-go#co enemy\nremovemask body1-go#co default\nremovemask body1-go#co user\ngroup body2-go#co enemy\nremovemask body2-go#co user\naddmask body2-go#co user\nremovemask body2-go#co default", true},
+
 };
 INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask2DTest, jc_test_values_in(groupandmask_params));
 INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask3DTest, jc_test_values_in(groupandmask_params));

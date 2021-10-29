@@ -1107,13 +1107,13 @@ namespace dmPhysics
 		}
 	}
 
-	bool GetMask3D(HCollisionObject3D collision_object, uint16_t groupbit) {
+	bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit) {
 		CollisionObject3D* co = (CollisionObject3D*) collision_object;
 		uint16_t maskbits = co->m_CollisionMask;
 		return !!(maskbits & groupbit);		
 	}
 	
-    void SetMask3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue) {
+    void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue) {
 		CollisionObject3D* co = (CollisionObject3D*) collision_object;
 		btCollisionObject* bt_co = co->m_CollisionObject;
 		

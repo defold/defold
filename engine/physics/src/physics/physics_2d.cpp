@@ -1161,7 +1161,7 @@ namespace dmPhysics
 				filter.categoryBits = groupbit;
 				fixture->SetFilterData(filter, 0);
 			}
-			fixture = fixture->GetNext();
+			fixture = fixture->GetNext();	// NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
 		}		
 	}
 	
@@ -1177,7 +1177,7 @@ namespace dmPhysics
 	}
 	
 	// updates a specific group bit of a collision object's current mask
-	void SetMask2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		while (fixture) {
 			// do sth with the fixture
@@ -1193,7 +1193,7 @@ namespace dmPhysics
 		}			
 	}
 	
-	bool GetMask2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		if (fixture) {
 			if (fixture->GetType() != b2Shape::e_grid) {

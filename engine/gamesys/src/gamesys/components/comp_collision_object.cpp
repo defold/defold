@@ -233,10 +233,11 @@ namespace dmGameSystem
 
     /*
      * Looks into world->m_Groups index for the speficied group_hash. It returns its position as 
-     * bit index (a uint16_t with n-th bit set). If the hash is not found it assigns it to 
-     * the first empty slot. If there are no positions are left, it returns 0.
+     * bit index (a uint16_t with n-th bit set). If the hash is not found and we're in readonly mode
+     * it will return 0. If readonly is false though, it assigns the hash to the first empty bit slot. 
+     * If there are no positions are left, it returns 0.
      */
-    static uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
+    static uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash, bool readonly=false)
     {
         if (group_hash != 0)
         {
@@ -249,7 +250,11 @@ namespace dmGameSystem
                         return 1 << i;
                     }
                 }
-                else
+                else if (readonly) 
+                {
+                    dmLogWarning("The collision group '%s' does not exist.", dmHashReverseSafe64(group_hash));
+                    return 0;
+                } else
                 {
                     world->m_Groups[i] = group_hash;
                     return 1 << i;
@@ -1610,7 +1615,7 @@ namespace dmGameSystem
         }
     }
 
-    dmhash_t GetGroup(void* _world, void* _component)
+    dmhash_t GetCollisionGroup(void* _world, void* _component)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
@@ -1627,48 +1632,61 @@ namespace dmGameSystem
         return grouphash;
     } 
 
-    void SetGroup(void* _world, void* _component, dmhash_t group_hash)
+    void SetCollisionGroup(void* _world, void* _component, dmhash_t group_hash)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
         
-        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
-        if (world->m_3D)
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
+        if (groupbit) // in case the group doesn't exist, a warning has already been shown
         {
-            dmPhysics::SetGroup3D(world->m_World3D, component->m_Object3D, groupbit);
-        } else
-        {
-            dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
+            if (world->m_3D)
+            {
+                dmPhysics::SetGroup3D(world->m_World3D, component->m_Object3D, groupbit);
+            } else
+            {
+                dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
+            }
         }
     }
 
-    bool GetMask(void* _world, void* _component, dmhash_t group_hash)
-    {
-		CollisionWorld* world = (CollisionWorld*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-        
-        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
-        if (world->m_3D)
-        {
-            return dmPhysics::GetMask3D(component->m_Object3D, groupbit);
-        } else
-        {
-            return dmPhysics::GetMask2D(component->m_Object2D, groupbit);
-        }
-	}
-
-    void SetMask(void* _world, void* _component, dmhash_t group_hash, bool boolvalue)
+    bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
         
-        uint16_t groupbit = GetGroupBitIndex(world, group_hash);
-        if (world->m_3D)
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
+        if (groupbit)
         {
-            dmPhysics::SetMask3D(world->m_World3D, component->m_Object3D, groupbit, boolvalue);
-        } else
+            if (world->m_3D)
+            {
+                return dmPhysics::GetMaskBit3D(component->m_Object3D, groupbit);
+            } else
+            {
+                return dmPhysics::GetMaskBit2D(component->m_Object2D, groupbit);
+            }
+        } else 
         {
-            dmPhysics::SetMask2D(component->m_Object2D, groupbit, boolvalue);
+            // in case the group doesn't exist, a warning has already been shown
+            return false;
+        }
+	}
+
+    void SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+        
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
+        if (groupbit) // in case the group doesn't exist, a warning has already been shown
+        {
+            if (world->m_3D)
+            {
+                dmPhysics::SetMaskBit3D(world->m_World3D, component->m_Object3D, groupbit, boolvalue);
+            } else
+            {
+                dmPhysics::SetMaskBit2D(component->m_Object2D, groupbit, boolvalue);
+            }
         }
     }
     

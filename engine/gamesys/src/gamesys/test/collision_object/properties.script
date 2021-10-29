@@ -8,20 +8,18 @@ function test_bullet_property()
 end
 
 function test_collision_group()
-    --print(physics.get_group("go#properties-co"))
-    assert( physics.get_group("go#properties-co") == hash("default"))
-    physics.set_group("go#properties-co","user")
     assert( physics.get_group("go#properties-co") == hash("user"))
-    --print(physics.get_group("go#properties-co"))
+    physics.set_group("go#properties-co","default")
+    assert( physics.get_group("go#properties-co") == hash("default"))
 end
 
 function test_collision_mask()
-    assert( physics.get_mask("go#properties-co", "default") )
-    physics.set_mask("go#properties-co","default", false)
-    assert( not physics.get_mask("go#properties-co","default") )
+    assert( physics.get_maskbit("go#properties-co", "default") )
+    physics.set_maskbit("go#properties-co","default", false)
+    assert( not physics.get_maskbit("go#properties-co","default") )
     
-    physics.set_mask("go#properties-co","enemy", true)
-    assert( physics.get_mask("go#properties-co","enemy") )
+    physics.set_maskbit("go#properties-co","enemy", true)
+    assert( physics.get_maskbit("go#properties-co","enemy") )
 end
 
 function init(self)
