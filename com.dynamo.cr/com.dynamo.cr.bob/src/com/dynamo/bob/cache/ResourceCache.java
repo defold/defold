@@ -161,7 +161,7 @@ public class ResourceCache {
 	 * @param key The key to check for in the cache
 	 * @return true if a resource with the specified key exists
 	 */
-	public boolean contains(String key) {
+	public boolean contains(String key) throws IOException {
 		if (!enabled) {
 			return false;
 		}
