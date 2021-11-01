@@ -364,7 +364,7 @@ namespace dmGameSystem
         if (component->m_BufferResource) {
             dmResource::Release(factory, component->m_BufferResource);
         }
-        if (!component->m_RenderConstants)
+        if (component->m_RenderConstants)
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
 
         delete component;
@@ -812,7 +812,7 @@ namespace dmGameSystem
         MeshComponent* component = (MeshComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        dmGameSystem::SetRenderConstant(component->m_RenderConstants, component->m_Resource->m_Material, name_hash, value_index, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 

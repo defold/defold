@@ -190,7 +190,7 @@ namespace dmRender
         /// Text to draw in utf8-format
         const char* m_Text;
         /// Render constants
-        dmRender::Constant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
+        dmRender::HConstant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
         /// The source blend factor
         dmGraphics::BlendFactor m_SourceBlendFactor;
         /// The destination blend factor

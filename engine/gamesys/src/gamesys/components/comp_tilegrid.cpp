@@ -882,7 +882,7 @@ namespace dmGameSystem
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
             if (!component->m_RenderConstants)
                 component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-            SetRenderConstant(component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, 0, ddf->m_Value);
+            dmGameSystem::SetRenderConstant(component->m_RenderConstants, ddf->m_NameHash, 0, 0, ddf->m_Value);
             ReHash(component);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
@@ -926,7 +926,7 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component), name_hash, value_index, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, name_hash, value_index, element_index, var);
         ReHash(component);
     }
 
