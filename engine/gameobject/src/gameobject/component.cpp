@@ -95,7 +95,7 @@ void ComponentTypeSetContext(ComponentType* type, void* context)                
 void ComponentTypeSetReadsTransforms(ComponentType* type, bool reads_transforms)            { type->m_ReadsTransforms = reads_transforms?1:0; }
 void ComponentTypeSetPrio(ComponentType* type, uint16_t prio)                               { type->m_UpdateOrderPrio = prio; }
 void ComponentTypeSetHasUserData(ComponentType* type, bool has_user_data)                   { type->m_InstanceHasUserData = has_user_data; }
-void ComponentTypeSetChilldIteratorFn(ComponentType* type, FIteratorChildren fn)            { type->m_IterChildren = fn; }
+void ComponentTypeSetChildIteratorFn(ComponentType* type, FIteratorChildren fn)             { type->m_IterChildren = fn; }
 void ComponentTypeSetPropertyIteratorFn(ComponentType* type, FIteratorProperties fn)        { type->m_IterProperties = fn; }
 
 

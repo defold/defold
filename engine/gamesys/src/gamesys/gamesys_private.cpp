@@ -59,18 +59,28 @@ namespace dmGameSystem
 
     }
 
-    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data)
+    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc,
+                                                        bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data)
     {
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
         uint32_t element_index = ~0u;
-        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index);
+        uint16_t constant_array_size = 0;
+        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &constant_array_size);
         if (result)
         {
+            uint32_t num_values;
             Vector4* value = 0x0;
-            dmRender::Constant* comp_constant = 0x0;
+            dmRender::HConstant comp_constant;
             if (callback(callback_user_data, constant_id, &comp_constant))
-                value = &comp_constant->m_Value;
+            {
+                value = dmRender::GetConstantValues(comp_constant, &num_values);
+                value = &value[value_index];
+            }
+
+            out_desc.m_ArraySize = constant_array_size;
+            out_desc.m_IsArray   = constant_array_size > 1;
+
             if (constant_id == name_hash)
             {
                 if (element_ids != 0x0)
@@ -88,9 +98,11 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmRender::Constant c;
-                    dmRender::GetMaterialProgramConstant(material, constant_id, c);
-                    out_desc.m_Variant = dmGameObject::PropertyVar(c.m_Value);
+                    dmRender::HConstant constant;
+                    dmRender::GetMaterialProgramConstant(material, constant_id, constant);
+
+                    value = dmRender::GetConstantValues(constant, &num_values);
+                    out_desc.m_Variant = dmGameObject::PropertyVar(value[value_index]);
                 }
             }
             else
@@ -120,12 +132,13 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
-    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data)
+    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, int32_t value_index, CompSetConstantCallback callback, void* callback_user_data)
     {
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
         uint32_t element_index = ~0u;
-        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index);
+        uint16_t num_components = 0;
+        bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &num_components);
         if (result)
         {
             int32_t location = dmRender::GetMaterialConstantLocation(material, constant_id);
@@ -137,7 +150,7 @@ namespace dmGameSystem
                     {
                         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
                     }
-                    callback(callback_user_data, constant_id, 0x0, var);
+                    callback(callback_user_data, constant_id, value_index, 0x0, var);
                 }
                 else
                 {
@@ -145,7 +158,7 @@ namespace dmGameSystem
                     {
                         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
                     }
-                    callback(callback_user_data, constant_id, &element_index, var);
+                    callback(callback_user_data, constant_id, value_index, &element_index, var);
                 }
                 return dmGameObject::PROPERTY_RESULT_OK;
             }

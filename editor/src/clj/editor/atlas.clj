@@ -443,7 +443,7 @@
       (let [{:keys [user-data]} renderable
             {:keys [vbuf gpu-texture]} user-data
             vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
-        (gl/with-gl-bindings gl render-args [gpu-texture atlas-shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [atlas-shader vertex-binding gpu-texture]
           (shader/set-uniform atlas-shader gl "texture_sampler" 0)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
 

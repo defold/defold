@@ -170,14 +170,14 @@
       (let [shader (:shader user-data)
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
             blend-mode (:blend-mode user-data)]
-        (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
       pass/selection
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) id-shader)]
-        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture id-shader vertex-binding]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables count]

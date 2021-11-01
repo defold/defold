@@ -474,7 +474,6 @@ static float Metric(const char* text, int n, bool measure_trailing_space)
 TEST(dmFontRenderer, Layout)
 {
     const uint32_t lines_count = 256;
-    const bool skip_whitespace = true;
     dmRender::TextLine lines[lines_count];
     int total_lines;
     const float char_width = 4;
@@ -779,6 +778,103 @@ TEST_F(dmRenderTest, FindRanges)
     ASSERT_EQ(4, range.m_TagListKey);
     ASSERT_EQ(26, range.m_Start);
     ASSERT_EQ(6, range.m_Count);
+}
+
+TEST(Constants, Constant)
+{
+    dmhash_t original_name_hash = dmHashString64("test_constant");
+    dmRender::HConstant constant = dmRender::NewConstant(original_name_hash);
+    ASSERT_TRUE(constant != 0);
+    ASSERT_EQ(original_name_hash, dmRender::GetConstantName(constant));
+
+    dmhash_t original_name_hash_new = dmHashString64("test_constant_new");
+    dmRender::SetConstantName(constant, original_name_hash_new);
+    ASSERT_EQ(original_name_hash_new, dmRender::GetConstantName(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantLocation(constant, 17);
+    ASSERT_EQ(17, dmRender::GetConstantLocation(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmVMath::Vector4 original_values[] = {dmVMath::Vector4(1,2,3,4), dmVMath::Vector4(5,6,7,8)};
+
+    dmRender::SetConstantValues(constant, original_values, DM_ARRAY_SIZE(original_values));
+    uint32_t num_values = 0;
+    dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values, values, num_values);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::DeleteConstant(constant);
+}
+
+TEST(Constants, NamedConstants)
+{
+dmHashEnableReverseHash(true);
+
+    dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
+    ASSERT_TRUE(buffer != 0);
+
+    dmVMath::Vector4* values = 0;
+    uint32_t num_values;
+    bool result;
+
+    ////////////////////////////////////////////////////////////
+    dmVMath::Vector4 original_values[] = {dmVMath::Vector4(2,4,8,10), dmVMath::Vector4(1,3,5,7)};
+    dmhash_t name_hash = dmHashString64("test_constant");
+
+    dmRender::HConstant constant = dmRender::NewConstant(name_hash);
+    dmRender::SetConstantValues(constant, original_values, DM_ARRAY_SIZE(original_values));
+
+    values = dmRender::GetConstantValues(constant, &num_values);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values, values, num_values);
+
+    dmRender::SetNamedConstants(buffer, &constant, 1);
+
+    ////////////////////////////////////////////////////////////
+    result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values, values, num_values);
+
+    ////////////////////////////////////////////////////////////
+    dmVMath::Vector4 original_values2[] = {dmVMath::Vector4(2,4,8,10), dmVMath::Vector4(1,3,5,7)};
+
+    dmhash_t name_hash_2 = dmHashString64("test_constant_2");
+    dmRender::SetNamedConstant(buffer, name_hash_2, original_values2, DM_ARRAY_SIZE(original_values2));
+
+    result = dmRender::GetNamedConstant(buffer, name_hash_2, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values2), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values2, values, num_values);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::RemoveNamedConstant(buffer, name_hash_2);
+
+    result = dmRender::GetNamedConstant(buffer, name_hash_2, &values, &num_values);
+    ASSERT_FALSE(result);
+
+    result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
+    ASSERT_TRUE(result);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::ClearNamedConstantBuffer(buffer);
+
+    result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
+    ASSERT_FALSE(result);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::DeleteConstant(constant);
+    dmRender::DeleteNamedConstantBuffer(buffer);
 }
 
 int main(int argc, char **argv)

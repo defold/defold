@@ -340,10 +340,11 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
                 SPIRVReflector.Resource firstUniform = ubo.uniforms.get(0);
                 SPIRVReflector.Resource uniform = new SPIRVReflector.Resource();
-                uniform.name    = firstUniform.name;
-                uniform.type    = firstUniform.type;
-                uniform.binding = ubo.binding;
-                uniform.set     = ubo.set;
+                uniform.name         = firstUniform.name;
+                uniform.type         = firstUniform.type;
+                uniform.elementCount = firstUniform.elementCount;
+                uniform.binding      = ubo.binding;
+                uniform.set          = ubo.set;
                 bindingEntry.add(uniform);
 
                 ShaderDesc.ShaderDataType type = stringTypeToShaderType(uniform.type);
@@ -475,6 +476,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(res.name);
             resourceBindingBuilder.setType(stringTypeToShaderType(res.type));
+            resourceBindingBuilder.setElementCount(res.elementCount);
             resourceBindingBuilder.setSet(res.set);
             resourceBindingBuilder.setBinding(res.binding);
             builder.addUniforms(resourceBindingBuilder);

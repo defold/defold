@@ -261,10 +261,6 @@ namespace dmGameSystem
         return component->m_VertexDeclaration ? component->m_VertSize : component->m_Resource->m_VertSize;
     }
 
-    static inline uint32_t GetElementCount(const MeshComponent* component) {
-        return component->m_BufferResource ? component->m_BufferResource->m_ElementCount : component->m_Resource->m_ElementCount;
-    }
-
     static inline dmGraphics::HVertexDeclaration GetVertexDeclaration(const MeshComponent* component) {
         return component->m_VertexDeclaration ? component->m_VertexDeclaration : component->m_Resource->m_VertexDeclaration;
     }
@@ -364,12 +360,11 @@ namespace dmGameSystem
 
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
-
-            if (component->m_BufferResource) {
-                dmResource::Release(factory, component->m_BufferResource);
-            }
         }
-        if (!component->m_RenderConstants)
+        if (component->m_BufferResource) {
+            dmResource::Release(factory, component->m_BufferResource);
+        }
+        if (component->m_RenderConstants)
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
 
         delete component;
@@ -812,12 +807,12 @@ namespace dmGameSystem
         return component->m_RenderConstants && dmGameSystem::GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompMeshSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompMeshSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         MeshComponent* component = (MeshComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        dmGameSystem::SetRenderConstant(component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -839,7 +834,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
                 dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), CompMeshSetConstantCallback, component);
+                        dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompMeshSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
@@ -892,7 +887,7 @@ namespace dmGameSystem
             }
         }
 
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, out_value, true, CompMeshGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompMeshGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompMeshSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -970,7 +965,7 @@ namespace dmGameSystem
             }
         }
 
-        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
+        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompMeshSetConstantCallback, component);
         component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
         return res;

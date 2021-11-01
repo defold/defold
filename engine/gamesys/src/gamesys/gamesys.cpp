@@ -88,8 +88,6 @@ namespace dmGameSystem
     {
         dmResource::Result e;
 
-        DM_STATIC_ASSERT( dmGameSystem::MAX_COMP_RENDER_CONSTANTS == dmRender::RenderObject::MAX_CONSTANT_COUNT, Constant_Count_Must_Be_Equal );
-
 #define REGISTER_RESOURCE_TYPE(extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func)\
     e = dmResource::RegisterType(factory, extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func);\
     if( e != dmResource::RESULT_OK )\

@@ -114,6 +114,7 @@ namespace dmDeviceOpenAL
         OpenALDevice* openal = (OpenALDevice*) device;
 
         alcMakeContextCurrent(openal->m_Context);
+        alcProcessContext(openal->m_Context);
 
         int iter = 0;
         while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
@@ -224,6 +225,20 @@ namespace dmDeviceOpenAL
     void DeviceOpenALStop(dmSound::HDevice device)
     {
         assert(device);
+        OpenALDevice* openal = (OpenALDevice*) device;
+
+        ALint state;
+        int iter = 0;
+        alGetSourcei(openal->m_Source, AL_SOURCE_STATE, &state);
+        // When apps goes to background OS gives us some time to finish our processing
+        // Let use this time to finish OpenAL buffer processing
+        while (state == AL_PLAYING && iter < 20)
+        {
+            ++iter;
+            dmTime::Sleep(10 * 1000);
+            alGetSourcei(openal->m_Source, AL_SOURCE_STATE, &state);
+        }
+
         if (!alcMakeContextCurrent(NULL)) {
             dmLogError("Failed to stop OpenAL device, could not disable context!");
         }

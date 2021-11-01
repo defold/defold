@@ -61,6 +61,7 @@ namespace dmGameSystem
     {
         dmArray<ParticleFXComponent> m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
         dmArray<ParticleFXComponentPrototype> m_Prototypes;
         dmIndexPool32 m_PrototypeIndices;
         ParticleFXContext* m_Context;
@@ -84,6 +85,10 @@ namespace dmGameSystem
         world->m_ParticleContext = dmParticle::CreateContext(particle_fx_count, ctx->m_MaxParticleCount);
         world->m_Components.SetCapacity(particle_fx_count);
         world->m_RenderObjects.SetCapacity(particle_fx_count);
+        world->m_ConstantBuffers.SetCapacity(particle_fx_count);
+        world->m_ConstantBuffers.SetSize(particle_fx_count);
+        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*particle_fx_count);
+
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
         world->m_PrototypeIndices.SetCapacity(particle_fx_count);
@@ -112,6 +117,15 @@ namespace dmGameSystem
             dmResource::Release(pfx_world->m_Context->m_Factory, c->m_ParticlePrototype);
             dmParticle::DestroyInstance(pfx_world->m_ParticleContext, c->m_ParticleInstance);
         }
+
+        for (uint32_t i = 0; i < pfx_world->m_ConstantBuffers.Size(); ++i)
+        {
+            if (pfx_world->m_ConstantBuffers[i])
+            {
+                dmRender::DeleteNamedConstantBuffer(pfx_world->m_ConstantBuffers[i]);
+            }
+        }
+
         dmParticle::DestroyContext(pfx_world->m_ParticleContext);
         dmGraphics::DeleteVertexBuffer(pfx_world->m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(pfx_world->m_VertexDeclaration);
@@ -156,7 +170,7 @@ namespace dmGameSystem
     }
 
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode);
-    static void SetRenderConstants(dmRender::RenderObject* ro, dmParticle::RenderConstant* constants, uint32_t constant_count);
+    static void SetRenderConstants(dmRender::HNamedConstantBuffer constant_buffer, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
@@ -247,9 +261,11 @@ namespace dmGameSystem
         uint32_t ro_vertex_count = vb_end - vb_begin;
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
-        // Ninja in-place writing of render object
-        dmRender::RenderObject& ro = *pfx_world->m_RenderObjects.End();
-        pfx_world->m_RenderObjects.SetSize(pfx_world->m_RenderObjects.Size()+1);
+        // In place writing of render object
+        uint32_t ro_index = pfx_world->m_RenderObjects.Size();
+        pfx_world->m_RenderObjects.SetSize(ro_index+1);
+
+        dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
         ro.m_Material = (dmRender::HMaterial)first->m_Material;
         ro.m_Textures[0] = (dmGraphics::HTexture)first->m_Texture;
@@ -260,7 +276,13 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_SetBlendFactors = 1;
         SetBlendFactors(&ro, first->m_BlendMode);
-        SetRenderConstants(&ro, first->m_RenderConstants, first->m_RenderConstantsSize);
+
+        if (!pfx_world->m_ConstantBuffers[ro_index])
+        {
+            pfx_world->m_ConstantBuffers[ro_index] = dmRender::NewNamedConstantBuffer();
+        }
+        ro.m_ConstantBuffer = pfx_world->m_ConstantBuffers[ro_index];
+        SetRenderConstants(ro.m_ConstantBuffer, first->m_RenderConstants, first->m_RenderConstantsSize);
 
         dmRender::AddToRender(render_context, &ro);
     }
@@ -498,12 +520,12 @@ namespace dmGameSystem
         }
     }
 
-    static void SetRenderConstants(dmRender::RenderObject* ro, dmParticle::RenderConstant* constants, uint32_t constant_count)
+    static void SetRenderConstants(dmRender::HNamedConstantBuffer constant_buffer, dmParticle::RenderConstant* constants, uint32_t constant_count)
     {
         for (uint32_t i = 0; i < constant_count; ++i)
         {
             dmParticle::RenderConstant* c = &constants[i];
-            dmRender::EnableRenderObjectConstant(ro, c->m_NameHash, c->m_Value);
+            dmRender::SetNamedConstant(constant_buffer, c->m_NameHash, &c->m_Value, 1);
         }
     }
 

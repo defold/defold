@@ -100,17 +100,18 @@ namespace dmRender
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
-        Vectormath::Aos::Vector4 value;
-        if (GetNamedConstant(*cb, name, value))
+        dmhash_t name_hash = dmHashString64(name);
+        Vectormath::Aos::Vector4* values;
+        uint32_t num_values = 0;
+        if (GetNamedConstant(*cb, name_hash, &values, &num_values))
         {
-            dmScript::PushVector4(L, value);
+            dmScript::PushVector4(L, values[0]);
             return 1;
         }
         else
         {
-            luaL_error(L, "Constant %s not set.", name);
+            return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
         }
-        assert(0); // Never reached
         return 0;
     }
 
@@ -121,8 +122,9 @@ namespace dmRender
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
+        dmhash_t name_hash = dmHashString64(name);
         Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
-        SetNamedConstant(*cb, name, *value);
+        SetNamedConstant(*cb, name_hash, value, 1);
         assert(top == lua_gettop(L));
         return 0;
     }

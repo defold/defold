@@ -190,7 +190,7 @@
 
   (property group g/Str (default "master"))
   (property gain g/Num (default 1.0)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-0-1? gain)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain)))
   (property pan g/Num (default 0.0)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan)))
   (property speed g/Num (default 1.0)
