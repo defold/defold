@@ -37,20 +37,18 @@ namespace dmRender
         const uint32_t buffer_size = 128;
         char buffer[buffer_size];
         dmGraphics::Type type;
-        int32_t size = 0;
+        int32_t num_values = 0; // number of Vector4
 
-        uint32_t constants_data_size = 0;
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
             type = (dmGraphics::Type) -1;
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type, &size);
+            dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type, &num_values);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 constants_count++;
-                constants_data_size += sizeof(Vector4) * size;
             }
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
@@ -64,7 +62,7 @@ namespace dmRender
 
         if ((constants_count + samplers_count) > 0)
         {
-            m->m_NameHashToLocation.SetCapacity((constants_count + samplers_count) * 2, (constants_count + samplers_count));
+            m->m_NameHashToLocation.SetCapacity((constants_count + samplers_count), (constants_count + samplers_count) * 2);
             m->m_Constants.SetCapacity(constants_count);
         }
 
@@ -77,9 +75,12 @@ namespace dmRender
             }
         }
 
+        uint32_t default_values_capacity = 0;
+        dmVMath::Vector4* default_values = 0;
+
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type, &size);
+            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type, &num_values);
             int32_t location         = dmGraphics::GetUniformLocation(m->m_Program, buffer);
 
             // DEF-2971-hotfix
@@ -113,7 +114,17 @@ namespace dmRender
                 m->m_NameHashToLocation.Put(name_hash, location);
 
                 HConstant render_constant = dmRender::NewConstant(name_hash);
-                SetConstantLocation(render_constant, location);
+                dmRender::SetConstantLocation(render_constant, location);
+
+                // Set correct size of the constant (Until the shader builder provides all the default values)
+                if (num_values > default_values_capacity)
+                {
+                    default_values_capacity = num_values;
+                    delete[] default_values;
+                    default_values = new dmVMath::Vector4[default_values_capacity];
+                    memset(default_values, 0, default_values_capacity * sizeof(dmVMath::Vector4));
+                }
+                dmRender::SetConstantValues(render_constant, default_values, num_values);
 
                 MaterialConstant constant;
                 constant.m_Constant = render_constant;
@@ -148,6 +159,8 @@ namespace dmRender
                 m->m_NameHashToLocation.Put(name_hash, location);
             }
         }
+
+        delete[] default_values;
 
         return (HMaterial)m;
     }
@@ -384,7 +397,7 @@ namespace dmRender
         return false;
     }
 
-    bool GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value)
+    bool GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t value_index, uint32_t element_index, float& out_value)
     {
         int32_t index = FindMaterialConstantIndex(material, name_hash);
         if (index < 0)
@@ -394,7 +407,10 @@ namespace dmRender
 
         uint32_t values_count = 0;
         dmVMath::Vector4* values = GetConstantValues(mc.m_Constant, &values_count);
-        out_value = values[0].getElem(element_index);
+        if (value_index >= values_count)
+            return false;
+
+        out_value = values[value_index].getElem(element_index);
         return true;
     }
 
@@ -405,7 +421,17 @@ namespace dmRender
             return;
 
         MaterialConstant& mc = material->m_Constants[index];
-        SetConstantValues(mc.m_Constant, values, count);
+
+        uint32_t num_default_values;
+        dmVMath::Vector4* constant_values = dmRender::GetConstantValues(mc.m_Constant, &num_default_values);
+
+        // we cannot set more values than are already registered with the program
+        if (num_default_values < count)
+            count = num_default_values;
+
+        // we musn't set less values than are already registered with the program
+        // so we write to the previous buffer
+        memcpy(constant_values, values, count * sizeof(dmVMath::Vector4));
     }
 
     int32_t GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)

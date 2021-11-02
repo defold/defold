@@ -91,13 +91,14 @@ namespace dmGameSystem
     /*#
      * Set a render constant by name. The constant must exist in the material
      * @name SetRenderConstant
-     * @param constants [type: dmGameSystem::HComponentRenderConstants] the constants
+     * @param constants [type: dmGameSystem::HComponentRenderConstants] the render constants buffer
+     * @param material [type: dmRender::HMaterial] the material to get default values from if constant didn't already exist in the render constants buffer
      * @param name_hash [type: dmhash_t] the hashed name of the constant
      * @param value_index [type: uint32_t] index of the constant value to set, if the constant is an array
      * @param element_index [type: uint32_t*] pointer to the index of the element (in range [0,3]). May be 0
      * @param var [type: const dmGameObject::PropertyVar&] the constant value
      */
-    void SetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+    void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var);
 
     /*#
      * Set a render constant by name. The constant must exist in the material

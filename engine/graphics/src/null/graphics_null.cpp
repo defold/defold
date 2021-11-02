@@ -656,13 +656,14 @@ namespace dmGraphics
         char* m_Data;
     };
 
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata);
+    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
 
     struct Uniform
     {
         Uniform() : m_Name(0) {};
         char* m_Name;
         uint32_t m_Index;
+        uint32_t m_Size;
         Type m_Type;
     };
 
@@ -690,7 +691,7 @@ namespace dmGraphics
         dmArray<Uniform> m_Uniforms;
     };
 
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata)
+    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
     {
         Program* program = (Program*) userdata;
         if(program->m_Uniforms.Full())
@@ -701,6 +702,7 @@ namespace dmGraphics
         dmStrlCpy(uniform.m_Name, name, name_length);
         uniform.m_Index = program->m_Uniforms.Size();
         uniform.m_Type = type;
+        uniform.m_Size = size;
         program->m_Uniforms.Push(uniform);
     }
 
@@ -816,7 +818,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
-        *size = 1; // TODO
+        *size = uniform.m_Size;
         return (uint32_t)strlen(buffer);
     }
 

@@ -812,7 +812,7 @@ namespace dmGameSystem
         MeshComponent* component = (MeshComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        dmGameSystem::SetRenderConstant(component->m_RenderConstants, name_hash, value_index, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
