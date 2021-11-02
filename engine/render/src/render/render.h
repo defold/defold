@@ -220,14 +220,6 @@ namespace dmRender
      */
     bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
 
-    /** Retrieve the value of a constant element
-     * @param material Material containing the constant
-     * @param name_hash Hash of the material name
-     * @param element_index Index of the element
-     * @param out_value Out var set to the value
-     * @return True if the value was retrieved
-     */
-    bool                            GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value);
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4* constant, uint32_t count);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);

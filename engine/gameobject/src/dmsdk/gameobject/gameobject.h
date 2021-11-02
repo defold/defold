@@ -177,6 +177,7 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE
      * @member dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
+     * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
      */
     enum PropertyResult
     {
@@ -190,7 +191,8 @@ namespace dmGameObject
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
         PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
         PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9,
-        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10
+        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
+        PROPERTY_RESULT_INVALID_INDEX = -11,
     };
 
     /*#
