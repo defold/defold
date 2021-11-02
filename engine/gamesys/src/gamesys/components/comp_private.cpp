@@ -380,7 +380,7 @@ static void UpdateChecksums(HComponentRenderConstants constants, dmhash_t name_h
     constants->m_ConstantChecksums.Put(name_hash, new_hash);
 }
 
-static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmVMath::Vector4* default_values, uint32_t num_values)
+static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmRender::HMaterial material)
 {
     int index = FindRenderConstant(constants, name_hash);
     if (index >= 0)
@@ -391,21 +391,51 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
     dmRender::HConstant constant = dmRender::NewConstant(name_hash);
     constants->m_RenderConstants.Push(constant);
 
-    if (default_values)
+    dmRender::HConstant material_constant;
+    if (!dmRender::GetMaterialProgramConstant(material, name_hash, material_constant))
     {
-        dmRender::SetConstantValues(constant, default_values, num_values);
+        return 0;
     }
+
+    uint32_t num_values;
+    dmVMath::Vector4* values = dmRender::GetConstantValues(material_constant, &num_values);
+
+    if (values)
+    {
+        dmRender::SetConstantValues(constant, values, num_values);
+    } else {
+        dmVMath::Vector4 zero(0,0,0,0);
+        dmRender::SetConstantValues(constant, &zero, 1);
+    }
+
     return constant;
 }
 
-void SetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants constants, dmhash_t name_hash)
 {
-    dmVMath::Vector4 default_value(0,0,0,0);
-    dmRender::HConstant constant = FindOrCreateConstant(constants, name_hash, &default_value, 1);
+    int index = FindRenderConstant(constants, name_hash);
+    if (index >= 0)
+    {
+        return constants->m_RenderConstants[index];
+    }
+    // it didn't exist, so we'll add it
+    dmRender::HConstant constant = dmRender::NewConstant(name_hash);
+    constants->m_RenderConstants.Push(constant);
+    return constant;
+}
+
+void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+{
+    dmRender::HConstant constant = FindOrCreateConstant(constants, name_hash, material);
 
     uint32_t num_values = 0;
     dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
 
+    if (value_index >= num_values)
+    {
+        dmLogError("Tried to set index outside of bounds for property %s[%u]: %u", dmHashReverseSafe64(name_hash), num_values, value_index);
+        return; // We should really handle
+    }
     dmVMath::Vector4* v = &values[value_index];
     if (element_index == 0x0)
         *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
@@ -415,15 +445,9 @@ void SetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, 
     UpdateChecksums(constants, name_hash, values, num_values);
 }
 
-void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
-{
-    (void)material;
-    SetRenderConstant(constants, name_hash, value_index, element_index, var);
-}
-
 void SetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values)
 {
-    dmRender::HConstant constant = FindOrCreateConstant(constants, name_hash, 0, 0);
+    dmRender::HConstant constant = FindOrCreateConstant(constants, name_hash);
     dmRender::SetConstantValues(constant, values, num_values);
     UpdateChecksums(constants, name_hash, values, num_values);
 }
