@@ -64,6 +64,10 @@ function init(self, config)
     assert_number(go.get("#sprite", "uniform_array.z", { index = 16 }), 3)
     assert_number(go.get("#sprite", "uniform_array.w", { index = 16 }), 1)
 
+    --Test setting a single element to a constant
+    assert_not_error(function() go.set("#sprite", "uniform_array.y", 7, { index = 15}) end)
+    assert_number(go.get("#sprite", "uniform_array.y", { index = 17 }), 7)
+
     msg.post("main:/main#script", "done")
 end
 

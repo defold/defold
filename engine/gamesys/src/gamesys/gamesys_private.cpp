@@ -75,8 +75,6 @@ namespace dmGameSystem
             if (callback(callback_user_data, constant_id, &comp_constant))
             {
                 value = dmRender::GetConstantValues(comp_constant, &num_values);
-                // ideally, we want to return something like property-out-of-bounds
-                // but that's for another time
                 if (value_index >= num_values)
                 {
                     return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;

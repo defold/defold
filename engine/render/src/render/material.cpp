@@ -397,23 +397,6 @@ namespace dmRender
         return false;
     }
 
-    bool GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t value_index, uint32_t element_index, float& out_value)
-    {
-        int32_t index = FindMaterialConstantIndex(material, name_hash);
-        if (index < 0)
-            return false;
-
-        MaterialConstant& mc = material->m_Constants[index];
-
-        uint32_t values_count = 0;
-        dmVMath::Vector4* values = GetConstantValues(mc.m_Constant, &values_count);
-        if (value_index >= values_count)
-            return false;
-
-        out_value = values[value_index].getElem(element_index);
-        return true;
-    }
-
     void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4* values, uint32_t count)
     {
         int32_t index = FindMaterialConstantIndex(material, name_hash);

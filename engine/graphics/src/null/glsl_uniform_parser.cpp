@@ -13,6 +13,7 @@
 #include "glsl_uniform_parser.h"
 
 #include <string.h>
+#include <stdio.h> // scanf
 
 namespace dmGraphics
 {
