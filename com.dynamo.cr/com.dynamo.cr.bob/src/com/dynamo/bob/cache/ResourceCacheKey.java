@@ -28,6 +28,32 @@ import com.dynamo.bob.archive.EngineVersion;
 
 public class ResourceCacheKey {
 
+	/*
+	 * This list of options have no impact on the created resources
+	 * and can safely be ignored when calculating the resource key
+	 */
+	private static Set<String> IGNORED_OPTIONS = Set.<String>of(
+		"verbose",
+		"archive",
+		"email",
+		"auth",
+		"bundle-output",
+		"bundle-format",
+		"mobileprovisioning",
+		"identity",
+		"keystore",
+		"keystore-pass",
+		"keystore-alias",
+		"debug",
+		"debug-ne-upload",
+		"variant",
+		"strip-executable",
+		"with-symbols",
+		"build-report",
+		"build-report-html",
+		"architectures"
+	);
+
 	/**
 	 * Calculate the key to use when caching a resource.
 	 * The key is created from the task used which created the resource, the
@@ -47,12 +73,14 @@ public class ResourceCacheKey {
 		List<String> keys = new ArrayList<String>(projectOptions.keySet());
 		Collections.sort(keys);
 		for (String key : keys) {
-			digest.update(key.getBytes());
-			String value = projectOptions.get(key);
-			if (value == null) {
-				value = "";
+			if (!IGNORED_OPTIONS.contains(key)) {
+				digest.update(key.getBytes());
+				String value = projectOptions.get(key);
+				if (value == null) {
+					value = "";
+				}
+				digest.update(value.getBytes());
 			}
-			digest.update(value.getBytes());
 		}
 
 		byte[] key = digest.digest();

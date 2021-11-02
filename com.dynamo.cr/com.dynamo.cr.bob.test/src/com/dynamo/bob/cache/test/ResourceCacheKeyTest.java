@@ -170,12 +170,34 @@ public class ResourceCacheKeyTest {
 		Task<?> task1 = builder1.addInput(input).addOutput(output1).create(null);
 		String key1 = ResourceCacheKey.calculate(task1, createOptions(1), output1);
 
-		System.out.println("testProjectOutputs output sha1");
 		DummyBuilder builder2 = new DummyBuilder();
 		IResource output2 = createResource("someOutput").output();
 		Task<?> task2 = builder2.addInput(input).addOutput(output2).create(null);
 		String key2 = ResourceCacheKey.calculate(task2, createOptions(1), output2);
 
 		assertNotEquals(key1, key2);
+	}
+
+	// some project options have no impact on key creation
+	@Test
+	public void testIgnoredOptions() throws CompileExceptionError, IOException {
+		IResource input = createResource("someInput");
+		IResource output = createResource("someOutput").output();
+
+		Map<String, String> ignoredOptions1 = new HashMap<String, String>();
+		ignoredOptions1.put("email", "foo@bar.com");
+		ignoredOptions1.put("debug", "true");
+		DummyBuilder builder1 = new DummyBuilder();
+		Task<?> task1 = builder1.addInput(input).addOutput(output).create(null);
+		String key1 = ResourceCacheKey.calculate(task1, ignoredOptions1, output);
+
+		Map<String, String> ignoredOptions2 = new HashMap<String, String>();
+		ignoredOptions2.put("email", "bob@acme.com");
+		ignoredOptions2.put("debug", "false");
+		DummyBuilder builder2 = new DummyBuilder();
+		Task<?> task2 = builder2.addInput(input).addOutput(output).create(null);
+		String key2 = ResourceCacheKey.calculate(task2, ignoredOptions2, output);
+
+		assertEquals(key1, key2);
 	}
 }
