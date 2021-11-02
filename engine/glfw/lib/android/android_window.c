@@ -454,7 +454,7 @@ void glfwAndroidPollEvents()
            source->process(_glfwWinAndroid.app, source);
         }
 
-        if (app->destroyRequested != 0) {
+        if (g_AndroidApp->destroyRequested != 0) {
             return;
         }
    }
