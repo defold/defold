@@ -75,6 +75,11 @@ namespace dmGameSystem
             if (callback(callback_user_data, constant_id, &comp_constant))
             {
                 value = dmRender::GetConstantValues(comp_constant, &num_values);
+                if (value_index >= num_values)
+                {
+                    return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;
+                }
+
                 value = &value[value_index];
             }
 
@@ -91,17 +96,29 @@ namespace dmGameSystem
                     out_desc.m_ElementIds[3] = element_ids[3];
                 }
 
-                if (value != 0x0 && use_value_ptr)
+                if (value != 0x0)
                 {
-                    out_desc.m_ValuePtr = (float*)value;
                     out_desc.m_Variant = dmGameObject::PropertyVar(*value);
+                    if (use_value_ptr)
+                    {
+                        // TODO: Make this more robust. If the constant is e.g. animated (which might get the pointer)
+                        // and then the memory is reallocated (E.g. constant value array grew due to newly set values),
+                        // then crashes could occur. Or what if it's animated, and then we reset the constant?
+                        out_desc.m_ValuePtr = (float*)value;
+                    }
                 }
                 else
                 {
+                    // The value wasn't found in the component's overridden constants
+                    // so we use the material's default values for the constant
                     dmRender::HConstant constant;
                     dmRender::GetMaterialProgramConstant(material, constant_id, constant);
 
                     value = dmRender::GetConstantValues(constant, &num_values);
+                    if (value_index >= num_values)
+                    {
+                        return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;
+                    }
                     out_desc.m_Variant = dmGameObject::PropertyVar(value[value_index]);
                 }
             }
@@ -109,21 +126,27 @@ namespace dmGameSystem
             {
                 if (value != 0x0)
                 {
+                    float* val = ((float*)value) + element_index;
+                    out_desc.m_Variant = dmGameObject::PropertyVar(*val);
                     if (use_value_ptr)
                     {
-                        out_desc.m_ValuePtr = ((float*)value) + element_index;
-                        out_desc.m_Variant = *out_desc.m_ValuePtr;
-                    }
-                    else
-                    {
-                        float val = *(((float*)value) + element_index);
-                        out_desc.m_Variant = dmGameObject::PropertyVar(val);
+                        // TODO: Make this more robust. If the constant is e.g. animated (which might get the pointer)
+                        // and then the memory is reallocated (E.g. constant value array grew due to newly set values),
+                        // then crashes could occur. Or what if it's animated, and then we reset the constant?
+                        out_desc.m_ValuePtr = val;
                     }
                 }
                 else
                 {
-                    float v;
-                    dmRender::GetMaterialProgramConstantElement(material, constant_id, element_index, v);
+                    dmRender::HConstant constant;
+                    dmRender::GetMaterialProgramConstant(material, constant_id, constant);
+                    dmVMath::Vector4* material_values = dmRender::GetConstantValues(constant, &num_values);
+                    if (value_index >= num_values)
+                    {
+                        return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;
+                    }
+
+                    float v = material_values[value_index].getElem(element_index);
                     out_desc.m_Variant = dmGameObject::PropertyVar(v);
                 }
             }
