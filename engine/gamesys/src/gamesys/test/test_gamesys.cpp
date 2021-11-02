@@ -2952,7 +2952,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Setting property value
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
-    dmGameSystem::SetRenderConstant(constants, name_hash1, 0, 0, var1); // stores the previous value
+    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
 
     result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_TRUE(result);
@@ -2961,7 +2961,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
     dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
-    dmGameSystem::SetRenderConstant(constants, name_hash2, 0, 0, var2);
+    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, 0, var2);
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 

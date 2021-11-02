@@ -18,7 +18,7 @@
 
 namespace dmGraphics
 {
-    typedef void (*UniformCallback)(const char* name, uint32_t name_length, Type type, uintptr_t userdata);
+    typedef void (*UniformCallback)(const char* name, uint32_t name_length, Type type, uint32_t size, uintptr_t userdata);
 
     bool GLSLUniformParse(const char* buffer, UniformCallback cb, uintptr_t userdata);
 }
