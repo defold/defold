@@ -442,13 +442,13 @@ void glfwAndroidPollEvents()
    int events;
    struct android_poll_source* source;
 
-   int timeout = 0;
+   int timeoutMillis = 0;
    if (_glfwWin.iconified) {
-       timeout = 1000 * 3000;
+       timeoutMillis = 1000 * 3;
    }
-   while ((ident=ALooper_pollAll(timeout, NULL, &events, (void**)&source)) >= 0)
+   while ((ident=ALooper_pollAll(timeoutMillis, NULL, &events, (void**)&source)) >= 0)
    {
-       timeout = 0;
+       timeoutMillis = 0;
        // Process this event.
        if (source != NULL) {
            source->process(_glfwWinAndroid.app, source);
