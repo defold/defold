@@ -1297,7 +1297,7 @@ run:
                 boolean abort = false;
                 Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
                 try {
-                    if (task.isCacheable() && resourceCache.isCacheEnabled()) {
+                    if (resourceCache.isCacheEnabled()) {
                         // check if all output resources exist in the resource cache
                         boolean allResourcesCached = true;
                         for (IResource r : outputResources) {
