@@ -28,7 +28,7 @@ import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-@BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", ignoreTaskAutoCreation = true)
+@BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec")
 public class TextureBuilder extends Builder<Void> {
 
     @Override

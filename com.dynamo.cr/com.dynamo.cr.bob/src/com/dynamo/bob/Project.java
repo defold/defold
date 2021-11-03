@@ -112,10 +112,9 @@ public class Project {
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
     private Map<String, String> inextToOutext = new HashMap<>();
-    private List<Class<? extends Builder<?>>> ignoreTaskAutoCreation = new ArrayList<Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private HashMap<String, Task<?>> tasks;
+    private ArrayList<Task<?>> newTasks;
     private State state;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
@@ -271,10 +270,8 @@ public class Project {
                     if (builderParams != null) {
                         for (String inExt : builderParams.inExts()) {
                             extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+
                             inextToOutext.put(inExt, builderParams.outExt());
-                            if (builderParams.ignoreTaskAutoCreation()) {
-                                ignoreTaskAutoCreation.add((Class<? extends Builder<?>>) klass);
-                            }
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -331,31 +328,36 @@ public class Project {
         return inExt;
     }
 
+    private Task<?> doCreateTask(String input) throws CompileExceptionError {
+        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
+        if (builderClass != null) {
+            return doCreateTask(input, builderClass);
+        } else {
+            logWarning("No builder for '%s' found", input);
+        }
+        return null;
+    }
+
+    private Task<?> doCreateTask(String input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        Builder<?> builder;
+        try {
+            builder = builderClass.newInstance();
+            builder.setProject(this);
+            IResource inputResource = fileSystem.get(input);
+            Task<?> task = builder.create(inputResource);
+            return task;
+        } catch (CompileExceptionError e) {
+            // Just pass CompileExceptionError on unmodified
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private Class<? extends Builder<?>> getBuilderFromExtension(String input) {
         String ext = "." + FilenameUtils.getExtension(input);
         Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
         return builderClass;
-    }
-
-    /**
-     * Returns builder class for resource
-     * @param input input resource
-     * @return class
-     */
-    public Class<? extends Builder<?>> getBuilderFromExtension(IResource input) {
-        return getBuilderFromExtension(input.getPath());
-    }
-
-    /**
-     * Create task from resource path with explicit builder.
-     * @param inputPath input resource path
-     * @param builderClass class to build resource with
-     * @return task
-     * @throws CompileExceptionError
-     */
-    public Task<?> createTask(String inputPath, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
-        IResource inputResource = fileSystem.get(inputPath);
-        return createTask(inputResource, builderClass);
     }
 
     /**
@@ -365,46 +367,33 @@ public class Project {
      * @return task
      * @throws CompileExceptionError
      */
-    public Task<?> createTask(IResource inputResource) throws CompileExceptionError {
-        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(inputResource);
+    public Task<?> buildResource(IResource input) throws CompileExceptionError {
+        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input.getPath());
         if (builderClass == null) {
-            logWarning("No builder for '%s' found", inputResource);
+            logWarning("No builder for '%s' found", input);
             return null;
         }
 
-        return createTask(inputResource, builderClass);
+        Task<?> task = doCreateTask(input.getPath(), builderClass);
+        if (task != null) {
+            newTasks.add(task);
+        }
+        return task;
     }
 
     /**
      * Create task from resource with explicit builder.
-     * Make sure that task is unique.
      * @param input input resource
      * @param builderClass class to build resource with
-     * @return task
+     * @return
      * @throws CompileExceptionError
      */
-    public Task<?> createTask(IResource inputResource, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
-        // It's possible to build the same resource using different builders
-        String key = inputResource.getPath()+" "+builderClass;
-        Task<?> task = tasks.get(key);
+    public Task<?> buildResource(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        Task<?> task = doCreateTask(input.getPath(), builderClass);
         if (task != null) {
-            return task;
+            newTasks.add(task);
         }
-        Builder<?> builder;
-        try {
-            builder = builderClass.newInstance();
-            builder.setProject(this);
-            task = builder.create(inputResource);
-            if (task != null) {
-                tasks.put(key, task);
-            }
-            return task;
-        } catch (CompileExceptionError e) {
-            // Just pass CompileExceptionError on unmodified
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return task;
     }
 
     private List<String> sortInputs() {
@@ -440,11 +429,12 @@ public class Project {
     }
 
     private void createTasks() throws CompileExceptionError {
-        tasks = new HashMap<String, Task<?>>();
+        newTasks = new ArrayList<Task<?>>();
         List<String> sortedInputs = sortInputs(); // from findSources
 
         // To currently know the output resources, we need to parse the main.collectionc
         // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
+        // But the real problem is building/compressing the redundant textures (e.g. .png)
         String excludeFoldersStr = this.option("exclude-build-folder", "");
         List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
         excludeFolders.addAll(loadDefoldIgnore());
@@ -458,9 +448,9 @@ public class Project {
                 }
             }
             if (!skipped) {
-                Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
-                if (!ignoreTaskAutoCreation.contains(builderClass)) {
-                    createTask(input, builderClass);
+                Task<?> task = doCreateTask(input);
+                if (task != null) {
+                    newTasks.add(task);
                 }
             }
         }
@@ -671,7 +661,7 @@ public class Project {
      */
     private void validateBuildResourceMapping() throws CompileExceptionError {
         Map<String, List<IResource>> build_map = new HashMap<String, List<IResource>>();
-        for (Task<?> t : this.getTasks()) {
+        for (Task<?> t : this.newTasks) {
             List<IResource> inputs = t.getInputs();
             List<IResource> outputs = t.getOutputs();
             for (IResource output : outputs) {
@@ -1129,7 +1119,7 @@ public class Project {
                     mrep.done();
 
                     BundleHelper.throwIfCanceled(monitor);
-                    m.beginTask("Building...", tasks.size());
+                    m.beginTask("Building...", newTasks.size());
                     long tstart = System.currentTimeMillis();
 
                     result = runTasks(m);
@@ -1221,13 +1211,13 @@ public class Project {
 
         List<TaskResult> result = new ArrayList<>();
 
-        List<Task<?>> buildTasks = new ArrayList<>(this.getTasks());
+        List<Task<?>> tasks = new ArrayList<>(newTasks);
         // set of *all* possible output files
         Set<IResource> allOutputs = new HashSet<>();
-        for (Task<?> task : this.getTasks()) {
+        for (Task<?> task : newTasks) {
             allOutputs.addAll(task.getOutputs());
         }
-        tasks.clear();
+        newTasks.clear();
 
         // Keep track of the paths for all outputs
         outputs = new HashMap<>(allOutputs.size());
@@ -1242,8 +1232,8 @@ public class Project {
         // by marking all dependent tasks as failed instead of this flag.
         boolean taskFailed = false;
 run:
-        while (completedTasks.size() < buildTasks.size()) {
-            for (Task<?> task : buildTasks) {
+        while (completedTasks.size() < tasks.size()) {
+            for (Task<?> task : tasks) {
                 BundleHelper.throwIfCanceled(monitor);
 
                 // deps are the task input files generated by another task not yet completed,
@@ -1388,13 +1378,11 @@ run:
                 break;
             }
             // set of *all* possible output files
-            // TODO: do we really need this?
-            // It seems like we never create new tasks during building process
-            for (Task<?> task : this.getTasks()) {
+            for (Task<?> task : newTasks) {
                 allOutputs.addAll(task.getOutputs());
             }
-            buildTasks.addAll(this.getTasks());
-            tasks.clear();
+            tasks.addAll(newTasks);
+            newTasks.clear();
         }
         return result;
     }
@@ -1747,7 +1735,7 @@ run:
     }
 
     public List<Task<?>> getTasks() {
-        return Collections.unmodifiableList(new ArrayList(this.tasks.values()));
+        return Collections.unmodifiableList(this.newTasks);
     }
 
     public TextureProfiles getTextureProfiles() {

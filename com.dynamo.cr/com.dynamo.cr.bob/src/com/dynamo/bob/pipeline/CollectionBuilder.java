@@ -115,8 +115,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
-    // TODO: do we really need this?
-    // This method is never called. Is it mistake?
     private int buildEmbedded(IResource input, CollectionDesc.Builder builder, Task<Void> task, int embedIndex) throws IOException, CompileExceptionError {
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             IResource genResource = task.getOutputs().get(embedIndex+1);
@@ -128,7 +126,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             // How to solve?
             genResource.setContent(desc.getData().getBytes());
 
-            Task<?> embedTask = project.createTask(genResource);
+            Task<?> embedTask = project.buildResource(genResource);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,
@@ -275,7 +273,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
             if (productsOfThisTask.contains(hash)) {
 
-                Task<?> embedTask = project.createTask(genResource);
+                Task<?> embedTask = project.buildResource(genResource);
                 if (embedTask == null) {
                     throw new CompileExceptionError(input,
                                                     0,
