@@ -1297,42 +1297,34 @@ run:
                 boolean abort = false;
                 Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
                 try {
-                    if (resourceCache.isCacheEnabled()) {
-                        // check if all output resources exist in the resource cache
-                        boolean allResourcesCached = true;
-                        for (IResource r : outputResources) {
-                            final String key = ResourceCacheKey.calculate(task, options, r);
-                            outputResourceToCacheKey.put(r, key);
-                            if (!r.isCacheable()) {
-                                allResourcesCached = false;
-                            }
-                            else if (!resourceCache.contains(key)) {
-                                allResourcesCached = false;
-                            }
+                    // check if all output resources exist in the resource cache
+                    boolean allResourcesCached = true;
+                    for (IResource r : outputResources) {
+                        final String key = ResourceCacheKey.calculate(task, options, r);
+                        outputResourceToCacheKey.put(r, key);
+                        if (!r.isCacheable()) {
+                            allResourcesCached = false;
                         }
-
-                        // all resources exist in the cache
-                        // copy them to the output
-                        if (allResourcesCached) {
-                            for (IResource r : outputResources) {
-                                r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
-                            }
-                        }
-                        // build task and cache output
-                        else {
-                            builder.build(task);
-                            for (IResource r : outputResources) {
-                                state.putSignature(r.getAbsPath(), taskSignature);
-                                if (r.isCacheable()) {
-                                    resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
-                                }
-                            }
+                        else if (!resourceCache.contains(key)) {
+                            allResourcesCached = false;
                         }
                     }
+
+                    // all resources exist in the cache
+                    // copy them to the output
+                    if (allResourcesCached) {
+                        for (IResource r : outputResources) {
+                            r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
+                        }
+                    }
+                    // build task and cache output
                     else {
                         builder.build(task);
                         for (IResource r : outputResources) {
                             state.putSignature(r.getAbsPath(), taskSignature);
+                            if (r.isCacheable()) {
+                                resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
+                            }
                         }
                     }
                     monitor.worked(1);
