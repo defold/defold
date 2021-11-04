@@ -302,7 +302,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         builder.clearOverriddenFields();
     }
 
-    private static ArrayList<NodeDesc> mergeNodes(NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout, boolean applyDefaultLayoutFirts) {
+    private static ArrayList<NodeDesc> mergeNodes(NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout, boolean applyDefaultLayout) {
         ArrayList<NodeDesc> newNodes = new ArrayList<NodeDesc>(nodes.size());
         for(NodeDesc n : nodes) {
             // pick default node if no layout version exist
@@ -319,7 +319,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             // apply overridden fields from super-node to node, if there are any   
             // For defaut layout first
-            if (applyDefaultLayoutFirts) {
+            if (applyDefaultLayout) {
                 HashMap<String, NodeDesc> nodeMapDefault = parentSceneNodeMap.get("");
                 ApplyLayoutOverrides(b, nodeMapDefault, nodeMapDefault);
             }
