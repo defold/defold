@@ -1148,7 +1148,7 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collision object affected.
      * @param group [type:string] the new group name to be assigned.
      * ```lua
-     * function example()
+     * function changeCollisionGroup()
      *      physics.set_group("#collisionobject", "enemy")
      * end
      * ```
@@ -1163,7 +1163,9 @@ namespace dmGameSystem
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
         
-        dmGameSystem::SetCollisionGroup(comp_world, comp, group_id);
+        if (! dmGameSystem::SetCollisionGroup(comp_world, comp, group_id)) {
+            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+        }
 
         return 0;
     }    
@@ -1174,9 +1176,9 @@ namespace dmGameSystem
      *
      * @name physics.get_group
      * @param url [type:string|hash|url] the collision object to return the group of.
-     * @return [type:hash] hash value of the group 
+     * @return [type:hash] hash value of the group or 0 if it wasn't registered.
      * ```lua
-     * function example()
+     * function checkIsEnemy()
      *     local grp = physics.get_group("#collisionobject")
      *     assert( grp == hash("enemy") )
      * end
@@ -1191,8 +1193,15 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         
-        dmhash_t group_hash = dmGameSystem::GetCollisionGroup(comp_world, comp);
-        dmScript::PushHash(L, group_hash);
+        dmhash_t group_hash;
+        dmGameSystem::GetCollisionGroup(comp_world, comp, group_hash);
+        if (!group_hash) {
+            dmhash_t url = dmScript::CheckHashOrString(L, 1);
+            dmLogWarning("No collision group has been defined for '%s'.", dmHashReverseSafe64(url));  // TODO: get the url of the co from the stack and display it here
+            lua_pushnumber(L, 0); // better than an empty hash
+        } else {
+            dmScript::PushHash(L, group_hash);
+        }
         
         return 1;
     }    
@@ -1206,9 +1215,9 @@ namespace dmGameSystem
      * @param group [type:string] the name of the group (maskbit) to modify in the mask.
      * @param [type:boolean] boolean value of the new maskbit. 'true' to enable, 'false' to disable.
      * ```lua
-     * function example()
-     *     -- no longer collide with the "enemy" group
-     *     physics.set_maskbit("#collisionobject","user",enemy)
+     * function makeUserAlly()
+     *     -- no longer collide with the "user" group
+     *     physics.set_maskbit("#collisionobject","user",false)
      * end
      * ```
      */
@@ -1223,7 +1232,9 @@ namespace dmGameSystem
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
         bool boolvalue = CheckBoolean(L, 3);
         
-        dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue);
+        if (! dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue)) {
+            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+        }
 
         return 0;
     }    
@@ -1238,9 +1249,10 @@ namespace dmGameSystem
      * @param group [type:string] the name of the group to check for.
      * @return [type:boolean] boolean value of the maskbit. 'true' if present, 'false' otherwise.
      * ```lua
-     * function example()
+     * function checkCollideWithUser()
      *     -- to check if the collisionobject would collide with "user" group
      *     local hits_user = physics.get_maskbit("#collisionobject","user")
+     *     return hits_user
      * end
      * ```
      */    
@@ -1254,7 +1266,10 @@ namespace dmGameSystem
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
         
-        bool boolvalue = dmGameSystem::GetCollisionMaskBit(comp_world, comp, group_id);
+        bool boolvalue;
+        if (! dmGameSystem::GetCollisionMaskBit(comp_world, comp, group_id, &boolvalue)) {
+            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+        }
         lua_pushboolean(L, (int) boolvalue);
         
         return 1;
