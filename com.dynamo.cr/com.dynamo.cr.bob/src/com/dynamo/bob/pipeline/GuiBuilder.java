@@ -284,9 +284,25 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         return map;
     }
 
-    private static ArrayList<NodeDesc> mergeNodes(NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout) {
-        HashMap<String, NodeDesc> nodeMapDefault = layoutNodes == null ? parentSceneNodeMap.get("") : layoutNodes;
-        HashMap<String, NodeDesc> nodeMap = parentSceneNodeMap.get(layout);
+    private static void ApplyLayoutOverrides(NodeDesc.Builder builder, HashMap<String, NodeDesc> nodeMapDefault, HashMap<String, NodeDesc> nodeMap) {
+        NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.get(builder.getId());
+        if((parentSceneNode == null) && (nodeMapDefault != null)) {
+            parentSceneNode = nodeMapDefault.get(builder.getId());
+        }
+        if(parentSceneNode != null && parentSceneNode.getOverriddenFieldsCount() != 0) {
+            List<Integer> overriddenFields = parentSceneNode.getOverriddenFieldsList();
+            for(int fieldNumber : overriddenFields) {
+                FieldDescriptor fieldDesc = parentSceneNode.getDescriptorForType().findFieldByNumber(fieldNumber);
+                if(fieldDesc != null) {
+                   builder.setField(fieldDesc, parentSceneNode.getField(fieldDesc));
+                }
+            }
+        }
+        // opt fields ignored by run-time
+        builder.clearOverriddenFields();
+    }
+
+    private static ArrayList<NodeDesc> mergeNodes(NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout, boolean applyDefaultLayoutFirts) {
         ArrayList<NodeDesc> newNodes = new ArrayList<NodeDesc>(nodes.size());
         for(NodeDesc n : nodes) {
             // pick default node if no layout version exist
@@ -301,23 +317,17 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
             b.setId(parentNode.getId() + "/" + b.getId());
 
-            // apply overridden fields from super-node to node, if there are any
-            NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.get(b.getId());
-            if((parentSceneNode == null) && (nodeMapDefault != null)) {
-                parentSceneNode = nodeMapDefault.get(b.getId());
-            }
-            if(parentSceneNode != null && parentSceneNode.getOverriddenFieldsCount() != 0) {
-                List<Integer> overriddenFields = parentSceneNode.getOverriddenFieldsList();
-                for(int fieldNumber : overriddenFields) {
-                    FieldDescriptor fieldDesc = parentSceneNode.getDescriptorForType().findFieldByNumber(fieldNumber);
-                    if(fieldDesc != null) {
-                       b.setField(fieldDesc, parentSceneNode.getField(fieldDesc));
-                    }
-                }
+            // apply overridden fields from super-node to node, if there are any   
+            // For defaut layout first
+            if (applyDefaultLayoutFirts) {
+                HashMap<String, NodeDesc> nodeMapDefault = parentSceneNodeMap.get("");
+                ApplyLayoutOverrides(b, nodeMapDefault, nodeMapDefault);
             }
 
-            // opt fields ignored by run-time
-            b.clearOverriddenFields();
+            // For custom layout
+            if (layoutNodes != null) {
+                ApplyLayoutOverrides(b, layoutNodes, parentSceneNodeMap.get(layout));
+            }
             newNodes.add(b.build());
         }
         return newNodes;
@@ -473,7 +483,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 templateBuilder = transformScene(builder, node.getTemplate(), templateBuilder, sceneIO, sceneResourceCache, false);
 
                 // merge template scene nodes with overrides of current scene
-                List<NodeDesc> nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, "");
+                List<NodeDesc> nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, "", true);
                 newScene.get("").addAll(nodes);
 
                 List<String> templateLayouts = new ArrayList<String>(templateBuilder.getLayoutsCount());
@@ -495,14 +505,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                                 break;
                             }
                         }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayoutName);
+                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayoutName, false);
                     } else {
                         templateLayoutName = "";
                         layoutNodes = new HashMap<String, NodeDesc>(templateBuilder.getNodesCount());
                         for(NodeDesc n : templateBuilder.getNodesList()) {
                             layoutNodes.put(n.getId(), n);
                         }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName());
+                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName(), true);
                     }
 
                     ArrayList<NodeDesc> layoutNodeList = newScene.get(layout.getName());
