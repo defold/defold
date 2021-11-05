@@ -252,7 +252,6 @@ namespace dmGameSystem
                 }
                 else if (readonly) 
                 {
-                    dmLogWarning("The collision group '%s' does not exist.", dmHashReverseSafe64(group_hash));
                     return 0;
                 } else
                 {

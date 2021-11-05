@@ -11,6 +11,10 @@ function test_collision_group()
     assert( physics.get_group("go#properties-co") == hash("user"))
     physics.set_group("go#properties-co","default")
     assert( physics.get_group("go#properties-co") == hash("default"))
+    
+    -- check error is thrown if group does not exist
+    local ok, msg = pcall(function () physics.set_group("go#properties-co","nosuchgroup") end)
+    assert(not ok)
 end
 
 function test_collision_mask()
@@ -20,6 +24,9 @@ function test_collision_mask()
     
     physics.set_maskbit("go#properties-co","enemy", true)
     assert( physics.get_maskbit("go#properties-co","enemy") )
+    
+    local ok, msg = pcall(function () physics.set_maskbit("go#properties-co","nosuchgroup",true) end)
+    assert(not ok)  
 end
 
 function init(self)
