@@ -1099,7 +1099,8 @@ static ATOM registerWindowClass( void )
     wc.cbWndExtra    = 0;                             // No extra window data
     wc.hInstance     = _glfwLibrary.instance;         // Set instance
     wc.hCursor       = LoadCursor( NULL, IDC_ARROW ); // Load arrow pointer
-    wc.hbrBackground = NULL;                          // No background
+    // Change from the default white background to black to improve the startup white window when the graphics drive is initialization
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
     wc.lpszMenuName  = NULL;                          // No menu
     wc.lpszClassName = _GLFW_WNDCLASSNAME;            // Set class name
 
