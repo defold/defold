@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.Collections;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -29,30 +30,19 @@ import com.dynamo.bob.archive.EngineVersion;
 public class ResourceCacheKey {
 
 	/*
-	 * This list of options have no impact on the created resources
+	 * A set of options which have no impact on the created resources
 	 * and can safely be ignored when calculating the resource key
 	 */
-	private static Set<String> IGNORED_OPTIONS = Set.<String>of(
-		"verbose",
-		"archive",
-		"email",
-		"auth",
-		"bundle-output",
-		"bundle-format",
-		"mobileprovisioning",
-		"identity",
-		"keystore",
-		"keystore-pass",
-		"keystore-alias",
-		"debug",
-		"debug-ne-upload",
-		"variant",
-		"strip-executable",
-		"with-symbols",
-		"build-report",
-		"build-report-html",
-		"architectures"
-	);
+	private static Set<String> ignoredOptions = new HashSet<String>();
+
+	/**
+	 * Add an option that should be ignored by the resource key
+	 * calculation
+	 */
+	public static void ignoreOption(String option) {
+		ignoredOptions.add(option);
+	}
+
 
 	/**
 	 * Calculate the key to use when caching a resource.
@@ -73,7 +63,7 @@ public class ResourceCacheKey {
 		List<String> keys = new ArrayList<String>(projectOptions.keySet());
 		Collections.sort(keys);
 		for (String key : keys) {
-			if (!IGNORED_OPTIONS.contains(key)) {
+			if (!ignoredOptions.contains(key)) {
 				digest.update(key.getBytes());
 				String value = projectOptions.get(key);
 				if (value == null) {
