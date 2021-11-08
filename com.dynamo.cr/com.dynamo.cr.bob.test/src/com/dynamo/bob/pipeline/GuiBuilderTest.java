@@ -152,14 +152,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         src.append("}\n");
     }
 
-    @Test
-    public void test() throws Exception {
-        // Kept empty as a future working template
-    }
-
-    // https://github.com/defold/defold/issues/6151
-    @Test
-    public void testDefaultLayoutOverridesPriorityOverTemplateValues() throws Exception {
+    private StringBuilder createGuiWithTemplateAndLayout() {
         StringBuilder src = createGui();
         addBoxNode(src, "box", "");
         addTextNode(src, "text", "box", "templateText");
@@ -184,18 +177,36 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         finishOverridedNode(src);
 
         finishLayout(src);
-        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        return src;
+    }
+
+    private NodeDesc findNode(Gui.SceneDesc gui, String layoutName, String nodeName) {
         for(LayoutDesc layout : gui.getLayoutsList()) {
-            if (layout.getName().equals("Landscape")) {
+            if (layout.getName().equals(layoutName)) {
                 for(NodeDesc node : layout.getNodesList()) {
-                    if (node.getId().equals("template/text")) {
-                        Assert.assertFalse(node.getClippingVisible());
-                        Assert.assertEquals(node.getText(), "defaultText");
-                        return;
+                    if (node.getId().equals(nodeName)) {
+                        return node;
                     }
                 }
             }
         }
-        Assert.assertFalse("Can't find node!", true);
+        return null;
+    }
+
+    @Test
+    public void test() throws Exception {
+        // Kept empty as a future working template
+    }
+
+    // https://github.com/defold/defold/issues/6151
+    @Test
+    public void testDefaultLayoutOverridesPriorityOverTemplateValues() throws Exception {
+        StringBuilder src = createGuiWithTemplateAndLayout();
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "Landscape", "template/text");
+
+        Assert.assertFalse("Can't find node!", node == null);
+        Assert.assertFalse(node.getClippingVisible());
+        Assert.assertEquals(node.getText(), "defaultText");
     }
 }
