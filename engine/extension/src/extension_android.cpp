@@ -24,4 +24,14 @@ namespace dmExtension
     {
         glfwUnregisterOnActivityResultListener(listener);
     }
+
+    void RegisterAndroidOnCreateListener(OnCreateListener listener)
+    {
+        glfwRegisterOnCreateListener(listener);
+    }
+
+    void UnregisterAndroidOnCreateListener(OnCreateListener listener)
+    {
+        glfwUnregisterOnCreateListener(listener);
+    }
 }

@@ -704,3 +704,42 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
         g_Listeners[i](env, activity, requestCode, resultCode, data);
     }
 }
+
+#define MAX_ONCREATE_LISTENERS (32)
+static glfwoncreatefun g_onCreate_Listeners[MAX_ONCREATE_LISTENERS];
+static int g_onCreate_ListenersCount = 0;
+
+GLFWAPI void glfwRegisterOnCreateListener(glfwoncreatefun listener)
+{
+    if (g_onCreate_ListenersCount >= MAX_ONCREATE_LISTENERS) {
+        LOGW("Max onCreate listeners reached (%d)", MAX_ONCREATE_LISTENERS);
+    } else {
+        g_onCreate_Listeners[g_onCreate_ListenersCount++] = listener;
+    }
+}
+
+GLFWAPI void glfwUnregisterOnCreateListener(glfwoncreatefun listener)
+{
+    int i;
+    for (i = 0; i < g_onCreate_ListenersCount; ++i)
+    {
+        if (g_onCreate_Listeners[i] == listener)
+        {
+            g_onCreate_Listeners[i] = g_onCreate_Listeners[g_onCreate_ListenersCount - 1];
+            g_onCreate_ListenersCount--;
+            return;
+        }
+    }
+    LOGW("onCreate listener not found");
+}
+
+JNIEXPORT void
+Java_com_dynamo_android_DefoldActivity_nativeOnCreate(
+    JNIEnv *env, jobject thiz, jobject activity) {
+
+    int i;
+    for (i = 0; i < g_onCreate_ListenersCount; ++i)
+    {
+        g_onCreate_Listeners[i](env, activity);
+    }
+}

@@ -247,6 +247,38 @@ namespace dmExtension
      */
     void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
 
+    /*# OnCreateListener callback typedef
+     *
+     * onCreate callback function type.
+     * Used with RegisterAndroidOnCreateListener() and UnregisterAndroidOnCreateListener()
+     *
+     * @typedef
+     * @name OnCreateListener
+     * @param env [type:void*]
+     * @param activity [type:void*]
+     */
+    typedef void (*OnCreateListener)(void* env, void* activity);
+
+    /*# register Android onCreate callback
+     *
+     * Registers an onCreate callback. Multiple listeners are allowed.
+     *
+     * @note [icon:android] Only available on Android
+     * @name RegisterAndroidOnCreateListener
+     * @param [type:dmExtension::OnCreateListener] listener
+     */
+    void RegisterAndroidOnCreateListener(OnCreateListener listener);
+
+    /*# unregister Android onCreate callback
+     *
+     * Unregisters an onCreate callback
+     *
+     * @note [icon:android] Only available on Android
+     * @name UnregisterAndroidOnCreateListener
+     * @param [type:dmExtension::OnCreateListener] listener
+     */
+    void UnregisterAndroidOnCreateListener(OnCreateListener listener);
+
 
     /**
     * Extension desc bytesize declaration. Internal

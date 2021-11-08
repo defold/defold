@@ -588,6 +588,12 @@ typedef void (*glfwactivityresultfun)(void *env, void* activity, int request_cod
 GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun fun);
 GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun fun);
 
+// onCreate listeners
+typedef void (*glfwoncreatefun)(void *env, void* activity);
+GLFWAPI void glfwRegisterOnCreateListener(glfwoncreatefun fun);
+GLFWAPI void glfwUnregisterOnCreateListener(glfwoncreatefun fun);
+
+
 // context control
 GLFWAPI int   GLFWAPIENTRY glfwQueryAuxContext();
 GLFWAPI void* GLFWAPIENTRY glfwAcquireAuxContext();
