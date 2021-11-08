@@ -1181,4 +1181,8 @@ GLFWAPI void glfwAccelerometerEnable()
 
 void _glfwPlatformSetWindowBackgroundColor(uint32_t color)
 {
+    float r = (color & 0xff) / 255.0f;
+    float g = ((color >> 8) & 0xff) / 255.0f;
+    float b = ((color >> 16) & 0xff) / 255.0f;
+    [_glfwWin.window setBackgroundColor: [NSColor colorWithDeviceRed:r green:g blue:b alpha:1.0f]];
 }
