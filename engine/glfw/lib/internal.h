@@ -244,7 +244,7 @@ void _glfwPlatformUnacquireAuxContext(void* context);
 void _glfwPlatformUnacquireAuxContextVulkan(void* context);
 void _glfwPlatformUnacquireAuxContextOpenGL(void* context);
 void _glfwPlatformSetViewType(int view_type);
-void _glfwPlatformSetWindowBackgroundColor(uint32_t color);
+void _glfwPlatformSetWindowBackgroundColor(int color);
 
 //========================================================================
 // Prototypes for platform independent internal functions

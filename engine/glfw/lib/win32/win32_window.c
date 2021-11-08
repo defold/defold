@@ -34,7 +34,6 @@
 #include <assert.h>
 
 
-
 //************************************************************************
 //****                  GLFW internal functions                       ****
 //************************************************************************
@@ -1099,7 +1098,7 @@ static ATOM registerWindowClass( void )
     wc.cbWndExtra    = 0;                             // No extra window data
     wc.hInstance     = _glfwLibrary.instance;         // Set instance
     wc.hCursor       = LoadCursor( NULL, IDC_ARROW ); // Load arrow pointer
-    wc.hbrBackground = NULL;                          // No background
+    wc.hbrBackground = CreateSolidBrush(RGB(0, 0, 255));                          // No background
     wc.lpszMenuName  = NULL;                          // No menu
     wc.lpszClassName = _GLFW_WNDCLASSNAME;            // Set class name
 
@@ -2030,7 +2029,7 @@ GLFWAPI void glfwAccelerometerEnable()
 {
 }
 
-void _glfwPlatformSetWindowBackgroundColor(uint32_t color)
+void _glfwPlatformSetWindowBackgroundColor(int color)
 {
     int r = color & 0xff;
     int g = (color >> 8) & 0xff;
