@@ -369,76 +369,76 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    private static void addOption(Options options, String shortOpt, String longOpt, boolean hasArg, String description, boolean ignoreCache) {
+    private static void addOption(Options options, String shortOpt, String longOpt, boolean hasArg, String description, boolean usedByResourceCacheKey) {
         options.addOption(shortOpt, longOpt, hasArg, description);
-        if (ignoreCache) {
-            ResourceCacheKey.ignoreOption(longOpt);
+        if (usedByResourceCacheKey) {
+            ResourceCacheKey.includeOption(longOpt);
         }
     }
 
     private static Options getCommandLineOptions() {
         Options options = new Options();
-        addOption(options, "r", "root", true, "Build root directory. Default is current directory", false);
-        addOption(options, "o", "output", true, "Output directory. Default is \"build/default\"", true);
-        addOption(options, "i", "input", true, "Source directory. Default is current directory", false);
-        addOption(options, "v", "verbose", false, "Verbose output", true);
-        addOption(options, "h", "help", false, "This help message", true);
-        addOption(options, "a", "archive", false, "Build archive", true);
-        addOption(options, "e", "email", true, "User email", true);
-        addOption(options, "u", "auth", true, "User auth token", true);
+        addOption(options, "r", "root", true, "Build root directory. Default is current directory", true);
+        addOption(options, "o", "output", true, "Output directory. Default is \"build/default\"", false);
+        addOption(options, "i", "input", true, "Source directory. Default is current directory", true);
+        addOption(options, "v", "verbose", false, "Verbose output", false);
+        addOption(options, "h", "help", false, "This help message", false);
+        addOption(options, "a", "archive", false, "Build archive", false);
+        addOption(options, "e", "email", true, "User email", false);
+        addOption(options, "u", "auth", true, "User auth token", false);
 
-        addOption(options, "p", "platform", true, "Platform (when bundling)", false);
-        addOption(options, "bo", "bundle-output", true, "Bundle output directory", true);
+        addOption(options, "p", "platform", true, "Platform (when bundling)", true);
+        addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
         addOption(options, "bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')", false);
 
-        addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", true);
-        addOption(options, null, "identity", true, "Sign identity (iOS)", true);
+        addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
+        addOption(options, null, "identity", true, "Sign identity (iOS)", false);
 
-        addOption(options, "ce", "certificate", true, "DEPRECATED! Certificate (Android)", true);
-        addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", true);
+        addOption(options, "ce", "certificate", true, "DEPRECATED! Certificate (Android)", false);
+        addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", false);
 
-        addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", true);
-        addOption(options, "ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)", true);
-        addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", true);
+        addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
+        addOption(options, "ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)", false);
+        addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
 
-        addOption(options, "d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead", true);
-        addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", true);
-        addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", true);
-        addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", true);
+        addOption(options, "d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead", false);
+        addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
+        addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false);
+        addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", false);
 
-        addOption(options, "tp", "texture-profiles", true, "Use texture profiles (deprecated)", false);
-        addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", false);
-        addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", false);
+        addOption(options, "tp", "texture-profiles", true, "Use texture profiles (deprecated)", true);
+        addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
+        addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
-        addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", false);
+        addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
 
-        addOption(options, "br", "build-report", true, "Filepath where to save a build report as JSON", true);
-        addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", true);
+        addOption(options, "br", "build-report", true, "Filepath where to save a build report as JSON", false);
+        addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
 
-        addOption(options, null, "build-server", true, "The build server (when using native extensions)", false);
-        addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", false);
-        addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", false);
+        addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
+        addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
+        addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
-        addOption(options, null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)", false);
-        addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", false);
+        addOption(options, null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)", true);
+        addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 
-        addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", false);
+        addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
 
-        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", true);
+        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", false);
 
-        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", false);
+        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", true);
 
-        addOption(options, null, "version", false, "Prints the version number to the output", true);
+        addOption(options, null, "version", false, "Prints the version number to the output", false);
 
-        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.", true);
+        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.", false);
 
-        addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", true);
-        addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", true);
-        addOption(options, null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.", true);
-        addOption(options, null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.", true);
+        addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", false);
+        addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", false);
+        addOption(options, null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.", false);
+        addOption(options, null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.", false);
 
         // debug options
-        addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", true);
+        addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
 
         return options;
     }

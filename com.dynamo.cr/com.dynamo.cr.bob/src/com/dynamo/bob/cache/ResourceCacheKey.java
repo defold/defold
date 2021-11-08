@@ -30,17 +30,17 @@ import com.dynamo.bob.archive.EngineVersion;
 public class ResourceCacheKey {
 
 	/*
-	 * A set of options which have no impact on the created resources
-	 * and can safely be ignored when calculating the resource key
+	 * A set of options which have an impact on the created resources
+	 * and must be included when calculating the resource key
 	 */
-	private static Set<String> ignoredOptions = new HashSet<String>();
+	private static Set<String> options = new HashSet<String>();
 
 	/**
-	 * Add an option that should be ignored by the resource key
+	 * Add an option that should be included in the resource key
 	 * calculation
 	 */
-	public static void ignoreOption(String option) {
-		ignoredOptions.add(option);
+	public static void includeOption(String option) {
+		options.add(option);
 	}
 
 
@@ -63,7 +63,7 @@ public class ResourceCacheKey {
 		List<String> keys = new ArrayList<String>(projectOptions.keySet());
 		Collections.sort(keys);
 		for (String key : keys) {
-			if (!ignoredOptions.contains(key)) {
+			if (options.contains(key)) {
 				digest.update(key.getBytes());
 				String value = projectOptions.get(key);
 				if (value == null) {
