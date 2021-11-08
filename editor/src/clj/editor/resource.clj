@@ -17,8 +17,9 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.fs :as fs]
+            [schema.core :as s]
             [util.digest :as digest]
-            [schema.core :as s])
+            [util.path-util :as path-util])
   (:import [java.io File IOException InputStream FilterInputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
@@ -146,7 +147,7 @@
         path (.getPath file)
         name (.getName file)
         project-path (if (= "" name) "" (str "/" (relative-path (File. root) (io/file path))))
-        ext (FilenameUtils/getExtension path)]
+        ext (path-util/extension path)]
     (FileResource. workspace abs-path project-path name ext source-type children)))
 
 (defn file-resource? [resource]
@@ -220,7 +221,7 @@
 (defrecord ZipResource [workspace ^URI zip-uri name path zip-entry children]
   Resource
   (children [this] children)
-  (ext [this] (FilenameUtils/getExtension name))
+  (ext [this] (path-util/extension name))
   (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? zip-entry)))

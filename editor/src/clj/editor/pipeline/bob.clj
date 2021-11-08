@@ -24,7 +24,8 @@
     [editor.system :as system]
     [editor.ui :as ui]
     [editor.prefs :as prefs]
-    [editor.workspace :as workspace])
+    [editor.workspace :as workspace]
+    [util.path-util :as path-util])
   (:import
     [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem]
@@ -325,7 +326,7 @@
 
       (let [served-file   (try-resolve-html5-file project url)
             extra-headers {"Content-Type" (html5-mime-types
-                                            (FilenameUtils/getExtension (clojure.string/lower-case url))
+                                            (path-util/extension (clojure.string/lower-case url))
                                             "application/octet-stream")}]
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.

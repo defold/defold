@@ -356,11 +356,11 @@
 
                 ;; To handle save "bugs" in the old editor; size and size-mode should not have been saved at all
                 (= type :type-spine) (->
-                                       (assoc :size [1.0 1.0 0.0 1.0])
+                                       (assoc :size [1.0 1.0 0.0])
                                        (assoc :size-mode :size-mode-auto))
                 (= type :type-particlefx) (->
                                             (assoc
-                                              :size [1.0 1.0 0.0 1.0]
+                                              :size [1.0 1.0 0.0]
                                               :size-mode :size-mode-auto)))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (-> (reduce (fn [msg [k default]]
@@ -574,9 +574,9 @@
             (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
             (dynamic visible override-node?))
-  (property size types/Vec3 (default [0 0 0])
+  (property size types/Vec3 (default [0.0 0.0 0.0])
             (dynamic visible (g/fnk [type] (not= type :type-template))))
-  (property color types/Color (default [1 1 1 1])
+  (property color types/Color (default [1.0 1.0 1.0 1.0])
             (dynamic visible (g/fnk [type] (not= type :type-template)))
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha? true})))
@@ -795,14 +795,20 @@
 (g/defnode ShapeNode
   (inherits VisualNode)
 
-  (property size types/Vec3 (default [0 0 0])
-            (value (g/fnk [size size-mode texture-size]
-                          (if (= :size-mode-auto size-mode)
-                            (or texture-size size)
-                            size)))
+  (property size types/Vec3 (default [0.0 0.0 0.0])
             (dynamic read-only? (g/fnk [size-mode type] (and (or (= type :type-box) (= type :type-pie))
                                                              (= :size-mode-auto size-mode)))))
   (property size-mode g/Keyword (default :size-mode-auto)
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; In :size-mode-auto, the size property is grayed out, but
+                   ;; still shows the previous size assigned to the property.
+                   ;; When going from manual size-mode to auto, we assign the
+                   ;; auto value to the size property so the transition becomes
+                   ;; seamless.
+                   (when (and (= old-value :size-mode-auto)
+                              (= new-value :size-mode-manual))
+                     (when-some [texture-size (g/node-value self :texture-size evaluation-context)]
+                       (g/set-property self :size texture-size)))))
             (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
@@ -822,6 +828,10 @@
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
+  (output size types/Vec3 (g/fnk [size size-mode texture-size]
+                            (if (= :size-mode-auto size-mode)
+                              (or texture-size size)
+                              size)))
   (output texture-size g/Any (g/fnk [anim-data]
                                     (when (some? anim-data)
                                       [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
@@ -1157,7 +1167,7 @@
                      (validate-font _node-id font-names font))))
   (property text-leading g/Num (default 1.0))
   (property text-tracking g/Num (default 0.0))
-  (property outline types/Color (default [1 1 1 1])
+  (property outline types/Color (default [1.0 1.0 1.0 1.0])
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha? true})))
   (property outline-alpha g/Num (default 1.0)
@@ -1165,7 +1175,7 @@
                                       :min 0.0
                                       :max 1.0
                                       :precision 0.01})))
-  (property shadow types/Color (default [1 1 1 1])
+  (property shadow types/Color (default [1.0 1.0 1.0 1.0])
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha? true})))
   (property shadow-alpha g/Num (default 1.0)
@@ -1521,7 +1531,7 @@
     (dynamic error (g/fnk [_node-id particlefx particlefx-resource-names]
                      (validate-particlefx-resource _node-id particlefx-resource-names particlefx))))
 
-  (property size types/Vec3 (default [0 0 0])
+  (property size types/Vec3 (default [0.0 0.0 0.0])
     (dynamic visible (g/constantly false)))
   (property blend-mode g/Keyword (default :blend-mode-alpha)
     (dynamic visible (g/constantly false)))
@@ -1586,39 +1596,45 @@
   (output texture-anim-datas TextureAnimDatas (g/fnk [name] {name nil}))
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
 
+(defn- make-texture-id
+  ^String [texture-set-name anim-id]
+  (if (some? anim-id)
+    (str texture-set-name "/" anim-id)
+    texture-set-name))
+
 (g/defnk produce-texture-anim-datas [_node-id anim-data name]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
   (when (some? anim-data)
     ;; Input anim-data is a map of anim-ids to anim-data.
-    ;; The produced anim-data prefixes the anim-id with he texture name like so: "texture/anim".
+    ;; The produced anim-data prefixes the anim-id with the texture name like so: "texture/anim".
     ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
     (if (empty? anim-data)
       {name nil}
       (into {}
-            (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]))
+            (map (fn [[id data]] [(make-texture-id name id) data]))
             anim-data))))
 
-(g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture default-tex-params samplers]
+(g/defnk produce-texture-gpu-textures [_node-id anim-ids name gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (and (some? anim-data) (some? gpu-texture))
+  (when (some? gpu-texture)
     (let [gpu-texture (let [params (material/sampler->tex-params (first samplers) default-tex-params)]
                         (texture/set-params gpu-texture params))]
       ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-      (if (empty? anim-data)
+      (if (empty? anim-ids)
         {name gpu-texture}
         (into {}
-              (map (fn [id] [(if id (format "%s/%s" name id) name) gpu-texture]))
-              (keys anim-data))))))
+              (map (fn [id] [(make-texture-id name id) gpu-texture]))
+              anim-ids)))))
 
-(g/defnk produce-texture-names [anim-data name]
+(g/defnk produce-texture-names [anim-ids name]
   ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-  (if (empty? anim-data)
+  (if (empty? anim-ids)
     (sorted-set name)
     (into (sorted-set)
-          (map (fn [id] (if id (format "%s/%s" name id) name)))
-          (keys anim-data))))
+          (map (partial make-texture-id name))
+          anim-ids)))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -2250,7 +2266,7 @@
   (property adjust-reference g/Keyword (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/constantly false)))
   (property def g/Any (dynamic visible (g/constantly false)))
-  (property background-color types/Color (dynamic visible (g/constantly false)) (default [1 1 1 1]))
+  (property background-color types/Color (dynamic visible (g/constantly false)) (default [1.0 1.0 1.0 1.0]))
   (property visible-layout g/Str (default (g/constantly ""))
             (dynamic visible (g/constantly false))
             (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox

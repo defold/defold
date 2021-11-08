@@ -648,7 +648,7 @@
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
-  (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filter some? animation-ids)))
+  (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filterv some? animation-ids)))
   (output id-counts        NameCounts          :cached (g/fnk [anim-ids] (frequencies anim-ids)))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines own-build-errors]
                                                          {:node-id          _node-id

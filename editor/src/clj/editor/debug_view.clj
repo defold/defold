@@ -29,7 +29,8 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.path-util :as path-util])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
@@ -409,14 +410,14 @@
     ;; an additional breakpoint on the module name, ensuring we break
     ;; correctly in both cases.
     (mobdebug/set-breakpoint! debug-session path (inc row))
-    (when (= "lua" (FilenameUtils/getExtension path))
+    (when (= "lua" (path-util/extension path))
       (mobdebug/set-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
 
 (defn- remove-breakpoint!
   [debug-session {:keys [resource row] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
     (mobdebug/remove-breakpoint! debug-session path (inc row))
-    (when (= "lua" (FilenameUtils/getExtension path))
+    (when (= "lua" (path-util/extension path))
       (mobdebug/remove-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
 
 (defn- update-breakpoints!
