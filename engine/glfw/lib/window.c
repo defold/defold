@@ -1126,7 +1126,15 @@ GLFWAPI void GLFWAPIENTRY glfwUnacquireAuxContext(void *context)
     _glfwPlatformUnacquireAuxContext(context);
 }
 
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
 GLFWAPI void glfwSetViewType(int view_type)
 {
     _glfwPlatformSetViewType(view_type);
+}
+
+GLFWAPI void glfwSetWindowBackgroundColor(uint32_t color)
+{
+    _glfwPlatformSetWindowBackgroundColor(color);
 }

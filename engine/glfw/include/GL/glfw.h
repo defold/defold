@@ -568,6 +568,7 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwSetViewType(int view_type);
+GLFWAPI void glfwSetWindowBackgroundColor(uint32_t color);
 
 // Defold extensions (Android)
 #if defined(ANDROID)

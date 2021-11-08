@@ -261,6 +261,10 @@ void _glfwPlatformSetViewType(int view_type)
     g_view_type = view_type;
 }
 
+void _glfwPlatformSetWindowBackgroundColor(uint32_t color)
+{
+}
+
 void* _glfwPlatformAcquireAuxContext()
 {
     if (_glfwWin.clientAPI == GLFW_NO_API)

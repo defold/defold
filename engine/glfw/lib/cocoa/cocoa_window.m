@@ -1178,3 +1178,7 @@ void _glfwPlatformSetViewType(int view_type)
 GLFWAPI void glfwAccelerometerEnable()
 {
 }
+
+void _glfwPlatformSetWindowBackgroundColor(uint32_t color)
+{
+}

@@ -2029,3 +2029,12 @@ void _glfwPlatformSetViewType(int view_type)
 GLFWAPI void glfwAccelerometerEnable()
 {
 }
+
+void _glfwPlatformSetWindowBackgroundColor(uint32_t color)
+{
+    int r = color & 0xff;
+    int g = (color >> 8) & 0xff;
+    int b = (color >> 16) & 0xff;
+    HBRUSH brush = CreateSolidBrush(RGB(r, g, b));
+    SetClassLongPtr(_glfwWin.classAtom, GCLP_HBRBACKGROUND, (LONG_PTR)brush);
+}
