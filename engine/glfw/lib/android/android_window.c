@@ -418,6 +418,15 @@ void glfwAndroidFlushEvents()
     spinlock_unlock(&g_EventLock);
 }
 
+void androidDestroyWindow( void )
+{
+    if (_glfwWin.opened) {
+        _glfwWin.opened = 0;
+        final_gl(&_glfwWinAndroid);
+        computeIconifiedState();
+    }
+}
+
 // Called from the engine thread
 void _glfwPlatformPollEvents( void )
 {
@@ -438,22 +447,27 @@ void _glfwPlatformPollEvents( void )
 // Called from the looper thread
 void glfwAndroidPollEvents()
 {
-   int ident;
-   int events;
-   struct android_poll_source* source;
+    int ident;
+    int events;
+    struct android_poll_source* source;
 
-   int timeoutMillis = 0;
-   if (_glfwWin.iconified) {
-       timeoutMillis = 1000 * 3;
-   }
-   while ((ident=ALooper_pollAll(timeoutMillis, NULL, &events, (void**)&source)) >= 0)
-   {
-       timeoutMillis = 0;
-       // Process this event.
-       if (source != NULL) {
-           source->process(_glfwWinAndroid.app, source);
-       }
-   }
+    int timeoutMillis = 0;
+    if (_glfwWin.iconified) {
+        timeoutMillis = 1000 * 3;
+    }
+    while ((ident=ALooper_pollAll(timeoutMillis, NULL, &events, (void**)&source)) >= 0)
+    {
+        timeoutMillis = 0;
+        // Process this event.
+        if (source != NULL) {
+            source->process(_glfwWinAndroid.app, source);
+        }
+
+        if (_glfwWinAndroid.app->destroyRequested) {
+            androidDestroyWindow();
+            return;
+        }
+    }
 }
 
 //========================================================================
