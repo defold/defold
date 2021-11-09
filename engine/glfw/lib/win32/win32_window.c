@@ -1098,7 +1098,7 @@ static ATOM registerWindowClass( void )
     wc.cbWndExtra    = 0;                             // No extra window data
     wc.hInstance     = _glfwLibrary.instance;         // Set instance
     wc.hCursor       = LoadCursor( NULL, IDC_ARROW ); // Load arrow pointer
-    wc.hbrBackground = CreateSolidBrush(RGB(0, 0, 255));                          // No background
+    wc.hbrBackground = NULL;                          // No background
     wc.lpszMenuName  = NULL;                          // No menu
     wc.lpszClassName = _GLFW_WNDCLASSNAME;            // Set class name
 
@@ -2034,6 +2034,6 @@ void _glfwPlatformSetWindowBackgroundColor(int color)
     int r = color & 0xff;
     int g = (color >> 8) & 0xff;
     int b = (color >> 16) & 0xff;
-    HBRUSH brush = CreateSolidBrush(RGB(r, g, b));
+    HBRUSH brush = ::CreateSolidBrush(RGB(r, g, b));
     SetClassLongPtr(_glfwWin.classAtom, GCLP_HBRBACKGROUND, (LONG_PTR)brush);
 }
