@@ -1007,6 +1007,9 @@ var LibraryGLFW = {
   },
 
   glfwAccelerometerEnable: function() {
+  },
+
+  glfwSetWindowBackgroundColor: function() {
   }
 };
 
