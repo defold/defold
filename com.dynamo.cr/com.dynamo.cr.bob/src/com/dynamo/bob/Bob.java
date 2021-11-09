@@ -426,7 +426,7 @@ public class Bob {
 
         addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", false);
 
-        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", true);
+        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", false);
 
         addOption(options, null, "version", false, "Prints the version number to the output", false);
 
