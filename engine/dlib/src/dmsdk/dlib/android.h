@@ -150,7 +150,7 @@ typedef void (*OnActivityResult)(JNIEnv* env, ANativeActivity* activity, int32_t
  *
  * @note [icon:android] Only available on Android
  * @name RegisterOnActivityResultListener
- * @param [type:dmExtension::OnActivityResult] listener
+ * @param [type:dmAndroid::OnActivityResult] listener
  */
 void RegisterOnActivityResultListener(OnActivityResult listener);
 
@@ -160,7 +160,7 @@ void RegisterOnActivityResultListener(OnActivityResult listener);
  *
  * @note [icon:android] Only available on Android
  * @name UnregisterOnActivityResultListener
- * @param [type:dmExtension::OnActivityResult] listener
+ * @param [type:dmAndroid::OnActivityResult] listener
  */
 void UnregisterOnActivityResultListener(OnActivityResult listener);
 
@@ -182,7 +182,7 @@ typedef void (*OnActivityCreate)(JNIEnv* env, ANativeActivity* activity);
  *
  * @note [icon:android] Only available on Android
  * @name RegisterOnActivityCreateListener
- * @param [type:dmExtension::OnActivityCreate] listener
+ * @param [type:dmAndroid::OnActivityCreate] listener
  */
 void RegisterOnActivityCreateListener(OnActivityCreate listener);
 
@@ -192,7 +192,7 @@ void RegisterOnActivityCreateListener(OnActivityCreate listener);
  *
  * @note [icon:android] Only available on Android
  * @name UnregisterOnActivityCreateListener
- * @param [type:dmExtension::OnActivityCreate] listener
+ * @param [type:dmAndroid::OnActivityCreate] listener
  */
 void UnregisterOnActivityCreateListener(OnActivityCreate listener);
 
