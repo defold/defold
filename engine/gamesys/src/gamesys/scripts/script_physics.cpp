@@ -1194,10 +1194,6 @@ namespace dmGameSystem
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         
         dmhash_t group_hash = dmGameSystem::GetCollisionGroup(comp_world, comp);
-        if (!group_hash) {
-            dmhash_t url = dmScript::CheckHashOrString(L, 1);
-            dmLogWarning("No collision group has been defined for '%s'.", dmHashReverseSafe64(url));  // TODO: get the url of the co from the stack and display it here
-        } 
         dmScript::PushHash(L, group_hash);
         
         return 1;
