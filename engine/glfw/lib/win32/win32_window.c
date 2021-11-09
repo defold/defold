@@ -2034,6 +2034,6 @@ void _glfwPlatformSetWindowBackgroundColor(int color)
     int r = color & 0xff;
     int g = (color >> 8) & 0xff;
     int b = (color >> 16) & 0xff;
-    HBRUSH brush = ::CreateSolidBrush(RGB(r, g, b));
+    HBRUSH brush = CreateSolidBrush(RGB(r, g, b));
     SetClassLongPtr(_glfwWin.classAtom, GCLP_HBRBACKGROUND, (LONG_PTR)brush);
 }
