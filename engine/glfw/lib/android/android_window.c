@@ -669,7 +669,7 @@ void _glfwPlatformSetViewType(int view_type)
 static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
 static int g_ListenersCount = 0;
 
-GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun listener)
+GLFWAPI void glfwAndroidRegisterOnActivityResultListener(glfwactivityresultfun listener)
 {
     if (g_ListenersCount >= MAX_ACTIVITY_LISTENERS) {
         LOGW("Max activity listeners reached (%d)", MAX_ACTIVITY_LISTENERS);
@@ -678,10 +678,9 @@ GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun listener
     }
 }
 
-GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun listener)
+GLFWAPI void glfwAndroidUnregisterOnActivityResultListener(glfwactivityresultfun listener)
 {
-    int i;
-    for (i = 0; i < g_ListenersCount; ++i)
+    for (int i = 0; i < g_ListenersCount; ++i)
     {
         if (g_Listeners[i] == listener)
         {
@@ -698,8 +697,7 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
     JNIEnv *env, jobject thiz, jobject activity, jint requestCode,
     jint resultCode, jobject data) {
 
-    int i;
-    for (i = 0; i < g_ListenersCount; ++i)
+    for (int i = 0; i < g_ListenersCount; ++i)
     {
         g_Listeners[i](env, activity, requestCode, resultCode, data);
     }
@@ -709,7 +707,7 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
 static glfwoncreatefun g_onCreate_Listeners[MAX_ONCREATE_LISTENERS];
 static int g_onCreate_ListenersCount = 0;
 
-GLFWAPI void glfwRegisterOnCreateListener(glfwoncreatefun listener)
+GLFWAPI void glfwAndroidRegisterOnCreateListener(glfwoncreatefun listener)
 {
     if (g_onCreate_ListenersCount >= MAX_ONCREATE_LISTENERS) {
         LOGW("Max onCreate listeners reached (%d)", MAX_ONCREATE_LISTENERS);
@@ -718,10 +716,9 @@ GLFWAPI void glfwRegisterOnCreateListener(glfwoncreatefun listener)
     }
 }
 
-GLFWAPI void glfwUnregisterOnCreateListener(glfwoncreatefun listener)
+GLFWAPI void glfwAndroidUnregisterOnCreateListener(glfwoncreatefun listener)
 {
-    int i;
-    for (i = 0; i < g_onCreate_ListenersCount; ++i)
+    for (int i = 0; i < g_onCreate_ListenersCount; ++i)
     {
         if (g_onCreate_Listeners[i] == listener)
         {
@@ -737,8 +734,7 @@ JNIEXPORT void
 Java_com_dynamo_android_DefoldActivity_nativeOnCreate(
     JNIEnv *env, jobject thiz, jobject activity) {
 
-    int i;
-    for (i = 0; i < g_onCreate_ListenersCount; ++i)
+    for (int i = 0; i < g_onCreate_ListenersCount; ++i)
     {
         g_onCreate_Listeners[i](env, activity);
     }

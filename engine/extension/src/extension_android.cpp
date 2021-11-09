@@ -10,28 +10,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "extension.h"
 #include <dmsdk/graphics/glfw/glfw.h>
+#include <dmsdk/dlib/android.h>
 
-namespace dmExtension
+namespace dmAndroid
 {
-    void RegisterAndroidOnActivityResultListener(OnActivityResult listener)
+    void RegisterOnActivityResultListener(OnActivityResult listener)
     {
-        glfwRegisterOnActivityResultListener(listener);
+        glfwAndroidRegisterOnActivityResultListener((glfwactivityresultfun)listener);
     }
 
-    void UnregisterAndroidOnActivityResultListener(OnActivityResult listener)
+    void UnregisterOnActivityResultListener(OnActivityResult listener)
     {
-        glfwUnregisterOnActivityResultListener(listener);
+        glfwAndroidUnregisterOnActivityResultListener((glfwactivityresultfun)listener);
     }
 
-    void RegisterAndroidOnCreateListener(OnCreateListener listener)
+    void RegisterOnActivityCreateListener(OnActivityCreate listener)
     {
-        glfwRegisterOnCreateListener(listener);
+        glfwAndroidRegisterOnCreateListener((glfwoncreatefun)listener);
     }
 
-    void UnregisterAndroidOnCreateListener(OnCreateListener listener)
+    void UnregisterOnActivityCreateListener(OnActivityCreate listener)
     {
-        glfwUnregisterOnCreateListener(listener);
+        glfwAndroidUnregisterOnCreateListener((glfwoncreatefun)listener);
     }
 }
