@@ -1176,7 +1176,7 @@ namespace dmGameSystem
      *
      * @name physics.get_group
      * @param url [type:string|hash|url] the collision object to return the group of.
-     * @return [type:hash] hash value of the group or 0 if it wasn't registered.
+     * @return [type:hash] hash value of the group.
      * ```lua
      * function checkIsEnemy()
      *     local grp = physics.get_group("#collisionobject")
@@ -1193,15 +1193,12 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         
-        dmhash_t group_hash;
-        dmGameSystem::GetCollisionGroup(comp_world, comp, group_hash);
+        dmhash_t group_hash = dmGameSystem::GetCollisionGroup(comp_world, comp);
         if (!group_hash) {
             dmhash_t url = dmScript::CheckHashOrString(L, 1);
             dmLogWarning("No collision group has been defined for '%s'.", dmHashReverseSafe64(url));  // TODO: get the url of the co from the stack and display it here
-            lua_pushnumber(L, 0); // better than an empty hash
-        } else {
-            dmScript::PushHash(L, group_hash);
-        }
+        } 
+        dmScript::PushHash(L, group_hash);
         
         return 1;
     }    

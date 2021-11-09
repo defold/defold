@@ -1614,7 +1614,7 @@ namespace dmGameSystem
         }
     }
 
-    void GetCollisionGroup(void* _world, void* _component, dmhash_t& grouphash)
+    dmhash_t GetCollisionGroup(void* _world, void* _component)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
@@ -1627,7 +1627,7 @@ namespace dmGameSystem
         {
             groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
         }
-        grouphash = GetLSBGroupHash(world, groupbit);
+        return GetLSBGroupHash(world, groupbit);
     } 
 
     // returns false if no such collision group has been registered
