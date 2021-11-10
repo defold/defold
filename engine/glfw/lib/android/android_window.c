@@ -453,7 +453,7 @@ void glfwAndroidPollEvents()
 
     int timeoutMillis = 0;
     if (_glfwWin.iconified) {
-        timeoutMillis = 1000 * 3;
+        timeoutMillis = 1000 * 2;
     }
     while ((ident=ALooper_pollAll(timeoutMillis, NULL, &events, (void**)&source)) >= 0)
     {
