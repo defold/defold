@@ -83,7 +83,7 @@ public class ResourceCacheKeyTest {
 
 	private Map<String, String> createImportantOptions() {
 		Map<String, String> options = new HashMap<String, String>();
-		options.put("architecture", "x86_64-darwin");
+		options.put("important_option", "yep");
 		return options;
 	}
 	private Map<String, String> createEmptyOptions() {
@@ -94,6 +94,7 @@ public class ResourceCacheKeyTest {
 	public void setUp() throws Exception {
 		fs = new MockFileSystem();
 		fs.setBuildDirectory("build");
+		ResourceCacheKey.includeOption("important_option");
 	}
 
 	@After
