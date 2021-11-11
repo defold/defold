@@ -10,39 +10,47 @@
 <?import javafx.scene.text.TextFlow?>
 
 <AnchorPane stylesheets="@splash.css" xmlns="http://javafx.com/javafx/8">
-   <ImageView fitHeight="600.0" fitWidth="949.0" pickOnBounds="true" preserveRatio="true">
+   <ImageView fitHeight="505.0" fitWidth="800.0" pickOnBounds="true" preserveRatio="true">
       <Image url="@splash.png" />
    </ImageView>
-   <AnchorPane AnchorPane.bottomAnchor="76.0" AnchorPane.leftAnchor="109.0" AnchorPane.rightAnchor="109.0" AnchorPane.topAnchor="76.0">
-      <VBox prefWidth="210.0" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="115.0" spacing="15">
-         <TextFlow id="startup-tip" />
+   <AnchorPane id="game" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="418.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="37.0">
+       <ImageView id="game-screenshot" fitHeight="430.0" fitWidth="325.0" pickOnBounds="true" preserveRatio="true">
+          <Image url="@/games/familyisland.jpg" />
+       </ImageView>
+       <Label id="game-name" text="Family Island" style="-fx-effect: dropshadow(gaussian, black, 8, 0.5, 0, 0);" maxWidth="325.0" alignment="CENTER" AnchorPane.bottomAnchor="45.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0"/>
+   </AnchorPane>
+   <AnchorPane AnchorPane.bottomAnchor="50.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+      <VBox prefWidth="300.0" AnchorPane.leftAnchor="75.0" AnchorPane.rightAnchor="75.0" AnchorPane.topAnchor="150.0" spacing="15">
+         <TextFlow id="startup-tip" maxWidth="300.0"/>
          <Label id="launch-error" text="testing" visible="false" wrapText="true" />
          <Button id="error-button" text="Exit" visible="false" />
       </VBox>
    </AnchorPane>
-   <AnchorPane id="footer" AnchorPane.bottomAnchor="76.0" AnchorPane.leftAnchor="109.0" AnchorPane.rightAnchor="109.0">
-      <VBox prefWidth="250.0" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="115.0">
+   <AnchorPane id="footer" AnchorPane.bottomAnchor="35.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+      <VBox prefWidth="300.0" AnchorPane.leftAnchor="75.0" AnchorPane.topAnchor="0.0" AnchorPane.rightAnchor="75.0" AnchorPane.bottomAnchor="10.0">
          <Label id="version" text="No Version" visible="false" wrapText="true" />
-         <Label id="copyright" text="2009–2021 Defold Foundation." />
-         <Label id="rights-reserved" text="All rights reserved." />
          <Label id="sponsors" text="Corporate Partners:" />
          <HBox id="sponsor-icons">
             <ImageView fitHeight="30.0" preserveRatio="true">
-               <Image url="@/sponsors/king.png" />
+                <Image url="@/sponsors/melsoft.png" />
             </ImageView>
             <ImageView fitHeight="30.0" preserveRatio="true">
-               <Image url="@/sponsors/rive.png" />
+                <Image url="@/sponsors/rive.png" />
             </ImageView>
          </HBox>
          <HBox id="sponsor-icons">
             <ImageView fitHeight="30.0" preserveRatio="true">
-               <Image url="@/sponsors/melsoft.png" />
+                <Image url="@/sponsors/op-games.png" />
             </ImageView>
             <ImageView fitHeight="30.0" preserveRatio="true">
-               <Image url="@/sponsors/heroiclabs.png" />
+                <Image url="@/sponsors/king.png" />
+            </ImageView>
+            <ImageView fitHeight="30.0" preserveRatio="true">
+                <Image url="@/sponsors/heroiclabs.png" />
             </ImageView>
          </HBox>
+         <Label id="copyright" text="2009–2021 Defold Foundation. All rights reserved." wrapText="true" />
       </VBox>
-      <ProgressBar AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+      <ProgressBar styleClass="small-progress-bar" minHeight="6.0" prefHeight="6.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="37.0" AnchorPane.rightAnchor="37.0" />
    </AnchorPane>
 </AnchorPane>
