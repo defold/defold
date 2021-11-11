@@ -171,8 +171,7 @@ Label.emphasis {
   -fx-text-fill: -df-text; }
 
 #launch-error {
-  -fx-text-fill: -df-defold-red;
-  -fx-padding: 0 0 33px 0; }
+  -fx-text-fill: -df-defold-red; }
 
 #game * {
   -fx-text-fill: white;
@@ -181,12 +180,6 @@ Label.emphasis {
 #footer * {
   -fx-text-fill: -df-text-dark;
   -fx-font-size: 90%; }
-
-#version {
-  -fx-padding: 0 0 16px 0; }
-
-#rights-reserved {
-  -fx-padding: 0 0 16px 0; }
 
 #sponsors {
   -fx-padding: 0 0 16px 0; }

@@ -128,9 +128,11 @@ public class Splash {
         Label launchErrorLabel = (Label) scene.lookup("#launch-error");
         launchErrorLabel.textProperty().bind(launchError);
         launchErrorLabel.visibleProperty().bind(errorShowing);
+        launchErrorLabel.managedProperty().bind(launchErrorLabel.visibleProperty());
 
         Button errorButton = (Button) scene.lookup("#error-button");
         errorButton.visibleProperty().bind(errorShowing);
+        errorButton.managedProperty().bind(errorButton.visibleProperty());
         errorButton.setOnAction((event) -> System.exit(1));
 
         // Footer data; version and copyright
