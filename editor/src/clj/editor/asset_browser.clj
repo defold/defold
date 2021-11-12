@@ -16,7 +16,6 @@
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
-            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.ui :as ui]
@@ -26,7 +25,8 @@
             [editor.workspace :as workspace]
             [editor.dialogs :as dialogs]
             [editor.disk-availability :as disk-availability]
-            [editor.app-view :as app-view])
+            [editor.app-view :as app-view]
+            [util.path-util :as path-util])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
            [javafx.application Platform]
@@ -233,7 +233,7 @@
     (loop [^File f original]
       (if (exists-fn f)
         (let [path (.getAbsolutePath f)
-              ext (FilenameUtils/getExtension path)
+              ext (path-util/extension path)
               new-path (str (FilenameUtils/getFullPath path)
                             (name-fn original-basename (FilenameUtils/getBaseName path))
                             (when (seq ext) (str "." ext)))]
