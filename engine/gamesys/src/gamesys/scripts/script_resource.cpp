@@ -867,12 +867,10 @@ static int GetTextMetrics(lua_State* L)
         tracking = (float)CheckTableNumber(L, table_index, "tracking", tracking);
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
-    printf("options: %d, %f, %f, %f\n", line_break?1:0, leading, tracking, width);
 
     dmRender::TextMetrics metrics;
     dmRender::GetTextMetrics(font_map, text, width, line_break, leading, tracking, &metrics);
     PushTextMetricsTable(L, &metrics);
-
     return 1;
 }
 
