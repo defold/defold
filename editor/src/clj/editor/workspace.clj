@@ -186,6 +186,16 @@ ordinary paths."
   ([workspace proj-path evaluation-context]
    (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
 
+(defn as-resource
+  ([workspace path-or-resource]
+   (g/with-auto-evaluation-context evaluation-context
+     (as-resource workspace path-or-resource eval)))
+  ([workspace path-or-resource evaluation-context]
+   (cond
+     (string? path-or-resource) (find-resource workspace path-or-resource evaluation-context)
+     (satisfies? resource/Resource path-or-resource) path-or-resource
+     :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))))
+
 (defn resolve-workspace-resource
   ([workspace path]
    (g/with-auto-evaluation-context evaluation-context

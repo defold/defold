@@ -345,14 +345,16 @@
   copy of the image would make the packed atlas textures unique.
 
   See DEFEDIT-4218 for additional info about the rationale."
-  ^String [resource]
-  (with-open [input-stream (io/input-stream resource)
-              digest-output-stream (digest/make-digest-output-stream "SHA-1")]
-    (io/copy input-stream digest-output-stream)
-    (when-some [^String proj-path (proj-path resource)]
-      (.write digest-output-stream (.getBytes proj-path "UTF-8")))
-    (.flush digest-output-stream)
-    (digest/digest-output-stream->hex digest-output-stream)))
+  (^String [resource]
+   (resource->path-inclusive-sha1-hex resource proj-path))
+  (^String [source proj-path-fn]
+   (with-open [input-stream (io/input-stream source)
+               digest-output-stream (digest/make-digest-output-stream "SHA-1")]
+     (io/copy input-stream digest-output-stream)
+     (when-some [^String proj-path (proj-path-fn source)]
+       (.write digest-output-stream (.getBytes proj-path "UTF-8")))
+     (.flush digest-output-stream)
+     (digest/digest-output-stream->hex digest-output-stream))))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
 

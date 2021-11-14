@@ -199,15 +199,20 @@
                         (g/connect node :_node-id project :nodes)
                         (g/connect node :node-id+resource project :node-id+resources)))))))
 
+(defn get-resource
+  ([project path-or-resource]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-resource project path-or-resource evaluation-context)))
+  ([project path-or-resource evaluation-context]
+   (let [workspace (g/node-value project :workspace evaluation-context)]
+     (workspace/as-resource workspace path-or-resource evaluation-context))))
+
 (defn get-resource-node
   ([project path-or-resource]
-   (g/with-auto-evaluation-context ec
-     (get-resource-node project path-or-resource ec)))
+   (g/with-auto-evaluation-context evaluation-context
+     (get-resource-node project path-or-resource evaluation-context)))
   ([project path-or-resource evaluation-context]
-   (when-let [resource (cond
-                         (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource evaluation-context)
-                         (satisfies? resource/Resource path-or-resource) path-or-resource
-                         :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
+   (when-some [resource (get-resource project path-or-resource evaluation-context)]
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 

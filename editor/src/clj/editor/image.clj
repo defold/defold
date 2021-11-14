@@ -19,6 +19,7 @@
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-cache :as resource-cache]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -69,8 +70,8 @@
   (texture/texture-image->gpu-texture request-id texture-image params unit))
 
 (defn- generate-content [{:keys [_node-id resource]}]
-  (resource-io/with-error-translation resource _node-id :resource
-    (image-util/read-image resource)))
+  (g/with-auto-evaluation-context evaluation-context
+    (resource-cache/read-resource-content resource _node-id :resource evaluation-context image-util/read-image)))
 
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
@@ -95,7 +96,7 @@
   (output content-generator g/Any (g/fnk [_node-id resource :as args]
                                     {:f generate-content
                                      :args args
-                                     :sha1 (resource/resource->path-inclusive-sha1-hex resource)}))
+                                     :sha1 (resource-cache/path-inclusive-sha1-hex resource _node-id)}))
 
   (output texture-image g/Any (g/fnk [content texture-profile] (tex-gen/make-preview-texture-image content texture-profile)))
 

@@ -35,6 +35,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-cache :as resource-cache]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
@@ -148,7 +149,7 @@
                          {:index index
                           :count count
                           :collision-group (or collision-group "")}) cleaned-convex-hulls)
-   :convex-hull-points (vec (mapcat :points cleaned-convex-hulls))
+   :convex-hull-points (into [] (mapcat :points) cleaned-convex-hulls)
    :collision-groups (sort collision-groups)
    :animations (sort-by :id animation-ddfs)
    :extrude-borders extrude-borders
@@ -489,17 +490,23 @@
                        child-scenes)})))
 
 (g/defnk produce-convex-hull-points
-  [collision-resource original-convex-hulls tile-source-attributes]
-  (if collision-resource
-    (texture-set-gen/calculate-convex-hulls (image-util/read-image collision-resource) tile-source-attributes)
-    original-convex-hulls))
+  [_node-id collision-resource original-convex-hulls tile-source-attributes]
+  (if (nil? collision-resource)
+    original-convex-hulls
+    (let [buffered-image (g/with-auto-evaluation-context evaluation-context
+                           (resource-cache/read-resource-content collision-resource _node-id :collision evaluation-context image-util/read-image))]
+      (if (g/error? buffered-image)
+        buffered-image
+        (texture-set-gen/calculate-convex-hulls buffered-image tile-source-attributes)))))
 
 (g/defnk produce-convex-hulls
   [convex-hull-points tile->collision-group-node collision-groups-data]
-  (mapv (fn [points idx]
-          (assoc points :collision-group (collision-groups/node->group collision-groups-data (tile->collision-group-node idx))))
-        convex-hull-points
-        (range)))
+  (into []
+        (map-indexed (fn [idx points]
+                       (let [collision-group-node (tile->collision-group-node idx)
+                             collision-group (collision-groups/node->group collision-groups-data collision-group-node)]
+                         (assoc points :collision-group collision-group))))
+        convex-hull-points))
 
 (g/defnk produce-tile->collision-group-node
   [tile->collision-group-node collision-groups-data]
@@ -537,16 +544,16 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
-  (texture-set-gen/tile-source->texture-set-data tile-source-attributes image-resource convex-hulls collision-groups animation-ddfs))
+(defn- generate-texture-set-data [{:keys [_node-id tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
+  (texture-set-gen/tile-source->texture-set-data _node-id tile-source-attributes image-resource convex-hulls collision-groups animation-ddfs))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
 (defn- generate-packed-image [{:keys [_node-id texture-set-data-generator image-resource tile-source-attributes]}]
   (let [texture-set-data (call-generator texture-set-data-generator)
-        buffered-image (resource-io/with-error-translation image-resource _node-id :image
-                         (image-util/read-image image-resource))]
+        buffered-image (g/with-auto-evaluation-context evaluation-context
+                         (resource-cache/read-resource-content image-resource _node-id :image evaluation-context image-util/read-image))]
     (if (g/error? buffered-image)
       buffered-image
       (texture-set-gen/layout-tile-source (:layout texture-set-data) buffered-image tile-source-attributes))))
@@ -627,7 +634,7 @@
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
-  (output texture-set-data-generator g/Any (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
+  (output texture-set-data-generator g/Any (g/fnk [_node-id image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
                                                    (g/error-aggregate errors))
                                                  (let [animation-ddfs (mapv :ddf-message animation-data)]
@@ -644,16 +651,21 @@
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
-                                         (let [packed-image-sha1 (digestable/sha1-hash
-                                                                   {:image-sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
-                                                                    :tile-source-attributes tile-source-attributes
-                                                                    :type :packed-tile-source-image})]
-                                           {:f generate-packed-image
-                                            :sha1 packed-image-sha1
-                                            :args {:_node-id _node-id
-                                                   :texture-set-data-generator texture-set-data-generator
-                                                   :image-resource image-resource
-                                                   :tile-source-attributes tile-source-attributes}})))
+                                         (let [image-sha1
+                                               (resource-io/with-error-translation image-resource _node-id :image
+                                                 (resource-cache/path-inclusive-sha1-hex image-resource _node-id))]
+                                           (if (g/error? image-sha1)
+                                             image-sha1
+                                             (let [packed-image-sha1 (digestable/sha1-hash
+                                                                       {:image-sha1 image-sha1
+                                                                        :tile-source-attributes tile-source-attributes
+                                                                        :type :packed-tile-source-image})]
+                                               {:f generate-packed-image
+                                                :sha1 packed-image-sha1
+                                                :args {:_node-id _node-id
+                                                       :texture-set-data-generator texture-set-data-generator
+                                                       :image-resource image-resource
+                                                       :tile-source-attributes tile-source-attributes}})))))
 
   (output packed-image BufferedImage (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 

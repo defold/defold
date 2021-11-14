@@ -36,6 +36,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-cache :as resource-cache]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
@@ -480,16 +481,22 @@
                                     :passes [pass/outline]}}]
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders workspace]}]
-  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders workspace))
+(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders workspace]}]
+  (texture-set-gen/atlas->texture-set-data _node-id animations all-atlas-images margin inner-padding extrude-borders))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
 (defn- generate-packed-image [{:keys [_node-id image-resources layout-data-generator]}]
-  (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
-                                 (image-util/read-image %))
-                              image-resources)
+  (let [buffered-images
+        (g/with-auto-evaluation-context evaluation-context
+          (let [basis (:basis evaluation-context)
+                project (project/get-project basis _node-id)]
+            (mapv (fn [image-resource]
+                    (resource-io/with-error-translation image-resource _node-id nil
+                      (let [content (resource-cache/get-resource-content project image-resource evaluation-context)]
+                        (image-util/read-image content))))
+                  image-resources)))
         errors (filter g/error? buffered-images)]
     (if (seq errors)
       (g/error-aggregate errors)
@@ -508,13 +515,12 @@
   ;; to the TextureSetGenerator.calculateLayout() method that only includes data
   ;; that can affect the layout.
   (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-      (let [fake-animations (map make-animation
-                                 (repeat "")
-                                 animation-images)
+      (let [fake-animations (mapv make-animation
+                                  (repeat "")
+                                  animation-images)
             augmented-args (-> args
                                (dissoc :animation-images)
-                               (assoc :animations fake-animations
-                                      :workspace (resource/workspace resource)))]
+                               (assoc :animations fake-animations))]
         {:f generate-texture-set-data
          :args augmented-args})))
 
@@ -610,10 +616,11 @@
 
   (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
                                          (let [flat-image-resources (filterv some? (flatten image-resources))
-                                               image-sha1s (map (fn [resource]
-                                                                  (resource-io/with-error-translation resource _node-id nil
-                                                                    (resource/resource->path-inclusive-sha1-hex resource)))
-                                                                flat-image-resources)
+                                               image-sha1s (g/with-auto-evaluation-context evaluation-context
+                                                             (mapv (fn [resource]
+                                                                     (resource-io/with-error-translation resource _node-id nil
+                                                                       (resource-cache/path-inclusive-sha1-hex resource _node-id evaluation-context)))
+                                                                   flat-image-resources))
                                                errors (filter g/error? image-sha1s)]
                                            (if (seq errors)
                                              (g/error-aggregate errors)

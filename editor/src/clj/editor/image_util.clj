@@ -92,9 +92,6 @@
     (.dispose gfx)
     img))
 
-(defn load-image [src reference]
-  (make-image reference (read-image src)))
-
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
 
