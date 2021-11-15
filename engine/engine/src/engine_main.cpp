@@ -118,6 +118,7 @@ int engine_main(int argc, char *argv[])
         glfwAndroidPollEvents();
         dmTime::Sleep(0);
         if (g_AndroidApp->destroyRequested) {
+            androidDestroyWindow();
             break;
         }
     }
