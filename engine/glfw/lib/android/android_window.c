@@ -464,6 +464,7 @@ void glfwAndroidPollEvents()
         }
 
         if (_glfwWinAndroid.app->destroyRequested) {
+            androidDestroyWindow();
             return;
         }
     }
