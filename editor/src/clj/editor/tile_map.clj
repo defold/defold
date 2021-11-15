@@ -188,7 +188,7 @@
                 ;; until the scene has been flattened.
                 render-args (assoc render-args :view-proj (:world-view-proj render-args))
                 vertex-binding (vtx/use-with node-id vbuf shader)]
-            (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+            (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
               (gl/set-blend-mode gl blend-mode)
               ;; TODO: can't use selected because we also need to know when nothing is selected
               #_(if selected
@@ -202,7 +202,7 @@
             {:keys [node-id vbuf gpu-texture]} user-data]
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf tile-map-id-shader)]
-            (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture tile-map-id-shader vertex-binding]
+            (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [tile-map-id-shader vertex-binding gpu-texture]
               (gl/gl-push-matrix gl
                 (gl/gl-mult-matrix-4d gl world-transform)
                 (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
@@ -624,7 +624,7 @@
     (.glMatrixMode gl GL2/GL_MODELVIEW)
     (gl/gl-push-matrix gl
       (gl/gl-mult-matrix-4d gl brush-transform)
-      (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
+      (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
         (shader/set-uniform tex-shader gl "texture_sampler" 0)
         (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
@@ -751,7 +751,7 @@
   (let [vbuf (gen-palette-tiles-vbuf tile-source-attributes texture-set-data)
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
-    (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
+    (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 

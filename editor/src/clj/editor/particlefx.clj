@@ -398,7 +398,7 @@
                   shader (:shader emitter-sim-data)
                   vtx-binding (vtx/use-with context vbuf shader)
                   blend-mode (convert-blend-mode (:blend-mode render-data))]
-              (gl/with-gl-bindings gl render-args [gpu-texture shader vtx-binding]
+              (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
                 (gl/set-blend-mode gl blend-mode)
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))

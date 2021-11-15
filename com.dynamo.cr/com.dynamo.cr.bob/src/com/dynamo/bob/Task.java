@@ -39,6 +39,7 @@ public class Task<T> {
     public T data;
     private Builder<T> builder;
     private byte[] signature;
+    private boolean cacheable = true;
 
     /**
      * Task builder for create a {@link Task}.
@@ -59,6 +60,11 @@ public class Task<T> {
 
         public TaskBuilder<T> setName(String name) {
             task.name = name;
+            return this;
+        }
+
+        public TaskBuilder<T> disableCache() {
+            task.cacheable = false;
             return this;
         }
 
@@ -120,6 +126,10 @@ public class Task<T> {
 
     public IResource output(int i) {
         return outputs.get(i);
+    }
+
+    public boolean isCacheable() {
+        return cacheable;
     }
 
     /**

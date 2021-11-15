@@ -397,6 +397,8 @@ namespace dmGameObject
         dmhash_t m_PropertyId;
         /// User data storage pointer
         uintptr_t* m_UserData;
+        /// Options for getting the property
+        PropertyOptions m_Options;
     };
 
     /*#
@@ -421,6 +423,8 @@ namespace dmGameObject
         uintptr_t* m_UserData;
         /// New value of the property
         PropertyVar m_Value;
+        /// Options for setting the property
+        PropertyOptions m_Options;
     };
 
     /*#
@@ -439,7 +443,7 @@ namespace dmGameObject
      * Set the new world callback. Called when a collection (i.e. a "world") is created.
      * @name ComponentTypeSetNewWorldFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentNewWorld] callback
      */
     void ComponentTypeSetNewWorldFn(ComponentType* type, ComponentNewWorld fn);
 
@@ -447,7 +451,7 @@ namespace dmGameObject
      * Set the world destroy callback. Called when a collection (i.e. a "world") is destroyed.
      * @name ComponentTypeSetDeleteWorldFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentDeleteWorld] callback
      */
     void ComponentTypeSetDeleteWorldFn(ComponentType* type, ComponentDeleteWorld fn);
 
@@ -455,7 +459,7 @@ namespace dmGameObject
      * Set the component create callback. Called when a component instance is created.
      * @name ComponentTypeSetCreateFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentCreate] callback
      */
     void ComponentTypeSetCreateFn(ComponentType* type, ComponentCreate fn);
 
@@ -463,7 +467,7 @@ namespace dmGameObject
      * Set the component destroy callback. Called when a component instance is destroyed.
      * @name ComponentTypeSetDestroyFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentDestroy] callback
      */
     void ComponentTypeSetDestroyFn(ComponentType* type, ComponentDestroy fn);
 
@@ -471,7 +475,7 @@ namespace dmGameObject
      * Set the component init callback. Called on each gameobject's components, during a gameobject's initialization.
      * @name ComponentTypeSetInitFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentInit] callback
      */
     void ComponentTypeSetInitFn(ComponentType* type, ComponentInit fn);
 
@@ -479,7 +483,7 @@ namespace dmGameObject
      * Set the component finalize callback. Called on each gameobject's components, during a gameobject's finalization.
      * @name ComponentTypeSetFinalFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentFinal] callback
      */
     void ComponentTypeSetFinalFn(ComponentType* type, ComponentFinal fn);
 
@@ -487,7 +491,7 @@ namespace dmGameObject
      * Set the component add-to-update callback. Called for each component instal, when the game object is spawned.
      * @name ComponentTypeSetAddToUpdateFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentAddToUpdate] callback
      */
     void ComponentTypeSetAddToUpdateFn(ComponentType* type, ComponentAddToUpdate fn);
 
@@ -495,7 +499,7 @@ namespace dmGameObject
      * Set the component get callback. Called when the scripts want to retrieve the individual component user data given an url.
      * @name ComponentTypeSetGetFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentGet] callback
      */
     void ComponentTypeSetGetFn(ComponentType* type, ComponentGet fn);
 
@@ -503,7 +507,7 @@ namespace dmGameObject
      * Set the component render callback. Called when it's time to render all component instances.
      * @name ComponentTypeSetRenderFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentsRender] callback
      */
     void ComponentTypeSetRenderFn(ComponentType* type, ComponentsRender fn);
 
@@ -511,7 +515,7 @@ namespace dmGameObject
      * Set the component update callback. Called when it's time to update all component instances.
      * @name ComponentTypeSetUpdateFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentsUpdate] callback
      */
     void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn);
 
@@ -519,7 +523,7 @@ namespace dmGameObject
      * Set the component post update callback. Called for each collection after the update, before the render.
      * @name ComponentTypeSetPostUpdateFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentsPostUpdate] callback
      */
     void ComponentTypeSetPostUpdateFn(ComponentType* type, ComponentsPostUpdate fn);
 
@@ -527,7 +531,7 @@ namespace dmGameObject
      * Set the component on-message callback. Called multiple times per frame, to flush messages.
      * @name ComponentTypeSetOnMessageFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentOnMessage] callback
      */
     void ComponentTypeSetOnMessageFn(ComponentType* type, ComponentOnMessage fn);
 
@@ -535,7 +539,7 @@ namespace dmGameObject
      * Set the component on-input callback. Called once per frame, before the Update function.
      * @name ComponentTypeSetOnInputFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentOnInput] callback
      */
     void ComponentTypeSetOnInputFn(ComponentType* type, ComponentOnInput fn);
 
@@ -543,7 +547,7 @@ namespace dmGameObject
      * Set the component on-reload callback. Called when the resource of a component instance is reloaded.
      * @name ComponentTypeSetOnReloadFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentOnReload] callback
      */
     void ComponentTypeSetOnReloadFn(ComponentType* type, ComponentOnReload fn);
 
@@ -551,7 +555,7 @@ namespace dmGameObject
      * Set the component set properties callback. Called when the component instance is being spwned.
      * @name ComponentTypeSetSetPropertiesFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentSetProperties] callback
      */
     void ComponentTypeSetSetPropertiesFn(ComponentType* type, ComponentSetProperties fn);
 
@@ -559,7 +563,7 @@ namespace dmGameObject
      * Set the component get property callback. Called when accessing a property via `go.get()`
      * @name ComponentTypeSetGetPropertyFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentGetProperty] callback
      */
     void ComponentTypeSetGetPropertyFn(ComponentType* type, ComponentGetProperty fn);
 
@@ -567,7 +571,7 @@ namespace dmGameObject
      * Set the component set property callback. Called when accessing a property via `go.set()`
      * @name ComponentTypeSetSetPropertyFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: ComponentSetProperty] callback
      */
     void ComponentTypeSetSetPropertyFn(ComponentType* type, ComponentSetProperty fn);
 
@@ -575,7 +579,7 @@ namespace dmGameObject
      * Set the component type global context. Usually set when registering the component type.
      * @name ComponentTypeSetContext
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param context [type: void*] global context
      */
     void ComponentTypeSetContext(ComponentType* type, void* context);
 
@@ -584,7 +588,7 @@ namespace dmGameObject
      * If this flag is set, it might trigger an dmGameObject::UpdateTransforms() (if there are dirty transforms)
      * @name ComponentTypeSetReadsTransforms
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param reads_transforms [type: bool] transform dependency flag
      */
     void ComponentTypeSetReadsTransforms(ComponentType* type, bool reads_transforms);
 
@@ -592,7 +596,7 @@ namespace dmGameObject
      * Set the component type prio order. Defines the update order of the component types.
      * @name ComponentTypeSetPrio
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param prio [type: uint16_t] prio order
      */
     void ComponentTypeSetPrio(ComponentType* type, uint16_t prio);
 
@@ -600,23 +604,23 @@ namespace dmGameObject
      * Set the component type need for a per component instance user data. Defaults to true.
      * @name ComponentTypeSetHasUserData
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param has_user_data [type: bool] does each component instance need user data
      */
     void ComponentTypeSetHasUserData(ComponentType* type, bool has_user_data);
 
-    /*# set the component property iterator function
-     * set the component property iterator function. Called during inspection
-     * @name ComponentTypeSetChilldIteratorFn
+    /*# set the component child iterator function
+     * set the component child iterator function. Called during inspection
+     * @name ComponentTypeSetChildIteratorFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: FIteratorChildren] child iterator function
      */
-    void ComponentTypeSetChilldIteratorFn(ComponentType* type, FIteratorChildren fn);
+    void ComponentTypeSetChildIteratorFn(ComponentType* type, FIteratorChildren fn);
 
     /*# set the component property iterator function
      * set the component property iterator function. Called during inspection
      * @name ComponentTypeSetPropertyIteratorFn
      * @param type [type: ComponentType*] the type
-     * @param
+     * @param fn [type: FIteratorProperties] property iterator function
      */
     void ComponentTypeSetPropertyIteratorFn(ComponentType* type, FIteratorProperties fn);
 

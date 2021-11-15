@@ -87,8 +87,6 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLabelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        DM_STATIC_ASSERT( dmRender::MAX_FONT_RENDER_CONSTANTS == MAX_COMP_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
-
         LabelContext* label_context = (LabelContext*)params.m_Context;
         LabelWorld* world = new LabelWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
@@ -121,7 +119,7 @@ namespace dmGameSystem
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    static inline dmRender::HFontMap GetFontMap(LabelComponent* component, LabelResource* resource) {
+    static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource) {
         return component->m_FontMap ? component->m_FontMap : resource->m_FontMap;
     }
 
@@ -443,21 +441,22 @@ namespace dmGameSystem
                 ReHash(component);
             }
 
-            dmRender::DrawTextParams params;
-            CreateDrawTextParams(component, params);
+            dmRender::DrawTextParams text_params;
+            CreateDrawTextParams(component, text_params);
 
             if (component->m_RenderConstants)
             {
                 uint32_t size = dmGameSystem::GetRenderConstantCount(component->m_RenderConstants);
+                size = dmMath::Max<uint32_t>(size, dmRender::MAX_FONT_RENDER_CONSTANTS);
                 for (uint32_t i = 0; i < size; ++i)
                 {
-                    dmGameSystem::GetRenderConstant(component->m_RenderConstants, i, &params.m_RenderConstants[i]);
+                    text_params.m_RenderConstants[i] = dmGameSystem::GetRenderConstant(component->m_RenderConstants, i);
                 }
-                params.m_NumRenderConstants = dmMath::Max<uint32_t>(size, dmRender::MAX_FONT_RENDER_CONSTANTS);
+                text_params.m_NumRenderConstants = size;
             }
 
             LabelResource* resource = component->m_Resource;
-            dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, params);
+            dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, text_params);
         }
 
         dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, 0, false);
@@ -470,13 +469,13 @@ namespace dmGameSystem
         return component->m_RenderConstants && dmGameSystem::GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         LabelComponent* component = (LabelComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
 
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -527,8 +526,10 @@ namespace dmGameSystem
 
     void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics)
     {
-        dmGameSystemDDF::LabelDesc* ddf = component->m_Resource->m_DDF;
-        dmRender::GetTextMetrics(component->m_Resource->m_FontMap, component->m_Text, component->m_Size.getX(),
+        LabelResource* resource = component->m_Resource;
+        dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
+        dmRender::HFontMap font_map = GetFontMap(component, resource);
+        dmRender::GetTextMetrics(font_map, component->m_Text, component->m_Size.getX(),
                                     ddf->m_LineBreak, ddf->m_Leading, ddf->m_Tracking, &metrics);
 
         metrics.m_Width      = metrics.m_Width;
@@ -576,7 +577,7 @@ namespace dmGameSystem
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFontMap(component, component->m_Resource), out_value);
         }
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, out_value, false, CompLabelGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompLabelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompLabelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -617,6 +618,6 @@ namespace dmGameSystem
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }
-        return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, CompLabelSetConstantCallback, component);
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, params.m_Options.m_Index, CompLabelSetConstantCallback, component);
     }
 }

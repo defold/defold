@@ -75,6 +75,14 @@ public abstract class LuaBuilder extends Builder<Void> {
                 if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
                     IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
                     taskBuilder.addInput(resource);
+                    if (this.project.getBuilderFromExtension(resource) == TextureBuilder.class) {
+                        Task<?> embedTask = this.project.createTask(resource, TextureBuilder.class);
+                        if (embedTask == null) {
+                            throw new CompileExceptionError(input,
+                                                            0,
+                                                            String.format("Failed to create build task for component '%s'", resource.getPath()));
+                        }
+                    }
                 }
             }
         }

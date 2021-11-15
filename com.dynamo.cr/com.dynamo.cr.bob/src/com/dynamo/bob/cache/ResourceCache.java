@@ -46,10 +46,6 @@ public class ResourceCache {
 		}
 	}
 
-	public void setRemoteAuthentication(String user, String pass) {
-		http.setAuthentication(user, pass);
-	}
-
 	private File fileFromKey(String key) {
 		return new File(localCacheDir, key);
 	}
@@ -100,6 +96,27 @@ public class ResourceCache {
 		else {
 			Bob.verbose("Resource '%s' does not exist in the remote cache", file);
 		}
+	}
+
+	/**
+	 * Check if the resource cache is enabled
+	 * The cache is considered enabled if a local cache dir was provided
+	 * @return true if resource cache is enabled
+	 */
+	public boolean isCacheEnabled() {
+		return localCacheDir != null;
+	}
+
+	/**
+	 * Set authentication information to use when communicating with the
+	 * remote cache.
+	 * The provided username and password/token will be used to set an
+	 * authorization header on all requests
+	 * @param user
+	 * @param pass
+	 */
+	public void setRemoteAuthentication(String user, String pass) {
+		http.setAuthentication(user, pass);
 	}
 
 	/**

@@ -13,15 +13,19 @@
 
 -- TEST SOME NORMAL REQUIRE STATEMENTS WITH SINGLE OR DOUBLE QUOTES WITH OR WITHOUT PARENTHESIS AND ADDITIONAL SPACE
 require "a"
-require ("a")
-require "a.b"
-require (   "a.b")
-require 'a'
-require ('a')
-require 'a.b'
-require (   'a.b')
-require "a.b.c"
-require (  "a.b.c"     )
+require ("b")
+require "c.d"
+require (   "e.f")
+require 'g'
+require ('h')
+require 'i.j'
+require (   'k.l')
+require "m.n.o"
+require (  "p.q.r"     )
+
+-- REQUIRE WITH A COMMENT
+require "s" -- comment
+require ("t") -- comment
 
 -- REQUIRE IN COMMENTS SHOULD NOT BE INCLUDED
 --require "foo"
@@ -58,6 +62,12 @@ local t = {
     ["foo11"] = require('foo11').foo,
     ["foo12"] = require('foo12').foo, -- comment
     ["foo13"] = require('foo13')
+}
+
+-- Issue 6111
+local foo = require('foo14')("ABC")
+local foo = require('foo15') {
+    some_table = "abc"
 }
 
 -- REQUIRE USING A VARIABLE SHOULD NOT BE INCLUDED

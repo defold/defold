@@ -192,7 +192,22 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 			int endIndex = tokens.size() - 1;
 			if (tokens.get(startIndex).getText().equals("(")) {
 				startIndex++;
-				endIndex--;
+
+				// find matching right parenthesis
+				int open = 1;
+				for (int i=startIndex; i<=endIndex; i++) {
+					String token = tokens.get(i).getText();
+					if (token.equals(")")) {
+						open = open - 1;
+						if (open == 0) {
+							endIndex = i - 1;
+							break;
+						}
+					}
+					else if (token.equals("(")) {
+						open = open + 1;
+					}
+				}
 			}
 
 			// get the module name from the individual tokens
@@ -206,7 +221,8 @@ public class DefoldLuaParser extends LuaParserBaseListener {
 			if (module.startsWith("\"") || module.startsWith("'")) {
 				module = module.replace("\"", "").replace("'", "");
 				// ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
-				if (!LUA_LIBRARIES.contains(module)) {
+				// and also don't add the same module twice
+				if (!LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
 					modules.add(module);
 				}
 			}

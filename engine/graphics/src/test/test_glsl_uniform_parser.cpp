@@ -31,16 +31,22 @@ protected:
 
 struct Uniform
 {
-    const char*         m_Name;
+    char                m_Name[64];
     uint32_t            m_Length;
+    uint32_t            m_Size;
     dmGraphics::Type    m_Type;
 };
 
-static void UniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata)
+static void UniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
 {
     Uniform* uniform = (Uniform*)userdata;
-    uniform->m_Name = name;
+    if (name_length > sizeof(uniform->m_Name))
+        name_length = sizeof(uniform->m_Name)-1;
+    memcpy(uniform->m_Name, name, name_length);
+    uniform->m_Name[name_length] = 0;
+
     uniform->m_Length = name_length;
+    uniform->m_Size = size;
     uniform->m_Type = type;
 }
 
@@ -73,8 +79,19 @@ TEST_F(dmGLSLUniformTest, IntroductionJunk)
             "uniform lowp sampler2D texture_sampler;\n";
     bool result = dmGraphics::GLSLUniformParse(program, UniformCallback, (uintptr_t)&uniform);
     ASSERT_TRUE(result);
-    ASSERT_EQ(0, strncmp("texture_sampler", uniform.m_Name, strnlen("texture_sampler", uniform.m_Length)));
+    ASSERT_STREQ("texture_sampler", uniform.m_Name);
     ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, uniform.m_Type);
+}
+
+TEST_F(dmGLSLUniformTest, UniformArraySize)
+{
+    Uniform uniform;
+    const char* program = "uniform lowp vec4 uniform_array[16];\n";
+    bool result = dmGraphics::GLSLUniformParse(program, UniformCallback, (uintptr_t)&uniform);
+    ASSERT_TRUE(result);
+    ASSERT_STREQ("uniform_array", uniform.m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, uniform.m_Type);
+    ASSERT_EQ(16U, uniform.m_Size);
 }
 
 int main(int argc, char **argv)

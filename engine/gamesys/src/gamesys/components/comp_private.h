@@ -23,8 +23,6 @@
 
 namespace dmGameSystem
 {
-    const uint32_t MAX_COMP_RENDER_CONSTANTS = 16;
-
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector3& ref_value, const PropVector3& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector3& set_value, const PropVector3& property);
 

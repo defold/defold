@@ -148,7 +148,7 @@
           :let [user-data (:user-data renderable)
                 {:keys [vb tri-count line-count]} user-data]]
     (let [vertex-binding (vtx/use-with ::vertex-buffer vb tex-shader)]
-      (gl/with-gl-bindings gl render-args [numbers-texture tex-shader vertex-binding]
+      (gl/with-gl-bindings gl render-args [tex-shader vertex-binding numbers-texture]
         (shader/set-uniform tex-shader gl "texture_sampler" 0)
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 tri-count)
         (gl/gl-draw-arrays gl GL/GL_LINES tri-count line-count)))))

@@ -143,6 +143,9 @@ namespace dmGameSystem
 
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
+        gui_world->m_RenderConstants.SetCapacity(128);
+        gui_world->m_RenderConstants.SetSize(128);
+        memset(gui_world->m_RenderConstants.Begin(), 0, gui_world->m_RenderConstants.Capacity() * sizeof(HComponentRenderConstants));
 
         gui_world->m_MaxParticleFXCount = gui_context->m_MaxParticleFXCount;
         gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
@@ -174,6 +177,14 @@ namespace dmGameSystem
             }
         }
         dmParticle::DestroyContext(gui_world->m_ParticleContext);
+
+        for (uint32_t i = 0; i < gui_world->m_RenderConstants.Size(); ++i)
+        {
+            if (gui_world->m_RenderConstants[i])
+            {
+                dmGameSystem::DestroyRenderConstants(gui_world->m_RenderConstants[i]);
+            }
+        }
 
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
@@ -386,7 +397,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
             const char* name = scene_desc->m_Fonts[i].m_Name;
-            dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i]);
+            dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
                 return false;
@@ -980,10 +991,25 @@ namespace dmGameSystem
         SetBlendMode(ro, blend_mode);
         ro.m_SetBlendFactors = 1;
 
+        // If we need new render constants
+        HComponentRenderConstants render_constants = gui_world->m_RenderConstants[ro_count];
+        if (first_emitter_render_data->m_RenderConstantsSize > 0)
+        {
+            if (!render_constants)
+            {
+                render_constants = dmGameSystem::CreateRenderConstants();
+                gui_world->m_RenderConstants[ro_count] = render_constants;
+            }
+        }
+
         for (uint32_t i = 0; i < first_emitter_render_data->m_RenderConstantsSize; ++i)
         {
             dmParticle::RenderConstant* c = &first_emitter_render_data->m_RenderConstants[i];
-            dmRender::EnableRenderObjectConstant(&ro, c->m_NameHash, c->m_Value);
+            dmGameSystem::SetRenderConstant(render_constants, c->m_NameHash, &c->m_Value, 1);
+        }
+
+        if (render_constants) {
+            dmGameSystem::EnableRenderObjectConstants(&ro, render_constants);
         }
 
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
@@ -1884,8 +1910,14 @@ namespace dmGameSystem
         }
 
         uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);
-        if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count) {
+        uint32_t old_capacity = gui_world->m_GuiRenderObjects.Capacity();
+        if (old_capacity < total_gui_render_objects_count) {
             gui_world->m_GuiRenderObjects.SetCapacity(total_gui_render_objects_count);
+
+            uint32_t grow = total_gui_render_objects_count - old_capacity;
+            gui_world->m_RenderConstants.SetCapacity(total_gui_render_objects_count);
+            gui_world->m_RenderConstants.SetSize(total_gui_render_objects_count);
+            memset(&gui_world->m_RenderConstants[old_capacity], 0, grow * sizeof(HComponentRenderConstants));
         }
 
         gui_world->m_GuiRenderObjects.SetSize(0);
