@@ -419,6 +419,12 @@
                                             (assoc pb-msg :texture (-> texture-target :resource :resource))
                                             [:texture])])))
 
+(g/defnk produce-atlas-texture-set-pb [texture-set]
+  (let [pb-msg            texture-set
+        texture-path      "" ; We don't have it at this point, as it's generated.
+        content-pb        (protobuf/map->bytes TextureSetProto$TextureSet (assoc pb-msg :texture texture-path))]
+    content-pb))
+
 (defn gen-renderable-vertex-buffer
   [width height]
   (let [x0 0
@@ -633,6 +639,8 @@
 
   (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
                                                  (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  
+  (output texture-set-pb   g/Any               produce-atlas-texture-set-pb)
 
   (output aabb             AABB                (g/fnk [layout-size]
                                                  (if (= [0 0] layout-size)
