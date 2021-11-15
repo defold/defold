@@ -201,11 +201,15 @@
 
 (defn get-resource
   ([project path-or-resource]
-   (g/with-auto-evaluation-context evaluation-context
-     (get-resource project path-or-resource evaluation-context)))
+   (if (satisfies? resource/Resource path-or-resource)
+     path-or-resource
+     (g/with-auto-evaluation-context evaluation-context
+       (get-resource project path-or-resource evaluation-context))))
   ([project path-or-resource evaluation-context]
-   (let [workspace (g/node-value project :workspace evaluation-context)]
-     (workspace/as-resource workspace path-or-resource evaluation-context))))
+   (if (satisfies? resource/Resource path-or-resource)
+     path-or-resource
+     (let [workspace (g/node-value project :workspace evaluation-context)]
+       (workspace/as-resource workspace path-or-resource evaluation-context)))))
 
 (defn get-resource-node
   ([project path-or-resource]

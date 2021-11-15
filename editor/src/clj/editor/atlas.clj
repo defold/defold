@@ -27,7 +27,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.image :as image]
-            [editor.image-util :as image-util]
+            [editor.image-cache :as image-cache]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
@@ -481,7 +481,7 @@
                                     :passes [pass/outline]}}]
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders workspace]}]
+(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders]}]
   (texture-set-gen/atlas->texture-set-data _node-id animations all-atlas-images margin inner-padding extrude-borders))
 
 (defn- call-generator [generator]
@@ -494,8 +494,7 @@
                 project (project/get-project basis _node-id)]
             (mapv (fn [image-resource]
                     (resource-io/with-error-translation image-resource _node-id nil
-                      (let [content (resource-cache/get-resource-content project image-resource evaluation-context)]
-                        (image-util/read-image content))))
+                      (image-cache/get-image-or-throw project image-resource evaluation-context)))
                   image-resources)))
         errors (filter g/error? buffered-images)]
     (if (seq errors)
@@ -617,9 +616,7 @@
   (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
                                          (let [flat-image-resources (filterv some? (flatten image-resources))
                                                image-sha1s (g/with-auto-evaluation-context evaluation-context
-                                                             (mapv (fn [resource]
-                                                                     (resource-io/with-error-translation resource _node-id nil
-                                                                       (resource-cache/path-inclusive-sha1-hex resource _node-id evaluation-context)))
+                                                             (mapv #(resource-cache/get-path-inclusive-sha1-hex-or-error % _node-id nil evaluation-context)
                                                                    flat-image-resources))
                                                errors (filter g/error? image-sha1s)]
                                            (if (seq errors)

@@ -12,9 +12,8 @@
 
 (ns editor.pipeline.texture-set-gen
   (:require [dynamo.graph :as g]
-            [editor.image-util :as image-util]
-            [editor.protobuf :as protobuf]
-            [editor.resource-cache :as resource-cache])
+            [editor.image-cache :as image-cache]
+            [editor.protobuf :as protobuf])
   (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
@@ -80,12 +79,11 @@
   [images referencing-node-id]
   (g/with-auto-evaluation-context evaluation-context
     (mapv (fn [{:keys [path sprite-trim-mode] :as _image}]
-            (resource-cache/read-resource-content
-              path referencing-node-id nil evaluation-context
-              (fn [content]
-                (let [buffered-image (image-util/read-image content)
-                      hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
-                  (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))))
+            (let [image-or-error (image-cache/get-image-or-error path referencing-node-id nil evaluation-context)]
+              (if (g/error? image-or-error)
+                image-or-error
+                (let [hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
+                  (TextureSetGenerator/buildConvexHull ^BufferedImage image-or-error hull-vertex-count)))))
           images)))
 
 (defn atlas->texture-set-data
@@ -191,11 +189,9 @@
           convex-hulls)))
 
 (defn tile-source->texture-set-data [referencing-node-id tile-source-attributes image-resource convex-hulls collision-groups animations]
-  (let [buffered-image
-        (g/with-auto-evaluation-context evaluation-context
-          (resource-cache/read-resource-content image-resource referencing-node-id nil evaluation-context image-util/read-image))]
-    (if (g/error? buffered-image)
-      buffered-image
+  (let [image-or-error (image-cache/get-image-or-error image-resource referencing-node-id nil)]
+    (if (g/error? image-or-error)
+      image-or-error
       (let [image-rects (split-rects tile-source-attributes)
             anims-atom (atom animations)
             anim-indices-atom (atom [])
@@ -217,7 +213,7 @@
             grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
             hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
             sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
-                                     (let [sub-image (.getSubimage ^BufferedImage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
+                                     (let [sub-image (.getSubimage ^BufferedImage image-or-error (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
                                        (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
                                    image-rects)
             use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)

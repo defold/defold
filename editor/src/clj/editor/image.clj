@@ -15,12 +15,11 @@
             [editor.build-target :as bt]
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
-            [editor.image-util :as image-util]
+            [editor.image-cache :as image-cache]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-cache :as resource-cache]
-            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
@@ -70,8 +69,7 @@
   (texture/texture-image->gpu-texture request-id texture-image params unit))
 
 (defn- generate-content [{:keys [_node-id resource]}]
-  (g/with-auto-evaluation-context evaluation-context
-    (resource-cache/read-resource-content resource _node-id :resource evaluation-context image-util/read-image)))
+  (image-cache/get-image-or-error resource _node-id :resource))
 
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
@@ -87,16 +85,18 @@
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output size g/Any :cached (g/fnk [_node-id resource]
-                               (resource-io/with-error-translation resource _node-id :size
-                                 (image-util/read-size resource))))
+                               (image-cache/get-image-size-or-error resource _node-id nil)))
 
   (output content BufferedImage (g/fnk [content-generator]
                                   ((:f content-generator) (:args content-generator))))
 
   (output content-generator g/Any (g/fnk [_node-id resource :as args]
-                                    {:f generate-content
-                                     :args args
-                                     :sha1 (resource-cache/path-inclusive-sha1-hex resource _node-id)}))
+                                    (let [sha1-or-error (resource-cache/get-path-inclusive-sha1-hex-or-error resource _node-id nil)]
+                                      (if (g/error? sha1-or-error)
+                                        sha1-or-error
+                                        {:f generate-content
+                                         :args args
+                                         :sha1 sha1-or-error}))))
 
   (output texture-image g/Any (g/fnk [content texture-profile] (tex-gen/make-preview-texture-image content texture-profile)))
 

@@ -28,7 +28,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.image :as image]
-            [editor.image-util :as image-util]
+            [editor.image-cache :as image-cache]
             [editor.outline :as outline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -36,7 +36,6 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-cache :as resource-cache]
-            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.texture-set :as texture-set]
@@ -493,11 +492,10 @@
   [_node-id collision-resource original-convex-hulls tile-source-attributes]
   (if (nil? collision-resource)
     original-convex-hulls
-    (let [buffered-image (g/with-auto-evaluation-context evaluation-context
-                           (resource-cache/read-resource-content collision-resource _node-id :collision evaluation-context image-util/read-image))]
-      (if (g/error? buffered-image)
-        buffered-image
-        (texture-set-gen/calculate-convex-hulls buffered-image tile-source-attributes)))))
+    (let [image-or-error (image-cache/get-image-or-error collision-resource _node-id :collision)]
+      (if (g/error? image-or-error)
+        image-or-error
+        (texture-set-gen/calculate-convex-hulls image-or-error tile-source-attributes)))))
 
 (g/defnk produce-convex-hulls
   [convex-hull-points tile->collision-group-node collision-groups-data]
@@ -551,12 +549,13 @@
   ((:f generator) (:args generator)))
 
 (defn- generate-packed-image [{:keys [_node-id texture-set-data-generator image-resource tile-source-attributes]}]
-  (let [texture-set-data (call-generator texture-set-data-generator)
-        buffered-image (g/with-auto-evaluation-context evaluation-context
-                         (resource-cache/read-resource-content image-resource _node-id :image evaluation-context image-util/read-image))]
-    (if (g/error? buffered-image)
-      buffered-image
-      (texture-set-gen/layout-tile-source (:layout texture-set-data) buffered-image tile-source-attributes))))
+  (let [texture-set-data-or-error (call-generator texture-set-data-generator)]
+    (if (g/error? texture-set-data-or-error)
+      texture-set-data-or-error
+      (let [image-or-error (image-cache/get-image-or-error image-resource _node-id :image)]
+        (if (g/error? image-or-error)
+          image-or-error
+          (texture-set-gen/layout-tile-source (:layout texture-set-data-or-error) image-or-error tile-source-attributes))))))
 
 (g/defnode TileSourceNode
   (inherits resource-node/ResourceNode)
@@ -651,13 +650,11 @@
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
-                                         (let [image-sha1
-                                               (resource-io/with-error-translation image-resource _node-id :image
-                                                 (resource-cache/path-inclusive-sha1-hex image-resource _node-id))]
-                                           (if (g/error? image-sha1)
-                                             image-sha1
+                                         (let [image-sha1-or-error (resource-cache/get-path-inclusive-sha1-hex-or-error image-resource _node-id :image)]
+                                           (if (g/error? image-sha1-or-error)
+                                             image-sha1-or-error
                                              (let [packed-image-sha1 (digestable/sha1-hash
-                                                                       {:image-sha1 image-sha1
+                                                                       {:image-sha1 image-sha1-or-error
                                                                         :tile-source-attributes tile-source-attributes
                                                                         :type :packed-tile-source-image})]
                                                {:f generate-packed-image

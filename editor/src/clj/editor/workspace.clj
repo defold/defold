@@ -188,8 +188,10 @@ ordinary paths."
 
 (defn as-resource
   ([workspace path-or-resource]
-   (g/with-auto-evaluation-context evaluation-context
-     (as-resource workspace path-or-resource eval)))
+   (if (satisfies? resource/Resource path-or-resource)
+     path-or-resource
+     (g/with-auto-evaluation-context evaluation-context
+       (as-resource workspace path-or-resource eval))))
   ([workspace path-or-resource evaluation-context]
    (cond
      (string? path-or-resource) (find-resource workspace path-or-resource evaluation-context)
