@@ -16,6 +16,7 @@
 #include <dlib/time.h>
 #include <dlib/thread.h>
 #include <dmsdk/graphics/glfw/glfw.h>
+#include "android_util.h"
 #endif
 
 #include "engine.h"
