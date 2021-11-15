@@ -999,9 +999,9 @@ TEST_F(dmGuiTest, TextureFontLayer)
 
     dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     dmGui::AddTexture(m_Scene, "t2", (void*) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
-    dmGui::AddFont(m_Scene, "f1", &f1, 0);
-    dmGui::AddFont(m_Scene, "f2", &f2, 0);
-    dmGui::AddFont(m_Scene, "test_font_id", &f2, test_font_path);
+    dmGui::AddFont(m_Scene, dmHashString64("f1"), &f1, 0);
+    dmGui::AddFont(m_Scene, dmHashString64("f2"), &f2, 0);
+    dmGui::AddFont(m_Scene, dmHashString64("test_font_id"), &f2, test_font_path);
     dmGui::AddLayer(m_Scene, "l1");
     dmGui::AddLayer(m_Scene, "l2");
 
@@ -1049,10 +1049,10 @@ TEST_F(dmGuiTest, TextureFontLayer)
     r = dmGui::SetNodeFont(m_Scene, node, "f2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::AddFont(m_Scene, "f2", &f1, 0);
+    dmGui::AddFont(m_Scene, dmHashString64("f2"), &f1, 0);
     ASSERT_EQ(&f1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Font);
 
-    dmGui::RemoveFont(m_Scene, "f2");
+    dmGui::RemoveFont(m_Scene, dmHashString64("f2"));
     ASSERT_EQ((void*)0, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Font);
 
     // Font path
@@ -1300,7 +1300,7 @@ TEST_F(dmGuiTest, ScriptTextureFontLayer)
     int f;
 
     dmGui::AddTexture(m_Scene, "t", (void*) &t, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
-    dmGui::AddFont(m_Scene, "f", &f, 0);
+    dmGui::AddFont(m_Scene, dmHashString64("f"), &f, 0);
     dmGui::AddLayer(m_Scene, "l");
 
     const char* id = "n";
@@ -2813,8 +2813,8 @@ TEST_F(dmGuiTest, DeltaTime)
 
 TEST_F(dmGuiTest, Bug352)
 {
-    dmGui::AddFont(m_Scene, "big_score", 0, 0);
-    dmGui::AddFont(m_Scene, "score", 0, 0);
+    dmGui::AddFont(m_Scene, dmHashString64("big_score"), 0, 0);
+    dmGui::AddFont(m_Scene, dmHashString64("score"), 0, 0);
     dmGui::AddTexture(m_Scene, "left_hud", 0, dmGui::NODE_TEXTURE_TYPE_NONE, 1, 1);
     dmGui::AddTexture(m_Scene, "right_hud", 0, dmGui::NODE_TEXTURE_TYPE_NONE, 1, 1);
 

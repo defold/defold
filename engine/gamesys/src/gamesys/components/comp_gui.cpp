@@ -397,7 +397,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
             const char* name = scene_desc->m_Fonts[i].m_Name;
-            dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
+            dmGui::Result r = dmGui::AddFont(scene, dmHashString64(name), (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
                 return false;
@@ -659,8 +659,9 @@ namespace dmGameSystem
         {
             if (gui_world->m_Components[i] == gui_component)
             {
+                dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
                 if (gui_component->m_Material) {
-                    dmResource::Release(dmGameObject::GetFactory(params.m_Instance), gui_component->m_Material);
+                    dmResource::Release(factory, gui_component->m_Material);
                 }
                 dmGui::DeleteScene(gui_component->m_Scene);
                 delete gui_component;
@@ -2116,8 +2117,21 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        if (params.m_PropertyId == PROP_MATERIAL) {
+        dmhash_t set_property = params.m_PropertyId;
+        if (set_property == PROP_MATERIAL) {
             return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&gui_component->m_Material);
+        }
+        else if (set_property == PROP_FONT) {
+            dmRender::HFontMap font;
+            memset(&font, 0, sizeof(dmRender::HFontMap));
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&font);
+            dmGui::HScene scene = gui_component->m_Scene;
+            dmGui::Result r = dmGui::AddFont(scene, params.m_Value.m_Hash, (void*) font, params.m_Value.m_Hash);
+            if (r != dmGui::RESULT_OK) {
+                dmLogError("Unable to set font property");
+                return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
+            }
+            return res;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
