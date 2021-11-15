@@ -640,7 +640,7 @@
   (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
                                                  (tex-gen/make-preview-texture-image packed-image texture-profile)))
   
-  (output texture-set-pb   g/Any               produce-atlas-texture-set-pb)
+  (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
   (output aabb             AABB                (g/fnk [layout-size]
                                                  (if (= [0 0] layout-size)
