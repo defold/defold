@@ -60,7 +60,7 @@ public class TexcLibrary {
         public static int L8                = 0;
         public static int R8G8B8            = 1;
         public static int R8G8B8A8          = 2;
-        public static int B8G8R8A8          = 3;
+        public static int A8B8G8R8          = 3;
         public static int RGB_PVRTC_2BPPV1  = 4;
         public static int RGB_PVRTC_4BPPV1  = 5;
         public static int RGBA_PVRTC_2BPPV1 = 6;

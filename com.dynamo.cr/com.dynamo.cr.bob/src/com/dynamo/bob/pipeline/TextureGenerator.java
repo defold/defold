@@ -278,6 +278,7 @@ public class TextureGenerator {
 
         Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, texcCompressionType, buffer);
         Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.B8G8R8A8, ColorSpace.SRGB, texcCompressionType, buffer_input);
+        Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.A8B8G8R8, ColorSpace.SRGB, texcCompressionType, buffer_input);
         if (texture == null) {
             throw new TextureGeneratorException("Failed to create texture");
         }
