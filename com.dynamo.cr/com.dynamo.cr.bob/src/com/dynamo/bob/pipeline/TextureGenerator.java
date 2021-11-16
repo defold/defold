@@ -220,20 +220,6 @@ public class TextureGenerator {
 
     private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
 
-        long startTime = System.currentTimeMillis();
-
-
-        long time_readbuffer = 0;
-        long time_create = 0;
-        long time_premulalpha = 0;
-        long time_genmipMaps = 0;
-        long time_flip = 0;
-        long time_resize = 0;
-        long time_encode = 0;
-        long time_getdata = 0;
-        long time_getmipMaps = 0;
-
-
         int width = image.getWidth();
         int height = image.getHeight();
         int componentCount = colorModel.getNumComponents();
