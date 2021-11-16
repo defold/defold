@@ -316,13 +316,13 @@
 
 (defn- get-main-manifest-file-upload-resource [project evaluation-context platform]
   (let [ne-platform (get-ne-platform platform)
-        project-settings (g/node-value project :settings evaluation-context)
-        [section key] (get-main-manifest-section-and-key ne-platform)
-        target-path  (get-main-manifest-name ne-platform)
-        resource (get project-settings [section key])
-        resource-node (project/get-resource-node project resource evaluation-context)]
-    (when target-path
-      {target-path resource-node})))
+        target-path  (get-main-manifest-name ne-platform)]
+  (when target-path
+    (let [project-settings (g/node-value project :settings evaluation-context)
+          [section key] (get-main-manifest-section-and-key ne-platform)
+          resource (get project-settings [section key])
+          resource-node (project/get-resource-node project resource evaluation-context)]
+      {target-path resource-node}))))
 
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))
