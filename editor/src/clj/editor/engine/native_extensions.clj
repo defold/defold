@@ -311,7 +311,8 @@
     "armv7-ios"     "Info.plist"
     "x86_64-osx"    "Info.plist"
     "js-web"        "engine_template.html"
-    "wasm-web"      "engine_template.html"))
+    "wasm-web"      "engine_template.html"
+    nil))
 
 (defn- get-main-manifest-file-upload-resource [project evaluation-context platform]
   (let [ne-platform (get-ne-platform platform)
@@ -320,7 +321,8 @@
         target-path  (get-main-manifest-name ne-platform)
         resource (get project-settings [section key])
         resource-node (project/get-resource-node project resource evaluation-context)]
-    {target-path resource-node}))
+    (when target-path
+      {target-path resource-node})))
 
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))
