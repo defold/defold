@@ -792,18 +792,33 @@
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
+(defn- size-mode-property-supported? [type]
+  (or (= type :type-box)
+      (= type :type-pie)))
+
+(defn- size-property-ignored? [type size-mode]
+  (and (= :size-mode-auto size-mode)
+       (size-mode-property-supported? type)))
+
 (g/defnode ShapeNode
   (inherits VisualNode)
 
-  (property size types/Vec3 (default [0 0 0])
-            (value (g/fnk [size size-mode texture-size]
-                          (if (= :size-mode-auto size-mode)
-                            (or texture-size size)
-                            size)))
-            (dynamic read-only? (g/fnk [size-mode type] (and (or (= type :type-box) (= type :type-pie))
-                                                             (= :size-mode-auto size-mode)))))
+  (property size types/Vec3 (default [0.0 0.0 0.0])
+            (dynamic read-only? (g/fnk [size-mode type] (size-property-ignored? type size-mode))))
   (property size-mode g/Keyword (default :size-mode-auto)
-            (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; In :size-mode-auto, the size property is grayed out, but
+                   ;; still shows the previous size assigned to the property.
+                   ;; When going from manual size-mode to auto, we assign the
+                   ;; auto value to the size property so the transition becomes
+                   ;; seamless.
+                   (when (and (= old-value :size-mode-auto)
+                              (= new-value :size-mode-manual)
+                              (size-property-ignored? (g/node-value self :type evaluation-context)
+                                                      old-value))
+                     (when-some [texture-size (g/node-value self :texture-size evaluation-context)]
+                       (g/set-property self :size texture-size)))))
+            (dynamic visible (g/fnk [type] (size-mode-property-supported? type)))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (default "")
@@ -822,6 +837,10 @@
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
+  (output size types/Vec3 (g/fnk [size size-mode texture-size]
+                            (if (= :size-mode-auto size-mode)
+                              (or texture-size size)
+                              size)))
   (output texture-size g/Any (g/fnk [anim-data]
                                     (when (some? anim-data)
                                       [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
@@ -2912,10 +2931,16 @@
 (defn- sanitize-node-rotation [node]
   (update node :rotation (comp clj-quat->euler-v4 euler-v4->clj-quat)))
 
+(defn- sanitize-node-size [node]
+  (if (size-property-ignored? (:type node) (:size-mode node))
+    (dissoc node :size)
+    node))
+
 (defn- sanitize-node [node]
   (cond-> (-> node
               sanitize-node-colors
-              sanitize-node-rotation)
+              sanitize-node-rotation
+              sanitize-node-size)
 
           ;; Size mode is not applicable for text nodes, but might still be
           ;; stored in the files from editor 1.
