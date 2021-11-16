@@ -23,6 +23,10 @@
 
 namespace dmGameSystem
 {
+    static const uint32_t FONTS_MAX         = 64;
+    static const uint32_t TEXTURES_MAX      = 128;
+    static const uint32_t ANIMATIONS_MAX    = 1024;
+
     struct GuiSceneResource;
 
     struct GuiComponent
@@ -34,6 +38,8 @@ namespace dmGameSystem
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled : 1;
         uint8_t                 m_AddedToUpdate : 1;
+        void*                   m_resourcePropertyPointers[FONTS_MAX + TEXTURES_MAX];
+        uint16_t                m_resourcePropertyCounter;
     };
 
     struct BoxVertex
