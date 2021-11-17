@@ -107,7 +107,10 @@ namespace dmTexc
         uint8_t* mip_data = new uint8_t[mip_width * mip_height * num_channels];
 
         basisu::image mipimage(mip_width, mip_height);
-        basisu::image_resample(origimage, mipimage);
+
+        bool srgb = false;
+        const char* filter = "tent";
+        basisu::image_resample(origimage, mipimage, srgb, filter);
 
         basisu::color_rgba* basisimage = mipimage.get_ptr();
         memcpy(mip_data, basisimage, size);
