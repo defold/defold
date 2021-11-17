@@ -397,7 +397,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
             const char* name = scene_desc->m_Fonts[i].m_Name;
-            dmGui::Result r = dmGui::AddFont(scene, dmHashString64(name), (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
+            dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
                 return false;
@@ -2126,12 +2126,14 @@ namespace dmGameSystem
         if (set_property == PROP_MATERIAL) {
             return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&gui_component->m_Material);
         }
-        else if (set_property == PROP_FONT) {
-            dmRender::HFontMap font;
-            memset(&font, 0, sizeof(dmRender::HFontMap));
+        else if (set_property == PROP_FONTS) {
+            if (!params.m_Options.m_Key) {
+                return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+            }
+            dmRender::HFontMap font = 0x0;
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&font);
             dmGui::HScene scene = gui_component->m_Scene;
-            dmGui::Result r = dmGui::AddFont(scene, params.m_Value.m_Hash, (void*) font, params.m_Value.m_Hash);
+            dmGui::Result r = dmGui::AddFont(scene, params.m_Options.m_Key, (void*) font, params.m_Value.m_Hash);
             gui_component->m_resourcePropertyPointers[gui_component->m_resourcePropertyCounter] = font;
             gui_component->m_resourcePropertyCounter++;
             if (r != dmGui::RESULT_OK) {

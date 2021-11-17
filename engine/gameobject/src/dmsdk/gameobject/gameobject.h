@@ -178,6 +178,7 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
      * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
+     * @member dmGameObject::PROPERTY_RESULT_INVALID_KEY
      */
     enum PropertyResult
     {
@@ -193,6 +194,7 @@ namespace dmGameObject
         PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9,
         PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
         PROPERTY_RESULT_INVALID_INDEX = -11,
+        PROPERTY_RESULT_INVALID_KEY = -12,
     };
 
     /*#
@@ -250,10 +252,12 @@ namespace dmGameObject
      * @struct
      * @name PropertyOptions
      * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
+     * @member m_Key [type:char*] The key of the property to set, only applicable if property is hashtable.
      */
     struct PropertyOptions
     {
         int32_t m_Index;
+        const char* m_Key;
     };
 
     /*# property variant

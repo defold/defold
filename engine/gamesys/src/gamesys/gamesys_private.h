@@ -44,6 +44,7 @@ namespace dmGameSystem
 #undef EXT_CONSTANTS
 
     static const dmhash_t PROP_FONT = dmHashString64("font");
+    static const dmhash_t PROP_FONTS = dmHashString64("fonts");
     static const dmhash_t PROP_IMAGE = dmHashString64("image");
     static const dmhash_t PROP_MATERIAL = dmHashString64("material");
     static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {

@@ -699,6 +699,8 @@ namespace dmGameObject
      */
     int Script_Set(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         dmMessage::URL sender;
@@ -748,7 +750,19 @@ namespace dmGameObject
                     return luaL_error(L, "Trying to set property value for '%s' with an index < 0: %d", dmHashReverseSafe64(property_id), property_options.m_Index);
                 }
             }
+            lua_pop(L, 1);
 
+            lua_getfield(L, -1, "key");
+            property_options.m_Key = 0;
+            if (!lua_isnil(L, -1))
+            {
+                if (!lua_isstring(L, -1))
+                {
+                    return luaL_error(L, "Invalid string passed as key argument in options table. It should be string.");
+                }
+
+                property_options.m_Key = luaL_checkstring(L, -1);
+            }
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -787,6 +801,8 @@ namespace dmGameObject
 
         case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
             return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64(property_id));
+        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
+            return luaL_error(L, "Invalid key '%s' for property '%s'", property_options.m_Key, dmHashReverseSafe64(property_id));
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
