@@ -177,6 +177,22 @@ namespace dmTexc
         }
     }
 
+    void ABGR8888ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    {
+        for(uint32_t i = 0; i < width*height; ++i)
+        {
+            uint8_t a = *(data++);
+            uint8_t b = *(data++);
+            uint8_t g = *(data++);
+            uint8_t r = *(data++);
+
+            *(color_rgba++) = r;
+            *(color_rgba++) = g;
+            *(color_rgba++) = b;
+            *(color_rgba++) = a;
+        }
+    }
+
     void RGBA8888ToRGB888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
@@ -236,6 +252,7 @@ namespace dmTexc
         switch(pf)
         {
         case PF_R8G8B8A8:
+        case PF_A8B8G8R8:
         case PF_RGBA_PVRTC_2BPPV1:
         case PF_RGBA_PVRTC_4BPPV1:
         case PF_R4G4B4A4:
@@ -265,6 +282,7 @@ namespace dmTexc
         switch(pf)
         {
         case PF_R8G8B8A8:   return 4;
+        case PF_A8B8G8R8:   return 4;
         case PF_R8G8B8:     return 3;
         case PF_R4G4B4A4:   return 2;
         case PF_L8A8:       return 2;
@@ -292,6 +310,7 @@ namespace dmTexc
         case PF_R8G8B8:     RGB888ToRGBA8888(input, width, height, out); break;
         case PF_R5G6B5:     RGB565ToRGBA8888((uint16_t*)input, width, height, out); break;
         case PF_R4G4B4A4:   RGBA4444ToRGBA8888((uint16_t*)input, width, height, out); break;
+        case PF_A8B8G8R8:   ABGR8888ToRGBA8888(input, width, height, out); break;
         case PF_R8G8B8A8:   memcpy(out, input, width*height*4); break;
         default:
             dmLogError("Format not yet supported: %d", pf);
