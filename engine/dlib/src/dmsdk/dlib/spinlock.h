@@ -43,7 +43,7 @@ namespace dmSpinlock
      * Initialize a Spinlock
      *
      * @name dmSpinlock::Init
-     * @param spinlock [type:dmSpinlock::Spinlock*] spinlock to unlock.
+     * @param spinlock [type:dmSpinlock::Spinlock*] spinlock to initialize.
      */
 
     /*# lock spinlock.
