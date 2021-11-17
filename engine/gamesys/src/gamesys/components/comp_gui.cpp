@@ -588,10 +588,10 @@ namespace dmGameSystem
         // This is a hard cap since the render key has 13 bits for node index (see gui.cpp)
         assert(scene_desc->m_MaxNodes <= 8192);
         scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
-        scene_params.m_MaxAnimations = ANIMATIONS_MAX;
+        scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
-        scene_params.m_MaxFonts = FONTS_MAX;
-        scene_params.m_MaxTextures = TEXTURES_MAX;
+        scene_params.m_MaxFonts = 64;
+        scene_params.m_MaxTextures = 128;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_MaxSpineScenes = 128;
         scene_params.m_RigContext = gui_world->m_RigContext;
@@ -603,6 +603,9 @@ namespace dmGameSystem
         scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
+
+        gui_component->m_resourcePropertyPointers.SetCapacity(scene_params.m_MaxTextures + scene_params.m_MaxFonts);
+        gui_component->m_resourcePropertyPointers.SetSize(0);
 
         if (!SetupGuiScene(scene, scene_resource))
         {
@@ -663,11 +666,12 @@ namespace dmGameSystem
                 if (gui_component->m_Material) {
                     dmResource::Release(factory, gui_component->m_Material);
                 }
-                for (uint32_t i = 0; i < gui_component->m_resourcePropertyCounter; ++i) {
+                for (uint32_t i = 0; i < gui_component->m_resourcePropertyPointers.Size(); ++i) {
                     if (gui_component->m_resourcePropertyPointers[i]) {
                         dmResource::Release(factory, gui_component->m_resourcePropertyPointers[i]);
                     }
                 }
+                gui_component->m_resourcePropertyPointers.SetSize(0);
                 dmGui::DeleteScene(gui_component->m_Scene);
                 delete gui_component;
                 gui_world->m_Components.EraseSwap(i);
@@ -2134,8 +2138,7 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&font);
             dmGui::HScene scene = gui_component->m_Scene;
             dmGui::Result r = dmGui::AddFont(scene, params.m_Options.m_Key, (void*) font, params.m_Value.m_Hash);
-            gui_component->m_resourcePropertyPointers[gui_component->m_resourcePropertyCounter] = font;
-            gui_component->m_resourcePropertyCounter++;
+            gui_component->m_resourcePropertyPointers.Push(font);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to set font property");
                 return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
