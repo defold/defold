@@ -385,7 +385,6 @@ public class TextureGenerator {
                     break;
             }
 
-            raw.setData(ByteString.copyFrom(buffer));
             raw.setData(ByteString.copyFrom(buffer_output));
             raw.setFormat(textureFormat);
             raw.setCompressionType(compressionType);
@@ -396,7 +395,6 @@ public class TextureGenerator {
         } finally {
             TexcLibrary.TEXC_Destroy(texture);
         }
-
     }
 
     // For convenience, some methods without the flipAxis and/or compress argument.
