@@ -756,8 +756,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         void** font = scene->m_Fonts.Get(font_hash);
         if (!font)
+        {
             return 0;
+        }
         return GetResourcePath(scene, *font);
+    }
+
+    void* GetFont(HScene scene, dmhash_t font_hash)
+    {
+        void** font = scene->m_Fonts.Get(font_hash);
+        if (!font)
+        {
+            return 0;
+        }
+        return *font;
     }
 
     Result AddParticlefx(HScene scene, const char* particlefx_name, void* particlefx_prototype)

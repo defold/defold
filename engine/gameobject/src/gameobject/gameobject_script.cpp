@@ -595,9 +595,33 @@ namespace dmGameObject
             luaL_checktype(L, 3, LUA_TTABLE);
             lua_pushvalue(L, 3);
 
+            lua_getfield(L, -1, "key");
+            property_options.m_HasKey = 0;
+            if (!lua_isnil(L, -1))
+            {
+                if (lua_isstring(L, -1))
+                {
+                    property_options.m_Key = dmHashString64(lua_tostring(L, -1));
+                }
+                else if (dmScript::IsHash(L, -1))
+                {
+                    property_options.m_Key = dmScript::CheckHash(L, -1);
+                }
+                else
+                {
+                    return luaL_error(L, "Invalid key argument in options table. It should be string or hash.");
+                }
+                property_options.m_HasKey = 1;
+            }
+            lua_pop(L, 1);
+
             lua_getfield(L, -1, "index");
             if (!lua_isnil(L, -1)) // make it optional
             {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Options table should contain either key or index value.");
+                }
                 if (!lua_isnumber(L, -1))
                 {
                     return luaL_error(L, "Invalid number passed as index argument in options table.");
@@ -612,7 +636,6 @@ namespace dmGameObject
 
                 index_requested = true;
             }
-
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -631,9 +654,24 @@ namespace dmGameObject
                 dmGameObject::LuaPushVar(L, property_desc.m_Variant);
                 return 1;
             }
+        case dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND:
+            {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Resource `%s` for property '%s' not found!", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
+                }
+                else
+                {
+                    return luaL_error(L, "Property '%s' not found!", dmHashReverseSafe64(property_id));
+                }
+            }
         case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
             {
                 return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64(property_id));
+            }
+        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
+            {
+                luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
             }
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
             {

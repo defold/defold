@@ -667,12 +667,20 @@ namespace dmGui
     void RemoveFont(HScene scene, dmhash_t font_name_hash);
 
     /**
+     * Gets a font path by name hash
+     * @name GetFontPath
+     * @param scene Scene to get font path from
+     * @param font_hash Hashed name of the font. 0 if unsuccessful
+     */
+    dmhash_t GetFontPath(HScene scene, dmhash_t font_hash);
+
+    /**
      * Gets a font by name hash
      * @name GetFont
      * @param scene Scene to get font from
      * @param font_hash Hashed name of the font. 0 if unsuccessful
      */
-    dmhash_t GetFontPath(HScene scene, dmhash_t font_hash);
+    void* GetFont(HScene scene, dmhash_t font_hash);
 
     /**
      * Remove all fonts from the scene.

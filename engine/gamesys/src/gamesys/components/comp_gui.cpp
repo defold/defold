@@ -2119,6 +2119,12 @@ namespace dmGameSystem
         if (set_property== PROP_MATERIAL) {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(gui_component, gui_component->m_Resource), out_value);
         }
+        else if (set_property == PROP_FONTS) {
+            if (!params.m_Options.m_HasKey) {
+                return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+            }
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+        }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
