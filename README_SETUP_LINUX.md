@@ -40,6 +40,17 @@ You need a 64 bit Python 2 version to build the engine and tools. The latest tes
 > sudo apt install python2-minimal python-setuptools
 ```
 
+Since our scripts use `python`, you'll need to set it up somehow.
+One way is using an alias:
+
+```sh
+# in ~/.bashrc
+alias python='python2.7'
+```
+
+Another way is to use [update-alternatives](https://www.google.com/search?client=firefox-b-d&q=linux+update-alternatives+python) to select version.
+
+
 ### Required Software - Additional tools
 
 You need additional files and tools to be able to build and work with Defold on Linux:
