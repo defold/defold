@@ -53,6 +53,7 @@ You need additional files and tools to be able to build and work with Defold on 
 * **libcurl4-openssl-dev** - Development files and documentation for libcurl
 * **uuid-dev** - Universally Unique ID library
 * **libopenal-dev** - Software implementation of the OpenAL audio API
+* **libncurses5** -  Needed by clang
 
 **Tools**
 * **build-essential** - Compilers
@@ -69,7 +70,7 @@ You need additional files and tools to be able to build and work with Defold on 
 Download and install using `apt-get`:
 
 ```sh
-> sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+> sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev libncurses5
 ```
 
 ---
