@@ -247,17 +247,23 @@ namespace dmGameObject
 
     /*# Property Options
      *
-     * A table of options for getting and setting properties.
+     * Parameters variant that holds key or index for a propertys data structure.
      *
      * @struct
      * @name PropertyOptions
      * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
      * @member m_Key [type:dmhash_t] The key of the property to set, only applicable if property is hashtable.
+     * @member m_HasKey [type:uint8_t] A flag if structure contain m_Key value (it can't contain both)
      */
     struct PropertyOptions
     {
-        int32_t m_Index;
-        dmhash_t m_Key;
+        union
+        {
+            dmhash_t m_Key;
+            int32_t m_Index;
+        };
+
+        uint8_t m_HasKey : 1;
     };
 
     /*# property variant

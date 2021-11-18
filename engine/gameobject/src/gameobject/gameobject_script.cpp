@@ -735,25 +735,8 @@ namespace dmGameObject
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);
 
-            lua_getfield(L, -1, "index");
-            if (!lua_isnil(L, -1)) // make it optional
-            {
-                if (!lua_isnumber(L, -1))
-                {
-                    return luaL_error(L, "Invalid number passed as index argument in options table.");
-                }
-
-                property_options.m_Index = luaL_checkinteger(L, -1) - 1;
-
-                if (property_options.m_Index < 0)
-                {
-                    return luaL_error(L, "Trying to set property value for '%s' with an index < 0: %d", dmHashReverseSafe64(property_id), property_options.m_Index);
-                }
-            }
-            lua_pop(L, 1);
-
             lua_getfield(L, -1, "key");
-            property_options.m_Key = 0;
+            property_options.m_HasKey = 0;
             if (!lua_isnil(L, -1))
             {
                 if (lua_isstring(L, -1))
@@ -767,6 +750,28 @@ namespace dmGameObject
                 else
                 {
                     return luaL_error(L, "Invalid key argument in options table. It should be string or hash.");
+                }
+                property_options.m_HasKey = 1;
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "index");
+            if (!lua_isnil(L, -1)) // make it optional
+            {   
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Options table should contain either key or index value.");
+                }
+                if (!lua_isnumber(L, -1))
+                {
+                    return luaL_error(L, "Invalid number passed as index argument in options table.");
+                }
+
+                property_options.m_Index = luaL_checkinteger(L, -1) - 1;
+
+                if (property_options.m_Index < 0)
+                {
+                    return luaL_error(L, "Trying to set property value for '%s' with an index < 0: %d", dmHashReverseSafe64(property_id), property_options.m_Index);
                 }
             }
             lua_pop(L, 1);

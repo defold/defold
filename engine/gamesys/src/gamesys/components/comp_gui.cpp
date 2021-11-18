@@ -2115,7 +2115,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        if (params.m_PropertyId == PROP_MATERIAL) {
+        dmhash_t set_property = params.m_PropertyId;
+        if (set_property== PROP_MATERIAL) {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(gui_component, gui_component->m_Resource), out_value);
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
@@ -2128,7 +2129,7 @@ namespace dmGameSystem
             return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&gui_component->m_Material);
         }
         else if (set_property == PROP_FONTS) {
-            if (!params.m_Options.m_Key) {
+            if (!params.m_Options.m_HasKey) {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
