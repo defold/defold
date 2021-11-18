@@ -245,6 +245,23 @@ namespace dmGameObject
         UPDATE_RESULT_UNKNOWN_ERROR = -1000,
     };
 
+    /*# Type of property value
+     *
+     * Type of property value
+     *
+     * @enum
+     * @name Result
+     * @member dmGameObject::PROP_VALUE_VAR
+     * @member dmGameObject::PROP_VALUE_ARRAY
+     * @member dmGameObject::PROP_VALUE_HASHTABLE
+     */
+    enum PropertyValueType
+    {
+        PROP_VALUE_VARIABLE = 0,
+        PROP_VALUE_ARRAY = 1,
+        PROP_VALUE_HASHTABLE = 2,    
+    };
+
     /*# Property Options
      *
      * Parameters variant that holds key or index for a propertys data structure.
@@ -326,7 +343,7 @@ namespace dmGameObject
      * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
      * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
      * @member m_ArraySize [type: uint8_t] The number of elements the property holds (if array).
-     * @member m_IsArray [type: uint8_t] Indicates if this property is an array or not.
+     * @member m_ValueType [type: uint8_t] Indicates type of the property.
      */
     struct PropertyDesc
     {
@@ -336,7 +353,7 @@ namespace dmGameObject
         float* m_ValuePtr;
         bool m_ReadOnly;
         uint8_t m_ArraySize : 7;
-        uint8_t m_IsArray   : 1;
+        uint8_t m_ValueType   : 2;
     };
 
     /*#

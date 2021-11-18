@@ -2123,6 +2123,7 @@ namespace dmGameSystem
             if (!params.m_Options.m_HasKey) {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
+            out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, params.m_Options.m_Key), out_value);
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;

@@ -84,7 +84,7 @@ namespace dmGameSystem
             }
 
             out_desc.m_ArraySize = constant_array_size;
-            out_desc.m_IsArray   = constant_array_size > 1;
+            out_desc.m_ValueType   = (constant_array_size > 1) ? dmGameObject::PROP_VALUE_ARRAY : dmGameObject::PROP_VALUE_VARIABLE;
 
             if (constant_id == name_hash)
             {
