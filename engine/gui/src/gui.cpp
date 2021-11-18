@@ -715,7 +715,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return 0;
     }
 
-    Result AddFont(HScene scene, const char* font_name, void* font, dmhash_t path_hash)
+    Result AddFont(HScene scene, dmhash_t font_name_hash, void* font, dmhash_t path_hash)
     {
         if (scene->m_Fonts.Full())
             return RESULT_OUT_OF_RESOURCES;
@@ -724,33 +724,30 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             scene->m_DefaultFont = font;
 
         AddResourcePath(scene, font, path_hash);
-
-        uint64_t font_hash = dmHashString64(font_name);
-        scene->m_Fonts.Put(font_hash, font);
+        scene->m_Fonts.Put(font_name_hash, font);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_FontHash == font_hash)
+            if (nodes[i].m_Node.m_FontHash == font_name_hash)
                 nodes[i].m_Node.m_Font = font;
         }
         return RESULT_OK;
     }
 
-    void RemoveFont(HScene scene, const char* font_name)
+    void RemoveFont(HScene scene, dmhash_t font_name_hash)
     {
-        uint64_t font_hash = dmHashString64(font_name);
-        void** font = scene->m_Fonts.Get(font_hash);
+        void** font = scene->m_Fonts.Get(font_name_hash);
         if (font)
         {
             RemoveResourcePath(scene, *font);
         }
-        scene->m_Fonts.Erase(font_hash);
+        scene->m_Fonts.Erase(font_name_hash);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_FontHash == font_hash)
+            if (nodes[i].m_Node.m_FontHash == font_name_hash)
                 nodes[i].m_Node.m_Font = 0;
         }
     }
