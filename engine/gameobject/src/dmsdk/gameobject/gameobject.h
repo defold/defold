@@ -257,7 +257,7 @@ namespace dmGameObject
     struct PropertyOptions
     {
         int32_t m_Index;
-        const char* m_Key;
+        dmhash_t m_Key;
     };
 
     /*# property variant
