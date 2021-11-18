@@ -252,7 +252,7 @@ namespace dmGameObject
      * @struct
      * @name PropertyOptions
      * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
-     * @member m_Key [type:char*] The key of the property to set, only applicable if property is hashtable.
+     * @member m_Key [type:dmhash_t] The key of the property to set, only applicable if property is hashtable.
      */
     struct PropertyOptions
     {
