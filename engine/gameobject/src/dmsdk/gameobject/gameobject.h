@@ -219,7 +219,7 @@ namespace dmGameObject
      * Create result enum.
      *
      * @enum
-     * @name Result
+     * @name CreateResult
      * @member dmGameObject::CREATE_RESULT_OK
      * @member dmGameObject::CREATE_RESULT_UNKNOWN_ERROR
      */
@@ -235,7 +235,7 @@ namespace dmGameObject
      * Update result enum.
      *
      * @enum
-     * @name Result
+     * @name UpdateResult
      * @member dmGameObject::UPDATE_RESULT_OK
      * @member dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR
      */
@@ -250,7 +250,7 @@ namespace dmGameObject
      * Type of property value
      *
      * @enum
-     * @name Result
+     * @name PropertyValueType
      * @member dmGameObject::PROP_VALUE_VAR
      * @member dmGameObject::PROP_VALUE_ARRAY
      * @member dmGameObject::PROP_VALUE_HASHTABLE
