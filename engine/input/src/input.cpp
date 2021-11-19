@@ -68,10 +68,19 @@ namespace dmInput
     HBinding NewBinding(HContext context)
     {
         Binding* binding = new Binding();
-        memset(binding, 0, sizeof(Binding));
         binding->m_Context = context;
+        binding->m_Actions.Clear();
         binding->m_Actions.SetCapacity(64, 256);
         binding->m_GamepadBindings.SetCapacity(dmHID::MAX_GAMEPAD_COUNT);
+
+        binding->m_TextBinding = 0;
+        binding->m_AccelerationBinding = 0;
+        binding->m_TouchDeviceBinding = 0;
+        binding->m_MouseBinding = 0;
+        binding->m_KeyboardBinding = 0;
+        binding->m_DDFGamepadTriggersCount = 0;
+        binding->m_DDFGamepadTriggersData = 0;
+        binding->m_DDFGamepadTriggersCount = 0;
 
         dmHID::SetGamepadFuncUserdata(context->m_HidContext, (void*)binding);
         return binding;
