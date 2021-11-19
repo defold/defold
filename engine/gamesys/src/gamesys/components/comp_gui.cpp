@@ -443,7 +443,7 @@ namespace dmGameSystem
                 texture_source      = (void*)texture;
             }
 
-            dmGui::Result r = dmGui::AddTexture(scene, name, texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+            dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -2149,18 +2149,41 @@ namespace dmGameSystem
             dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
             dmRender::HFontMap font = 0x0;
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font);
-            dmGui::HScene scene = gui_component->m_Scene;
-            dmGui::Result r = dmGui::AddFont(scene, params.m_Options.m_Key, (void*) font, params.m_Value.m_Hash);
-            if (r != dmGui::RESULT_OK) {
-                dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);
-                dmResource::Release(factory, font);
-                return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
-            }
-            if(gui_component->m_ResourcePropertyPointers.Full())
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                gui_component->m_ResourcePropertyPointers.OffsetCapacity(1);
+                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*) font, params.m_Value.m_Hash);
+                if (r != dmGui::RESULT_OK) {
+                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);
+                    dmResource::Release(factory, font);
+                    return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
+                }
+                if(gui_component->m_ResourcePropertyPointers.Full()) {
+                    gui_component->m_ResourcePropertyPointers.OffsetCapacity(1);
+                }
+                gui_component->m_ResourcePropertyPointers.Push(font);
             }
-            gui_component->m_ResourcePropertyPointers.Push(font);
+            return res;
+        }
+        else if (set_property == PROP_TEXTURES) {
+            if (!params.m_Options.m_HasKey) {
+                return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+            }
+            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+            TextureSetResource* texture_source = 0x0;
+            dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+            {
+                dmGraphics::HTexture texture = texture_source->m_Texture;
+                dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+                if (r != dmGui::RESULT_OK) {
+                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);
+                    return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
+                }
+                if(gui_component->m_ResourcePropertyPointers.Full()) {
+                    gui_component->m_ResourcePropertyPointers.OffsetCapacity(1);
+                }
+                gui_component->m_ResourcePropertyPointers.Push(texture_source);
+            }
             return res;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;

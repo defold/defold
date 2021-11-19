@@ -482,18 +482,17 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
-        uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, TextureInfo(texture, texture_type, original_width, original_height));
+        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture, texture_type, original_width, original_height));
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_TextureHash == texture_hash)
+            if (nodes[i].m_Node.m_TextureHash == texture_name_hash)
             {
                 nodes[i].m_Node.m_Texture     = texture;
                 nodes[i].m_Node.m_TextureType = texture_type;
@@ -502,9 +501,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    void RemoveTexture(HScene scene, const char* texture_name)
+    void RemoveTexture(HScene scene, dmhash_t texture_name_hash)
     {
-        uint64_t texture_name_hash = dmHashString64(texture_name);
         scene->m_Textures.Erase(texture_name_hash);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
@@ -541,9 +539,9 @@ namespace dmGui
         }
     }
 
-    void* GetTexture(HScene scene, dmhash_t texture_hash)
+    void* GetTexture(HScene scene, dmhash_t texture_name_hash)
     {
-        TextureInfo* textureInfo = scene->m_Textures.Get(texture_hash);
+        TextureInfo* textureInfo = scene->m_Textures.Get(texture_name_hash);
         if (!textureInfo)
         {
             return 0;
