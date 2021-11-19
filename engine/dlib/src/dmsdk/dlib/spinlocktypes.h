@@ -1,5 +1,5 @@
-#ifndef DM_SPINLOCKTYPES_H
-#define DM_SPINLOCKTYPES_H
+#ifndef SDK_SPINLOCKTYPES_H
+#define SDK_SPINLOCKTYPES_H
 
 #include <stdint.h>
 
@@ -7,21 +7,21 @@
 #include <pthread.h>
 namespace dmSpinlock
 {
-    typedef pthread_spinlock_t lock_t;
+    typedef pthread_spinlock_t Spinlock;
 
-    static inline void Init(lock_t* lock)
+    static inline void Init(Spinlock* lock)
     {
         int ret = pthread_spin_init(lock, 0);
         assert(ret == 0);
     }
 
-    static inline void Lock(lock_t* lock)
+    static inline void Lock(Spinlock* lock)
     {
         int ret = pthread_spin_lock(lock);
         assert(ret == 0);
     }
 
-    static inline void Unlock(lock_t* lock)
+    static inline void Unlock(Spinlock* lock)
     {
         int ret = pthread_spin_unlock(lock);
         assert(ret == 0);
@@ -31,19 +31,19 @@ namespace dmSpinlock
 #include <libkern/OSAtomic.h>
 namespace dmSpinlock
 {
-    typedef OSSpinLock lock_t;
+    typedef OSSpinLock Spinlock;
 
-    static inline void Init(lock_t* lock)
+    static inline void Init(Spinlock* lock)
     {
         *lock = 0;
     }
 
-    static inline void Lock(lock_t* lock)
+    static inline void Lock(Spinlock* lock)
     {
         OSSpinLockLock(lock);
     }
 
-    static inline void Unlock(lock_t* lock)
+    static inline void Unlock(Spinlock* lock)
     {
         OSSpinLockUnlock(lock);
     }
@@ -52,14 +52,14 @@ namespace dmSpinlock
 #include "safe_windows.h"
 namespace dmSpinlock
 {
-    typedef volatile long lock_t;
+    typedef volatile long Spinlock;
 
-    static inline void Init(lock_t* lock)
+    static inline void Init(Spinlock* lock)
     {
         *lock = 0;
     }
 
-    static inline void Lock(lock_t* lock)
+    static inline void Lock(Spinlock* lock)
     {
         // NOTE: No barriers. Only valid on x86
         while (InterlockedCompareExchange(lock, 1, 0) != 0)
@@ -68,7 +68,7 @@ namespace dmSpinlock
         }
     }
 
-    static inline void Unlock(lock_t* lock)
+    static inline void Unlock(Spinlock* lock)
     {
         // NOTE: No barriers. Only valid on x86
         *lock = 0;
@@ -78,9 +78,9 @@ namespace dmSpinlock
 #include "safe_windows.h"
 namespace dmSpinlock
 {
-  typedef __declspec(align(8)) volatile LONGLONG  lock_t;
+  typedef __declspec(align(8)) volatile LONGLONG  Spinlock;
 
-  static inline void Init(lock_t* lock)
+  static inline void Init(Spinlock* lock)
   {
     /*
      * "Simple reads and writes to properly aligned 64-bit variables are atomic on 64-bit Windows"
@@ -90,7 +90,7 @@ namespace dmSpinlock
     *lock = 0LL;
   }
 
-  static inline void Lock(lock_t* lock)
+  static inline void Lock(Spinlock* lock)
   {
     while (InterlockedCompareExchange64(lock, 1LL, 0LL) != 0LL)
     {
@@ -98,7 +98,7 @@ namespace dmSpinlock
     }
   }
 
-  static inline void Unlock(lock_t* lock)
+  static inline void Unlock(Spinlock* lock)
   {
     *lock = 0LL;
   }
@@ -106,14 +106,14 @@ namespace dmSpinlock
 #elif defined(ANDROID) && !defined(__aarch64__)
 namespace dmSpinlock
 {
-    typedef uint32_t lock_t;
+    typedef uint32_t Spinlock;
 
-    static inline void Init(lock_t* lock)
+    static inline void Init(Spinlock* lock)
     {
         *lock = 0;
     }
 
-    static inline void Lock(lock_t* lock)
+    static inline void Lock(Spinlock* lock)
     {
         uint32_t tmp;
          __asm__ __volatile__(
@@ -131,7 +131,7 @@ namespace dmSpinlock
 
     }
 
-    static inline void Unlock(lock_t* lock)
+    static inline void Unlock(Spinlock* lock)
     {
         __asm__ __volatile__(
 "       dsb\n"
@@ -146,14 +146,14 @@ namespace dmSpinlock
 // Asm implementation from https://gitlab-beta.engr.illinois.edu/ejclark2/linux/blob/f668cd1673aa2e645ae98b65c4ffb9dae2c9ac17/arch/arm64/include/asm/spinlock.h
 namespace dmSpinlock
 {
-    typedef uint32_t lock_t;
+    typedef uint32_t Spinlock;
 
-    static inline void Init(lock_t* lock)
+    static inline void Init(Spinlock* lock)
     {
         *lock = 0;
     }
 
-    static inline void Lock(lock_t* lock)
+    static inline void Lock(Spinlock* lock)
     {
 
         uint32_t tmp;
@@ -170,7 +170,7 @@ namespace dmSpinlock
 
     }
 
-    static inline void Unlock(lock_t* lock)
+    static inline void Unlock(Spinlock* lock)
     {
         __asm__ __volatile__(
         "   stlr    %w1, [%0]\n"
@@ -183,14 +183,14 @@ namespace dmSpinlock
 
 namespace dmSpinlock
 {
-    typedef volatile int lock_t;
+    typedef volatile int Spinlock;
 
-    static inline void Init(lock_t* lock)
+    static inline void Init(Spinlock* lock)
     {
         *lock = 0;
     }
 
-    static inline void Lock(lock_t* lock)
+    static inline void Lock(Spinlock* lock)
     {
         while (*lock != 0)
         {
@@ -198,7 +198,7 @@ namespace dmSpinlock
         }
     }
 
-    static inline void Unlock(lock_t* lock)
+    static inline void Unlock(Spinlock* lock)
     {
         *lock = 0;
     }
@@ -208,4 +208,4 @@ namespace dmSpinlock
 #error "Unsupported platform"
 #endif
 
-#endif
+#endif // DMSDK_SPINLOCKTYPES_H

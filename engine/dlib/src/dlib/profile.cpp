@@ -77,7 +77,7 @@ namespace dmProfile
     bool g_OutOfCounters = false;
     bool g_IsInitialized = false;
     bool g_Paused = false;
-    dmSpinlock::lock_t g_ProfileLock;
+    dmSpinlock::Spinlock g_ProfileLock;
 
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
     int32_atomic_t g_ThreadCount = 0;
