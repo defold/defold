@@ -57,6 +57,7 @@ namespace dmGameSystem
         dmHashString64("texture6"),
         dmHashString64("texture7")
     };
+    static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
     static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
 
     struct EmitterStateChangedScriptData

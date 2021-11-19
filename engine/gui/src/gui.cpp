@@ -541,6 +541,16 @@ namespace dmGui
         }
     }
 
+    void* GetTexture(HScene scene, dmhash_t texture_hash)
+    {
+        TextureInfo* textureInfo = scene->m_Textures.Get(texture_hash);
+        if (!textureInfo)
+        {
+            return 0;
+        }
+        return textureInfo->m_TextureSource;
+    }
+
     static bool CopyImageBufferFlipped(uint32_t width, uint32_t height, const uint8_t* buffer, uint32_t buffer_size, dmImage::Type type, uint8_t* out_buffer)
     {
         uint32_t stride = width*sizeof(uint8_t);

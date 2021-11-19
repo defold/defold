@@ -602,6 +602,14 @@ namespace dmGui
     void ClearTextures(HScene scene);
 
     /**
+     * Gets a texture by name hash
+     * @name GetTexture
+     * @param scene Scene to get texture from
+     * @param texture_hash Hashed name of the texture. 0 if unsuccessful
+     */
+    void* GetTexture(HScene scene, dmhash_t texture_hash);
+
+    /**
      * Create a new dynamic texture
      * @param scene
      * @param texture_hash
