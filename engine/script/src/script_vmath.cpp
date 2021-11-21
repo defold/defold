@@ -300,8 +300,9 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
-        char* buffer = new char[size + 61];
-        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f)", s, SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
+        char* buffer = new char[size + 68];
+        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        dmSnPrintf(buffer, size + 68, "%svmath.%s(%.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -463,8 +464,9 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
-        char* buffer = new char[size + 77];
-        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
+        char* buffer = new char[size + 86];
+        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        dmSnPrintf(buffer, size + 86, "%svmath.%s(%.14g, %.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -587,8 +589,9 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Quat* q = CheckQuat(L, 2);
-        char* buffer = new char[size + 74];
-        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
+        char* buffer = new char[size + 83];
+        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        dmSnPrintf(buffer, size + 83, "%svmath.%s(%.14g, %.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -621,7 +624,7 @@ namespace dmScript
     {
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_MATRIX4];
     }
-    
+
     Vectormath::Aos::Matrix4* ToMatrix4(lua_State *L, int index)
     {
         return (Vectormath::Aos::Matrix4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4]);
@@ -735,8 +738,9 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 2);
-        char* buffer = new char[size + 268];
-        dmSnPrintf(buffer, size, "%svmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", s, SCRIPT_TYPE_NAME_MATRIX4,
+        char* buffer = new char[size + 302];
+        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        dmSnPrintf(buffer, size + 302, "%svmath.%s(%.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),

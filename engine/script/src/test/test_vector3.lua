@@ -1,10 +1,10 @@
 -- Copyright 2020 The Defold Foundation
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -121,3 +121,9 @@ v = vmath.mul_per_elem(vmath.vector3(1,2,3), vmath.vector3(5,6,7))
 assert(v.x == 5, "v.x is not 5")
 assert(v.y ==12, "v.y is not 12")
 assert(v.z ==21, "v.z is not 21")
+
+-- tostring and concat
+v = vmath.vector3(1, 2, 3)
+assert(tostring(v) == "vmath.vector3(1, 2, 3)")
+assert(("foo " .. tostring(v)) == "foo vmath.vector3(1, 2, 3)")
+assert(("foo " .. v) == "foo vmath.vector3(1, 2, 3)")
