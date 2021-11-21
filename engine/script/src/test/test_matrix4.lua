@@ -159,6 +159,11 @@ assert(m.c3.z == 6, "translation .z")
 
 -- tostring and concat
 m = vmath.matrix4_translation(vmath.vector4(8,7,6,-1))
-assert(tostring(m) == "vmath.matrix4(1, 0, 0, 8, 0, 1, 0, 7, 0, 0, 1, 6, 0, 0, 0, 1)")
 assert(("foo " .. tostring(m)) == "foo vmath.matrix4(1, 0, 0, 8, 0, 1, 0, 7, 0, 0, 1, 6, 0, 0, 0, 1)")
 assert(("foo " .. m) == "foo vmath.matrix4(1, 0, 0, 8, 0, 1, 0, 7, 0, 0, 1, 6, 0, 0, 0, 1)")
+m = vmath.matrix4()
+m.c0 = vmath.vector4(-10.01,-10.01,-10.01,-10.01)
+m.c1 = vmath.vector4(-10.01,-10.01,-10.01,-10.01)
+m.c2 = vmath.vector4(-10.01,-10.01,-10.01,-10.01)
+m.c3 = vmath.vector4(-10.01,-10.01,-10.01,-10.01)
+assert(tostring(m) == ("" .. m))

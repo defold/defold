@@ -108,6 +108,7 @@ assert(math.abs(q.x - t) < 0.000001 and math.abs(q.y - 2*t) < 0.000001 and math.
 
 -- tostring and concat
 q = vmath.quat(1, 2, 3, 4)
-assert(tostring(q) == "vmath.quat(1, 2, 3, 4)")
 assert(("foo " .. tostring(q)) == "foo vmath.quat(1, 2, 3, 4)")
 assert(("foo " .. q) == "foo vmath.quat(1, 2, 3, 4)")
+q = vmath.quat(-10.01, -10.01, -10.01, -10.01)
+assert(tostring(q) == ("" .. q))

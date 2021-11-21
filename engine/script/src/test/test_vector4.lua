@@ -134,6 +134,7 @@ assert(v.w ==32, "v.w is not 32")
 
 -- tostring and concat
 v = vmath.vector4(1, 2, 3, 4)
-assert(tostring(v) == "vmath.vector4(1, 2, 3, 4)")
 assert(("foo " .. tostring(v)) == "foo vmath.vector4(1, 2, 3, 4)")
 assert(("foo " .. v) == "foo vmath.vector4(1, 2, 3, 4)")
+v = vmath.vector4(-10.01, -10.01, -10.01, -10.01)
+assert(tostring(v) == ("" .. v))

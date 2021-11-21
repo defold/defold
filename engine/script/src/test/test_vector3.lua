@@ -124,6 +124,7 @@ assert(v.z ==21, "v.z is not 21")
 
 -- tostring and concat
 v = vmath.vector3(1, 2, 3)
-assert(tostring(v) == "vmath.vector3(1, 2, 3)")
 assert(("foo " .. tostring(v)) == "foo vmath.vector3(1, 2, 3)")
 assert(("foo " .. v) == "foo vmath.vector3(1, 2, 3)")
+v = vmath.vector3(-10.01, -10.01, -10.01)
+assert(tostring(v) == ("" .. v))
