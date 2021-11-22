@@ -32,4 +32,9 @@ components {
     value: "/script_props/gui/system_font_big.font"
     type: PROPERTY_TYPE_HASH
   }
+  properties {
+    id: "atlas2"
+    value: "/script_props/gui/atlas2.atlas"
+    type: PROPERTY_TYPE_HASH
+  }
 }

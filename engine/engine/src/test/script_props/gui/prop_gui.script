@@ -1,6 +1,7 @@
 local test_done = require("script_props.test_done")
 
 go.property("big_font", resource.font())
+go.property("atlas2", resource.atlas())
 
 local function assert_exit(assert_that, error_string)
     if not assert_that then
@@ -27,6 +28,8 @@ function init(self)
 end
 
 function late_init(self)
+    ---- Fonts
+
     -- Test set fonts works
     assert_not_error(function()
             go.set("#gui", "fonts", self.big_font, {key = "system_font_BIG"})
@@ -52,14 +55,51 @@ function late_init(self)
     assert_not_error(function()
             font = go.get("#gui", "fonts", {key = "system_font_BIG"})
         end)
-    assert_exit(font == self.big_font, error_string, "Wrong font get from gui component")
+    assert_exit(font == self.big_font, "Wrong font got from gui component")
 
-    -- Test get font wothout key
+    -- Test get font without key
     assert_error(function()
         go.get("#gui", "fonts", {})
     end)
     assert_error(function()
         go.get("#gui", "fonts")
+    end)
+
+    ---- Textures
+
+        -- Test set atlas works
+    assert_not_error(function()
+            go.set("#gui", "textures", self.atlas2, {key = "atlas2"})
+        end)
+
+    -- Test replace atlas works
+    assert_not_error(function()
+            go.set("#gui", "textures", self.atlas2, {key = "atlas1"})
+        end)
+
+    -- Test set atlas with index failed
+    assert_error(function()
+            go.set("#gui", "textures", self.atlas2, {index = 992})
+        end)
+
+    -- Test set atlas with both index and key failed
+    assert_error(function()
+            go.set("#gui", "textures", self.atlas2, {key = "atlas2", index = 992})
+        end)
+
+    -- Test get atlas works
+    local atlas
+    assert_not_error(function()
+            atlas = go.get("#gui", "textures", {key = "atlas1"})
+        end)
+    assert_exit(atlas == self.atlas2, "Wrong atlas got from gui component")
+
+    -- Test get atlas without key
+    assert_error(function()
+        go.get("#gui", "textures", {})
+    end)
+    assert_error(function()
+        go.get("#gui", "textures")
     end)
 
     -- Validate resources were changed in gui

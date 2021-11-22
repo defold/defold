@@ -3,6 +3,10 @@ fonts {
   name: "system_font"
   font: "/builtins/fonts/system_font.font"
 }
+textures {
+  name: "atlas1"
+  texture: "/script_props/gui/atlas1.atlas"
+}
 background_color {
   x: 0.0
   y: 0.0
