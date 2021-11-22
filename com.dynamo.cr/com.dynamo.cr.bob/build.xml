@@ -274,7 +274,8 @@
               <include name="dlib.jar"/>
               <include name="lz4-1.3.0.jar"/>
               <include name="commons-cli-1.2.jar"/>
-              <include name="jna.jar"/>
+              <include name="jna-5.10.0.jar"/>
+              <include name="jna-platform-5.10.0.jar"/>
               <include name="jackson-core-asl-1.9.2.jar"/>
               <include name="jackson-mapper-asl-1.9.2.jar"/>
               <include name="openmali.jar"/>

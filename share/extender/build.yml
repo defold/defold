@@ -83,6 +83,8 @@ platforms:
       cxxLinkShFlags:   []
       cxxLibs:          []
       cxxShLibs:        [] #"dlib_shared" # not shared libs, but libs used for linking a shared library
+      libStartGroup:    ['-Wl,--start-group']
+      libEndGroup:      ['-Wl,--end-group']
       # Java
       javaFlags:        []
       javaPipelineClasspath: ['{{dynamo_home}}/share/java/bob-light.jar']
@@ -97,7 +99,7 @@ platforms:
     compileCmdCXX:      'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#cxxFlags}}{{{.}}} {{/cxxFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     compileCmdCXXSh:    'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#cxxShFlags}}{{{.}}} {{/cxxShFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     linkCmdCXX:         'clang++ -o {{tgt}} {{#cxxLinkFlags}}{{{.}}} {{/cxxLinkFlags}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
-    linkCmdCXXSh:       'clang++ -shared -o {{tgt}} {{#cxxLinkShFlags}}{{{.}}} {{/cxxLinkShFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#src}}{{{.}}} {{/src}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}}'
+    linkCmdCXXSh:       'clang++ -shared -o {{tgt}} {{#cxxLinkShFlags}}{{{.}}} {{/cxxLinkShFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#src}}{{{.}}} {{/src}} {{#libStartGroup}}{{{.}}} {{/libStartGroup}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libEndGroup}}{{{.}}} {{/libEndGroup}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}}'
 
     # Java
     javaSourceRe:   '(?i).+(\.java)$'
@@ -126,6 +128,8 @@ platforms:
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
         symbols:        ["AudioDecoderTremolo"]
+        libStartGroup_replace:  []
+        libEndGroup_replace:    []
 
     exePrefix: ''
     exeExt: ''
