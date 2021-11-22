@@ -1,3 +1,5 @@
+local test_done = require("script_props.test_done")
+
 go.property("testvalue", vmath.vector4(4, 5, 6, 7))
 
 local function assert_exit(assert_that, error_string)
@@ -68,6 +70,6 @@ function init(self, config)
     assert_not_error(function() go.set("#sprite", "uniform_array.y", 7, { index = 15}) end)
     assert_number(go.get("#sprite", "uniform_array.y", { index = 17 }), 7)
 
-    msg.post("main:/main#script", "done")
+    test_done.done()
 end
 

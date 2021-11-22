@@ -1,0 +1,40 @@
+local test_done = require("script_props.test_done")
+
+local function assert_exit(assert_that, error_string)
+    if not assert_that then
+        if error_string then
+            print(error_string)
+        end
+        msg.post("@system:", "exit", { code = 1 })
+        assert(assert_that)
+    end
+end
+
+local function assert_not_error(func)
+    local r, err = pcall(func)
+    assert_exit(r, err)
+end
+
+function init(self)
+    self.text_node = gui.get_node("text")
+    self.font_resource = gui.get_font_resource(gui.get_font(self.text_node))
+end
+
+local function test(self)
+    assert_exit(self.font_resource ~= gui.get_font_resource(gui.get_font(self.text_node)), "Font resource property wasn't changed")
+
+    -- Make sure new font added
+    assert_not_error(function()
+            gui.set_font(self.text_node, "system_font_BIG")
+        end)
+
+    print("LATE HERE ODNE")
+    test_done.done()
+end
+
+function on_message(self, message_id, message, sender)
+    if hash("test") == message_id then
+        test(self)
+    end
+end
+

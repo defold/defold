@@ -1,3 +1,5 @@
+local test_done = require("script_props.test_done")
+
 go.property("number", 0)
 go.property("hash", hash(""))
 go.property("url", msg.url())
@@ -20,5 +22,5 @@ function init(self, config)
     assert(self.quat.y == 9)
     assert(self.quat.z == 10)
     assert(self.quat.w == 11)
-    msg.post("main:/main#script", "done")
+    test_done.done()
 end

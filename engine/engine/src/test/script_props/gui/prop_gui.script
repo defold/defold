@@ -1,0 +1,58 @@
+go.property("big_font", resource.font())
+
+local function assert_exit(assert_that, error_string)
+    if not assert_that then
+        if error_string then
+            print(error_string)
+        end
+        msg.post("@system:", "exit", { code = 1 })
+        assert(assert_that)
+    end
+end
+
+local function assert_error(func)
+    local r, err = pcall(func)
+    assert_exit(not r, err)
+end
+
+local function assert_not_error(func)
+    local r, err = pcall(func)
+    assert_exit(r, err)
+end
+
+function init(self)
+    msg.post("#", "late_init")
+end
+
+function late_init(self)
+    -- Test set fonts works
+    assert_not_error(function()
+            go.set("#gui", "fonts", self.big_font, {key = "system_font_BIG"})
+        end)
+
+    -- Test replace fonts works
+    assert_not_error(function()
+            go.set("#gui", "fonts", self.big_font, {key = "system_font"})
+        end)
+
+    -- Test set fonts with index failed
+    assert_error(function()
+            go.set("#gui", "fonts", self.big_font, {index = 992})
+        end)
+
+    -- Test set fonts with both index and key failed
+    assert_error(function()
+            go.set("#gui", "fonts", self.big_font, {key = "system_font", index = 992})
+        end)
+
+
+
+    -- Validate resources were changed in gui
+    msg.post("#gui", "test")
+end
+
+function on_message(self, message_id, message, sender)
+    if hash("late_init") == message_id then
+        late_init(self)
+    end
+end
