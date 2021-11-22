@@ -1,5 +1,5 @@
 components {
-  id: "prop_gui"
+  id: "gui"
   component: "/script_props/gui/prop_gui.gui"
   position {
     x: 0.0

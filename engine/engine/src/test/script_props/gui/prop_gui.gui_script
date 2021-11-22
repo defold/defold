@@ -28,7 +28,6 @@ local function test(self)
             gui.set_font(self.text_node, "system_font_BIG")
         end)
 
-    print("LATE HERE ODNE")
     test_done.done()
 end
 
