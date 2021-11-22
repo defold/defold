@@ -63,6 +63,48 @@ namespace dmGui
      * ```
      */
 
+    /*# [type:hash] gui textures
+     *
+     * The textures used in the gui. The type of the property is hash.
+     * Key must be specified in options table.
+     *
+     * @name textures
+     * @property
+     *
+     * @examples
+     *
+     * How to set texture using a script property (see [ref:resource.atlas])
+     *
+     * ```lua
+     * go.property("my_atlas", resource.atlas("/atlas.atlas"))
+     *
+     * function init(self)
+     *   go.set("#gui", "textures", self.my_atlas, {key = "my_atlas"})
+     * end
+     * ```
+     */
+
+    /*# [type:hash] gui fonts
+     *
+     * The fonts used in the gui. The type of the property is hash.
+     * Key must be specified in options table.
+     *
+     * @name fonts
+     * @property
+     *
+     * @examples
+     *
+     * How to set font using a script property (see [ref:resource.font])
+     *
+     * ```lua
+     * go.property("my_font", resource.atlas("/font.font"))
+     *
+     * function init(self)
+     *   go.set("#gui", "fonts", self.my_font, {key = "my_font"})
+     * end
+     * ```
+     */
+
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
