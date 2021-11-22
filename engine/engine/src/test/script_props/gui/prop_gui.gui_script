@@ -1,5 +1,3 @@
-local test_done = require("script_props.test_done")
-
 local function assert_exit(assert_that, error_string)
     if not assert_that then
         if error_string then
@@ -28,7 +26,7 @@ local function test(self)
             gui.set_font(self.text_node, "system_font_BIG")
         end)
 
-    test_done.done()
+    msg.post("#prop_guiscript", "test_done")
 end
 
 function on_message(self, message_id, message, sender)
