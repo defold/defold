@@ -56,7 +56,7 @@ end
 function on_message(self, message_id, message, sender)
     if hash("late_init") == message_id then
         late_init(self)
-    elseif hash(""test_done"") == message_id then
+    elseif hash("test_done") == message_id then
         test_done.done()
     end
 end
