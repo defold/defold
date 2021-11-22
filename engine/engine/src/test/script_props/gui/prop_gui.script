@@ -47,7 +47,20 @@ function late_init(self)
             go.set("#gui", "fonts", self.big_font, {key = "system_font", index = 992})
         end)
 
+    -- Test get fonts works
+    local font
+    assert_not_error(function()
+            font = go.get("#gui", "fonts", {key = "system_font_BIG"})
+        end)
+    assert_exit(font == self.big_font, error_string, "Wrong font get from gui component")
 
+    -- Test get font wothout key
+    assert_error(function()
+        go.get("#gui", "fonts", {})
+    end)
+    assert_error(function()
+        go.get("#gui", "fonts")
+    end)
 
     -- Validate resources were changed in gui
     msg.post("#gui", "test")
