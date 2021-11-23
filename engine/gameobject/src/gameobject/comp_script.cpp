@@ -34,7 +34,8 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            CompScriptWorld* w = new CompScriptWorld(params.m_MaxInstances);
+            uint32_t component_count = dmMath::Min(params.m_MaxComponentInstances, params.m_MaxInstances);
+            CompScriptWorld* w = new CompScriptWorld(component_count);
             w->m_ScriptWorld = dmScript::NewScriptWorld((dmScript::HContext)params.m_Context);
             *params.m_World = w;
 
@@ -240,6 +241,88 @@ namespace dmGameObject
         return result;
     }
 
+    static UpdateResult HandleMessage(void* context, ScriptInstance* script_instance, dmMessage::Message* message, int function_ref, bool is_callback, bool deref_function_ref)
+    {
+        UpdateResult result = UPDATE_RESULT_OK;
+
+        lua_State* L = GetLuaState(context);
+        int top = lua_gettop(L);
+        (void) top;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+
+        if (is_callback) {
+            dmScript::ResolveInInstance(L, function_ref);
+            if (!lua_isfunction(L, -1))
+            {
+                // If the script instance is dead we just ignore the callback
+                lua_pop(L, 1);
+                lua_pushnil(L);
+                dmScript::SetInstance(L);
+                dmLogWarning("Failed to call message response callback function, has it been deleted?");
+                return result;
+            }
+
+            if (deref_function_ref)
+            {
+                // The reason the caller cannot deref this function, is that they've posted the message onto a queue
+                // and don't know when it's going to be actually called
+                dmScript::UnrefInInstance(L, function_ref);
+            }
+        }
+        else
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+        }
+
+        assert(lua_isfunction(L, -1));
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+
+        dmScript::PushHash(L, message->m_Id);
+
+        const char* message_name = 0;
+        if (message->m_Descriptor != 0)
+        {
+            // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
+            // lua_cpcall?
+            message_name = ((const dmDDF::Descriptor*)message->m_Descriptor)->m_Name;
+            dmScript::PushDDF(L, (const dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data, true);
+        }
+        else
+        {
+            if (dmProfile::g_IsInitialized)
+            {
+                // Try to find the message name via id and reverse hash
+                message_name = (const char*)dmHashReverse64(message->m_Id, 0);
+            }
+            if (message->m_DataSize > 0)
+                dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
+            else
+                lua_newtable(L);
+        }
+
+        dmScript::PushURL(L, message->m_Sender);
+
+        // An on_message function shouldn't return anything.
+        {
+            uint32_t profiler_hash = 0;
+            const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
+            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+            if (dmScript::PCall(L, 4, 0) != 0)
+            {
+                result = UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+        }
+
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
+        assert(top == lua_gettop(L));
+        return result;
+    }
+
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params)
     {
         DM_PROFILE(Script, "RunScript");
@@ -249,86 +332,90 @@ namespace dmGameObject
 
         int function_ref;
         bool is_callback = false;
-        // We added m_UserData2 just to make it easier to specify, and to keep Lua away from the dmMessage::URL struct
-        if (params.m_Message->m_UserData2) {
-            function_ref = params.m_Message->m_UserData2 + LUA_NOREF;
-            is_callback = true;
-        } else {
-            function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
+        bool deref_function_ref = true;
+
+        dmMessage::Message* message = 0;
+        void*               payload_message = 0;
+
+        if (params.m_Message->m_Descriptor != 0)
+        {
+            if (params.m_Message->m_Id == dmGameObjectDDF::ScriptMessage::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameObjectDDF::ScriptMessage* script_message = (dmGameObjectDDF::ScriptMessage*)params.m_Message->m_Data;
+                uint32_t payload_message_size = 0;
+
+                const dmDDF::Descriptor* descriptor = dmDDF::GetDescriptorFromHash(script_message->m_DescriptorHash);
+                if (!descriptor)
+                {
+                    dmLogWarning("Failed to get message descriptor for message type %s", dmHashReverseSafe64(script_message->m_DescriptorHash));
+                    return UPDATE_RESULT_OK;
+                }
+
+                const uint8_t* packed_payload = ((uint8_t*)params.m_Message->m_Data) + sizeof(dmGameObjectDDF::ScriptMessage);
+
+                dmDDF::Result ddf_result = dmDDF::LoadMessage(packed_payload, script_message->m_PayloadSize, descriptor, &payload_message, 0, &payload_message_size);
+                if (ddf_result != dmDDF::RESULT_OK)
+                {
+                    dmLogWarning("Failed to load message for type '%s'", descriptor->m_Name);
+                    return UPDATE_RESULT_OK;
+                }
+
+                uint32_t new_message_size = sizeof(dmMessage::Message) + payload_message_size;
+                message = (dmMessage::Message*)malloc(new_message_size);
+
+                message->m_Sender       = params.m_Message->m_Sender;
+                message->m_Receiver     = params.m_Message->m_Receiver;
+                message->m_Id           = descriptor->m_NameHash;
+                message->m_DataSize     = payload_message_size;
+                message->m_Descriptor   = (uintptr_t)descriptor;
+                message->m_UserData1    = 0; // should we copy the current m_UserData1?
+                message->m_UserData2    = 0; // deprecated (the Lua function reference)
+                message->m_Next         = 0;
+
+                memcpy(&message->m_Data[0], payload_message, payload_message_size);
+
+                if (script_message->m_Function)
+                {
+                    is_callback = true;
+                    function_ref = script_message->m_Function + LUA_NOREF;
+                    deref_function_ref = script_message->m_UnrefFunction; // Should the function be Unref'ed?
+                }
+                else
+                {
+                    is_callback = false;
+                    deref_function_ref = false;
+                    function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
+                }
+            }
+        }
+
+        // Is it using the old code path?
+        if (!payload_message)
+        {
+            message = params.m_Message;
+
+            // We added m_UserData2 just to make it easier to specify, and to keep Lua away from the dmMessage::URL struct
+            // We should move towards the dmGameObjectDDF::ScriptMessage as it's type safe
+            if (params.m_Message->m_UserData2) // Deprecated. Use dmGameObject::PostDDF() instead
+            {
+                function_ref = params.m_Message->m_UserData2 + LUA_NOREF;
+                is_callback = true;
+            } else {
+                function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
+            }
         }
 
         if (function_ref != LUA_NOREF)
         {
-            lua_State* L = GetLuaState(params.m_Context);
-            int top = lua_gettop(L);
-            (void) top;
-
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            dmScript::SetInstance(L);
-
-            if (is_callback) {
-                dmScript::ResolveInInstance(L, function_ref);
-                if (!lua_isfunction(L, -1))
-                {
-                    // If the script instance is dead we just ignore the callback
-                    lua_pop(L, 1);
-                    lua_pushnil(L);
-                    dmScript::SetInstance(L);
-                    dmLogWarning("Failed to call message response callback function, has it been deleted?");
-                    return result;
-                }
-                dmScript::UnrefInInstance(L, function_ref);
-            }
-            else
-            {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
-            }
-
-            assert(lua_isfunction(L, -1));
-
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-
-            dmScript::PushHash(L, params.m_Message->m_Id);
-
-            const char* message_name = 0;
-            if (params.m_Message->m_Descriptor != 0)
-            {
-                // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
-                // lua_cpcall?
-                message_name = ((const dmDDF::Descriptor*)params.m_Message->m_Descriptor)->m_Name;
-                dmScript::PushDDF(L, (const dmDDF::Descriptor*)params.m_Message->m_Descriptor, (const char*) params.m_Message->m_Data, true);
-            }
-            else
-            {
-                if (dmProfile::g_IsInitialized)
-                {
-                    // Try to find the message name via id and reverse hash
-                    message_name = (const char*)dmHashReverse64(params.m_Message->m_Id, 0);
-                }
-                if (params.m_Message->m_DataSize > 0)
-                    dmScript::PushTable(L, (const char*)params.m_Message->m_Data, params.m_Message->m_DataSize);
-                else
-                    lua_newtable(L);
-            }
-
-            dmScript::PushURL(L, params.m_Message->m_Sender);
-
-            // An on_message function shouldn't return anything.
-            {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
-                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
-                if (dmScript::PCall(L, 4, 0) != 0)
-                {
-                    result = UPDATE_RESULT_UNKNOWN_ERROR;
-                }
-            }
-
-            lua_pushnil(L);
-            dmScript::SetInstance(L);
-
-            assert(top == lua_gettop(L));
+            result = HandleMessage(params.m_Context, script_instance, message, function_ref, is_callback, deref_function_ref);
         }
+
+        if (payload_message)
+        {
+            dmDDF::FreeMessage(payload_message);
+            free((void*)message);
+        }
+
         return result;
     }
 

@@ -54,15 +54,6 @@ namespace dmRender
         m_SeparateFaceStates = 0;
     }
 
-    Constant::Constant() {}
-    Constant::Constant(dmhash_t name_hash, int32_t location)
-        : m_Value(Vectormath::Aos::Vector4(0))
-        , m_NameHash(name_hash)
-        , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
-        , m_Location(location)
-    {
-    }
-
     RenderObject::RenderObject()
     {
         Init();
@@ -74,19 +65,6 @@ namespace dmRender
         memset(this, 0, sizeof(RenderObject));
         m_WorldTransform = Matrix4::identity();
         m_TextureTransform = Matrix4::identity();
-
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            m_Constants[i].m_Location = -1;
-        }
-    }
-
-    void RenderObject::ClearConstants()
-    {
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            m_Constants[i].m_Location = -1;
-        }
     }
 
     RenderContextParams::RenderContextParams()
@@ -355,35 +333,6 @@ namespace dmRender
         }
     }
 
-    void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const RenderObject* ro)
-    {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        if(!material)
-        {
-            for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-            {
-                const Constant* c = &ro->m_Constants[i];
-                if (c->m_Location != -1)
-                {
-                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, c->m_Location);
-                }
-            }
-            return;
-        }
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            const Constant* c = &ro->m_Constants[i];
-            if (c->m_Location != -1)
-            {
-                int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
-                if (location)
-                {
-                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, *location);
-                }
-            }
-        }
-    }
-
     // For unit testing only
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range)
     {
@@ -631,7 +580,7 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
-    // NOTE: Currently only used in 1 test (fontview.cpp)
+    // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
@@ -673,9 +622,11 @@ namespace dmRender
             }
 
             ApplyMaterialConstants(render_context, material, ro);
-            ApplyRenderObjectConstants(render_context, context_material, ro);
 
-            if (constant_buffer)
+            if (ro->m_ConstantBuffer) // from components/scripts
+                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer);
+
+            if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
 
             if (ro->m_SetBlendFactors)
@@ -737,51 +688,6 @@ namespace dmRender
         return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
     }
 
-    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4& value)
-    {
-        assert(ro);
-        HMaterial material = ro->m_Material;
-        assert(material);
-
-        int32_t location = GetMaterialConstantLocation(material, name_hash);
-        if (location == -1)
-        {
-            // Unknown constant, ie at least not defined in material
-            return;
-        }
-
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            Constant* c = &ro->m_Constants[i];
-            if (c->m_Location == -1 || c->m_NameHash == name_hash)
-            {
-                // New or current slot found
-                c->m_Value = value;
-                c->m_NameHash = name_hash;
-                c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
-                c->m_Location = location;
-                return;
-            }
-        }
-
-        dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
-    }
-
-    void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash)
-    {
-        assert(ro);
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            Constant* c = &ro->m_Constants[i];
-            if (c->m_NameHash == name_hash)
-            {
-                c->m_Location = -1;
-                return;
-            }
-        }
-    }
-
-
     HPredicate NewPredicate()
     {
         HPredicate predicate = new Predicate();
@@ -803,76 +709,4 @@ namespace dmRender
         std::sort(predicate->m_Tags, predicate->m_Tags+predicate->m_TagCount);
         return RESULT_OK;
     }
-
-    struct NamedConstantBuffer
-    {
-        dmHashTable64<Vectormath::Aos::Vector4> m_Constants;
-    };
-
-    HNamedConstantBuffer NewNamedConstantBuffer()
-    {
-        HNamedConstantBuffer buffer = new NamedConstantBuffer();
-        buffer->m_Constants.SetCapacity(16, 8);
-        return buffer;
-    }
-
-    void DeleteNamedConstantBuffer(HNamedConstantBuffer buffer)
-    {
-        delete buffer;
-    }
-
-    void SetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4 value)
-    {
-        dmHashTable64<Vectormath::Aos::Vector4>& constants = buffer->m_Constants;
-        if (constants.Full())
-        {
-            uint32_t capacity = constants.Capacity();
-            capacity += 8;
-            constants.SetCapacity(capacity * 2, capacity);
-        }
-        constants.Put(dmHashString64(name), value);
-    }
-
-    bool GetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4& value)
-    {
-        Vectormath::Aos::Vector4*v = buffer->m_Constants.Get(dmHashString64(name));
-        if (v)
-        {
-            value = *v;
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    struct ApplyContext
-    {
-        dmGraphics::HContext m_GraphicsContext;
-        HMaterial            m_Material;
-        ApplyContext(dmGraphics::HContext graphics_context, HMaterial material)
-        {
-            m_GraphicsContext = graphics_context;
-            m_Material = material;
-        }
-    };
-
-    static inline void ApplyConstant(ApplyContext* context, const uint64_t* name_hash, Vectormath::Aos::Vector4* value)
-    {
-        int32_t* location = context->m_Material->m_NameHashToLocation.Get(*name_hash);
-        if (location)
-        {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, value, *location);
-        }
-    }
-
-    void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer)
-    {
-        dmHashTable64<Vectormath::Aos::Vector4>& constants = buffer->m_Constants;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        ApplyContext context(graphics_context, material);
-        constants.Iterate(ApplyConstant, &context);
-    }
-
 }

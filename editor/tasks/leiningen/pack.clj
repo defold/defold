@@ -67,7 +67,6 @@
    "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
-   "${DYNAMO-HOME}/share/java/fmt-spine.jar"          "shared/java/fmt-spine.jar"
 
    "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
    "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"

@@ -22,7 +22,7 @@ namespace dmSound
 
     bool PlatformIsMusicPlaying(bool is_device_started, bool has_window_focus);
 
-    bool PlatformIsPhoneCallActive();
+    bool PlatformIsAudioInterrupted();
 }
 
 #endif // #ifndef DM_SOUND_PRIVATE_H

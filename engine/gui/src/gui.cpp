@@ -685,13 +685,45 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return RESULT_OK;
     }
 
-    Result AddFont(HScene scene, const char* font_name, void* font)
+    static void AddResourcePath(HScene scene, void* resource, dmhash_t path_hash)
+    {
+        if (scene->m_ResourceToPath.Full())
+        {
+            int newcapacity = scene->m_ResourceToPath.Capacity() + 8;
+            int tablesize = (newcapacity*2)/3;
+            scene->m_ResourceToPath.SetCapacity(tablesize, newcapacity);
+        }
+        scene->m_ResourceToPath.Put((uintptr_t)resource, path_hash);
+    }
+
+    static void RemoveResourcePath(HScene scene, void* resource)
+    {
+        dmhash_t* path_hash = scene->m_ResourceToPath.Get((uintptr_t)resource);
+        if (path_hash)
+        {
+            scene->m_ResourceToPath.Erase((uintptr_t)resource);
+        }
+    }
+
+    static dmhash_t GetResourcePath(HScene scene, void* resource)
+    {
+        dmhash_t* path_hash = scene->m_ResourceToPath.Get((uintptr_t)resource);
+        if (path_hash)
+        {
+            return *path_hash;
+        }
+        return 0;
+    }
+
+    Result AddFont(HScene scene, const char* font_name, void* font, dmhash_t path_hash)
     {
         if (scene->m_Fonts.Full())
             return RESULT_OUT_OF_RESOURCES;
 
         if (!scene->m_DefaultFont)
             scene->m_DefaultFont = font;
+
+        AddResourcePath(scene, font, path_hash);
 
         uint64_t font_hash = dmHashString64(font_name);
         scene->m_Fonts.Put(font_hash, font);
@@ -708,6 +740,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     void RemoveFont(HScene scene, const char* font_name)
     {
         uint64_t font_hash = dmHashString64(font_name);
+        void** font = scene->m_Fonts.Get(font_hash);
+        if (font)
+        {
+            RemoveResourcePath(scene, *font);
+        }
         scene->m_Fonts.Erase(font_hash);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
@@ -716,6 +753,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (nodes[i].m_Node.m_FontHash == font_hash)
                 nodes[i].m_Node.m_Font = 0;
         }
+    }
+
+    dmhash_t GetFontPath(HScene scene, dmhash_t font_hash)
+    {
+        void** font = scene->m_Fonts.Get(font_hash);
+        if (!font)
+            return 0;
+        return GetResourcePath(scene, *font);
     }
 
     Result AddParticlefx(HScene scene, const char* particlefx_name, void* particlefx_prototype)
@@ -789,6 +834,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
+            RemoveResourcePath(scene, nodes[i].m_Node.m_Font);
             nodes[i].m_Node.m_Font = 0;
         }
     }

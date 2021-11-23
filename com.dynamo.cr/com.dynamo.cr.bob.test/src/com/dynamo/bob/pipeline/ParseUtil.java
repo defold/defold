@@ -21,6 +21,8 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
@@ -162,6 +164,42 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return Gui.SceneDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("factory", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                FactoryDesc.Builder builder = FactoryDesc.newBuilder();
+                try {
+                    TextFormat.merge(new String(content), builder);
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+                return builder.build();
+            }
+        });
+        parseMap.put("factoryc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return FactoryDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("collectionfactory", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                CollectionFactoryDesc.Builder builder = CollectionFactoryDesc.newBuilder();
+                try {
+                    TextFormat.merge(new String(content), builder);
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+                return builder.build();
+            }
+        });
+        parseMap.put("collectionfactoryc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return CollectionFactoryDesc.parseFrom(content);
             }
         });
     }

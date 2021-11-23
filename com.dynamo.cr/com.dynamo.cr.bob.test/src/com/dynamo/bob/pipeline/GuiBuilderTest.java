@@ -20,15 +20,20 @@ import java.net.URL;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Set;
+import java.util.Arrays;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 import org.junit.Test;
+import org.junit.Assert;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import com.dynamo.gamesys.proto.Gui;
+import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
+import com.dynamo.gamesys.proto.Gui.NodeDesc;
 import com.google.protobuf.Message;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
@@ -89,96 +94,119 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
-    @Test
-    public void testSpineGui() throws Exception {
-        addTestFiles();
-
+    private StringBuilder createGui() {
         StringBuilder src = new StringBuilder();
-        src.append("script: \"\"\n");
-        src.append("nodes {\n");
-        src.append("  type: TYPE_SPINE\n");
-        src.append("  blend_mode: BLEND_MODE_ALPHA\n");
-        src.append("  id: \"spine\"\n");
-        src.append("  pivot: PIVOT_CENTER\n");
-        src.append("  adjust_mode: ADJUST_MODE_FIT\n");
-        src.append("  template_node_child: false\n");
-        src.append("  size_mode: SIZE_MODE_AUTO\n");
-        src.append("  spine_scene: \"spine_test\"\n");
-        src.append("  spine_default_animation: \"\"\n");
-        src.append("  spine_skin: \"\"\n");
-        src.append("}\n");
-        src.append("material: \"/builtins/materials/gui.material\"\n");
-        src.append("adjust_reference: ADJUST_REFERENCE_PARENT\n");
-        src.append("max_nodes: 512\n");
-        src.append("spine_scenes {\n");
-        src.append("  name: \"spine_test\"\n");
-        src.append("  spine_scene: \"/test.spinescene\"\n");
-        src.append("}");
+        return src;
+    }
 
-        List<Message> outputs = build("/test.gui", src.toString());
-        Gui.SceneDesc scene = (Gui.SceneDesc)outputs.get(0);
-        assertTrue(nodeExists(scene, "spine/bone"));
-        assertTrue(nodeExists(scene, "spine/bone2"));
-        assertTrue(nodeExists(scene, "spine/bone3"));
-        assertTrue(nodeExists(scene, "spine/bone4"));
-        assertTrue(nodeExists(scene, "spine/bone5"));
+    private Gui.SceneDesc buildGui(StringBuilder src, String path) throws Exception {
+        return (Gui.SceneDesc)build(path, src.toString()).get(0);
+    }
+
+    private void addBoxNode(StringBuilder src, String id, String parent) {
+        src.append("nodes {\n");
+        src.append("  type: TYPE_BOX\n");
+        src.append("  id: \""+id+"\"\n");
+        src.append("  parent: \""+parent+"\"\n");
+        src.append("}\n");
+    }
+
+    private void addTextNode(StringBuilder src, String id, String parent, String text) {
+        src.append("nodes {\n");
+        src.append("  type: TYPE_TEXT\n");
+        src.append("  id: \""+id+"\"\n");
+        src.append("  parent: \""+parent+"\"\n");
+        src.append("  text: \""+text+"\"\n");
+        src.append("}\n");
+    }
+
+    private void addTemplateNode(StringBuilder src, String id, String parent, String template) {
+        src.append("nodes {\n");
+        src.append("  type: TYPE_TEMPLATE\n");
+        src.append("  id: \""+id+"\"\n");
+        src.append("  parent: \""+parent+"\"\n");
+        src.append("  template: \""+template+"\"\n");
+        src.append("}\n");
+    }
+
+    private void startOverridedNode(StringBuilder src, String type, String id, String parent, List<Integer> overrides) {
+        src.append("nodes {\n");
+        src.append("  type: "+type+"\n");
+        src.append("  id: \""+id+"\"\n");
+        src.append("  parent: \""+parent+"\"\n");
+        for(int num : overrides) {
+            src.append("  overridden_fields: "+num+"\n");
+        }
+    }
+
+    private void finishOverridedNode(StringBuilder src) {
+        src.append("}\n");
+    }
+
+    private void startLayout(StringBuilder src, String name) {
+        src.append("layouts {\n");
+        src.append("  name: \""+name+"\"\n");
+    }
+
+    private void finishLayout(StringBuilder src) {
+        src.append("}\n");
+    }
+
+    private StringBuilder createGuiWithTemplateAndLayout() {
+        StringBuilder src = createGui();
+        addBoxNode(src, "box", "");
+        addTextNode(src, "text", "box", "templateText");
+        addFile("/template.gui", src.toString());
+
+        src = createGui();
+        addBoxNode(src, "box", "");
+        addTemplateNode(src, "template", "box", "/template.gui");
+
+        // override text in default layout
+        startOverridedNode(src, "TYPE_TEXT", "template/text", "template/box", Arrays.asList(8));
+        src.append("  text: \"defaultText\"\n");
+        finishOverridedNode(src);
+
+        startLayout(src, "Landscape");
+        addBoxNode(src, "template/box", "");
+
+        // override clipping_visible in Landscape layout
+        startOverridedNode(src, "TYPE_TEXT", "template/text", "template/box", Arrays.asList(28));
+        src.append("  clipping_visible: false\n");
+        src.append("  text: \"defaultText\"\n");
+        finishOverridedNode(src);
+
+        finishLayout(src);
+        return src;
+    }
+
+    private NodeDesc findNode(Gui.SceneDesc gui, String layoutName, String nodeName) {
+        for(LayoutDesc layout : gui.getLayoutsList()) {
+            if (layout.getName().equals(layoutName)) {
+                for(NodeDesc node : layout.getNodesList()) {
+                    if (node.getId().equals(nodeName)) {
+                        return node;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     @Test
-    public void testTemplatedSpineGui() throws Exception {
-        addTestFiles();
+    public void test() throws Exception {
+        // Kept empty as a future working template
+    }
 
-        StringBuilder src = new StringBuilder();
-        src.append("script: \"\"");
-        src.append("nodes {\n");
-        src.append("  type: TYPE_TEMPLATE\n");
-        src.append("  blend_mode: BLEND_MODE_ALPHA\n");
-        src.append("  id: \"spine_templated\"\n");
-        src.append("  xanchor: XANCHOR_NONE\n");
-        src.append("  yanchor: YANCHOR_NONE\n");
-        src.append("  pivot: PIVOT_CENTER\n");
-        src.append("  adjust_mode: ADJUST_MODE_FIT\n");
-        src.append("  layer: \"\"\n");
-        src.append("  inherit_alpha: true\n");
-        src.append("  clipping_mode: CLIPPING_MODE_NONE\n");
-        src.append("  clipping_visible: true\n");
-        src.append("  clipping_inverted: false\n");
-        src.append("  alpha: 1.0\n");
-        src.append("  template: \"/spine_templated.gui\"\n");
-        src.append("  template_node_child: false\n");
-        src.append("  size_mode: SIZE_MODE_AUTO\n");
-        src.append("}\n");
-        src.append("nodes {\n");
-        src.append("  type: TYPE_SPINE\n");
-        src.append("  blend_mode: BLEND_MODE_ALPHA\n");
-        src.append("  id: \"spine_templated/spine\"\n");
-        src.append("  xanchor: XANCHOR_NONE\n");
-        src.append("  yanchor: YANCHOR_NONE\n");
-        src.append("  pivot: PIVOT_CENTER\n");
-        src.append("  adjust_mode: ADJUST_MODE_FIT\n");
-        src.append("  parent: \"spine_templated\"\n");
-        src.append("  layer: \"\"\n");
-        src.append("  inherit_alpha: true\n");
-        src.append("  clipping_mode: CLIPPING_MODE_NONE\n");
-        src.append("  clipping_visible: true\n");
-        src.append("  clipping_inverted: false\n");
-        src.append("  alpha: 1.0\n");
-        src.append("  template_node_child: true\n");
-        src.append("  size_mode: SIZE_MODE_AUTO\n");
-        src.append("  spine_scene: \"spine_test\"\n");
-        src.append("  spine_default_animation: \"\"\n");
-        src.append("  spine_skin: \"\"\n");
-        src.append("}\n");
-        src.append("material: \"/builtins/materials/gui.material\"\n");
-        src.append("adjust_reference: ADJUST_REFERENCE_PARENT\n");
-        src.append("max_nodes: 512\n");
+    // https://github.com/defold/defold/issues/6151
+    @Test
+    public void testDefaultLayoutOverridesPriorityOverTemplateValues() throws Exception {
+        StringBuilder src = createGuiWithTemplateAndLayout();
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "Landscape", "template/text");
 
-        List<Message> outputs = build("/test.gui", src.toString());
-        Gui.SceneDesc scene = (Gui.SceneDesc)outputs.get(0);
-        assertTrue(nodeExists(scene, "spine_templated/spine/bone"));
-        assertTrue(nodeExists(scene, "spine_templated/spine/bone2"));
-        assertTrue(nodeExists(scene, "spine_templated/spine/bone3"));
-        assertTrue(nodeExists(scene, "spine_templated/spine/bone4"));
-        assertTrue(nodeExists(scene, "spine_templated/spine/bone5"));
+        Assert.assertFalse("Can't find node!", node == null);
+        Assert.assertFalse(node.getClippingVisible());
+        Assert.assertEquals(node.getText(), "defaultText");
     }
 }

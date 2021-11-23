@@ -27,7 +27,7 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    const uint8_t MAX_COUNT = 64;
+    const uint32_t MAX_COUNT = 64;
     const uint8_t MAX_STACK_COUNT = 8;
 
     struct CameraWorld;
@@ -54,7 +54,9 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CameraWorld* cam_world = new CameraWorld();
-        cam_world->m_Cameras.SetCapacity(MAX_COUNT);
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, MAX_COUNT);
+        
+        cam_world->m_Cameras.SetCapacity(comp_count);
         cam_world->m_FocusStack.SetCapacity(MAX_STACK_COUNT);
         *params.m_World = cam_world;
         return dmGameObject::CREATE_RESULT_OK;

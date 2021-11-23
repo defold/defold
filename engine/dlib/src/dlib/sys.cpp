@@ -52,8 +52,8 @@
 #endif
 
 #ifdef __ANDROID__
-#include <jni.h>
-#include <android_native_app_glue.h>
+
+#include <dmsdk/dlib/android.h>
 #include <sys/types.h>
 #include <android/asset_manager.h>
 // By convention we have a global variable called g_AndroidApp
@@ -94,19 +94,17 @@ namespace dmSys
 
     NetworkConnectivity GetNetworkConnectivity()
     {
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return NETWORK_DISCONNECTED;
+        }
 
-        jclass def_activity_class = env->GetObjectClass(activity->clazz);
+        jclass def_activity_class = env->GetObjectClass(thread.GetActivity()->clazz);
         jmethodID get_connectivity_method = env->GetMethodID(def_activity_class, "getConnectivity", "()I");
-        NetworkConnectivity ret;
-        int reti = (int)env->CallIntMethod(g_AndroidApp->activity->clazz, get_connectivity_method);
-        ret = (NetworkConnectivity)reti;
-
-        activity->vm->DetachCurrentThread();
-
-        return ret;
+        int reti = (int)env->CallIntMethod(thread.GetActivity()->clazz, get_connectivity_method);
+        return (NetworkConnectivity)reti;
     }
 
 #elif !defined(__MACH__) // OS X and iOS implementations in sys_cocoa.mm
@@ -280,13 +278,16 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return RESULT_UNKNOWN;
+        }
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_files_dir_method = env->GetMethodID(activity_class, "getFilesDir", "()Ljava/io/File;");
-        jobject files_dir_obj = env->CallObjectMethod(activity->clazz, get_files_dir_method);
+        jobject files_dir_obj = env->CallObjectMethod(thread.GetActivity()->clazz, get_files_dir_method);
         jclass file_class = env->FindClass("java/io/File");
         jmethodID getPathMethod = env->GetMethodID(file_class, "getPath", "()Ljava/lang/String;");
         jstring path_obj = (jstring) env->CallObjectMethod(files_dir_obj, getPathMethod);
@@ -303,19 +304,21 @@ namespace dmSys
         } else {
             res = RESULT_UNKNOWN;
         }
-        activity->vm->DetachCurrentThread();
         return res;
     }
 
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return RESULT_UNKNOWN;
+        }
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_files_dir_method = env->GetMethodID(activity_class, "getFilesDir", "()Ljava/io/File;");
-        jobject files_dir_obj = env->CallObjectMethod(activity->clazz, get_files_dir_method);
+        jobject files_dir_obj = env->CallObjectMethod(thread.GetActivity()->clazz, get_files_dir_method);
         jclass file_class = env->FindClass("java/io/File");
         jmethodID getPathMethod = env->GetMethodID(file_class, "getParent", "()Ljava/lang/String;");
         jstring path_obj = (jstring) env->CallObjectMethod(files_dir_obj, getPathMethod);
@@ -333,7 +336,6 @@ namespace dmSys
         } else {
             res = RESULT_UNKNOWN;
         }
-        activity->vm->DetachCurrentThread();
         return res;
     }
 
@@ -343,9 +345,13 @@ namespace dmSys
         {
             return RESULT_INVAL;
         }
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
+
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return RESULT_UNKNOWN;
+        }
 
         jclass uri_class = env->FindClass("android/net/Uri");
         jstring str_url = env->NewStringUTF(url);
@@ -354,7 +360,6 @@ namespace dmSys
         env->DeleteLocalRef(str_url);
         if (uri == NULL)
         {
-            activity->vm->DetachCurrentThread();
             return RESULT_UNKNOWN;
         }
 
@@ -365,22 +370,19 @@ namespace dmSys
         jobject intent = env->NewObject(intent_class, intent_constructor, str_action_view, uri);
         if (intent == NULL)
         {
-            activity->vm->DetachCurrentThread();
             return RESULT_UNKNOWN;
         }
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID start_activity_method = env->GetMethodID(activity_class, "startActivity", "(Landroid/content/Intent;)V");
-        env->CallVoidMethod(activity->clazz, start_activity_method, intent);
+        env->CallVoidMethod(thread.GetActivity()->clazz, start_activity_method, intent);
         jthrowable exception = env->ExceptionOccurred();
         env->ExceptionClear();
         if (exception != NULL)
         {
-            activity->vm->DetachCurrentThread();
             return RESULT_UNKNOWN;
         }
 
-        activity->vm->DetachCurrentThread();
         return RESULT_OK;
     }
 
@@ -447,7 +449,7 @@ namespace dmSys
     {
         const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
         size_t count = sizeof(dirs)/sizeof(dirs[0]);
-        char* home = 0;
+        const char* home = 0;
         for (size_t i = 0; i < count; ++i)
         {
             home = getenv(dirs[i]);
@@ -582,14 +584,18 @@ namespace dmSys
 #elif defined(__ANDROID__)
     Result GetLogPath(char* path, uint32_t path_len)
     {
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return RESULT_UNKNOWN;
+        }
+
         Result res = RESULT_OK;
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_files_dir_method = env->GetMethodID(activity_class, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;");
-        jobject files_dir_obj = env->CallObjectMethod(activity->clazz, get_files_dir_method, 0);
+        jobject files_dir_obj = env->CallObjectMethod(thread.GetActivity()->clazz, get_files_dir_method, 0);
         if (!files_dir_obj) {
             dmLogError("Failed to get log directory. Is android.permission.WRITE_EXTERNAL_STORAGE set in AndroidManifest.xml?");
             res = RESULT_UNKNOWN;
@@ -607,7 +613,6 @@ namespace dmSys
                 res = RESULT_UNKNOWN;
             }
         }
-        activity->vm->DetachCurrentThread();
         return res;
     }
 
@@ -680,9 +685,12 @@ namespace dmSys
         memset(info, 0, sizeof(*info));
         dmStrlCpy(info->m_SystemName, "Android", sizeof(info->m_SystemName));
 
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return;
+        }
 
         jclass locale_class = env->FindClass("java/util/Locale");
         jmethodID get_default_method = env->GetStaticMethodID(locale_class, "getDefault", "()Ljava/util/Locale;");
@@ -735,7 +743,7 @@ namespace dmSys
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_content_resolver_method = env->GetMethodID(activity_class, "getContentResolver", "()Landroid/content/ContentResolver;");
-        jobject content_resolver = env->CallObjectMethod(activity->clazz, get_content_resolver_method);
+        jobject content_resolver = env->CallObjectMethod(thread.GetActivity()->clazz, get_content_resolver_method);
 
         jclass secure_class = env->FindClass("android/provider/Settings$Secure");
         if (secure_class) {
@@ -751,8 +759,6 @@ namespace dmSys
         } else {
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }
-
-        activity->vm->DetachCurrentThread();
     }
 #elif defined(_WIN32)
     typedef int (WINAPI *PGETUSERDEFAULTLOCALENAME)(LPWSTR, int);
@@ -788,17 +794,18 @@ namespace dmSys
     {
         memset(info, 0, sizeof(*info));
 
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return false;
+        }
 
-        jclass def_activity_class = env->GetObjectClass(activity->clazz);
+        jclass def_activity_class = env->GetObjectClass(thread.GetActivity()->clazz);
         jmethodID isAppInstalled = env->GetMethodID(def_activity_class, "isAppInstalled", "(Ljava/lang/String;)Z");
         jstring str_url = env->NewStringUTF(id);
-        jboolean installed = env->CallBooleanMethod(activity->clazz, isAppInstalled, str_url);
+        jboolean installed = env->CallBooleanMethod(thread.GetActivity()->clazz, isAppInstalled, str_url);
         env->DeleteLocalRef(str_url);
-
-        activity->vm->DetachCurrentThread();
 
         info->m_Installed = installed;
         return installed;

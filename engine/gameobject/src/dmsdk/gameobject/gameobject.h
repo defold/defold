@@ -177,6 +177,7 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE
      * @member dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
+     * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
      */
     enum PropertyResult
     {
@@ -190,7 +191,8 @@ namespace dmGameObject
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
         PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
         PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9,
-        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10
+        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
+        PROPERTY_RESULT_INVALID_INDEX = -11,
     };
 
     /*#
@@ -239,6 +241,19 @@ namespace dmGameObject
     {
         UPDATE_RESULT_OK = 0,
         UPDATE_RESULT_UNKNOWN_ERROR = -1000,
+    };
+
+    /*# Property Options
+     *
+     * A table of options for getting and setting properties.
+     *
+     * @struct
+     * @name PropertyOptions
+     * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
+     */
+    struct PropertyOptions
+    {
+        int32_t m_Index;
     };
 
     /*# property variant
@@ -300,6 +315,8 @@ namespace dmGameObject
      * @member m_Variant [type: PropertyVar] Variant holding the value
      * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
      * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
+     * @member m_ArraySize [type: uint8_t] The number of elements the property holds (if array).
+     * @member m_IsArray [type: uint8_t] Indicates if this property is an array or not.
      */
     struct PropertyDesc
     {
@@ -308,6 +325,8 @@ namespace dmGameObject
         PropertyVar m_Variant;
         float* m_ValuePtr;
         bool m_ReadOnly;
+        uint8_t m_ArraySize : 7;
+        uint8_t m_IsArray   : 1;
     };
 
     /*#

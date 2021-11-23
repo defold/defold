@@ -194,9 +194,10 @@ namespace dmGameSystem
         MeshContext* context = (MeshContext*)params.m_Context;
 
         MeshWorld* world = new MeshWorld();
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxMeshCount);
         world->m_ResourceFactory = context->m_Factory;
-        world->m_Components.SetCapacity(context->m_MaxMeshCount);
-        world->m_RenderObjects.SetCapacity(context->m_MaxMeshCount);
+        world->m_Components.SetCapacity(comp_count);
+        world->m_RenderObjects.SetCapacity(comp_count);
 
         world->m_VertexBufferPool.SetCapacity(0);
         world->m_VertexBufferPool.SetSize(0);
@@ -258,10 +259,6 @@ namespace dmGameSystem
 
     static inline uint32_t GetVertexSize(const MeshComponent* component) {
         return component->m_VertexDeclaration ? component->m_VertSize : component->m_Resource->m_VertSize;
-    }
-
-    static inline uint32_t GetElementCount(const MeshComponent* component) {
-        return component->m_BufferResource ? component->m_BufferResource->m_ElementCount : component->m_Resource->m_ElementCount;
     }
 
     static inline dmGraphics::HVertexDeclaration GetVertexDeclaration(const MeshComponent* component) {
@@ -363,12 +360,11 @@ namespace dmGameSystem
 
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
-
-            if (component->m_BufferResource) {
-                dmResource::Release(factory, component->m_BufferResource);
-            }
         }
-        if (!component->m_RenderConstants)
+        if (component->m_BufferResource) {
+            dmResource::Release(factory, component->m_BufferResource);
+        }
+        if (component->m_RenderConstants)
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
 
         delete component;
@@ -811,12 +807,12 @@ namespace dmGameSystem
         return component->m_RenderConstants && dmGameSystem::GetRenderConstant(component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompMeshSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompMeshSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         MeshComponent* component = (MeshComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        dmGameSystem::SetRenderConstant(component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -838,7 +834,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
                 dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), CompMeshSetConstantCallback, component);
+                        dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompMeshSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
@@ -891,7 +887,7 @@ namespace dmGameSystem
             }
         }
 
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, out_value, true, CompMeshGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompMeshGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompMeshSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -901,6 +897,7 @@ namespace dmGameSystem
 
         if (params.m_PropertyId == PROP_VERTICES) {
             BufferResource* prev_buffer_resource = GetVerticesBuffer(component, component->m_Resource);
+            BufferResource* prev_custom_buffer_resource = component->m_BufferResource;
 
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, BUFFER_EXT_HASH, (void**)&component->m_BufferResource);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
@@ -910,7 +907,7 @@ namespace dmGameSystem
                 BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
 
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
-                if (HasCustomVerticesBuffer(component) && component->m_BufferResource != prev_buffer_resource) {
+                if (!prev_custom_buffer_resource || (component->m_BufferResource != prev_buffer_resource)) {
 
                     // Perhaps figure our a way to avoid recreating the same vertex declarations all the time? (If if it's worth it?)
                     dmGraphics::HVertexDeclaration new_vert_decl;
@@ -969,7 +966,7 @@ namespace dmGameSystem
             }
         }
 
-        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
+        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompMeshSetConstantCallback, component);
         component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
         return res;

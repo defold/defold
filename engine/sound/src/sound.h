@@ -131,7 +131,7 @@ namespace dmSound
 
     // Platform dependent
     bool IsMusicPlaying();
-    bool IsPhoneCallActive();
+    bool IsAudioInterrupted();
 
     void OnWindowFocus(bool focus);
 }

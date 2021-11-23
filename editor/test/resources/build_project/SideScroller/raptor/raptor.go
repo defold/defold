@@ -1,6 +1,6 @@
 components {
-  id: "spinemodel"
-  component: "/raptor/raptor.spinemodel"
+  id: "raptor"
+  component: "/merge/empty.sprite"
   position {
     x: 0.0
     y: 0.0

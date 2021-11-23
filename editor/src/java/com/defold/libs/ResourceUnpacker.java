@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Date;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.FileSystem;
@@ -46,6 +47,31 @@ public class ResourceUnpacker {
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
     private static Path unpackedLibDir;
 
+    // unpack dirs should be automatically deleted using a shutdown hook but
+    // the shutdown hook will not run if the editor doesn't shut down gracefully
+    // in which case we may collect old unpack dirs
+    // this function will delete unpack dirs older than a week if we are running
+    // against the user home unpack dir
+    private static void deleteOldUnpackDirs(Path unpackPath) throws IOException {
+        final Path unpackRoot = unpackPath.getParent();
+        final Path supportPath = Editor.getSupportPath();
+        if (!unpackRoot.startsWith(supportPath)) {
+            logger.info("not deleting old unpack dirs from {} as it is not in system support path {}", unpackRoot, supportPath);
+            return;
+        }
+
+        logger.info("deleting old unpack dirs from {}", unpackRoot);
+        final long now = new Date().getTime();
+        final long oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
+        for (File unpackDir : unpackRoot.toFile().listFiles(File::isDirectory)) {
+            long creationTime = Files.getLastModifiedTime(unpackDir.toPath()).toMillis();
+            if (creationTime < oneWeekAgo) {
+                logger.info("deleting unpack dir {}", unpackDir);
+                FileUtils.deleteQuietly(unpackDir);
+            }
+        }
+    }
+
     public static void unpackResources() throws IOException, URISyntaxException {
         // Once the resources have been unpacked, we can avoid acquiring the
         // lock by checking this early.
@@ -62,6 +88,9 @@ public class ResourceUnpacker {
 
             try {
                 Path unpackPath  = getUnpackPath();
+
+                deleteOldUnpackDirs(unpackPath);
+
                 unpackResourceDir("/_unpack", unpackPath);
 
                 Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();

@@ -61,6 +61,12 @@ message ComponentPropertyDesc
     optional dmPropertiesDDF.PropertyDeclarations property_decls = 3;
 }
 
+message ComponenTypeDesc
+{
+    required uint64 name_hash = 1;
+    required uint32 max_count = 2;
+}
+
 message InstanceDesc
 {
     required string         id          = 1;
@@ -110,6 +116,7 @@ message CollectionDesc
     optional uint32                 scale_along_z           = 4 [default = 0];
     repeated EmbeddedInstanceDesc   embedded_instances      = 5;
     repeated string                 property_resources      = 6 [(resource)=true];
+    repeated ComponenTypeDesc       component_types         = 7;
 }
 
 /*# Game object API documentation
@@ -341,4 +348,14 @@ message Enable
  */
 message Disable
 {
+}
+
+
+// Script message wrapper for added typesafety
+message ScriptMessage
+{
+    required uint64 descriptor_hash     = 1; // The descriptor name hash of the message
+    required uint32 payload_size        = 2; // The payload ddf message. The payload will begin directly after this message
+    optional uint32 function            = 3; // If 0, it will call the "on_message" function
+    optional bool   unref_function      = 4; // unreference function after call
 }

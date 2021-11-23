@@ -41,7 +41,6 @@
            [com.dynamo.gamesys.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.gamesys.proto Gui$SceneDesc]
-           [com.dynamo.spine.proto Spine$SpineModelDesc]
            [java.io ByteArrayOutputStream File]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
@@ -121,41 +120,6 @@
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                             (is (< 0 (count (:collision-hull-points pb)))))}
-                {:label "Spine Scene"
-                 :path "/player/spineboy.spinescene"
-                 :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                 :test-fn (fn [pb targets]
-                            (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
-                {:label "Spine Scene with weighted mesh"
-                 :path "/ladder/ladder.spinescene"
-                 :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                 :test-fn (fn [pb targets]
-                            (let [mesh-set (-> pb :mesh-set (target targets))]
-                              (doseq [mesh-entry (:mesh-entries mesh-set)]
-                                (doseq [mesh (:meshes mesh-entry)]
-                                  (is (= (/ (count (:positions mesh)) 3)
-                                         (/ (count (:bone-indices mesh)) 4)))))))}
-                {:label "Spine Scene with IKs and IK animation"
-                 :path "/raptor/raptor.spinescene"
-                 :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                 :test-fn (fn [pb targets]
-                            (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                            (is (< 0 (-> pb :skeleton (target targets) :bones count)))
-                            (is (< 0 (-> pb :skeleton (target targets) :iks count))))}
-               {:label "Spine Model"
-                :path "/player/spineboy.spinemodel"
-                :pb-class Spine$SpineModelDesc
-                :resource-fields [:spine-scene :material]}
                {:label "Label"
                 :path "/main/label.label"
                 :pb-class Label$LabelDesc
@@ -220,16 +184,6 @@
                  :path "/collection_proxy/with_collection.collectionproxy"
                  :pb-class GameSystem$CollectionProxyDesc
                  :resource-fields [:collection]}]
-               "/gui/spine.gui"
-               [{:label "Gui with spine scene"
-                 :path "/gui/spine.gui"
-                 :pb-class Gui$SceneDesc
-                 :resource-fields [[:spine-scenes :spine-scene]]
-                 :test-fn (fn [pb targets]
-                            (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
-                                  nodes (into #{} (map :id (:nodes pb)))]
-                              (is (= "" (:spine-skin main-node)))
-                              (is (every? nodes ["spine" "spine/root" "box"]))))}]
                "/model/book_of_defold_no_tex.model"
                [{:label "Model with empty texture"
                  :path "/model/book_of_defold_no_tex.model"
@@ -265,6 +219,13 @@
               out (ByteArrayOutputStream.)]
     (IOUtils/copy in out)
     (.toByteArray out)))
+
+(defn- log-errors [error]
+  (let [children (:causes error)
+        msg (:message error)]
+    (when msg
+      (prn "ERROR:" msg))
+    (doall (map log-errors children))))
 
 (defmacro with-build-results [path & forms]
   `(with-loaded-project project-path
@@ -479,9 +440,12 @@
             evaluation-context (g/make-evaluation-context)
             second-time   (measure (project-build-artifacts project resource-node evaluation-context))]
         (is (< (* 20 second-time) first-time))
-        (let [atlas (test-util/resource-node project "/player/spineboy.atlas")]
+        (let [atlas (test-util/resource-node project "/background/background.atlas")]
           (g/transact (g/set-property atlas :margin 10))
           (let [third-time (measure (project-build-artifacts project resource-node (g/make-evaluation-context)))]
+           (prn "MAWE first-time" first-time)
+           (prn "MAWE second-time" second-time)
+           (prn "MAWE third-time" third-time)
             (is (< (* 2 second-time) third-time))))))))
 
 (defn- build-path [workspace proj-path]
@@ -663,6 +627,9 @@
                        "/collisionobject/tile_map.collisionobject"
                        "/collisionobject/convex_shape.collisionobject"]
           exp-exts    ["vpc" "fpc" "texturec"]]
+      (when (contains? build-results :error)
+         (log-errors (:error build-results)))
+      (is (not (contains? build-results :error)))
       (doseq [ext exp-exts]
         (is (contains? target-exts ext)))
       (doseq [path exp-paths]

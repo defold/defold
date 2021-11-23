@@ -67,29 +67,10 @@ public abstract class AbstractProtoBuilderTest {
         this.fileSystem.setBuildDirectory("");
         this.project = new Project(this.fileSystem);
 
-        String jar;
-
-        try {
-            jar = Bob.getJarFile("fmt-spine.jar");
-        } catch(Exception e) {
-            System.err.printf("Failed to load fmt-spine.jar: %s\n", e.getMessage());
-            e.printStackTrace(System.err);
-            throw new RuntimeException(e);
-        }
-
         scanner = new ClassLoaderScanner();
-        scanner.addUrl(new File(jar));
 
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
-
-        final Class<?> spineModelDescClass = this.getClass("com.dynamo.spine.proto.Spine$SpineModelDesc");
-        ParseUtil.addParser("spinemodelc", new ParseUtil.IParser() {
-            @Override
-            public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return (Message)callStaticFunction1(spineModelDescClass, "parseFrom", content.getClass(), content);
-            }
-        });
 
         try {
             CodeSource src = getClass().getProtectionDomain().getCodeSource();

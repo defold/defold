@@ -578,15 +578,20 @@ GLFWAPI int32_t glfwAndroidWindowOpened();
 GLFWAPI void    glfwAndroidPollEvents();
 GLFWAPI void    glfwAndroidFlushEvents();
 GLFWAPI int32_t glfwAndroidVerifySurface();
+
+// Activity control
+typedef void (*glfwactivityresultfun)(void *env, void* activity, int request_code, int result_code, void* result);
+GLFWAPI void glfwAndroidRegisterOnActivityResultListener(glfwactivityresultfun fun);
+GLFWAPI void glfwAndroidUnregisterOnActivityResultListener(glfwactivityresultfun fun);
+
+// onCreate listeners
+typedef void (*glfwoncreatefun)(void *env, void* activity);
+GLFWAPI void glfwAndroidRegisterOnCreateListener(glfwoncreatefun fun);
+GLFWAPI void glfwAndroidUnregisterOnCreateListener(glfwoncreatefun fun);
 #endif
 
 // Accelerometer control
 GLFWAPI void glfwAccelerometerEnable();
-
-// Activity control
-typedef void (*glfwactivityresultfun)(void *env, void* activity, int request_code, int result_code, void* result);
-GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun fun);
-GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun fun);
 
 // context control
 GLFWAPI int   GLFWAPIENTRY glfwQueryAuxContext();

@@ -20,7 +20,7 @@ def build(bld):
                      target = 'test_sdk_lib',
                      always=True)
 
-    bld.new_task_gen(features = 'cxx cprogram embed test',
+    bld.new_task_gen(features = 'cc cxx cprogram embed test',
                       includes = '.',
                       uselib = 'TESTMAIN EXTENSION DLIB LUA',
                       uselib_local = 'test_sdk_lib',

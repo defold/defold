@@ -82,7 +82,7 @@ And repackage into a tar file:
 
 ### Prerequisites
 
-This script cannot download the sdk's by itself, but instead relies on the user having downloaded the latest XCode on the local machine
+This script cannot download the sdk's by itself, but instead relies on the user having downloaded the [XCode 12.5](https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_12.5/Xcode_12.5.xip) on the local machine
 
 ### Packaging
 
@@ -92,10 +92,10 @@ Run the script
 
 and it will output files in `local_sdks`:
 
-	./local_sdks/MacOSX10.14.sdk.tar.gz
-	./local_sdks/XcodeDefault10.2.1.xctoolchain.tar.gz
-	./local_sdks/iPhoneOS12.2.sdk.tar.gz
-	./local_sdks/iPhoneSimulator12.2.sdk.tar.gz
+	./local_sdks/MacOSX11.3.sdk.tar.gz
+	./local_sdks/XcodeDefault12.5.xctoolchain.tar.gz
+	./local_sdks/iPhoneOS14.5.sdk.tar.gz
+	./local_sdks/iPhoneSimulator14.5.sdk.tar.gz
 
 ## Windows
 
@@ -111,4 +111,9 @@ The installation of the HTML5 compiler is done by calling the build function `in
 
 ## Linux
 
-Since it's difficult to package the C++ build pipeline for Linux, we simply rely on installing the correct compiler versions on each Linux system
+We use packages from [Clang](https://github.com/llvm/llvm-project/releases) for the Ubuntu16.04 target.
+Current version: https://releases.llvm.org/9.0.0/clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+
+Download this file and put it into your `./local_sdks` folder.
+The package will then be extracted when you run the `./scripts/build.py install_ext` command.
+

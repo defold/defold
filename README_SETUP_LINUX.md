@@ -40,13 +40,15 @@ You need a 64 bit Python 2 version to build the engine and tools. The latest tes
 > sudo apt install python2-minimal python-setuptools
 ```
 
-Configure use of Easy Install (if it's not already installed: `which easy_install`):
+Since our scripts use `python`, you'll need to set it up somehow.
+One way is using an alias:
 
 ```sh
-> sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
-> sh -c "echo python2 /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
-> chmod +x /usr/local/bin/easy_install
+# in ~/.bashrc
+alias python='python2.7'
 ```
+
+Another way is to use [update-alternatives](https://www.google.com/search?client=firefox-b-d&q=linux+update-alternatives+python) to select version.
 
 
 ### Required Software - Additional tools
@@ -62,6 +64,7 @@ You need additional files and tools to be able to build and work with Defold on 
 * **libcurl4-openssl-dev** - Development files and documentation for libcurl
 * **uuid-dev** - Universally Unique ID library
 * **libopenal-dev** - Software implementation of the OpenAL audio API
+* **libncurses5** -  Needed by clang
 
 **Tools**
 * **build-essential** - Compilers
@@ -78,7 +81,7 @@ You need additional files and tools to be able to build and work with Defold on 
 Download and install using `apt-get`:
 
 ```sh
-> sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+> sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev libncurses5
 ```
 
 ---

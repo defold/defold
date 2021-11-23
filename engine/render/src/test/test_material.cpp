@@ -82,23 +82,29 @@ TEST(dmMaterialTest, TestMaterialConstants)
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &fp_shader);
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
 
+    // Constants buffer
+    dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();
+    Vector4 test_v(1.0f, 0.0f, 0.0f, 0.0f);
+    dmRender::SetNamedConstant(constants, dmHashString64("tint"), &test_v, 1);
+
     // renderobject default setup
     dmRender::RenderObject ro;
     ro.m_Material = material;
-    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+    ro.m_ConstantBuffer = constants;
 
     // test setting constant
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
     dmGraphics::EnableProgram(context, program);
     uint32_t tint_loc = dmGraphics::GetUniformLocation(program, "tint");
     ASSERT_EQ(0, tint_loc);
-    dmRender::ApplyRenderObjectConstants(render_context, 0, &ro);
+    dmRender::ApplyNamedConstantBuffer(render_context, material, ro.m_ConstantBuffer);
     const Vector4& v = dmGraphics::GetConstantV4Ptr(context, tint_loc);
     ASSERT_EQ(1.0f, v.getX());
     ASSERT_EQ(0.0f, v.getY());
     ASSERT_EQ(0.0f, v.getZ());
     ASSERT_EQ(0.0f, v.getW());
 
+    dmRender::DeleteNamedConstantBuffer(constants);
     dmGraphics::DisableProgram(context);
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
@@ -132,17 +138,22 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmRender::HMaterial material_ovr = dmRender::NewMaterial(render_context, vp_ovr, fp_ovr);
     dmGraphics::HProgram program_ovr = dmRender::GetMaterialProgram(material_ovr);
 
+    // Constants
+    dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();
+    Vector4 test_v(1.0f, 0.0f, 0.0f, 0.0f);
+    dmRender::SetNamedConstant(constants, dmHashString64("tint"), &test_v, 1);
+
     // renderobject default setup
     dmRender::RenderObject ro;
     ro.m_Material = material;
-    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+    ro.m_ConstantBuffer = constants;
 
     // using the null graphics device, constant locations are assumed to be in declaration order.
     // test setting constant, no override material
     uint32_t tint_loc = dmGraphics::GetUniformLocation(program, "tint");
     ASSERT_EQ(0, tint_loc);
     dmGraphics::EnableProgram(context, program);
-    dmRender::ApplyRenderObjectConstants(render_context, 0, &ro);
+    dmRender::ApplyNamedConstantBuffer(render_context, material, ro.m_ConstantBuffer);
     const Vector4& v = dmGraphics::GetConstantV4Ptr(context, tint_loc);
     ASSERT_EQ(1.0f, v.getX());
     ASSERT_EQ(0.0f, v.getY());
@@ -150,21 +161,21 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     ASSERT_EQ(0.0f, v.getW());
 
     // test setting constant, override material
-    dmRender::EnableRenderObjectConstant(&ro, dmHashString64("tint"), Vector4(2.0f, 1.0f, 1.0f, 1.0f));
-    ASSERT_EQ(0,  ro.m_Constants[0].m_Location);
-    ASSERT_EQ(-1, ro.m_Constants[1].m_Location);
-    ASSERT_EQ(-1, ro.m_Constants[2].m_Location);
-    ASSERT_EQ(-1, ro.m_Constants[3].m_Location);
+    test_v = Vector4(2.0f, 1.0f, 1.0f, 1.0f);
+    dmRender::ClearNamedConstantBuffer(constants);
+    dmRender::SetNamedConstant(constants, dmHashString64("tint"), &test_v, 1);
     uint32_t tint_loc_ovr = dmGraphics::GetUniformLocation(program_ovr, "tint");
     ASSERT_EQ(1, tint_loc_ovr);
     dmGraphics::EnableProgram(context, program_ovr);
-    dmRender::ApplyRenderObjectConstants(render_context, material_ovr, &ro);
+    dmRender::ApplyNamedConstantBuffer(render_context, material_ovr, ro.m_ConstantBuffer);
+
     const Vector4& v_ovr = dmGraphics::GetConstantV4Ptr(context, tint_loc_ovr);
     ASSERT_EQ(2.0f, v_ovr.getX());
     ASSERT_EQ(1.0f, v_ovr.getY());
     ASSERT_EQ(1.0f, v_ovr.getZ());
     ASSERT_EQ(1.0f, v_ovr.getW());
 
+    dmRender::DeleteNamedConstantBuffer(constants);
     dmGraphics::DisableProgram(context);
     dmGraphics::DeleteVertexProgram(vp_ovr);
     dmGraphics::DeleteFragmentProgram(fp_ovr);
@@ -200,6 +211,7 @@ TEST(dmMaterialTest, MatchMaterialTags)
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

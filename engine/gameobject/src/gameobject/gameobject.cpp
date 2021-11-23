@@ -71,7 +71,7 @@ namespace dmGameObject
     static bool InitInstance(Collection* collection, HInstance instance);
     static bool FinalInstance(Collection* collection, HInstance instance);
 
-    static Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances);
+    static Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc);
     static void DeallocCollection(Collection* collection);
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
@@ -259,7 +259,24 @@ namespace dmGameObject
         delete regist;
     }
 
-    Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances)
+    uint32_t GetMaxComponentInstances(uint64_t name_hash, dmGameObjectDDF::CollectionDesc* collection_desc)
+    {
+        if (!collection_desc || collection_desc->m_ComponentTypes.m_Count == 0)
+        {
+            return 0xFFFFFFFF;
+        }
+        for (uint32_t i = 0; i < collection_desc->m_ComponentTypes.m_Count; ++i)
+        {
+            const dmGameObjectDDF::ComponenTypeDesc& type_desc = collection_desc->m_ComponentTypes[i];
+            if (name_hash == type_desc.m_NameHash)
+            {
+                return type_desc.m_MaxCount;
+            }
+        }
+        return 0;
+    }
+
+    Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
         Collection* collection = new Collection(0, 0, max_instances, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
@@ -271,6 +288,7 @@ namespace dmGameObject
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
+                params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
@@ -384,7 +402,7 @@ namespace dmGameObject
         collection->m_HCollection = 0;
     }
 
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc)
     {
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
@@ -392,7 +410,7 @@ namespace dmGameObject
             return 0;
         }
 
-        Collection* collection = AllocCollection(name, regist, max_instances);
+        Collection* collection = AllocCollection(name, regist, max_instances, (dmGameObjectDDF::CollectionDesc*)collection_desc);
         if (!collection)
         {
             return 0;
@@ -2997,10 +3015,15 @@ namespace dmGameObject
         instance->m_Transform.SetRotation(dmVMath::EulerToQuat(instance->m_EulerRotation));
     }
 
-    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyDesc& out_value)
+    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
+
+        // Default array size to 0, it should not be used as an array by default
+        out_value.m_ArraySize = 0;
+        out_value.m_IsArray = 0;
+
         if (component_id == 0)
         {
             out_value.m_ValuePtr = 0x0;
@@ -3156,6 +3179,7 @@ namespace dmGameObject
                     p.m_World = instance->m_Collection->m_ComponentWorlds[component.m_TypeIndex];
                     p.m_Instance = instance;
                     p.m_PropertyId = property_id;
+                    p.m_Options = options;
                     p.m_UserData = user_data;
                     PropertyDesc prop_desc;
                     PropertyResult result = type->m_GetPropertyFunction(p, prop_desc);
@@ -3177,7 +3201,7 @@ namespace dmGameObject
         }
     }
 
-    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value)
+    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
@@ -3358,6 +3382,7 @@ namespace dmGameObject
                     p.m_PropertyId = property_id;
                     p.m_UserData = user_data;
                     p.m_Value = value;
+                    p.m_Options = options;
                     return type->m_SetPropertyFunction(p);
                 }
                 else

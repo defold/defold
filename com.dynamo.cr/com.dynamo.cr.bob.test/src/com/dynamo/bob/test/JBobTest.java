@@ -13,6 +13,7 @@
 package com.dynamo.bob.test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
@@ -155,7 +156,7 @@ public class JBobTest {
                 String numberName = String.format("%s_%d.number", baseName, i);
                 IResource numberInput = input.getResource(numberName).output();
                 builder.addOutput(numberInput);
-                Task<?> numberTask = project.buildResource(numberInput);
+                Task<?> numberTask = project.createTask(numberInput);
                 numberTasks.add(numberTask);
                 ++i;
             }
@@ -267,7 +268,7 @@ public class JBobTest {
         IResource test2Out = fileSystem.get("test2.out").output();
         assertThat(new String(test2Out.getContent()), is("B"));
         IResource arcOut = fileSystem.get("test.arc").output();
-        assertThat(new String(arcOut.getContent()), is("AB"));
+        assertThat(new String(arcOut.getContent()), anyOf(is("AB"), is("BA")));
     }
 
     @Test

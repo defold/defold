@@ -69,6 +69,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
+import com.dynamo.rig.proto.Rig.RigScene;
 
 import com.google.protobuf.DescriptorProtos.FieldOptions;
 import com.google.protobuf.Descriptors.FieldDescriptor;
@@ -103,6 +104,7 @@ public class GameProjectBuilder extends Builder<Void> {
         ProtoBuilder.addMessageClass(".meshc", MeshDesc.class);
         ProtoBuilder.addMessageClass(".meshsetc", MeshSet.class);
         ProtoBuilder.addMessageClass(".modelc", Model.class);
+        ProtoBuilder.addMessageClass(".rigscenec", RigScene.class);
         ProtoBuilder.addMessageClass(".skeletonc", Skeleton.class);
         ProtoBuilder.addMessageClass(".texturesetc", TextureSet.class);
 
@@ -110,6 +112,7 @@ public class GameProjectBuilder extends Builder<Void> {
         project.createPublisher(shouldPublish);
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
+                .disableCache()
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc").disableCache());
 
@@ -127,7 +130,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        project.buildResource(input, CopyCustomResourcesBuilder.class);
+        project.createTask(input, CopyCustomResourcesBuilder.class);
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");

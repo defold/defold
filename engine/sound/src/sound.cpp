@@ -210,7 +210,7 @@ namespace dmSound
         uint16_t                m_NextOutBuffer;
 
         bool                    m_IsDeviceStarted;
-        bool                    m_IsPhoneCallActive;
+        bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
         bool                    m_IsRunning;
         bool                    m_IsPaused;
@@ -324,7 +324,7 @@ namespace dmSound
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
         sound->m_IsDeviceStarted = false;
-        sound->m_IsPhoneCallActive = false;
+        sound->m_IsAudioInterrupted = false;
         sound->m_HasWindowFocus = true; // Assume we startup with the window focused
         sound->m_DeviceType = device_type;
         sound->m_Device = device;
@@ -1370,28 +1370,28 @@ namespace dmSound
 
         uint16_t active_instance_count = sound->m_InstancesPool.Size();
 
-        bool currentIsPhoneCallActive = IsPhoneCallActive();
-        if (!sound->m_IsPhoneCallActive && currentIsPhoneCallActive)
+        bool currentIsAudioInterrupted = IsAudioInterrupted();
+        if (!sound->m_IsAudioInterrupted && currentIsAudioInterrupted)
         {
-            sound->m_IsPhoneCallActive = true;
+            sound->m_IsAudioInterrupted = true;
             if (sound->m_IsDeviceStarted)
             {
                 sound->m_DeviceType->m_DeviceStop(sound->m_Device);
                 sound->m_IsDeviceStarted = false;
             }
         }
-        else if (sound->m_IsPhoneCallActive && !currentIsPhoneCallActive)
+        else if (sound->m_IsAudioInterrupted && !currentIsAudioInterrupted)
         {
-            sound->m_IsPhoneCallActive = false;
+            sound->m_IsAudioInterrupted = false;
             if (active_instance_count == 0 && sound->m_IsDeviceStarted == false)
             {
                 return RESULT_NOTHING_TO_PLAY;
             }
         }
 
-        if (sound->m_IsPhoneCallActive)
+        if (sound->m_IsAudioInterrupted)
         {
-            // We can't play sounds when the phone is active.
+            // We can't play sounds when Audio was interrupted by OS event (Phone call, Alarm etc)
             return RESULT_OK;
         }
 
@@ -1495,9 +1495,9 @@ namespace dmSound
         return PlatformIsMusicPlaying(g_SoundSystem->m_IsDeviceStarted, g_SoundSystem->m_HasWindowFocus);
     }
 
-    bool IsPhoneCallActive()
+    bool IsAudioInterrupted()
     {
-        return PlatformIsPhoneCallActive();
+        return PlatformIsAudioInterrupted();
     }
 
     void OnWindowFocus(bool focus)

@@ -657,7 +657,7 @@ namespace dmGui
      * @param font The font to add
      * @return Outcome of the operation
      */
-    Result AddFont(HScene scene, const char* font_name, void* font);
+    Result AddFont(HScene scene, const char* font_name, void* font, dmhash_t path_hash);
     /**
      * Removes a font with the specified name from the scene.
      * @note Any nodes connected to the same font_name will also be disconnected from the font. This makes this function O(n), where n is #nodes.
@@ -665,6 +665,14 @@ namespace dmGui
      * @param font_name Name of the font that will be used in the gui scripts
      */
     void RemoveFont(HScene scene, const char* font_name);
+
+    /**
+     * Gets a font by name hash
+     * @name GetFont
+     * @param scene Scene to get font from
+     * @param font_hash Hashed name of the font. 0 if unsuccessful
+     */
+    dmhash_t GetFontPath(HScene scene, dmhash_t font_hash);
 
     /**
      * Remove all fonts from the scene.

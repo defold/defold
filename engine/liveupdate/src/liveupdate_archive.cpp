@@ -99,7 +99,24 @@ namespace dmLiveUpdate
         }
 
         dmLogWarning("Loading LiveUpdate manifest: %s", manifest_path);
-        return dmResourceArchive::LoadManifest(manifest_path, out);
+        dmResourceArchive::Result result = dmResourceArchive::LoadManifest(manifest_path, out);
+        if (result != dmResourceArchive::RESULT_OK)
+        {
+            // we'll treat any of the errors as a version mismatch
+            // this way, we may fallback to the base archive file in the game bundle
+            return dmResourceArchive::RESULT_VERSION_MISMATCH;
+        }
+
+        dmLiveUpdate::Result lu_result = dmLiveUpdate::VerifyManifest(*out);
+        if (dmLiveUpdate::RESULT_OK != lu_result)
+        {
+            dmLogError("Manifest verification failed. Manifest was not loaded. Result: %d", lu_result);
+            delete *out;
+            *out = 0;
+            result = dmResourceArchive::RESULT_VERSION_MISMATCH;
+        }
+
+        return result;
     }
 
     dmResourceArchive::Result LULoadArchive_Regular(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path,

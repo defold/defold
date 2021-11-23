@@ -125,7 +125,7 @@ public class GameObjectBuilder extends Builder<Void> {
 
             if (productsOfThisTask.contains(hash)) {
 
-                Task<?> embedTask = project.buildResource(genResource);
+                Task<?> embedTask = project.createTask(genResource);
                 if (embedTask == null) {
                     throw new CompileExceptionError(input,
                                                     0,
@@ -189,28 +189,6 @@ public class GameObjectBuilder extends Builder<Void> {
         task.output(0).setContent(out.toByteArray());
     }
 
-    static String[][] extensionMapping = new String[][] {
-        {".camera", ".camerac"},
-        {".buffer", ".bufferc"},
-        {".mesh", ".meshc"},
-        {".collectionproxy", ".collectionproxyc"},
-        {".collisionobject", ".collisionobjectc"},
-        {".emitter", ".emitterc"},
-        {".particlefx", ".particlefxc"},
-        {".gui", ".guic"},
-        {".model", ".modelc"},
-        {".script", ".scriptc"},
-        {".sound", ".soundc"},
-        {".wav", ".soundc"},
-        {".collectionfactory", ".collectionfactoryc"},
-        {".factory", ".factoryc"},
-        {".light", ".lightc"},
-        {".label", ".labelc"},
-        {".sprite", ".spritec"},
-        {".tilegrid", ".tilemapc"},
-        {".tilemap", ".tilemapc"},
-    };
-
     private PrototypeDesc.Builder transformGo(IResource resource,
             PrototypeDesc.Builder protoBuilder) throws CompileExceptionError {
 
@@ -219,10 +197,6 @@ public class GameObjectBuilder extends Builder<Void> {
         List<ComponentDesc> newList = new ArrayList<ComponentDesc>();
         for (ComponentDesc cd : protoBuilder.getComponentsList()) {
             String c = cd.getComponent();
-            for (String[] fromTo : extensionMapping) {
-                c = BuilderUtil.replaceExt(c, fromTo[0], fromTo[1]);
-            }
-
             // Use the BuilderParams from each builder to map the input ext to the output ext
             String inExt = "." + FilenameUtils.getExtension(c);
             String outExt = project.replaceExt(inExt);

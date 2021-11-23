@@ -274,7 +274,8 @@
               <include name="dlib.jar"/>
               <include name="lz4-1.3.0.jar"/>
               <include name="commons-cli-1.2.jar"/>
-              <include name="jna.jar"/>
+              <include name="jna-5.10.0.jar"/>
+              <include name="jna-platform-5.10.0.jar"/>
               <include name="jackson-core-asl-1.9.2.jar"/>
               <include name="jackson-mapper-asl-1.9.2.jar"/>
               <include name="openmali.jar"/>
@@ -304,10 +305,6 @@
 
             <fileset dir="${bob.dir}">
                 <include name="lib/luajit-share.zip"/>
-            </fileset>
-
-            <fileset dir="${env.DYNAMO_HOME}">
-                <include name="share/java/fmt-spine.jar"/>
             </fileset>
 
             <manifest>
@@ -361,9 +358,6 @@
                 <include name="lib/android.jar"/>
                 <include name="lib/classes.dex"/>
                 <include name="lib/*.zip"/>
-            </fileset>
-            <fileset dir="${env.DYNAMO_HOME}">
-                <include name="share/java/fmt-spine.jar"/>
             </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>

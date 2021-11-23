@@ -123,6 +123,14 @@
                              :zip-url "https://github.com/defold/sample-roids/archive/master.zip"
                              :skip-root? true}
 
+                            {:name "Pixel line platformer"
+                             :description "This is a complete platformer game where with a modern pixel art style created by Kenney."
+                             :image "pixelline.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-pixel-line-platformer/archive/refs/heads/main.zip"
+                             :skip-root? true}
+
                             {:name "RPG map sample"
                              :description "This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses."
                              :image "rpg-map.png"

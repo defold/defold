@@ -7,10 +7,6 @@ components {
   component: "/resource/model.model"
 }
 components {
-  id: "spine"
-  component: "/resource/spine.spinemodel"
-}
-components {
   id: "tilemap"
   component: "/resource/tilemap.tilemap"
 }
