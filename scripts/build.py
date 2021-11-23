@@ -449,23 +449,6 @@ class Configuration(object):
             self._log('Downloading %s failed' % (url))
         return path
 
-    def install_go(self):
-        urls = {
-            'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
-            'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
-            'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
-            'x86_64-win32' : 'https://storage.googleapis.com/golang/go1.7.1.windows-amd64.zip'
-        }
-
-        url = urls.get(self.target_platform)
-
-        if url:
-            path = self._download(url)
-            target_path = join(self.ext, 'go', self.target_platform)
-            self._extract(path, target_path)
-        else:
-            print("No go found for %s" % self.target_platform)
-
     def _check_package_path(self):
         if self.package_path is None:
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
@@ -1143,30 +1126,6 @@ class Configuration(object):
         args = cmd.split() + ['package']
         for lib in EXTERNAL_LIBS:
             self._build_engine_lib(args, lib, platform=self.target_platform, dir='external')
-
-    def build_go(self):
-        exe_ext = '.exe' if 'win32' in self.target_platform else ''
-        go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
-
-        if not os.path.exists(go):
-            self._log("Missing go for target platform, run install_ext with --platform set.")
-            exit(5)
-
-        run.env_command(self._form_env(), [go, 'clean', '-i', 'github.com/...'])
-        run.env_command(self._form_env(), [go, 'install', 'github.com/...'])
-        run.env_command(self._form_env(), [go, 'clean', '-i', 'defold/...'])
-        if not self.skip_tests:
-            run.env_command(self._form_env(), [go, 'test', 'defold/...'])
-        run.env_command(self._form_env(), [go, 'install', 'defold/...'])
-
-        for f in glob(join(self.defold, 'go', 'bin', '*')):
-            shutil.copy(f, join(self.dynamo_home, 'bin'))
-
-    def archive_go(self):
-        sha1 = self._git_sha1()
-        full_archive_path = join(sha1, 'go', self.target_platform)
-        for p in glob(join(self.defold, 'go', 'bin', '*')):
-            self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def archive_bob(self):
         sha1 = self._git_sha1()
@@ -2074,9 +2033,6 @@ sync_archive     - Sync engine artifacts from S3
 activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
-install_go       - Install go dev tools
-build_go         - Build go code
-archive_go       - Archive go binaries
 build_editor2    - Build editor
 sign_editor2     - Sign editor
 bundle_editor2   - Bundle editor (zip)
