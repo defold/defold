@@ -955,19 +955,17 @@ def android_package(task):
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
 
-    aapt = '%s/android-sdk/build-tools/%s/aapt' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
 
-    manifest = task.manifest.abspath(task.env)
-    dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
-    libs = os.path.join(dme_and, 'libs')
-    bin = os.path.join(dme_and, 'bin')
+    root = os.path.normpath(os.path.join(os.path.dirname(task.classes_dex.abspath(task.env)), '..', '..'))
+    libs = os.path.join(root, 'libs')
+    bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
     dx_libs = os.path.join(bin, 'dexedLibs')
-    gen = os.path.join(dme_and, 'gen')
+    gen = os.path.join(root, 'gen')
     native_lib = task.native_lib.abspath(task.env)
 
     bld.exec_command('mkdir -p %s' % (libs))
@@ -1047,9 +1045,6 @@ def create_android_package(self):
     lib_name = self.link_task.outputs[0].name
 
     android_package_task.exe_name = exe_name
-
-    manifest = self.path.exclusive_build_node("%s.android/foo.boo" % exe_name)
-    android_package_task.manifest = manifest
 
     try:
         build_util = create_build_utility(android_package_task.env)
