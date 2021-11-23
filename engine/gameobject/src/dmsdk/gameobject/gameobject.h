@@ -351,7 +351,7 @@ namespace dmGameObject
         PropertyVar m_Variant;
         float* m_ValuePtr;
         bool m_ReadOnly;
-        uint8_t m_ValueType;
+        uint8_t m_ValueType : 2;
     };
 
     /*#
