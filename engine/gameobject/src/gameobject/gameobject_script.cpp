@@ -587,6 +587,7 @@ namespace dmGameObject
             return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyOptions property_options;
         property_options.m_Index = 0;
+        property_options.m_HasKey = 0;
         bool index_requested = false;
 
         // Options table
@@ -596,7 +597,6 @@ namespace dmGameObject
             lua_pushvalue(L, 3);
 
             lua_getfield(L, -1, "key");
-            property_options.m_HasKey = 0;
             if (!lua_isnil(L, -1))
             {
                 if (lua_isstring(L, -1))
