@@ -139,6 +139,9 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 
 "${ZIPALIGN}" -v 4 "${REPACKZIP}" "${REPACKZIP_ALIGNED}" > /dev/null 2>&1
 
+print("REPLACE APKC WITH apksigner (https://developer.android.com/studio/command-line/apksigner)!")
+exit 1
+
 if [ ! -z "${CERTIFICATE}" ]; then
     "${APKC}" --in="${REPACKZIP_ALIGNED}" --out="${TARGET}.apk" --cert="${CERTIFICATE}" --key="${KEYFILE}" > /dev/null 2>&1
 else

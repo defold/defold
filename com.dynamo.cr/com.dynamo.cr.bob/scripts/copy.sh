@@ -35,11 +35,6 @@ mkdir -p libexec/arm64-nx64
 
 SHA1=`git log --pretty=%H -n1`
 
-# APKC
-cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/apkc libexec/x86_64-darwin/apkc
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
-cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/apkc.exe libexec/x86_64-win32/apkc.exe
-
 # SPIRV toolchain
 cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/glslc libexec/x86_64-darwin/glslc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslc libexec/x86_64-linux/glslc

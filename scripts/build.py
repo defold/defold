@@ -86,10 +86,10 @@ PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77
 PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
 PACKAGES_DARWIN="protobuf-2.3.0 webp-0.5.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41".split()
 PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
+PACKAGES_LINUX_64="webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
 PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex androidx-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex androidx-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
@@ -999,7 +999,6 @@ class Configuration(object):
         if 'android' in self.target_platform:
             files = [
                 ('share/java', 'classes.dex'),
-                ('bin/%s' % (self.target_platform), 'dmengine.apk'),
                 ('ext/share/java', 'android.jar'),
             ]
             for f in files:
@@ -1176,7 +1175,6 @@ class Configuration(object):
             self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def copy_local_bob_artefacts(self):
-        apkc_name = format_exes('apkc', self.host2)[0]
         texc_name = format_lib('texc_shared', self.host2)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
@@ -1199,8 +1197,7 @@ class Configuration(object):
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
-        android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
-                         'share/java/classes.dex': 'lib/classes.dex',
+        android_files = {'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
         switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
