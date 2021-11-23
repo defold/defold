@@ -646,11 +646,11 @@ namespace dmGameObject
         {
         case dmGameObject::PROPERTY_RESULT_OK:
             {
-                if (index_requested && property_desc.m_ValueType != dmGameObject::PROP_VALUE_ARRAY)
+                if (index_requested && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_ARRAY))
                 {
                     return luaL_error(L, "Options table contains index, but property '%s' is not an array.", dmHashReverseSafe64(property_id));
                 }
-                else if (property_options.m_HasKey && property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE)
+                else if (property_options.m_HasKey && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE))
                 {
                     return luaL_error(L, "Options table contains key, but property '%s' is not a hashtable.", dmHashReverseSafe64(property_id));
                 }
