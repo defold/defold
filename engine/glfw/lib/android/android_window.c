@@ -694,7 +694,7 @@ GLFWAPI void glfwAndroidUnregisterOnActivityResultListener(glfwactivityresultfun
 
 JNIEXPORT void
 Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
-    JNIEnv *env, jobject thiz, jobject activity, jint requestCode,
+    JNIEnv *env, jclass cls, jobject activity, jint requestCode,
     jint resultCode, jobject data) {
 
     for (int i = 0; i < g_ListenersCount; ++i)
@@ -732,7 +732,7 @@ GLFWAPI void glfwAndroidUnregisterOnCreateListener(glfwoncreatefun listener)
 
 JNIEXPORT void
 Java_com_dynamo_android_DefoldActivity_nativeOnCreate(
-    JNIEnv *env, jobject thiz, jobject activity) {
+    JNIEnv *env, jclass cls, jobject activity) {
 
     for (int i = 0; i < g_onCreate_ListenersCount; ++i)
     {
