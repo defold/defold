@@ -218,7 +218,7 @@ public class DefoldActivity extends NativeActivity {
         glfwSetMarkedTextNative(text);
     }
 
-    public static native void nativeOnCreate();
+    public static native void nativeOnCreate(Activity activity);
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -240,7 +240,7 @@ public class DefoldActivity extends NativeActivity {
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException("Error getting activity info", e);
         }
-        nativeOnCreate();
+        nativeOnCreate(this);
     }
 
     @Override
@@ -468,10 +468,10 @@ public class DefoldActivity extends NativeActivity {
     }
 
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        nativeOnActivityResult(requestCode,resultCode, data);
+        nativeOnActivityResult(this, requestCode,resultCode, data);
     }
 
-    public static native void nativeOnActivityResult(int requestCode, int resultCode, Intent data);
+    public static native void nativeOnActivityResult(Activity activity, int requestCode, int resultCode, Intent data);
 
     /**
      * Method to get device ids for any connected gamepads, joysticks etc
