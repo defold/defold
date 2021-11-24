@@ -71,6 +71,17 @@ namespace dmScript
 #define SCRIPT_TYPE_NAME_QUAT "quat"
 #define SCRIPT_TYPE_NAME_MATRIX4 "matrix4"
 
+#define STRING_FORMAT_CONCAT_VECTOR3 "%svmath.vector3(%.14g, %.14g, %.14g)"
+#define STRING_FORMAT_CONCAT_VECTOR4 "%svmath.vector4(%.14g, %.14g, %.14g, %.14g)"
+#define STRING_FORMAT_CONCAT_QUAT    "%svmath.quat(%.14g, %.14g, %.14g, %.14g)"
+#define STRING_FORMAT_CONCAT_MATRIX4 "%svmath.matrix4(%.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g)"
+
+#define MAX_CHARS_PER_FLOAT   19 // 1.4012984643248e-45
+#define MAX_CHARS_PER_VECTOR3 13 + 1 + (MAX_CHARS_PER_FLOAT * 3) + (2 * 2) + 1   // vmath.vector3(x, y, z)
+#define MAX_CHARS_PER_VECTOR4 13 + 1 + (MAX_CHARS_PER_FLOAT * 4) + (2 * 3) + 1   // vmath.vector4(x, y, z, w)
+#define MAX_CHARS_PER_QUAT    10 + 1 + (MAX_CHARS_PER_FLOAT * 4) + (2 * 3) + 1   // vmath.quat(x, y, z, w)
+#define MAX_CHARS_PER_MATRIX4 13 + 1 + (MAX_CHARS_PER_FLOAT * 16) + (2 * 15) + 1 // vmath.matrix4(m00, m01, ..., m33)
+
     enum ScriptUserType
     {
         SCRIPT_TYPE_VECTOR3,
@@ -300,9 +311,10 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
-        char* buffer = new char[size + 68];
+        const int buffer_size = size + MAX_CHARS_PER_VECTOR3 + 1;
+        char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, size + 68, "%svmath.%s(%.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
+        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR3, s, v->getX(), v->getY(), v->getZ());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -464,9 +476,10 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
-        char* buffer = new char[size + 86];
+        const int buffer_size = size + MAX_CHARS_PER_VECTOR4 + 1;
+        char* buffer = new char[size + buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, size + 86, "%svmath.%s(%.14g, %.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
+        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR4, s, v->getX(), v->getY(), v->getZ(), v->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -589,9 +602,10 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Quat* q = CheckQuat(L, 2);
-        char* buffer = new char[size + 83];
+        const int buffer_size = size + MAX_CHARS_PER_QUAT + 1;
+        char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, size + 83, "%svmath.%s(%.14g, %.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
+        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_QUAT, s, q->getX(), q->getY(), q->getZ(), q->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -738,9 +752,10 @@ namespace dmScript
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
         Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 2);
-        char* buffer = new char[size + 302];
+        const int buffer_size = size + MAX_CHARS_PER_MATRIX4 + 1;
+        char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, size + 302, "%svmath.%s(%.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g, %.14g)", s, SCRIPT_TYPE_NAME_MATRIX4,
+        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_MATRIX4, s,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
