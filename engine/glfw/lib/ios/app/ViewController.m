@@ -17,6 +17,9 @@
 #import "VulkanView.h"
 #import "EAGLView.h"
 
+// AppDelegate.m
+extern UIWindow*            g_ApplicationWindow;
+
 extern int g_IsReboot;
 static int g_view_type = GLFW_NO_API;
 static int g_home_indicator_hidden = 0;
@@ -225,12 +228,14 @@ static int g_home_indicator_hidden = 0;
 {
 }
 
--(BOOL)shouldAutorotate{
+-(BOOL)shouldAutorotate
+{
     // NOTE: Only for iOS6
     return YES;
 }
 
--(UIInterfaceOrientationMask)supportedInterfaceOrientations {
+-(UIInterfaceOrientationMask)supportedInterfaceOrientations
+{
     // NOTE: Only for iOS6
     return UIInterfaceOrientationMaskLandscape | UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
 }
@@ -251,11 +256,13 @@ static int g_home_indicator_hidden = 0;
     _glfwInput.AccZ = acceleration.z;
 }
 
-- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
+{
     return UIRectEdgeAll;
 }
 
--(BOOL)prefersHomeIndicatorAutoHidden{
+-(BOOL)prefersHomeIndicatorAutoHidden
+{
     // NOTE: Only for iOS11
     NSLog(@"prefersHomeIndicatorAutoHidden");
     return g_home_indicator_hidden == 1 ? YES : NO;
@@ -270,15 +277,14 @@ void _glfwPlatformSetViewType(int view_type)
 
 void _glfwIosSetHomeIndicatorOptions(int home_indicator_hidden)
 {
-    NSLog(@"_glfwIosSetHomeIndicatorOptions %d", home_indicator_hidden);
-    NSLog(@"viewControllers %d", ((ViewController*)_glfwWin.viewController).navigationController.viewControllers.count);
     g_home_indicator_hidden = home_indicator_hidden;
     float version = [[UIDevice currentDevice].systemVersion floatValue];
     if (version < 11.0)
     {
         return;
     }
-    ((ViewController*)_glfwWin.viewController).setNeedsUpdateOfHomeIndicatorAutoHidden();
+    ViewController *controller = (ViewController *)g_ApplicationWindow.rootViewController;
+    [controller setNeedsUpdateOfHomeIndicatorAutoHidden];
 }
 
 void* _glfwPlatformAcquireAuxContext()
