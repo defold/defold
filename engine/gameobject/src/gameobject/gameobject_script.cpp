@@ -599,18 +599,7 @@ namespace dmGameObject
             lua_getfield(L, -1, "key");
             if (!lua_isnil(L, -1))
             {
-                if (lua_isstring(L, -1))
-                {
-                    property_options.m_Key = dmHashString64(lua_tostring(L, -1));
-                }
-                else if (dmScript::IsHash(L, -1))
-                {
-                    property_options.m_Key = dmScript::CheckHash(L, -1);
-                }
-                else
-                {
-                    return luaL_error(L, "Invalid key argument in options table. It should be string or hash.");
-                }
+                property_options.m_Key = dmScript::CheckHashOrString(L, -1)
                 property_options.m_HasKey = 1;
             }
             lua_pop(L, 1);
@@ -620,7 +609,7 @@ namespace dmGameObject
             {
                 if (property_options.m_HasKey)
                 {
-                    return luaL_error(L, "Options table should contain either key or index value.");
+                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
                 }
                 if (!lua_isnumber(L, -1))
                 {
@@ -789,18 +778,7 @@ namespace dmGameObject
             lua_getfield(L, -1, "key");
             if (!lua_isnil(L, -1))
             {
-                if (lua_isstring(L, -1))
-                {
-                    property_options.m_Key = dmHashString64(lua_tostring(L, -1));
-                }
-                else if (dmScript::IsHash(L, -1))
-                {
-                    property_options.m_Key = dmScript::CheckHash(L, -1);
-                }
-                else
-                {
-                    return luaL_error(L, "Invalid key argument in options table. It should be string or hash.");
-                }
+                property_options.m_Key = dmScript::CheckHashOrString(L, -1)
                 property_options.m_HasKey = 1;
             }
             lua_pop(L, 1);
@@ -810,7 +788,7 @@ namespace dmGameObject
             {   
                 if (property_options.m_HasKey)
                 {
-                    return luaL_error(L, "Options table should contain either key or index value.");
+                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
                 }
                 if (!lua_isnumber(L, -1))
                 {
