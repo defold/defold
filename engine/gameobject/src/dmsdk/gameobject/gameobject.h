@@ -251,15 +251,13 @@ namespace dmGameObject
      *
      * @enum
      * @name PropertyValueType
-     * @member dmGameObject::PROP_VALUE_VAR
-     * @member dmGameObject::PROP_VALUE_ARRAY
      * @member dmGameObject::PROP_VALUE_HASHTABLE
+     * @member dmGameObject::PROP_VALUE_ARRAY
      */
     enum PropertyValueType
     {
-        PROP_VALUE_VARIABLE = 0,
-        PROP_VALUE_ARRAY = 1,
-        PROP_VALUE_HASHTABLE = 2,    
+        PROP_VALUE_HASHTABLE = 1,
+        PROP_VALUE_ARRAY = 2,    
     };
 
     /*# Property Options

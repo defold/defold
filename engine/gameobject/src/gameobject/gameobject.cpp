@@ -3020,7 +3020,7 @@ namespace dmGameObject
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
 
-        out_value.m_ValueType = PROP_VALUE_VARIABLE;
+        out_value.m_ValueType = 0;
 
         if (component_id == 0)
         {
