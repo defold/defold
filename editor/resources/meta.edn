@@ -363,10 +363,6 @@
    :default true,
    :path ["sprite" "subpixels"]}
   {:type :integer,
-   :help "max number of spine models, 128 by default",
-   :default 128,
-   :path ["spine" "max_count"]}
-  {:type :integer,
    :help "max number of models, 128 by default",
    :default 128,
    :path ["model" "max_count"]}
