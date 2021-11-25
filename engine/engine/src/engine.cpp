@@ -101,6 +101,10 @@ extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
     extern void _glfwAndroidSetFullscreenParameters(int, int);
 }
+#elif defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)) //iOS
+extern "C" {
+    extern void _glfwIosSetHomeIndicatorOptions(int);
+}
 #endif
 
 namespace dmEngine
@@ -1252,6 +1256,11 @@ namespace dmEngine
             int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
             int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
             _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
+        }
+#elif defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)) //iOS
+        {
+            int home_indicator_hidden = dmConfigFile::GetInt(engine->m_Config, "ios.home_indicator_hidden", 0);
+            _glfwIosSetHomeIndicatorOptions(home_indicator_hidden);
         }
 #endif
 

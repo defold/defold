@@ -19,6 +19,7 @@
 
 extern int g_IsReboot;
 static int g_view_type = GLFW_NO_API;
+static int g_home_indicator_hidden = 0;
 
 @implementation ViewController
 
@@ -254,11 +255,30 @@ static int g_view_type = GLFW_NO_API;
     return UIRectEdgeAll;
 }
 
+-(BOOL)prefersHomeIndicatorAutoHidden{
+    // NOTE: Only for iOS11
+    NSLog(@"prefersHomeIndicatorAutoHidden");
+    return g_home_indicator_hidden == 1 ? YES : NO;
+}
+
 @end
 
 void _glfwPlatformSetViewType(int view_type)
 {
     g_view_type = view_type;
+}
+
+void _glfwIosSetHomeIndicatorOptions(int home_indicator_hidden)
+{
+    NSLog(@"_glfwIosSetHomeIndicatorOptions %d", home_indicator_hidden);
+    NSLog(@"viewControllers %d", ((ViewController*)_glfwWin.viewController).navigationController.viewControllers.count);
+    g_home_indicator_hidden = home_indicator_hidden;
+    float version = [[UIDevice currentDevice].systemVersion floatValue];
+    if (version < 11.0)
+    {
+        return;
+    }
+    ((ViewController*)_glfwWin.viewController).setNeedsUpdateOfHomeIndicatorAutoHidden();
 }
 
 void* _glfwPlatformAcquireAuxContext()

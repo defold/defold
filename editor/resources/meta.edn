@@ -483,6 +483,10 @@
    :help "localizations handled manually by your app (CFBundleLocalizations)",
    :default "en",
    :path ["ios" "localizations"]}
+  {:type :boolean,
+   :help "indicating whether the system is allowed to hide the visual indicator for returning to the Home screen (prefersHomeIndicatorAutoHidden)",
+   :default false,
+   :path ["ios" "home_indicator_hidden"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
