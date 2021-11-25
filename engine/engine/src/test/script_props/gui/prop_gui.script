@@ -1,4 +1,4 @@
-local test_done = require("script_props.test_done")
+local test_counter = require("script_props.test_counter")
 
 go.property("big_font", resource.font())
 go.property("atlas2", resource.atlas())
@@ -28,6 +28,7 @@ function init(self)
 end
 
 function late_init(self)
+    test_counter.start()
     ---- Fonts
 
     -- Test set fonts works
@@ -110,6 +111,6 @@ function on_message(self, message_id, message, sender)
     if hash("late_init") == message_id then
         late_init(self)
     elseif hash("test_done") == message_id then
-        test_done.done()
+        test_counter.done()
     end
 end

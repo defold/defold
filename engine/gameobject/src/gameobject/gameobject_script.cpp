@@ -599,7 +599,7 @@ namespace dmGameObject
             lua_getfield(L, -1, "key");
             if (!lua_isnil(L, -1))
             {
-                property_options.m_Key = dmScript::CheckHashOrString(L, -1)
+                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
                 property_options.m_HasKey = 1;
             }
             lua_pop(L, 1);
@@ -778,7 +778,7 @@ namespace dmGameObject
             lua_getfield(L, -1, "key");
             if (!lua_isnil(L, -1))
             {
-                property_options.m_Key = dmScript::CheckHashOrString(L, -1)
+                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
                 property_options.m_HasKey = 1;
             }
             lua_pop(L, 1);

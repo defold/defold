@@ -1,4 +1,4 @@
-local test_done = require("script_props.test_done")
+local test_counter = require("script_props.test_counter")
 
 go.property("testvalue", vmath.vector4(4, 5, 6, 7))
 
@@ -38,6 +38,7 @@ local function assert_not_error(func)
 end
 
 function init(self, config)
+    test_counter.start()
     -- Test that it works with an empty table
     assert_vec4(go.get("#", "testvalue", {}), vmath.vector4(4,5,6,7))
 
@@ -70,6 +71,6 @@ function init(self, config)
     assert_not_error(function() go.set("#sprite", "uniform_array.y", 7, { index = 15}) end)
     assert_number(go.get("#sprite", "uniform_array.y", { index = 15 }), 7)
 
-    test_done.done()
+    test_counter.done()
 end
 
