@@ -264,7 +264,6 @@ static int g_home_indicator_hidden = 0;
 -(BOOL)prefersHomeIndicatorAutoHidden
 {
     // NOTE: Only for iOS11
-    NSLog(@"prefersHomeIndicatorAutoHidden");
     return g_home_indicator_hidden == 1 ? YES : NO;
 }
 
