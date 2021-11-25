@@ -1127,13 +1127,16 @@ GLFWAPI void GLFWAPIENTRY glfwUnacquireAuxContext(void *context)
 }
 
 //========================================================================
-// Unacquire auxillary context for current thread
+// Set view type (gl/vulkan)
 //========================================================================
 GLFWAPI void glfwSetViewType(int view_type)
 {
     _glfwPlatformSetViewType(view_type);
 }
 
+//========================================================================
+// Set window background color
+//========================================================================
 GLFWAPI void glfwSetWindowBackgroundColor(int color)
 {
     _glfwPlatformSetWindowBackgroundColor(color);
