@@ -2989,6 +2989,46 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 }
 
 
+TEST_F(RenderConstantsTest, SetGetManyConstants)
+{
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+
+    for (int i = 0; i < 64; ++i)
+    {
+        char name[64];
+        dmSnPrintf(name, sizeof(name), "var%03d", i);
+        dmhash_t name_hash = dmHashString64(name);
+
+        dmVMath::Vector4 v(i, i*3+1,0,0);
+        dmGameSystem::SetRenderConstant(constants, name_hash, &v, 1);
+
+    }
+
+    for (int i = 0; i < 64; ++i)
+    {
+        char name[64];
+        dmSnPrintf(name, sizeof(name), "var%03d", i);
+        dmhash_t name_hash = dmHashString64(name);
+
+        dmVMath::Vector4 v(i, i*3+1,0,0);
+
+        dmRender::HConstant constant = 0;
+        bool result = dmGameSystem::GetRenderConstant(constants, name_hash, &constant);
+        ASSERT_TRUE(result);
+        ASSERT_NE((dmRender::HConstant)0, constant);
+
+        uint32_t num_values;
+        dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+        ASSERT_EQ(1U, num_values);
+        ASSERT_TRUE(values != 0);
+        ASSERT_EQ((float)i, values[0].getX());
+        ASSERT_EQ((float)(i*3+1), values[0].getY());
+    }
+
+    dmGameSystem::DestroyRenderConstants(constants);
+}
+
+
 TEST_F(RenderConstantsTest, HashRenderConstants)
 {
     dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
