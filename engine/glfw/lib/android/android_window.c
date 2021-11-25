@@ -465,6 +465,7 @@ void glfwAndroidPollEvents()
 
         if (_glfwWinAndroid.app->destroyRequested) {
             androidDestroyWindow();
+            // OS is destroyng the app. All the other events doesn't matter in this case.
             return;
         }
     }
