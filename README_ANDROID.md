@@ -74,37 +74,6 @@ This is a known limitation on Android.
 
 **NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
 
-### Android Bundling with Local Builds
-
-With the above in mind, since it may be desirable to create Android bundles using locally build versions of the editor, we will describe how
-to manually set up content under com.dynamo.cr. Note that this information has been derived from build.py and related scripts, since running
-those has the undesirable side effect of uploading content.
-
-Create apkc, by invoking the following from the root defold directory:
-
-    $ go install defold/...
-
-This will result in the production of apkc under “go/bin”.
-
-    $ PLATFORM=x86-64_darwin
-    $ cp go/bin/apkc com.dynamo.cr/com.dynamo.cr.target/libexec/$PLATFORM
-
-Copy classes.dex
-
-    $ cp $DYNAMO_HOME/share/java/classes.dex com.dynamo.cr/com.dynamo.cr.bob/lib/
-
-
-Copy all content from $DYNAMO_HOME/ext/share/java/res to com.dynamo.cr/com.dynamo.cr.target/res. You should expect to be copying material for
-Facebook and Google Play into this location:
-
-    $ mkdir com.dynamo.cr/com.dynamo.cr.target/res
-    $ cp -r $DYNAMO_HOME/ext/share/java/res/* com.dynamo.cr/com.dynamo.cr.target/res
-
-And finally
-
-    $ cp $DYNAMO_HOME/ext/share/java/android.jar com.dynamo.cr/com.dynamo.cr.bob/lib/
-
-
 ### Android testing
 
 Copy executable (or directory) with

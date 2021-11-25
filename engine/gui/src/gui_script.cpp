@@ -1886,6 +1886,18 @@ namespace dmGui
      * @name gui.get_font_resource
      * @param font_name [type:hash|string] font of which to get the path hash
      * @return hash [type:hash] path hash to resource
+     * @examples
+     *
+     * Get the text metrics for a text
+     *
+     * ```lua
+     * function init(self)
+     *   local node = gui.get_node("name")
+     *   local font_name = gui.get_font(node)
+     *   local font = gui.get_font_resource(font_name)
+     *   local metrics = resource.get_text_metrics(font, "The quick brown fox\n jumps over the lazy dog")
+     * end
+     * ```
      */
     static int LuaGetFontResource(lua_State* L)
     {
