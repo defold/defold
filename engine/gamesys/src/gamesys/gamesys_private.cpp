@@ -83,8 +83,7 @@ namespace dmGameSystem
                 value = &value[value_index];
             }
 
-            out_desc.m_ArraySize = constant_array_size;
-            out_desc.m_IsArray   = constant_array_size > 1;
+            out_desc.m_ValueType = dmGameObject::PROP_VALUE_ARRAY;
 
             if (constant_id == name_hash)
             {

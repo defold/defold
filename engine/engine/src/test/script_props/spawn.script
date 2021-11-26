@@ -1,3 +1,5 @@
+local test_counter = require("script_props.test_counter")
+
 go.property("number", 0)
 go.property("hash", hash(""))
 go.property("url", msg.url())
@@ -6,6 +8,7 @@ go.property("vec4", vmath.vector4(0, 0, 0, 0))
 go.property("quat", vmath.quat())
 
 function init(self, config)
+    test_counter.start()
     assert(self.number == 100)
     assert(self.hash == hash("hash"))
     assert(self.url == msg.url("/path"))
@@ -20,5 +23,5 @@ function init(self, config)
     assert(self.quat.y == 9)
     assert(self.quat.z == 10)
     assert(self.quat.w == 11)
-    msg.post("main:/main#script", "done")
+    test_counter.done()
 end
