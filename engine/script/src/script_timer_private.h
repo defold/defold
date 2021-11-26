@@ -56,13 +56,14 @@ namespace dmScript
      * You may cancel a timer from inside a timer callback, cancelling a timer that is already
      * executed or cancelled is safe.
      * 
-     * If the timer is live the timer callback will be called with the TIMER_EVENT_CANCELLED event
+     * If the timer is live the timer callback will be called with the TIMER_EVENT_CANCELLED or TIMER_EVENT_FINISHED event
      * 
      * @param timer_world the timer world created with NewTimerWorld
      * @param timer the timer handle
+     * @param finish use TIMER_EVENT_FINISHED instead of TIMER_EVENT_CANCELLED to trigger callback
      * @return true if the timer was active, false if the timer is already cancelled / complete
      */
-    bool CancelTimer(HTimerWorld timer_world, HTimer timer);
+    bool CancelTimer(HTimerWorld timer_world, HTimer timer, bool finish);
 
     /**
      * Removes all active timers associated with an owner without calling the
@@ -78,7 +79,8 @@ namespace dmScript
     {
         TIMER_EVENT_TRIGGER_WILL_DIE,
         TIMER_EVENT_TRIGGER_WILL_REPEAT,
-        TIMER_EVENT_CANCELLED
+        TIMER_EVENT_CANCELLED,
+        TIMER_EVENT_FINISHED
     };
 
     typedef void (*TimerCallback)(HTimerWorld timer_world, TimerEventType event_type, HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata);
