@@ -1720,8 +1720,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             {
                 // If we have cancelled an animation, its callback won't be called which means
                 // we potentially get dangling lua refs in the script system
-                // Another scenario where the callback won't get invoked is when the duration
-                // is 0.0 and the delay > 0.0
                 if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                 {
                     anim->m_AnimationCompleteCalled = 1;
