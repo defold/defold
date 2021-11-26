@@ -251,13 +251,13 @@ namespace dmGameObject
      *
      * @enum
      * @name PropertyValueType
-     * @member dmGameObject::PROP_VALUE_HASHTABLE
      * @member dmGameObject::PROP_VALUE_ARRAY
+     * @member dmGameObject::PROP_VALUE_HASHTABLE
      */
     enum PropertyValueType
     {
+        PROP_VALUE_ARRAY = 0,
         PROP_VALUE_HASHTABLE = 1,
-        PROP_VALUE_ARRAY = 2,    
     };
 
     /*# Property Options
@@ -349,7 +349,7 @@ namespace dmGameObject
         PropertyVar m_Variant;
         float* m_ValuePtr;
         bool m_ReadOnly;
-        uint8_t m_ValueType : 2;
+        uint8_t m_ValueType : 1;
     };
 
     /*#
