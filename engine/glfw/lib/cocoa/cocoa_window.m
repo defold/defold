@@ -815,7 +815,7 @@ int _glfwPlatformGetDefaultFramebuffer( )
 void _glfwPlatformSetWindowTitle( const char *title )
 {
     [_glfwWin.window setTitle:[NSString stringWithCString:title
-                     encoding:NSISOLatin1StringEncoding]];
+                     encoding:NSUTF8StringEncoding]];
 }
 
 //========================================================================

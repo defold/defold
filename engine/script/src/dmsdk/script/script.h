@@ -336,6 +336,15 @@ namespace dmScript
      */
     Vectormath::Aos::Quat* ToQuat(lua_State* L, int index);
 
+    /*#
+     * Check if the value at #index is a Vectormath::Aos::Quat*
+     * @name dmScript::IsQuat
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a Vectormath::Aos::Quat*
+     */
+    bool IsQuat(lua_State* L, int index);
+
     /*# push a Vectormath::Aos::Quat onto the Lua stack
      * Push a quaternion value onto Lua stack. Will increase the stack by 1.
      * @name dmScript::PushQuat
@@ -363,6 +372,15 @@ namespace dmScript
      * @return quat [type:Vectormath::Aos::Matrix4*] The pointer to the value, or 0 if not correct type
      */
     Vectormath::Aos::Matrix4* ToMatrix4(lua_State* L, int index);
+
+    /*#
+     * Check if the value at #index is a Vectormath::Aos::Matrix4*
+     * @name dmScript::IsMatrix4
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a Vectormath::Aos::Matrix4*
+     */
+    bool IsMatrix4(lua_State* L, int index);
 
     /*# push a Vectormath::Aos::Matrix4 onto the Lua stack
      * Push a matrix4 value onto the Lua stack. Will increase the stack by 1.
@@ -559,7 +577,6 @@ namespace dmScript
      */
     int PCall(lua_State* L, int nargs, int nresult);
 
-
     /*#
      * Creates a reference to the value at top of stack, the ref is done in the
      * current instances context table.
@@ -568,8 +585,8 @@ namespace dmScript
      * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
      *
      * @name RefInInstance
-     * @param L Lua state
-     * @return lua ref to value or LUA_NOREF
+     * @param L [type: lua_State*] Lua state
+     * @return lua [type: int] ref to value or LUA_NOREF
      *
      * Lua stack on entry
      *  [-1] value
@@ -577,6 +594,22 @@ namespace dmScript
      * Lua stack on exit
     */
     int RefInInstance(lua_State* L);
+
+    /*#
+     * Deletes the instance local lua reference
+     *
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     *
+     * @name UnrefInInstance
+     * @param L [type: lua_State*] Lua state
+     * @param ref [type: int] ref to value or LUA_NOREF
+     *
+     * Lua stack on entry
+     *
+     * Lua stack on exit
+     */
+    void UnrefInInstance(lua_State* L, int ref);
 
     /*#
      * Resolves the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
@@ -603,6 +636,16 @@ namespace dmScript
      * @return result [type:dmMessage::Result] dmMessage::RESULT_OK if the conversion succeeded
     */
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
+
+    /*#
+     * Converts a URL into a readable string. Useful for e.g. error messages
+     * @name UrlToString
+     * @param url [type:dmMessage::URL*] url
+     * @param buffer [type:char*] the output buffer
+     * @param buffer_size [type:uint32_t] the output buffer size
+     * @return buffer [type:const char*] returns the passed in buffer
+     */
+    const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size);
 }
 
 #endif // DMSDK_SCRIPT_SCRIPT_H

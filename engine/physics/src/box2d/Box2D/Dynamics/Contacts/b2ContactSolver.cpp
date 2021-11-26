@@ -26,6 +26,13 @@
 
 #define B2_DEBUG_SOLVER 0
 
+
+// defold: overrides #define b2_velocityThreshold in b2Settings.h
+float b2velocityThresholdOverride = 0;
+void b2ContactSolver::setVelocityThreshold(float value) {
+	b2velocityThresholdOverride = value;
+}
+
 struct b2ContactPositionConstraint
 {
 	b2Vec2 localPoints[b2_maxManifoldPoints];
@@ -104,7 +111,7 @@ b2ContactSolver::b2ContactSolver(b2ContactSolverDef* def)
 		{
 			b2ManifoldPoint* cp = manifold->points + j;
 			b2VelocityConstraintPoint* vcp = vc->points + j;
-	
+
 			if (m_step.warmStarting)
 			{
 				vcp->normalImpulse = m_step.dtRatio * cp->normalImpulse;
@@ -205,9 +212,9 @@ void b2ContactSolver::InitializeVelocityConstraints()
 			// Setup a velocity bias for restitution.
 			vcp->velocityBias = 0.0f;
 			float32 vRel = b2Dot(vc->normal, vB + b2Cross(wB, vcp->rB) - vA - b2Cross(wA, vcp->rA));
-			if (vRel < -b2_velocityThreshold)
+			if (vRel < (b2velocityThresholdOverride ? -b2velocityThresholdOverride : -b2_velocityThreshold)) // defold: take into account velocityOverride if non-zero
 			{
-				vcp->velocityBias = -vc->restitution * vRel;
+				vcp->velocityBias = -vc->restitution * vRel; // this happens when objects bounce off one another
 			}
 		}
 
@@ -378,17 +385,17 @@ void b2ContactSolver::SolveVelocityConstraints()
 			// implies that we must have in any solution either vn_i = 0 or x_i = 0. So for the 2D contact problem the cases
 			// vn1 = 0 and vn2 = 0, x1 = 0 and x2 = 0, x1 = 0 and vn2 = 0, x2 = 0 and vn1 = 0 need to be tested. The first valid
 			// solution that satisfies the problem is chosen.
-			// 
+			//
 			// In order to account of the accumulated impulse 'a' (because of the iterative nature of the solver which only requires
 			// that the accumulated impulse is clamped and not the incremental impulse) we change the impulse variable (x_i).
 			//
 			// Substitute:
-			// 
+			//
 			// x = a + d
-			// 
+			//
 			// a := old total impulse
 			// x := new total impulse
-			// d := incremental impulse 
+			// d := incremental impulse
 			//
 			// For the current iteration we extend the formula for the incremental impulse
 			// to compute the new total impulse:
@@ -472,7 +479,7 @@ void b2ContactSolver::SolveVelocityConstraints()
 				//
 				// Case 2: vn1 = 0 and x2 = 0
 				//
-				//   0 = a11 * x1 + a12 * 0 + b1' 
+				//   0 = a11 * x1 + a12 * 0 + b1'
 				// vn2 = a21 * x1 + a22 * 0 + b2'
 				//
 				x.x = - cp1->normalMass * b.x;
@@ -514,7 +521,7 @@ void b2ContactSolver::SolveVelocityConstraints()
 				//
 				// Case 3: vn2 = 0 and x1 = 0
 				//
-				// vn1 = a11 * 0 + a12 * x2 + b1' 
+				// vn1 = a11 * 0 + a12 * x2 + b1'
 				//   0 = a21 * 0 + a22 * x2 + b2'
 				//
 				x.x = 0.0f;
@@ -554,7 +561,7 @@ void b2ContactSolver::SolveVelocityConstraints()
 
 				//
 				// Case 4: x1 = 0 and x2 = 0
-				// 
+				//
 				// vn1 = b1
 				// vn2 = b2;
 				x.x = 0.0f;
@@ -830,3 +837,6 @@ bool b2ContactSolver::SolveTOIPositionConstraints(int32 toiIndexA, int32 toiInde
 	// push the separation above -b2_linearSlop.
 	return minSeparation >= -1.5f * b2_linearSlop;
 }
+
+
+

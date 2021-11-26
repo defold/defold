@@ -29,6 +29,7 @@ namespace dmTexc
         PF_L8,
         PF_R8G8B8,
         PF_R8G8B8A8,
+        PF_A8B8G8R8,
         PF_RGB_PVRTC_2BPPV1,
         PF_RGB_PVRTC_4BPPV1,
         PF_RGBA_PVRTC_2BPPV1,

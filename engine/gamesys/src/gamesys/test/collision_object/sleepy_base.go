@@ -4,6 +4,6 @@ components {
 }
 components {
   id: "base-co"
-  component: "/collision_object/sleepy_base.collisionobject"
+  component: "/collision_object/base.collisionobject"
 }
 

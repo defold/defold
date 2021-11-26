@@ -1880,6 +1880,46 @@ namespace dmGui
         return 1;
     }
 
+    /*# gets the node font resource
+     * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_font_resource
+     * @param font_name [type:hash|string] font of which to get the path hash
+     * @return hash [type:hash] path hash to resource
+     * @examples
+     *
+     * Get the text metrics for a text
+     *
+     * ```lua
+     * function init(self)
+     *   local node = gui.get_node("name")
+     *   local font_name = gui.get_font(node)
+     *   local font = gui.get_font_resource(font_name)
+     *   local metrics = resource.get_text_metrics(font, "The quick brown fox\n jumps over the lazy dog")
+     * end
+     * ```
+     */
+    static int LuaGetFontResource(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmhash_t font_id_hash = dmScript::CheckHashOrString(L, 1);
+
+        dmhash_t path_hash = dmGui::GetFontPath(scene, font_id_hash);
+        if (path_hash) {
+            dmScript::PushHash(L, path_hash);
+        } else {
+            return luaL_error(L, "Failed to get path hash for resource %s", dmHashReverseSafe64(font_id_hash));
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+
     /*# sets the node font
      * This is only useful for text nodes.
      * The font must be mapped to the gui scene in the gui editor.
@@ -2125,17 +2165,7 @@ namespace dmGui
         lua_rawset(L, -3);
     }
 
-    /*# get text metrics from node
-     * Get the text metrics from a text node.
-     *
-     * @name gui.get_text_metrics_from_node
-     * @param node [type:node] text node to measure text from
-     * @return metrics [type:table] a table with the following fields:
-     *
-     * - width
-     * - height
-     * - max_ascent
-     * - max_descent
+    /* DEPRECATED in favor of resource.get_text_metrics
      */
     static int LuaGetTextMetricsFromNode(lua_State* L)
     {
@@ -2178,22 +2208,7 @@ namespace dmGui
         return lua_toboolean(L, index);
     }
 
-    /*# get text metrics
-     * Get text metrics given the provided font, text and parameters.
-     *
-     * @name gui.get_text_metrics
-     * @param font [type:string|hash] font id
-     * @param text [type:string] text to measure
-     * @param width [type:number] max-width. Use for line-breaks (default=FLT_MAX)
-     * @param line_break [type:boolean] true to break lines accordingly to width (default=false)
-     * @param leading [type:number] scale value for line spacing (default=1)
-     * @param tracking [type:number] scale value for letter spacing (default=0)
-     * @return metrics [type:table] a table with the following fields:
-     *
-     * - width
-     * - height
-     * - max_ascent
-     * - max_descent
+    /* DEPRECATED in favor of resource.get_text_metrics
      */
     static int LuaGetTextMetrics(lua_State* L)
     {
@@ -4559,6 +4574,7 @@ namespace dmGui
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
         {"get_font",        LuaGetFont},
+        {"get_font_resource", LuaGetFontResource},
         {"set_font",        LuaSetFont},
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},

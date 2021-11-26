@@ -36,6 +36,8 @@
 #include <gamesys/sprite_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 
+#include <dmsdk/gameobject/script.h>
+
 using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
@@ -748,48 +750,27 @@ namespace dmGameSystem
                     dmMessage::URL sender;
                     if (!GetSender(component, &sender))
                     {
-                        dmLogError("Could not send animation_done to listener.");
+                        dmLogError("Could not send animation_done from component. Has it been deleted?");
                         return;
                     }
 
-                    dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
-                    dmGameSystemDDF::AnimationDone message;
-                    // Engine has 0-based indices, scripts use 1-based
-                    message.m_CurrentTile = component->m_CurrentAnimationFrame + 1;
-                    message.m_Id = component->m_CurrentAnimation;
-
+                    // Should this check be handled by the comp_script.cpp?
                     dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), component->m_Listener.m_Path);
                     if (!listener_instance)
                     {
-                        dmLogError("Could not send animation_done to instance: %s#%s", dmHashReverseSafe64(component->m_Listener.m_Path), dmHashReverseSafe64(component->m_Listener.m_Fragment));
+                        dmLogError("Could not send animation_done to instance: %s:%s#%s", dmHashReverseSafe64(component->m_Listener.m_Socket), dmHashReverseSafe64(component->m_Listener.m_Path), dmHashReverseSafe64(component->m_Listener.m_Fragment));
                         return;
                     }
 
-                    dmMessage::URL receiver = component->m_Listener;
-                    sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
-                    if (dmMessage::IsSocketValid(receiver.m_Socket) && dmMessage::IsSocketValid(sender.m_Socket))
+                    dmGameSystemDDF::AnimationDone message;
+                    message.m_CurrentTile = component->m_CurrentAnimationFrame + 1; // Engine has 0-based indices, scripts use 1-based
+                    message.m_Id = component->m_CurrentAnimation;
+
+                    dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &sender, &component->m_Listener, component->m_FunctionRef, false);
+                    dmMessage::ResetURL(&component->m_Listener);
+                    if (go_result != dmGameObject::RESULT_OK)
                     {
-                        dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
-                        if (go_result == dmGameObject::RESULT_OK)
-                        {
-                            sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
-                            uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
-                            uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
-                            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, component->m_FunctionRef, descriptor, &message, data_size, 0);
-                            dmMessage::ResetURL(&component->m_Listener);
-                            if (result != dmMessage::RESULT_OK)
-                            {
-                                dmLogError("Could not send animation_done to listener.");
-                            }
-                        }
-                        else
-                        {
-                            dmLogError("Could not send animation_done to listener because of incomplete component.");
-                        }
-                    }
-                    else
-                    {
-                        dmMessage::ResetURL(&component->m_Listener);
+                        dmLogError("Could not send animation_done to listener. Has it been deleted?");
                     }
                 }
             }
@@ -972,7 +953,7 @@ namespace dmGameSystem
         SpriteComponent* component = (SpriteComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -1173,10 +1154,18 @@ namespace dmGameSystem
             // Since the animation referred to the old texture, we need to update it
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                // Try to maintain offset and rate
-                PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
-
                 TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+                uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+                if (anim_id)
+                {
+                    PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
+                }
+                else
+                {
+                    component->m_Playing = 0;
+                    component->m_CurrentAnimation = 0x0;
+                    component->m_CurrentAnimationFrame = 0;
+                }
                 sprite_world->m_ReallocBuffers |= (sprite_world->m_UseGeometries == 0 && texture_set->m_TextureSet->m_UseGeometries != 0) ? 1 : 0;
                 sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
             }

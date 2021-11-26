@@ -2,7 +2,7 @@
 ![CI - Editor Only](https://github.com/defold/defold/workflows/CI%20-%20Editor%20Only/badge.svg)
 ![CI - Engine nightly](https://github.com/defold/defold/workflows/CI%20-%20Engine%20nightly/badge.svg)
 
-[![Join the chat at https://discord.gg/cHBde7J](https://img.shields.io/discord/250018174974689280?color=%237289DA&label=defold&logo=discord&logoColor=white)](https://discord.gg/cHBde7J) 
+[![Join the chat at https://discord.gg/cHBde7J](https://img.shields.io/discord/250018174974689280?color=%237289DA&label=defold&logo=discord&logoColor=white)](https://discord.gg/cHBde7J)
 
 # Defold
 
@@ -12,6 +12,8 @@ Repository for the Defold engine, editor and command line tools.
 [![](https://defold.com/images/logo/others/melsoft-black.png)](http://melsoft-games.com/)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/rive-black.png)](https://www.rive.app)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/op-games-color.png)](https://www.opgames.org)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/heroiclabs-blue.png)](https://www.heroiclabs.com)
 ![](https://defold.com/images/spacer32.png)

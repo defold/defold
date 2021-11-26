@@ -21,6 +21,7 @@
 #include <dlib/profile.h>
 
 #include "Box2D/Box2D.h"
+#include "Box2D/Dynamics/Contacts/b2ContactSolver.h"
 
 #include "physics_2d.h"
 
@@ -215,7 +216,9 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit2D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
+        context->m_VelocityThreshold = params.m_VelocityThreshold;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
+        b2ContactSolver::setVelocityThreshold(params.m_VelocityThreshold * params.m_Scale); // overrides fixed b2_velocityThreshold in b2Settings.h. Includes compensation for the scale factor so that velocityThreshold corresponds to the velocity values used in the game.
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -255,6 +258,7 @@ namespace dmPhysics
         world->m_World.SetDebugDraw(&world->m_DebugDraw);
         world->m_World.SetContactListener(&world->m_ContactListener);
         world->m_World.SetContinuousPhysics(false);
+
         context->m_Worlds.Push(world);
         return world;
     }

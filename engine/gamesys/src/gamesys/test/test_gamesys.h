@@ -41,6 +41,8 @@ struct ProjectOptions {
   uint32_t m_MaxCollisionCount;
   uint32_t m_MaxContactPointCount;
   bool m_3D;
+  float m_Scale;
+  float m_VelocityThreshold;
 };
 
 template<typename T>
@@ -69,6 +71,8 @@ public:
         this->m_projectOptions.m_MaxCollisionCount = 0;
         this->m_projectOptions.m_MaxContactPointCount = 0;
         this->m_projectOptions.m_3D = false;
+        this->m_projectOptions.m_Scale = 1.0f;
+        this->m_projectOptions.m_VelocityThreshold = 1.0f;
     }
 protected:
     virtual void SetUp();
@@ -142,6 +146,15 @@ public:
     }
 };
 
+
+class VelocityThreshold2DTest : public CollisionObject2DTest
+{
+public:
+	VelocityThreshold2DTest() {
+		m_projectOptions.m_Scale = 0.1;
+		m_projectOptions.m_VelocityThreshold = 20;
+	}
+};
 
 class ResourceTest : public GamesysTest<const char*>
 {
@@ -397,7 +410,10 @@ void GamesysTest<T>::SetUp()
     if (m_PhysicsContext.m_3D) {
         m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
     } else {
-        m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
+        dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
+        context2DParams.m_Scale = this->m_projectOptions.m_Scale;
+        context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
+        m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(context2DParams);    
     }
 
     m_ParticleFXContext.m_Factory = m_Factory;

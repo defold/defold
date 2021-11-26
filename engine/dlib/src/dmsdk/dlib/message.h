@@ -272,8 +272,8 @@ namespace dmMessage
     template <typename TDDFType>
     Result PostDDF(const TDDFType* message, const URL* sender, const URL* receiver, uintptr_t user_data1, uintptr_t user_data2, MessageDestroyCallback destroy_callback)
     {
-        return Post(sender, receiver, TDDFType::m_DDFDescriptor->m_NameHash, user_data1, user_data2,
-                    (uintptr_t)TDDFType::m_DDFDescriptor, message, sizeof(TDDFType), destroy_callback);
+        return Post(sender, receiver, message->m_DDFDescriptor->m_NameHash, user_data1, user_data2,
+                    (uintptr_t)message->m_DDFDescriptor, message, sizeof(TDDFType), destroy_callback);
     }
 
     /*#

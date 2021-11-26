@@ -19,6 +19,7 @@
 #include <gameobject/gameobject.h>
 #include <render/render.h>
 #include <rig/rig.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
@@ -79,19 +80,20 @@ namespace dmGameSystem
 
     struct GuiWorld
     {
-        dmArray<GuiRenderObject>         m_GuiRenderObjects;
-        dmArray<GuiComponent*>           m_Components;
-        dmGraphics::HVertexDeclaration   m_VertexDeclaration;
-        dmGraphics::HVertexBuffer        m_VertexBuffer;
-        dmArray<BoxVertex>               m_ClientVertexBuffer;
-        dmGraphics::HTexture             m_WhiteTexture;
-        dmParticle::HParticleContext     m_ParticleContext;
-        uint32_t                         m_MaxParticleFXCount;
-        uint32_t                         m_MaxParticleCount;
-        uint32_t                         m_RenderedParticlesSize;
-        float                            m_DT;
-        dmRig::HRigContext               m_RigContext;
-        dmScript::ScriptWorld*           m_ScriptWorld;
+        dmArray<GuiRenderObject>            m_GuiRenderObjects;
+        dmArray<HComponentRenderConstants>  m_RenderConstants;
+        dmArray<GuiComponent*>              m_Components;
+        dmGraphics::HVertexDeclaration      m_VertexDeclaration;
+        dmGraphics::HVertexBuffer           m_VertexBuffer;
+        dmArray<BoxVertex>                  m_ClientVertexBuffer;
+        dmGraphics::HTexture                m_WhiteTexture;
+        dmParticle::HParticleContext        m_ParticleContext;
+        uint32_t                            m_MaxParticleFXCount;
+        uint32_t                            m_MaxParticleCount;
+        uint32_t                            m_RenderedParticlesSize;
+        float                               m_DT;
+        dmRig::HRigContext                  m_RigContext;
+        dmScript::ScriptWorld*              m_ScriptWorld;
     };
 
     typedef BoxVertex ParticleGuiVertex;

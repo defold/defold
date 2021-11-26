@@ -112,6 +112,7 @@ public class GameProjectBuilder extends Builder<Void> {
         project.createPublisher(shouldPublish);
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
+                .disableCache()
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc").disableCache());
 
@@ -129,7 +130,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        project.buildResource(input, CopyCustomResourcesBuilder.class);
+        project.createTask(input, CopyCustomResourcesBuilder.class);
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");

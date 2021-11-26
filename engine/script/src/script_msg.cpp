@@ -54,7 +54,7 @@ namespace dmScript
         return (dmMessage::URL*)dmScript::ToUserType(L, index, SCRIPT_URL_TYPE_HASH);
     }
 
-    void url_tostring(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
+    const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
         char tmp[32];
         *buffer = '\0';
@@ -87,13 +87,14 @@ namespace dmScript
             dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Fragment));
             dmStrlCat(buffer, tmp, buffer_size);
         }
+        return buffer;
     }
 
     static int URL_tostring(lua_State *L)
     {
         dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
         char buffer[64];
-        url_tostring(url, buffer, 64);
+        UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s: [%s]", SCRIPT_TYPE_NAME_URL, buffer);
         return 1;
     }
@@ -103,7 +104,7 @@ namespace dmScript
         const char* s = luaL_checkstring(L, 1);
         dmMessage::URL* url = CheckURL(L, 2);
         char buffer[64];
-        url_tostring(url, buffer, 64);
+        UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s[%s]", s, buffer);
         return 1;
     }
@@ -534,9 +535,9 @@ namespace dmScript
         if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
         {
             char receiver_buffer[64];
-            url_tostring(&receiver, receiver_buffer, 64);
+            UrlToString(&receiver, receiver_buffer, sizeof(receiver_buffer));
             char sender_buffer[64];
-            url_tostring(&sender, sender_buffer, 64);
+            UrlToString(&sender, sender_buffer, sizeof(sender_buffer));
             return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }
         else if (result != dmMessage::RESULT_OK)

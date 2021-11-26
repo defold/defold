@@ -38,10 +38,15 @@ env:
 
 
 jobs:
+# ---- PRE-CHECK
+# ---- * Do not proceed if commit message contains "skip-ci"
+# ---- * If workflow is started from a "pull_request" event only proceed if coming from the Defold org
+# ---- * If workflow is started from a "pull_equest_target" event only proceed if it has the label "ok to test"
   pre-check:
     runs-on: ubuntu-18.04
     if: |
       !contains(github.event.head_commit.message, 'skip-ci') &&
+      (github.event_name != 'pull_request'        || (github.event_name == 'pull_request'        && github.event.pull_request.head.repo.full_name == github.repository)) &&
       (github.event_name != 'pull_request_target' || (github.event_name == 'pull_request_target' && contains(github.event.pull_request.labels.*.name, 'ok to test')))
     steps: [
       {

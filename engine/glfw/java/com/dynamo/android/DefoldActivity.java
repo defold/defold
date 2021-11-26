@@ -218,6 +218,8 @@ public class DefoldActivity extends NativeActivity {
         glfwSetMarkedTextNative(text);
     }
 
+    public static native void nativeOnCreate(Activity activity);
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
@@ -238,6 +240,7 @@ public class DefoldActivity extends NativeActivity {
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException("Error getting activity info", e);
         }
+        nativeOnCreate(this);
     }
 
     @Override

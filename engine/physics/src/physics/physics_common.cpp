@@ -27,6 +27,7 @@ namespace dmPhysics
     , m_Scale(1.0f)
     , m_ContactImpulseLimit(0.0f)
     , m_TriggerEnterLimit(0.0f)
+    , m_VelocityThreshold(1.0f)
     , m_RayCastLimit2D(0)
     , m_RayCastLimit3D(0)
     , m_TriggerOverlapCapacity(0)

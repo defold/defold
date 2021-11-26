@@ -164,6 +164,8 @@ namespace dmGameSystem
 
         resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
         resource->m_FontMaps.SetSize(0);
+        resource->m_FontMapPaths.SetCapacity(resource->m_FontMaps.Capacity());
+        resource->m_FontMapPaths.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Fonts.m_Count; ++i)
         {
             dmRender::HFontMap font_map;
@@ -171,6 +173,10 @@ namespace dmGameSystem
             if (r != dmResource::RESULT_OK)
                 return r;
             resource->m_FontMaps.Push(font_map);
+
+            dmhash_t path_hash = 0;
+            dmResource::GetPath(factory, font_map, &path_hash);
+            resource->m_FontMapPaths.Push(path_hash);
         }
 
         // Note: For backwards compability, we add proxy textureset resources containing texures for single texture file resources (deprecated)
