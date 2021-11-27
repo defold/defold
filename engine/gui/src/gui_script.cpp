@@ -4577,6 +4577,48 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the node alpha
+     *
+     * @name gui.get_alpha
+     * @param node [type:node] node from which to get alpha
+     */
+    static int LuaGetAlpha(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1)
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, (lua_Number) dmGui::GetNodeAlpha(scene, hnode));
+
+        return 1;
+    }
+
+    /*# sets the node alpha
+     *
+     * @name gui.set_alpha
+     * @param node [type:node] node for which to set alpha
+     * @param alpha [type:number] 0..1 alpha color
+     */
+    static int LuaSetAlpha(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0)
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_Number alpha = luaL_checknumber(L, 2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeAlpha(scene, hnode, alpha);
+
+        return 0;
+    }
+
 
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
@@ -4690,6 +4732,8 @@ namespace dmGui
         {"stop_particlefx", LuaParticlefxStop},
         {"get_inherit_alpha", LuaGetInheritAlpha},
         {"set_inherit_alpha", LuaSetInheritAlpha},
+        {"get_alpha", LuaGetAlpha},
+        {"set_alpha", LuaSetAlpha},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

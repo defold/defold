@@ -3341,6 +3341,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
+    void SetNodeAlpha(HScene scene, HNode node, float alpha)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_COLOR].setW(alpha);
+    }
+    
+    float GetNodeAlpha(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_COLOR].getW();
+    }
+
     float GetNodeFlipbookCursor(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
