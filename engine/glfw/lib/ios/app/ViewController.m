@@ -266,9 +266,9 @@ void _glfwPlatformSetWindowBackgroundColor(uint color)
     float r = (color & 0xff) / 255.0f;
     float g = ((color >> 8) & 0xff) / 255.0f;
     float b = ((color >> 16) & 0xff) / 255.0f;
-    UIColor *colour = [[UIColor alloc]initWithRed:r green:g blue:b alpha:1.0];
+    float a = ((color >> 24) & 0xff) / 255.0f;
     UIViewController *viewController = (UIViewController*)_glfwWin.viewController;
-    viewController.view.backgroundColor = colour;
+    viewController.view.backgroundColor = [[UIColor alloc]initWithRed:r green:g blue:b alpha:a];
 }
 
 void* _glfwPlatformAcquireAuxContext()
