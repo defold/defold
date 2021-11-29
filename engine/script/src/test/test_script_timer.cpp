@@ -25,7 +25,6 @@ struct TimerTestCallback
 {
     static uint32_t callback_count;
     static uint32_t cancel_count;
-    static uint32_t finish_count;
     static float elapsed_time;
 };
 
@@ -41,9 +40,6 @@ static void TestCallback(dmScript::HTimerWorld timer_world, dmScript::TimerEvent
         case dmScript::TIMER_EVENT_CANCELLED:
             ++TimerTestCallback::cancel_count;
             break;
-        case dmScript::TIMER_EVENT_FINISHED:
-            ++TimerTestCallback::finish_count;
-            break;
         default:
             ASSERT_TRUE(false);
             break;
@@ -54,13 +50,11 @@ static void ResetTestCallback()
 {
     TimerTestCallback::callback_count = 0;
     TimerTestCallback::cancel_count = 0;
-    TimerTestCallback::finish_count = 0;
     TimerTestCallback::elapsed_time = 0.f;
 }
 
 uint32_t TimerTestCallback::callback_count = 0;
 uint32_t TimerTestCallback::cancel_count = 0;
-uint32_t TimerTestCallback::finish_count = 0;
 float TimerTestCallback::elapsed_time = 0.f;
 
 class ScriptTimerTest : public jc_test_base_class
@@ -99,13 +93,13 @@ TEST_F(ScriptTimerTest, TestCreateDeleteWorld)
 TEST_F(ScriptTimerTest, TestCreateDeleteTimer)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
-    bool cancelled = dmScript::CancelTimer(timer_world, 0, false);
+    bool cancelled = dmScript::CancelTimer(timer_world, 0);
     ASSERT_EQ(false, cancelled);
     dmScript::HTimer handle = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
     ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
-    cancelled = dmScript::CancelTimer(timer_world, handle, false);
+    cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(true, cancelled);
-    cancelled = dmScript::CancelTimer(timer_world, handle, false);
+    cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(false, cancelled);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_world));
@@ -118,18 +112,18 @@ TEST_F(ScriptTimerTest, TestHandleReuse)
     dmScript::HTimer handle1 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
     dmScript::HTimer handle2 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
     ASSERT_NE(handle1, handle2);
-    bool cancelled = dmScript::CancelTimer(timer_world, handle1, false);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle1);
     ASSERT_EQ(true, cancelled);
     dmScript::HTimer handle3 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
     ASSERT_NE(handle1, handle2);
     ASSERT_NE(handle1, handle3);
-    cancelled = dmScript::CancelTimer(timer_world, handle2, false);
+    cancelled = dmScript::CancelTimer(timer_world, handle2);
     ASSERT_EQ(true, cancelled);
-    cancelled = dmScript::CancelTimer(timer_world, handle3, false);
+    cancelled = dmScript::CancelTimer(timer_world, handle3);
     ASSERT_EQ(true, cancelled);
     dmScript::HTimer handle4 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
     ASSERT_NE(handle1, handle4);
-    cancelled = dmScript::CancelTimer(timer_world, handle4, false);
+    cancelled = dmScript::CancelTimer(timer_world, handle4);
     ASSERT_EQ(true, cancelled);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_world));
@@ -160,7 +154,7 @@ TEST_F(ScriptTimerTest, TestSameOwnerTimer)
     ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[3]);
     ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[4]);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, handles[2], false);
+    bool cancelled = dmScript::CancelTimer(timer_world, handles[2]);
     ASSERT_EQ(true, cancelled);
 
     uint32_t killCount = dmScript::KillTimers(timer_world, owner[0]);
@@ -196,13 +190,13 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
     ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[3]);
     ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[4]);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, handles[2], false);
+    bool cancelled = dmScript::CancelTimer(timer_world, handles[2]);
     ASSERT_EQ(true, cancelled);
 
     uint32_t killCount = dmScript::KillTimers(timer_world, owner[0]);
     ASSERT_EQ(2u, killCount);
 
-    killCount = dmScript::CancelTimer(timer_world, handles[4], false);
+    killCount = dmScript::CancelTimer(timer_world, handles[4]);
     ASSERT_EQ(true, killCount);
 
     killCount = dmScript::KillTimers(timer_world, owner[0]);
@@ -285,7 +279,7 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
 
-    ASSERT_FALSE(dmScript::CancelTimer(timer_world, handle, false));
+    ASSERT_FALSE(dmScript::CancelTimer(timer_world, handle));
 
     ASSERT_EQ(0u, GetAliveTimers(timer_world));
 
@@ -311,9 +305,6 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
                 case dmScript::TIMER_EVENT_CANCELLED:
                     ++TimerTestCallback::cancel_count;
                     break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ++TimerTestCallback::finish_count;
-                    break;
             }
         }
     };
@@ -332,7 +323,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
 
-    ASSERT_TRUE(dmScript::CancelTimer(timer_world, handle, false));
+    ASSERT_TRUE(dmScript::CancelTimer(timer_world, handle));
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
     dmScript::UpdateTimers(timer_world, 1.f);
@@ -364,9 +355,6 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
                 case dmScript::TIMER_EVENT_CANCELLED:
                     ++TimerTestCallback::cancel_count;
                     break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ++TimerTestCallback::finish_count;
-                    break;
             }
         }
     };
@@ -395,7 +383,7 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
     dmScript::UpdateTimers(timer_world, 5.5f);
     ASSERT_EQ(8u, TimerTestCallback::callback_count);
 
-    ASSERT_TRUE(dmScript::CancelTimer(timer_world, handle, false));
+    ASSERT_TRUE(dmScript::CancelTimer(timer_world, handle));
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
     dmScript::UpdateTimers(timer_world, 1.f);
@@ -429,9 +417,6 @@ TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
                 case dmScript::TIMER_EVENT_CANCELLED:
                     ++TimerTestCallback::cancel_count;
                     break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ++TimerTestCallback::finish_count;
-                    break;
             }
             TimerTestCallback::elapsed_time += time_elapsed;
         }
@@ -447,7 +432,7 @@ TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
     ASSERT_EQ(1.5f, TimerTestCallback::elapsed_time);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, handle, false);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_TRUE(cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
@@ -478,7 +463,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
                         ++TimerTestCallback::callback_count;
                         if (TimerTestCallback::callback_count == 2u)
                         {
-                            bool cancelled = dmScript::CancelTimer(timer_world, timer_handle, false);
+                            bool cancelled = dmScript::CancelTimer(timer_world, timer_handle);
                             ASSERT_EQ(true, cancelled);
                         }
                         else
@@ -489,9 +474,6 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
                     break;
                 case dmScript::TIMER_EVENT_CANCELLED:
                     ++TimerTestCallback::cancel_count;
-                    break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ++TimerTestCallback::finish_count;
                     break;
             }
         }
@@ -508,7 +490,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, handle, false);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
@@ -542,15 +524,11 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
                 case dmScript::TIMER_EVENT_TRIGGER_WILL_REPEAT:
                     ASSERT_EQ(0u, TimerTestCallback::callback_count);
                     ++TimerTestCallback::callback_count;
-                    ASSERT_TRUE(dmScript::CancelTimer(timer_world, timer_handle, false));
+                    ASSERT_TRUE(dmScript::CancelTimer(timer_world, timer_handle));
                     break;
                 case dmScript::TIMER_EVENT_CANCELLED:
                     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
                     ++TimerTestCallback::cancel_count;
-                    break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ASSERT_EQ(0u, TimerTestCallback::finish_count);
-                    ++TimerTestCallback::finish_count;
                     break;
             }
         }
@@ -565,113 +543,13 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, handle, false);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(TimerTestCallback::callback_count, 1u);
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(TimerTestCallback::callback_count, 1u);
-
-    ASSERT_EQ(GetAliveTimers(timer_world), 0u);
-
-    dmScript::DeleteTimerWorld(timer_world);
-}
-
-TEST_F(ScriptTimerTest, TestOneshotTimerFinishInCallback)
-{
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
-
-    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
-
-    struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
-        {
-            ASSERT_EQ(handle, timer_handle);
-
-            ASSERT_NE(dmScript::TIMER_EVENT_TRIGGER_WILL_REPEAT, event_type);
-            switch (event_type)
-            {
-                case dmScript::TIMER_EVENT_TRIGGER_WILL_DIE:
-                case dmScript::TIMER_EVENT_TRIGGER_WILL_REPEAT:
-                    ASSERT_EQ(0u, TimerTestCallback::callback_count);
-                    ++TimerTestCallback::callback_count;
-                    ASSERT_TRUE(dmScript::CancelTimer(timer_world, timer_handle, true));
-                    break;
-                case dmScript::TIMER_EVENT_CANCELLED:
-                    ASSERT_EQ(0u, TimerTestCallback::cancel_count);
-                    ++TimerTestCallback::cancel_count;
-                    break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ASSERT_EQ(0u, TimerTestCallback::finish_count);
-                    ++TimerTestCallback::finish_count;
-                    break;
-            }
-        }
-    };
-
-    handle = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
-
-    dmScript::UpdateTimers(timer_world, 1.f);
-    ASSERT_EQ(0u, TimerTestCallback::callback_count);
-    ASSERT_EQ(0u, TimerTestCallback::cancel_count);
-    dmScript::UpdateTimers(timer_world, 1.f);
-    ASSERT_EQ(1u, TimerTestCallback::callback_count);
-    ASSERT_EQ(1u, TimerTestCallback::finish_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, handle, true);
-    ASSERT_EQ(false, cancelled);
-    ASSERT_EQ(1u, TimerTestCallback::finish_count);
-    dmScript::UpdateTimers(timer_world, 1.f);
-    ASSERT_EQ(TimerTestCallback::callback_count, 1u);
-    dmScript::UpdateTimers(timer_world, 1.f);
-    ASSERT_EQ(TimerTestCallback::callback_count, 1u);
-
-    ASSERT_EQ(GetAliveTimers(timer_world), 0u);
-
-    dmScript::DeleteTimerWorld(timer_world);
-}
-
-TEST_F(ScriptTimerTest, TestOneshotTimerFinish)
-{
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
-
-    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
-
-    struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
-        {
-            ASSERT_EQ(handle, timer_handle);
-
-            ASSERT_NE(dmScript::TIMER_EVENT_TRIGGER_WILL_REPEAT, event_type);
-            switch (event_type)
-            {
-                case dmScript::TIMER_EVENT_TRIGGER_WILL_DIE:
-                case dmScript::TIMER_EVENT_TRIGGER_WILL_REPEAT:
-                    ASSERT_EQ(0u, TimerTestCallback::callback_count);
-                    ++TimerTestCallback::callback_count;
-                    break;
-                case dmScript::TIMER_EVENT_CANCELLED:
-                    ASSERT_EQ(0u, TimerTestCallback::cancel_count);
-                    ++TimerTestCallback::cancel_count;
-                    break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ASSERT_EQ(0u, TimerTestCallback::finish_count);
-                    ++TimerTestCallback::finish_count;
-                    break;
-            }
-        }
-    };
-
-    handle = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
-
-    dmScript::UpdateTimers(timer_world, 1.f);
-    ASSERT_EQ(0u, TimerTestCallback::callback_count);
-    ASSERT_EQ(0u, TimerTestCallback::cancel_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, handle, true);
-    ASSERT_EQ(true, cancelled);
-    ASSERT_EQ(1u, TimerTestCallback::finish_count);
 
     ASSERT_EQ(GetAliveTimers(timer_world), 0u);
 
@@ -718,9 +596,6 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
                 case dmScript::TIMER_EVENT_CANCELLED:
                     ++TimerTestCallback::cancel_count;
                     break;
-                case dmScript::TIMER_EVENT_FINISHED:
-                    ++TimerTestCallback::finish_count;
-                    break;
             }
         }
     };
@@ -737,21 +612,21 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, outer_handle, false);
+    bool cancelled = dmScript::CancelTimer(timer_world, outer_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
 
     dmScript::UpdateTimers(timer_world, 0.00001f);
     ASSERT_EQ(3u, TimerTestCallback::callback_count);
 
-    cancelled = dmScript::CancelTimer(timer_world, inner_handle, false);
+    cancelled = dmScript::CancelTimer(timer_world, inner_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(4u, TimerTestCallback::callback_count);
 
-    cancelled = dmScript::CancelTimer(timer_world, inner2_handle, false);
+    cancelled = dmScript::CancelTimer(timer_world, inner2_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
 
@@ -774,10 +649,7 @@ static void ShortRepeatTimerCallback(dmScript::HTimerWorld timer_world, dmScript
         case dmScript::TIMER_EVENT_CANCELLED:
             ++TimerTestCallback::cancel_count;
             break;
-        case dmScript::TIMER_EVENT_FINISHED:
-            ++TimerTestCallback::finish_count;
-            break;
-}
+    }
 }
 
 TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
@@ -797,7 +669,7 @@ TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
     ASSERT_EQ(3u, TimerTestCallback::callback_count);
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(4u, TimerTestCallback::callback_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, handle, false);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(true, cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 

@@ -296,7 +296,7 @@ namespace dmScript
         return timer->m_Handle;
     }
 
-    bool CancelTimer(HTimerWorld timer_world, HTimer handle, bool finish)
+    bool CancelTimer(HTimerWorld timer_world, HTimer handle)
     {
         assert(timer_world != 0x0);
         uint16_t lookup_index = GetLookupIndex(handle);
@@ -323,7 +323,7 @@ namespace dmScript
         }
 
         timer.m_IsAlive = 0;
-        timer.m_Callback(timer_world, finish ? TIMER_EVENT_FINISHED : TIMER_EVENT_CANCELLED, timer.m_Handle, 0.f, timer.m_Owner, timer.m_UserData);
+        timer.m_Callback(timer_world, TIMER_EVENT_CANCELLED, timer.m_Handle, 0.f, timer.m_Owner, timer.m_UserData);
 
         if (timer_world->m_InUpdate == 0)
         {
@@ -598,18 +598,12 @@ namespace dmScript
      *
      * @name timer.cancel
      * @param handle [type:hash] the timer handle returned by timer.delay()
-     * @param finish [type:boolean] optional parameter if callback should be called
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      */
     static int TimerCancel(lua_State* L)
     {
         int top = lua_gettop(L);
         const int handle = luaL_checkint(L, 1);
-        bool finish = false;
-        if (top > 1)
-        {
-            finish = lua_toboolean(L, 2);
-        }
 
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);
         if (timer_world == 0x0)
@@ -618,7 +612,7 @@ namespace dmScript
             return 1;
         }
 
-        bool cancelled = dmScript::CancelTimer(timer_world, (dmScript::HTimer)handle, finish);
+        bool cancelled = dmScript::CancelTimer(timer_world, (dmScript::HTimer)handle);
         lua_pushboolean(L, cancelled ? 1 : 0);
         assert(top + 1 == lua_gettop(L));
         return 1;
