@@ -443,9 +443,6 @@
         (let [atlas (test-util/resource-node project "/background/background.atlas")]
           (g/transact (g/set-property atlas :margin 10))
           (let [third-time (measure (project-build-artifacts project resource-node (g/make-evaluation-context)))]
-           (prn "MAWE first-time" first-time)
-           (prn "MAWE second-time" second-time)
-           (prn "MAWE third-time" third-time)
             (is (< (* 2 second-time) third-time))))))))
 
 (defn- build-path [workspace proj-path]
