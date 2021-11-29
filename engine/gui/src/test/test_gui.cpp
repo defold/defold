@@ -1829,13 +1829,13 @@ TEST_F(dmGuiTest, ScriptPlayback)
                     "    self.node = gui.get_node(\"n\")\n"
                     "    gui.animate(self.node, gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, %d, %d, cb, gui.PLAYBACK_ONCE_BACKWARD)\n"
                     "end\n";
-    for (int i = 0; i < 9; ++i)
+    for (int i = 0; i < DM_ARRAY_SIZE(durations); ++i)
     {
         dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
         dmGui::SetNodeId(m_Scene, node, "n");
         char buffer[1024];
 
-        sprintf(buffer, s, durations[i], delays[i]);
+        dmSnPrintf(buffer, sizeof(buffer), s, durations[i], delays[i]);
 
         r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
         ASSERT_EQ(dmGui::RESULT_OK, r);
