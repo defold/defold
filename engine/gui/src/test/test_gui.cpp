@@ -6252,6 +6252,26 @@ TEST_F(dmGuiTest, InheritAlpha)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, ScriptGetSetAlpha)
+{
+    const char* s = "function init(self)\n"
+                    "    self.n1 = gui.new_box_node(vmath.vector4(0,0,0,0), vmath.vector3(1,1,1))\n"
+                    "    local alpha = 0\n"
+                    "    gui.set_alpha(self.n1, alpha)\n"
+                    "    local a = gui.get_alpha(self.n1)\n"
+                    "    assert(a == alpha)\n"
+                   "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
