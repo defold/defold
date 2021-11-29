@@ -565,7 +565,7 @@ namespace dmGameObject
      * ```
      *
      * @examples
-     * Get an value in a material property array
+     * Get a value in a material property array
      *
      * ```lua
      * -- get the first vector4 in the array: example[0] (the glsl indices are 0-based)
@@ -767,7 +767,7 @@ namespace dmGameObject
      * ```
      *
      * @examples
-     * Set an vector4 in a material property array
+     * Set a vector4 in a material property array
      *
      * ```lua
      * -- set the first vector4 in the array: example[0] = v (the glsl indices are 0-based)
