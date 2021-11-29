@@ -546,9 +546,12 @@ namespace dmGameObject
      * @name go.get
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
+     * @param options [type:table] (optional) options table
+     * - index [type:integer] index into array property (1 based)
+     * - key [type:hash] name of internal property
      * @return value [type:any] the value of the specified property
-     * @examples
      *
+     * @examples
      * Get a property "speed" from a script "player", the property must be declared in the player-script:
      *
      * ```lua
@@ -559,6 +562,30 @@ namespace dmGameObject
      *
      * ```lua
      * local speed = go.get("#player", "speed")
+     * ```
+     *
+     * @examples
+     * Get a value in a material property array
+     *
+     * ```lua
+     * -- get the first vector4 in the array: example[0] (the glsl indices are 0-based)
+     * go.get(url, "example", {index=1})
+     *
+     * -- get the last vector4 in the array: example[15] (the glsl indices are 0-based)
+     * go.get(url, "example", {index=16})
+     *
+     * -- get an element of a vector4 in the array: example[0].x (the glsl indices are 0-based)
+     * go.get(url, "example.x", {index=1})
+     * ```
+     *
+     * @examples
+     * Get a named property
+     *
+     * ```lua
+     * function init(self)
+     *     -- get the resource of a certain gui font
+     *     local font_hash = go.get("#gui", "fonts", {key = "system_font_BIG"})
+     * end
      * ```
      */
     int Script_Get(lua_State* L)
@@ -722,6 +749,9 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
      * @param value [type:any] the value to set
+     * @param options [type:table] (optional) options table
+     * - index [type:integer] index into array property (1 based)
+     * - key [type:hash] name of internal property
      * @examples
      *
      * Set a property "speed" of a script "player", the property must be declared in the player-script:
@@ -734,6 +764,31 @@ namespace dmGameObject
      *
      * ```lua
      * go.set("#player", "speed", 100)
+     * ```
+     *
+     * @examples
+     * Set a vector4 in a material property array
+     *
+     * ```lua
+     * -- set the first vector4 in the array: example[0] = v (the glsl indices are 0-based)
+     * go.set(url, "example", vmath.vector4(1,1,1,1), {index=1})
+     *
+     * -- set the last vector4 in the array: example[15] = v (the glsl indices are 0-based)
+     * go.set(url, "example", vmath.vector4(2,2,2,2), {index=16})
+     *
+     * -- set an element of a vector4 in the array: example[0].x = 7 (the glsl indices are 0-based)
+     * go.set(url, "example.x", 7, {index=1})
+     * ```
+     *
+     * @examples
+     * Set a named property
+     *
+     * ```lua
+     * go.property("big_font", resource.font())
+     *
+     * function init(self)
+     *     go.set("#gui", "fonts", self.big_font, {key = "system_font_BIG"})
+     * end
      * ```
      */
     int Script_Set(lua_State* L)
