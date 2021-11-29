@@ -664,7 +664,7 @@ void _glfwPlatformSetViewType(int view_type)
 {
 }
 
-void _glfwPlatformSetWindowBackgroundColor(int color)
+void _glfwPlatformSetWindowBackgroundColor(uint color)
 {
 }
 

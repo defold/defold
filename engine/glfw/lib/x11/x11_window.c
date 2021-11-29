@@ -2059,6 +2059,6 @@ GLFWAPI void glfwAccelerometerEnable()
 
 }
 
-void _glfwPlatformSetWindowBackgroundColor(int color)
+void _glfwPlatformSetWindowBackgroundColor(uint color)
 {
 }

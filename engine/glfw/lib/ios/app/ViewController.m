@@ -261,7 +261,7 @@ void _glfwPlatformSetViewType(int view_type)
     g_view_type = view_type;
 }
 
-void _glfwPlatformSetWindowBackgroundColor(int color)
+void _glfwPlatformSetWindowBackgroundColor(uint color)
 {
     float r = (color & 0xff) / 255.0f;
     float g = ((color >> 8) & 0xff) / 255.0f;
