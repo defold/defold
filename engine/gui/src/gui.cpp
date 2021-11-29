@@ -3854,9 +3854,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Node = node;
         animation.m_Value = value;
         animation.m_To = to;
-        animation.m_Delay = delay;
+        animation.m_Delay = delay < 0.0f ? 0.0f : delay;
         animation.m_Elapsed = 0.0f;
-        animation.m_Duration = duration;
+        animation.m_Duration = duration < 0.0f ? 0.0f : duration;
         animation.m_PlaybackRate = playback_rate;
         animation.m_Easing = easing;
         animation.m_Playback = playback;
