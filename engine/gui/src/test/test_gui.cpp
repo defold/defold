@@ -1817,33 +1817,48 @@ TEST_F(dmGuiTest, ScriptAnimate)
 
 TEST_F(dmGuiTest, ScriptPlayback)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeId(m_Scene, node, "n");
-    const char* s = "function init(self)\n"
-                    "    self.node = gui.get_node(\"n\")\n"
-                    "    gui.animate(self.node, gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, nil, gui.PLAYBACK_ONCE_BACKWARD)\n"
-                    "end\n"
-                    "function final(self)\n"
-                    "    gui.delete_node(self.node)\n"
-                    "end\n";
-
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
-    ASSERT_EQ(dmGui::RESULT_OK, r);
-
-    r = dmGui::InitScene(m_Scene);
-    ASSERT_EQ(dmGui::RESULT_OK, r);
-
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
-
-    // Animation
-    for (int i = 0; i < 60; ++i)
+    int durations[9] = { 1, 1,  1, 0, 0,  0, -1, -1, -1 };
+    int delays[9]     = { 1, 0, -1, 1, 0, -1,  0,  1, -1 };
+    const char* s = "function cb(self, node)\n"
+                    "    assert(self.foobar == 123)\n"
+                    "    gui.set_color(node, vmath.vector4(1.0,0,0,0))\n"
+                    "end\n;"
+                    "function init(self)\n"
+                    "    self.foobar = 123\n"
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.animate(self.node, gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, %d, %d, cb, gui.PLAYBACK_ONCE_BACKWARD)\n"
+                    "end\n";
+    for (int i = 0; i < DM_ARRAY_SIZE(durations); ++i)
     {
-        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-        ASSERT_EQ(dmGui::RESULT_OK, r);
-    }
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeId(m_Scene, node, "n");
+        char buffer[1024];
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+        dmSnPrintf(buffer, sizeof(buffer), s, durations[i], delays[i]);
+
+        r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+
+        r = dmGui::InitScene(m_Scene);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+
+        // Animation
+        for (int i = 0; i < 60; ++i)
+        {
+            r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+            ASSERT_EQ(dmGui::RESULT_OK, r);
+        }
+
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+
+        Vector4 color = dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR);
+        ASSERT_NEAR(color.getX(), 1.0f, EPSILON);
+
+        dmGui::DeleteNode(m_Scene, node, true);
+    }
 
     r = dmGui::FinalScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);

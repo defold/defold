@@ -1716,13 +1716,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
-
-            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if ((anim->m_Elapsed >= anim->m_Duration && anim->m_Delay == 0) || anim->m_Cancelled)
             {
                 // If we have cancelled an animation, its callback won't be called which means
                 // we potentially get dangling lua refs in the script system
-                // Another scenario where the callback won't get invoked is when the duration
-                // is 0.0 and the delay > 0.0
                 if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                 {
                     anim->m_AnimationCompleteCalled = 1;
@@ -3869,9 +3866,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Node = node;
         animation.m_Value = value;
         animation.m_To = to;
-        animation.m_Delay = delay;
+        animation.m_Delay = delay < 0.0f ? 0.0f : delay;
         animation.m_Elapsed = 0.0f;
-        animation.m_Duration = duration;
+        animation.m_Duration = duration < 0.0f ? 0.0f : duration;
         animation.m_PlaybackRate = playback_rate;
         animation.m_Easing = easing;
         animation.m_Playback = playback;
