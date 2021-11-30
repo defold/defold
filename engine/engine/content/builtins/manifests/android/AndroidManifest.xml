@@ -13,6 +13,7 @@
         {{#has-icons?}}
         android:icon="@drawable/icon"
         {{/has-icons?}}
+        tools:replace="android:label"
         android:label="{{project.title}}" android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication"
         android:debuggable="{{android.debuggable}}">
