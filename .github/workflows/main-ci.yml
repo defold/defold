@@ -60,7 +60,7 @@ jobs:
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
-    runs-on: windows-2016
+    runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
