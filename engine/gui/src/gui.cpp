@@ -2347,7 +2347,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_ClippingVisible = true;
         node->m_Node.m_ClippingInverted = false;
 
-        node->m_Node.m_HasResetPoint = false;
+        node->m_Node.m_HasResetPoint = 0;
         node->m_Node.m_TextureHash = 0;
         node->m_Node.m_Texture = 0;
         node->m_Node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
@@ -2823,7 +2823,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* n = GetNode(scene, node);
         memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
         n->m_Node.m_ResetPointState = n->m_Node.m_State;
-        n->m_Node.m_HasResetPoint = true;
+        n->m_Node.m_HasResetPoint = 1;
     }
 
     const char* GetNodeText(HScene scene, HNode node)

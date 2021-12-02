@@ -109,8 +109,9 @@ namespace dmGui
         Vector4     m_LocalAdjustScale;
         uint32_t    m_ResetPointState;
 
-        uint32_t m_PerimeterVertices;
-        PieBounds m_OuterBounds;
+        uint32_t    m_HasResetPoint         : 1;
+        uint32_t    m_PerimeterVertices     :31;
+        PieBounds   m_OuterBounds;
 
         union
         {
@@ -138,7 +139,6 @@ namespace dmGui
             uint32_t m_State;
         };
 
-        bool        m_HasResetPoint;
         const char* m_Text;
 
         uint64_t    m_TextureHash;
