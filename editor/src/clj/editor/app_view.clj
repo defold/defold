@@ -67,6 +67,7 @@
             [service.log :as log]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
+            [util.thread-util :as thread-util]
             [service.smoke-log :as slog])
   (:import [com.defold.editor Editor]
            [com.defold.editor UIUtil]
@@ -753,32 +754,174 @@
         (error-reporting/report-exception! error)
         nil))))
 
-(defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
-  (assert (not @build-in-progress?))
-  (reset! build-in-progress? true)
-  (future
-    (try
-      (render-build-progress! (progress/make "Building project..." 1))
-      (let [extra-build-targets (when debug?
-                                  (debug-view/build-targets project evaluation-context))
-            build-results (ui/with-progress [_ render-build-progress!]
-                            (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))
-            [engine build-engine-exception] (when (and engine? (nil? (:error build-results)))
-                                              (try
-                                                (ui/with-progress [_ render-build-progress!]
-                                                  (render-build-progress! (progress/make-indeterminate "Fetching Engine"))
-                                                  [(engine/get-engine project evaluation-context prefs (engine/current-platform)) nil])
-                                                (catch Throwable e
-                                                  [nil e])))]
-        (ui/run-later
-          (try
-            (when result-fn (result-fn build-results engine build-engine-exception))
-            (finally
-              (reset! build-in-progress? false)))))
-      (catch Throwable t
-        (reset! build-in-progress? false)
-        (render-build-progress! progress/done)
-        (error-reporting/report-exception! t)))))
+(defn- cached-build-target-output? [node-id label evaluation-context]
+  (and (= :build-targets label)
+       (project/project-resource-node? node-id evaluation-context)))
+
+(defn- update-system-cache-build-targets! [evaluation-context]
+  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-build-target-output?)]
+    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
+
+(defn async-build! [project prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
+  (let [;; After any pre-build hooks have completed successfully, we will start
+        ;; the engine build on a separate background thread so the build servers
+        ;; can work while we build the project. We will await the results of the
+        ;; engine build in the final phase.
+        engine-build-future-atom (atom nil)
+
+        cancel-engine-build!
+        (fn cancel-engine-build! []
+          (when-some [engine-build-future (thread-util/preset! engine-build-future-atom nil)]
+            (future-cancel engine-build-future)
+            nil))
+
+        start-engine-build!
+        (fn start-engine-build! []
+          (assert (ui/on-ui-thread?))
+          (cancel-engine-build!)
+          (when engine?
+            (let [evaluation-context (g/make-evaluation-context)
+                  platform (engine/current-platform)]
+              (reset! engine-build-future-atom
+                      (future
+                        (try
+                          (let [engine (engine/get-engine project evaluation-context prefs platform)]
+                            (ui/run-later
+                              ;; This potentially saves us from having to
+                              ;; re-calculate native extension file hashes the
+                              ;; next time we build the project.
+                              (g/update-cache-from-evaluation-context! evaluation-context))
+                            engine)
+                          (catch Throwable error
+                            error))))
+              nil)))
+
+        run-on-background-thread!
+        (fn run-on-background-thread! [background-thread-fn ui-thread-fn]
+          (future
+            (try
+              (let [return-value (background-thread-fn)]
+                (ui/run-later
+                  (try
+                    (ui-thread-fn return-value)
+                    (catch Throwable error
+                      (reset! build-in-progress? false)
+                      (render-build-progress! progress/done)
+                      (cancel-engine-build!)
+                      (throw error)))))
+              (catch Throwable error
+                (reset! build-in-progress? false)
+                (render-build-progress! progress/done)
+                (cancel-engine-build!)
+                (error-reporting/report-exception! error))))
+          nil)
+
+        finish-with-result!
+        (fn finish-with-result! [project-build-results engine build-engine-exception]
+          (reset! build-in-progress? false)
+          (render-build-progress! progress/done)
+          (cancel-engine-build!)
+          (when (some? result-fn)
+            (result-fn project-build-results engine build-engine-exception)
+            nil))
+
+        phase-5-await-engine-build!
+        (fn phase-5-await-engine-build! [project-build-results]
+          (assert (nil? (:error project-build-results)))
+          (let [engine-build-future @engine-build-future-atom]
+            (if (nil? engine-build-future)
+              (finish-with-result! project-build-results nil nil)
+              (do
+                (render-build-progress! (progress/make-indeterminate "Fetching engine..."))
+                (run-on-background-thread!
+                  (fn run-engine-build-on-background-thread! []
+                    (deref engine-build-future))
+                  (fn process-engine-build-results-on-ui-thread! [engine-or-exception]
+                    (if (instance? Throwable engine-or-exception)
+                      (finish-with-result! project-build-results nil engine-or-exception)
+                      (finish-with-result! project-build-results engine-or-exception nil))))))))
+
+        phase-4-run-post-build-hook!
+        (fn phase-4-run-post-build-hook! [project-build-results]
+          (render-build-progress! (progress/make-indeterminate "Executing post-build hooks..."))
+          (let [platform (engine/current-platform)
+                project-build-successful? (nil? (:error project-build-results))]
+            (run-on-background-thread!
+              (fn run-post-build-hook-on-background-thread! []
+                (extensions/execute-hook! project
+                                          :on-build-finished
+                                          {:exception-policy :ignore
+                                           :opts {:success project-build-successful?
+                                                  :platform platform}}))
+              (fn process-post-build-hook-results-on-ui-thread! [_]
+                (if project-build-successful?
+                  (phase-5-await-engine-build! project-build-results)
+                  (finish-with-result! project-build-results nil nil))))))
+
+        phase-3-build-project!
+        (fn phase-3-build-project! []
+          ;; We're about to create an evaluation-context. Make sure it is
+          ;; created from the main thread, so it makes sense to update the cache
+          ;; from it after the project build concludes. Note that we selectively
+          ;; transfer only the cached build-targets back to the system cache.
+          ;; We do this because the project build process involves most of the
+          ;; cached outputs in the project graph, and the intermediate steps
+          ;; risk evicting the previous build targets as the cache fills up.
+          (assert (ui/on-ui-thread?))
+          (let [evaluation-context (g/make-evaluation-context)]
+            (render-build-progress! (progress/make "Building project..." 1))
+            (run-on-background-thread!
+              (fn run-project-build-on-background-thread! []
+                (let [extra-build-targets
+                      (when debug?
+                        (debug-view/build-targets project evaluation-context))]
+                  (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!)))
+              (fn process-project-build-results-on-ui-thread! [project-build-results]
+                (update-system-cache-build-targets! evaluation-context)
+                (phase-4-run-post-build-hook! project-build-results)))))
+
+        phase-2-start-engine-build!
+        (fn phase-2-start-engine-build! []
+          (start-engine-build!)
+          (phase-3-build-project!))
+
+        phase-1-run-pre-build-hook!
+        (fn phase-1-run-pre-build-hook! []
+          (render-build-progress! (progress/make-indeterminate "Executing pre-build hooks..."))
+          (let [platform (engine/current-platform)]
+            (run-on-background-thread!
+              (fn run-pre-build-hook-on-background-thread! []
+                (let [extension-error
+                      (extensions/execute-hook!
+                        project
+                        :on-build-started
+                        {:exception-policy :as-error
+                         :opts {:platform platform}})]
+                  ;; If there was an error in the pre-build hook, we won't proceed
+                  ;; with the project build. But we still want to report the build
+                  ;; failure to any post-build hooks that might need to know.
+                  (when (some? extension-error)
+                    (render-build-progress! (progress/make-indeterminate "Executing post-build hooks..."))
+                    (extensions/execute-hook!
+                      project
+                      :on-build-finished
+                      {:exception-policy :ignore
+                       :opts {:success false
+                              :platform platform}}))
+                  extension-error))
+              (fn process-pre-build-hook-results-on-ui-thread! [extension-error]
+                (if (some? extension-error)
+                  (finish-with-result! {:error extension-error} nil nil)
+                  (phase-2-start-engine-build!))))))]
+    ;; Trigger phase 1. Subsequent phases will be triggered as prior phases
+    ;; finish without errors. Each phase will do some work on a background
+    ;; thread, then process the results on the ui thread, and potentially
+    ;; trigger subsequent phases which will again get off the ui thread as
+    ;; soon as they can.
+    (assert (not @build-in-progress?))
+    (reset! build-in-progress? true)
+    (phase-1-run-pre-build-hook!)))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
   (let [{:keys [error artifact-map etags]} build-results]
@@ -792,32 +935,22 @@
         (workspace/save-build-cache! workspace)
         build-results))))
 
-(defn- cached-build-target-output? [node-id label evaluation-context]
-  (and (= :build-targets label)
-       (project/project-resource-node? node-id evaluation-context)))
-
-(defn- update-system-cache-build-targets! [evaluation-context]
-  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
-  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-build-target-output?)]
-    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
-
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))
-        evaluation-context (g/make-evaluation-context)
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
-                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (show-console! main-scene tool-tab-pane)
                         (launch-built-project! project engine-descriptor project-directory prefs web-server false))
                       (when build-engine-exception
                         (log/warn :exception build-engine-exception)
-                        (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception)))))))
+                        (g/with-auto-evaluation-context evaluation-context
+                          (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not @build-in-progress?))
@@ -841,12 +974,10 @@ If you do not specifically require different script states, consider changing th
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
-  (let [project-directory (io/file (workspace/project-path workspace))
-        evaluation-context (g/make-evaluation-context)]
-    (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
+  (let [project-directory (io/file (workspace/project-path workspace))]
+    (async-build! project prefs {:debug? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
-                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (when-let [target (launch-built-project! project engine-descriptor project-directory prefs web-server true)]
@@ -854,18 +985,17 @@ If you do not specifically require different script states, consider changing th
                             (debug-view/start-debugger! debug-view project (:address target "localhost")))))
                       (when build-engine-exception
                         (log/warn :exception build-engine-exception)
-                        (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception)))))))
+                        (g/with-auto-evaluation-context evaluation-context
+                          (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
-  (let [evaluation-context (g/make-evaluation-context)]
-    (async-build! project evaluation-context prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
-                  (make-render-task-progress :build)
-                  (fn [build-results _ _]
-                    (update-system-cache-build-targets! evaluation-context)
-                    (when (handle-build-results! workspace render-build-error! build-results)
-                      (let [target (targets/selected-target prefs)]
-                        (when (targets/controllable-target? target)
-                          (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
+  (async-build! project prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
+                (make-render-task-progress :build)
+                (fn [build-results _ _]
+                  (when (handle-build-results! workspace render-build-error! build-results)
+                    (let [target (targets/selected-target prefs)]
+                      (when (targets/controllable-target? target)
+                        (debug-view/attach! debug-view project target (:artifacts build-results))))))))
 
 (handler/defhandler :start-debugger :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
@@ -937,9 +1067,8 @@ If you do not specifically require different script states, consider changing th
 
 (defn- hot-reload! [project prefs build-errors-view main-stage tool-tab-pane]
   (let [main-scene (.getScene ^Stage main-stage)
-        evaluation-context (g/make-evaluation-context)
         target (targets/selected-target prefs)
-        workspace (project/workspace project evaluation-context)
+        workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)
         old-etags (workspace/etags workspace)
         render-build-progress! (make-render-task-progress :build)
@@ -951,9 +1080,8 @@ If you do not specifically require different script states, consider changing th
     ;; keep track of which resource versions have been loaded by the engine,
     ;; or we might miss resources that were recompiled but never reloaded.
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
+    (async-build! project prefs opts old-artifact-map render-build-progress!
                   (fn [{:keys [error artifact-map etags]} _ _]
-                    (update-system-cache-build-targets! evaluation-context)
                     (if (some? error)
                       (render-build-error! error)
                       (do
@@ -961,7 +1089,10 @@ If you do not specifically require different script states, consider changing th
                         (workspace/etags! workspace etags)
                         (workspace/save-build-cache! workspace)
                         (try
-                          (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
+                          (when-some [updated-build-resources
+                                      (not-empty
+                                        (g/with-auto-evaluation-context evaluation-context
+                                          (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
                             (engine/reload-build-resources! target updated-build-resources))
                           (catch Exception e
                             (dialogs/make-info-dialog
