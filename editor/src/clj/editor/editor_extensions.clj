@@ -739,10 +739,11 @@
       (vreset! (:request-sync *execution-context*) true))
     file-path))
 
-(defn- find-resource [project evaluation-context path]
-  (some-> (project/get-resource-node project path evaluation-context)
-          (g/node-value :lines evaluation-context)
-          (data/lines-input-stream)))
+(defn- find-resource [project path]
+  (g/with-auto-evaluation-context evaluation-context
+    (some-> (project/get-resource-node project path evaluation-context)
+            (g/node-value :lines evaluation-context)
+            (data/lines-input-stream))))
 
 (defn- remove-file [^Path project-path ^String file-name]
   (let [file-path (ensure-file-path-in-project-directory project-path file-name)
@@ -766,7 +767,7 @@
                                .toPath
                                .normalize)
               env (luart/make-env
-                    :find-resource #(find-resource project ec %)
+                    :find-resource #(find-resource project %)
                     :open-file #(open-file project-path %1 %2)
                     :out #(display-output! ui %1 %2)
                     :globals {"editor" {"get" do-ext-get
