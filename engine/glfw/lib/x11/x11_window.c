@@ -2062,9 +2062,19 @@ GLFWAPI void glfwAccelerometerEnable()
 void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
 {
     // red, green, blue in the 0-65536 range
+    // the values will be mapped to the correct range based on display properties
     XColor xc;
     xc.red = (color & 0xff) << 8;
     xc.green = ((color >> 8) & 0xff) << 8;
     xc.blue = ((color >> 16) & 0xff) << 8;
-    XSetWindowBackground(_glfwLibrary.display, _glfwWin.window, xc);
+    // XSetWindowBackground(_glfwLibrary.display, _glfwWin.window, xc.pixel);
+
+    // allocate the color in the color map of the window
+    Colormap colormap = DefaultColormap(_glfwLibrary.display, 0);
+    XAllocColor(_glfwLibrary.display, colormap, &xc);
+
+    // update the window background pixel
+    XSetWindowAttributes attributes;
+    attributes.background_pixel = xc.pixel;
+    XChangeWindowAttributes(_glfwLibrary.display, _glfwWin.window, CWBackPixel, &attributes);
 }
