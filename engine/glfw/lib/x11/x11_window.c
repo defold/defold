@@ -2059,7 +2059,7 @@ GLFWAPI void glfwAccelerometerEnable()
 
 }
 
-void _glfwPlatformSetWindowBackgroundColor(uint color)
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
 {
     // red, green, blue in the 0-65536 range
     XColor xc;

@@ -1137,7 +1137,7 @@ GLFWAPI void glfwSetViewType(int view_type)
 //========================================================================
 // Set window background color
 //========================================================================
-GLFWAPI void glfwSetWindowBackgroundColor(int color)
+GLFWAPI void glfwSetWindowBackgroundColor(unsigned int color)
 {
     _glfwPlatformSetWindowBackgroundColor(color);
 }

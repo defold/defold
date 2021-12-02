@@ -1179,7 +1179,7 @@ GLFWAPI void glfwAccelerometerEnable()
 {
 }
 
-void _glfwPlatformSetWindowBackgroundColor(uint color)
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
 {
     float r = (color & 0xff) / 255.0f;
     float g = ((color >> 8) & 0xff) / 255.0f;
