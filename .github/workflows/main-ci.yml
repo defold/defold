@@ -88,7 +88,10 @@ jobs:
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      {
+        name: 'Install Python',
+        run: python --version
+      },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Build engine',
@@ -204,7 +207,7 @@ jobs:
     strategy:
       matrix:
         platform: [arm64-nx64]
-    runs-on: windows-2016
+    runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
@@ -229,7 +232,7 @@ jobs:
     strategy:
       matrix:
         platform: [x86_64-ps4]
-    runs-on: windows-2016
+    runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
@@ -327,7 +330,10 @@ jobs:
         platform: [x86_64-darwin]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      {
+        name: 'Install Python',
+        run: python --version
+      },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Download editor',
@@ -365,7 +371,7 @@ jobs:
 
   sign-editor-windows:
     needs: [build-editor]
-    runs-on: windows-2016
+    runs-on: windows-latest
     strategy:
       matrix:
         platform: [x86_64-win32]
