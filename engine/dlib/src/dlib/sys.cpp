@@ -449,7 +449,7 @@ namespace dmSys
     {
         const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
         size_t count = sizeof(dirs)/sizeof(dirs[0]);
-        char* home = 0;
+        const char* home = 0;
         for (size_t i = 0; i < count; ++i)
         {
             home = getenv(dirs[i]);

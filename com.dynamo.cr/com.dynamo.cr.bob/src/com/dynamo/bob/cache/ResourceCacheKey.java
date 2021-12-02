@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.Collections;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -27,6 +28,21 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.archive.EngineVersion;
 
 public class ResourceCacheKey {
+
+	/*
+	 * A set of options which have an impact on the created resources
+	 * and must be included when calculating the resource key
+	 */
+	private static Set<String> options = new HashSet<String>();
+
+	/**
+	 * Add an option that should be included in the resource key
+	 * calculation
+	 */
+	public static void includeOption(String option) {
+		options.add(option);
+	}
+
 
 	/**
 	 * Calculate the key to use when caching a resource.
@@ -47,12 +63,14 @@ public class ResourceCacheKey {
 		List<String> keys = new ArrayList<String>(projectOptions.keySet());
 		Collections.sort(keys);
 		for (String key : keys) {
-			digest.update(key.getBytes());
-			String value = projectOptions.get(key);
-			if (value == null) {
-				value = "";
+			if (options.contains(key)) {
+				digest.update(key.getBytes());
+				String value = projectOptions.get(key);
+				if (value == null) {
+					value = "";
+				}
+				digest.update(value.getBytes());
 			}
-			digest.update(value.getBytes());
 		}
 
 		byte[] key = digest.digest();

@@ -897,6 +897,7 @@ namespace dmGameSystem
 
         if (params.m_PropertyId == PROP_VERTICES) {
             BufferResource* prev_buffer_resource = GetVerticesBuffer(component, component->m_Resource);
+            BufferResource* prev_custom_buffer_resource = component->m_BufferResource;
 
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, BUFFER_EXT_HASH, (void**)&component->m_BufferResource);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
@@ -906,7 +907,7 @@ namespace dmGameSystem
                 BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
 
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
-                if (HasCustomVerticesBuffer(component) && component->m_BufferResource != prev_buffer_resource) {
+                if (!prev_custom_buffer_resource || (component->m_BufferResource != prev_buffer_resource)) {
 
                     // Perhaps figure our a way to avoid recreating the same vertex declarations all the time? (If if it's worth it?)
                     dmGraphics::HVertexDeclaration new_vert_decl;

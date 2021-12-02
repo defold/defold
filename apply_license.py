@@ -50,7 +50,6 @@ exluded_patterns = [
     "engine/glfw/examples",
     "engine/sound/src/openal",
     "dlib/src/zlib",
-    "dlib/src/webp",
     "lua/src/lua",
     "lua/scripts",
     "script/src/luasocket",

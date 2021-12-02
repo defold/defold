@@ -10,7 +10,11 @@
 
 #launch-error {
   -fx-text-fill: -df-defold-red;
-  -fx-padding: 0 0 33px 0;
+}
+
+#game * {
+  -fx-text-fill: white;
+  -fx-font-size: 90%;
 }
 
 #footer * {
@@ -19,14 +23,12 @@
 }
 
 #version {
-  -fx-padding: 0 0 16px 0;
 }
 
 #copyright {
 }
 
 #rights-reserved {
-  -fx-padding: 0 0 16px 0;
 }
 
 #sponsors {
@@ -53,26 +55,6 @@
 #startup-tip > .hyperlink:hover {
   -fx-text-fill: -df-defold-blue-lighter;
 }
-
-/* See modena.css for progress bar styling */
-.progress-bar {
-  -fx-background-color: transparent;
-  -fx-background-insets: 0;
-  -fx-background-radius: 0;
-  -fx-border-radius: 0; }
-  .progress-bar > .track {
-    -fx-background-color: transparent;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
-    -fx-border-width: 0;
-    -fx-background-insets: 0; }
-  .progress-bar > .bar {
-    -fx-background-color: -df-background-dark;
-    -fx-background-insets: 0;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
-    -fx-pref-height: 3;
-    -fx-padding: 0; }
 
 .button {
   -fx-background-radius: 5;

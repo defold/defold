@@ -212,42 +212,6 @@ namespace dmExtension
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
-    /*# OnActivityResult callback typedef
-     *
-     * Activity result callback function type. Monitors events from the main activity.
-     * Used with RegisterOnActivityResultListener() and UnregisterOnActivityResultListener()
-     *
-     * @typedef
-     * @name OnActivityResult
-     * @param env [type:void*]
-     * @param activity [type:void*]
-     * @param request_code [type:int32_t]
-     * @param result_code [type:int32_t]
-     * @param result [type:void*]
-     */
-    typedef void (*OnActivityResult)(void* env, void* activity, int32_t request_code, int32_t result_code, void* result);
-
-    /*# register Android activity result callback
-     *
-     * Registers an activity result callback. Multiple listeners are allowed.
-     *
-     * @note [icon:android] Only available on Android
-     * @name RegisterAndroidOnActivityResultListener
-     * @param [type:dmExtension::OnActivityResult] listener
-     */
-    void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
-
-    /*# unregister Android activity result callback
-     *
-     * Unregisters an activity result callback
-     *
-     * @note [icon:android] Only available on Android
-     * @name UnregisterAndroidOnActivityResultListener
-     * @param [type:dmExtension::OnActivityResult] listener
-     */
-    void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
-
-
     /**
     * Extension desc bytesize declaration. Internal
     */

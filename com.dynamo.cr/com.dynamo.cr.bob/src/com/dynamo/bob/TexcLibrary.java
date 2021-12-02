@@ -60,23 +60,24 @@ public class TexcLibrary {
         public static int L8                = 0;
         public static int R8G8B8            = 1;
         public static int R8G8B8A8          = 2;
-        public static int RGB_PVRTC_2BPPV1  = 3;
-        public static int RGB_PVRTC_4BPPV1  = 4;
-        public static int RGBA_PVRTC_2BPPV1 = 5;
-        public static int RGBA_PVRTC_4BPPV1 = 6;
-        public static int RGB_ETC1          = 7;
-        public static int R5G6B5            = 8;
-        public static int R4G4B4A4          = 9;
-        public static int L8A8              = 10;
+        public static int A8B8G8R8          = 3;
+        public static int RGB_PVRTC_2BPPV1  = 4;
+        public static int RGB_PVRTC_4BPPV1  = 5;
+        public static int RGBA_PVRTC_2BPPV1 = 6;
+        public static int RGBA_PVRTC_4BPPV1 = 7;
+        public static int RGB_ETC1          = 8;
+        public static int R5G6B5            = 9;
+        public static int R4G4B4A4          = 10;
+        public static int L8A8              = 11;
 
-        public static int RGBA_ETC2         = 11;
-        public static int RGBA_ASTC_4x4     = 12;
+        public static int RGBA_ETC2         = 12;
+        public static int RGBA_ASTC_4x4     = 13;
 
-        public static int RGB_BC1           = 13;
-        public static int RGBA_BC3          = 14;
-        public static int R_BC4             = 15;
-        public static int RG_BC5            = 16;
-        public static int RGBA_BC7          = 17;
+        public static int RGB_BC1           = 14;
+        public static int RGBA_BC3          = 15;
+        public static int R_BC4             = 16;
+        public static int RG_BC5            = 17;
+        public static int RGBA_BC7          = 18;
     }
 
     public interface ColorSpace {

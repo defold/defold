@@ -106,7 +106,7 @@ namespace dmThread
      * Detach thread. When a detached thread terminates, its resources are
      * automatically released back to the system without the need for another
      * thread to join with the terminated thread.
-     * @name dmThread::Join
+     * @name dmThread::Detach
      * @param thread Thread to detach
      */
     void Detach(Thread thread);

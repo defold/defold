@@ -86,6 +86,15 @@ namespace dmGameSystem
  *   go.set("#label", "font", self.my_font)
  * end
  * ```
+ *
+ * Load a font and set it to a gui:
+ *
+ * ```lua
+ * go.property("my_font", resource.font("/font.font"))
+ * function init(self)
+ *   go.set("#gui", "fonts", self.my_font, {key = "my_font"})
+ * end
+ * ```
  */
 
 /*# reference to texture resource
@@ -132,6 +141,15 @@ namespace dmGameSystem
  * go.property("my_atlas", resource.atlas("/atlas.atlas"))
  * function init(self)
  *   go.set("#sprite", "image", self.my_atlas)
+ * end
+ * ```
+ *
+ * Load an atlas and set it to a gui:
+ *
+ * ```lua
+ * go.property("my_atlas", resource.atlas("/atlas.atlas"))
+ * function init(self)
+ *   go.set("#gui", "textures", self.my_atlas, {key = "my_atlas"})
  * end
  * ```
  */
@@ -867,12 +885,10 @@ static int GetTextMetrics(lua_State* L)
         tracking = (float)CheckTableNumber(L, table_index, "tracking", tracking);
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
-    printf("options: %d, %f, %f, %f\n", line_break?1:0, leading, tracking, width);
 
     dmRender::TextMetrics metrics;
     dmRender::GetTextMetrics(font_map, text, width, line_break, leading, tracking, &metrics);
     PushTextMetricsTable(L, &metrics);
-
     return 1;
 }
 
