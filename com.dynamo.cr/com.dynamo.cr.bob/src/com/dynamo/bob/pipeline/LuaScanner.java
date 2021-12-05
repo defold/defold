@@ -145,10 +145,10 @@ public class LuaScanner {
                     } else if (matcher.pattern() == vec3Pattern) {
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
                         Vector3d v = new Vector3d();
-                        if ((matcher.group(2) != null) && (matcher.group(3) == null)) {
-                            v.set(Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)));
+                        if (matcher.group(5) != null) {
+                            v.set(Double.parseDouble(matcher.group(5)),
+                                    Double.parseDouble(matcher.group(5)),
+                                    Double.parseDouble(matcher.group(5)));
                         }
                         else if (matcher.group(2) != null) {
                             v.set(Double.parseDouble(matcher.group(2)),
@@ -159,11 +159,11 @@ public class LuaScanner {
                     } else if (matcher.pattern() == vec4Pattern) {
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
                         Vector4d v = new Vector4d();
-                        if ((matcher.group(2) != null) && (matcher.group(3) == null))  {
-                            v.set(Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)));
+                        if (matcher.group(6) != null)  {
+                            v.set(Double.parseDouble(matcher.group(6)),
+                                    Double.parseDouble(matcher.group(6)),
+                                    Double.parseDouble(matcher.group(6)),
+                                    Double.parseDouble(matcher.group(6)));
                         }
                         else if (matcher.group(2) != null) {
                             v.set(Double.parseDouble(matcher.group(2)),
