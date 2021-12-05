@@ -215,9 +215,9 @@ TEST_F(ScriptTest, TestRandom)
 {
     int top = lua_gettop(L);
     ASSERT_TRUE(RunString(L, "math.randomseed(123)"));
-    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 1)"));
     ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 58)"));
-    ASSERT_TRUE(RunString(L, "assert(math.abs(math.random() - 0.70419311523438) < 0.0000001)"));
+    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 71)"));
+    ASSERT_TRUE(RunString(L, "assert(math.abs(math.random() - 0.39990234375) < 0.0000001)"));
     ASSERT_EQ(top, lua_gettop(L));
 }
 
