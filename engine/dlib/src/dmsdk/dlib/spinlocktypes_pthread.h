@@ -5,7 +5,7 @@
 #include <pthread.h>
 namespace dmSpinlock
 {
-    typedef pthread_spinSpinlock Spinlock;
+    typedef pthread_spinlock_t Spinlock;
 
     static inline void Init(Spinlock* lock)
     {
