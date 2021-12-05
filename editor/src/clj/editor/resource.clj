@@ -275,6 +275,12 @@
       clean-zip-entry-name)))
 
 (defn- load-zip [^File zip-file ^String base-path]
+  ;; NOTE: Even though it may not look like it here, we can only load
+  ;; ZipResources from a File, since we later make use of the ZipFile class to
+  ;; read the ZipEntries. Unfortunately, the ZipFile class can only operate on
+  ;; File objects, so any .zip file we load must exist on disk. We unpack the
+  ;; builtins.zip file from the bundled resources in the ResourceUnpacker at
+  ;; startup to work around this.
   (when-let [stream (some-> zip-file io/input-stream)]
     (with-open [zip (ZipInputStream. stream)]
       (loop [entries (transient [])]
