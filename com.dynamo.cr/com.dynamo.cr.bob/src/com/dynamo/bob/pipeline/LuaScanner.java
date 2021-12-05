@@ -145,7 +145,7 @@ public class LuaScanner {
                     } else if (matcher.pattern() == vec3Pattern) {
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
                         Vector3d v = new Vector3d();
-                        if ((matcher.group(2) != null) && (matcher.group(3) == null) {
+                        if ((matcher.group(2) != null) && (matcher.group(3) == null)) {
                             v.set(Double.parseDouble(matcher.group(2)),
                                     Double.parseDouble(matcher.group(2)),
                                     Double.parseDouble(matcher.group(2)));
