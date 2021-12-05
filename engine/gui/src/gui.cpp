@@ -482,18 +482,17 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
-        uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, TextureInfo(texture, texture_type, original_width, original_height));
+        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture, texture_type, original_width, original_height));
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_TextureHash == texture_hash)
+            if (nodes[i].m_Node.m_TextureHash == texture_name_hash)
             {
                 nodes[i].m_Node.m_Texture     = texture;
                 nodes[i].m_Node.m_TextureType = texture_type;
@@ -502,9 +501,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    void RemoveTexture(HScene scene, const char* texture_name)
+    void RemoveTexture(HScene scene, dmhash_t texture_name_hash)
     {
-        uint64_t texture_name_hash = dmHashString64(texture_name);
         scene->m_Textures.Erase(texture_name_hash);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
@@ -539,6 +537,16 @@ namespace dmGui
             node.m_Texture = 0;
             node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
         }
+    }
+
+    void* GetTexture(HScene scene, dmhash_t texture_name_hash)
+    {
+        TextureInfo* textureInfo = scene->m_Textures.Get(texture_name_hash);
+        if (!textureInfo)
+        {
+            return 0;
+        }
+        return textureInfo->m_TextureSource;
     }
 
     static bool CopyImageBufferFlipped(uint32_t width, uint32_t height, const uint8_t* buffer, uint32_t buffer_size, dmImage::Type type, uint8_t* out_buffer)
@@ -715,7 +723,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return 0;
     }
 
-    Result AddFont(HScene scene, const char* font_name, void* font, dmhash_t path_hash)
+    Result AddFont(HScene scene, dmhash_t font_name_hash, void* font, dmhash_t path_hash)
     {
         if (scene->m_Fonts.Full())
             return RESULT_OUT_OF_RESOURCES;
@@ -724,33 +732,30 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             scene->m_DefaultFont = font;
 
         AddResourcePath(scene, font, path_hash);
-
-        uint64_t font_hash = dmHashString64(font_name);
-        scene->m_Fonts.Put(font_hash, font);
+        scene->m_Fonts.Put(font_name_hash, font);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_FontHash == font_hash)
+            if (nodes[i].m_Node.m_FontHash == font_name_hash)
                 nodes[i].m_Node.m_Font = font;
         }
         return RESULT_OK;
     }
 
-    void RemoveFont(HScene scene, const char* font_name)
+    void RemoveFont(HScene scene, dmhash_t font_name_hash)
     {
-        uint64_t font_hash = dmHashString64(font_name);
-        void** font = scene->m_Fonts.Get(font_hash);
+        void** font = scene->m_Fonts.Get(font_name_hash);
         if (font)
         {
             RemoveResourcePath(scene, *font);
         }
-        scene->m_Fonts.Erase(font_hash);
+        scene->m_Fonts.Erase(font_name_hash);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_FontHash == font_hash)
+            if (nodes[i].m_Node.m_FontHash == font_name_hash)
                 nodes[i].m_Node.m_Font = 0;
         }
     }
@@ -759,8 +764,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         void** font = scene->m_Fonts.Get(font_hash);
         if (!font)
+        {
             return 0;
+        }
         return GetResourcePath(scene, *font);
+    }
+
+    void* GetFont(HScene scene, dmhash_t font_hash)
+    {
+        void** font = scene->m_Fonts.Get(font_hash);
+        if (!font)
+        {
+            return 0;
+        }
+        return *font;
     }
 
     Result AddParticlefx(HScene scene, const char* particlefx_name, void* particlefx_prototype)
@@ -1699,13 +1716,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
-
-            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if ((anim->m_Elapsed >= anim->m_Duration && anim->m_Delay == 0) || anim->m_Cancelled)
             {
                 // If we have cancelled an animation, its callback won't be called which means
                 // we potentially get dangling lua refs in the script system
-                // Another scenario where the callback won't get invoked is when the duration
-                // is 0.0 and the delay > 0.0
                 if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                 {
                     anim->m_AnimationCompleteCalled = 1;
@@ -3324,6 +3338,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
+    void SetNodeAlpha(HScene scene, HNode node, float alpha)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_COLOR].setW(alpha);
+    }
+    
+    float GetNodeAlpha(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_COLOR].getW();
+    }
+
     float GetNodeFlipbookCursor(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -3840,9 +3866,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Node = node;
         animation.m_Value = value;
         animation.m_To = to;
-        animation.m_Delay = delay;
+        animation.m_Delay = delay < 0.0f ? 0.0f : delay;
         animation.m_Elapsed = 0.0f;
-        animation.m_Duration = duration;
+        animation.m_Duration = duration < 0.0f ? 0.0f : duration;
         animation.m_PlaybackRate = playback_rate;
         animation.m_Easing = easing;
         animation.m_Playback = playback;

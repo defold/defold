@@ -67,9 +67,11 @@ void* acquire_gl_aux_context(_GLFWwin_android* win);
 void unacquire_gl_aux_context(_GLFWwin_android* win);
 
 void computeIconifiedState();
+void androidDestroyWindow();
 
 void    _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
 int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct InputEvent* event);
+
 
 // Should only called after an error
 // returns 1 if we the window/surface was ok

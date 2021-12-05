@@ -20,7 +20,7 @@
 
 // NOTE: volatile. Otherwise gcc will consider the addition loop invariant
 volatile int32_t g_Value = 0;
-dmSpinlock::lock_t g_Lock;
+dmSpinlock::Spinlock g_Lock;
 
 const int32_t ITER = 400000;
 

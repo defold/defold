@@ -546,9 +546,12 @@ namespace dmGameObject
      * @name go.get
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
+     * @param options [type:table] (optional) options table
+     * - index [type:integer] index into array property (1 based)
+     * - key [type:hash] name of internal property
      * @return value [type:any] the value of the specified property
-     * @examples
      *
+     * @examples
      * Get a property "speed" from a script "player", the property must be declared in the player-script:
      *
      * ```lua
@@ -559,6 +562,30 @@ namespace dmGameObject
      *
      * ```lua
      * local speed = go.get("#player", "speed")
+     * ```
+     *
+     * @examples
+     * Get a value in a material property array
+     *
+     * ```lua
+     * -- get the first vector4 in the array: example[0] (the glsl indices are 0-based)
+     * go.get(url, "example", {index=1})
+     *
+     * -- get the last vector4 in the array: example[15] (the glsl indices are 0-based)
+     * go.get(url, "example", {index=16})
+     *
+     * -- get an element of a vector4 in the array: example[0].x (the glsl indices are 0-based)
+     * go.get(url, "example.x", {index=1})
+     * ```
+     *
+     * @examples
+     * Get a named property
+     *
+     * ```lua
+     * function init(self)
+     *     -- get the resource of a certain gui font
+     *     local font_hash = go.get("#gui", "fonts", {key = "system_font_BIG"})
+     * end
      * ```
      */
     int Script_Get(lua_State* L)
@@ -587,6 +614,7 @@ namespace dmGameObject
             return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyOptions property_options;
         property_options.m_Index = 0;
+        property_options.m_HasKey = 0;
         bool index_requested = false;
 
         // Options table
@@ -595,9 +623,21 @@ namespace dmGameObject
             luaL_checktype(L, 3, LUA_TTABLE);
             lua_pushvalue(L, 3);
 
+            lua_getfield(L, -1, "key");
+            if (!lua_isnil(L, -1))
+            {
+                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
+                property_options.m_HasKey = 1;
+            }
+            lua_pop(L, 1);
+
             lua_getfield(L, -1, "index");
             if (!lua_isnil(L, -1)) // make it optional
             {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
+                }
                 if (!lua_isnumber(L, -1))
                 {
                     return luaL_error(L, "Invalid number passed as index argument in options table.");
@@ -612,7 +652,6 @@ namespace dmGameObject
 
                 index_requested = true;
             }
-
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -623,17 +662,44 @@ namespace dmGameObject
         {
         case dmGameObject::PROPERTY_RESULT_OK:
             {
-                if (index_requested && !property_desc.m_IsArray)
+                if (index_requested && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_ARRAY))
                 {
                     return luaL_error(L, "Options table contains index, but property '%s' is not an array.", dmHashReverseSafe64(property_id));
+                }
+                else if (property_options.m_HasKey && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE))
+                {
+                    return luaL_error(L, "Options table contains key, but property '%s' is not a hashtable.", dmHashReverseSafe64(property_id));
                 }
 
                 dmGameObject::LuaPushVar(L, property_desc.m_Variant);
                 return 1;
             }
+        case dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND:
+            {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Resource `%s` for property '%s' not found!", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
+                }
+                else
+                {
+                    return luaL_error(L, "Property '%s' not found!", dmHashReverseSafe64(property_id));
+                }
+            }
         case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
             {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64(property_id));
+                }
                 return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64(property_id));
+            }
+        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
+            {
+                if (!property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64(property_id));
+                }
+                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
             }
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
             {
@@ -683,6 +749,9 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
      * @param value [type:any] the value to set
+     * @param options [type:table] (optional) options table
+     * - index [type:integer] index into array property (1 based)
+     * - key [type:hash] name of internal property
      * @examples
      *
      * Set a property "speed" of a script "player", the property must be declared in the player-script:
@@ -696,9 +765,36 @@ namespace dmGameObject
      * ```lua
      * go.set("#player", "speed", 100)
      * ```
+     *
+     * @examples
+     * Set a vector4 in a material property array
+     *
+     * ```lua
+     * -- set the first vector4 in the array: example[0] = v (the glsl indices are 0-based)
+     * go.set(url, "example", vmath.vector4(1,1,1,1), {index=1})
+     *
+     * -- set the last vector4 in the array: example[15] = v (the glsl indices are 0-based)
+     * go.set(url, "example", vmath.vector4(2,2,2,2), {index=16})
+     *
+     * -- set an element of a vector4 in the array: example[0].x = 7 (the glsl indices are 0-based)
+     * go.set(url, "example.x", 7, {index=1})
+     * ```
+     *
+     * @examples
+     * Set a named property
+     *
+     * ```lua
+     * go.property("big_font", resource.font())
+     *
+     * function init(self)
+     *     go.set("#gui", "fonts", self.big_font, {key = "system_font_BIG"})
+     * end
+     * ```
      */
     int Script_Set(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         dmMessage::URL sender;
@@ -726,6 +822,7 @@ namespace dmGameObject
 
         dmGameObject::PropertyOptions property_options;
         property_options.m_Index = 0;
+        property_options.m_HasKey = 0;
 
         // Options table
         if (lua_gettop(L) > 3)
@@ -733,9 +830,21 @@ namespace dmGameObject
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);
 
+            lua_getfield(L, -1, "key");
+            if (!lua_isnil(L, -1))
+            {
+                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
+                property_options.m_HasKey = 1;
+            }
+            lua_pop(L, 1);
+
             lua_getfield(L, -1, "index");
             if (!lua_isnil(L, -1)) // make it optional
-            {
+            {   
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
+                }
                 if (!lua_isnumber(L, -1))
                 {
                     return luaL_error(L, "Invalid number passed as index argument in options table.");
@@ -748,7 +857,6 @@ namespace dmGameObject
                     return luaL_error(L, "Trying to set property value for '%s' with an index < 0: %d", dmHashReverseSafe64(property_id), property_options.m_Index);
                 }
             }
-
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -784,9 +892,22 @@ namespace dmGameObject
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
                 return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64(property_id), lua_tostring(L, 1), GetPropertyTypeName(property_desc.m_Variant.m_Type));
             }
-
         case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
-            return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64(property_id));
+            {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64(property_id));
+                }
+                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64(property_id));
+            }
+        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
+            {
+                if (!property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64(property_id));
+                }
+                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
+            }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:

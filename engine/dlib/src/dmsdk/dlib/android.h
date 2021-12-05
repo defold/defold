@@ -137,12 +137,12 @@ jclass LoadClass(JNIEnv* env, const char* class_name);
  * @typedef
  * @name OnActivityResult
  * @param env [type:JNIEnv*]
- * @param activity [type:ANativeActivity*]
+ * @param activity [type:jobject]
  * @param request_code [type:int32_t]
  * @param result_code [type:int32_t]
  * @param result [type:void*]
  */
-typedef void (*OnActivityResult)(JNIEnv* env, ANativeActivity* activity, int32_t request_code, int32_t result_code, void* result);
+typedef void (*OnActivityResult)(JNIEnv* env, jobject activity, int32_t request_code, int32_t result_code, void* result);
 
 /*# register Android activity result callback
  *
@@ -172,9 +172,9 @@ void UnregisterOnActivityResultListener(OnActivityResult listener);
  * @typedef
  * @name OnActivityCreate
  * @param env [type:JNIEnv*]
- * @param activity [type:ANativeActivity*]
+ * @param activity [type:jobject]
  */
-typedef void (*OnActivityCreate)(JNIEnv* env, ANativeActivity* activity);
+typedef void (*OnActivityCreate)(JNIEnv* env, jobject activity);
 
 /*# register Android onCreate callback
  *

@@ -296,9 +296,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         computeIconifiedState();
         break;
     case APP_CMD_DESTROY:
-        _glfwWin.opened = 0;
-        final_gl(&_glfwWinAndroid);
-        computeIconifiedState();
+        androidDestroyWindow();
         break;
     }
 }

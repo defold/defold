@@ -123,7 +123,7 @@ namespace dmMessage
     struct MessageContext
     {
         dmHashTable64<MessageSocket> m_Sockets;
-        dmSpinlock::lock_t m_Spinlock;
+        dmSpinlock::Spinlock m_Spinlock;
     };
 
     MessageContext* g_MessageContext = 0;
