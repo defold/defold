@@ -36,8 +36,8 @@ public class LuaScanner {
     private static Pattern numPattern = Pattern.compile("[-+]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?");
     private static Pattern hashPattern = Pattern.compile("hash\\s*\\([\"'](.*?)[\"']\\)");
     private static Pattern urlPattern = Pattern.compile("msg\\.url\\s*\\(([\"'](.*?)[\"']|)?\\)");
-    private static Pattern vec3Pattern = Pattern.compile("vmath\\.vector3\\s*\\(((.*?),(.*?),(.*?)|)\\)");
-    private static Pattern vec4Pattern = Pattern.compile("vmath\\.vector4\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
+    private static Pattern vec3Pattern = Pattern.compile("vmath\\.vector3\\s*\\(((.*?),(.*?),(.*?)|(.*?)|)\\)");
+    private static Pattern vec4Pattern = Pattern.compile("vmath\\.vector4\\s*\\(((.*?),(.*?),(.*?),(.*?)|(.*?)|)\\)");
     private static Pattern quatPattern = Pattern.compile("vmath\\.quat\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
     private static Pattern boolPattern = Pattern.compile("(false|true)");
     private static Pattern resourcePattern = Pattern.compile("resource\\.(.*?)\\s*\\(([\"'](.*?)[\"']|)?\\)");
@@ -145,7 +145,12 @@ public class LuaScanner {
                     } else if (matcher.pattern() == vec3Pattern) {
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
                         Vector3d v = new Vector3d();
-                        if (matcher.group(2) != null) {
+                        if ((matcher.group(2) != null) && (matcher.group(3) == null) {
+                            v.set(Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)));
+                        }
+                        else if (matcher.group(2) != null) {
                             v.set(Double.parseDouble(matcher.group(2)),
                                     Double.parseDouble(matcher.group(3)),
                                     Double.parseDouble(matcher.group(4)));
@@ -154,7 +159,13 @@ public class LuaScanner {
                     } else if (matcher.pattern() == vec4Pattern) {
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
                         Vector4d v = new Vector4d();
-                        if (matcher.group(2) != null) {
+                        if ((matcher.group(2) != null) && (matcher.group(3) == null))  {
+                            v.set(Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)));
+                        }
+                        else if (matcher.group(2) != null) {
                             v.set(Double.parseDouble(matcher.group(2)),
                                     Double.parseDouble(matcher.group(3)),
                                     Double.parseDouble(matcher.group(4)),
