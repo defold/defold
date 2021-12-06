@@ -577,22 +577,22 @@ namespace dmGui
      * Adds a texture and optional textureset with the specified name to the scene.
      * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
      * @param scene Scene to add the texture/textureset to
-     * @param texture_name Name of the texture that will be used in the gui scripts
+     * @param texture_name_hash Hash of the texture name that will be used in the gui scripts
      * @param texture The texture to add
      * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
      * @param original_width Original With of the texture
      * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
      * @note Any nodes connected to the same texture will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
      * @param scene Scene to remove texture from
-     * @param texture_name Name of the texture as it is used by the gui scripts
+     * @param texture_name_hash Hash of the texture name that will be used in the gui scripts
      */
-    void RemoveTexture(HScene scene, const char* texture_name);
+    void RemoveTexture(HScene scene, dmhash_t texture_name_hash);
 
     /**
      * Remove all textures from the scene.
@@ -600,6 +600,14 @@ namespace dmGui
      * @param scene Scene to clear from textures
      */
     void ClearTextures(HScene scene);
+
+    /**
+     * Gets a texture by name hash
+     * @name GetTexture
+     * @param scene Scene to get texture from
+     * @param texture_name_hash Hashed name of the texture. 0 if unsuccessful
+     */
+    void* GetTexture(HScene scene, dmhash_t texture_name_hash);
 
     /**
      * Create a new dynamic texture
@@ -653,18 +661,26 @@ namespace dmGui
      * Adds a font with the specified name to the scene.
      * @note Any nodes connected to the same font_name will also be connected to the new font. This makes this function O(n), where n is #nodes.
      * @param scene Scene to add texture to
-     * @param font_name Name of the font that will be used in the gui scripts
+     * @param font_name_hash Hash of the font name that will be used in the gui scripts
      * @param font The font to add
      * @return Outcome of the operation
      */
-    Result AddFont(HScene scene, const char* font_name, void* font, dmhash_t path_hash);
+    Result AddFont(HScene scene, dmhash_t font_name_hash, void* font, dmhash_t path_hash);
     /**
      * Removes a font with the specified name from the scene.
      * @note Any nodes connected to the same font_name will also be disconnected from the font. This makes this function O(n), where n is #nodes.
      * @param scene Scene to remove font from
-     * @param font_name Name of the font that will be used in the gui scripts
+     * @param font_name_hash Hash of the font name that will be used in the gui scripts
      */
-    void RemoveFont(HScene scene, const char* font_name);
+    void RemoveFont(HScene scene, dmhash_t font_name_hash);
+
+    /**
+     * Gets a font path by name hash
+     * @name GetFontPath
+     * @param scene Scene to get font path from
+     * @param font_hash Hashed name of the font. 0 if unsuccessful
+     */
+    dmhash_t GetFontPath(HScene scene, dmhash_t font_hash);
 
     /**
      * Gets a font by name hash
@@ -672,7 +688,7 @@ namespace dmGui
      * @param scene Scene to get font from
      * @param font_hash Hashed name of the font. 0 if unsuccessful
      */
-    dmhash_t GetFontPath(HScene scene, dmhash_t font_hash);
+    void* GetFont(HScene scene, dmhash_t font_hash);
 
     /**
      * Remove all fonts from the scene.
@@ -1019,6 +1035,9 @@ namespace dmGui
 
     bool GetNodeInheritAlpha(HScene scene, HNode node);
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
+
+    float GetNodeAlpha(HScene scene, HNode node);
+    void SetNodeAlpha(HScene scene, HNode node, float alpha);
 
     Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
     float GetNodeSpineCursor(HScene scene, HNode node);

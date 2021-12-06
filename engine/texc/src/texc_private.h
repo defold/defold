@@ -55,13 +55,13 @@ namespace dmTexc
     struct Texture
     {
         dmArray<TextureData> m_Mips;
-
+        const char*          m_Name; // For easier debugging
         PixelFormat m_PixelFormat;
         ColorSpace m_ColorSpace;
         CompressionType m_CompressionType;
         uint32_t m_Width;
         uint32_t m_Height;
-        uint64_t m_CompressionFlags; // for WebP
+        uint64_t m_CompressionFlags;
 
         Encoder m_Encoder;
 
@@ -71,9 +71,6 @@ namespace dmTexc
         bool m_BasisGenMipmaps;
     };
 
-
-    bool CompressWebP(HTexture texture, PixelFormat pixel_format, ColorSpace color_space, CompressionLevel compression_level, CompressionType compression_type);
-    HBuffer CompressWebPBuffer(uint32_t width, uint32_t height, uint32_t bpp, void* data, uint32_t size, PixelFormat pixel_format, CompressionLevel compression_level, CompressionType compression_type);
 
     uint16_t RGB888ToRGB565(uint8_t red, uint8_t green, uint8_t blue);
     uint16_t RGBA8888ToRGBA4444(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha);

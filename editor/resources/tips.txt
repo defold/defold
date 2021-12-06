@@ -15,7 +15,8 @@ Did you know? There are lots of [great examples with demos](https://britzl.githu
 Have you seen our [Youtube channel](https://www.youtube.com/user/defoldvideos/videos)?
 [Follow us](https://twitter.com/defold) on Twitter!
 Check out [open source games](https://github.com/benjames-171/defold-games) made by Ben James!
-Having issues? Write us on [forum](http://forum.defold.com/) or check out the [FAQ](https://www.defold.com/faq/)!
+Don't forget to join our [Discord Server](https://defold.com/discord)!
+Having issues? Write us on [forum](https://forum.defold.com/) or check out the [FAQ](https://www.defold.com/faq/)!
 Don't forget to sign up for the [Defold newsletter](https://defold.com/newsletter/) to stay up to date on new releases, extensions, games and more!
 
 # Hidden gems

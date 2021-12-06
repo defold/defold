@@ -115,7 +115,8 @@
         height-pot                    (int (closest-power-of-two height))
         color-count                   (image-color-components img)
         [pixel-format texture-format] (get formats color-count default-formats)
-        texture                       (TexcLibrary/TEXC_Create width height R8G8B8A8 SRGB CT_DEFAULT (image->byte-buffer img))
+        name                          nil ; for easier debugging
+        texture                       (TexcLibrary/TEXC_Create name, width height R8G8B8A8 SRGB CT_DEFAULT (image->byte-buffer img))
         compression-level             Graphics$TextureFormatAlternative$CompressionLevel/FAST
         mipmaps                       false]
 

@@ -130,7 +130,7 @@ namespace dmTexc
     /**
      * Create a texture
      */
-    DM_TEXC_PROTO(HTexture, Create, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
+    DM_TEXC_PROTO(HTexture, Create, const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
     /**
      * Destroy a texture
      */
@@ -199,7 +199,7 @@ namespace dmTexc
     // Gets the data from a buffer
     DM_TEXC_PROTO(uint32_t, GetBufferData, HBuffer buffer, void* out_data, uint32_t out_data_size);
 
-    // Destroys a buffer created by CompressWebP
+    // Destroys a buffer created by CompressBuffer
     DM_TEXC_PROTO(void, DestroyBuffer, HBuffer buffer);
 #undef DM_TEXC_PROTO
 }
