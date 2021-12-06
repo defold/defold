@@ -40,7 +40,7 @@ uint8_t default_data_l[4] =
 
 static dmTexc::HTexture CreateDefaultL8(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_L8, dmTexc::CS_LRGB, compression_type, default_data_l);
+    return dmTexc::Create(0, 2, 2, dmTexc::PF_L8, dmTexc::CS_LRGB, compression_type, default_data_l);
 }
 
 uint16_t default_data_l8a8[4] =
@@ -50,7 +50,7 @@ uint16_t default_data_l8a8[4] =
 
 static dmTexc::HTexture CreateDefaultL8A8(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_L8A8, dmTexc::CS_LRGB, compression_type, default_data_l8a8);
+    return dmTexc::Create(0, 2, 2, dmTexc::PF_L8A8, dmTexc::CS_LRGB, compression_type, default_data_l8a8);
 }
 
 uint16_t default_data_rgb_565[4] =
@@ -63,7 +63,7 @@ uint16_t default_data_rgb_565[4] =
 
 static dmTexc::HTexture CreateDefaultRGB16(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, compression_type, default_data_rgb_565);
+    return dmTexc::Create(0, 2, 2, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, compression_type, default_data_rgb_565);
 }
 
 uint8_t default_data_rgb_888[4*3] =
@@ -76,7 +76,7 @@ uint8_t default_data_rgb_888[4*3] =
 
 static dmTexc::HTexture CreateDefaultRGB24(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, compression_type, default_data_rgb_888);
+    return dmTexc::Create(0, 2, 2, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, compression_type, default_data_rgb_888);
 }
 
 uint8_t default_data_rgba_8888[4*4] =
@@ -89,7 +89,7 @@ uint8_t default_data_rgba_8888[4*4] =
 
 static dmTexc::HTexture CreateDefaultRGBA32(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, compression_type, default_data_rgba_8888);
+    return dmTexc::Create(0, 2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, compression_type, default_data_rgba_8888);
 }
 
 uint16_t default_data_rgba_4444[4] =
@@ -102,7 +102,7 @@ uint16_t default_data_rgba_4444[4] =
 
 static dmTexc::HTexture CreateDefaultRGBA16(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CT_DEFAULT, default_data_rgba_4444);
+    return dmTexc::Create(0, 2, 2, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CT_DEFAULT, default_data_rgba_4444);
 }
 
 
@@ -452,7 +452,7 @@ protected:
         uint8_t* image = stbi_load(info.m_Path, &m_Width, &m_Height, 0, 0);
         ASSERT_TRUE(image != 0);
 
-        m_Texture = dmTexc::Create(m_Width, m_Height, info.m_InputFormat, info.m_ColorSpace, info.m_CompressionType, image);
+        m_Texture = dmTexc::Create(info.m_Path, m_Width, m_Height, info.m_InputFormat, info.m_ColorSpace, info.m_CompressionType, image);
         printf("image: %s   %u x %u\n", info.m_Path, m_Width, m_Height);
     }
 
