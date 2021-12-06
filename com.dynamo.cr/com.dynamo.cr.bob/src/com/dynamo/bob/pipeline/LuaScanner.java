@@ -36,13 +36,17 @@ public class LuaScanner {
     private static Pattern numPattern = Pattern.compile("[-+]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?");
     private static Pattern hashPattern = Pattern.compile("hash\\s*\\([\"'](.*?)[\"']\\)");
     private static Pattern urlPattern = Pattern.compile("msg\\.url\\s*\\(([\"'](.*?)[\"']|)?\\)");
-    private static Pattern vec3Pattern = Pattern.compile("vmath\\.vector3\\s*\\(((.*?),(.*?),(.*?)|(.*?)|)\\)");
-    private static Pattern vec4Pattern = Pattern.compile("vmath\\.vector4\\s*\\(((.*?),(.*?),(.*?),(.*?)|(.*?)|)\\)");
+    private static Pattern vec3Pattern1 = Pattern.compile("vmath\\.vector3\\s*\\(((.+?),(.+?),(.+?))\\)");
+    private static Pattern vec3Pattern2 = Pattern.compile("vmath\\.vector3\\s*\\(((.+?))\\)");
+    private static Pattern vec3Pattern3 = Pattern.compile("vmath\\.vector3\\s*\\(()\\)");
+    private static Pattern vec4Pattern1 = Pattern.compile("vmath\\.vector4\\s*\\(((.+?),(.+?),(.+?),(.+?))\\)");
+    private static Pattern vec4Pattern2 = Pattern.compile("vmath\\.vector4\\s*\\(((.+?))\\)");
+    private static Pattern vec4Pattern3 = Pattern.compile("vmath\\.vector4\\s*\\(()\\)");
     private static Pattern quatPattern = Pattern.compile("vmath\\.quat\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
     private static Pattern boolPattern = Pattern.compile("(false|true)");
     private static Pattern resourcePattern = Pattern.compile("resource\\.(.*?)\\s*\\(([\"'](.*?)[\"']|)?\\)");
     private static Pattern[] patterns = new Pattern[] { numPattern, hashPattern, urlPattern,
-            vec3Pattern, vec4Pattern, quatPattern, boolPattern, resourcePattern};
+            vec3Pattern1, vec3Pattern2, vec3Pattern3, vec4Pattern1, vec4Pattern2, vec4Pattern3, quatPattern, boolPattern, resourcePattern};
 
 
     public static List<String> scan(String str) {
@@ -129,50 +133,51 @@ public class LuaScanner {
             Matcher matcher = pattern.matcher(property.rawValue);
             if (matcher.matches()) {
                 try {
-                    if (matcher.pattern() == numPattern) {
+                    final Pattern matchedPattern = matcher.pattern();
+                    if (matchedPattern == numPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_NUMBER;
                         property.value = Double.parseDouble(property.rawValue);
-                    } else if (matcher.pattern() == hashPattern) {
+                    } else if (matchedPattern == hashPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         property.value = matcher.group(1).trim();
-                    } else if (matcher.pattern() == urlPattern) {
+                    } else if (matchedPattern == urlPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_URL;
                         if (matcher.group(2) != null) {
                             property.value = matcher.group(2).trim();
                         } else {
                             property.value = "";
                         }
-                    } else if (matcher.pattern() == vec3Pattern) {
+                    } else if ((matchedPattern == vec3Pattern1) || (matchedPattern == vec3Pattern2) || (matchedPattern == vec3Pattern3)) {
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
                         Vector3d v = new Vector3d();
-                        if (matcher.group(5) != null) {
-                            v.set(Double.parseDouble(matcher.group(5)),
-                                    Double.parseDouble(matcher.group(5)),
-                                    Double.parseDouble(matcher.group(5)));
-                        }
-                        else if (matcher.group(2) != null) {
+                        if (matchedPattern == vec3Pattern1) {
                             v.set(Double.parseDouble(matcher.group(2)),
                                     Double.parseDouble(matcher.group(3)),
                                     Double.parseDouble(matcher.group(4)));
                         }
+                        else if (matchedPattern == vec3Pattern2) {
+                            v.set(Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)));
+                        }
                         property.value = v;
-                    } else if (matcher.pattern() == vec4Pattern) {
+                    } else if ((matchedPattern == vec4Pattern1) || (matchedPattern == vec4Pattern2) || (matchedPattern == vec4Pattern3)) {
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
                         Vector4d v = new Vector4d();
-                        if (matcher.group(6) != null)  {
-                            v.set(Double.parseDouble(matcher.group(6)),
-                                    Double.parseDouble(matcher.group(6)),
-                                    Double.parseDouble(matcher.group(6)),
-                                    Double.parseDouble(matcher.group(6)));
-                        }
-                        else if (matcher.group(2) != null) {
+                        if (matchedPattern == vec4Pattern1) {
                             v.set(Double.parseDouble(matcher.group(2)),
                                     Double.parseDouble(matcher.group(3)),
                                     Double.parseDouble(matcher.group(4)),
                                     Double.parseDouble(matcher.group(5)));
                         }
+                        else if (matchedPattern == vec4Pattern2) {
+                            v.set(Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)),
+                                    Double.parseDouble(matcher.group(2)));
+                        }
                         property.value = v;
-                    } else if (matcher.pattern() == quatPattern) {
+                    } else if (matchedPattern == quatPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_QUAT;
                         Quat4d q = new Quat4d();
                         if (matcher.group(2) != null) {
@@ -182,10 +187,10 @@ public class LuaScanner {
                                     Double.parseDouble(matcher.group(5)));
                         }
                         property.value = q;
-                    } else if (matcher.pattern() == boolPattern) {
+                    } else if (matchedPattern == boolPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
                         property.value = Boolean.parseBoolean(rawValue);
-                    } else if (matcher.pattern() == resourcePattern) {
+                    } else if (matchedPattern == resourcePattern) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         property.value = matcher.group(3) == null ? "" :  matcher.group(3).trim();
                     }
