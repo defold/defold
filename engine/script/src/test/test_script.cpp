@@ -222,11 +222,12 @@ TEST_F(ScriptTest, TestRandom)
     // https://github.com/defold/defold/issues/3753
     const char *sum_random_numbers =
         "local sum = 0\n"
-        "for i=1,100 do\n"
+        "local count = 1000\n"
+        "for i=1,count do\n"
         "    math.randomseed(i)\n"
         "    sum = sum + math.random(1, 10)\n"
         "end\n"
-        "assert(sum > 100)\n";
+        "assert(math.floor(sum/count) == 5)\n";
     ASSERT_TRUE(RunString(L, sum_random_numbers));
 
     ASSERT_EQ(top, lua_gettop(L));
