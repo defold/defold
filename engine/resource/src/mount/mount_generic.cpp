@@ -60,6 +60,7 @@ namespace dmResource
         if (afi && afi->m_FileResourceData)
         {
             fclose(afi->m_FileResourceData);
+            afi->m_FileResourceData = 0;
         }
 
         dmResourceArchive::Delete(archive);
