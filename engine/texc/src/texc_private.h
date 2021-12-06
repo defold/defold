@@ -55,7 +55,7 @@ namespace dmTexc
     struct Texture
     {
         dmArray<TextureData> m_Mips;
-
+        const char*          m_Name; // For easier debugging
         PixelFormat m_PixelFormat;
         ColorSpace m_ColorSpace;
         CompressionType m_CompressionType;
