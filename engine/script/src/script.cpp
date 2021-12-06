@@ -179,6 +179,8 @@ namespace dmScript
             *seed = 0;
             lua_pushlightuserdata(L, seed);
             lua_setglobal(L, RANDOM_SEED);
+            // discard first value to avoid repeated values
+            dmMath::Rand(seed);
 
             lua_pushcfunction(L, Lua_Math_Random);
             lua_setfield(L, -2, "random");
