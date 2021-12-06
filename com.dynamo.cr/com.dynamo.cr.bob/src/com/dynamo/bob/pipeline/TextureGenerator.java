@@ -218,7 +218,7 @@ public class TextureGenerator {
         return byteBuffer;
     }
 
-    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+    private static TextureImage.Image generateFromColorAndFormat(String name, BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -276,7 +276,7 @@ public class TextureGenerator {
             throw new TextureGeneratorException("Invalid texture format.");
         }
 
-        Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.A8B8G8R8, ColorSpace.SRGB, texcCompressionType, buffer_input);
+        Pointer texture = TexcLibrary.TEXC_Create(name, width, height, PixelFormat.A8B8G8R8, ColorSpace.SRGB, texcCompressionType, buffer_input);
         if (texture == null) {
             throw new TextureGeneratorException("Failed to create texture");
         }
@@ -463,7 +463,7 @@ public class TextureGenerator {
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
                     try {
-                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha(), flipAxis);
+                        TextureImage.Image raw = generateFromColorAndFormat(null, image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha(), flipAxis);
                         textureBuilder.addAlternatives(raw);
                     } catch (TextureGeneratorException e) {
                         throw e;
@@ -483,7 +483,7 @@ public class TextureGenerator {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0, false, true, flipAxis);
+            TextureImage.Image raw = generateFromColorAndFormat(null, image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0, false, true, flipAxis);
             textureBuilder.addAlternatives(raw);
             textureBuilder.setCount(1);
 

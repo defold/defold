@@ -830,7 +830,8 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  *
  * @name resource.get_text_metrics
  * @param url [type:hash] the font to get the (unscaled) metrics from
- * @param options [type:table] A table containing parameters for the text. Supported entries:
+ * @param text [type:string] text to measure
+ * @param [options] [type:table] A table containing parameters for the text. Supported entries:
  *
  * `width`
  * : [type:integer] The width of the text field. Not used if `line_break` is false.

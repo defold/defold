@@ -113,7 +113,8 @@ public class TexcLibrary {
         public static int DT_DEFAULT = 1;
     }
 
-    public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, int compressionType, Buffer data);
+    // Name is used when debugging (usually the path to the resource)
+    public static native Pointer TEXC_Create(String name, int width, int height, int pixelFormat, int colorSpace, int compressionType, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
     public static native int TEXC_GetDataSizeCompressed(Pointer texture, int minMap);
