@@ -50,7 +50,7 @@ end
 
 function on_message(self, message_id, message, sender)
     if message_id == hash("animation_done") and sender == self.sprite then
-        local anim_id = go.get("#sprite", "animation_id")
+        local anim_id = go.get("#sprite", "animation")
         assert(anim_id == hash("anim"))
         msg.post("main:/main#script", "done")
     elseif message_id == hash("try_set_size") then

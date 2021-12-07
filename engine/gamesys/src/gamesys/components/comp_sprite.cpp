@@ -111,7 +111,7 @@ namespace dmGameSystem
 
     static const dmhash_t SPRITE_PROP_CURSOR = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
-    static const dmhash_t SPRITE_PROP_ANIM_ID = dmHashString64("animation_id");
+    static const dmhash_t SPRITE_PROP_ANIMATION = dmHashString64("animation");
 
     static float GetCursor(SpriteComponent* component);
     static void SetCursor(SpriteComponent* component, float cursor);
@@ -1097,11 +1097,6 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(GetPlaybackRate(component));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        else if (get_property == SPRITE_PROP_ANIM_ID)
-        {
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
         else if (get_property == PROP_MATERIAL)
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
@@ -1113,6 +1108,11 @@ namespace dmGameSystem
         else if (get_property == PROP_TEXTURE[0])
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource)->m_Texture, out_value);
+        }
+        else if (get_property == SPRITE_PROP_ANIMATION)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
+            return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component);
     }
