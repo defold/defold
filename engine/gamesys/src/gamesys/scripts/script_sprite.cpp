@@ -179,20 +179,20 @@ namespace dmGameSystem
     * ```
     */
 
-    /*# [type:hash] sprite animation_id
+    /*# [type:hash] sprite animation
     *
     * [mark:READ ONLY] The current animation id. An animation that plays currently for the sprite. The type of the property is [type:hash].
     *
-    * @name animation_id
+    * @name animation
     * @property
     *
     * @examples
     *
-    * How to get the `animation_id` on component "sprite":
+    * How to get the `animation` on component "sprite":
     *
     * ```lua
     * function init(self)
-    *   local animation_id = go.get("#sprite", "animation_id")
+    *   local animation = go.get("#sprite", "animation")
     * end
     * ```
     */
