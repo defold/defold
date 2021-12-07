@@ -197,7 +197,8 @@ namespace dmGameSystem
      * @param y [type:number] y-coordinate of the tile
      * @param tile [type:number] index of new tile to set. 0 resets the cell
      * @param [h-flipped] [type:boolean] optional if the tile should be horizontally flipped
-     * @param [v-flipped] [type:boolean] optional i the tile should be vertically flipped
+     * @param [v-flipped] [type:boolean] optional if the tile should be vertically flipped
+     * @param [rotated] [type:boolean] optional if the tile should be 90 degrees rotated
      * @examples
      *
      * ```lua
@@ -266,7 +267,8 @@ namespace dmGameSystem
 
         bool flip_h = lua_toboolean(L, 6);
         bool flip_v = lua_toboolean(L, 7);
-        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v);
+        bool rotated = lua_toboolean(L, 8);
+        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v, rotate);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))

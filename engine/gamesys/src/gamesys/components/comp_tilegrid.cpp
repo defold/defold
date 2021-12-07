@@ -62,7 +62,8 @@ namespace dmGameSystem
         {
             uint16_t    m_FlipHorizontal : 1;
             uint16_t    m_FlipVertical : 1;
-            uint16_t    : 14;
+            uint16_t    m_Rotatate : 1;
+            uint16_t    : 13;
         };
 
         TileGridComponent()
@@ -223,7 +224,7 @@ namespace dmGameSystem
         region->m_Dirty = 1;
     }
 
-    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v)
+    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v, bool rotate)
     {
         TileGridResource* resource = component->m_Resource;
         uint32_t cell_index = CalculateCellIndex(layer, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
@@ -232,6 +233,7 @@ namespace dmGameSystem
         TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
         flags->m_FlipHorizontal = flip_h;
         flags->m_FlipVertical = flip_v;
+        flags->m_Rotatate = rotate;
 
         SetRegionDirty(component, cell_x, cell_y);
     }
@@ -507,11 +509,22 @@ namespace dmGameSystem
     TileGridVertex* CreateVertexData(TileGridWorld* world, TileGridVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(TileGrid, "CreateVertexData");
+        /*
+         *   0----3
+         *   | \  |
+         *   |  \ |   
+         *   1____2
+        */
         static int tex_coord_order[] = {
             0,1,2,2,3,0,
             3,2,1,1,0,3,    //h
             1,0,3,3,2,1,    //v
-            2,3,0,0,1,2     //hv
+            2,3,0,0,1,2,    //hv
+            //rotate:
+            3,0,1,1,2,3,
+            0,3,2,2,1,0,    //h
+            2,1,0,0,3,2,    //v
+            1,2,3,3,0,1     //hv
         };
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
@@ -571,6 +584,10 @@ namespace dmGameSystem
                     if (flags.m_FlipVertical)
                     {
                         flip_flag |= 2;
+                    }
+                    if (flags.m_Rotatate)
+                    {
+                        flip_flag |= 4;
                     }
                     const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
@@ -856,7 +873,7 @@ namespace dmGameSystem
              */
             uint32_t tile = st->m_Tile - 1;
 
-            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, false, false);
+            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, false, false, false);
 
             // Broadcast to any collision object components
             // TODO Filter broadcast to only collision objects
