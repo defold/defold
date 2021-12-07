@@ -179,6 +179,24 @@ namespace dmGameSystem
     * ```
     */
 
+    /*# [type:hash] sprite animation_id
+    *
+    * [mark:READ ONLY] The current animation id. An animation that plays currently for the sprite. The type of the property is [type:hash].
+    *
+    * @name animation_id
+    * @property
+    *
+    * @examples
+    *
+    * How to get the `animation_id` on component "sprite":
+    *
+    * ```lua
+    * function init(self)
+    *   local animation_id = go.get("#sprite", "animation_id")
+    * end
+    * ```
+    */
+
     /*# set horizontal flipping on a sprite's animations
      * Sets horizontal flipping of the provided sprite's animations.
      * The sprite is identified by its URL.

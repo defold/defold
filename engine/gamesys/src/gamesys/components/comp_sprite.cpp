@@ -111,6 +111,7 @@ namespace dmGameSystem
 
     static const dmhash_t SPRITE_PROP_CURSOR = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
+    static const dmhash_t SPRITE_PROP_ANIM_ID = dmHashString64("animation_id");
 
     static float GetCursor(SpriteComponent* component);
     static void SetCursor(SpriteComponent* component, float cursor);
@@ -1094,6 +1095,11 @@ namespace dmGameSystem
         else if (get_property == SPRITE_PROP_PLAYBACK_RATE)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(GetPlaybackRate(component));
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == SPRITE_PROP_ANIM_ID)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (get_property == PROP_MATERIAL)
