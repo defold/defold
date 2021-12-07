@@ -268,7 +268,7 @@ namespace dmGameSystem
         bool flip_h = lua_toboolean(L, 6);
         bool flip_v = lua_toboolean(L, 7);
         bool rotated = lua_toboolean(L, 8);
-        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v, rotate);
+        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v, rotated);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
