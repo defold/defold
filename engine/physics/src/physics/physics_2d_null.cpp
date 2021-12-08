@@ -227,7 +227,25 @@ namespace dmPhysics
         return false;
     }
 
-    void SetBullet2D(HCollisionObject2D collision_object, bool value) {
+    void SetBullet2D(HCollisionObject2D collision_object, bool value)
+    {
+    }
+
+    uint16_t GetGroup2D(HCollisionObject2D collision_object)
+    {
+        return 0;
+    }
+
+    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    {
+    }
+
+    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    {
+        return false;
+    }
+
+    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
