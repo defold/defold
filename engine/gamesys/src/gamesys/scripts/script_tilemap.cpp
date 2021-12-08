@@ -198,7 +198,7 @@ namespace dmGameSystem
      * @param tile [type:number] index of new tile to set. 0 resets the cell
      * @param [h-flipped] [type:boolean] optional if the tile should be horizontally flipped
      * @param [v-flipped] [type:boolean] optional if the tile should be vertically flipped
-     * @param [rotated] [type:boolean] optional if the tile should be 90 degrees rotated
+     * @param [rotated] [type:boolean] optional if the tile should be 90 degrees rotated (clockwise)
      * @examples
      *
      * ```lua
@@ -264,11 +264,25 @@ namespace dmGameSystem
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-
-        bool flip_h = lua_toboolean(L, 6);
-        bool flip_v = lua_toboolean(L, 7);
-        bool rotated = lua_toboolean(L, 8);
-        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v, rotated);
+        bool flip_h = 0;
+        bool flip_v = 0;
+        bool rotated90 = 0;
+        if (lua_isnumber(L, 6))
+        {
+            int bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
+            flip_h = (bitmask & 1) == 1;
+            flip_v = (bitmask & 2) == 2;
+            rotated90 = (bitmask & 4) == 4;
+        }
+        else
+        {
+            // Old API flow with boolean flags
+            flip_h = lua_toboolean(L, 6);
+            flip_v = lua_toboolean(L, 7);
+            rotated90 = lua_toboolean(L, 8);
+        }
+        
+        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v, rotated90);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -487,7 +501,21 @@ namespace dmGameSystem
     void ScriptTileMapRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
+        DM_LUA_STACK_CHECK(L, 0);
         luaL_register(L, "tilemap", TILEMAP_FUNCTIONS);
+
+        #define SETCONSTANT(name, val) \
+            lua_pushnumber(L, (lua_Number) val); \
+            lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(H_FLIP, 1);
+        SETCONSTANT(V_FLIP, 2);
+        SETCONSTANT(ROTATE_90, 4);
+        SETCONSTANT(ROTATE_180, -3);
+        SETCONSTANT(ROTATE_270, -7);
+
+        #undef SETCONSTANT
+
         lua_pop(L, 1);
     }
 }

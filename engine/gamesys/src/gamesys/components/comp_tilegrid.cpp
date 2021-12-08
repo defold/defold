@@ -62,7 +62,7 @@ namespace dmGameSystem
         {
             uint16_t    m_FlipHorizontal : 1;
             uint16_t    m_FlipVertical : 1;
-            uint16_t    m_Rotatate : 1;
+            uint16_t    m_Rotate90 : 1;
             uint16_t    : 13;
         };
 
@@ -224,7 +224,7 @@ namespace dmGameSystem
         region->m_Dirty = 1;
     }
 
-    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v, bool rotate)
+    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v, bool rotate90)
     {
         TileGridResource* resource = component->m_Resource;
         uint32_t cell_index = CalculateCellIndex(layer, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
@@ -233,7 +233,7 @@ namespace dmGameSystem
         TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
         flags->m_FlipHorizontal = flip_h;
         flags->m_FlipVertical = flip_v;
-        flags->m_Rotatate = rotate;
+        flags->m_Rotate90 = rotate90;
 
         SetRegionDirty(component, cell_x, cell_y);
     }
@@ -585,7 +585,7 @@ namespace dmGameSystem
                     {
                         flip_flag |= 2;
                     }
-                    if (flags.m_Rotatate)
+                    if (flags.m_Rotate90)
                     {
                         flip_flag |= 4;
                     }
