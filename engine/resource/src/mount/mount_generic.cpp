@@ -56,13 +56,6 @@ namespace dmResource
 
     void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer& archive, void* mount_info)
     {
-        dmResourceArchive::ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
-        if (afi && afi->m_FileResourceData)
-        {
-            fclose(afi->m_FileResourceData);
-            afi->m_FileResourceData = 0;
-        }
-
         dmResourceArchive::Delete(archive);
     }
 }
