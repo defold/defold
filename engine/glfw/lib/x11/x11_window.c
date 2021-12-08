@@ -2067,7 +2067,6 @@ void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
     xc.red = (color & 0xff) << 8;
     xc.green = ((color >> 8) & 0xff) << 8;
     xc.blue = ((color >> 16) & 0xff) << 8;
-    // XSetWindowBackground(_glfwLibrary.display, _glfwWin.window, xc.pixel);
 
     // allocate the color in the color map of the window
     Colormap colormap = DefaultColormap(_glfwLibrary.display, 0);

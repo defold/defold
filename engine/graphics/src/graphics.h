@@ -301,7 +301,7 @@ namespace dmGraphics
 
         bool                    m_HighDPI;
 
-        // Window background color, RGBA 0xAAGGBBRR
+        // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;
     };
 
