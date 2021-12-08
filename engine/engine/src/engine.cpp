@@ -188,6 +188,17 @@ namespace dmEngine
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
 
+    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
+    {
+        component_create_ctx.m_Config = engine->m_Config;
+        component_create_ctx.m_Script = engine->m_GOScriptContext;
+        component_create_ctx.m_Register = engine->m_Register;
+        component_create_ctx.m_Factory = engine->m_Factory;
+        component_create_ctx.m_Contexts.SetCapacity(3, 8);
+        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
+        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+    }
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -487,22 +498,6 @@ namespace dmEngine
             ctx.m_Buffer = buffer;
             ctx.m_BufferSize = buffersize;
             dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
-        }
-    }
-
-    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
-    {
-        component_create_ctx.m_Config = engine->m_Config;
-        component_create_ctx.m_Script = engine->m_GOScriptContext;
-        component_create_ctx.m_Register = engine->m_Register;
-        component_create_ctx.m_Factory = engine->m_Factory;
-        component_create_ctx.m_Contexts.SetCapacity(3, 8);
-        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
-        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
-        if (engine->m_GuiContext)
-        {
-            component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
-            component_create_ctx.m_Contexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
     }
 
@@ -1074,13 +1069,7 @@ namespace dmEngine
         }
 
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        component_create_ctx.m_Config = engine->m_Config;
-        component_create_ctx.m_Script = engine->m_GOScriptContext;
-        component_create_ctx.m_Register = engine->m_Register;
-        component_create_ctx.m_Factory = engine->m_Factory;
-        component_create_ctx.m_Contexts.SetCapacity(3, 8);
-        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
-        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+        SetupComponentCreateContext(engine, component_create_ctx);
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
@@ -1109,8 +1098,6 @@ namespace dmEngine
             goto bail;
 
         // register the component extensions
-        dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        SetupComponentCreateContext(engine, component_create_ctx);
 
         go_result = dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         if (go_result != dmGameObject::RESULT_OK)
