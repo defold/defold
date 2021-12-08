@@ -527,6 +527,16 @@ namespace dmGameObject
         return 0;
     }
 
+    uint32_t GetNumComponentTypes(HRegister regist)
+    {
+        return regist->m_ComponentTypeCount;
+    }
+
+    ComponentType* GetComponentType(HRegister regist, uint32_t index)
+    {
+        return &regist->m_ComponentTypes[index];
+    }
+
     struct ComponentTypeSortPred
     {
         HRegister m_Register;

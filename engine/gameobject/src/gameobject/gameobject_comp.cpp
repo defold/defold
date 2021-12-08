@@ -57,5 +57,5 @@ namespace dmGameObject
 
 }
 
-DM_DECLARE_COMPONENT_TYPE(ComponentTypeAnim, "animc", dmGameObject::CompAnimcInit);
-DM_DECLARE_COMPONENT_TYPE(ComponentTypeScript, "scriptc", dmGameObject::CompScriptcInit);
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeAnim, "animc", dmGameObject::CompAnimcInit, 0);
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeScript, "scriptc", dmGameObject::CompScriptcInit, 0);

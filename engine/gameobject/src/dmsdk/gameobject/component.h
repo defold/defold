@@ -439,6 +439,14 @@ namespace dmGameObject
     typedef void (*ComponentIterProperties)(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 
 
+    /*#
+     * Get the component type index. Used for with e.g. dmGameObject::GetWorld()/GetContext()
+     * @name ComponentTypeGetTypeIndex
+     * @param type [type: ComponentType*] the type
+     * @return type_index [type: uint32_t] The type index.
+     */
+    uint32_t ComponentTypeGetTypeIndex(const ComponentType* type);
+
     /*# set the new world callback
      * Set the new world callback. Called when a collection (i.e. a "world") is created.
      * @name ComponentTypeSetNewWorldFn
@@ -579,9 +587,17 @@ namespace dmGameObject
      * Set the component type global context. Usually set when registering the component type.
      * @name ComponentTypeSetContext
      * @param type [type: ComponentType*] the type
-     * @param context [type: void*] global context
+     * @param context [type: void*] component type global context
      */
     void ComponentTypeSetContext(ComponentType* type, void* context);
+
+    /*# get the component type global context
+     * get the component type global context
+     * @name ComponentTypeGetContext
+     * @param type [type: ComponentType*] the type
+     * @return context [type: void*] component type global context
+     */
+    void* ComponentTypeGetContext(const ComponentType* type);
 
     /*# set the component type transform dependency flag
      * Set the component type transform dependency flag.
@@ -632,7 +648,7 @@ namespace dmGameObject
      * @member m_Factory [type: dmResource::HFactory] The resource factory
      * @member m_Register [type: dmGameObject::HRegister] The game object registry
      * @member m_Script [type: dmScript::HContext] The shared script context
-     * @member m_Contextx [type: dmHashTable64<void*>] Mappings between names and contextx
+     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contextx
      */
     struct ComponentTypeCreateCtx {
         dmConfigFile::HConfig    m_Config;
@@ -643,6 +659,7 @@ namespace dmGameObject
     };
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, ComponentType* type);
+    typedef Result (*ComponentTypeDestroyFunction)(const ComponentTypeCreateCtx* ctx, ComponentType* type);
 
     struct ComponentTypeDescriptor;
 
@@ -652,7 +669,7 @@ namespace dmGameObject
      * @param type Collection of component type registration data
      * @return RESULT_OK on success
      */
-    Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn);
+    Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn, ComponentTypeDestroyFunction destroy_fn);
 
     /**
     * Component type desc bytesize declaration. Internal
@@ -666,24 +683,27 @@ namespace dmGameObject
         // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
         // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
         // The bug only happens when the symbol is in a static library though
-        #define DM_REGISTER_COMPONENT_TYPE(symbol, desc, name, type_create_fn) extern "C" void __attribute__((constructor)) symbol () { \
-            dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn); \
+        #define DM_REGISTER_COMPONENT_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void __attribute__((constructor)) symbol () { \
+            dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
         }
     #else
-        #define DM_REGISTER_COMPONENT_TYPE(symbol, desc, name, type_create_fn) extern "C" void symbol () { \
-            dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn); \
+        #define DM_REGISTER_COMPONENT_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void symbol () { \
+            dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
             }\
             int symbol ## Wrapper(void) { symbol(); return 0; } \
             __pragma(section(".CRT$XCU",read)) \
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
-
-    /*#
+    /*# register a new component type
+     * @param symbol [type: cpp_symbol_name] The unique C++ symbol name
+     * @param name [type: const char*] name of the component type (i.e. the resource suffix)
+     * @param create_fn [type: dmGameObject::Result (*fn)(const ComponentTypeCreateCtx* ctx, ComponentType* type)] The type configuration function. May not be 0.
+     * @param destroy_fn [type: dmGameObject::Result (*fn)(const ComponentTypeCreateCtx* ctx, ComponentType* type)] The type destruction function. May be 0.
      */
-    #define DM_DECLARE_COMPONENT_TYPE(symbol, name, type_create_fn) \
+    #define DM_DECLARE_COMPONENT_TYPE(symbol, name, type_create_fn, type_destroy_fn) \
         uint8_t DM_ALIGNED(16) DM_COMPONENT_PASTE_SYMREG2(symbol, __LINE__)[dmGameObject::s_ComponentTypeDescBufferSize]; \
-        DM_REGISTER_COMPONENT_TYPE(symbol, DM_COMPONENT_PASTE_SYMREG2(symbol, __LINE__), name, type_create_fn);
+        DM_REGISTER_COMPONENT_TYPE(symbol, DM_COMPONENT_PASTE_SYMREG2(symbol, __LINE__), name, type_create_fn, type_destroy_fn);
 
 }
 
