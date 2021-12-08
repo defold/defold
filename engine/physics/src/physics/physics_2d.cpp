@@ -695,7 +695,7 @@ namespace dmPhysics
         filter.maskBits = mask;
         fixture->SetFilterData(filter, child);
     }
-
+    
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
         delete (b2Shape*)shape;
@@ -1155,7 +1155,59 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         body->SetBullet(value);
     }
-
+        
+    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		while (fixture) {
+			// do sth with the fixture
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+				filter.categoryBits = groupbit;
+				fixture->SetFilterData(filter, 0);
+			}
+			fixture = fixture->GetNext();	// NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
+		}		
+	}
+	
+	uint16_t GetGroup2D(HCollisionObject2D collision_object) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		if (fixture) {
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0);
+				return filter.categoryBits;
+			}
+		}	
+		return 0;
+	}
+	
+	// updates a specific group bit of a collision object's current mask
+	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		while (fixture) {
+			// do sth with the fixture
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+				if (boolvalue)
+					filter.maskBits |= groupbit;
+				else
+					filter.maskBits &= ~groupbit;
+				fixture->SetFilterData(filter, 0);
+			}
+			fixture = fixture->GetNext();
+		}			
+	}
+	
+	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+		if (fixture) {
+			if (fixture->GetType() != b2Shape::e_grid) {
+				b2Filter filter = fixture->GetFilterData(0);
+				return !!(filter.maskBits & groupbit);
+			}
+		}	
+		return false;		
+	}
+	
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())

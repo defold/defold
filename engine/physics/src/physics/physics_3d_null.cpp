@@ -190,6 +190,24 @@ namespace dmPhysics
         return 0;
     }
 
+    uint16_t GetGroup3D(HCollisionObject3D collision_object) 
+    {
+        return 0;
+    }
+
+    void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit) 
+    {
+    }
+
+    bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit)
+    {
+        return false;
+    }
+	
+    void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue) 
+    {
+    }
+
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
     }
