@@ -580,6 +580,7 @@ namespace dmResourceArchive
             if (afi->m_FileResourceData)
             {
                 fclose(afi->m_FileResourceData);
+                afi->m_FileResourceData = 0;
             }
         }
 
