@@ -76,7 +76,7 @@ namespace dmRender
         dmVMath::Vector4*                       m_Values;
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
-        int16_t                                 m_Location;
+        int32_t                                 m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
         uint16_t                                m_NumValues;
 
         Constant();
