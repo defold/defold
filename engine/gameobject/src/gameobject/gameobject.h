@@ -105,13 +105,31 @@ namespace dmGameObject
      */
     void DeleteCollection(HCollection collection);
 
+
+    /**
+     * Get the component type index
+     * @name GetComponentTypeIndex
+     * @param collection Collection handle
+     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
+     * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
+     */
+    uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
+
     /**
      * Retrieve the world in the collection connected to the supplied component
      * @param collection Collection handle
-     * @param component_index index of the component for which the world is to be retrieved
-     * @return a pointer to the world, 0x0 if not found
+     * @param component_type_index index of the component type
+     * @return world [type:void*] The pointer to the world, 0x0 if not found
      */
-    void* GetWorld(HCollection collection, uint32_t component_index);
+    void* GetWorld(HCollection collection, uint32_t component_type_index);
+
+    /**
+     * Retrieve the context for a component type
+     * @param collection Collection handle
+     * @param component_type_index index of the component type
+     * @return context [type:void*] The pointer to the context, 0x0 if not found
+     */
+    void* GetContext(HCollection collection, uint32_t component_type_index);
 
     /**
      * Return an instance index to the index pool for the collection.

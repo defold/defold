@@ -188,6 +188,17 @@ namespace dmEngine
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
 
+    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
+    {
+        component_create_ctx.m_Config = engine->m_Config;
+        component_create_ctx.m_Script = engine->m_GOScriptContext;
+        component_create_ctx.m_Register = engine->m_Register;
+        component_create_ctx.m_Factory = engine->m_Factory;
+        component_create_ctx.m_Contexts.SetCapacity(3, 8);
+        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
+        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+    }
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -261,6 +272,11 @@ namespace dmEngine
         if (engine->m_Factory) {
             dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         }
+
+        dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+        SetupComponentCreateContext(engine, component_create_ctx);
+
+        dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
@@ -1053,13 +1069,7 @@ namespace dmEngine
         }
 
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        component_create_ctx.m_Config = engine->m_Config;
-        component_create_ctx.m_Script = engine->m_GOScriptContext;
-        component_create_ctx.m_Register = engine->m_Register;
-        component_create_ctx.m_Factory = engine->m_Factory;
-        component_create_ctx.m_Contexts.SetCapacity(3, 8);
-        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
-        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+        SetupComponentCreateContext(engine, component_create_ctx);
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
@@ -1088,6 +1098,7 @@ namespace dmEngine
             goto bail;
 
         // register the component extensions
+
         go_result = dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
