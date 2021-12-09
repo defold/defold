@@ -190,20 +190,28 @@ namespace dmGameSystem
      * That is, it is not possible to extend the size of a tile map by setting tiles outside the edges.
      * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by the URL and the layer name parameters.
      *
+     * Transformation bitmask is arithmetic sum of one or both FLIP constants (`tilemap.H_FLIP`, `tilemap.V_FLIP`) and/or one of ROTATION constants
+     * (`tilemap.ROTATE_90`, `tilemap.ROTATE_180`, `tilemap.ROTATE_270`).
+     * Flip always applies before rotation (clockwise).
+     *
      * @name tilemap.set_tile
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
      * @param tile [type:number] index of new tile to set. 0 resets the cell
-     * @param [h-flipped] [type:boolean] optional if the tile should be horizontally flipped
-     * @param [v-flipped] [type:boolean] optional if the tile should be vertically flipped
-     * @param [rotated] [type:boolean] optional if the tile should be 90 degrees rotated (clockwise). Always applies rotation after a flip.
+     * @param [transformation-bitmask] [type:number] optional flip and/or rotation should be applied to the tile
      * @examples
      *
      * ```lua
      * -- Clear the tile under the player.
      * tilemap.set_tile("/level#tilemap", "foreground", self.player_x, self.player_y, 0)
+     *
+     * -- Set tile with different combination of flip and rotation
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.H_FLIP + tilemap.V_FLIP + tilemap.ROTATE_90)
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.H_FLIP + tilemap.ROTATE_270)
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.V_FLIP + tilemap.H_FLIP)
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.ROTATE_180)
      * ```
      */
     static int TileMap_SetTile(lua_State* L)
@@ -268,13 +276,16 @@ namespace dmGameSystem
         if (lua_isnumber(L, 6) && top == 6)
         {
             bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
+            if (bitmask > MAX_TRANSFORM_FLAG)
+            {
+                return luaL_error(L, "tilemap.set_tile called with wrong tranformation bitmask (tile: %d)", lua_tile);
+            }
         }
         else
         {
-            // Old API flow with boolean flags
+            // deprecated API flow with boolean flags
             bool flip_h = lua_toboolean(L, 6);
             bool flip_v = lua_toboolean(L, 7);
-            bool rotated90 = lua_toboolean(L, 8);
             if (flip_h)
             {
                 bitmask = FLIP_HORIZONTAL;
@@ -282,10 +293,6 @@ namespace dmGameSystem
             if (flip_v)
             {
                 bitmask |= FLIP_VERTICAL;
-            }
-            if (rotated90)
-            {
-                bitmask |= ROTATE_90;
             }
         }
         
@@ -518,8 +525,8 @@ namespace dmGameSystem
         SETCONSTANT(H_FLIP, FLIP_HORIZONTAL);
         SETCONSTANT(V_FLIP, FLIP_VERTICAL);
         SETCONSTANT(ROTATE_90, ROTATE_90);
-        SETCONSTANT(ROTATE_180, -3);
-        SETCONSTANT(ROTATE_270, -7);
+        SETCONSTANT(ROTATE_180, -(FLIP_HORIZONTAL + FLIP_VERTICAL));
+        SETCONSTANT(ROTATE_270, -(FLIP_HORIZONTAL + FLIP_VERTICAL + ROTATE_90));
 
         #undef SETCONSTANT
 

@@ -67,6 +67,7 @@ namespace dmGameSystem
         FLIP_VERTICAL = 2,
         ROTATE_90 = 4
     };
+    static uint8_t MAX_TRANSFORM_FLAG = FLIP_HORIZONTAL + FLIP_VERTICAL + ROTATE_90;
 }
 
 #endif
