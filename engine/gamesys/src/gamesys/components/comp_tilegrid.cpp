@@ -60,10 +60,8 @@ namespace dmGameSystem
     {
         struct Flags
         {
-            uint16_t    m_FlipHorizontal : 1;
-            uint16_t    m_FlipVertical : 1;
-            uint16_t    m_Rotate90 : 1;
-            uint16_t    : 13;
+            uint8_t    m_TransformMask : 3;
+            uint8_t    : 5;
         };
 
         TileGridComponent()
@@ -224,16 +222,14 @@ namespace dmGameSystem
         region->m_Dirty = 1;
     }
 
-    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v, bool rotate90)
+    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, uint8_t transform_mask)
     {
         TileGridResource* resource = component->m_Resource;
         uint32_t cell_index = CalculateCellIndex(layer, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
         component->m_Cells[cell_index] = tile;
 
         TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-        flags->m_FlipHorizontal = flip_h;
-        flags->m_FlipVertical = flip_v;
-        flags->m_Rotate90 = rotate90;
+        flags->m_TransformMask = transform_mask;
 
         SetRegionDirty(component, cell_x, cell_y);
     }
@@ -371,8 +367,15 @@ namespace dmGameSystem
                 component->m_Cells[cell_index] = (uint16_t)cell->m_Tile;
 
                 TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-                flags->m_FlipHorizontal = cell->m_HFlip;
-                flags->m_FlipVertical = cell->m_VFlip;
+                flags->m_TransformMask = 0;
+                if (cell->m_HFlip)
+                {
+                    flags->m_TransformMask = FLIP_HORIZONTAL;
+                }
+                if (cell->m_VFlip)
+                {
+                    flags->m_TransformMask |= FLIP_VERTICAL;
+                }
             }
         }
 
@@ -574,22 +577,9 @@ namespace dmGameSystem
                     float p[4];
                     CalculateCellBounds(x, y, 1, 1, p);
                     const float* puv = &tex_coords[tile * 8];
-                    uint32_t flip_flag = 0;
 
                     TileGridComponent::Flags flags = component->m_CellFlags[cell];
-                    if (flags.m_FlipHorizontal)
-                    {
-                        flip_flag = 1;
-                    }
-                    if (flags.m_FlipVertical)
-                    {
-                        flip_flag |= 2;
-                    }
-                    if (flags.m_Rotate90)
-                    {
-                        flip_flag |= 4;
-                    }
-                    const int* tex_lookup = &tex_coord_order[flip_flag * 6];
+                    const int* tex_lookup = &tex_coord_order[flags.m_TransformMask * 6];
 
                     #define SET_VERTEX(_I, _X, _Y, _Z, _U, _V) \
                         { \
@@ -873,7 +863,7 @@ namespace dmGameSystem
              */
             uint32_t tile = st->m_Tile - 1;
 
-            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, false, false, false);
+            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, 0);
 
             // Broadcast to any collision object components
             // TODO Filter broadcast to only collision objects

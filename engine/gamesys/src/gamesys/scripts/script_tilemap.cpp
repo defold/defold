@@ -198,7 +198,7 @@ namespace dmGameSystem
      * @param tile [type:number] index of new tile to set. 0 resets the cell
      * @param [h-flipped] [type:boolean] optional if the tile should be horizontally flipped
      * @param [v-flipped] [type:boolean] optional if the tile should be vertically flipped
-     * @param [rotated] [type:boolean] optional if the tile should be 90 degrees rotated (clockwise)
+     * @param [rotated] [type:boolean] optional if the tile should be 90 degrees rotated (clockwise). Always applies rotation after a flip.
      * @examples
      *
      * ```lua
@@ -264,25 +264,32 @@ namespace dmGameSystem
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-        bool flip_h = 0;
-        bool flip_v = 0;
-        bool rotated90 = 0;
-        if (lua_isnumber(L, 6))
+        uint8_t bitmask = 0;
+        if (lua_isnumber(L, 6) && top == 6)
         {
-            int bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
-            flip_h = (bitmask & 1) == 1;
-            flip_v = (bitmask & 2) == 2;
-            rotated90 = (bitmask & 4) == 4;
+            bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
         }
         else
         {
             // Old API flow with boolean flags
-            flip_h = lua_toboolean(L, 6);
-            flip_v = lua_toboolean(L, 7);
-            rotated90 = lua_toboolean(L, 8);
+            bool flip_h = lua_toboolean(L, 6);
+            bool flip_v = lua_toboolean(L, 7);
+            bool rotated90 = lua_toboolean(L, 8);
+            if (flip_h)
+            {
+                bitmask = FLIP_HORIZONTAL;
+            }
+            if (flip_v)
+            {
+                bitmask |= FLIP_VERTICAL;
+            }
+            if (rotated90)
+            {
+                bitmask |= ROTATE_90;
+            }
         }
         
-        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v, rotated90);
+        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, bitmask);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -294,8 +301,8 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
-            set_hull_ddf.m_FlipHorizontal = flip_h;
-            set_hull_ddf.m_FlipVertical = flip_v;
+            set_hull_ddf.m_FlipHorizontal = bitmask & FLIP_HORIZONTAL;
+            set_hull_ddf.m_FlipVertical = bitmask & FLIP_VERTICAL;
             dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
@@ -508,9 +515,9 @@ namespace dmGameSystem
             lua_pushnumber(L, (lua_Number) val); \
             lua_setfield(L, -2, #name);\
 
-        SETCONSTANT(H_FLIP, 1);
-        SETCONSTANT(V_FLIP, 2);
-        SETCONSTANT(ROTATE_90, 4);
+        SETCONSTANT(H_FLIP, FLIP_HORIZONTAL);
+        SETCONSTANT(V_FLIP, FLIP_VERTICAL);
+        SETCONSTANT(ROTATE_90, ROTATE_90);
         SETCONSTANT(ROTATE_180, -3);
         SETCONSTANT(ROTATE_270, -7);
 
