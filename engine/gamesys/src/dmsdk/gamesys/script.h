@@ -101,8 +101,16 @@ namespace dmScript
      *
      * @struct
      * @name dmScript::LuaHBuffer
+     * @member Union of
+     *     - m_BufferRes [type:void*]                       A buffer resource
+     *     - m_Buffer    [type:dmBuffer::HBuffer]           A buffer
      * @member m_Buffer [type:dmBuffer::HBuffer]            The buffer (or resource)
      * @member m_Owner  [type:dmScript::LuaBufferOwnership] What ownership the pointer has
+     *
+     * @examples
+     *
+     * See examples for dmScript::PushBuffer()
+     *
      */
     struct LuaHBuffer
     {
@@ -111,6 +119,20 @@ namespace dmScript
             dmBuffer::HBuffer   m_Buffer;
         };
         LuaBufferOwnership      m_Owner;
+
+        LuaHBuffer() {}
+
+        LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership)
+        : m_Buffer(buffer)
+        , m_Owner(ownership)
+        {
+        }
+
+        LuaHBuffer(void* buffer_resource)
+        : m_BufferRes(buffer_resource)
+        , m_Owner(OWNER_RES)
+        {
+        }
     };
 
     /*# check if the value is a dmScript::LuaHBuffer
@@ -136,14 +158,14 @@ namespace dmScript
      * How to push a buffer and give Lua ownership of the buffer (GC)
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_LUA };
+     * dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
      * PushBuffer(L, luabuf);
      * ```
      *
      * How to push a buffer and keep ownership in C++
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_C };
+     * dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_C);
      * PushBuffer(L, luabuf);
      * ```
      */
