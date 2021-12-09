@@ -1,8 +1,18 @@
 -- scenario: mask/group status of bodies set up, body1-go is thrown to body2-go, collision result is asserted
 -- globals IN: actions, collision_expected
 
+-- a function that works for Lua 5.1
+local function split(s, delimiter)
+    result = {};
+    for match in (s..delimiter):gmatch("(.-)"..delimiter) do
+        table.insert(result, match);
+    end
+    return result;
+end
+
+
 function executeAction(command, co, argument)
-  --print("command: ", command, ", object: ", "'"..co.."'", ", argument:", argument)  
+  --print("command: ", "'"..command.."'", ", object: ", "'"..co.."'", ", argument: ", "'"..argument.."'")
   if command == "group" then
     physics.set_group(co, argument)
   elseif command == "addmask" then
@@ -16,8 +26,9 @@ end
 function init(self)
   -- set up group and mask properties
   for action in actions:gmatch("[^\r\n]+") do -- split multiline string
-    --print(action)
-    executeAction( string.match(action, "(%g+)%s+(%g+)%s+(%g+)%s*") ) -- split each line command/co/argument parts
+    -- print("action", action)
+    local tokens = split(action, " ")  -- split each line command/co/argument parts
+    executeAction(tokens[1], tokens[2], tokens[3])
   end
     
   -- throw object
@@ -32,10 +43,10 @@ local counter = 0
 
 local collision_detected = false
 function on_message(self, message_id, message, sender)
-	if message_id == hash("collision_response") then
-		--print("collision detected at frame ", counter )
+  if message_id == hash("collision_response") then
+    --print("collision detected at frame ", counter )
         collision_detected = true
-	end	
+  end
 end
 
 
