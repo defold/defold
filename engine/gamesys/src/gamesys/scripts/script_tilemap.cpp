@@ -190,7 +190,7 @@ namespace dmGameSystem
      * That is, it is not possible to extend the size of a tile map by setting tiles outside the edges.
      * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by the URL and the layer name parameters.
      *
-     * Transformation bitmask is arithmetic sum of one or both FLIP constants (`tilemap.H_FLIP`, `tilemap.V_FLIP`) and/or one of ROTATION constants
+     * Transform bitmask is arithmetic sum of one or both FLIP constants (`tilemap.H_FLIP`, `tilemap.V_FLIP`) and/or one of ROTATION constants
      * (`tilemap.ROTATE_90`, `tilemap.ROTATE_180`, `tilemap.ROTATE_270`).
      * Flip always applies before rotation (clockwise).
      *
@@ -200,7 +200,7 @@ namespace dmGameSystem
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
      * @param tile [type:number] index of new tile to set. 0 resets the cell
-     * @param [transformation-bitmask] [type:number] optional flip and/or rotation should be applied to the tile
+     * @param [transform-bitmask] [type:number] optional flip and/or rotation should be applied to the tile
      * @examples
      *
      * ```lua
@@ -275,7 +275,7 @@ namespace dmGameSystem
         uint8_t bitmask = 0;
         if (lua_isnumber(L, 6) && top == 6)
         {
-            //
+            // Read more info about bitmask and constants values in SETCONSTANT macros
             bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
             if (bitmask > MAX_TRANSFORM_FLAG)
             {
@@ -554,6 +554,32 @@ namespace dmGameSystem
         SETCONSTANT(ROTATE_90, ROTATE_90);
         SETCONSTANT(ROTATE_180, -(FLIP_HORIZONTAL + FLIP_VERTICAL));
         SETCONSTANT(ROTATE_270, -(FLIP_HORIZONTAL + FLIP_VERTICAL + ROTATE_90));
+
+        /* It's enough to have 3 flags to specify a quad transform. 1st bit for h_flip, 2nd for v_flip and 3rd for 90 degree rotation.
+         * All the other rotations are possible to specify using these 3 bits.
+         * For example, rotating a quad 180 degrees is the same as flip it horizontally AND vertically.
+         * Here is a transforms correspondence table:
+         * |----------------------------------------------
+         * |val| bitmask|  basic 3bits | corresponding   |
+         * |   |        |  transforms  | transformations |
+         * |----------------------------------------------
+         * | 0 | (000)  |         R_0  | R_180 + H + V   |  
+         * | 1 | (001)  |     H + R_0  | R_180 + V       |
+         * | 2 | (010)  |     V + R_0  | R_180 + H       |
+         * | 3 | (011)  | V + H + R_0  | R_180           |
+         * | 4 | (100)  |         R_90 | R_270 + H + V   |
+         * | 5 | (101)  |     H + R_90 | R_270 + V       |
+         * | 6 | (110)  |     V + R_90 | R_270 + H       |
+         * | 7 | (111)  | V + H + R_90 | R_270           |
+         * -----------------------------------------------
+         * 
+         * Since we want to use arithmetic sum in Lua API (and avoid using of bit module)
+         * and also want to avoid extra arithmetic operations in the engine (because we are doing them on Lua side anyways)
+         * we can use mirrored values from basic transforms
+         * R_180 = -(V + H + R_0) = -3
+         * R_270 = -(V + H + R_90) = -7
+         * To make sure that the final bitmask is equal to the original one we should use Math::Abs() function on it.
+         */
 
         #undef SETCONSTANT
 
