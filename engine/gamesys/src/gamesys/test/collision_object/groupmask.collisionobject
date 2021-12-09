@@ -3,7 +3,7 @@ type: COLLISION_OBJECT_TYPE_DYNAMIC
 mass: 1.0
 friction: 0.1
 restitution: 0.5
-group: "user"
+group: "default"
 mask: "default"
 mask: "user"
 mask: "enemy"
@@ -31,4 +31,3 @@ embedded_collision_shape {
 linear_damping: 0.0
 angular_damping: 0.0
 locked_rotation: false
-bullet: false
