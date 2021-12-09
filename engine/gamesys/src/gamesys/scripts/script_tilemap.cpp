@@ -275,6 +275,7 @@ namespace dmGameSystem
         uint8_t bitmask = 0;
         if (lua_isnumber(L, 6) && top == 6)
         {
+            //
             bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
             if (bitmask > MAX_TRANSFORM_FLAG)
             {
@@ -511,6 +512,32 @@ namespace dmGameSystem
         {"set_visible",     TileMap_SetVisible},
         {0, 0}
     };
+
+    /*# flip tile horizontally
+     *
+     * @name tilemap.H_FLIP
+     * @variable
+     */
+    /*# flip tile vertically
+     *
+     * @name tilemap.V_FLIP
+     * @variable
+     */
+    /*# rotate tile 90 degrees clockwise
+     *
+     * @name tilemap.ROTATE_90
+     * @variable
+     */
+    /*# rotate tile 180 degrees clockwise
+     *
+     * @name tilemap.ROTATE_180
+     * @variable
+     */
+    /*# rotate tile 270 degrees clockwise
+     *
+     * @name tilemap.ROTATE_270
+     * @variable
+     */
 
     void ScriptTileMapRegister(const ScriptLibContext& context)
     {
