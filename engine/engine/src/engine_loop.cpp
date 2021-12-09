@@ -45,7 +45,7 @@ namespace dmEngine
         int argc = params->m_Argc;
         char** argv = params->m_Argv;
         int exit_code = 0;
-        void* engine = 0;
+        dmEngine::HEngine engine = 0;
         dmEngine::UpdateResult result = RESULT_OK;
         while (RESULT_OK == result)
         {

@@ -314,7 +314,7 @@ static int Load(lua_State* L)
 
     memcpy(data, resource, resourcesize);
 
-    dmScript::LuaHBuffer luabuf = {buffer, dmScript::OWNER_LUA};
+    dmScript::LuaHBuffer luabuf = {.m_Buffer = buffer, dmScript::OWNER_LUA};
     dmScript::PushBuffer(L, luabuf);
     assert(top + 1 == lua_gettop(L));
     return 1;

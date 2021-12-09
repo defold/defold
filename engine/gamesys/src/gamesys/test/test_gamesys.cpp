@@ -2520,7 +2520,7 @@ static bool RunString(lua_State* L, const char* script)
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
@@ -2532,7 +2532,7 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
 TEST_F(ScriptBufferTest, IsBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_pushstring(L, "not_a_buffer");
     lua_pushnumber(L, 1337);
@@ -2546,7 +2546,7 @@ TEST_F(ScriptBufferTest, IsBuffer)
 TEST_F(ScriptBufferTest, PrintBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2560,7 +2560,7 @@ TEST_F(ScriptBufferTest, PrintBuffer)
 TEST_F(ScriptBufferTest, GetCount)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2630,7 +2630,7 @@ TEST_F(ScriptBufferTest, GetBytes)
         data[i] = i+1;
     }
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2683,7 +2683,7 @@ TEST_F(ScriptBufferTest, Indexing)
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2758,7 +2758,7 @@ TEST_F(ScriptBufferTest, CopyStream)
     ASSERT_EQ(m_Count, count_a);
 
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2953,7 +2953,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
     uint32_t stride = stride_rgb * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_UINT16);
     memset(data, 0, datasize);
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "dstbuffer");
 
@@ -3070,7 +3070,7 @@ TEST_F(ScriptBufferTest, RefCount)
     ASSERT_TRUE(run);
 
     // Create a buffer, store it globally, test that it works, remove buffer, test that the script usage throws an error
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf = { .m_Buffer = m_Buffer, dmScript::OWNER_C};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 

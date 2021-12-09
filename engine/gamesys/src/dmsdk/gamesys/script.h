@@ -107,13 +107,10 @@ namespace dmScript
     struct LuaHBuffer
     {
         union {
-            dmBuffer::HBuffer   m_Buffer;
             void*               m_BufferRes;
+            dmBuffer::HBuffer   m_Buffer;
         };
-        union {
-            bool                m_UseLuaGC; // Deprecated
-            LuaBufferOwnership  m_Owner;
-        };
+        LuaBufferOwnership      m_Owner;
     };
 
     /*# check if the value is a dmScript::LuaHBuffer
