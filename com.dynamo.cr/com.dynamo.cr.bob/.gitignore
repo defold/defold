@@ -18,7 +18,6 @@
 /libexec/*/*.swf
 /libexec/*/*dmengine*
 /libexec/*/*luajit*
-/libexec/*/*apkc*
 /libexec/*/glslc*
 /libexec/*/spirv-cross*
 /share/luajit

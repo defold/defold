@@ -418,6 +418,15 @@ void glfwAndroidFlushEvents()
     spinlock_unlock(&g_EventLock);
 }
 
+void androidDestroyWindow( void )
+{
+    if (_glfwWin.opened) {
+        _glfwWin.opened = 0;
+        final_gl(&_glfwWinAndroid);
+        computeIconifiedState();
+    }
+}
+
 // Called from the engine thread
 void _glfwPlatformPollEvents( void )
 {
@@ -438,22 +447,28 @@ void _glfwPlatformPollEvents( void )
 // Called from the looper thread
 void glfwAndroidPollEvents()
 {
-   int ident;
-   int events;
-   struct android_poll_source* source;
+    int ident;
+    int events;
+    struct android_poll_source* source;
 
-   int timeout = 0;
-   if (_glfwWin.iconified) {
-       timeout = 1000 * 3000;
-   }
-   while ((ident=ALooper_pollAll(timeout, NULL, &events, (void**)&source)) >= 0)
-   {
-       timeout = 0;
-       // Process this event.
-       if (source != NULL) {
-           source->process(_glfwWinAndroid.app, source);
-       }
-   }
+    int timeoutMillis = 0;
+    if (_glfwWin.iconified) {
+        timeoutMillis = 1000 * 2;
+    }
+    while ((ident=ALooper_pollAll(timeoutMillis, NULL, &events, (void**)&source)) >= 0)
+    {
+        timeoutMillis = 0;
+        // Process this event.
+        if (source != NULL) {
+            source->process(_glfwWinAndroid.app, source);
+        }
+
+        if (_glfwWinAndroid.app->destroyRequested) {
+            androidDestroyWindow();
+            // OS is destroyng the app. All the other events doesn't matter in this case.
+            return;
+        }
+    }
 }
 
 //========================================================================
@@ -669,7 +684,7 @@ void _glfwPlatformSetViewType(int view_type)
 static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
 static int g_ListenersCount = 0;
 
-GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun listener)
+GLFWAPI void glfwAndroidRegisterOnActivityResultListener(glfwactivityresultfun listener)
 {
     if (g_ListenersCount >= MAX_ACTIVITY_LISTENERS) {
         LOGW("Max activity listeners reached (%d)", MAX_ACTIVITY_LISTENERS);
@@ -678,10 +693,9 @@ GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun listener
     }
 }
 
-GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun listener)
+GLFWAPI void glfwAndroidUnregisterOnActivityResultListener(glfwactivityresultfun listener)
 {
-    int i;
-    for (i = 0; i < g_ListenersCount; ++i)
+    for (int i = 0; i < g_ListenersCount; ++i)
     {
         if (g_Listeners[i] == listener)
         {
@@ -698,9 +712,45 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
     JNIEnv *env, jobject thiz, jobject activity, jint requestCode,
     jint resultCode, jobject data) {
 
-    int i;
-    for (i = 0; i < g_ListenersCount; ++i)
+    for (int i = 0; i < g_ListenersCount; ++i)
     {
         g_Listeners[i](env, activity, requestCode, resultCode, data);
+    }
+}
+
+#define MAX_ONCREATE_LISTENERS (32)
+static glfwoncreatefun g_onCreate_Listeners[MAX_ONCREATE_LISTENERS];
+static int g_onCreate_ListenersCount = 0;
+
+GLFWAPI void glfwAndroidRegisterOnCreateListener(glfwoncreatefun listener)
+{
+    if (g_onCreate_ListenersCount >= MAX_ONCREATE_LISTENERS) {
+        LOGW("Max onCreate listeners reached (%d)", MAX_ONCREATE_LISTENERS);
+    } else {
+        g_onCreate_Listeners[g_onCreate_ListenersCount++] = listener;
+    }
+}
+
+GLFWAPI void glfwAndroidUnregisterOnCreateListener(glfwoncreatefun listener)
+{
+    for (int i = 0; i < g_onCreate_ListenersCount; ++i)
+    {
+        if (g_onCreate_Listeners[i] == listener)
+        {
+            g_onCreate_Listeners[i] = g_onCreate_Listeners[g_onCreate_ListenersCount - 1];
+            g_onCreate_ListenersCount--;
+            return;
+        }
+    }
+    LOGW("onCreate listener not found");
+}
+
+JNIEXPORT void
+Java_com_dynamo_android_DefoldActivity_nativeOnCreate(
+    JNIEnv *env, jobject thiz, jobject activity) {
+
+    for (int i = 0; i < g_onCreate_ListenersCount; ++i)
+    {
+        g_onCreate_Listeners[i](env, activity);
     }
 }

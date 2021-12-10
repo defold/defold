@@ -3020,9 +3020,7 @@ namespace dmGameObject
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
 
-        // Default array size to 0, it should not be used as an array by default
-        out_value.m_ArraySize = 0;
-        out_value.m_IsArray = 0;
+        out_value.m_ValueType = dmGameObject::PROP_VALUE_ARRAY;
 
         if (component_id == 0)
         {
