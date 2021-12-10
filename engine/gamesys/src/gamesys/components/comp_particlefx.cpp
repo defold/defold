@@ -282,6 +282,8 @@ namespace dmGameSystem
             pfx_world->m_ConstantBuffers[ro_index] = dmRender::NewNamedConstantBuffer();
         }
         ro.m_ConstantBuffer = pfx_world->m_ConstantBuffers[ro_index];
+
+        dmRender::ClearNamedConstantBuffer(ro.m_ConstantBuffer);
         SetRenderConstants(ro.m_ConstantBuffer, first->m_RenderConstants, first->m_RenderConstantsSize);
 
         dmRender::AddToRender(render_context, &ro);
