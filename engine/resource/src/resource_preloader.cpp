@@ -163,7 +163,7 @@ namespace dmResource
             uint32_t m_PathDataUsed;
         } m_SyncedData;
 
-        dmSpinlock::lock_t m_SyncedDataSpinlock;
+        dmSpinlock::Spinlock m_SyncedDataSpinlock;
 
         PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
 

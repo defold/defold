@@ -224,6 +224,11 @@
    "maximum number of overlapping triggers that can be detected, 16 by default",
    :default 16,
    :path ["physics" "trigger_overlap_capacity"]},
+  {:type :number,
+   :help
+   "minimum velocity that will result in ellastic collisions",
+   :default 1.0,
+   :path ["physics" "velocity_threshold"]},   
   {:type :string,
    :help
    "which filtering to use for min filtering, linear (default) or nearest",

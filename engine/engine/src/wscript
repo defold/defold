@@ -128,8 +128,7 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
-        bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
-
+        
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
