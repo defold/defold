@@ -403,7 +403,7 @@ namespace dmGameSystem
             return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        dmScript::LuaHBuffer luabuf = { .m_Buffer = buffer, dmScript::OWNER_LUA };
+        dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
         PushBuffer(L, luabuf);
 
         assert(top + 1 == lua_gettop(L));
