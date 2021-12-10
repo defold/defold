@@ -14,6 +14,7 @@
 #define DMSDK_GAMESYS_SCRIPT_H
 
 #include <dmsdk/dlib/buffer.h>
+#include <dmsdk/dlib/log.h>
 #include <dmsdk/script/script.h>
 #include <dmsdk/gameobject/gameobject.h>
 
@@ -136,6 +137,18 @@ namespace dmScript
         : m_BufferRes(buffer_resource)
         , m_Owner(OWNER_RES)
         {
+        }
+
+        LuaHBuffer(dmBuffer::HBuffer buffer, bool use_lua_gc)
+        : m_Buffer(buffer)
+        , m_UseLuaGC(use_lua_gc)
+        {
+            static int first = 1;
+            if (first)
+            {
+                first = 0;
+                dmLogWarning("The constructor is deprecate: dmScript::LuaHBuffer wrapper = { buffer, false };");
+            }
         }
     };
 
