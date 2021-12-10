@@ -13,5 +13,6 @@ def build(bld):
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/gui', 'gui.h')
+    bld.install_files('${PREFIX}/include/gui', 'gui_script.h')
 
     apidoc_extract_task(bld, ['gui_script.cpp'])
