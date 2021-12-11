@@ -403,7 +403,7 @@ namespace dmGameSystem
             return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        dmScript::LuaHBuffer luabuf = { {buffer}, dmScript::OWNER_LUA };
+        dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
         PushBuffer(L, luabuf);
 
         assert(top + 1 == lua_gettop(L));
@@ -953,6 +953,10 @@ namespace dmGameSystem
 
 namespace dmScript
 {
+    static inline bool IsValidOwner(LuaBufferOwnership ownership)
+    {
+        return ownership == dmScript::OWNER_C || ownership == dmScript::OWNER_LUA || ownership == dmScript::OWNER_RES;
+    }
 
     bool IsBuffer(lua_State *L, int index)
     {
@@ -966,6 +970,7 @@ namespace dmScript
         luabuf->m_Buffer = v.m_Buffer;
         luabuf->m_BufferRes = v.m_BufferRes;
         luabuf->m_Owner = v.m_Owner;
+        assert(IsValidOwner(luabuf->m_Owner));
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
         lua_setmetatable(L, -2);
     }

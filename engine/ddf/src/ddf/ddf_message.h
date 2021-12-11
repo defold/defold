@@ -64,9 +64,11 @@ namespace dmDDF
                                 const FieldDescriptor* field,
                                 InputBuffer* input_buffer);
 
+        char* GetBuffer(uint32_t offset)     { return (char*)(m_Start + offset); }
+
         const Descriptor*     m_MessageDescriptor;
-        char*                 m_Start;
-        char*                 m_End;
+        uintptr_t             m_Start;
+        uintptr_t             m_End;
         bool                  m_DryRun;
     };
 
