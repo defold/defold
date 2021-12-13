@@ -334,6 +334,9 @@ namespace dmCrash
 
             dmLogError("%s\n", p);
 
+            if (!lineend)
+                break;
+
             p = lineend+1;
         }
 
@@ -342,4 +345,3 @@ namespace dmCrash
     }
 
 }
-

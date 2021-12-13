@@ -118,7 +118,6 @@ Running `lein doc` will generate the codox to the target/docs directory.
 As a temporary solution, we use Bob (from Editor1) as the content pipeline for bundling and running in the browser. In order to setup Bob locally, you need to:
 
 - Build the engine for the specific platform, e.g. `python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests`
-  - For android, you also need to `build_go` through `build.py` to obtain `apkc`
 - Build Bob with local artifacts, `python scripts/build.py build_bob`
 - `lein init`, which will install `bob.jar` as a local maven package
 

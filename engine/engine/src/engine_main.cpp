@@ -117,6 +117,11 @@ int engine_main(int argc, char *argv[])
     {
         glfwAndroidPollEvents();
         dmTime::Sleep(0);
+        if (g_AndroidApp->destroyRequested) {
+            // App requested exit. It doesn't wait when thread work finished because app is in background already.
+            // App will never end up here from within the app itself, only using OS functions.
+            return 0;
+        }
     }
     dmThread::Join(t);
 

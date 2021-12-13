@@ -926,47 +926,6 @@ def create_app_bundle(self):
         codesign.exe = self.link_task.outputs[0]
         codesign.signed_exe = signed_exe
 
-# TODO: We should support a custom AndroidManifest.xml-file in waf
-# Or at least a decent templating system, e.g. mustache
-ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
-<!-- BEGIN_INCLUDE(manifest) -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-        package="%(package)s"
-        android:versionCode="1"
-        android:versionName="1.0"
-        android:installLocation="auto">
-
-    <uses-feature android:required="true" android:glEsVersion="0x00020000" />
-    <uses-sdk android:minSdkVersion="%(min_api_level)s" android:targetSdkVersion="%(target_api_level)s" />
-    <application
-        android:label="%(app_name)s"
-        android:hasCode="true"
-        android:name="android.support.multidex.MultiDexApplication">
-
-        <meta-data android:name="android.max_aspect" android:value="2.1" />
-        <meta-data android:name="android.notch_support" android:value="true"/>
-
-        <activity android:name="com.dynamo.android.DefoldActivity"
-                android:label="%(app_name)s"
-                android:configChanges="orientation|screenSize|keyboardHidden"
-                android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-                android:launchMode="singleTask">
-            <meta-data android:name="android.app.lib_name"
-                    android:value="%(lib_name)s" />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-    </application>
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-</manifest>
-<!-- END_INCLUDE(manifest) -->
-"""
 
 ANDROID_STUB = """
 struct android_app;
@@ -995,24 +954,18 @@ def android_package(task):
         build_util = create_build_utility(task.env)
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
-    manifest_file = open(task.manifest.bldpath(task.env), 'wb')
-    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
-    manifest_file.close()
 
-    aapt = '%s/android-sdk/build-tools/%s/aapt' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-    manifest = task.manifest.abspath(task.env)
-    dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
 
-    libs = os.path.join(dme_and, 'libs')
-    bin = os.path.join(dme_and, 'bin')
+    root = os.path.normpath(os.path.join(os.path.dirname(task.classes_dex.abspath(task.env)), '..', '..'))
+    libs = os.path.join(root, 'libs')
+    bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
     dx_libs = os.path.join(bin, 'dexedLibs')
-    gen = os.path.join(dme_and, 'gen')
-    ap_ = task.ap_.abspath(task.env)
+    gen = os.path.join(root, 'gen')
     native_lib = task.native_lib.abspath(task.env)
 
     bld.exec_command('mkdir -p %s' % (libs))
@@ -1021,16 +974,6 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-
-    if task.extra_packages:
-        extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
-    else:
-        extra_packages_cmd = ''
-
-    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, ap_))
-    if ret != 0:
-        error('Error running aapt')
-        return 1
 
     dx_jars = []
     for jar in task.jars:
@@ -1054,50 +997,11 @@ def android_package(task):
             error('Error running dx')
             return 1
 
-    if os.path.exists(task.classes_dex.abspath(task.env)):
-        with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
-            zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
-
-    apk_unaligned = task.apk_unaligned.abspath(task.env)
-    libs_dir = task.native_lib.parent.parent.abspath(task.env)
-
     # strip the executable
     path = task.native_lib.abspath(task.env)
     ret = _strip_executable(bld, task.env.PLATFORM, build_util.get_target_architecture(), path)
     if ret != 0:
         error('Error stripping file %s' % path)
-        return 1
-
-    # add library files
-    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
-        for root, dirs, files in os.walk(libs_dir):
-            for f in files:
-                full_path = os.path.join(root, f)
-                relative_path = os.path.relpath(full_path, libs_dir)
-                if relative_path.startswith('armeabi-v7a'):
-                    relative_path = os.path.join('lib', relative_path)
-                if relative_path.startswith('arm64-v8a'):
-                    relative_path = os.path.join('lib', relative_path)
-                zip.write(full_path, relative_path)
-
-    shutil.copy(ap_, apk_unaligned)
-
-    apk = task.apk.abspath(task.env)
-
-    zipalign = '%s/android-sdk/build-tools/%s/zipalign' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
-    ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, ap_))
-    if ret != 0:
-        error('Error running zipalign')
-        return 1
-
-    apkc = '%s/ext/bin/x86_64-%s/apkc' % (os.environ['DYNAMO_HOME'], task.env.BUILD_PLATFORM)
-    if not os.path.exists(apkc):
-        error("file doesn't exist: %s" % apkc)
-        return 1
-
-    ret = bld.exec_command('%s --in="%s" --out="%s"' % (apkc, ap_, apk))
-    if ret != 0:
-        error('Error running apkc')
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
@@ -1142,9 +1046,6 @@ def create_android_package(self):
 
     android_package_task.exe_name = exe_name
 
-    manifest = self.path.exclusive_build_node("%s.android/AndroidManifest.xml" % exe_name)
-    android_package_task.manifest = manifest
-
     try:
         build_util = create_build_utility(android_package_task.env)
     except BuildUtilityException as ex:
@@ -1156,16 +1057,6 @@ def create_android_package(self):
         native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
-
-    ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
-    android_package_task.ap_ = ap_
-
-    apk_unaligned = self.path.exclusive_build_node("%s.android/%s-unaligned.apk" % (exe_name, exe_name))
-    android_package_task.apk_unaligned = apk_unaligned
-
-    apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
-    android_package_task.apk = apk
-
     android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
@@ -1176,7 +1067,7 @@ def create_android_package(self):
     else:
         android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
-    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk,
+    android_package_task.set_outputs([native_lib,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
 
     self.android_package_task = android_package_task

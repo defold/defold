@@ -34,6 +34,7 @@ namespace dmGameSystem
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled : 1;
         uint8_t                 m_AddedToUpdate : 1;
+        dmArray<void*>          m_ResourcePropertyPointers;
     };
 
     struct BoxVertex

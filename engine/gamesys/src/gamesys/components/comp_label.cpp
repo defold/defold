@@ -447,7 +447,7 @@ namespace dmGameSystem
             if (component->m_RenderConstants)
             {
                 uint32_t size = dmGameSystem::GetRenderConstantCount(component->m_RenderConstants);
-                size = dmMath::Max<uint32_t>(size, dmRender::MAX_FONT_RENDER_CONSTANTS);
+                size = dmMath::Min<uint32_t>(size, dmRender::MAX_FONT_RENDER_CONSTANTS);
                 for (uint32_t i = 0; i < size; ++i)
                 {
                     text_params.m_RenderConstants[i] = dmGameSystem::GetRenderConstant(component->m_RenderConstants, i);

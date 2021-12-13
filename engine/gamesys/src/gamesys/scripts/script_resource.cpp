@@ -86,6 +86,15 @@ namespace dmGameSystem
  *   go.set("#label", "font", self.my_font)
  * end
  * ```
+ *
+ * Load a font and set it to a gui:
+ *
+ * ```lua
+ * go.property("my_font", resource.font("/font.font"))
+ * function init(self)
+ *   go.set("#gui", "fonts", self.my_font, {key = "my_font"})
+ * end
+ * ```
  */
 
 /*# reference to texture resource
@@ -132,6 +141,15 @@ namespace dmGameSystem
  * go.property("my_atlas", resource.atlas("/atlas.atlas"))
  * function init(self)
  *   go.set("#sprite", "image", self.my_atlas)
+ * end
+ * ```
+ *
+ * Load an atlas and set it to a gui:
+ *
+ * ```lua
+ * go.property("my_atlas", resource.atlas("/atlas.atlas"))
+ * function init(self)
+ *   go.set("#gui", "textures", self.my_atlas, {key = "my_atlas"})
  * end
  * ```
  */

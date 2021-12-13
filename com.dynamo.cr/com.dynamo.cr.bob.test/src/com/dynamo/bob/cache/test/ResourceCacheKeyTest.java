@@ -81,18 +81,20 @@ public class ResourceCacheKeyTest {
 		return fs.addFile(name, content.getBytes());
 	}
 
-	private Map<String, String> createOptions(int keyCount) {
+	private Map<String, String> createImportantOptions() {
 		Map<String, String> options = new HashMap<String, String>();
-		for(int i = 0; i < keyCount; i++) {
-			options.put("key" + i, "value" + i);
-		}
+		options.put("important_option", "yep");
 		return options;
+	}
+	private Map<String, String> createEmptyOptions() {
+		return new HashMap<String, String>();
 	}
 
 	@Before
 	public void setUp() throws Exception {
 		fs = new MockFileSystem();
 		fs.setBuildDirectory("build");
+		ResourceCacheKey.includeOption("important_option");
 	}
 
 	@After
@@ -107,7 +109,7 @@ public class ResourceCacheKeyTest {
 
 		DummyBuilder builder = new DummyBuilder();
 		Task<?> task = builder.addInput(input).addOutput(output).create(null);
-		String key = ResourceCacheKey.calculate(task, createOptions(1), output);
+		String key = ResourceCacheKey.calculate(task, createEmptyOptions(), output);
 		assertTrue(key != null);
 	}
 
@@ -119,11 +121,11 @@ public class ResourceCacheKeyTest {
 
 		DummyBuilder builder1 = new DummyBuilder();
 		Task<?> task1 = builder1.addInput(input).addOutput(output).create(null);
-		String key1 = ResourceCacheKey.calculate(task1, createOptions(1), output);
+		String key1 = ResourceCacheKey.calculate(task1, createEmptyOptions(), output);
 
 		DummyBuilder builder2 = new DummyBuilder();
 		Task<?> task2 = builder2.addInput(input).addOutput(output).create(null);
-		String key2 = ResourceCacheKey.calculate(task2, createOptions(1), output);
+		String key2 = ResourceCacheKey.calculate(task2, createEmptyOptions(), output);
 
 		assertEquals(key1, key2);
 	}
@@ -136,8 +138,8 @@ public class ResourceCacheKeyTest {
 
 		DummyBuilder builder = new DummyBuilder();
 		Task<?> task = builder.addInput(input).addOutput(output).create(null);
-		String key1 = ResourceCacheKey.calculate(task, createOptions(0), output);
-		String key2 = ResourceCacheKey.calculate(task, createOptions(10), output);
+		String key1 = ResourceCacheKey.calculate(task, createImportantOptions(), output);
+		String key2 = ResourceCacheKey.calculate(task, createEmptyOptions(), output);
 
 		assertNotEquals(key1, key2);
 	}
@@ -150,12 +152,12 @@ public class ResourceCacheKeyTest {
 
 		DummyBuilder builder1 = new DummyBuilder();
 		Task<?> task1 = builder1.addInput(input).addOutput(output).create(null);
-		String key1 = ResourceCacheKey.calculate(task1, createOptions(1), output);
+		String key1 = ResourceCacheKey.calculate(task1, createEmptyOptions(), output);
 
 		DummyBuilder builder2 = new DummyBuilder();
 		input.setContent("someOtherInput".getBytes());
 		Task<?> task2 = builder2.addInput(input).addOutput(output).create(null);
-		String key2 = ResourceCacheKey.calculate(task2, createOptions(1), output);
+		String key2 = ResourceCacheKey.calculate(task2, createEmptyOptions(), output);
 
 		assertNotEquals(key1, key2);
 	}
@@ -168,14 +170,36 @@ public class ResourceCacheKeyTest {
 		DummyBuilder builder1 = new DummyBuilder();
 		IResource output1 = createResource("someOutput").output();
 		Task<?> task1 = builder1.addInput(input).addOutput(output1).create(null);
-		String key1 = ResourceCacheKey.calculate(task1, createOptions(1), output1);
+		String key1 = ResourceCacheKey.calculate(task1, createEmptyOptions(), output1);
 
-		System.out.println("testProjectOutputs output sha1");
 		DummyBuilder builder2 = new DummyBuilder();
 		IResource output2 = createResource("someOutput").output();
 		Task<?> task2 = builder2.addInput(input).addOutput(output2).create(null);
-		String key2 = ResourceCacheKey.calculate(task2, createOptions(1), output2);
+		String key2 = ResourceCacheKey.calculate(task2, createEmptyOptions(), output2);
 
 		assertNotEquals(key1, key2);
+	}
+
+	// some project options have no impact on key creation
+	@Test
+	public void testIgnoredOptions() throws CompileExceptionError, IOException {
+		IResource input = createResource("someInput");
+		IResource output = createResource("someOutput").output();
+
+		Map<String, String> ignoredOptions1 = new HashMap<String, String>();
+		ignoredOptions1.put("email", "foo@bar.com");
+		ignoredOptions1.put("debug", "true");
+		DummyBuilder builder1 = new DummyBuilder();
+		Task<?> task1 = builder1.addInput(input).addOutput(output).create(null);
+		String key1 = ResourceCacheKey.calculate(task1, ignoredOptions1, output);
+
+		Map<String, String> ignoredOptions2 = new HashMap<String, String>();
+		ignoredOptions2.put("email", "bob@acme.com");
+		ignoredOptions2.put("debug", "false");
+		DummyBuilder builder2 = new DummyBuilder();
+		Task<?> task2 = builder2.addInput(input).addOutput(output).create(null);
+		String key2 = ResourceCacheKey.calculate(task2, ignoredOptions2, output);
+
+		assertEquals(key1, key2);
 	}
 }

@@ -17,7 +17,6 @@ namespace dmGameSystem
 {
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
-        uint32_t shader_data_len;
         dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(context, ddf);
         if (shader == 0x0)
         {
@@ -81,7 +80,6 @@ namespace dmGameSystem
         }
 
         dmResource::Result res = dmResource::RESULT_OK;
-        uint32_t shader_data_len;
         dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram((dmGraphics::HContext)params.m_Context, ddf);
         if (shader == 0x0)
         {

@@ -389,6 +389,10 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
     }
     // it didn't exist, so we'll add it
     dmRender::HConstant constant = dmRender::NewConstant(name_hash);
+    if (constants->m_RenderConstants.Full())
+    {
+        constants->m_RenderConstants.OffsetCapacity(4);
+    }
     constants->m_RenderConstants.Push(constant);
 
     dmRender::HConstant material_constant;
@@ -420,6 +424,10 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
     }
     // it didn't exist, so we'll add it
     dmRender::HConstant constant = dmRender::NewConstant(name_hash);
+    if (constants->m_RenderConstants.Full())
+    {
+        constants->m_RenderConstants.OffsetCapacity(4);
+    }
     constants->m_RenderConstants.Push(constant);
     return constant;
 }
