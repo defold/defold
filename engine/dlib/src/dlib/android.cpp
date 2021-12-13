@@ -50,11 +50,11 @@ bool ThreadAttacher::Detach()
     return ok;
 }
 
-jclass LoadClass(JNIEnv* env, const char* class_name)
+jclass LoadClass(JNIEnv* env, jobject activity, const char* class_name)
 {
     jclass activity_class = env->FindClass("android/app/NativeActivity");
     jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
-    jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
+    jobject cls = env->CallObjectMethod(activity, get_class_loader);
     jclass class_loader = env->FindClass("java/lang/ClassLoader");
     jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
     jstring str_class_name = env->NewStringUTF(class_name);
@@ -62,6 +62,11 @@ jclass LoadClass(JNIEnv* env, const char* class_name)
     assert(klass);
     env->DeleteLocalRef(str_class_name);
     return klass;
+}
+
+jclass LoadClass(JNIEnv* env, const char* class_name)
+{
+    return LoadClass(env, g_AndroidApp->activity->clazz, class_name);
 }
 
 } // namespace
