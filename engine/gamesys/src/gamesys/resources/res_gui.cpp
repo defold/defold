@@ -12,7 +12,6 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <new>
 #include "res_gui.h"
 #include <gamesys/gui_ddf.h>
 #include "../components/comp_gui_private.h"
@@ -23,101 +22,6 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResPreloadGuiScript(const dmResource::ResourcePreloadParams& params)
-    {
-        dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
-        if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
-
-        uint32_t n_modules = lua_module->m_Modules.m_Count;
-        for (uint32_t i = 0; i < n_modules; ++i)
-        {
-            dmResource::PreloadHint(params.m_HintInfo, lua_module->m_Resources[i]);
-        }
-
-        *params.m_PreloadData = lua_module;
-        return dmResource::RESULT_OK;
-    }
-
-    dmResource::Result ResCreateGuiScript(const dmResource::ResourceCreateParams& params)
-    {
-        GuiContext* gui_context = (GuiContext*) params.m_Context;
-        dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*) params.m_PreloadData;
-
-        if (!dmGameObject::RegisterSubModules(params.m_Factory, gui_context->m_ScriptContext, lua_module))
-        {
-            dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
-        dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
-        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
-        if (result == dmGui::RESULT_OK)
-        {
-            params.m_Resource->m_Resource = script;
-            params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
-            dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_OK;
-        }
-        else
-        {
-            dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-    }
-
-    dmResource::Result ResDestroyGuiScript(const dmResource::ResourceDestroyParams& params)
-    {
-        dmGui::HScript script = (dmGui::HScript)params.m_Resource->m_Resource;
-        dmGui::DeleteScript(script);
-        return dmResource::RESULT_OK;
-    }
-
-    dmResource::Result ResRecreateGuiScript(const dmResource::ResourceRecreateParams& params)
-    {
-        GuiContext* gui_context = (GuiContext*) params.m_Context;
-        dmGui::HScript script = (dmGui::HScript)params.m_Resource->m_Resource;
-
-        dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
-        if ( e != dmDDF::RESULT_OK ) {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
-        if (!dmGameObject::RegisterSubModules(params.m_Factory, gui_context->m_ScriptContext, lua_module))
-        {
-            dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
-        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
-        if (result == dmGui::RESULT_OK)
-        {
-            GuiContext* gui_context = (GuiContext*) params.m_Context;
-            for (uint32_t i = 0; i < gui_context->m_Worlds.Size(); ++i)
-            {
-                GuiWorld* world = (GuiWorld*)gui_context->m_Worlds[i];
-                for (uint32_t j = 0; j < world->m_Components.Size(); ++j)
-                {
-                    GuiComponent* component = world->m_Components[j];
-                    if (script == dmGui::GetSceneScript(component->m_Scene))
-                    {
-                        dmGui::ReloadScene(component->m_Scene);
-                    }
-                }
-            }
-            params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
-            dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_OK;
-        }
-        else
-        {
-            dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-    }
-
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmGui::HContext context,
         dmGuiDDF::SceneDesc *desc, GuiSceneResource* resource, const char* filename)
     {
@@ -228,6 +132,11 @@ namespace dmGameSystem
         return size;
     }
 
+    static void HTReleaseResource(dmResource::HFactory factory, const dmhash_t* key, void** value)
+    {
+        dmResource::Release(factory, *value);
+    }
+
     void ReleaseResources(dmResource::HFactory factory, GuiSceneResource* resource)
     {
         for (uint32_t j = 0; j < resource->m_ParticlePrototypes.Size(); ++j)
@@ -249,6 +158,9 @@ namespace dmGameSystem
             else
                 dmResource::Release(factory, resource->m_GuiTextureSets[j].m_Texture);
         }
+
+        resource->m_Resources.Iterate(HTReleaseResource, factory);
+
         if (resource->m_Script)
             dmResource::Release(factory, resource->m_Script);
         if (resource->m_SceneDesc)
@@ -259,7 +171,7 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_Material);
     }
 
-    dmResource::Result ResPreloadSceneDesc(const dmResource::ResourcePreloadParams& params)
+    static dmResource::Result ResPreloadSceneDesc(const dmResource::ResourcePreloadParams& params)
     {
         dmGuiDDF::SceneDesc* scene_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params.m_Buffer, params.m_BufferSize, &scene_desc);
@@ -294,11 +206,11 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCreateSceneDesc(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResCreateSceneDesc(const dmResource::ResourceCreateParams& params)
     {
         GuiSceneResource* scene_resource = new GuiSceneResource();
         memset(scene_resource, 0, sizeof(GuiSceneResource));
-        dmResource::Result r = AcquireResources(params.m_Factory, ((GuiContext*) params.m_Context)->m_GuiContext, (dmGuiDDF::SceneDesc*) params.m_PreloadData, scene_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, (dmGui::HContext)params.m_Context, (dmGuiDDF::SceneDesc*) params.m_PreloadData, scene_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*)scene_resource;
@@ -312,7 +224,7 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResDestroySceneDesc(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResDestroySceneDesc(const dmResource::ResourceDestroyParams& params)
     {
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource->m_Resource;
 
@@ -322,7 +234,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams& params)
     {
         dmGuiDDF::SceneDesc* scene_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params.m_Buffer, params.m_BufferSize, &scene_desc);
@@ -331,7 +243,7 @@ namespace dmGameSystem
 
         GuiSceneResource tmp_scene_resource;
         memset(&tmp_scene_resource, 0, sizeof(GuiSceneResource));
-        dmResource::Result r = AcquireResources(params.m_Factory, ((GuiContext*) params.m_Context)->m_GuiContext, scene_desc, &tmp_scene_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, (dmGui::HContext)params.m_Context, scene_desc, &tmp_scene_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
             GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource->m_Resource;
@@ -351,4 +263,27 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    static dmResource::Result ResourceTypeGui_Register(dmResource::ResourceTypeRegisterContext& ctx)
+    {
+        dmGui::HContext* gui_ctx = (dmGui::HContext*)ctx.m_Contexts->Get(dmHashString64("guic"));
+        if (gui_ctx == 0)
+        {
+            dmLogError("Missing resource context 'guic' when registering resource type 'guic'");
+            return dmResource::RESULT_INVAL;
+        }
+
+        return dmResource::RegisterType(ctx.m_Factory,
+                                           ctx.m_Name,
+                                           *gui_ctx, // context
+                                           ResPreloadSceneDesc,
+                                           ResCreateSceneDesc,
+                                           0, // post create
+                                           ResDestroySceneDesc,
+                                           ResRecreateSceneDesc);
+    }
+
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeGui, "guic", dmGameSystem::ResourceTypeGui_Register, 0);
+

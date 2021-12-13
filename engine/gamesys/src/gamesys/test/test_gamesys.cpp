@@ -1359,7 +1359,11 @@ TEST_P(BoxRenderTest, BoxRender)
     // Make the render list that will be used later.
     dmRender::RenderListBegin(m_RenderContext);
 
-    dmGameSystem::GuiWorld* world = (dmGameSystem::GuiWorld*)m_GuiContext.m_Worlds[0];
+    uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world = (dmGameSystem::GuiWorld*)dmGameObject::GetWorld(m_Collection, component_type_index);
+
+    // could use dmGameObject::GetWorld() if we had the component index
+    dmGameSystem::GuiWorld* world = gui_world;
     dmGui::SetSceneAdjustReference(world->m_Components[0]->m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
 
     dmGameObject::Render(m_Collection);
@@ -1526,6 +1530,136 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
+{
+    const GroupAndMaskParams& params = GetParam();
+    
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+/*
+    An example actions set: 
+    
+    "group body1-go#co user\n"
+    "addmask body1-go#co enemy\n"
+    "removemask body1-go#co default\n"
+    "group body2-go#co enemy\n"
+    "addmask body2-go#co user\n"
+    "removemask body2-go#co default"
+    ;
+*/    
+
+    lua_pushstring(L, params.m_Actions); //actions);
+    lua_setglobal(L, "actions");
+    lua_pushboolean(L, params.m_CollisionExpected); //true);
+    lua_setglobal(L, "collision_expected");
+
+    // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
+    const char* path_body2_go = "/collision_object/groupmask_body2.goc";
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+    
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body1_go = "/collision_object/groupmask_body1.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+  
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
+{
+    const GroupAndMaskParams& params = GetParam();
+    
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+/*
+    An example actions set: 
+    
+    "group body1-go#co user\n"
+    "addmask body1-go#co enemy\n"
+    "removemask body1-go#co default\n"
+    "group body2-go#co enemy\n"
+    "addmask body2-go#co user\n"
+    "removemask body2-go#co default"
+    ;
+*/    
+
+    lua_pushstring(L, params.m_Actions); //actions);
+    lua_setglobal(L, "actions");
+    lua_pushboolean(L, params.m_CollisionExpected); //true);
+    lua_setglobal(L, "collision_expected");
+
+    // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
+    const char* path_body2_go = "/collision_object/groupmask_body2.goc";
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+    
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body1_go = "/collision_object/groupmask_body1.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+  
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+GroupAndMaskParams groupandmask_params[] = {
+    {"", true}, // group1: default, mask1: default,user,enemy group2: default, mask2: default,user,enemy
+    {"removemask body1-go#co default", false},
+    {"removemask body2-go#co default", false},
+    {"group body1-go#co user\nremovemask body1-go#co enemy\naddmask body1-go#co enemy\nremovemask body1-go#co default\nremovemask body1-go#co user\ngroup body2-go#co enemy\nremovemask body2-go#co user\naddmask body2-go#co user\nremovemask body2-go#co default", true},
+
+};
+INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask2DTest, jc_test_values_in(groupandmask_params));
+INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask3DTest, jc_test_values_in(groupandmask_params));
+
+
 
 
 TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
@@ -2390,7 +2524,7 @@ static bool RunString(lua_State* L, const char* script)
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
@@ -2402,7 +2536,7 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
 TEST_F(ScriptBufferTest, IsBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_pushstring(L, "not_a_buffer");
     lua_pushnumber(L, 1337);
@@ -2416,7 +2550,7 @@ TEST_F(ScriptBufferTest, IsBuffer)
 TEST_F(ScriptBufferTest, PrintBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2430,7 +2564,7 @@ TEST_F(ScriptBufferTest, PrintBuffer)
 TEST_F(ScriptBufferTest, GetCount)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2500,7 +2634,7 @@ TEST_F(ScriptBufferTest, GetBytes)
         data[i] = i+1;
     }
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2553,7 +2687,7 @@ TEST_F(ScriptBufferTest, Indexing)
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2628,7 +2762,7 @@ TEST_F(ScriptBufferTest, CopyStream)
     ASSERT_EQ(m_Count, count_a);
 
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2823,7 +2957,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
     uint32_t stride = stride_rgb * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_UINT16);
     memset(data, 0, datasize);
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "dstbuffer");
 
@@ -2940,7 +3074,7 @@ TEST_F(ScriptBufferTest, RefCount)
     ASSERT_TRUE(run);
 
     // Create a buffer, store it globally, test that it works, remove buffer, test that the script usage throws an error
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 

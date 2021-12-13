@@ -471,15 +471,44 @@ namespace dmGameObject
         hcollection->m_Collection->m_ToBeDeleted = 1;
     }
 
-    void* GetWorld(HCollection hcollection, uint32_t component_index)
+    uint32_t GetComponentTypeIndex(HCollection hcollection, dmhash_t type_hash)
     {
-        if (component_index < MAX_COMPONENT_TYPES)
+        Register* regist = GetRegister(hcollection);
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            return hcollection->m_Collection->m_ComponentWorlds[component_index];
+            ComponentType* ct = &regist->m_ComponentTypes[i];
+            if (ct->m_NameHash == type_hash)
+            {
+                return i;
+            }
+        }
+        return 0xFFFFFFFF;
+    }
+
+    void* GetWorld(HCollection hcollection, uint32_t component_type_index)
+    {
+        Register* regist = GetRegister(hcollection);
+        if (component_type_index < regist->m_ComponentTypeCount)
+        {
+            return hcollection->m_Collection->m_ComponentWorlds[component_type_index];
         }
         else
         {
             return 0x0;
+        }
+    }
+
+    void* GetContext(HCollection hcollection, uint32_t component_type_index)
+    {
+        Register* regist = GetRegister(hcollection);
+        if (component_type_index < regist->m_ComponentTypeCount)
+        {
+            ComponentType* ct = &regist->m_ComponentTypes[component_type_index];
+            return ct->m_Context;
+        }
+        else
+        {
+            return 0;
         }
     }
 
@@ -496,6 +525,16 @@ namespace dmGameObject
             }
         }
         return 0;
+    }
+
+    uint32_t GetNumComponentTypes(HRegister regist)
+    {
+        return regist->m_ComponentTypeCount;
+    }
+
+    ComponentType* GetComponentType(HRegister regist, uint32_t index)
+    {
+        return &regist->m_ComponentTypes[index];
     }
 
     struct ComponentTypeSortPred

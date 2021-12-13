@@ -24,6 +24,7 @@
 #include <render/render.h>
 #include <render/display_profiles.h>
 #include <render/font_renderer.h>
+#include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 
 #include "comp_gui.h"
@@ -37,19 +38,17 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include <gamesys/spine_ddf.h>
-
-extern unsigned char GUI_VPC[];
-extern uint32_t GUI_VPC_SIZE;
-
-extern unsigned char GUI_FPC[];
-extern uint32_t GUI_FPC_SIZE;
+#include <particle/particle.h>
+#include <gui/gui_script.h>
 
 namespace dmGameSystem
 {
-    dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
-    bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
-    dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data); // implemention in comp_particlefx.cpp
-    void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data);
+    static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
+    static bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
+    static void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data);
+
+    // implemention in comp_particlefx.cpp
+    extern dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -69,20 +68,50 @@ namespace dmGameSystem
 
     static struct BlendModeParticleToGui
     {
-    	dmGui::BlendMode m_Table[5];
-    	BlendModeParticleToGui()
-    	{
-    		m_Table[dmParticleDDF::BLEND_MODE_ALPHA]		= dmGui::BLEND_MODE_ALPHA;
-    		m_Table[dmParticleDDF::BLEND_MODE_MULT]			= dmGui::BLEND_MODE_MULT;
-    		m_Table[dmParticleDDF::BLEND_MODE_ADD]			= dmGui::BLEND_MODE_ADD;
-    		m_Table[dmParticleDDF::BLEND_MODE_ADD_ALPHA]	= dmGui::BLEND_MODE_ADD_ALPHA;
+        dmGui::BlendMode m_Table[5];
+        BlendModeParticleToGui()
+        {
+            m_Table[dmParticleDDF::BLEND_MODE_ALPHA]        = dmGui::BLEND_MODE_ALPHA;
+            m_Table[dmParticleDDF::BLEND_MODE_MULT]         = dmGui::BLEND_MODE_MULT;
+            m_Table[dmParticleDDF::BLEND_MODE_ADD]          = dmGui::BLEND_MODE_ADD;
+            m_Table[dmParticleDDF::BLEND_MODE_ADD_ALPHA]    = dmGui::BLEND_MODE_ADD_ALPHA;
             m_Table[dmParticleDDF::BLEND_MODE_SCREEN]       = dmGui::BLEND_MODE_SCREEN;
-    	}
+        }
     } ddf_blendmode_map;
 
-    dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
+    struct CompGuiContext
     {
-        GuiContext* gui_context = (GuiContext*)params.m_Context;
+        dmArray<GuiWorld*>          m_Worlds;
+
+        dmResource::HFactory        m_Factory;
+        dmRender::HRenderContext    m_RenderContext;
+        dmGui::HContext             m_GuiContext;
+        dmScript::HContext          m_ScriptContext;
+
+        uint32_t                    m_MaxGuiComponents;
+        uint32_t                    m_MaxParticleFXCount;
+        uint32_t                    m_MaxParticleCount;
+        uint32_t                    m_MaxSpineCount;
+    };
+
+    static void GuiResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    {
+        GuiWorld* world = (GuiWorld*) params.m_UserData;
+        void* resource = params.m_Resource->m_Resource;
+
+        for (uint32_t j = 0; j < world->m_Components.Size(); ++j)
+        {
+            GuiComponent* component = world->m_Components[j];
+            if (resource == (void*)dmGui::GetSceneScript(component->m_Scene))
+            {
+                dmGui::ReloadScene(component->m_Scene);
+            }
+        }
+    }
+
+    static dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
+    {
+        CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
         GuiWorld* gui_world = new GuiWorld();
         if (!gui_context->m_Worlds.Full())
         {
@@ -90,7 +119,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogWarning("The gui world could not be stored since the buffer is full (%d). Reload will not work for the scenes in this world.", gui_context->m_Worlds.Size());
+            dmLogWarning("The gui world could not be stored since the buffer is full (%d). Increase number in gui.max_instance_count", gui_context->m_Worlds.Size());
         }
 
         dmRig::NewContextParams rig_params = {0};
@@ -153,14 +182,25 @@ namespace dmGameSystem
 
         gui_world->m_ScriptWorld = dmScript::NewScriptWorld(gui_context->m_ScriptContext);
 
+        if (dLib::IsDebugMode())
+        {
+            dmResource::RegisterResourceReloadedCallback(gui_context->m_Factory, GuiResourceReloadedCallback, gui_world);
+        }
+
         *params.m_World = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
+    static dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiContext* gui_context = (GuiContext*)params.m_Context;
+        CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
+
+        if (dLib::IsDebugMode())
+        {
+            dmResource::UnregisterResourceReloadedCallback(gui_context->m_Factory, GuiResourceReloadedCallback, gui_world);
+        }
+
         for (uint32_t i = 0; i < gui_context->m_Worlds.Size(); ++i)
         {
             if (gui_world == gui_context->m_Worlds[i])
@@ -198,7 +238,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    bool SetNode(const dmGui::HScene scene, dmGui::HNode n, const dmGuiDDF::NodeDesc* node_desc)
+    static bool SetNode(const dmGui::HScene scene, dmGui::HNode n, const dmGuiDDF::NodeDesc* node_desc)
     {
         bool result = true;
 
@@ -337,12 +377,12 @@ namespace dmGameSystem
         return result;
     }
 
-    void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode n, const void* node_desc)
+    static void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode n, const void* node_desc)
     {
         SetNode(scene, n, (const dmGuiDDF::NodeDesc*) node_desc);
     }
 
-    void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
+    static void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
     {
         dmArray<dmhash_t> scene_layouts;
         uint16_t layout_count = dmGui::GetLayoutCount(scene);
@@ -385,7 +425,7 @@ namespace dmGameSystem
         }
     }
 
-    bool SetupGuiScene(dmGui::HScene scene, GuiSceneResource* scene_resource)
+    static bool SetupGuiScene(dmGui::HScene scene, GuiSceneResource* scene_resource)
     {
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
@@ -569,9 +609,11 @@ namespace dmGameSystem
         return result;
     }
 
-    dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
+    static dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
+
+        //CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
@@ -610,15 +652,13 @@ namespace dmGameSystem
             delete gui_component;
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-        else
-        {
-            *params.m_UserData = (uintptr_t)gui_component;
-            gui_world->m_Components.Push(gui_component);
-            return dmGameObject::CREATE_RESULT_OK;
-        }
+
+        *params.m_UserData = (uintptr_t)gui_component;
+        gui_world->m_Components.Push(gui_component);
+        return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
+    static void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
     {
         dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
         const dmRig::RigKeyframeEventData* keyframe_event = (const dmRig::RigKeyframeEventData*)event_data;
@@ -651,7 +691,7 @@ namespace dmGameSystem
             dmLogError("Could not send spine_event to listener.");
     }
 
-    dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)
+    static dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
@@ -678,7 +718,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params)
+    static dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::InitScene(gui_component->m_Scene);
@@ -691,7 +731,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
+    static dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
@@ -702,6 +742,11 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    static void* CompGuiGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (GuiComponent*)*params.m_UserData;
     }
 
     struct RenderGuiContext
@@ -816,7 +861,7 @@ namespace dmGameSystem
         return (dmGraphics::HTexture) result;
     }
 
-    void RenderTextNodes(dmGui::HScene scene,
+    static void RenderTextNodes(dmGui::HScene scene,
                          const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
                          const float* node_opacities,
@@ -903,7 +948,7 @@ namespace dmGameSystem
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
-    void RenderParticlefxNodes(dmGui::HScene scene,
+    static void RenderParticlefxNodes(dmGui::HScene scene,
                           const dmGui::RenderEntry* entries,
                           const Matrix4* node_transforms,
                           const float* node_opacities,
@@ -1023,7 +1068,7 @@ namespace dmGameSystem
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
 
-    void RenderSpineNodes(dmGui::HScene scene,
+    static void RenderSpineNodes(dmGui::HScene scene,
                           const dmGui::RenderEntry* entries,
                           const Matrix4* node_transforms,
                           const float* node_opacities,
@@ -1102,7 +1147,7 @@ namespace dmGameSystem
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
 
-    void RenderBoxNodes(dmGui::HScene scene,
+    static void RenderBoxNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
                         const float* node_opacities,
@@ -1408,7 +1453,7 @@ namespace dmGameSystem
         return 2 * (dmMath::Max<uint32_t>(perimeter_vertices, 4) + 5) + 2;
     }
 
-    void RenderPieNodes(dmGui::HScene scene,
+    static void RenderPieNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
                         const float* node_opacities,
@@ -1607,7 +1652,7 @@ namespace dmGameSystem
         ro.m_VertexCount = gui_world->m_ClientVertexBuffer.Size() - ro.m_VertexStart;
     }
 
-    void RenderNodes(dmGui::HScene scene,
+    static void RenderNodes(dmGui::HScene scene,
                     const dmGui::RenderEntry* entries,
                     const Matrix4* node_transforms,
                     const float* node_opacities,
@@ -1795,7 +1840,7 @@ namespace dmGameSystem
         dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
     }
 
-    dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
+    static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
     {
         TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
         dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
@@ -1829,7 +1874,7 @@ namespace dmGameSystem
         }
     }
 
-    bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
+    static bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
     {
         RigSceneResource* rig_res = (RigSceneResource*)spine_scene;
         out_data->m_BindPose = &rig_res->m_BindPose;
@@ -1844,13 +1889,13 @@ namespace dmGameSystem
         return true;
     }
 
-    dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+    static dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         gui_component->m_AddedToUpdate = true;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         DM_PROFILE(Gui, "Update");
 
@@ -1890,10 +1935,10 @@ namespace dmGameSystem
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
+    static dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiContext* gui_context = (GuiContext*)params.m_Context;
+        CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
 
         dmGui::RenderSceneParams rp;
         rp.m_RenderNodes = &RenderNodes;
@@ -1968,7 +2013,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
+    static dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
@@ -1988,7 +2033,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params)
+    static dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
 
@@ -2043,7 +2088,7 @@ namespace dmGameSystem
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 
-    void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params)
+    static void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
@@ -2072,6 +2117,7 @@ namespace dmGameSystem
         }
     }
 
+    // Public function used by engine (as callback from gui system)
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -2084,12 +2130,14 @@ namespace dmGameSystem
         }
     }
 
+    // Public function used by engine (as callback from gui system)
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         return (uintptr_t)component->m_Instance;
     }
 
+    // Public function used by engine (as callback from gui system)
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -2103,6 +2151,7 @@ namespace dmGameSystem
         }
     }
 
+    // Public function used by engine (as callback from gui system)
     void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
         dmRender::TextMetrics metrics;
@@ -2113,7 +2162,7 @@ namespace dmGameSystem
         out_metrics->m_MaxDescent = metrics.m_MaxDescent;
     }
 
-    dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
+    static dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
         if (set_property== PROP_MATERIAL) {
@@ -2136,7 +2185,7 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
-    dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
+    static dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
         if (set_property == PROP_MATERIAL) {
@@ -2202,7 +2251,7 @@ namespace dmGameSystem
         return it->m_Node.m_Node != 0;
     }
 
-    void CompGuiIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node)
+    static void CompGuiIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node)
     {
         GuiComponent* component = (GuiComponent*)node->m_Component;
 
@@ -2378,7 +2427,7 @@ namespace dmGameSystem
         return false;
     }
 
-    void CompGuiIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    static void CompGuiIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
     {
         assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT || node->m_Type == dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT);
         assert(node->m_ComponentType != 0);
@@ -2387,4 +2436,62 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompGuiIterPropertiesGetNext;
     }
 
+    static dmGameObject::Result CompGuiTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        CompGuiContext* gui_context = new CompGuiContext;
+        gui_context->m_Factory = ctx->m_Factory;
+        gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
+        gui_context->m_GuiContext = *(dmGui::HContext*)ctx->m_Contexts.Get(dmHashString64("guic"));
+        gui_context->m_ScriptContext = *(dmScript::HContext*)ctx->m_Contexts.Get(dmHashString64("gui_scriptc"));
+
+        int32_t max_rig_instance = dmConfigFile::GetInt(ctx->m_Config, "rig.max_instance_count", 128);
+        int32_t max_spine_count = dmMath::Max(dmConfigFile::GetInt(ctx->m_Config, "spine.max_count", 128), max_rig_instance);
+
+        gui_context->m_MaxSpineCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_spine_count", max_spine_count);
+        gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
+        gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
+        gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
+
+        int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
+        gui_context->m_Worlds.SetCapacity(max_gui_count);
+
+        dmGui::InitializeScript(gui_context->m_ScriptContext);
+
+        ComponentTypeSetPrio(type, 300);
+
+        ComponentTypeSetContext(type, gui_context);
+        ComponentTypeSetHasUserData(type, true);
+        ComponentTypeSetReadsTransforms(type, false);
+
+        ComponentTypeSetNewWorldFn(type, CompGuiNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompGuiDeleteWorld);
+        ComponentTypeSetCreateFn(type, CompGuiCreate);
+        ComponentTypeSetDestroyFn(type, CompGuiDestroy);
+        ComponentTypeSetInitFn(type, CompGuiInit);
+        ComponentTypeSetFinalFn(type, CompGuiFinal);
+        ComponentTypeSetAddToUpdateFn(type, CompGuiAddToUpdate);
+        ComponentTypeSetUpdateFn(type, CompGuiUpdate);
+        ComponentTypeSetRenderFn(type, CompGuiRender);
+        ComponentTypeSetOnMessageFn(type, CompGuiOnMessage);
+        ComponentTypeSetOnInputFn(type, CompGuiOnInput);
+        ComponentTypeSetOnReloadFn(type, CompGuiOnReload);
+        ComponentTypeSetGetPropertyFn(type, CompGuiGetProperty);
+        ComponentTypeSetSetPropertyFn(type, CompGuiSetProperty);
+
+        ComponentTypeSetChildIteratorFn(type, CompGuiIterChildren);
+        ComponentTypeSetPropertyIteratorFn(type, CompGuiIterProperties);
+        ComponentTypeSetGetFn(type, CompGuiGetComponent);
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result CompGuiTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        CompGuiContext* gui_context = (CompGuiContext*)dmGameObject::ComponentTypeGetContext(type);
+        delete gui_context;
+        return dmGameObject::RESULT_OK;
+    }
 }
+
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeGui, "guic", dmGameSystem::CompGuiTypeCreate, dmGameSystem::CompGuiTypeDestroy);

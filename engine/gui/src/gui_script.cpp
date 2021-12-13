@@ -1623,32 +1623,17 @@ namespace dmGui
             lua_pop(L, 1);
         }
 
-        if (lua_isstring(L, 2))
-        {
-            const char* anim_id = luaL_checkstring(L, 2);
-            Result r;
-            if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
-            else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
-            if (r != RESULT_OK)
-            {
-                luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", anim_id, dmHashReverseSafe64(n->m_NameHash));
-            }
-        }
+        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
+        Result r;
+        if(cbk != 0x0)
+            r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
         else
+            r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
+        if (r != RESULT_OK)
         {
-            dmhash_t anim_id = dmScript::CheckHash(L, 2);
-            Result r;
-            if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
-            else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
-            if (r != RESULT_OK)
-            {
-                luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));
-            }
+            luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));
         }
+
         assert(top == lua_gettop(L));
         return 0;
     }

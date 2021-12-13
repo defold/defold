@@ -226,6 +226,12 @@ bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
     return true;
 }
 
+uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer)
+{
+    return buffer->m_Constants.Size();
+}
+
+
 struct ApplyConstantContext
 {
     dmGraphics::HContext m_GraphicsContext;

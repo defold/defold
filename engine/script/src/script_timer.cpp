@@ -618,9 +618,62 @@ namespace dmScript
         return 1;
     }
 
+    /*# trigger a callback
+     *
+     * Manual triggering a callback for a timer.
+     *
+     * @name timer.trigger
+     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     */
+    static int TimerTrigger(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int timer_handle = luaL_checkint(L, 1);
+        
+        dmScript::HTimerWorld timer_world = GetTimerWorld(L);
+        if (timer_world == 0x0)
+        {
+            dmLogError("Unable to trigger callback, the lua context does not have a timer world");
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        uint16_t lookup_index = GetLookupIndex(timer_handle);
+        if (lookup_index >= timer_world->m_IndexLookup.Size())
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
+        if (timer_index >= timer_world->m_Timers.Size())
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        Timer& timer = timer_world->m_Timers[timer_index];
+
+        LuaCallbackInfo* callback = (LuaCallbackInfo*)timer.m_UserData;
+        if (!IsCallbackValid(callback))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        LuaTimerCallbackArgs args = { timer.m_Handle, timer.m_Delay - timer.m_Remaining };
+        InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
+
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+
     static const luaL_reg TIMER_COMP_FUNCTIONS[] = {
         { "delay", TimerDelay },
         { "cancel", TimerCancel },
+        { "trigger", TimerTrigger},
         { 0, 0 }
     };
 

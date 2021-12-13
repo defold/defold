@@ -471,9 +471,17 @@ namespace dmRender
      * @param name_hash [type: dmhash_t] the name of the constant
      * @param values [type: dmVMath::Vector4**] (out) the values. May not be null.
      * @param num_values [type: uint32_t*] (out) the number of values. May not be null.
-     * @param ok [type: bool] true if constant existed.
+     * @return ok [type: bool] true if constant existed.
      */
     bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values);
+
+    /*#
+     * Gets number of constants in the buffer
+     * @name GetNamedConstantCount
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @return ok [type: bool] true if constant existed.
+     */
+    uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer);
 
 }
 

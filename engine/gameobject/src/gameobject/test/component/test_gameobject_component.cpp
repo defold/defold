@@ -615,6 +615,106 @@ TEST_F(ComponentTest, FinalCallsFinal)
     dmGameObject::PostUpdate(m_Register);
 }
 
+
+struct ComponentApiTestContext
+{
+    int m_Created;
+    int m_Destroyed;
+    void* m_CreateContext;
+    void* m_DestroyContext;
+} g_ComponentApiTestContext;
+
+static dmResource::Result ResourceTypeTestResourceCreate(const dmResource::ResourceCreateParams& params)
+{
+    params.m_Resource->m_Resource = malloc(1);
+    params.m_Resource->m_ResourceSize = 1;
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result ResourceTypeTestResourceDestroy(const dmResource::ResourceDestroyParams& params)
+{
+    free(params.m_Resource->m_Resource);
+    return dmResource::RESULT_OK;
+}
+
+static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+{
+    g_ComponentApiTestContext.m_Created = 1;
+    g_ComponentApiTestContext.m_CreateContext = malloc(1);
+
+    ComponentTypeSetContext(type, g_ComponentApiTestContext.m_CreateContext);
+    return dmGameObject::RESULT_OK;
+}
+
+static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+{
+    g_ComponentApiTestContext.m_Destroyed = 1;
+    g_ComponentApiTestContext.m_DestroyContext = ComponentTypeGetContext(type);
+
+    ComponentTypeSetContext(type, g_ComponentApiTestContext.m_CreateContext);
+    return dmGameObject::RESULT_OK;
+}
+
+
+TEST(ComponentApi, CreateDestroyType)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/component");
+    dmScript::HContext script_context = dmScript::NewContext(0, 0, true);
+    dmScript::Initialize(script_context);
+    dmGameObject::HRegister regist = dmGameObject::NewRegister();
+    dmGameObject::Initialize(regist, script_context);
+
+
+    dmResource::Result resource_result = dmResource::RegisterType(factory, "testc", 0, 0, ResourceTypeTestResourceCreate, 0, ResourceTypeTestResourceDestroy, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, resource_result);
+
+    dmGameObject::ModuleContext module_context;
+
+    dmHashTable64<void*> resource_contexts;
+    resource_contexts.SetCapacity(7,16);
+    resource_contexts.Put(dmHashString64("goc"), regist);
+    resource_contexts.Put(dmHashString64("collectionc"), regist);
+    resource_contexts.Put(dmHashString64("scriptc"), script_context);
+    resource_contexts.Put(dmHashString64("luac"), &module_context);
+    resource_result = dmResource::RegisterTypes(factory, &resource_contexts);
+    ASSERT_EQ(dmResource::RESULT_OK, resource_result);
+
+
+    uint8_t component_desc_testc[dmGameObject::s_ComponentTypeDescBufferSize];
+    dmGameObject::Result r = dmGameObject::RegisterComponentTypeDescriptor((dmGameObject::ComponentTypeDescriptor*)component_desc_testc, "testc", ComponentTypeTest_Create, ComponentTypeTest_Destroy);
+    ASSERT_EQ(dmGameObject::RESULT_OK, r);
+
+    dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+    component_create_ctx.m_Factory = factory;
+    component_create_ctx.m_Register = regist;
+    component_create_ctx.m_Script = 0;
+
+    ////////////////////////////////////////////
+    // The actual test
+
+    // setup the test output data
+    memset(&g_ComponentApiTestContext, 0, sizeof(g_ComponentApiTestContext));
+
+    dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+    ASSERT_EQ(1, g_ComponentApiTestContext.m_Created);
+    ASSERT_EQ(0, g_ComponentApiTestContext.m_Destroyed);
+    ASSERT_NE((void*)0, g_ComponentApiTestContext.m_CreateContext);
+
+    dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
+    ASSERT_EQ(1, g_ComponentApiTestContext.m_Destroyed);
+    ASSERT_EQ(g_ComponentApiTestContext.m_CreateContext, g_ComponentApiTestContext.m_DestroyContext);
+    ////////////////////////////////////////////
+
+    free((void*)g_ComponentApiTestContext.m_CreateContext);
+    dmGameObject::DeleteRegister(regist);
+    dmScript::DeleteContext(script_context);
+    dmResource::DeleteFactory(factory);
+}
+
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

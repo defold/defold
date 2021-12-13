@@ -314,7 +314,7 @@ static int Load(lua_State* L)
 
     memcpy(data, resource, resourcesize);
 
-    dmScript::LuaHBuffer luabuf = {buffer, dmScript::OWNER_LUA};
+    dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
     dmScript::PushBuffer(L, luabuf);
     assert(top + 1 == lua_gettop(L));
     return 1;
@@ -677,9 +677,7 @@ static int GetBuffer(lua_State* L)
 
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
-    dmScript::LuaHBuffer luabuf;
-    luabuf.m_BufferRes = (void*)buffer_resource;
-    luabuf.m_Owner = dmScript::OWNER_RES;
+    dmScript::LuaHBuffer luabuf((void*)buffer_resource);
     PushBuffer(L, luabuf);
 
     assert(top + 1 == lua_gettop(L));

@@ -139,6 +139,8 @@ namespace dmScript
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         *seed = luaL_checkint(L, 1);
+        // discard first value to avoid repeated values
+        dmMath::Rand(seed);
         lua_pop(L, 1);
         return 0;
     }
@@ -177,6 +179,8 @@ namespace dmScript
             *seed = 0;
             lua_pushlightuserdata(L, seed);
             lua_setglobal(L, RANDOM_SEED);
+            // discard first value to avoid repeated values
+            dmMath::Rand(seed);
 
             lua_pushcfunction(L, Lua_Math_Random);
             lua_setfield(L, -2, "random");

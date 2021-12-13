@@ -215,9 +215,21 @@ TEST_F(ScriptTest, TestRandom)
 {
     int top = lua_gettop(L);
     ASSERT_TRUE(RunString(L, "math.randomseed(123)"));
-    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 1)"));
     ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 58)"));
-    ASSERT_TRUE(RunString(L, "assert(math.abs(math.random() - 0.70419311523438) < 0.0000001)"));
+    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 71)"));
+    ASSERT_TRUE(RunString(L, "assert(math.abs(math.random() - 0.39990234375) < 0.0000001)"));
+
+    // https://github.com/defold/defold/issues/3753
+    const char *sum_random_numbers =
+        "local sum = 0\n"
+        "local count = 1000\n"
+        "for i=1,count do\n"
+        "    math.randomseed(i)\n"
+        "    sum = sum + math.random(1, 10)\n"
+        "end\n"
+        "assert(math.floor(sum/count) == 5)\n";
+    ASSERT_TRUE(RunString(L, sum_random_numbers));
+
     ASSERT_EQ(top, lua_gettop(L));
 }
 

@@ -1529,10 +1529,9 @@ class Configuration(object):
         release_sha1 = releases[0]['sha1']
 
         editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
-        model['release'] = {'editor': [ dict(name='macOS 10.11+', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
-                                        dict(name='macOS 10.7-10.10', url=editor_download_url + 'Defold-x86_64-darwin.zip'),
+        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
                                         dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
-                                        dict(name='Ubuntu 16.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
+                                        dict(name='Ubuntu 18.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
 
         page = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:

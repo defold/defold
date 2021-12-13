@@ -50,9 +50,10 @@ namespace dmGameObject
         ComponentSetProperty    m_SetPropertyFunction;
         FIteratorChildren       m_IterChildren; // for debug/testing
         FIteratorProperties     m_IterProperties; // for debug/testing
+        uint32_t                m_TypeIndex : 16;
         uint32_t                m_InstanceHasUserData : 1;
         uint32_t                m_ReadsTransforms : 1;
-        uint32_t                m_Reserved : 30;
+        uint32_t                m_Reserved : 14;
         uint16_t                m_UpdateOrderPrio;
     };
 
@@ -74,6 +75,23 @@ namespace dmGameObject
     ComponentType* FindComponentType(HRegister regist, dmResource::ResourceType resource_type, uint32_t* out_component_index);
 
     /*#
+     * Gets the number of registered component types
+     * @name GetNumComponentTypes
+     * @param regist [type: dmGameObject::HRegister] the game object register
+     * @return count [type: uint32_t] the number of registered component types
+     */
+    uint32_t GetNumComponentTypes(HRegister regist);
+
+    /*#
+     * Gets the number of registered component types
+     * @name GetComponentType
+     * @param regist [type: dmGameObject::HRegister] the game object register
+     * @param index [type: uint32_t] the index
+     * @return count [type: uint32_t] the number of registered component types
+     */
+    ComponentType* GetComponentType(HRegister regist, uint32_t index);
+
+    /*#
      * Set update order priority. Zero is highest priority.
      * @param regist Register
      * @param resource_type Resource type
@@ -91,18 +109,24 @@ namespace dmGameObject
 
     struct ComponentTypeDescriptor
     {
-        ComponentTypeDescriptor*    m_Next;
-        ComponentTypeCreateFunction m_CreateFn;
-        const char*                 m_Name;
-        uint16_t                    m_Prio;
-        uint16_t                    m_ReadsTransforms:1;
-        uint16_t                    :15;
+        ComponentTypeDescriptor*        m_Next;
+        ComponentTypeCreateFunction     m_CreateFn;
+        ComponentTypeDestroyFunction    m_DestroyFn;
+        const char*                     m_Name;
+        uint16_t                        m_TypeIndex;
+        uint16_t                        m_Prio;
+        uint16_t                        m_ReadsTransforms:1;
+        uint16_t                        :15;
     };
 
 
     /*# Calls the create function for all registered component types
      */
     Result CreateRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx);
+
+    /*# Calls the destroy function for all registered component types
+     */
+    Result DestroyRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx);
 }
 
 #endif // #ifndef DM_COMPONENT_H

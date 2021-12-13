@@ -47,11 +47,11 @@ namespace dmDDF
     private:
         dmHashTable32<uint32_t> m_ArrayCount;
 
-        char* m_Start;
-        char* m_End;
-        char* m_Current;
-        bool  m_DryRun;
-        uint32_t m_Options;
+        uintptr_t   m_Start;
+        uintptr_t   m_End;
+        uintptr_t   m_Current;
+        bool        m_DryRun;
+        uint32_t    m_Options;
     };
 }
 

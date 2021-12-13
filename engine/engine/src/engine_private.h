@@ -133,7 +133,7 @@ namespace dmEngine
         dmScript::HContext                          m_RenderScriptContext;
         dmScript::HContext                          m_GuiScriptContext;
         dmResource::HFactory                        m_Factory;
-        dmGameSystem::GuiContext                    m_GuiContext;
+        dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
         dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
@@ -189,13 +189,13 @@ namespace dmEngine
 
 
     // Creates and initializes the engine. Returns the engine instance
-    typedef void* (*EngineCreate)(int argc, char** argv);
+    typedef HEngine (*EngineCreate)(int argc, char** argv);
     // Destroys the engine instance after finalizing each system
-    typedef void (*EngineDestroy)(void* engine);
+    typedef void (*EngineDestroy)(HEngine engine);
     // Steps the engine 1 tick
-    typedef dmEngine::UpdateResult (*EngineUpdate)(void* engine);
+    typedef dmEngine::UpdateResult (*EngineUpdate)(HEngine engine);
     // Called before the destroy function
-    typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+    typedef void (*EngineGetResult)(HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
     struct RunLoopParams
     {

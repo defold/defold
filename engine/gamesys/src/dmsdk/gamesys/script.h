@@ -14,6 +14,7 @@
 #define DMSDK_GAMESYS_SCRIPT_H
 
 #include <dmsdk/dlib/buffer.h>
+#include <dmsdk/dlib/log.h>
 #include <dmsdk/script/script.h>
 #include <dmsdk/gameobject/gameobject.h>
 
@@ -101,8 +102,16 @@ namespace dmScript
      *
      * @struct
      * @name dmScript::LuaHBuffer
+     * @member Union of
+     *     - m_BufferRes [type:void*]                       A buffer resource
+     *     - m_Buffer    [type:dmBuffer::HBuffer]           A buffer
      * @member m_Buffer [type:dmBuffer::HBuffer]            The buffer (or resource)
      * @member m_Owner  [type:dmScript::LuaBufferOwnership] What ownership the pointer has
+     *
+     * @examples
+     *
+     * See examples for dmScript::PushBuffer()
+     *
      */
     struct LuaHBuffer
     {
@@ -110,10 +119,37 @@ namespace dmScript
             dmBuffer::HBuffer   m_Buffer;
             void*               m_BufferRes;
         };
-        union {
+        union
+        {
             bool                m_UseLuaGC; // Deprecated
             LuaBufferOwnership  m_Owner;
         };
+
+        LuaHBuffer() {}
+
+        LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership)
+        : m_Buffer(buffer)
+        , m_Owner(ownership)
+        {
+        }
+
+        LuaHBuffer(void* buffer_resource)
+        : m_BufferRes(buffer_resource)
+        , m_Owner(OWNER_RES)
+        {
+        }
+
+        LuaHBuffer(dmBuffer::HBuffer buffer, bool use_lua_gc)
+        : m_Buffer(buffer)
+        , m_UseLuaGC(use_lua_gc)
+        {
+            static int first = 1;
+            if (first)
+            {
+                first = 0;
+                dmLogWarning("The constructor is deprecated: dmScript::LuaHBuffer wrapper = { HBuffer, bool };");
+            }
+        }
     };
 
     /*# check if the value is a dmScript::LuaHBuffer
@@ -139,14 +175,14 @@ namespace dmScript
      * How to push a buffer and give Lua ownership of the buffer (GC)
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_LUA };
+     * dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
      * PushBuffer(L, luabuf);
      * ```
      *
      * How to push a buffer and keep ownership in C++
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_C };
+     * dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_C);
      * PushBuffer(L, luabuf);
      * ```
      */

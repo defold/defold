@@ -21,8 +21,8 @@ namespace dmDDF
     Message::Message(const Descriptor* message_descriptor, char* buffer, uint32_t buffer_size, bool dry_run)
     {
         m_MessageDescriptor = message_descriptor;
-        m_Start = buffer;
-        m_End = buffer + buffer_size;
+        m_Start = (uintptr_t)buffer;
+        m_End = (uintptr_t)buffer + buffer_size;
         m_DryRun = dry_run;
     }
 
@@ -164,8 +164,8 @@ namespace dmDDF
         }
         else
         {
-            msg_buf = &m_Start[field->m_Offset];
-            assert(msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
+            msg_buf = GetBuffer(field->m_Offset);
+            assert((uintptr_t)msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
         }
         Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
         InputBuffer sub_buffer;
@@ -193,7 +193,7 @@ namespace dmDDF
         }
         assert(found);
 #endif
-        char* msg_buf = &m_Start[field->m_Offset];
+        char* msg_buf = GetBuffer(field->m_Offset);
         return Message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
     }
 
@@ -229,7 +229,7 @@ namespace dmDDF
         assert(m_Start + field->m_Offset + buffer_size <= m_End);
         if (!m_DryRun)
         {
-            memcpy(m_Start + field->m_Offset, buffer, buffer_size);
+            memcpy(GetBuffer(field->m_Offset), buffer, buffer_size);
         }
     }
 
@@ -240,7 +240,7 @@ namespace dmDDF
 
         if (!m_DryRun)
         {
-            RepeatedField* repeated_field = (RepeatedField*) &m_Start[field->m_Offset];
+            RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             uintptr_t dest = repeated_field->m_Array + repeated_field->m_ArrayCount * buffer_size;
 
             memcpy((void*) dest, buffer, buffer_size);
@@ -258,7 +258,7 @@ namespace dmDDF
 
         if (!m_DryRun)
         {
-            RepeatedField* repeated_field = (RepeatedField*) &m_Start[field->m_Offset];
+            RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             uintptr_t dest = repeated_field->m_Array + repeated_field->m_ArrayCount * field->m_MessageDescriptor->m_Size;
 
             memset((void*) dest, 0, field->m_MessageDescriptor->m_Size);
@@ -275,7 +275,7 @@ namespace dmDDF
 
         if (!m_DryRun)
         {
-            RepeatedField* repeated_field = (RepeatedField*) &m_Start[field->m_Offset];
+            RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             repeated_field->m_Array = (uintptr_t) buffer;
             repeated_field->m_ArrayCount = 0;
         }
@@ -290,7 +290,7 @@ namespace dmDDF
 
         if (!m_DryRun)
         {
-            const char** string_field = (const char**) &m_Start[field->m_Offset];
+            const char** string_field = (const char**) GetBuffer(field->m_Offset);
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
 
@@ -315,7 +315,7 @@ namespace dmDDF
 
         if (!m_DryRun)
         {
-            RepeatedField* repeated_field = (RepeatedField*) &m_Start[field->m_Offset];
+            RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             uintptr_t array = (uintptr_t)repeated_field->m_Array;
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS )
             {
@@ -353,7 +353,7 @@ namespace dmDDF
         {
             memcpy(bytes_buf, buffer, buffer_len);
 
-            RepeatedField* repeated_field = (RepeatedField*) &m_Start[field->m_Offset];
+            RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             assert(repeated_field->m_ArrayCount == 0);
 
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
