@@ -100,20 +100,6 @@ namespace dmGameSystem
         dmRender::HRenderScript         m_Script;
     };
 
-    struct GuiContext
-    {
-        GuiContext();
-
-        dmArray<void*>              m_Worlds;
-        dmRender::HRenderContext    m_RenderContext;
-        dmGui::HContext             m_GuiContext;
-        dmScript::HContext          m_ScriptContext;
-        uint32_t                    m_MaxGuiComponents;
-        uint32_t                    m_MaxParticleFXCount;
-        uint32_t                    m_MaxParticleCount;
-        uint32_t                    m_MaxSpineCount;
-    };
-
     struct SpriteContext
     {
         SpriteContext()
@@ -201,7 +187,6 @@ namespace dmGameSystem
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
-        GuiContext* gui_context,
         dmInput::HContext input_context,
         PhysicsContext* physics_context);
 
@@ -210,7 +195,6 @@ namespace dmGameSystem
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   ParticleFXContext* emitter_context,
-                                                  GuiContext* gui_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
@@ -220,11 +204,6 @@ namespace dmGameSystem
                                                   LabelContext* label_context,
                                                   TilemapContext* tilemap_context,
                                                   SoundContext* sound_context);
-
-    void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
-    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
-    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
-    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);

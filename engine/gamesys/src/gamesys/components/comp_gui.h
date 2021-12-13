@@ -13,40 +13,21 @@
 #ifndef DM_GAMESYS_COMP_GUI_H
 #define DM_GAMESYS_COMP_GUI_H
 
-#include <gameobject/component.h>
+#include <stdint.h>
+#include <gui/gui.h>
+
+namespace dmMessage
+{
+    struct URL;
+}
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
-
-    dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
-
-    dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params);
-
-    dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params);
-
-    dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params);
-
-    dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params);
-
-    dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
-
-    dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
-
-    dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params);
-
-    dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params);
-
-    dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params);
-
-    void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params);
-
-    dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
-
-    dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
-
-    void CompGuiIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node);
-    void CompGuiIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+    // Used by the engine to setup the dmGui::HContext
+    void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
+    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
+    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 }
 
 #endif // DM_GAMESYS_COMP_GUI_H

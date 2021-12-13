@@ -133,7 +133,7 @@ namespace dmEngine
         dmScript::HContext                          m_RenderScriptContext;
         dmScript::HContext                          m_GuiScriptContext;
         dmResource::HFactory                        m_Factory;
-        dmGameSystem::GuiContext                    m_GuiContext;
+        dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
         dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;

@@ -147,7 +147,7 @@ namespace dmScript
             if (first)
             {
                 first = 0;
-                dmLogWarning("The constructor is deprecate: dmScript::LuaHBuffer wrapper = { buffer, false };");
+                dmLogWarning("The constructor is deprecated: dmScript::LuaHBuffer wrapper = { HBuffer, bool };");
             }
         }
     };

@@ -19,7 +19,7 @@ create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParti
 def build(bld):
     uselib = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PLATFORM_SOCKET', 'LUA', 'CARES']
 
-    bld.new_task_gen(features = 'cxx cprogram embed test',
+    test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
                     includes = '../../../src .',
                     uselib = uselib,
                     uselib_local = 'gui',
@@ -28,7 +28,7 @@ def build(bld):
                     source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
                     embed_source = 'bug352.lua')
 
-    bld.new_task_gen(features = 'cxx cprogram embed test',
+    test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed test',
                     includes = '../../../src .',
                     uselib = uselib,
                     uselib_local = 'gui',
@@ -36,10 +36,23 @@ def build(bld):
                     target = 'test_gui_script',
                     source = 'test_gui_script.cpp')
 
-    bld.new_task_gen(features = 'cxx cprogram embed test',
+    test_gui_clipping = bld.new_task_gen(features = 'cxx cprogram embed test',
                     includes = '../../../src .',
                     uselib = uselib,
                     uselib_local = 'gui',
                     web_libs = ['library_sys.js', 'library_script.js'],
                     target = 'test_gui_clipping',
                     source = 'test_gui_clipping.cpp')
+
+    # Note that these null tests won't actually work since the tests aren't written that way.
+    # The test is instead that the executables link properly (so that we don't miss any unresolved symbols)
+    # We do this by removing the 'test' feature which excludes it from the test run
+    for test in (test_gui, test_gui_script, test_gui_clipping):
+        bld.new_task_gen(features = 'cxx cprogram embed test skip_test',
+                        source = test.source,
+                        embed_source = 'bug352.lua',
+                        uselib = uselib,
+                        uselib_local = 'gui_null',
+                        web_libs = ['library_sys.js', 'library_script.js'],
+                        includes = '../../../src .',
+                        target = test.target + '_null')

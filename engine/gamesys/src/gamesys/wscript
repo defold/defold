@@ -12,8 +12,7 @@ def build(bld):
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
-        target = 'gamesys',
-        embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc')
+        target = 'gamesys')
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto/gamesys'])
 
@@ -51,5 +50,6 @@ def build(bld):
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
+    bld.install_files('${PREFIX}/include/gamesys/components', 'components/comp_gui.h')
     for x in proto_files:
         bld.install_files('${PREFIX}/share/proto/gamesys', x)
