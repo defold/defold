@@ -13,6 +13,7 @@
         <fileset dir="${common.dir}/ext" includes="snakeyaml-1.24.jar"/>
         <fileset dir="${common.dir}/ext" includes="jsoup-1.11.3.jar"/>
         <fileset dir="${common.dir}/ext/aws" includes="*.jar"/>
+        <fileset dir="${common.dir}/ext" includes="lwjgl*.jar"/>
         <fileset dir="${bob.dir}/lib" includes="*.jar"/>
     </path>
 
@@ -269,6 +270,7 @@
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
               <include name="httpcore-4.1.4.jar"/>
+              <include name="lwjgl*.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="${bob.dir}/lib">
               <include name="dlib.jar"/>
@@ -326,6 +328,7 @@
               <include name="extender-client-*.jar"/>
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
+              <include name="lwjgl*.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="${common.dir}/ext/aws">
                 <include name="*.jar" />
