@@ -276,7 +276,7 @@ def to_cxx_enum(context, pp, message_type):
 def to_cxx_default_value_string(context, f):
     # Skip all empty values. Type string is an exception as we always set these to ""
     if len(f.default_value) == 0 and f.type != FieldDescriptor.TYPE_STRING:
-        return '0x0'
+        return ''
     else:
         if f.type == FieldDescriptor.TYPE_STRING:
             return '"%s\\x00"' % ''.join(map(lambda x: '\\x%02x' % ord(x), f.default_value))
@@ -295,9 +295,9 @@ def to_cxx_default_value_string(context, f):
             return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(x), tmp))
         elif f.type == FieldDescriptor.TYPE_BOOL:
             if f.default_value == "true":
-                return '"\x01"'
+                return '"\\x01"'
             else:
-                return '"\x00"'
+                return '"\\x00"'
         else:
             form, func = type_to_struct_format[f.type]
             # Store in little endian
