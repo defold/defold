@@ -120,17 +120,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             //
             // See implementation of luaO_chunkid and why a prefix '=' is used; it is to pass through the filename without modifications.
             //
-            // We will also limit the chunkname (the identifying part of a script/source chunk) to 59 chars.
-            // Lua has a maximum length of chunknames, by default defined to 60 chars.
-            //
-            // If a script error occurs in runtime we want Lua to report the end of the filepath
-            // associated with the chunk, since this is where the filename is visible.
-            //
-            String chunkName = task.input(0).getPath();
-            if (chunkName.length() >= 59) {
-                chunkName = chunkName.substring(chunkName.length() - 59);
-            }
-            chunkName = "=" + chunkName;
+            String chunkName = "=" + task.input(0).getPath();
             ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), luajitExe), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
@@ -340,4 +330,3 @@ public abstract class LuaBuilder extends Builder<Void> {
         return builder.build();
     }
 }
-
