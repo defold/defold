@@ -740,7 +740,11 @@
     file-path))
 
 (defn- find-resource [project path]
-  (g/with-auto-evaluation-context evaluation-context
+  ;; Use a throwaway evaluation-context, since this may be called from within a
+  ;; g/user-data-swap! update function, in which case a cache update will force
+  ;; a retry, sending us into an infinite loop.
+  ;; TODO: Consider not using g/user-data-swap! in the reload! function below.
+  (let [evaluation-context (g/make-evaluation-context {:basis (g/now)})]
     (some-> (project/get-resource-node project path evaluation-context)
             (g/node-value :lines evaluation-context)
             (data/lines-input-stream))))
