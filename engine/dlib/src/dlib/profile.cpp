@@ -345,7 +345,7 @@ namespace dmProfile
     {
         if (!g_IsInitialized)
         {
-            dmLogError("dmProfile is not initialized");
+            dmLogOnceError("dmProfile is not initialized");
             return g_ActiveProfile;
         }
 
