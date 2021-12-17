@@ -276,7 +276,7 @@
 
 (defn- remove-filename-prefix
   [^String s]
-  (if (.startsWith s "=")
+  (if (or (.startsWith s "=") (.startsWith s "@"))
     (subs s 1)
     s))
 
@@ -527,7 +527,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB @%s %d" file line))
+      (send-command! out (format "SETB %s %d" file line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
@@ -539,7 +539,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "DELB @%s %d" file line))
+      (send-command! out (format "DELB %s %d" file line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
