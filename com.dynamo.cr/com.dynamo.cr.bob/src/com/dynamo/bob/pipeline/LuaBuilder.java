@@ -116,11 +116,11 @@ public abstract class LuaBuilder extends Builder<Void> {
             // Doing a bit of custom set up here as the path is required.
             //
             // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
-            //       correct chunk name (the original original source file) already here.
+            //       correct chunk name (the original source file) already here.
             //
-            // See implementation of luaO_chunkid and why a prefix '=' is used; it is to pass through the filename without modifications.
+            // See implementation of luaO_chunkid in lobject.c and why a prefix '@' is used.
             //
-            String chunkName = "=" + task.input(0).getPath();
+            String chunkName = "@" + task.input(0).getPath();
             ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), luajitExe), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();

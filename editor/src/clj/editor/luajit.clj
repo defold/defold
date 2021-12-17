@@ -31,8 +31,7 @@
   [proj-path ^File input ^File output arch]
   (let [{:keys [exit out err]} (shell/sh (luajit-exec-path arch)
                                          "-bgf"
-                                         ; Prefix "=" which tells Lua this is a literal file path.
-                                         (str "=" proj-path)
+                                         (str "@" proj-path)
                                          (.getAbsolutePath input)
                                          (.getAbsolutePath output)
                                          :env {"LUA_PATH" (str (luajit-lua-path) "/?.lua")})]
