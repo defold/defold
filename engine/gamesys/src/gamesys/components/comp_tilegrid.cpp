@@ -376,6 +376,10 @@ namespace dmGameSystem
                 {
                     flags->m_TransformMask |= FLIP_VERTICAL;
                 }
+                if (cell->m_Rotate90)
+                {
+                    flags->m_TransformMask |= ROTATE_90;
+                }
             }
         }
 
