@@ -16,7 +16,6 @@
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
             [editor.lua :as lua]
-            [editor.luajit :refer [luajit-path-to-chunk]]
             [service.log :as log])
   (:import [clojure.lang Counted ILookup MapEntry Seqable]
            [java.io BufferedReader InputStreamReader IOException PrintWriter]
@@ -528,7 +527,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB =%s %d" (luajit-path-to-chunk file) line))
+      (send-command! out (format "SETB @%s %d" file line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
@@ -540,7 +539,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "DELB =%s %d" (luajit-path-to-chunk file) line))
+      (send-command! out (format "DELB @%s %d" file line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
