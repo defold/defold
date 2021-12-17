@@ -309,8 +309,9 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
-            set_hull_ddf.m_FlipHorizontal = bitmask & FLIP_HORIZONTAL;
-            set_hull_ddf.m_FlipVertical = bitmask & FLIP_VERTICAL;
+            set_hull_ddf.m_FlipHorizontal = (bitmask & FLIP_HORIZONTAL) > 0 ? 1 : 0;
+            set_hull_ddf.m_FlipVertical = (bitmask & FLIP_VERTICAL) > 0 ? 1 : 0;
+            set_hull_ddf.m_Rotate90 = (bitmask & ROTATE_90) > 0 ? 1 : 0;
             dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);

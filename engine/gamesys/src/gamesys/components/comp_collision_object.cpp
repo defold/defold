@@ -1110,6 +1110,7 @@ namespace dmGameSystem
             dmPhysics::HullFlags flags;
             flags.m_FlipHorizontal = ddf->m_FlipHorizontal;
             flags.m_FlipVertical = ddf->m_FlipVertical;
+            flags.m_Rotate90 = ddf->m_Rotate90;
             dmPhysics::SetGridShapeHull(component->m_Object2D, ddf->m_Shape, row, column, hull, flags);
             uint16_t child = column + tile_grid_resource->m_ColumnCount * row;
             uint16_t group = 0;

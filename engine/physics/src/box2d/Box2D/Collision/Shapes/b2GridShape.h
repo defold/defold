@@ -65,12 +65,14 @@ public:
         CellFlags()
         : m_FlipHorizontal(0)
         , m_FlipVertical(0)
+        , m_Rotate90(0)
         , m_Padding(0)
         {}
 
-        uint16 m_FlipHorizontal : 1;
-        uint16 m_FlipVertical : 1;
-        uint16 m_Padding : 14;
+        uint8 m_FlipHorizontal : 1;
+        uint8 m_FlipVertical : 1;
+        uint8 m_Rotate90 : 1;
+        uint8 m_Padding : 5;
     };
 
     b2GridShape(const b2HullSet* hullSet,

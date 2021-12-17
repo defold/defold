@@ -149,11 +149,25 @@ uint32 b2GridShape::GetCellVertices(uint32 index, b2Vec2* vertices) const
     float32 xScale = flags.m_FlipHorizontal ? -1.0f : 1.0f;
     float32 yScale = flags.m_FlipVertical ? -1.0f : 1.0f;
 
+    float32 tmpX = 0.0;
+
     for (uint32 i = 0; i < hull.m_Count; ++i)
     {
         vertices[i] = m_hullSet->m_vertices[hull.m_Index + i];
-        vertices[i].x *= xScale * m_cellWidth;
-        vertices[i].y *= yScale * m_cellHeight;
+        if (flags.m_Rotate90)
+        {
+            // Clockwise rotation (x, y) -> (y, -x)
+            // Also tile isn't necessary a square, that's why we should swap width and height 
+            // We apply flip before rotation, which means scale is part of size and should be swapped as well
+            tmpX = vertices[i].x;
+            vertices[i].x = vertices[i].y * (yScale * m_cellWidth);
+            vertices[i].y = -1 * tmpX * (xScale * m_cellHeight);
+        }
+        else
+        {
+            vertices[i].x *= xScale * m_cellWidth;
+            vertices[i].y *= yScale * m_cellHeight;
+        }
         vertices[i] += t;
     }
 

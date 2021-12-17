@@ -99,13 +99,15 @@ namespace dmPhysics
         HullFlags()
         : m_FlipHorizontal(0)
         , m_FlipVertical(0)
+        , m_Rotate90(0)
         , m_Padding(0)
         {
         }
 
-        uint16_t m_FlipHorizontal : 1;
-        uint16_t m_FlipVertical : 1;
-        uint16_t m_Padding : 14;
+        uint8_t m_FlipHorizontal : 1;
+        uint8_t m_FlipVertical : 1;
+        uint8_t m_Rotate90 : 1;
+        uint8_t m_Padding : 5;
     };
 
     /**

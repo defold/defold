@@ -669,6 +669,7 @@ namespace dmPhysics
         b2GridShape::CellFlags f;
         f.m_FlipHorizontal = flags.m_FlipHorizontal;
         f.m_FlipVertical = flags.m_FlipVertical;
+        f.m_Rotate90 = flags.m_Rotate90;
         grid_shape->SetCellHull(body, row, column, hull, f);
     }
 
