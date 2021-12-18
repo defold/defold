@@ -239,17 +239,17 @@
               u1 (aget uvs (if (.h-flip tile) 0 2))
               v1 (aget uvs (if (.v-flip tile) 1 3))]
           (recur it
-		          (if (.rotate90 tile)
-		                 (-> vbuf
-		                     (pos-uv-vtx-put! x0 y1 0 u0 v1)
-		                     (pos-uv-vtx-put! x1 y1 0 u0 v0)
-		                     (pos-uv-vtx-put! x1 y0 0 u1 v0)
-		                     (pos-uv-vtx-put! x0 y0 0 u1 v1))
-		                 (-> vbuf
-		                     (pos-uv-vtx-put! x0 y0 0 u0 v1)
-		                     (pos-uv-vtx-put! x0 y1 0 u0 v0)
-		                     (pos-uv-vtx-put! x1 y1 0 u1 v0)
-		                     (pos-uv-vtx-put! x1 y0 0 u1 v1)))
+            (if (.rotate90 tile)
+                   (-> vbuf
+                       (pos-uv-vtx-put! x0 y1 0 u0 v1)
+                       (pos-uv-vtx-put! x1 y1 0 u0 v0)
+                       (pos-uv-vtx-put! x1 y0 0 u1 v0)
+                       (pos-uv-vtx-put! x0 y0 0 u1 v1))
+                   (-> vbuf
+                       (pos-uv-vtx-put! x0 y0 0 u0 v1)
+                       (pos-uv-vtx-put! x0 y1 0 u0 v0)
+                       (pos-uv-vtx-put! x1 y1 0 u1 v0)
+                       (pos-uv-vtx-put! x1 y0 0 u1 v1)))
                  (min-l min-x x0)
                  (min-l min-y y0)
                  (max-l max-x x1)
