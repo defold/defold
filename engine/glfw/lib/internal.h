@@ -232,6 +232,19 @@ void _glfwPlatformHideMouseCursor( void );
 void _glfwPlatformShowMouseCursor( void );
 void _glfwPlatformSetMouseCursorPos( int x, int y );
 
+// Defold extensions
+int _glfwPlatformGetAcceleration(float* x, float* y, float* z);
+int _glfwPlatformQueryAuxContext();
+int _glfwPlatformQueryAuxContextVulkan();
+int _glfwPlatformQueryAuxContextOpenGL();
+void* _glfwPlatformAcquireAuxContext();
+void* _glfwPlatformAcquireAuxContextVulkan();
+void* _glfwPlatformAcquireAuxContextOpenGL();
+void _glfwPlatformUnacquireAuxContext(void* context);
+void _glfwPlatformUnacquireAuxContextVulkan(void* context);
+void _glfwPlatformUnacquireAuxContextOpenGL(void* context);
+void _glfwPlatformSetViewType(int view_type);
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color);
 
 //========================================================================
 // Prototypes for platform independent internal functions
@@ -276,19 +289,7 @@ const _GLFWfbconfig *_glfwChooseFBConfig( const _GLFWfbconfig *desired,
                                           const _GLFWfbconfig *alternatives,
                                           unsigned int count );
 
-int _glfwPlatformGetAcceleration(float* x, float* y, float* z);
-
-// context control
-int _glfwPlatformQueryAuxContext();
-int _glfwPlatformQueryAuxContextVulkan();
-int _glfwPlatformQueryAuxContextOpenGL();
-void* _glfwPlatformAcquireAuxContext();
-void* _glfwPlatformAcquireAuxContextVulkan();
-void* _glfwPlatformAcquireAuxContextOpenGL();
-void _glfwPlatformUnacquireAuxContext(void* context);
-void _glfwPlatformUnacquireAuxContextVulkan(void* context);
-void _glfwPlatformUnacquireAuxContextOpenGL(void* context);
-void _glfwPlatformSetViewType(int view_type);
+// Joystick
 int _glfwInitJoysticks( void );
 void _glfwTerminateJoysticks( void );
 

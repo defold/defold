@@ -830,6 +830,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwSetWindowTitle(params->m_Title);
 #endif
 
+        glfwSetWindowBackgroundColor(params->m_BackgroundColor);
+
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
