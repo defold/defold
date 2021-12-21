@@ -230,7 +230,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
  * @param domain [type:const char*]
  * @param formatted_string [type:char*]
  */
-typedef void (*dmLogListener)(dmLogSeverity severity, const char* domain, const char* format, ...);
+typedef void (*dmLogListener)(dmLogSeverity severity, const char* domain, char* formatted_string);
 
 /*# register dmLog listener.
  *
