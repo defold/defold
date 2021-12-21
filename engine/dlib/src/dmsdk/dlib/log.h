@@ -110,10 +110,18 @@
  * @return [type:void]
  */
 
-/** Log severity
+/*# Log severity
+ *
  * Log severity
+ *
  * @enum
  * @name dmLogSeverity
+ * @member DM_LOG_SEVERITY_DEBUG
+ * @member DM_LOG_SEVERITY_USER_DEBUG
+ * @member DM_LOG_SEVERITY_INFO
+ * @member DM_LOG_SEVERITY_WARNING
+ * @member DM_LOG_SEVERITY_ERROR
+ * @member DM_LOG_SEVERITY_FATAL
  */
 enum dmLogSeverity
 {
