@@ -211,6 +211,37 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 #define dmLogOnceFatal(format, args... ) dmLogOnceCritical(dmLogFatal, format, ## args )
 #endif
 
+/*# dmLogListener callback typedef
+ *
+ * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
+ * Used with RegisterLogListener() and UnregisterLogListener()
+ *
+ * @typedef
+ * @name dmLogListener
+ * @param severity [type:dmLogSeverity]
+ * @param domain [type:const char*]
+ * @param formatted_string [type:char*]
+ */
+typedef void (*dmLogListener)(dmLogSeverity severity, const char* domain, const char* format, ...);
+
+/*# register dmLog listener.
+ *
+ * Registers a dmLog listener.
+ *
+ * @name RegisterLogListener
+ * @param listener [type:dmLogListener] 
+ */
+void RegisterLogListener(dmLogListener listener);
+
+/*# unregister dmLog listener.
+ *
+ * Unregisters a dmLog listener.
+ *
+ * @name UnregisterLogListener
+ * @param [type:dmLogListener] listener
+ */
+void UnregisterLogListener(dmLogListener listener);
+
 #endif
 
 #endif // DMSDK_LOG_H

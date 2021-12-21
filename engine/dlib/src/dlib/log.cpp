@@ -424,13 +424,43 @@ static android_LogPriority ToAndroidPriority(dmLogSeverity severity)
 }
 #endif
 
+#define MAX_LISTENERS (32)
+static dmLogListener g_dmLog_Listeners[MAX_LISTENERS];
+static int g_dmLog_ListenersCount = 0;
+
+void RegisterLogListener(dmLogListener listener)
+{
+    if (g_dmLog_ListenersCount >= MAX_LISTENERS) {
+        dmLogWarning("Max dmLog listeners reached (%d)", MAX_LISTENERS);
+    } else {
+        g_dmLog_Listeners[g_dmLog_ListenersCount++] = listener;
+    }
+}
+
+void UnregisterLogListener(dmLogListener listener)
+{
+    for (int i = 0; i < g_dmLog_ListenersCount; ++i)
+    {
+        if (g_dmLog_Listeners[i] == listener)
+        {
+            g_dmLog_Listeners[i] = g_dmLog_Listeners[g_dmLog_ListenersCount - 1];
+            g_dmLog_ListenersCount--;
+            return;
+        }
+    }
+    dmLogWarning("dmLog listener not found");
+}
+
+#undef MAX_LISTENERS
+
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
 {
-    if (!dLib::IsDebugMode())
-        return;
+    bool ignore_log = !dLib::IsDebugMode() || severity < g_LogLevel;
 
-    if (severity < g_LogLevel)
+    if (ignore_log && g_dmLog_ListenersCount == 0)
+    {
         return;
+    }
 
     va_list lst;
     va_start(lst, format);
@@ -488,6 +518,16 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     g_TotalBytesLogged += actual_n;
 
     va_end(lst);
+
+    for (int i = g_dmLog_ListenersCount - 1; i >= 0 ; --i)
+    {
+        g_dmLog_Listeners[i](severity, domain, str_buf);
+    }
+
+    if (ignore_log)
+    {
+        return;
+    }
 
     if (g_CustomLogCallback != 0x0)
     {
