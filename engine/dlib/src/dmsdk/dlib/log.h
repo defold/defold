@@ -222,7 +222,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 /*# dmLogListener callback typedef
  *
  * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
- * Used with RegisterLogListener() and UnregisterLogListener()
+ * Used with dmLogRegisterListener() and dmLogUnregisterListener()
  *
  * @typedef
  * @name dmLogListener
@@ -236,19 +236,28 @@ typedef void (*dmLogListener)(dmLogSeverity severity, const char* domain, char* 
  *
  * Registers a dmLog listener.
  *
- * @name RegisterLogListener
+ * @name dmLogRegisterListener
  * @param listener [type:dmLogListener] 
  */
-void RegisterLogListener(dmLogListener listener);
+void dmLogRegisterListener(dmLogListener listener);
 
 /*# unregister dmLog listener.
  *
  * Unregisters a dmLog listener.
  *
- * @name UnregisterLogListener
+ * @name dmLogUnregisterListener
  * @param [type:dmLogListener] listener
  */
-void UnregisterLogListener(dmLogListener listener);
+void dmLogUnregisterListener(dmLogListener listener);
+
+/*# set log system severity level.
+ *
+ * set log system severity level.
+ *
+ * @name dmLogSetlevel
+ * @param [type:dmLogSeverity] severity
+ */
+void dmLogSetlevel(dmLogSeverity severity);
 
 #endif
 

@@ -427,8 +427,9 @@ static android_LogPriority ToAndroidPriority(dmLogSeverity severity)
 #define MAX_LISTENERS (32)
 static dmLogListener g_dmLog_Listeners[MAX_LISTENERS];
 static int g_dmLog_ListenersCount = 0;
+static bool g_isSendingLogs = false;
 
-void RegisterLogListener(dmLogListener listener)
+void dmLogRegisterListener(dmLogListener listener)
 {
     if (g_dmLog_ListenersCount >= MAX_LISTENERS) {
         dmLogWarning("Max dmLog listeners reached (%d)", MAX_LISTENERS);
@@ -437,7 +438,7 @@ void RegisterLogListener(dmLogListener listener)
     }
 }
 
-void UnregisterLogListener(dmLogListener listener)
+void dmLogUnregisterListener(dmLogListener listener)
 {
     for (int i = 0; i < g_dmLog_ListenersCount; ++i)
     {
@@ -455,9 +456,14 @@ void UnregisterLogListener(dmLogListener listener)
 
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
 {
-    bool ignore_log = !dLib::IsDebugMode() || severity < g_LogLevel;
+    bool is_debug_mode = dLib::IsDebugMode();
 
-    if (ignore_log && g_dmLog_ListenersCount == 0)
+    if (!is_debug_mode && g_dmLog_ListenersCount == 0)
+    {
+        return;
+    }
+
+    if (severity < g_LogLevel)
     {
         return;
     }
@@ -519,12 +525,17 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
     va_end(lst);
 
-    for (int i = g_dmLog_ListenersCount - 1; i >= 0 ; --i)
+    if (!g_isSendingLogs)
     {
-        g_dmLog_Listeners[i](severity, domain, str_buf);
+        g_isSendingLogs = true;
+        for (int i = g_dmLog_ListenersCount - 1; i >= 0 ; --i)
+        {
+            g_dmLog_Listeners[i](severity, domain, str_buf);
+        }
+        g_isSendingLogs = false;
     }
 
-    if (ignore_log)
+    if (!is_debug_mode)
     {
         return;
     }
