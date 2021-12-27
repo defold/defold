@@ -12,7 +12,9 @@ import log
 import run
 from collections import defaultdict
 
-SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dynamo_home'))
+
+SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 VERSION_XCODE="13.2.1"
 VERSION_MACOSX="12.1"
