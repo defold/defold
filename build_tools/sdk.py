@@ -34,6 +34,11 @@ VERSION_XCODE_CLANG="13.0.0"
 SWIFT_VERSION="5.5"
 
 ## **********************************************************************************************
+# Android
+
+ANDROID_NDK_VERSION='20'
+
+## **********************************************************************************************
 ## used by build.py
 
 PACKAGES_IOS_SDK="iPhoneOS%s.sdk" % VERSION_IPHONEOS
@@ -118,8 +123,8 @@ def check_defold_sdk(sdkfolder, platform):
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
     if platform in ('armv7-android', 'arm64-android'):
-        folders.append(os.path.join(sdkfolder, PACKAGES_ANDROID_NDK))
-        folders.append(os.path.join(sdkfolder, PACKAGES_ANDROID_SDK))
+        folders.append(os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION))
+        folders.append(os.path.join(sdkfolder, "android-sdk"))
 
     ok = True
     for f in folders:

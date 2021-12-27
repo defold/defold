@@ -65,12 +65,13 @@ def transform_runnable_path(platform, path):
     return waf_dynamo_private.transform_runnable_path(platform, path)
 
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
-SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+# The goal is to put the sdk versions in sdk.py
+SDK_ROOT=sdk.SDK_ROOT
+
 ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '30.0.3'
-ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
-ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
+ANDROID_NDK_ROOT=os.path.join(SDK_ROOT,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
 ANDROID_TARGET_API_LEVEL='30' # Android 11.0
 ANDROID_MIN_API_LEVEL='14'
 ANDROID_GCC_VERSION='4.9'
