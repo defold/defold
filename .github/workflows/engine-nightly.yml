@@ -37,7 +37,7 @@ jobs:
       }]
 
   build-engine-linux-64:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },

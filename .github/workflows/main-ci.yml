@@ -43,7 +43,7 @@ jobs:
 # ---- * If workflow is started from a "pull_request" event only proceed if coming from the Defold org
 # ---- * If workflow is started from a "pull_equest_target" event only proceed if it has the label "ok to test"
   pre-check:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     if: |
       !contains(github.event.head_commit.message, 'skip-ci') &&
       (github.event_name != 'pull_request'        || (github.event_name == 'pull_request'        && github.event.pull_request.head.repo.full_name == github.repository)) &&
@@ -111,7 +111,7 @@ jobs:
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
@@ -135,7 +135,7 @@ jobs:
     strategy:
       matrix:
         platform: [js-web, wasm-web]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
@@ -159,7 +159,7 @@ jobs:
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
@@ -183,7 +183,7 @@ jobs:
     strategy:
       matrix:
         platform: [x86_64-linux]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
@@ -256,7 +256,7 @@ jobs:
 
   build-bob:
     needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
@@ -276,7 +276,7 @@ jobs:
 
   build-sdk:
     needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
@@ -297,7 +297,7 @@ jobs:
 
   build-editor:
     needs: [build-bob]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
@@ -421,7 +421,7 @@ jobs:
 
   release:
     needs: [sign-editor-darwin, sign-editor-windows]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
