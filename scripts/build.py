@@ -110,7 +110,7 @@ PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
 PACKAGES_LINUX_CLANG="clang-13.0.0"
-PACKAGES_LINUX_TOOLCHAIN="clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-20.04"
+PACKAGES_LINUX_TOOLCHAIN="clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-16.04"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")

@@ -30,7 +30,7 @@ env:
 jobs:
   build-editor:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
@@ -123,7 +123,7 @@ jobs:
   release:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     needs: [sign-editor-darwin, sign-editor-windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
