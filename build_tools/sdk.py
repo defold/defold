@@ -177,7 +177,8 @@ def get_sdk_info(sdkfolder, platform):
         result = _get_local_sdk_info(platform)
         cached_platforms[platform] = result
         return result
-    return None
+
+    return {}
 
 def get_toolchain_root(sdkinfo, platform):
     if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
