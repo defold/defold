@@ -190,19 +190,28 @@ namespace dmGameSystem
      * That is, it is not possible to extend the size of a tile map by setting tiles outside the edges.
      * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by the URL and the layer name parameters.
      *
+     * Transform bitmask is arithmetic sum of one or both FLIP constants (`tilemap.H_FLIP`, `tilemap.V_FLIP`) and/or one of ROTATION constants
+     * (`tilemap.ROTATE_90`, `tilemap.ROTATE_180`, `tilemap.ROTATE_270`).
+     * Flip always applies before rotation (clockwise).
+     *
      * @name tilemap.set_tile
      * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
      * @param tile [type:number] index of new tile to set. 0 resets the cell
-     * @param [h-flipped] [type:boolean] optional if the tile should be horizontally flipped
-     * @param [v-flipped] [type:boolean] optional i the tile should be vertically flipped
+     * @param [transform-bitmask] [type:number] optional flip and/or rotation should be applied to the tile
      * @examples
      *
      * ```lua
      * -- Clear the tile under the player.
      * tilemap.set_tile("/level#tilemap", "foreground", self.player_x, self.player_y, 0)
+     *
+     * -- Set tile with different combination of flip and rotation
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.H_FLIP + tilemap.V_FLIP + tilemap.ROTATE_90)
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.H_FLIP + tilemap.ROTATE_270)
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.V_FLIP + tilemap.H_FLIP)
+     * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.ROTATE_180)
      * ```
      */
     static int TileMap_SetTile(lua_State* L)
@@ -263,10 +272,32 @@ namespace dmGameSystem
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-
-        bool flip_h = lua_toboolean(L, 6);
-        bool flip_v = lua_toboolean(L, 7);
-        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v);
+        uint8_t bitmask = 0;
+        if (lua_isnumber(L, 6) && top == 6)
+        {
+            // Read more info about bitmask and constants values in SETCONSTANT macros
+            bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
+            if (bitmask > MAX_TRANSFORM_FLAG)
+            {
+                return luaL_error(L, "tilemap.set_tile called with wrong tranformation bitmask (tile: %d)", lua_tile);
+            }
+        }
+        else
+        {
+            // deprecated API flow with boolean flags
+            bool flip_h = lua_toboolean(L, 6);
+            bool flip_v = lua_toboolean(L, 7);
+            if (flip_h)
+            {
+                bitmask = FLIP_HORIZONTAL;
+            }
+            if (flip_v)
+            {
+                bitmask |= FLIP_VERTICAL;
+            }
+        }
+        
+        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, bitmask);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -278,8 +309,9 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
-            set_hull_ddf.m_FlipHorizontal = flip_h;
-            set_hull_ddf.m_FlipVertical = flip_v;
+            set_hull_ddf.m_FlipHorizontal = (bitmask & FLIP_HORIZONTAL) > 0 ? 1 : 0;
+            set_hull_ddf.m_FlipVertical = (bitmask & FLIP_VERTICAL) > 0 ? 1 : 0;
+            set_hull_ddf.m_Rotate90 = (bitmask & ROTATE_90) > 0 ? 1 : 0;
             dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
@@ -482,10 +514,76 @@ namespace dmGameSystem
         {0, 0}
     };
 
+    /*# flip tile horizontally
+     *
+     * @name tilemap.H_FLIP
+     * @variable
+     */
+    /*# flip tile vertically
+     *
+     * @name tilemap.V_FLIP
+     * @variable
+     */
+    /*# rotate tile 90 degrees clockwise
+     *
+     * @name tilemap.ROTATE_90
+     * @variable
+     */
+    /*# rotate tile 180 degrees clockwise
+     *
+     * @name tilemap.ROTATE_180
+     * @variable
+     */
+    /*# rotate tile 270 degrees clockwise
+     *
+     * @name tilemap.ROTATE_270
+     * @variable
+     */
+
     void ScriptTileMapRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
+        DM_LUA_STACK_CHECK(L, 0);
         luaL_register(L, "tilemap", TILEMAP_FUNCTIONS);
+
+        #define SETCONSTANT(name, val) \
+            lua_pushnumber(L, (lua_Number) val); \
+            lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(H_FLIP, FLIP_HORIZONTAL);
+        SETCONSTANT(V_FLIP, FLIP_VERTICAL);
+        SETCONSTANT(ROTATE_90, ROTATE_90);
+        SETCONSTANT(ROTATE_180, -(FLIP_HORIZONTAL + FLIP_VERTICAL));
+        SETCONSTANT(ROTATE_270, -(FLIP_HORIZONTAL + FLIP_VERTICAL + ROTATE_90));
+
+        /* It's enough to have 3 flags to specify a quad transform. 1st bit for h_flip, 2nd for v_flip and 3rd for 90 degree rotation.
+         * All the other rotations are possible to specify using these 3 bits.
+         * For example, rotating a quad 180 degrees is the same as flip it horizontally AND vertically.
+         * Here is a transforms correspondence table:
+         * |----------------------------------------------
+         * |val| bitmask|  basic 3bits | corresponding   |
+         * |   |        |  transforms  | transformations |
+         * |----------------------------------------------
+         * | 0 | (000)  |         R_0  | R_180 + H + V   |  
+         * | 1 | (001)  |     H + R_0  | R_180 + V       |
+         * | 2 | (010)  |     V + R_0  | R_180 + H       |
+         * | 3 | (011)  | V + H + R_0  | R_180           |
+         * | 4 | (100)  |         R_90 | R_270 + H + V   |
+         * | 5 | (101)  |     H + R_90 | R_270 + V       |
+         * | 6 | (110)  |     V + R_90 | R_270 + H       |
+         * | 7 | (111)  | V + H + R_90 | R_270           |
+         * -----------------------------------------------
+         * 
+         * Since we want to use arithmetic sum in Lua API (and avoid using of bit module)
+         * and also want to avoid extra arithmetic operations in the engine (because we are doing them on Lua side anyways)
+         * we can use mirrored values from basic transforms
+         * R_180 = -(V + H + R_0) = -3
+         * R_270 = -(V + H + R_90) = -7
+         * To make sure that the final bitmask is equal to the original one we should use Math::Abs() function on it.
+         */
+
+        #undef SETCONSTANT
+
         lua_pop(L, 1);
     }
 }
