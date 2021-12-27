@@ -14,10 +14,10 @@ from collections import defaultdict
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 
-VERSION_XCODE="12.5"
-VERSION_MACOSX="11.3"
-VERSION_IPHONEOS="14.5"
-VERSION_IPHONESIMULATOR="14.5"
+VERSION_XCODE="13.2.1"
+VERSION_MACOSX="12.1"
+VERSION_IPHONEOS="15.2"
+VERSION_IPHONESIMULATOR="15.2"
 
 #IOS_SDK_VERSION="14.5"
 #IOS_SIMULATOR_SDK_VERSION="14.5"
@@ -28,8 +28,8 @@ VERSION_IPHONESIMULATOR="14.5"
 VERSION_IPHONEOS_MIN="8.0"
 VERSION_MACOSX_MIN="10.7"
 
-VERSION_XCODE_CLANG="12.0.5"
-SWIFT_VERSION="5.0"
+VERSION_XCODE_CLANG="13.0.0"
+SWIFT_VERSION="5.5"
 
 ## **********************************************************************************************
 ## used by build.py
@@ -107,8 +107,6 @@ def _get_defold_path(sdkfolder, platform):
 
 def check_defold_sdk(sdkfolder, platform):
     folders = []
-
-    return False
 
     if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))

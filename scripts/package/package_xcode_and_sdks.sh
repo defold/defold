@@ -11,9 +11,10 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-
-
 # Note: I wasn't able to rename the top folder when packaging, since it messed up symlinks (also the packages became unnecessarily bloated)
+
+# Note 2: Due to the MacOS file resource links, packing using the built-in ´tar´command is not advised.
+# Instead, we recommend using ´gnu-tar`: https://formulae.brew.sh/formula/gnu-tar
 
 # You can unpack the tar files and prettify them in one go
 # $ mkdir iPhoneOS12.1.sdk && tar xf ../new_packages/iPhoneOS12.1.sdk.tar.gz -C iPhoneOS12.1.sdk --strip-components 1
