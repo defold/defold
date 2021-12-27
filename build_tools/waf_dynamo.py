@@ -77,7 +77,7 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-
+CLANG_VERSION='clang-13.0.0'
 
 SDK_ROOT=sdk.SDK_ROOT #os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 LINUX_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT, 'linux')
@@ -1442,7 +1442,7 @@ def detect(conf):
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
-            path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')]
+            path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')]
         else:
             path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
@@ -1458,7 +1458,7 @@ def detect(conf):
         bin_dir = '%s/usr/bin' % (sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()))
         if 'linux' in build_platform:
             llvm_prefix = 'llvm-'
-            bin_dir = os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+            bin_dir = os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1472,7 +1472,7 @@ def detect(conf):
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in build_platform:
-            bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+            bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1517,10 +1517,10 @@ def detect(conf):
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
     elif 'linux' == build_util.get_target_os():
-        bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
-        conf.find_program('clang-9', var='CLANG9', mandatory = False, path_list=[bin_dir])
+        bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')
+        conf.find_program('clang', var='CLANG', mandatory = False, path_list=[bin_dir])
 
-        if conf.env.CLANG9 and "clang-9" in conf.env.CLANG9:
+        if conf.env.CLANG and CLANG_VERSION in conf.env.CLANG:
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
             conf.env['CPP']     = '%s/clang -E' % bin_dir
