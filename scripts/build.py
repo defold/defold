@@ -581,13 +581,15 @@ class Configuration(object):
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform)
 
-        if not self.sdk_info:
-            print("Couldn't find any sdks")
-            print("We recommend you follow the packaging steps found here: %s" % "https://github.com/defold/defold/blob/dev/scripts/package/README.md#packaging-the-sdks")
-            print("Then run './scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>=%s'" % self.target_platform)
-            sys.exit(1)
+        # We currently only support a subset of platforms using this mechanic
+        if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+            if not self.sdk_info:
+                print("Couldn't find any sdks")
+                print("We recommend you follow the packaging steps found here: %s" % "https://github.com/defold/defold/blob/dev/scripts/package/README.md#packaging-the-sdks")
+                print("Then run './scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>=%s'" % self.target_platform)
+                sys.exit(1)
 
-        print("Using SDKS:", self.sdk_info)
+            print("Using SDKS:", self.sdk_info)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
