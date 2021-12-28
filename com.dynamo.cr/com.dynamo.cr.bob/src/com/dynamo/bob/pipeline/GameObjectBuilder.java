@@ -90,6 +90,7 @@ public class GameObjectBuilder extends Builder<Void> {
             for(String r : resources) {
                 IResource resource = BuilderUtil.checkResource(this.project, input, "resource", r);
                 taskBuilder.addInput(resource);
+                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
             }
         }
 
