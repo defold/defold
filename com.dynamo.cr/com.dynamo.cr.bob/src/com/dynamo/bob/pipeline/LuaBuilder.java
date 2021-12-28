@@ -75,7 +75,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
                     IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
                     taskBuilder.addInput(resource);
-                    PropertiesUtil.createResourcePropertyTextureTask(this.project, resource, input);
+                    PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
                 }
             }
         }

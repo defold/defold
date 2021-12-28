@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import com.dynamo.bob.Builder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
@@ -141,9 +142,11 @@ public class PropertiesUtil {
         return resources;
     }
 
-    public static void createResourcePropertyTextureTask(Project project, IResource resource, IResource input) throws CompileExceptionError {
-        if (project.getBuilderFromExtension(resource) == TextureBuilder.class) {
-            Task<?> embedTask = project.createTask(resource, TextureBuilder.class);
+    public static void createResourcePropertyTasks(Project project, IResource resource, IResource input) throws CompileExceptionError {
+        //Textures
+        Class<? extends Builder<?>> klass = TextureBuilder.class;
+        if (project.getBuilderFromExtension(resource) == klass) {
+            Task<?> embedTask = project.createTask(resource, klass);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,

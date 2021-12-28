@@ -257,7 +257,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
             for(String r : resources) {
                 IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                PropertiesUtil.createResourcePropertyTextureTask(project, resource, input);
+                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
             }
         }
     }
