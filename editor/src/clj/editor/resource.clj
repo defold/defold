@@ -15,14 +15,14 @@
             [clojure.string :as string]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [schema.core :as s]
             [editor.core :as core]
             [editor.fs :as fs]
-            [util.digest :as digest])
-  (:import [java.io ByteArrayOutputStream File IOException]
-           [java.nio.file FileSystem FileSystems]
+            [util.digest :as digest]
+            [schema.core :as s])
+  (:import [java.io File IOException InputStream FilterInputStream]
            [java.net URI]
-           [java.util.zip ZipEntry ZipInputStream]
+           [java.nio.file FileSystem FileSystems]
+           [java.util.zip ZipEntry ZipFile ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -207,13 +207,23 @@
 (defn make-memory-resource [workspace resource-type data]
   (MemoryResource. workspace (:ext resource-type) data))
 
-(defrecord ZipResource [workspace ^URI zip-uri name path data children]
+(defn- make-zip-resource-input-stream
+  ^InputStream [zip-resource]
+  (let [zip-file (ZipFile. ^File (io/as-file (:zip-uri zip-resource)))
+        zip-entry (.getEntry zip-file (:zip-entry zip-resource))]
+    (proxy [FilterInputStream] [(.getInputStream zip-file zip-entry)]
+      (close []
+        (let [^FilterInputStream this this]
+          (proxy-super close)
+          (.close zip-file))))))
+
+(defrecord ZipResource [workspace ^URI zip-uri name path zip-entry children]
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
   (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
   (source-type [this] (if (zero? (count children)) :file :folder))
-  (exists? [this] (not (nil? data)))
+  (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
   (path [this] path)
   (abs-path [this] nil)
@@ -224,24 +234,21 @@
   (openable? [this] (= :file (source-type this)))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))
+  (io/make-input-stream  [this opts] (make-zip-resource-input-stream this))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
   (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
 
   io/Coercions
-  (io/as-file [this]
-    (let [zip-url (.toURL zip-uri)]
-      (when (= (.getPath zip-url) (.getFile zip-url))
-        (io/file (.getFile zip-url))))))
+  (io/as-file [this] (io/as-file zip-uri)))
 
 (core/register-record-type! ZipResource)
 
 (core/register-read-handler!
  "zip-resource"
  (transit/read-handler
-  (fn [{:keys [workspace ^String zip-uri name path data children]}]
-    (ZipResource. workspace (URI. zip-uri) name path data children))))
+  (fn [{:keys [workspace ^String zip-uri name path zip-entry children]}]
+    (ZipResource. workspace (URI. zip-uri) name path zip-entry children))))
 
 (core/register-write-handler!
  ZipResource
@@ -252,57 +259,56 @@
      :zip-uri   (.toString ^URI (:zip-uri r))
      :name      (:name r)
      :path      (:path r)
-     :data      (:data r)     
+     :zip-entry (:zip-entry r)
      :children  (:children r)})))
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))
 
-(defn- read-zip-entry [^ZipInputStream zip ^ZipEntry e]
-  (let [os (ByteArrayOutputStream.)
-        buf (byte-array (* 1024 16))]
-    (loop [n (.read zip buf 0 (count buf))]
-     (when (> n 0)
-       (.write os buf 0 n)
-       (recur (.read zip buf 0 (count buf)))))
-    (.toByteArray os)))
-
 (defn- outside-base-path? [base-path ^ZipEntry entry]
   (and (seq base-path) (not (.startsWith (->unix-seps (.getName entry)) (str base-path "/")))))
 
-(defn- path-relative-base [base-path ^ZipEntry entry]
-  (let [entry-name (->unix-seps (.getName entry))]
+(defn- path-relative-base [base-path zip-entry-name]
+  (let [clean-zip-entry-name (->unix-seps zip-entry-name)]
     (if (seq base-path)
-      (.replaceFirst entry-name (str base-path "/") "")
-      entry-name)))
+      (.replaceFirst clean-zip-entry-name (str base-path "/") "")
+      clean-zip-entry-name)))
 
-(defn- load-zip [file-or-url base-path]
-  (when-let [stream (and file-or-url (io/input-stream file-or-url))]
+(defn- load-zip [^File zip-file ^String base-path]
+  ;; NOTE: Even though it may not look like it here, we can only load
+  ;; ZipResources from a File, since we later make use of the ZipFile class to
+  ;; read the ZipEntries. Unfortunately, the ZipFile class can only operate on
+  ;; File objects, so any .zip file we load must exist on disk. We unpack the
+  ;; builtins.zip file from the bundled resources in the ResourceUnpacker at
+  ;; startup to work around this.
+  (when-let [stream (some-> zip-file io/input-stream)]
     (with-open [zip (ZipInputStream. stream)]
-      (loop [entries []]
-        (let [e (.getNextEntry zip)]
-          (if-not e
-            entries
-            (recur (if (or (.isDirectory e) (outside-base-path? base-path e))
-                     entries
-                     (conj entries {:name (FilenameUtils/getName (.getName e))
-                                    :path (path-relative-base base-path e)
-                                    :buffer (read-zip-entry zip e)
-                                    :crc (.getCrc e)})))))))))
+      (loop [entries (transient [])]
+        (if-some [zip-entry (.getNextEntry zip)]
+          (recur (if (or (.isDirectory zip-entry)
+                         (outside-base-path? base-path zip-entry))
+                   entries
+                   (let [zip-entry-name (.getName zip-entry)]
+                     (conj! entries {:name (FilenameUtils/getName zip-entry-name)
+                                     :path (path-relative-base base-path zip-entry-name)
+                                     :zip-entry zip-entry-name
+                                     :crc (.getCrc zip-entry)}))))
+          (persistent! entries))))))
 
 (defn- ->zip-resources [workspace zip-uri path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]
-    (if (:path val) ; i.e. we've reached an actual entry with name, path, buffer
-      (ZipResource. workspace zip-uri (:name val) (:path val) (:buffer val) nil)
-      (ZipResource. workspace zip-uri key path' nil (mapv (fn [x] (->zip-resources workspace zip-uri path' x)) val)))))
+    (if (:path val) ; i.e. we've reached an actual entry with name, path, zip-entry
+      (ZipResource. workspace zip-uri (:name val) (:path val) (:zip-entry val) nil)
+      (ZipResource. workspace zip-uri key path' nil (mapv #(->zip-resources workspace zip-uri path' %) val)))))
 
 (defn load-zip-resources
-  ([workspace file-or-url]
-   (load-zip-resources workspace file-or-url nil))
-  ([workspace file-or-url base-path]
-   (let [entries (load-zip file-or-url base-path)]
+  ([workspace ^File zip-file]
+   (load-zip-resources workspace zip-file nil))
+  ([workspace ^File zip-file ^String base-path]
+   (let [entries (load-zip zip-file base-path)
+         zip-uri (.toURI zip-file)]
      {:tree (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-                 (mapv (fn [x] (->zip-resources workspace (.toURI (io/as-url file-or-url)) "" x))))
+                 (mapv (fn [x] (->zip-resources workspace zip-uri "" x))))
       :crc (into {} (map (juxt (fn [e] (str "/" (:path e))) :crc) entries))})))
 
 (g/defnode ResourceNode
