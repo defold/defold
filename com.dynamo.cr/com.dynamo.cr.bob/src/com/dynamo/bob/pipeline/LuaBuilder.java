@@ -116,21 +116,14 @@ public abstract class LuaBuilder extends Builder<Void> {
             // Doing a bit of custom set up here as the path is required.
             //
             // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
-            //       correct chunk name (the original original source file) already here.
+            //       correct chunk name (the original source file) already here.
             //
-            // See implementation of luaO_chunkid and why a prefix '=' is used; it is to pass through the filename without modifications.
-            //
-            // We will also limit the chunkname (the identifying part of a script/source chunk) to 59 chars.
-            // Lua has a maximum length of chunknames, by default defined to 60 chars.
+            // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
             //
             // If a script error occurs in runtime we want Lua to report the end of the filepath
             // associated with the chunk, since this is where the filename is visible.
             //
-            String chunkName = task.input(0).getPath();
-            if (chunkName.length() >= 59) {
-                chunkName = chunkName.substring(chunkName.length() - 59);
-            }
-            chunkName = "=" + chunkName;
+            String chunkName = "@" + task.input(0).getPath();
             ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), luajitExe), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
@@ -340,4 +333,3 @@ public abstract class LuaBuilder extends Builder<Void> {
         return builder.build();
     }
 }
-
