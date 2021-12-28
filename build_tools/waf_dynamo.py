@@ -80,7 +80,7 @@ EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 CLANG_VERSION='clang-13.0.0'
 
-SDK_ROOT=sdk.SDK_ROOT #os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+SDK_ROOT=sdk.SDK_ROOT
 LINUX_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT, 'linux')
 
 # Workaround for a strange bug with the combination of ccache and clang
