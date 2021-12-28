@@ -21,10 +21,6 @@ VERSION_MACOSX="12.1"
 VERSION_IPHONEOS="15.2"
 VERSION_IPHONESIMULATOR="15.2"
 
-#IOS_SDK_VERSION="14.5"
-#IOS_SIMULATOR_SDK_VERSION="14.5"
-#DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
-
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 VERSION_IPHONEOS_MIN="8.0"
