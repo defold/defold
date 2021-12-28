@@ -231,9 +231,9 @@ namespace dmLog
      * @name dmLog:LogListener
      * @param severity [type:dmLog::Severity]
      * @param domain [type:const char*]
-     * @param formatted_string [type:char*]
+     * @param formatted_string [type:const char*] null terminated string
      */
-    typedef void (*LogListener)(Severity severity, const char* domain, char* formatted_string);
+    typedef void (*LogListener)(Severity severity, const char* domain, const char* formatted_string);
 
     /*# register dmLog listener.
      *
