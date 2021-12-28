@@ -351,11 +351,20 @@ def smoke_test():
     call('python scripts/build.py distclean install_ext smoke_test')
 
 
-# https://stackoverflow.com/a/55276236/1266551
+
 def get_branch():
-    branch = call("git rev-parse --abbrev-ref HEAD").strip()
-    if branch == "HEAD":
-        branch = call("git rev-parse HEAD")
+    # The name of the head branch. Only set for pull request events.
+    branch = os.environ.get('GITHUB_HEAD_REF', '')
+    if branch is '':
+        # The branch or tag name that triggered the workflow run.
+        branch = os.environ.get('GITHUB_REF_NAME', '')
+
+    if branch is '':
+        # https://stackoverflow.com/a/55276236/1266551
+        branch = call("git rev-parse --abbrev-ref HEAD").strip()
+        if branch == "HEAD":
+            branch = call("git rev-parse HEAD")
+
     return branch
 
 def is_workflow_enabled_in_repo():
