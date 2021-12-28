@@ -521,6 +521,12 @@
   ([debug-session code frame]
    (exec debug-session (str "return " code) frame)))
 
+
+;; A note on "SETB file line":
+;; * In LuaBuilder.java we add '@' in front of the filename to tell Lua to
+;; truncate the short_src name to the last 60 characters of the filename.
+;; * mobdebug.lua will remove the '@' in the debug hook which means that we
+;; must send SETB without the '@' in front of the filename
 (defn set-breakpoint!
   [^DebugSession debug-session file line]
   (with-session debug-session
