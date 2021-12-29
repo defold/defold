@@ -679,6 +679,9 @@ void _glfwPlatformSetViewType(int view_type)
 {
 }
 
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
+{
+}
 
 #define MAX_ACTIVITY_LISTENERS (32)
 static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];

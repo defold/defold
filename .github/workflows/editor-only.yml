@@ -32,7 +32,7 @@ jobs:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
@@ -54,7 +54,7 @@ jobs:
       matrix:
         platform: [x86_64-darwin]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Checkout', uses: actions/checkout@v2 },
       {
         name: 'Install Python',
         run: python --version
@@ -89,7 +89,7 @@ jobs:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
@@ -125,7 +125,7 @@ jobs:
     needs: [sign-editor-darwin, sign-editor-windows]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {

@@ -80,6 +80,7 @@ message TileCell
     required uint32 tile        = 3 [default = 0];
     optional uint32 h_flip      = 4 [default = 0];
     optional uint32 v_flip      = 5 [default = 0];
+    optional uint32 rotate90    = 6 [default = 0];
 }
 
 message TileLayer

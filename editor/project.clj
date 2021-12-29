@@ -213,6 +213,7 @@
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
+                                                    "-XX:MaxRAMPercentage=75"
                                                     ;"-XX:+UnlockCommercialFeatures"
                                                     ;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"

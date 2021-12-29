@@ -53,7 +53,7 @@ namespace dmThread
      * Create a thread
      *
      * ```cpp
-     * #include <dmsdh/sdk.h>
+     * #include <dmsdk/sdk.h>
      *
      * struct Context
      * {

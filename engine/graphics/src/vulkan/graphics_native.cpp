@@ -149,6 +149,8 @@ namespace dmGraphics
         glfwSetWindowTitle(params->m_Title);
     #endif
 
+        glfwSetWindowBackgroundColor(params->m_BackgroundColor);
+
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);

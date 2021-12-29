@@ -76,22 +76,22 @@
 
 ;; manipulating cells
 
-(defrecord Tile [^long x ^long y ^long tile ^boolean h-flip ^boolean v-flip])
+(defrecord Tile [^long x ^long y ^long tile ^boolean h-flip ^boolean v-flip ^boolean rotate90])
 
 (defn cell-index ^long [^long x ^long y]
   (bit-or (bit-shift-left y Integer/SIZE)
           (bit-and x 0xFFFFFFFF)))
 
 (defn paint-cell!
-  [cell-map x y tile h-flip v-flip]
+  [cell-map x y tile h-flip v-flip rotate90]
   (if tile
-    (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip))
+    (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
     (dissoc! cell-map (cell-index x y))))
 
 (defn make-cell-map
   [cells]
-  (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip] :or {h-flip 0 v-flip 0} :as cell}]
-                         (paint-cell! ret x y tile (not= 0 h-flip) (not= 0 v-flip)))
+  (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip rotate90] :or {h-flip 0 v-flip 0} :as cell}]
+                         (paint-cell! ret x y tile (not= 0 h-flip) (not= 0 v-flip) (not= 0 rotate90)))
                        (transient (int-map/int-map))
                        cells)))
 
@@ -106,14 +106,14 @@
              cell-map (transient cell-map)]
         (if (< y ey)
           (if (< x ex)
-            (let [{:keys [tile h-flip v-flip]} (first tiles)]
-              (recur (inc x) y (rest tiles) (paint-cell! cell-map x y tile h-flip v-flip)))
+            (let [{:keys [tile h-flip v-flip rotate90]} (first tiles)]
+              (recur (inc x) y (rest tiles) (paint-cell! cell-map x y tile h-flip v-flip rotate90)))
             (recur sx (inc y) tiles cell-map))
           (persistent! cell-map))))))
 
 (defn make-brush
   [tile]
-  {:width 1 :height 1 :tiles [{:tile tile :h-flip false :v-flip false}]})
+  {:width 1 :height 1 :tiles [{:tile tile :h-flip false :v-flip false :rotate90 false}]})
 
 (defn make-brush-from-selection
   [cell-map start-cell end-cell]
@@ -239,11 +239,17 @@
               u1 (aget uvs (if (.h-flip tile) 0 2))
               v1 (aget uvs (if (.v-flip tile) 1 3))]
           (recur it
-                 (-> vbuf
-                     (pos-uv-vtx-put! x0 y0 0 u0 v1)
-                     (pos-uv-vtx-put! x0 y1 0 u0 v0)
-                     (pos-uv-vtx-put! x1 y1 0 u1 v0)
-                     (pos-uv-vtx-put! x1 y0 0 u1 v1))
+            (if (.rotate90 tile)
+                   (-> vbuf
+                       (pos-uv-vtx-put! x0 y1 0 u0 v1)
+                       (pos-uv-vtx-put! x1 y1 0 u0 v0)
+                       (pos-uv-vtx-put! x1 y0 0 u1 v0)
+                       (pos-uv-vtx-put! x0 y0 0 u1 v1))
+                   (-> vbuf
+                       (pos-uv-vtx-put! x0 y0 0 u0 v1)
+                       (pos-uv-vtx-put! x0 y1 0 u0 v0)
+                       (pos-uv-vtx-put! x1 y1 0 u1 v0)
+                       (pos-uv-vtx-put! x1 y0 0 u1 v1)))
                  (min-l min-x x0)
                  (min-l min-y y0)
                  (max-l max-x x1)
@@ -297,12 +303,13 @@
   {:id id
    :z z
    :is-visible (if visible 1 0)
-   :cell (mapv (fn [{:keys [x y tile v-flip h-flip]}]
+   :cell (mapv (fn [{:keys [x y tile v-flip h-flip rotate90]}]
                  {:x x
                   :y y
                   :tile tile
                   :v-flip (if v-flip 1 0)
-                  :h-flip (if h-flip 1 0)})
+                  :h-flip (if h-flip 1 0)
+                  :rotate90 (if rotate90 1 0)})
                (vals cell-map))})
 
 (g/defnode LayerNode

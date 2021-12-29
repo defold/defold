@@ -55,11 +55,19 @@ namespace dmGameSystem
 
     uint16_t GetTileGridTile(const TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y);
 
-    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v);
+    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, uint8_t transform_mask);
 
     uint16_t GetTileCount(const TileGridComponent* component);
 
     void SetLayerVisible(TileGridComponent* component, uint32_t layer, bool visible);
+
+    enum TileTransformMask
+    {
+        FLIP_HORIZONTAL = 1,
+        FLIP_VERTICAL = 2,
+        ROTATE_90 = 4
+    };
+    static uint8_t MAX_TRANSFORM_FLAG = FLIP_HORIZONTAL + FLIP_VERTICAL + ROTATE_90;
 }
 
 #endif

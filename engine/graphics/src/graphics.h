@@ -300,6 +300,9 @@ namespace dmGraphics
         bool                    m_PrintDeviceInfo;
 
         bool                    m_HighDPI;
+
+        // Window background color, RGB 0x00BBGGRR
+        uint32_t                m_BackgroundColor;
     };
 
     // Parameters structure for NewContext

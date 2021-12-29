@@ -17,10 +17,14 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import com.dynamo.bob.Builder;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.ProtoBuilders;
+import com.dynamo.bob.pipeline.TextureBuilder;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
@@ -136,6 +140,19 @@ public class PropertiesUtil {
             }
         }
         return resources;
+    }
+
+    public static void createResourcePropertyTasks(Project project, IResource resource, IResource input) throws CompileExceptionError {
+        //Textures
+        Class<? extends Builder<?>> klass = TextureBuilder.class;
+        if (project.getBuilderFromExtension(resource) == klass) {
+            Task<?> embedTask = project.createTask(resource, klass);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", resource.getPath()));
+            }
+        }
     }
 
 }
