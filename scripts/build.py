@@ -22,6 +22,7 @@ import imp
 import github
 import run
 import s3
+import sdk
 import release_to_github
 import BuildUtility
 import http_cache
@@ -100,10 +101,6 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
 
-PACKAGES_IOS_SDK="iPhoneOS14.5.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.5.sdk"
-PACKAGES_MACOS_SDK="MacOSX11.3.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.5.xctoolchain"
 PACKAGES_TAPI_VERSION="tapi1.6"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
@@ -112,8 +109,8 @@ PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
-PACKAGES_LINUX_CLANG="clang-9.0.0"
-PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
+PACKAGES_LINUX_CLANG="clang-13.0.0"
+PACKAGES_LINUX_TOOLCHAIN="clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-16.04"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -581,26 +578,18 @@ class Configuration(object):
 
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-        folders = []
 
-        if self.target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-            folders.append(join(sdkfolder, PACKAGES_MACOS_SDK))
-            folders.append(join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
-        if self.target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-            folders.append(join(sdkfolder, PACKAGES_IOS_SDK))
-            folders.append(join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
-        if self.target_platform in ('x86_64-win32', 'win32'):
-            folders.append(join(sdkfolder, 'Win32','WindowsKits','10'))
-            folders.append(join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
-        if self.target_platform in ('armv7-android', 'arm64-android'):
-            folders.append(join(sdkfolder, PACKAGES_ANDROID_NDK))
-            folders.append(join(sdkfolder, PACKAGES_ANDROID_SDK))
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform)
 
-        for f in folders:
-            if not os.path.exists(f):
-                print "Missing SDK in", f
-                print "Run './scripts/build.py install_ext --platform=%s'" % self.target_platform
+        # We currently only support a subset of platforms using this mechanic
+        if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+            if not self.sdk_info:
+                print("Couldn't find any sdks")
+                print("We recommend you follow the packaging steps found here: %s" % "https://github.com/defold/defold/blob/dev/scripts/package/README.md#packaging-the-sdks")
+                print("Then run './scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>=%s'" % self.target_platform)
                 sys.exit(1)
+
+            print("Using SDKS:", self.sdk_info)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -608,13 +597,13 @@ class Configuration(object):
         target_platform = self.target_platform
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
+            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, sdk.PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
