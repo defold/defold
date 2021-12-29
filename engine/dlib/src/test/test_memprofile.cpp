@@ -103,6 +103,7 @@ TEST(dmMemProfile, TestRealloc)
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
     void* p = malloc(1024);
+    g_dont_optimize = p;
     memset(p, 0xcc, 1024);
     p = realloc(p, 1024);
     uint8_t *p8 = (uint8_t*) p;
@@ -143,6 +144,7 @@ TEST(dmMemProfile, TestMemAlign)
     dmMemProfile::GetStats(&stats1);
 
     void* p = memalign(16, 1024);
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)
@@ -179,6 +181,7 @@ TEST(dmMemProfile, TestPosixMemAlign)
 
     void* p;
     posix_memalign(&p, 16, 1024);
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)
