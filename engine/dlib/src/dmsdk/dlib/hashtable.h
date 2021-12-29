@@ -125,7 +125,7 @@ public:
      * @name Size
      * @return Number of entries.
      */
-    uint32_t Size()
+    uint32_t Size() const
     {
         return m_Count;
     }
@@ -135,7 +135,7 @@ public:
      * @name Capacity
      * @return [type: uint32_t] the capacity of the table
      */
-    uint32_t Capacity()
+    uint32_t Capacity() const
     {
         return (uint32_t)(uintptr_t)(m_InitialEntriesEnd - m_InitialEntries);
     }
@@ -368,7 +368,7 @@ public:
      * @param context Context
      */
     template <typename CONTEXT>
-    void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context)
+    void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context) const
     {
         for (uint32_t i = 0; i < m_HashTableSize; ++i)
         {
