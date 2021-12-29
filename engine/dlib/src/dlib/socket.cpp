@@ -1101,70 +1101,113 @@ namespace dmSocket
         SelectorZero(this);
     }
 
-    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
+    int SelectorKindToPollEvent(SelectorKind selector_kind)
     {
-        dmLogInfo("SelectorClear %d", selector_kind);
         switch (selector_kind)
         {
             case SELECTOR_KIND_READ:
-                selector->m_Pollfd[0].events &= ~POLLIN;
-                break;
+                return POLLIN;
             case SELECTOR_KIND_WRITE:
-                selector->m_Pollfd[0].events &= ~POLLOUT;
-                break;
+                return POLLOUT;
             case SELECTOR_KIND_EXCEPT:
-                selector->m_Pollfd[0].events &= ~POLLPRI;
-                break;
+                return POLLPRI;
+            default:
+                return POLLERR;
+        }
+    }
+
+    static bool use_select = false;
+
+    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        if (use_select)
+        {
+            // dmLogInfo("SelectorClear kind = %d", selector_kind);
+            // FD_CLR(socket, &selector->m_FdSets[selector_kind]);
+        }
+        else
+        {
+            int event = SelectorKindToPollEvent(selector_kind);
+            dmLogInfo("SelectorClear kind = %d event = %d", selector_kind, event);
+            selector->m_Pollfd[0].events &= ~event;
         }
     }
 
     void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        dmLogInfo("SelectorSet %d", selector_kind);
-        selector->m_Pollfd[0].fd = socket;
-        switch (selector_kind)
+        if (use_select)
         {
-            case SELECTOR_KIND_READ:
-                selector->m_Pollfd[0].events |= POLLIN;
-                break;
-            case SELECTOR_KIND_WRITE:
-                selector->m_Pollfd[0].events |= POLLOUT;
-                break;
-            case SELECTOR_KIND_EXCEPT:
-                selector->m_Pollfd[0].events |= POLLPRI;
-                break;
+            // dmLogInfo("SelectorSet kind = %d", selector_kind);
+            // selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
+            // FD_SET(socket, &selector->m_FdSets[selector_kind]);
+        }
+        else
+        {
+            int event = SelectorKindToPollEvent(selector_kind);
+            dmLogInfo("SelectorSet kind = %d event = %d", selector_kind, event);
+            selector->m_Pollfd[0].fd = socket;
+            selector->m_Pollfd[0].revents |= event;
         }
     }
 
     bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        dmLogInfo("SelectorIsSet %d", selector_kind);
-        switch (selector_kind)
+        if (use_select)
         {
-            case SELECTOR_KIND_READ:
-                return selector->m_Pollfd[0].revents & POLLIN;
-            case SELECTOR_KIND_WRITE:
-                return selector->m_Pollfd[0].revents & POLLOUT;
-            case SELECTOR_KIND_EXCEPT:
-                return selector->m_Pollfd[0].revents & POLLPRI;
+            // dmLogInfo("SelectorIsSet kind = %d", selector_kind);
+            // return FD_ISSET(socket, &selector->m_FdSets[selector_kind]) != 0;
+            return false;
         }
-
-        return false;
+        else
+        {
+            int event = SelectorKindToPollEvent(selector_kind);
+            dmLogInfo("SelectorIsSet kind = %d event = %d", selector_kind, event);
+            return selector->m_Pollfd[0].revents & event;
+        }
     }
 
     void SelectorZero(Selector* selector)
     {
         dmLogInfo("SelectorZero");
-        selector->m_Pollfd[0].fd = 0;
-        selector->m_Pollfd[0].events = 0;
-        selector->m_Pollfd[0].revents = 0;
+        if (use_select)
+        {
+            // FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
+            // FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
+            // FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
+            // selector->m_Nfds = 0;
+        }
+        else
+        {
+            selector->m_Pollfd[0].fd = 0;
+            selector->m_Pollfd[0].events = 0;
+            selector->m_Pollfd[0].revents = 0;
+        }
     }
 
     Result Select(Selector* selector, int32_t timeout)
     {
-        dmLogInfo("Select %d", timeout);
-        int r = poll(selector->m_Pollfd, 1, (timeout < 0) ? 0 : timeout);
+
+        int r;
+        if (use_select)
+        {
+            // dmLogInfo("Select select() timeout = %d", timeout);
+            // timeval timeout_val;
+            // timeout_val.tv_sec = timeout / 1000000;
+            // timeout_val.tv_usec = timeout % 1000000;
+            //
+            // if (timeout < 0)
+            //     r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
+            // else
+            //     r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
+        }
+        else
+        {
+            dmLogInfo("Select poll() timeout = %d", timeout);
+            r = poll(selector->m_Pollfd, 1, (timeout < 0) ? 0 : timeout);
+        }
+
         dmLogInfo("Select got result r = %d", r);
+
         if (r < 0)
         {
             dmLogInfo("Select r < 0");

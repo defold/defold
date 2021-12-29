@@ -417,6 +417,8 @@ namespace dmSocket
     struct Selector
     {
         pollfd m_Pollfd[1];
+        // fd_set m_FdSets[3];
+        // int    m_Nfds;
         Selector();
     };
 
