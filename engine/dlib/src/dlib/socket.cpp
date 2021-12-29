@@ -1116,95 +1116,42 @@ namespace dmSocket
         }
     }
 
-    static bool use_select = false;
-
     void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        if (use_select)
-        {
-            // dmLogInfo("SelectorClear kind = %d", selector_kind);
-            // FD_CLR(socket, &selector->m_FdSets[selector_kind]);
-        }
-        else
-        {
-            int event = SelectorKindToPollEvent(selector_kind);
-            dmLogInfo("SelectorClear kind = %d event = %d", selector_kind, event);
-            selector->m_Pollfd[0].events &= ~event;
-        }
+        int event = SelectorKindToPollEvent(selector_kind);
+        dmLogInfo("SelectorClear kind = %d event = %d", selector_kind, event);
+        selector->m_Pollfd[0].events &= ~event;
     }
 
     void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        if (use_select)
-        {
-            // dmLogInfo("SelectorSet kind = %d", selector_kind);
-            // selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
-            // FD_SET(socket, &selector->m_FdSets[selector_kind]);
-        }
-        else
-        {
-            int event = SelectorKindToPollEvent(selector_kind);
-            dmLogInfo("SelectorSet kind = %d event = %d", selector_kind, event);
-            selector->m_Pollfd[0].fd = socket;
-            selector->m_Pollfd[0].revents |= event;
-        }
+        int event = SelectorKindToPollEvent(selector_kind);
+        dmLogInfo("SelectorSet kind = %d event = %d", selector_kind, event);
+        selector->m_Pollfd[0].fd = socket;
+        selector->m_Pollfd[0].revents |= event;
     }
 
     bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        if (use_select)
-        {
-            // dmLogInfo("SelectorIsSet kind = %d", selector_kind);
-            // return FD_ISSET(socket, &selector->m_FdSets[selector_kind]) != 0;
-            return false;
-        }
-        else
-        {
-            int event = SelectorKindToPollEvent(selector_kind);
-            dmLogInfo("SelectorIsSet kind = %d event = %d", selector_kind, event);
-            return selector->m_Pollfd[0].revents & event;
-        }
+        int event = SelectorKindToPollEvent(selector_kind);
+        dmLogInfo("SelectorIsSet kind = %d event = %d", selector_kind, event);
+        return selector->m_Pollfd[0].revents & event;
     }
 
     void SelectorZero(Selector* selector)
     {
         dmLogInfo("SelectorZero");
-        if (use_select)
-        {
-            // FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
-            // FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
-            // FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
-            // selector->m_Nfds = 0;
-        }
-        else
-        {
-            selector->m_Pollfd[0].fd = 0;
-            selector->m_Pollfd[0].events = 0;
-            selector->m_Pollfd[0].revents = 0;
-        }
+        selector->m_Pollfd[0].fd = 0;
+        selector->m_Pollfd[0].events = 0;
+        selector->m_Pollfd[0].revents = 0;
     }
 
     Result Select(Selector* selector, int32_t timeout)
     {
 
         int r;
-        if (use_select)
-        {
-            // dmLogInfo("Select select() timeout = %d", timeout);
-            // timeval timeout_val;
-            // timeout_val.tv_sec = timeout / 1000000;
-            // timeout_val.tv_usec = timeout % 1000000;
-            //
-            // if (timeout < 0)
-            //     r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
-            // else
-            //     r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
-        }
-        else
-        {
-            dmLogInfo("Select poll() timeout = %d", timeout);
-            r = poll(selector->m_Pollfd, 1, (timeout < 0) ? 0 : timeout);
-        }
+        dmLogInfo("Select poll() timeout = %d", timeout);
+        r = poll(selector->m_Pollfd, 1, (timeout < 0) ? 0 : timeout);
 
         dmLogInfo("Select got result r = %d", r);
 
