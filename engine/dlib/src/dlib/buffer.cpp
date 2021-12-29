@@ -212,7 +212,8 @@ namespace dmBuffer
 
         *size = 0;
         for (uint32_t i = 0; i < num_streams; ++i) {
-            offsets[i] = *size;
+            if (offsets)
+                offsets[i] = *size;
             *size += streams[i].m_Count * GetSizeForValueType(streams[i].m_Type);
             *size = DM_ALIGN(*size, biggestsize);
         }
