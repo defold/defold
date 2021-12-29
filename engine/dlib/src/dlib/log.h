@@ -19,104 +19,104 @@
 namespace dmLog
 {
 
-    /**
-     * @file
-     * Logging functions. If DLIB_LOG_DOMAIN is defined the value of the defined is printed
-     * after severity. Otherwise DEFAULT will be printed.
-     *
-     * Network protocol:
-     * When connected a message with the following syntax is sent to the client
-     * code <space> msg\n
-     * eg 0 OK\n
-     *
-     * code > 0 indicates an error and the connections is closed by remote peer
-     *
-     * After connection is established log messages are streamed over the socket.
-     * No other messages with semantic meaning is sent.
-     */
+/**
+ * @file
+ * Logging functions. If DLIB_LOG_DOMAIN is defined the value of the defined is printed
+ * after severity. Otherwise DEFAULT will be printed.
+ *
+ * Network protocol:
+ * When connected a message with the following syntax is sent to the client
+ * code <space> msg\n
+ * eg 0 OK\n
+ *
+ * code > 0 indicates an error and the connections is closed by remote peer
+ *
+ * After connection is established log messages are streamed over the socket.
+ * No other messages with semantic meaning is sent.
+ */
 
-    struct LogMessage
+struct LogMessage
+{
+    enum Type
     {
-        enum Type
-        {
-            MESSAGE = 0,
-            SHUTDOWN = 1,
-        };
-
-        uint8_t m_Type;
-        char    m_Message[0];
+        MESSAGE = 0,
+        SHUTDOWN = 1,
     };
 
-    const uint32_t MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(LogMessage);
-    struct LogParams
+    uint8_t m_Type;
+    char    m_Message[0];
+};
+
+const uint32_t MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(LogMessage);
+struct LogParams
+{
+    LogParams()
     {
-        LogParams()
-        {
-        }
-    };
+    }
+};
 
-    /**
-     * Initialize logging system. Running this function is only required in order to start the log-server.
-     * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
-     * @param params log parameters
-     */
-    void LogInitialize(const LogParams* params);
+/**
+ * Initialize logging system. Running this function is only required in order to start the log-server.
+ * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
+ * @param params log parameters
+ */
+void LogInitialize(const LogParams* params);
 
 
-    /**
-     * Finalize logging system
-     */
-    void LogFinalize();
+/**
+ * Finalize logging system
+ */
+void LogFinalize();
 
-    /**
-     * Get log server port
-     * @return server port. 0 if the server isn't started.
-     */
-    uint16_t GetPort();
+/**
+ * Get log server port
+ * @return server port. 0 if the server isn't started.
+ */
+uint16_t GetPort();
 
 
-    /**
-     * Set log level
-     * @param severity Log severity
-     */
-    void Setlevel(Severity severity);
+/**
+ * Set log level
+ * @param severity Log severity
+ */
+void Setlevel(Severity severity);
 
-    /**
-     * Set log file. The file will be created and truncated.
-     * Subsequent invocations to this function will close previous opened file.
-     * If the file can't be created a message will be logged to the "console"
-     * @param path log path
-     */
-    void SetLogFile(const char* path);
+/**
+ * Set log file. The file will be created and truncated.
+ * Subsequent invocations to this function will close previous opened file.
+ * If the file can't be created a message will be logged to the "console"
+ * @param path log path
+ */
+void SetLogFile(const char* path);
 
-    /**
-     * Callback declaration for SetCustomLogCallback
-     */
-    typedef void (*CustomLogCallback)(void* user_data, const char* s);
+/**
+ * Callback declaration for SetCustomLogCallback
+ */
+typedef void (*CustomLogCallback)(void* user_data, const char* s);
 
-    /**
-     * Sets a custom callback for log output, if this function is set output
-     * will only be sent to this callback.
-     * Useful for testing purposes to validate logging output from a test
-     * Calling SetCustomLogCallback with (0x0, 0x0) will restore normal operation
-     * @param callback the callback to call with output, once per logging call
-     * @param user_data user data pointer that is provided as context in the callback
-     */
-    void SetCustomLogCallback(CustomLogCallback callback, void* user_data);
+/**
+ * Sets a custom callback for log output, if this function is set output
+ * will only be sent to this callback.
+ * Useful for testing purposes to validate logging output from a test
+ * Calling SetCustomLogCallback with (0x0, 0x0) will restore normal operation
+ * @param callback the callback to call with output, once per logging call
+ * @param user_data user data pointer that is provided as context in the callback
+ */
+void SetCustomLogCallback(CustomLogCallback callback, void* user_data);
 
-    /**
-     * iOS specific print function that wraps NSLog to be able to
-     * output logging to the device/XCode log.
-     *
-     * Declared here to be accessible from log.cpp, defined in log_ios.mm
-     * since it needs to be compiled as Objective-C.
-     *
-     * @param severity Log severity
-     * @param str_buf String buffer to print
-     */
-    void __ios_log_print(Severity severity, const char* str_buf);
+/**
+ * iOS specific print function that wraps NSLog to be able to
+ * output logging to the device/XCode log.
+ *
+ * Declared here to be accessible from log.cpp, defined in log_ios.mm
+ * since it needs to be compiled as Objective-C.
+ *
+ * @param severity Log severity
+ * @param str_buf String buffer to print
+ */
+void __ios_log_print(Severity severity, const char* str_buf);
 
-    
+
 } //namespace dmLog
 
 #endif // DM_LOG_H

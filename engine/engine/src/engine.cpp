@@ -648,7 +648,7 @@ namespace dmEngine
             else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
                      strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
             {
-                dmLog::Setlevel(dmLog::SEVERITY_DEBUG);
+                dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
             }
         }
 
