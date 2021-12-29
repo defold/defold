@@ -14,6 +14,7 @@
 #define DMSDK_SOCKET_H
 
 #include <stdint.h>
+#include <poll.h>
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
 #include <sys/select.h>
@@ -415,8 +416,7 @@ namespace dmSocket
      */
     struct Selector
     {
-        fd_set m_FdSets[3];
-        int    m_Nfds;
+        pollfd m_Pollfd[1];
         Selector();
     };
 
