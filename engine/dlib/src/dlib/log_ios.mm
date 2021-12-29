@@ -14,7 +14,11 @@
 
 #import <Foundation/Foundation.h>
 
-void __ios_log_print(dmLog::Severity severity, const char* str_buf)
+namespace dmLog
 {
-    NSLog(@"%@", @(str_buf));
-}
+
+    void __ios_log_print(dmLog::Severity severity, const char* str_buf)
+    {
+        NSLog(@"%@", @(str_buf));
+    }
+} //namespace dmLog
