@@ -1,4 +1,3 @@
-
 #include "sslsocket.h"
 #include "log.h"
 #include "math.h"
@@ -6,6 +5,8 @@
 
 #include <errno.h>
 #include <stdlib.h>
+
+#include <dlib/file_descriptor.h>
 
 #include <mbedtls/certs.h>
 #include <mbedtls/ctr_drbg.h>
@@ -222,8 +223,6 @@ static int TimingGetDelay(void* data)
 static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t timeout )
 {
     int ret;
-    struct timeval tv;
-    fd_set read_fds;
 
     CustomNetContext* ctx = (CustomNetContext*)_ctx;
     int fd = ctx->m_Context.fd;
@@ -231,17 +230,13 @@ static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t tim
     if( fd < 0 )
         return( MBEDTLS_ERR_NET_INVALID_CONTEXT );
 
-    FD_ZERO( &read_fds );
-    FD_SET( fd, &read_fds );
-
     if (timeout == 0 && ctx->m_Timeout != 0) {
         timeout = ctx->m_Timeout / 1000;
     }
 
-    tv.tv_sec  = timeout / 1000;
-    tv.tv_usec = ( timeout % 1000 ) * 1000;
-
-    ret = select( fd + 1, &read_fds, NULL, NULL, timeout == 0 ? NULL : &tv );
+    dmFileDescriptor::Poller poller;
+    dmFileDescriptor::PollerSetEvent(&poller, dmFileDescriptor::EVENT_READ, fd);
+    ret = dmFileDescriptor::Wait(&poller, timeout);
 
     // Zero fds ready means we timed out
     if( ret == 0 )

@@ -42,6 +42,7 @@ namespace dmFileDescriptor
         switch (event)
         {
             case EVENT_READ: return POLLIN;
+            // case EVENT_READ: return POLLIN | POLLPRI;
             case EVENT_WRITE: return POLLOUT;
             default:
             case EVENT_ERROR: return POLLPRI;
@@ -62,6 +63,7 @@ namespace dmFileDescriptor
         switch (event)
         {
             case EVENT_READ: return POLLIN;
+            // case EVENT_READ: return POLLIN | POLLPRI;
             case EVENT_WRITE: return POLLOUT;
             default:
             case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL;
@@ -133,41 +135,24 @@ namespace dmFileDescriptor
         }
     }
 
+    // for debugging purposes
+    void PollerDump(Poller* poller)
+    {
+        dmLogInfo("poller size = %d ", poller->m_Pollfds.Size());
+        for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
+        {
+            dmLogInfo("poller i = %d fd = %d events = %d", i, poller->m_Pollfds[i].fd, poller->m_Pollfds[i].events);
+        }
+    }
+
     int Wait(Poller* poller, int timeout)
     {
-
         int r;
-
-        // if (timeout != 0)
-        // {
-        //     dmLogInfo("Wait poll() size = %d timeout = %d", poller->m_Pollfds.Size(), timeout);
-        //     for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-        //     {
-        //         pollfd v = poller->m_Pollfds[i];
-        //         dmLogInfo("Wait poll() i = %d fd = %d events = %d", i, v.fd, v.events);
-        //     }
-        // }
-
         #if defined(_WIN32)
         r = WSAPoll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
         #else
         r = poll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
         #endif
-
-
-        // if (timeout != 0)
-        // {
-        //     dmLogInfo("Wait poll() result r = %d", r);
-        //     for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-        //     {
-        //         pollfd v = poller->m_Pollfds[i];
-        //         dmLogInfo("Wait poll() i = %d fd = %d revents = %d", i, v.fd, v.revents);
-        //     }
-        // }
-
-        // dmLogInfo("Select got result r = %d fd = %d revents = %d", r, selector->m_Pollfd[0].fd, selector->m_Pollfd[0].revents);
-
-        // dmLogInfo("Wait r = %d", r);
         return r;
     }
 }

@@ -1151,7 +1151,6 @@ namespace dmSocket
         }
         else
         {
-            // dmLogInfo("Select RESULT_OK");
             return RESULT_OK;
         }
     }
