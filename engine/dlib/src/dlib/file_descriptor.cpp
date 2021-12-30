@@ -127,8 +127,12 @@ namespace dmFileDescriptor
             }
         }
 
-        // r = poll(selector->m_Pollfd, 1, timeout);
+        #if defined(_WIN32)
+        r = WSAPoll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
+        #else
         r = poll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
+        #endif
+
 
         if (timeout != 0)
         {
