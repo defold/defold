@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <poll.h>
+#include <dmsdk/dlib/file_descriptor.h>
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
 #include <sys/select.h>
@@ -416,9 +417,7 @@ namespace dmSocket
      */
     struct Selector
     {
-        pollfd m_Pollfd[1];
-        // fd_set m_FdSets[3];
-        // int    m_Nfds;
+        dmFileDescriptor::Poller m_Poller;
         Selector();
     };
 

@@ -16,6 +16,7 @@
 #include "log.h"
 #include <assert.h>
 #include <poll.h>
+#include <dlib/file_descriptor.h>
 
 #include <fcntl.h>
 #include <string.h>
@@ -1101,73 +1102,57 @@ namespace dmSocket
         SelectorZero(this);
     }
 
-    int SelectorKindToPollEvent(SelectorKind selector_kind)
+    dmFileDescriptor::PollEvent SelectorKindToPollEvent(SelectorKind selector_kind)
     {
         switch (selector_kind)
         {
             case SELECTOR_KIND_READ:
-                return POLLIN;
+                return dmFileDescriptor::EVENT_READ;
             case SELECTOR_KIND_WRITE:
-                return POLLOUT;
-            case SELECTOR_KIND_EXCEPT:
-                return POLLPRI;
+                return dmFileDescriptor::EVENT_WRITE;
             default:
-                return POLLERR;
+            case SELECTOR_KIND_EXCEPT:
+                return dmFileDescriptor::EVENT_ERROR;
         }
     }
 
     void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        int event = SelectorKindToPollEvent(selector_kind);
-        dmLogInfo("SelectorClear kind = %d event = %d", selector_kind, event);
-        selector->m_Pollfd[0].events &= ~event;
+        dmFileDescriptor::PollEvent event = SelectorKindToPollEvent(selector_kind);
+        dmFileDescriptor::PollerClearEvent(&selector->m_Poller, event, socket);
     }
 
     void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        int event = SelectorKindToPollEvent(selector_kind);
-        dmLogInfo("SelectorSet kind = %d event = %d", selector_kind, event);
-        selector->m_Pollfd[0].fd = socket;
-        selector->m_Pollfd[0].revents |= event;
+        dmFileDescriptor::PollEvent event = SelectorKindToPollEvent(selector_kind);
+        dmFileDescriptor::PollerSetEvent(&selector->m_Poller, event, socket);
     }
 
     bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        int event = SelectorKindToPollEvent(selector_kind);
-        dmLogInfo("SelectorIsSet kind = %d event = %d", selector_kind, event);
-        return selector->m_Pollfd[0].revents & event;
+        dmFileDescriptor::PollEvent event = SelectorKindToPollEvent(selector_kind);
+        return dmFileDescriptor::PollerHasEvent(&selector->m_Poller, event, socket);
     }
 
     void SelectorZero(Selector* selector)
     {
-        dmLogInfo("SelectorZero");
-        selector->m_Pollfd[0].fd = 0;
-        selector->m_Pollfd[0].events = 0;
-        selector->m_Pollfd[0].revents = 0;
+        dmFileDescriptor::PollerReset(&selector->m_Poller);
     }
 
     Result Select(Selector* selector, int32_t timeout)
     {
-
-        int r;
-        dmLogInfo("Select poll() timeout = %d", timeout);
-        r = poll(selector->m_Pollfd, 1, (timeout < 0) ? 0 : timeout);
-
-        dmLogInfo("Select got result r = %d", r);
-
+        int r = dmFileDescriptor::Wait(&selector->m_Poller, timeout);
         if (r < 0)
         {
-            dmLogInfo("Select r < 0");
             return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO);
         }
         else if(timeout > 0 && r == 0)
         {
-            dmLogInfo("Select RESULT_WOULDBLOCK");
             return RESULT_WOULDBLOCK;
         }
         else
         {
-            dmLogInfo("Select RESULT_OK");
+            // dmLogInfo("Select RESULT_OK");
             return RESULT_OK;
         }
     }
