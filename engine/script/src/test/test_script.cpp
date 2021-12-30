@@ -41,7 +41,7 @@ class ScriptTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        dmSetCustomLogCallback(LogCallback, this);
+        dmLog::SetCustomLogCallback(LogCallback, this);
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
@@ -51,7 +51,7 @@ protected:
     {
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        dmSetCustomLogCallback(0x0, 0x0);
+        dmLog::SetCustomLogCallback(0x0, 0x0);
     }
 
     const char* RemoveTableAddresses(char* str)
