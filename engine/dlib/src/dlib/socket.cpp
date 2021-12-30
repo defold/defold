@@ -15,7 +15,6 @@
 #include "dstrings.h"
 #include "log.h"
 #include <assert.h>
-#include <poll.h>
 #include <dlib/file_descriptor.h>
 
 #include <fcntl.h>
