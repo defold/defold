@@ -69,16 +69,14 @@ namespace dmFileDescriptor
         #endif
     }
 
-
     void PollerClearEvent(Poller* poller, PollEvent event, int fd)
     {
         for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
         {
-            pollfd* pfd = &poller->m_Pollfds[i];
-            if (pfd->fd == fd)
+            if ((&poller->m_Pollfds[i])->fd == fd)
             {
                 int e = PollEventToNative(event);
-                pfd->events &= ~e;
+                (&poller->m_Pollfds[i])->events &= ~e;
                 return;
             }
         }
@@ -89,11 +87,9 @@ namespace dmFileDescriptor
         int e = PollEventToNative(event);
         for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
         {
-            pollfd* pfd = &poller->m_Pollfds[i];
-            if (pfd->fd == fd)
+            if ((&poller->m_Pollfds[i])->fd == fd)
             {
-                pfd->events |= e;
-                // dmLogInfo("PollerSetEvent() existing fd = %d event = %d e = %d p = %p", fd, event, e, pfd)
+                (&poller->m_Pollfds[i])->events |= e;
                 return;
             }
         }
@@ -103,11 +99,17 @@ namespace dmFileDescriptor
             poller->m_Pollfds.OffsetCapacity(4);
         }
 
+        #if defined(_WIN32)
+        LPWSAPOLLFD pfd;
+        pfd.fd = fd;
+        pfd.events = e;
+        poller->m_Pollfds.Push(pfd);
+        #else
         pollfd pfd;
         pfd.fd = fd;
         pfd.events = e;
         poller->m_Pollfds.Push(pfd);
-        // dmLogInfo("PollerSetEvent() new fd = %d event = %d e = %d", fd, event, e)
+        #endif
     }
 
     bool PollerHasEvent(Poller* poller, PollEvent event, int fd)
@@ -117,7 +119,6 @@ namespace dmFileDescriptor
             pollfd* pfd = &poller->m_Pollfds[i];
             if (pfd->fd == fd)
             {
-                // dmLogInfo("PollerHasEvent() existing fd = %d event = %d p = %p", fd, event, pfd)
                 int e = PollReturnEventToNative(event);
                 return pfd->revents & e;
             }
@@ -127,7 +128,6 @@ namespace dmFileDescriptor
 
     void PollerReset(Poller* poller)
     {
-        // dmLogInfo("PollerReset");
         while (!poller->m_Pollfds.Empty())
         {
             poller->m_Pollfds.Pop();
@@ -139,15 +139,15 @@ namespace dmFileDescriptor
 
         int r;
 
-        if (timeout != 0)
-        {
-            dmLogInfo("Wait poll() size = %d timeout = %d", poller->m_Pollfds.Size(), timeout);
-            for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-            {
-                pollfd* v = &poller->m_Pollfds[i];
-                dmLogInfo("Wait poll() i = %d fd = %d events = %d", i, v->fd, v->events);
-            }
-        }
+        // if (timeout != 0)
+        // {
+        //     dmLogInfo("Wait poll() size = %d timeout = %d", poller->m_Pollfds.Size(), timeout);
+        //     for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
+        //     {
+        //         pollfd* v = &poller->m_Pollfds[i];
+        //         dmLogInfo("Wait poll() i = %d fd = %d events = %d", i, v->fd, v->events);
+        //     }
+        // }
 
         #if defined(_WIN32)
         r = WSAPoll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
@@ -156,15 +156,15 @@ namespace dmFileDescriptor
         #endif
 
 
-        if (timeout != 0)
-        {
-            dmLogInfo("Wait poll() result r = %d", r);
-            for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-            {
-                pollfd* v = &poller->m_Pollfds[i];
-                dmLogInfo("Wait poll() i = %d fd = %d revents = %d", i, v->fd, v->revents);
-            }
-        }
+        // if (timeout != 0)
+        // {
+        //     dmLogInfo("Wait poll() result r = %d", r);
+        //     for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
+        //     {
+        //         pollfd* v = &poller->m_Pollfds[i];
+        //         dmLogInfo("Wait poll() i = %d fd = %d revents = %d", i, v->fd, v->revents);
+        //     }
+        // }
 
         // dmLogInfo("Select got result r = %d fd = %d revents = %d", r, selector->m_Pollfd[0].fd, selector->m_Pollfd[0].revents);
 
