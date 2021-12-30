@@ -630,7 +630,7 @@ namespace dmEngine
             else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
                      strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
             {
-                dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
+                dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
             }
         }
 
@@ -678,7 +678,7 @@ namespace dmEngine
                 const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
                 dmPath::Concat(path, "log.txt", full, sizeof(full));
-                dmSetLogFile(full);
+                dmLog::SetLogFile(full);
             } else {
                 dmLogFatal("Unable to get log-file path");
             }
@@ -1916,8 +1916,8 @@ void dmEngineInitialize()
     dmSSLSocket::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
-    dmLogParams params;
-    dmLogInitialize(&params);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
 
     if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
     {
@@ -1933,7 +1933,7 @@ void dmEngineFinalize()
         dmEngineService::Delete(dmEngine::g_EngineService);
     }
     dmGraphics::Finalize();
-    dmLogFinalize();
+    dmLog::LogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();

@@ -364,7 +364,7 @@ namespace dmScript
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[DM_LOG_MAX_STRING_SIZE];
+        char buffer[dmLog::MAX_STRING_SIZE];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -549,7 +549,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
         int n = lua_gettop(L);
 
-        char buf[DM_LOG_MAX_STRING_SIZE];
+        char buf[dmLog::MAX_STRING_SIZE];
         dmPPrint::Printer printer(buf, sizeof(buf));
         dmHashTable<uintptr_t, bool> printed_tables;
         for (int s = 1; s <= n; ++s)
