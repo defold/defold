@@ -13,8 +13,12 @@
 #ifndef DMSDK_FILE_DESCRIPTOR_H
 #define DMSDK_FILE_DESCRIPTOR_H
 
-#include <poll.h>
 #include <dmsdk/dlib/array.h>
+#if defined(_WIN32)
+#include <winsock2.h>
+#else
+#include <poll.h>
+#endif
 
 /*# SDK File Descriptor API documentation
  * File Descriptor functions.

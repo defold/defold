@@ -14,7 +14,6 @@
 #define DMSDK_SOCKET_H
 
 #include <stdint.h>
-#include <poll.h>
 #include <dmsdk/dlib/file_descriptor.h>
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)

@@ -14,7 +14,12 @@
 #include "log.h"
 #include <stdint.h>
 #include <assert.h>
+#if defined(_WIN32)
+#include <winsock2.h>
+#else
 #include <poll.h>
+#endif
+
 
 namespace dmFileDescriptor
 {
@@ -25,17 +30,45 @@ namespace dmFileDescriptor
 
     int PollEventToNative(PollEvent event)
     {
+        #if defined(_WIN32)
         switch (event)
         {
-            case EVENT_READ:
-                return POLLIN;
-            case EVENT_WRITE:
-                return POLLOUT;
+            case EVENT_READ: return POLLRDNORM;
+            case EVENT_WRITE: return POLLWRNORM;
             default:
-            case EVENT_ERROR:
-                return POLLPRI;
+            case EVENT_ERROR: return POLLRDBAND;
         }
+        #else
+        switch (event)
+        {
+            case EVENT_READ: return POLLIN;
+            case EVENT_WRITE: return POLLOUT;
+            default:
+            case EVENT_ERROR: return POLLPRI;
+        }
+        #endif
     }
+    int PollReturnEventToNative(PollEvent event)
+    {
+        #if defined(_WIN32)
+        switch (event)
+        {
+            case EVENT_READ: return POLLRDNORM;
+            case EVENT_WRITE: return POLLWRNORM;
+            default:
+            case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL | POLLRDBAND;
+        }
+        #else
+        switch (event)
+        {
+            case EVENT_READ: return POLLIN;
+            case EVENT_WRITE: return POLLOUT;
+            default:
+            case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL;
+        }
+        #endif
+    }
+
 
     void PollerClearEvent(Poller* poller, PollEvent event, int fd)
     {
@@ -85,19 +118,8 @@ namespace dmFileDescriptor
             if (pfd->fd == fd)
             {
                 // dmLogInfo("PollerHasEvent() existing fd = %d event = %d p = %p", fd, event, pfd)
-                if (event == EVENT_READ)
-                {
-                    return pfd->revents & POLLIN;
-                }
-                else if (event == EVENT_WRITE)
-                {
-                    return pfd->revents & POLLOUT;
-                }
-                else if (event == EVENT_ERROR)
-                {
-                    return pfd->revents & (POLLHUP + POLLERR + POLLNVAL);
-                }
-                return false;
+                int e = PollReturnEventToNative(event);
+                return pfd->revents & e;
             }
         }
         return false;
