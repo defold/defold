@@ -100,7 +100,7 @@ namespace dmFileDescriptor
         }
 
         #if defined(_WIN32)
-        LPWSAPOLLFD pfd;
+        WSAPOLLFD pfd;
         pfd.fd = fd;
         pfd.events = e;
         poller->m_Pollfds.Push(pfd);
@@ -149,7 +149,7 @@ namespace dmFileDescriptor
         // }
 
         #if defined(_WIN32)
-        r = WSAPoll(poller->m_Pollfds.Front(), poller->m_Pollfds.Size(), timeout);
+        r = WSAPoll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
         #else
         r = poll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
         #endif

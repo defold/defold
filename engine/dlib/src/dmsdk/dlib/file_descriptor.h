@@ -67,7 +67,7 @@ namespace dmFileDescriptor
     struct Poller
     {
         #if defined(_WIN32)
-        dmArray<LPWSAPOLLFD> m_Pollfds;
+        dmArray<WSAPOLLFD> m_Pollfds;
         #else
         dmArray<pollfd> m_Pollfds;
         #endif
