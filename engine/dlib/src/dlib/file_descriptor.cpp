@@ -138,15 +138,15 @@ namespace dmFileDescriptor
 
         int r;
 
-        if (timeout != 0)
-        {
-            dmLogInfo("Wait poll() size = %d timeout = %d", poller->m_Pollfds.Size(), timeout);
-            for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-            {
-                pollfd v = poller->m_Pollfds[i];
-                dmLogInfo("Wait poll() i = %d fd = %d events = %d", i, v.fd, v.events);
-            }
-        }
+        // if (timeout != 0)
+        // {
+        //     dmLogInfo("Wait poll() size = %d timeout = %d", poller->m_Pollfds.Size(), timeout);
+        //     for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
+        //     {
+        //         pollfd v = poller->m_Pollfds[i];
+        //         dmLogInfo("Wait poll() i = %d fd = %d events = %d", i, v.fd, v.events);
+        //     }
+        // }
 
         #if defined(_WIN32)
         r = WSAPoll(poller->m_Pollfds.Front(), poller->m_Pollfds.Size(), timeout);
@@ -155,15 +155,15 @@ namespace dmFileDescriptor
         #endif
 
 
-        if (timeout != 0)
-        {
-            dmLogInfo("Wait poll() result r = %d", r);
-            for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-            {
-                pollfd v = poller->m_Pollfds[i];
-                dmLogInfo("Wait poll() i = %d fd = %d revents = %d", i, v.fd, v.revents);
-            }
-        }
+        // if (timeout != 0)
+        // {
+        //     dmLogInfo("Wait poll() result r = %d", r);
+        //     for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
+        //     {
+        //         pollfd v = poller->m_Pollfds[i];
+        //         dmLogInfo("Wait poll() i = %d fd = %d revents = %d", i, v.fd, v.revents);
+        //     }
+        // }
 
         // dmLogInfo("Select got result r = %d fd = %d revents = %d", r, selector->m_Pollfd[0].fd, selector->m_Pollfd[0].revents);
 
