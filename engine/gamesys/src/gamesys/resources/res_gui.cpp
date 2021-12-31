@@ -12,7 +12,7 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include "res_gui.h"
+#include <gamesys/resources/res_gui.h>
 #include <gamesys/gui_ddf.h>
 #include "../components/comp_gui_private.h"
 #include "gamesys.h"
@@ -44,15 +44,16 @@ namespace dmGameSystem
                 return fr;
         }
 
-        resource->m_RigScenes.SetCapacity(resource->m_SceneDesc->m_SpineScenes.m_Count);
-        resource->m_RigScenes.SetSize(0);
-        for (uint32_t i = 0; i < resource->m_SceneDesc->m_SpineScenes.m_Count; ++i)
+        dmLogWarning("MAWE res_gui: num_custom_resources: %u", resource->m_SceneDesc->m_Resources.m_Count);
+        resource->m_Resources.SetCapacity(dmMath::Max(1U, resource->m_SceneDesc->m_Resources.m_Count/3), resource->m_SceneDesc->m_Resources.m_Count);
+        for (uint32_t i = 0; i < resource->m_SceneDesc->m_Resources.m_Count; ++i)
         {
-            RigSceneResource* spine_scene = 0x0;
-            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_SpineScenes[i].m_SpineScene, (void**) &spine_scene);
+            void* custom_resource = 0;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Resources[i].m_Path, &custom_resource);
             if (r != dmResource::RESULT_OK)
                 return r;
-            resource->m_RigScenes.Push(spine_scene);
+            dmLogWarning("MAWE res_gui: %s %s", resource->m_SceneDesc->m_Resources[i].m_Name, resource->m_SceneDesc->m_Resources[i].m_Path);
+            resource->m_Resources.Put(dmHashString64(resource->m_SceneDesc->m_Resources[i].m_Name), custom_resource);
         }
 
         resource->m_ParticlePrototypes.SetCapacity(resource->m_SceneDesc->m_Particlefxs.m_Count);
@@ -127,7 +128,7 @@ namespace dmGameSystem
         size += ddf_size;
         size += res->m_FontMaps.Capacity()*sizeof(dmRender::HFontMap);
         size += res->m_GuiTextureSets.Capacity()*sizeof(GuiSceneTextureSetResource);
-        size += res->m_RigScenes.Capacity()*sizeof(RigSceneResource*);
+        //size += res->m_Resources.Capacity()* ? // We should probably collect the sizes when we get them from the resource factory
         size += res->m_ParticlePrototypes.Capacity()*sizeof(dmParticle::HPrototype);
         return size;
     }
@@ -142,10 +143,6 @@ namespace dmGameSystem
         for (uint32_t j = 0; j < resource->m_ParticlePrototypes.Size(); ++j)
         {
             dmResource::Release(factory, resource->m_ParticlePrototypes[j]);
-        }
-        for (uint32_t j = 0; j < resource->m_RigScenes.Size(); ++j)
-        {
-            dmResource::Release(factory, resource->m_RigScenes[j]);
         }
         for (uint32_t j = 0; j < resource->m_FontMaps.Size(); ++j)
         {
@@ -192,14 +189,14 @@ namespace dmGameSystem
             dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Textures[i].m_Texture);
         }
 
-        for (uint32_t i = 0; i < scene_desc->m_SpineScenes.m_Count; ++i)
-        {
-            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_SpineScenes[i].m_SpineScene);
-        }
-
         for (uint32_t i = 0; i < scene_desc->m_Particlefxs.m_Count; ++i)
         {
             dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Particlefxs[i].m_Particlefx);
+        }
+
+        for (uint32_t i = 0; i < scene_desc->m_Resources.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Resources[i].m_Path);
         }
 
         *params.m_PreloadData = scene_desc;

@@ -13,6 +13,27 @@ option java_outer_classname = "Gui";
  * @namespace gui
  */
 
+
+enum PropertyType
+{
+    PROPERTY_TYPE_UINT32 = 0;
+    PROPERTY_TYPE_FLOAT = 1;
+    PROPERTY_TYPE_BOOL = 2;
+    PROPERTY_TYPE_STRING = 3;
+    PROPERTY_TYPE_VECTOR4 = 4;
+}
+
+message PropertyVariant
+{
+    required uint64             name_hash = 1;
+    required PropertyType       type = 2;
+    optional string             v_string = 3;
+    optional bool               v_bool = 4;
+    optional float              v_float = 5;
+    optional uint32             v_uint32 = 6;
+    optional dmMath.Vector4     v_vector4 = 7;
+}
+
 message NodeDesc
 {
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -24,6 +45,7 @@ message NodeDesc
         TYPE_TEMPLATE = 3 [(displayName) = "Template"];
         TYPE_SPINE = 4 [(displayName) = "Spine"];
         TYPE_PARTICLEFX = 5 [(displayName) = "ParticleFX"];
+        TYPE_CUSTOM = 6 [(displayName) = "Custom"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -139,7 +161,7 @@ message NodeDesc
 
     optional SizeMode size_mode  = 38 [default = SIZE_MODE_MANUAL];
 
-    // Spine specific options
+    // Spine specific options (deprecated)
     optional string spine_scene             = 39;
     optional string spine_default_animation = 40;
     optional string spine_skin              = 41;
@@ -147,6 +169,10 @@ message NodeDesc
 
     // ParticleFX specific options
     optional string particlefx              = 43;
+
+    optional uint32 custom_type             = 44 [default = 0]; // for custom types
+
+    repeated PropertyVariant custom_properties = 45; // For custom types
 }
 
 message SceneDesc
@@ -182,6 +208,13 @@ message SceneDesc
         required string name         = 1;
         required string spine_scene  = 2 [(resource)=true];
     }
+
+    message ResourceDesc
+    {
+        required string name    = 1;
+        required string path    = 2 [(resource)=true];
+    }
+
     message ParticleFXDesc
     {
         required string name        = 1;
@@ -207,6 +240,8 @@ message SceneDesc
     repeated SpineSceneDesc spine_scenes         = 12;
 
     repeated ParticleFXDesc particlefxs          = 13;
+
+    repeated ResourceDesc resources              = 14;
 }
 
 /*# reports a layout change

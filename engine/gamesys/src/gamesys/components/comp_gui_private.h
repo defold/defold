@@ -16,17 +16,20 @@
 #include <stdint.h>
 
 #include <gui/gui.h>
-#include <gameobject/gameobject.h>
 #include <render/render.h>
-#include <rig/rig.h>
+#include <dmsdk/dlib/buffer.h>
+#include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gamesys/gui.h>
 #include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
     struct GuiSceneResource;
+    struct CompGuiContext;
 
     struct GuiComponent
     {
+        struct GuiWorld*        m_World;
         GuiSceneResource*       m_Resource;
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
@@ -79,6 +82,37 @@ namespace dmGameSystem
         uint32_t m_SortOrder;
     };
 
+    /*#
+     * Context used when registering a new component type
+     * @struct
+     * @name CompGuiNodeTypeCtx
+     * @member m_Config [type: dmConfigFile::HConfig] The config file
+     * @member m_Factory [type: dmResource::HFactory] The resource factory
+     * @member m_Render [type: dmRender::HRender] The render context
+     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
+     */
+    struct CompGuiNodeTypeCtx {
+        dmConfigFile::HConfig    m_Config;
+        dmResource::HFactory     m_Factory;
+        dmRender::HRenderContext m_Render;
+        dmGui::HContext          m_GuiContext;
+        dmHashTable64<void*>     m_Contexts;
+    };
+
+    struct CompGuiNodeType
+    {
+        CompGuiNodeType() {}
+
+        CompGuiNodeTypeDescriptor*  m_TypeDesc;
+        void*                       m_Context;
+
+        CompGuiCreateNodeFn m_CreateNodeFn;
+        CompGuiDestroyNodeFn m_DestroyNodeFn;
+        CompGuiGetVerticesFn m_GetVerticesFn;
+        CompGuiSetPropertyFn m_SetPropertyFn;
+    };
+
+
     struct GuiWorld
     {
         dmArray<GuiRenderObject>            m_GuiRenderObjects;
@@ -93,8 +127,8 @@ namespace dmGameSystem
         uint32_t                            m_MaxParticleCount;
         uint32_t                            m_RenderedParticlesSize;
         float                               m_DT;
-        dmRig::HRigContext                  m_RigContext;
         dmScript::ScriptWorld*              m_ScriptWorld;
+        CompGuiContext*                     m_CompGuiContext;
     };
 
     typedef BoxVertex ParticleGuiVertex;
