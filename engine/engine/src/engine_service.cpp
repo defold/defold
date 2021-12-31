@@ -360,7 +360,7 @@ namespace dmEngineService
             dmSocket::Address address;
             dmWebServer::GetName(web_server, &address, &m_Port);
             dmSnPrintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
-            dmSnPrintf(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
+            dmSnPrintf(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLog::GetPort());
 
             // The redirect server
             params.m_Port = 8002;
