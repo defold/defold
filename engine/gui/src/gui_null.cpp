@@ -217,15 +217,6 @@ namespace dmGui
     {
     }
 
-    Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene)
-    {
-        return RESULT_OK;
-    }
-
-    void RemoveSpineScene(HScene scene, const char* spine_scene_name)
-    {
-    }
-
     void ClearFonts(HScene scene)
     {
     }
@@ -371,7 +362,7 @@ namespace dmGui
         return 0;
     }
 
-    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type)
+    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type, uint32_t custom_type)
     {
         return 0;
     }
@@ -550,52 +541,6 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    dmhash_t GetNodeSpineSceneId(HScene scene, HNode node)
-    {
-        return 0;
-    }
-
-    Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones)
-    {
-        return RESULT_OK;
-    }
-
-    Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones)
-    {
-        return RESULT_OK;
-    }
-
-    dmhash_t GetNodeSpineScene(HScene scene, HNode node)
-    {
-        return 0;
-    }
-
-    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id)
-    {
-        return RESULT_OK;
-    }
-
-    dmhash_t GetNodeSpineSkin(HScene scene, HNode node)
-    {
-        return 0;
-    }
-
-    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id)
-    {
-        return RESULT_OK;
-    }
-
-    dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
-    {
-        return 0;
-    }
-
-
-    HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id)
-    {
-        return 0;
-    }
-
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id)
     {
         return RESULT_OK;
@@ -685,41 +630,6 @@ namespace dmGui
 
     void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate)
     {
-    }
-
-    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
-    {
-        return RESULT_OK;
-    }
-
-    float GetNodeSpineCursor(HScene scene, HNode node)
-    {
-        return 0.0f;
-    }
-
-    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate)
-    {
-        return RESULT_OK;
-    }
-
-    float GetNodeSpinePlaybackRate(HScene scene, HNode node)
-    {
-        return 1.0f;
-    }
-
-    dmhash_t GetNodeSpineAnimation(HScene scene, HNode node)
-    {
-        return 0;
-    }
-
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
-    {
-        return RESULT_OK;
-    }
-
-    Result CancelNodeSpineAnim(HScene scene, HNode node)
-    {
-        return RESULT_OK;
     }
 
     Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* callbackdata)

@@ -328,8 +328,8 @@ namespace dmGui
                 case NODE_TYPE_TEXT:
                     lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
                     break;
-                case NODE_TYPE_SPINE:
-                    lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                case NODE_TYPE_CUSTOM:
+                    lua_pushfstring(L, "custom_%d@(%f, %f, %f)", n->m_Node.m_CustomType, pos.getX(), pos.getY(), pos.getZ());
                     break;
                 case NODE_TYPE_PARTICLEFX:
                     lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
@@ -619,7 +619,7 @@ namespace dmGui
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         if (n->m_Node.m_IsBone) {
-            return luaL_error(L, "Unable to delete bone nodes of a spine node.");
+            return luaL_error(L, "Unable to delete bone nodes");
             return 0;
         }
 
@@ -1199,11 +1199,11 @@ namespace dmGui
         lua_setmetatable(L, -2);
     }
 
-    static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
+    static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, uint32_t custom_type, const char* text, void* font)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        HNode node = NewNode(scene, pos, size, node_type);
+        HNode node = dmGui::NewNode(scene, pos, size, node_type, custom_type);
         if (!node)
         {
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
@@ -1239,7 +1239,7 @@ namespace dmGui
         Point3 pos = GetPositionFromArgumentIndex(L, 1);
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_BOX, 0, 0x0);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_BOX, 0, 0, 0x0);
     }
 
     /*# creates a new text node
@@ -1267,7 +1267,7 @@ namespace dmGui
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
 
-        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_TEXT, text, font);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_TEXT, 0, text, font);
     }
 
     /*# creates a new pie node
@@ -1283,37 +1283,7 @@ namespace dmGui
         Point3 pos = GetPositionFromArgumentIndex(L, 1);
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_PIE, 0, 0x0);
-    }
-
-    /*# creates a new spine node
-     * Dynamically create a new spine node.
-     *
-     * @name gui.new_spine_node
-     * @param pos [type:vector3|vector4] node position
-     * @param spine_scene [type:string|hash] spine scene id
-     * @return node [type:node] new spine node
-     */
-    static int LuaNewSpineNode(lua_State* L)
-    {
-        Point3 pos = GetPositionFromArgumentIndex(L, 1);
-
-        Scene* scene = GuiScriptInstance_Check(L);
-        HNode node = NewNode(scene, pos, Vector3(1,1,0), NODE_TYPE_SPINE);
-        if (!node)
-        {
-            return luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
-        }
-
-        dmhash_t spine_scene_id = dmScript::CheckHashOrString(L, 2);
-        if (RESULT_OK != SetNodeSpineScene(scene, node, spine_scene_id, 0, 0, true))
-        {
-            GetNode(scene, node)->m_Deleted = 1;
-            return luaL_error(L, "failed to set spine scene for new node");
-        }
-
-        LuaPushNode(L, scene, node);
-        return 1;
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_PIE, 0, 0, 0x0);
     }
 
     /*# gets the node text
@@ -2971,7 +2941,7 @@ namespace dmGui
      * The size mode defines how the node will adjust itself in size. Automatic
      * size mode alters the node size based on the node's content. Automatic size
      * mode works for Box nodes and Pie nodes which will both adjust their size
-     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * to match the assigned image. Particle fx and Text nodes will ignore
      * any size mode setting.
      *
      * @name gui.get_size_mode
@@ -2993,7 +2963,7 @@ namespace dmGui
      * The size mode defines how the node will adjust itself in size. Automatic
      * size mode alters the node size based on the node's content. Automatic size
      * mode works for Box nodes and Pie nodes which will both adjust their size
-     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * to match the assigned image. Particle fx and Text nodes will ignore
      * any size mode setting.
      *
      * @name gui.set_size_mode
@@ -3678,444 +3648,6 @@ namespace dmGui
         return 1;
     }
 
-    int LuaPlaySpine(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        HNode hnode;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &hnode);
-        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
-        lua_Integer playback = luaL_checkinteger(L, 3);
-        lua_Number blend_duration = luaL_checknumber(L, 4);
-        // default values
-        float offset = 0.0f;
-        float playback_rate = 1.0f;
-
-        int node_ref = LUA_NOREF;
-        dmScript::LuaCallbackInfo* cbk = 0x0;
-        if (top > 4)
-        {
-            if (lua_isfunction(L, 5))
-            {
-                cbk = dmScript::CreateCallback(L, 5);
-
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
-                lua_pushvalue(L, 1);
-                node_ref = luaL_ref(L, -2);
-                lua_pop(L, 1);
-            }
-        }
-        else
-        {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
-            lua_pushvalue(L, 1);
-            node_ref = dmScript::Ref(L, -2);
-            lua_pop(L, 1);
-        }
-
-        dmGui::Result res;
-        if (cbk == 0x0)
-        {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*)(uintptr_t) node_ref);
-        }
-        else
-        {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
-        }
-
-        if (res == RESULT_WRONG_TYPE)
-        {
-            dmLogError("Could not play spine animation on non-spine node.");
-        }
-        else if (res == RESULT_INVAL_ERROR)
-        {
-            dmLogError("Could not find and play spine animation '%s'.", dmHashReverseSafe64(anim_id));
-        }
-
-        assert(top == lua_gettop(L));
-        return 0;
-    }
-
-    /*# play a spine animation
-     * Starts a spine animation.
-     *
-     * @name gui.play_spine_anim
-     * @replaces gui.play_spine
-     * @param node [type:node] spine node that should play the animation
-     * @param animation_id [type:string|hash] id of the animation to play
-     * @param playback [type:constant] playback mode
-     *
-     * - `gui.PLAYBACK_ONCE_FORWARD`
-     * - `gui.PLAYBACK_ONCE_BACKWARD`
-     * - `gui.PLAYBACK_ONCE_PINGPONG`
-     * - `gui.PLAYBACK_LOOP_FORWARD`
-     * - `gui.PLAYBACK_LOOP_BACKWARD`
-     * - `gui.PLAYBACK_LOOP_PINGPONG`
-     *
-     * @param [play_properties] [type:table] optional table with properties
-     *
-     * `blend_duration`
-     * : [type:number] The duration of a linear blend between the current and new animation
-     *
-     * `offset`
-     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing
-     *
-     * `playback_rate`
-     * : [type:number] The rate with which the animation will be played. Must be positive
-     *
-     * @param [complete_function] [type:function(self, node)] function to call when the animation has completed
-     */
-    int LuaPlaySpineAnim(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        HNode hnode;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &hnode);
-
-        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
-        lua_Integer playback = luaL_checkinteger(L, 3);
-        lua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
-
-        if (top > 3) // table with args, parse
-        {
-            luaL_checktype(L, 4, LUA_TTABLE);
-            lua_pushvalue(L, 4);
-
-            lua_getfield(L, -1, "blend_duration");
-            blend_duration = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "offset");
-            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "playback_rate");
-            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
-        }
-
-        int node_ref = LUA_NOREF;
-        dmScript::LuaCallbackInfo* cbk = 0x0;
-        if (top > 4) // completed cb
-        {
-            if (lua_isfunction(L, 5))
-            {
-                cbk = dmScript::CreateCallback(L, 5);
-
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
-                lua_pushvalue(L, 1);
-                node_ref = luaL_ref(L, -2);
-                lua_pop(L, 1);
-            }
-        }
-        else
-        {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
-            lua_pushvalue(L, 1);
-            node_ref = dmScript::Ref(L, -2);
-            lua_pop(L, 1);
-        }
-
-        dmGui::Result res;
-        if (cbk == 0x0)
-        {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*)(uintptr_t) node_ref);
-        }
-        else
-        {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
-        }
-
-        if (res == RESULT_WRONG_TYPE)
-        {
-            dmLogError("Could not play spine animation on non-spine node.");
-        }
-        else if (res == RESULT_INVAL_ERROR)
-        {
-            dmLogError("Could not find and play spine animation '%s'.", dmHashReverseSafe64(anim_id));
-        }
-
-        assert(top == lua_gettop(L));
-        return 0;
-    }
-
-    /*# cancel a spine animation
-     *
-     * @name gui.cancel_spine
-     * @param node [type:node] spine node that should cancel its animation
-     */
-    int LuaCancelSpine(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        HNode hnode;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &hnode);
-
-        if (dmGui::CancelNodeSpineAnim(scene, hnode) != RESULT_OK) {
-            dmLogError("Could not cancel spine animation on GUI spine node.");
-        }
-
-        assert(top == lua_gettop(L));
-        return 0;
-    }
-
-    /*# retrieve the GUI node corresponding to a spine skeleton bone
-     * The returned node can be used for parenting and transform queries.
-     * This function has complexity O(n), where n is the number of bones in the spine model skeleton.
-     *
-     * @name gui.get_spine_bone
-     * @param node [type:node] spine node to query for bone node
-     * @param bone_id [type:string|hash] id of the corresponding bone
-     * @return bone [type:node] node corresponding to the spine bone
-     */
-    int LuaGetSpineBone(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        HNode spine_node;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &spine_node);
-
-        dmhash_t bone_id;
-        if (lua_isstring(L, 2)) {
-            const char* bone_id_str = luaL_checkstring(L, 2);
-            bone_id = dmHashString64(bone_id_str);
-        } else {
-            bone_id = dmScript::CheckHash(L, 2);
-        }
-
-        HNode bone_node = GetNodeSpineBone(scene, spine_node, bone_id);
-        if (bone_node == 0)
-        {
-            char buffer[128];
-            return luaL_error(L, "no gui node found for the bone '%s'", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
-        }
-
-        NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
-        node_proxy->m_Scene = scene;
-        node_proxy->m_Node = bone_node;
-        luaL_getmetatable(L, NODE_PROXY_TYPE_NAME);
-        lua_setmetatable(L, -2);
-
-        assert(top + 1 == lua_gettop(L));
-        return 1;
-    }
-
-    /*# sets the spine scene of a node
-     * Set the spine scene on a spine node. The spine scene must be mapped to the gui scene in the gui editor.
-     *
-     * @name gui.set_spine_scene
-     * @param node [type:node] node to set spine scene for
-     * @param spine_scene [type:string|hash] spine scene id
-     */
-    int LuaSetSpineScene(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        HNode node;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &node);
-        if (dmGui::GetNodeIsBone(scene, node))
-        {
-            return 0;
-        }
-
-        if (RESULT_OK != SetNodeSpineScene(scene, node, dmScript::CheckHashOrString(L, 2), 0, 0, false))
-        {
-            return luaL_error(L, "failed to set spine scene for gui node");
-        }
-
-        assert(top == lua_gettop(L));
-        return 0;
-    }
-
-    /*# gets the spine scene of a node
-     * Returns the spine scene id of the supplied node.
-     * This is currently only useful for spine nodes.
-     * The returned spine scene must be mapped to the gui scene in the gui editor.
-     *
-     * @name gui.get_spine_scene
-     * @param node [type:node] node to get texture from
-     * @return spine_scene [type:hash] spine scene id
-     */
-    int LuaGetSpineScene(lua_State* L)
-    {
-        Scene* scene = GuiScriptInstance_Check(L);
-
-        HNode hnode;
-        LuaCheckNode(L, 1, &hnode);
-
-        dmScript::PushHash(L, dmGui::GetNodeSpineSceneId(scene, hnode));
-        return 1;
-    }
-
-    /*# sets the spine skin
-     * Sets the spine skin on a spine node.
-     *
-     * @name gui.set_spine_skin
-     * @param node [type:node] node to set the spine skin on
-     * @param spine_skin [type:string|hash] spine skin id
-     * @param [spine_slot] [type:string|hash] optional slot id to only change a specific slot
-     * @examples
-     *
-     * Change skin of a Spine node
-     *
-     * ```lua
-     * function init(self)
-     *   gui.set_spine_skin(gui.get_node("spine_node"), "monster")
-     * end
-     * ```
-     *
-     * Change only part of the Spine to a different skin.
-     *
-     * ```lua
-     * function monster_transform_arm(self)
-     *   -- The player is transforming into a monster, begin with changing the arm.
-     *   gui.set_spine_skin(gui.get_node("spine_node"), "monster", "left_arm_slot")
-     * end
-     * ```
-     */
-    int LuaSetSpineSkin(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        DM_LUA_STACK_CHECK(L, 0);
-
-        HNode node;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &node);
-
-        if (dmGui::GetNodeIsBone(scene, node))
-        {
-            return luaL_error(L, "cannot set skin for bone, did you mean to set skin for the spine model?");
-        }
-
-        dmhash_t spine_skin_id = dmScript::CheckHashOrString(L, 2);
-
-        if (top > 2) {
-            dmhash_t slot_id = dmScript::CheckHashOrString(L, 3);
-            if (RESULT_OK != dmGui::SetNodeSpineSkinSlot(scene, node, spine_skin_id, slot_id)) {
-                return luaL_error(L, "failed to set spine skin ('%s') slot '%s' for gui node", dmHashReverseSafe64(spine_skin_id), dmHashReverseSafe64(slot_id));
-            }
-        } else {
-            if (RESULT_OK != dmGui::SetNodeSpineSkin(scene, node, spine_skin_id)) {
-                return luaL_error(L, "failed to set spine skin '%s' for gui node", dmHashReverseSafe64(spine_skin_id));
-            }
-        }
-
-        return 0;
-    }
-
-    /*# gets the playing animation on a spine node
-     * Gets the playing animation on a spine node
-     *
-     * @name gui.get_spine_animation
-     * @param node [type:node] node to get spine skin from
-     * @return id [type:hash] spine animation id, 0 if no animation is playing
-     */
-    int LuaGetSpineAnimation(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1); // hash pushed onto state will increase stack by 1
-
-        Scene* scene = GuiScriptInstance_Check(L);
-        HNode node;
-        LuaCheckNode(L, 1, &node);
-
-        if (dmGui::GetNodeIsBone(scene, node))
-        {
-            return DM_LUA_ERROR("cannot get animation for bone, did you mean to get animation for the spine model?");
-        }
-
-        dmhash_t spine_anim_id = dmGui::GetNodeSpineAnimation(scene, node);
-        dmScript::PushHash(L, spine_anim_id);
-
-        return 1;
-    }
-
-    /*# gets the skin of a spine node
-     * Gets the spine skin of a spine node
-     *
-     * @name gui.get_spine_skin
-     * @param node [type:node] node to get spine skin from
-     * @return id [type:hash] spine skin id, 0 if no explicit skin is set
-     */
-    int LuaGetSpineSkin(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1); // hash pushed onto state will increase stack by 1
-
-        Scene* scene = GuiScriptInstance_Check(L);
-        HNode node;
-        LuaCheckNode(L, 1, &node);
-
-        if (dmGui::GetNodeIsBone(scene, node))
-        {
-            return luaL_error(L, "cannot get skin for bone, did you mean to get skin for the spine model?");
-        }
-
-        dmhash_t spine_skin_id = dmGui::GetNodeSpineSkin(scene, node);
-        dmScript::PushHash(L, spine_skin_id);
-
-        return 1;
-    }
-
-    /*# sets the normalized cursor of the animation on a spine node
-     * This is only useful for spine nodes. The cursor is normalized.
-     *
-     * @name gui.set_spine_cursor
-     * @param node [type:node] spine node to set the cursor for
-     * @param cursor [type:number] cursor value
-     */
-    int LuaSetSpineCursor(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        HNode node;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &node);
-
-        if(dmGui::GetNodeIsBone(scene, node))
-        {
-            return luaL_error(L, "cannot set cursor for bone, did you mean to set cursor for the spine model?");
-        }
-
-        float cursor = luaL_checknumber(L, 2);
-
-        if (RESULT_OK != SetNodeSpineCursor(scene, node, cursor))
-        {
-            return luaL_error(L, "failed to set spine cursor for gui spine node");
-        }
-
-        return 0;
-    }
-
-    /*# gets the normalized cursor of the animation on a spine node
-     * This is only useful for spine nodes. Gets the normalized cursor of the animation on a spine node.
-     *
-     * @name gui.get_spine_cursor
-     * @param node [type:node] spine node to get the cursor for (node)
-     * @return cursor value [type:number] cursor value
-     */
-    int LuaGetSpineCursor(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-
-        Scene* scene = GuiScriptInstance_Check(L);
-        HNode node;
-        LuaCheckNode(L, 1, &node);
-
-        if (dmGui::GetNodeIsBone(scene, node))
-        {
-            return luaL_error(L, "cannot get cursor for bone, did you mean to get cursor for the spine model?");
-        }
-
-        float cursor = dmGui::GetNodeSpineCursor(scene, node);
-        lua_pushnumber(L, cursor);
-
-        return 1;
-    }
-
     /*# gets the normalized cursor of the animation on a node with flipbook animation
      * This is only useful nodes with flipbook animations. Gets the normalized cursor of the flipbook animation on a node.
      *
@@ -4217,64 +3749,6 @@ namespace dmGui
         return 0;
     }
 
-    /*# sets the playback rate of the animation on a spine node
-     * This is only useful for spine nodes. Sets the playback rate of the animation on a spine node. Must be positive.
-     *
-     * @name gui.set_spine_playback_rate
-     * @param node [type:node] spine node to set the cursor for
-     * @param playback_rate [type:number] playback rate
-     */
-    int LuaSetSpinePlaybackRate(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        HNode node;
-        Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &node);
-
-        if(dmGui::GetNodeIsBone(scene, node))
-        {
-            return luaL_error(L, "cannot set playback rate for bone, did you mean to set playnack rate for the spine model?");
-        }
-
-        float playback_rate = luaL_checknumber(L, 2);
-
-        if (RESULT_OK != SetNodeSpinePlaybackRate(scene, node, playback_rate))
-        {
-            return luaL_error(L, "failed to set spine playback rate for gui spine node");
-        }
-
-        return 0;
-    }
-
-    /*# gets the playback rate of the animation on a spine node
-     * This is only useful for spine nodes. Gets the playback rate of the animation on a spine node.
-     *
-     * @name gui.get_spine_playback_rate
-     * @param node [type:node] spine node to set the cursor for
-     * @return rate [type:number] playback rate
-     */
-    int LuaGetSpinePlaybackRate(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-
-        Scene* scene = GuiScriptInstance_Check(L);
-        HNode node;
-        LuaCheckNode(L, 1, &node);
-
-        if (dmGui::GetNodeIsBone(scene, node))
-        {
-            return luaL_error(L, "cannot get playback rate for bone, did you mean to get playback rate for the spine model?");
-        }
-
-        float playback_rate = dmGui::GetNodeSpinePlaybackRate(scene, node);
-
-        lua_pushnumber(L, playback_rate);
-
-        return 1;
-    }
-
-
     /*# creates a new particle fx node
      * Dynamically create a particle fx node.
      *
@@ -4292,7 +3766,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         // The default size comes from the CalculateNodeExtents()
-        HNode node = dmGui::NewNode(scene, pos, Vector3(1,1,0), NODE_TYPE_PARTICLEFX);
+        HNode node = dmGui::NewNode(scene, pos, Vector3(1,1,0), NODE_TYPE_PARTICLEFX, 0);
         if (!node)
         {
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
@@ -4621,7 +4095,6 @@ namespace dmGui
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"new_pie_node",    LuaNewPieNode},
-        {"new_spine_node",  LuaNewSpineNode},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
         {"set_line_break",  LuaSetLineBreak},
@@ -4693,21 +4166,8 @@ namespace dmGui
         {"get_tracking",    LuaGetTracking},
         {"set_size",        LuaSetSize},
         {"get_size",        LuaGetSize},
-        {"play_spine",      LuaPlaySpine},
-        {"play_spine_anim", LuaPlaySpineAnim},
-        {"cancel_spine",    LuaCancelSpine},
-        {"get_spine_bone",  LuaGetSpineBone},
-        {"set_spine_scene", LuaSetSpineScene},
-        {"get_spine_scene", LuaGetSpineScene},
-        {"set_spine_skin",  LuaSetSpineSkin},
-        {"get_spine_skin",  LuaGetSpineSkin},
-        {"get_spine_animation",  LuaGetSpineAnimation},
-        {"set_spine_cursor", LuaSetSpineCursor},
-        {"get_spine_cursor", LuaGetSpineCursor},
         {"get_flipbook_cursor", LuaGetFlipbookCursor},
         {"set_flipbook_cursor", LuaSetFlipbookCursor},
-        {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
-        {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
         {"get_flipbook_playback_rate", LuaGetFlipbookPlaybackRate},
         {"set_flipbook_playback_rate", LuaSetFlipbookPlaybackRate},
         {"new_particlefx_node",  LuaNewParticlefxNode},

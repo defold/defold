@@ -195,7 +195,7 @@ public:
     }
 
     dmGui::HNode AddBox(const char* id, dmGui::HNode parent = dmGui::INVALID_HANDLE) {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(), Vector3(), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(), Vector3(), dmGui::NODE_TYPE_BOX, 0);
         dmGui::SetNodeId(m_Scene, node, id);
         if (parent != dmGui::INVALID_HANDLE) {
             dmGui::SetNodeParent(m_Scene, node, parent, false);
