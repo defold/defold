@@ -166,6 +166,6 @@ public class ResourceCache {
 			return false;
 		}
 		File f = fileFromKey(key);
-		return f.exists() || http.exists(urlFromFile(f));
+		return f.exists() || (remoteCacheUrl != null && http.exists(urlFromFile(f)));
 	}
 }

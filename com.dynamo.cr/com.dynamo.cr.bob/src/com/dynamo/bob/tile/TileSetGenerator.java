@@ -161,8 +161,7 @@ public class TileSetGenerator {
         int tileHeight = tileSet.getTileHeight();
         List<BufferedImage> result = new ArrayList<BufferedImage>(count);
         for (int i = 0; i < count; ++i) {
-            int type = TextureUtil.getImageType(image);
-            BufferedImage tgt = new BufferedImage(tileWidth, tileHeight, type);
+            BufferedImage tgt = new BufferedImage(tileWidth, tileHeight, BufferedImage.TYPE_4BYTE_ABGR);
             Graphics g = tgt.getGraphics();
             int tileX = i % metrics.tilesPerRow;
             int tileY = i / metrics.tilesPerRow;

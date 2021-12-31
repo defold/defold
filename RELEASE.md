@@ -11,7 +11,6 @@ The alpha channel is automatically released for every successful push to dev.
 ## Beta
 
 * If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender/blob/dev/README.md#releasing-stage-server), which updates https://build-stage.defold.com.
-* Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
 
 1. Merge `editor-dev` into `dev`
 

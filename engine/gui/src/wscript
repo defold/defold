@@ -8,10 +8,16 @@ def configure(conf):
 def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                 includes = '.',
+                                source = 'gui.cpp gui_script.cpp',
                                 target = 'gui')
-    resource.find_sources_in_dirs('.')
+
+    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                                includes = '.',
+                                source = 'gui_null.cpp',
+                                target = 'gui_null')
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/gui', 'gui.h')
+    bld.install_files('${PREFIX}/include/gui', 'gui_script.h')
 
     apidoc_extract_task(bld, ['gui_script.cpp'])

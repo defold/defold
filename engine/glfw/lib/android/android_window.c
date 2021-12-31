@@ -679,6 +679,9 @@ void _glfwPlatformSetViewType(int view_type)
 {
 }
 
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
+{
+}
 
 #define MAX_ACTIVITY_LISTENERS (32)
 static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
@@ -712,7 +715,7 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
     JNIEnv *env, jobject thiz, jobject activity, jint requestCode,
     jint resultCode, jobject data) {
 
-    for (int i = 0; i < g_ListenersCount; ++i)
+    for (int i = g_ListenersCount - 1; i >= 0 ; --i)
     {
         g_Listeners[i](env, activity, requestCode, resultCode, data);
     }
@@ -749,7 +752,7 @@ JNIEXPORT void
 Java_com_dynamo_android_DefoldActivity_nativeOnCreate(
     JNIEnv *env, jobject thiz, jobject activity) {
 
-    for (int i = 0; i < g_onCreate_ListenersCount; ++i)
+    for (int i = g_onCreate_ListenersCount - 1; i >= 0 ; --i)
     {
         g_onCreate_Listeners[i](env, activity);
     }

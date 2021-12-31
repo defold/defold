@@ -1359,7 +1359,11 @@ TEST_P(BoxRenderTest, BoxRender)
     // Make the render list that will be used later.
     dmRender::RenderListBegin(m_RenderContext);
 
-    dmGameSystem::GuiWorld* world = (dmGameSystem::GuiWorld*)m_GuiContext.m_Worlds[0];
+    uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world = (dmGameSystem::GuiWorld*)dmGameObject::GetWorld(m_Collection, component_type_index);
+
+    // could use dmGameObject::GetWorld() if we had the component index
+    dmGameSystem::GuiWorld* world = gui_world;
     dmGui::SetSceneAdjustReference(world->m_Components[0]->m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
 
     dmGameObject::Render(m_Collection);

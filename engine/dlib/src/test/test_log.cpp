@@ -29,9 +29,9 @@
 
 TEST(dmLog, Init)
 {
-    dmLogParams params;
-    dmLogInitialize(&params);
-    dmLogFinalize();
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLog::LogFinalize();
 }
 
 static void LogThread(void* arg)
@@ -55,9 +55,9 @@ static void LogThread(void* arg)
 TEST(dmLog, Client)
 {
     char buf[256];
-    dmLogParams params;
-    dmLogInitialize(&params);
-    uint16_t port = dmLogGetPort();
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    uint16_t port = dmLog::GetPort();
     ASSERT_GT(port, 0);
     dmSnPrintf(buf, sizeof(buf), "python src/test/test_log.py %d", port);
 #ifdef _WIN32
@@ -87,7 +87,7 @@ TEST(dmLog, Client)
     pclose(f);
 #endif
     dmThread::Join(log_thread);
-    dmLogFinalize();
+    dmLog::LogFinalize();
 }
 #endif
 
@@ -103,11 +103,11 @@ TEST(dmLog, LogFile)
     dmSys::GetLogPath(path, sizeof(path));
     dmStrlCat(path, "log.txt", sizeof(path));
 
-    dmLogParams params;
-    dmLogInitialize(&params);
-    dmSetLogFile(path);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLog::SetLogFile(path);
     dmLogInfo("TESTING_LOG");
-    dmLogFinalize();
+    dmLog::LogFinalize();
 
     char tmp[1024];
     FILE* f = fopen(path, "rb");
@@ -131,7 +131,7 @@ static void TestLogCaptureCallback(void* user_data, const char* log)
 TEST(dmLog, TestCapture)
 {
     dmArray<char> log_output;
-    dmSetCustomLogCallback(TestLogCaptureCallback, &log_output);
+    dmLog::SetCustomLogCallback(TestLogCaptureCallback, &log_output);
     dmLogDebug("This is a debug message");
     dmLogInfo("This is a info message");
     dmLogWarning("This is a warning message");
@@ -148,7 +148,7 @@ TEST(dmLog, TestCapture)
 
     ASSERT_STREQ(ExpectedOutput,
                 log_output.Begin());
-    dmSetCustomLogCallback(0x0, 0x0);
+    dmLog::SetCustomLogCallback(0x0, 0x0);
 }
 
 int main(int argc, char **argv)

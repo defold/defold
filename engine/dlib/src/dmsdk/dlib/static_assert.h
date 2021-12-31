@@ -13,7 +13,26 @@
 #ifndef DMSDK_STATIC_ASSERT_H
 #define DMSDK_STATIC_ASSERT_H
 
+/*# Static assert
+ *
+ *
+ * ```cpp
+ * void test() {
+ *     DM_STATIC_ASSERT(sizeof(int) == 4, Invalid_int_size);
+ * }
+ * ```
+ *
+ * @document
+ * @name Static Assert
+ * @namespace dmStaticAssert
+ * @path engine/dlib/src/dmsdk/dlib/static_assert.h
+ */
+
 /*# compile time assert
+ * This is using C++11 `static_assert` on platforms that support it and use c++11. Otherwise
+ * it's using a c construct to check the condition.
+ * As such, it is currently required to be used whithin a function scope.
+ *
  * @macro
  * @name DM_STATIC_ASSERT
  * @param x [type:bool] expression

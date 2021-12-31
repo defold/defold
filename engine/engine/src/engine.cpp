@@ -41,6 +41,7 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
+#include <gamesys/components/comp_gui.h> // For the URL callbacks etc
 #include <gameobject/gameobject.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
@@ -139,9 +140,9 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / width;
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
-        if (engine->m_GuiContext.m_GuiContext)
+        if (engine->m_GuiContext)
         {
-            dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
+            dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
 
         dmGameSystem::OnWindowResized(width, height);
@@ -197,6 +198,11 @@ namespace dmEngine
         component_create_ctx.m_Contexts.SetCapacity(3, 8);
         component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
         component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+        if (engine->m_GuiContext)
+        {
+            component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
+            component_create_ctx.m_Contexts.Put(dmHashString64("guic"), engine->m_GuiContext);
+        }
     }
 
     Stats::Stats()
@@ -243,8 +249,7 @@ namespace dmEngine
         m_PhysicsContext.m_Context3D = 0x0;
         m_PhysicsContext.m_Debug = false;
         m_PhysicsContext.m_3D = false;
-        m_GuiContext.m_GuiContext = 0x0;
-        m_GuiContext.m_RenderContext = 0x0;
+        m_GuiContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
@@ -287,11 +292,8 @@ namespace dmEngine
         } else {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            if (engine->m_GuiContext.m_GuiContext != 0x0)
-            {
-                script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
-                dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            }
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
+            dmGameSystem::FinalizeScriptLibs(script_lib_context);
         }
 
         dmHttpClient::ReopenConnectionPool();
@@ -312,8 +314,8 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        if (engine->m_GuiContext.m_GuiContext)
-            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
+        if (engine->m_GuiContext)
+            dmGui::DeleteContext(engine->m_GuiContext, engine->m_GuiScriptContext);
 
         if (engine->m_SharedScriptContext) {
             dmScript::Finalize(engine->m_SharedScriptContext);
@@ -646,7 +648,7 @@ namespace dmEngine
             else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
                      strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
             {
-                dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
+                dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
             }
         }
 
@@ -694,7 +696,7 @@ namespace dmEngine
                 const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
                 dmPath::Concat(path, "log.txt", full, sizeof(full));
-                dmSetLogFile(full);
+                dmLog::SetLogFile(full);
             } else {
                 dmLogFatal("Unable to get log-file path");
             }
@@ -724,6 +726,16 @@ namespace dmEngine
         engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
         engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
 
+        float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
+        float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
+        float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
+        float clear_color_alpha = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_alpha", 0.0);
+        uint32_t clear_color = ((uint32_t)(clear_color_red * 255.0) & 0x000000ff)
+                             | (((uint32_t)(clear_color_green * 255.0) & 0x000000ff) << 8)
+                             | (((uint32_t)(clear_color_blue * 255.0) & 0x000000ff) << 16)
+                             | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
+        engine->m_ClearColor = clear_color;
+
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;
         window_params.m_ResizeCallbackUserData = engine;
@@ -740,6 +752,7 @@ namespace dmEngine
         window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_BackgroundColor = clear_color;
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
         if (window_result != dmGraphics::WINDOW_RESULT_OK)
@@ -766,16 +779,6 @@ namespace dmEngine
         uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
         uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
-
-        float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
-        float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
-        float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
-        float clear_color_alpha = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_alpha", 0.0);
-        uint32_t clear_color = ((uint32_t)(clear_color_red * 255.0) & 0x000000ff)
-                             | (((uint32_t)(clear_color_green * 255.0) & 0x000000ff) << 8)
-                             | (((uint32_t)(clear_color_blue * 255.0) & 0x000000ff) << 16)
-                             | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
-        engine->m_ClearColor = clear_color;
 
         if (!setting_vsync)
         {
@@ -946,7 +949,6 @@ namespace dmEngine
         // specific component max value.
         int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
         int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
-        int32_t max_spine_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128), max_rig_instance);
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
@@ -955,7 +957,7 @@ namespace dmEngine
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
 
-      // If an extension changes window size at extensions initialization phase, engine should read that.  
+      // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
 
@@ -965,13 +967,8 @@ namespace dmEngine
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
         gui_params.m_HidContext = engine->m_HidContext;
-        engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
-        engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
-        engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
-        engine->m_GuiContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particlefx_count", 64);
-        engine->m_GuiContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particle_count", 1024);
-        engine->m_GuiContext.m_MaxSpineCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_spine_count", max_spine_count);
+
+        engine->m_GuiContext = dmGui::NewContext(&gui_params);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -1079,18 +1076,23 @@ namespace dmEngine
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
-        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
         engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
+        if (engine->m_GuiContext)
+        {
+            engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
+            engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
+        }
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, &engine->m_PhysicsContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
                                                                                                 &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
@@ -1158,8 +1160,8 @@ namespace dmEngine
         }
 #endif
 
-        dmGui::SetDefaultFont(engine->m_GuiContext.m_GuiContext, engine->m_SystemFontMap);
-        dmGui::SetDisplayProfiles(engine->m_GuiContext.m_GuiContext, engine->m_DisplayProfiles);
+        dmGui::SetDefaultFont(engine->m_GuiContext, engine->m_SystemFontMap);
+        dmGui::SetDisplayProfiles(engine->m_GuiContext, engine->m_DisplayProfiles);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
         for (int i = 0; i < 3; ++i) {
@@ -1192,7 +1194,7 @@ namespace dmEngine
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
-            script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }
@@ -1373,10 +1375,7 @@ bail:
             memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_SharedScriptContext));
         } else {
             memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GOScriptContext));
-            if (engine->m_GuiContext.m_GuiContext != 0x0)
-            {
-                memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
-            }
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GuiScriptContext));
         }
         return memcount;
     }
@@ -1928,8 +1927,8 @@ void dmEngineInitialize()
     dmSSLSocket::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
-    dmLogParams params;
-    dmLogInitialize(&params);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
 
     if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
     {
@@ -1945,7 +1944,7 @@ void dmEngineFinalize()
         dmEngineService::Delete(dmEngine::g_EngineService);
     }
     dmGraphics::Finalize();
-    dmLogFinalize();
+    dmLog::LogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();

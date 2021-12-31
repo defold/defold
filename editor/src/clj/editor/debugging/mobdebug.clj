@@ -16,7 +16,6 @@
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
             [editor.lua :as lua]
-            [editor.luajit :refer [luajit-path-to-chunk]]
             [service.log :as log])
   (:import [clojure.lang Counted ILookup MapEntry Seqable]
            [java.io BufferedReader InputStreamReader IOException PrintWriter]
@@ -277,7 +276,7 @@
 
 (defn- remove-filename-prefix
   [^String s]
-  (if (.startsWith s "=")
+  (if (or (.startsWith s "=") (.startsWith s "@"))
     (subs s 1)
     s))
 
@@ -522,13 +521,19 @@
   ([debug-session code frame]
    (exec debug-session (str "return " code) frame)))
 
+
+;; A note on "SETB file line":
+;; * In LuaBuilder.java we add '@' in front of the filename to tell Lua to
+;; truncate the short_src name to the last 60 characters of the filename.
+;; * mobdebug.lua will remove the '@' in the debug hook which means that we
+;; must send SETB without the '@' in front of the filename
 (defn set-breakpoint!
   [^DebugSession debug-session file line]
   (with-session debug-session
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB =%s %d" (luajit-path-to-chunk file) line))
+      (send-command! out (format "SETB %s %d" file line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
@@ -540,7 +545,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "DELB =%s %d" (luajit-path-to-chunk file) line))
+      (send-command! out (format "DELB %s %d" file line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok

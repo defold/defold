@@ -261,6 +261,16 @@ void _glfwPlatformSetViewType(int view_type)
     g_view_type = view_type;
 }
 
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
+{
+    float r = (color & 0xff) / 255.0f;
+    float g = ((color >> 8) & 0xff) / 255.0f;
+    float b = ((color >> 16) & 0xff) / 255.0f;
+    float a = 1.0f;
+    UIViewController *viewController = (UIViewController*)_glfwWin.viewController;
+    viewController.view.backgroundColor = [[UIColor alloc]initWithRed:r green:g blue:b alpha:a];
+}
+
 void* _glfwPlatformAcquireAuxContext()
 {
     if (_glfwWin.clientAPI == GLFW_NO_API)

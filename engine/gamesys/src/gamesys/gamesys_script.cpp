@@ -32,6 +32,7 @@
 #include "scripts/script_window.h"
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
+#include "components/comp_gui.h"
 #include <liveupdate/liveupdate.h>
 
 #include <dmsdk/gamesys/script.h>

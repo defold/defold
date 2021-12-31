@@ -23,6 +23,7 @@
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
+#include "../components/comp_gui.h" // The GuiGetURLCallback et.al
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
@@ -77,6 +78,7 @@ public:
 protected:
     virtual void SetUp();
     virtual void TearDown();
+    void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
 
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
@@ -89,7 +91,7 @@ protected:
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::ParticleFXContext m_ParticleFXContext;
-    dmGameSystem::GuiContext m_GuiContext;
+    dmGui::HContext m_GuiContext;
     dmHID::HContext m_HidContext;
     dmInput::HContext m_InputContext;
     dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
@@ -352,6 +354,20 @@ bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
 template<typename T>
+void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
+{
+    component_create_ctx.m_Script = m_ScriptContext;
+    component_create_ctx.m_Register = m_Register;
+    component_create_ctx.m_Factory = m_Factory;
+    component_create_ctx.m_Config = m_Config;
+    component_create_ctx.m_Contexts.SetCapacity(3, 8);
+    component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), m_GraphicsContext);
+    component_create_ctx.m_Contexts.Put(dmHashString64("render"), m_RenderContext);
+    component_create_ctx.m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
+    component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+}
+
+template<typename T>
 void GamesysTest<T>::SetUp()
 {
     dmSound::Initialize(0x0, 0x0);
@@ -362,16 +378,28 @@ void GamesysTest<T>::SetUp()
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
+    ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
+
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
     dmScript::Initialize(m_ScriptContext);
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
+
+    dmGui::NewContextParams gui_params;
+    gui_params.m_ScriptContext = m_ScriptContext;
+    gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
+    gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
+    gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
+    m_GuiContext = dmGui::NewContext(&gui_params);
 
     m_Contexts.SetCapacity(7,16);
     m_Contexts.Put(dmHashString64("goc"), m_Register);
     m_Contexts.Put(dmHashString64("collectionc"), m_Register);
     m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
     m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
+    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
+    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
     dmGraphics::Initialize();
@@ -383,17 +411,6 @@ void GamesysTest<T>::SetUp()
     render_params.m_ScriptContext = m_ScriptContext;
     render_params.m_MaxCharacters = 256;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
-    m_GuiContext.m_RenderContext = m_RenderContext;
-    m_GuiContext.m_ScriptContext = m_ScriptContext;
-    dmGui::NewContextParams gui_params;
-    gui_params.m_ScriptContext = m_ScriptContext;
-    gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
-    gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
-    gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
-    m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
-    m_GuiContext.m_MaxParticleFXCount = 64;
-    m_GuiContext.m_MaxParticleCount = 1024;
-    m_GuiContext.m_MaxSpineCount = 8;
 
     m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(m_HidContext);
@@ -448,32 +465,28 @@ void GamesysTest<T>::SetUp()
     m_MeshContext.m_Factory       = m_Factory;
     m_MeshContext.m_MaxMeshCount  = 128;
 
-    dmBuffer::NewContext();
+    dmBuffer::NewContext(); // ???
 
     m_SoundContext.m_MaxComponentCount = 32;
 
-    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
-    assert(dmResource::RESULT_OK == r);
+    m_PhysicsContext.m_MaxCollisionCount = 64;
+    m_PhysicsContext.m_MaxContactPointCount = 128;
+
+    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, &m_PhysicsContext);
+    ASSERT_EQ(dmResource::RESULT_OK, r);
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
-    assert(m_GamepadMapsDDF);
+    ASSERT_NE((void*)0, m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
 
     dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
 
-    dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
-    component_create_ctx.m_Script = m_ScriptContext;
-    component_create_ctx.m_Register = m_Register;
-    component_create_ctx.m_Factory = m_Factory;
-    component_create_ctx.m_Config = m_Config;
-    component_create_ctx.m_Contexts.SetCapacity(3, 8);
-    component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), m_GraphicsContext);
-    component_create_ctx.m_Contexts.Put(dmHashString64("render"), m_RenderContext);
-
+    dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+    SetupComponentCreateContext(component_create_ctx);
     dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
                                                                                                     &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
 
@@ -489,7 +502,12 @@ void GamesysTest<T>::TearDown()
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
-    dmGui::DeleteContext(m_GuiContext.m_GuiContext, m_ScriptContext);
+
+    dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+    SetupComponentCreateContext(component_create_ctx);
+    dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
+
+    dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
     dmScript::Finalize(m_ScriptContext);

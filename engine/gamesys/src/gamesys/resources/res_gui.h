@@ -14,14 +14,14 @@
 #define DM_GAMESYSTEM_RES_GUI_H
 
 #include <dlib/array.h>
-#include <resource/resource.h>
-#include <gameobject/gameobject.h>
 #include <particle/particle.h>
 #include <render/font_renderer.h>
 #include <gui/gui.h>
 #include <gamesys/gui_ddf.h>
 #include "res_textureset.h"
 #include "res_rig_scene.h"
+
+#include <dmsdk/script/script.h>
 
 namespace dmGameSystem
 {
@@ -43,24 +43,8 @@ namespace dmGameSystem
         const char*                     m_Path;
         dmGui::HContext                 m_GuiContext;
         dmRender::HMaterial             m_Material;
+        dmHashTable64<void*>            m_Resources;
     };
-
-    dmResource::Result ResPreloadSceneDesc(const dmResource::ResourcePreloadParams& params);
-
-    dmResource::Result ResCreateSceneDesc(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResDestroySceneDesc(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams& params);
-
-    dmResource::Result ResPreloadGuiScript(const dmResource::ResourcePreloadParams& params);
-
-    dmResource::Result ResCreateGuiScript(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResDestroyGuiScript(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResRecreateGuiScript(const dmResource::ResourceRecreateParams& params);
-
 }
 
 #endif // DM_GAMESYSTEM_RES_GUI_H

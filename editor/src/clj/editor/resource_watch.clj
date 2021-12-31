@@ -85,7 +85,9 @@
         lib-states))
 
 (defn- make-builtins-snapshot [workspace]
-  (let [resources (:tree (resource/load-zip-resources workspace (io/resource "builtins.zip")))
+  (let [unpack-path (system/defold-unpack-path)
+        builtins-zip-file (io/file unpack-path "builtins" "builtins.zip")
+        resources (:tree (resource/load-zip-resources workspace builtins-zip-file))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
      :status-map (into {} (map (juxt resource/proj-path (constantly {:version :constant :source :builtins})) flat-resources))}))

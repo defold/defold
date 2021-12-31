@@ -96,8 +96,8 @@ struct AppCtx
 
 static void AppCreate(void* _ctx)
 {
-    dmLogParams params;
-    dmLogInitialize(&params);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
 
     AppCtx* ctx = (AppCtx*)_ctx;
     ctx->m_Created++;

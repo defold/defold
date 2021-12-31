@@ -139,6 +139,8 @@ namespace dmScript
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         *seed = luaL_checkint(L, 1);
+        // discard first value to avoid repeated values
+        dmMath::Rand(seed);
         lua_pop(L, 1);
         return 0;
     }
@@ -177,6 +179,8 @@ namespace dmScript
             *seed = 0;
             lua_pushlightuserdata(L, seed);
             lua_setglobal(L, RANDOM_SEED);
+            // discard first value to avoid repeated values
+            dmMath::Rand(seed);
 
             lua_pushcfunction(L, Lua_Math_Random);
             lua_setfield(L, -2, "random");
@@ -364,7 +368,7 @@ namespace dmScript
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[DM_LOG_MAX_STRING_SIZE];
+        char buffer[dmLog::MAX_STRING_SIZE];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -549,7 +553,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
         int n = lua_gettop(L);
 
-        char buf[DM_LOG_MAX_STRING_SIZE];
+        char buf[dmLog::MAX_STRING_SIZE];
         dmPPrint::Printer printer(buf, sizeof(buf));
         dmHashTable<uintptr_t, bool> printed_tables;
         for (int s = 1; s <= n; ++s)

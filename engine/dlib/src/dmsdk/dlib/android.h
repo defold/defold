@@ -125,9 +125,21 @@ public:
 /*# Load a class
  *
  * @name LoadClass
+ * @param env [type:JNIEnv*]
+ * @param class_name [type:const char*]
  * @return class [type:jclass] the activity class loader
  */
 jclass LoadClass(JNIEnv* env, const char* class_name);
+
+/*# Load a class
+ *
+ * @name LoadClass
+ * @param env [type:JNIEnv*]
+ * @param activity [type:jobject]
+ * @param class_name [type:const char*]
+ * @return class [type:jclass] the activity class loader
+ */
+jclass LoadClass(JNIEnv* env, jobject activity, const char* class_name);
 
 /*# OnActivityResult callback typedef
  *

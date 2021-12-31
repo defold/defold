@@ -252,6 +252,16 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
+    private void createResourcePropertyTasks(List<ComponentPropertyDesc> overrideProps, IResource input) throws CompileExceptionError {
+        for (ComponentPropertyDesc compProp : overrideProps) {
+            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
+            for(String r : resources) {
+                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
+                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
+            }
+        }
+    }
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -264,6 +274,12 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         collectSubCollections(builder, subCollections);
         for (IResource subCollection : subCollections) {
             taskBuilder.addInput(subCollection);
+        }
+
+        for (InstanceDesc inst : builder.getInstancesList()) {
+            InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
+            List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
+            createResourcePropertyTasks(sourceProperties, input);
         }
 
         createGeneratedResources(this.project, builder);

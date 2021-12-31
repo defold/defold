@@ -74,17 +74,7 @@
 
 namespace dmGameSystem
 {
-    GuiContext::GuiContext()
-    : m_Worlds()
-    , m_RenderContext(0)
-    , m_GuiContext(0)
-    , m_ScriptContext(0)
-    , m_MaxGuiComponents(64)
-    {
-        m_Worlds.SetCapacity(128);
-    }
-
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
         dmResource::Result e;
 
@@ -111,8 +101,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
-        REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, 0, ResDestroySceneDesc, ResRecreateSceneDesc);
-        REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResPreloadGuiScript, ResCreateGuiScript, 0, ResDestroyGuiScript, ResRecreateGuiScript);
+        // guic: res_gui.cpp
+        // gui_scriptc: res_gui_script.cpp
         REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("oggc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundPreload, ResSoundCreate, 0, ResSoundDestroy, ResSoundRecreate);
@@ -143,7 +133,6 @@ namespace dmGameSystem
                                                 dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
                                                 ParticleFXContext* particlefx_context,
-                                                GuiContext* gui_context,
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
@@ -217,13 +206,7 @@ namespace dmGameSystem
         // Priority 200 is reserved for scriptc (read+write transforms)
         // Priority 250 is reserved for animc (read+write transforms)
 
-        REGISTER_COMPONENT_TYPE("guic", 300, gui_context,
-                CompGuiNewWorld, CompGuiDeleteWorld,
-                CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal, CompGuiAddToUpdate, 0,
-                CompGuiUpdate, CompGuiRender, 0, CompGuiOnMessage, CompGuiOnInput,
-                CompGuiOnReload, CompGuiGetProperty, CompGuiSetProperty,
-                CompGuiIterChildren, CompGuiIterProperties,
-                0);
+        // prio: 300  comp_gui.cpp
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,

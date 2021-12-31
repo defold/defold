@@ -266,7 +266,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     jc_test_init(&argc, argv);
