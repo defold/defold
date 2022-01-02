@@ -169,23 +169,29 @@ message MeshVertexIndices
 
 message Mesh
 {
-    repeated float positions  = 1;
-    repeated float normals    = 2;
-    repeated float texcoord0  = 3;
+    repeated float positions                = 1;
+    repeated float normals                  = 2;
+    repeated float tangents                 = 3;
+    repeated float texcoord0                = 5;
+    optional uint32 num_texcoord0_components = 6; // max 3
+    repeated float texcoord1                = 7;
+    optional uint32 num_texcoord1_components = 8; // max 3
 
-    repeated uint32 position_indices    = 4;
-    repeated uint32 normals_indices     = 5;
-    repeated uint32 texcoord0_indices   = 6;
+    repeated uint32 position_indices        = 9;
+    repeated uint32 normals_indices         = 10;
+    repeated uint32 texcoord0_indices       = 11;
 
-    repeated MeshVertexIndices vertices = 7; // array of attribute (position, uv, normal) indices describing interleaved vertex buffer
-    optional bytes  indices             = 8; // indices for interleaved vertex buffer
-    optional IndexBufferFormat indices_format = 9; // format of values in indices
+    repeated MeshVertexIndices vertices = 12; // array of attribute (position, uv, normal) indices describing interleaved vertex buffer
+    optional bytes  indices             = 13; // indices for interleaved vertex buffer
+    optional IndexBufferFormat indices_format = 14; // format of values in indices
 
     // w00, w01, w02, w03, w10, … (only specified for skinned meshes)
-    repeated float weights = 10;
+    repeated float weights = 15;
     // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
-    repeated uint32 bone_indices = 11;
-    repeated float mesh_color   = 12; // single color value for the entire mesh
+    repeated uint32 bone_indices = 16;
+    repeated float  mesh_color   = 17; // single color value for the entire mesh
+
+    optional uint32 material_index = 18; // index in to the mesh set material list
 }
 
 // Each mesh slot can have different mesh attachments, with indices pointing
@@ -209,16 +215,21 @@ message MeshEntry
 
 message MeshSet
 {
-    repeated MeshEntry mesh_entries = 1;
-    repeated Mesh mesh_attachments = 2;
+    // new way
+    repeated Mesh meshes = 1;
+    repeated string materials = 2;
+
+    // old way, more spine centric
+    repeated MeshEntry mesh_entries = 3;
+    repeated Mesh mesh_attachments = 4;
 
     // List of bone names that represent the order of the bone influences.
     // Not used for Spine rigs since they don't have support for external skeletons.
-    repeated uint64 bone_list = 3;
+    repeated uint64 bone_list = 5;
     // Max number of bones used in any of the meshes (in the bone_indices list)
-    optional uint32 max_bone_count = 4;
+    optional uint32 max_bone_count = 6;
     // number of spine scene slot entries
-    optional uint32 slot_count = 5 [default = 0];
+    optional uint32 slot_count = 7 [default = 0];
 }
 
 message RigScene

@@ -171,12 +171,6 @@ public class ColladaModelBuilder extends Builder<Void>  {
         //return mesh;
     }
 
-    private static String getMaterialProperty(AIMaterial aiMaterial, String name)
-    {
-        AIString buffer = AIString.calloc();
-        Assimp.aiGetMaterialString(aiMaterial, name, 0, 0, buffer);
-        return buffer.dataString();
-    }
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
@@ -212,11 +206,8 @@ System.out.printf("assimp: File: %s", task.input(0).getAbsPath());
         // MeshSet
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-            try {
-                ModelUtil.loadMeshes(aiScene, meshSetBuilder);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh: " + e.getLocalizedMessage(), e);
-            }
+            ModelUtil.loadMeshes(aiScene, meshSetBuilder);
+
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
             out.close();

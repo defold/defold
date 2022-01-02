@@ -648,10 +648,34 @@ public class ModelUtil {
         meshBuilder.addAllBoneIndices(flattened_indices);
     }
 
-    public static Rig.Mesh loadMesh(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton) throws IOException, LoaderException {
+    private static String getMaterialProperty(AIMaterial aiMaterial, String name) {
+        AIString buffer = AIString.calloc();
+        Assimp.aiGetMaterialString(aiMaterial, name, 0, 0, buffer);
+        return buffer.dataString();
+    }
+
+    public static ArrayList<String> loadMaterials(AIScene scene) {
+        ArrayList<String> materials = new ArrayList<>();
+
+        int num_materials = scene.mNumMaterials();
+        PointerBuffer aiMaterials = scene.mMaterials();
+        for (int i = 0; i < num_materials; i++) {
+            AIMaterial aiMaterial = AIMaterial.create(aiMaterials.get(i));
+
+            String id = getMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME);
+            if (id == null)
+            {
+                id = String.format("null_%d", i);
+            }
+            materials.add(id);
+        }
+        return materials;
+    }
+
+    public static Rig.Mesh loadMesh(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton) {
         ArrayList<Float> positions = getVertexData(mesh.mVertices());
         ArrayList<Float> normals = getVertexData(mesh.mNormals());
-        //ArrayList<Float> tangents = getVertexData(mesh.mTangents());
+        ArrayList<Float> tangents = getVertexData(mesh.mTangents());
         //ArrayList<Float> bitangents = getVertexData(mesh.mBitangents());
 
         ArrayList<Float> texcoord0 = getVertexData(mesh.mTextureCoords(0));
@@ -665,6 +689,9 @@ public class ModelUtil {
         if (normals != null)
             meshBuilder.addAllNormals(normals);
 
+        if (tangents != null)
+            meshBuilder.addAllTangents(tangents);
+
         if (texcoord0 != null) {
             meshBuilder.addAllTexcoord0(texcoord0);
             meshBuilder.setNumTexcoord0Components(mesh.mNumUVComponents(0));
@@ -674,12 +701,15 @@ public class ModelUtil {
             meshBuilder.setNumTexcoord0Components(mesh.mNumUVComponents(1));
         }
 
+        int material_index = mesh.mMaterialIndex();
+        meshBuilder.setMaterialIndex(material_index);
+
         loadWeights(mesh, skeleton, meshBuilder);
 
         return meshBuilder.build();
     }
 
-    public static void loadMeshes(AIScene scene, Rig.MeshSet.Builder meshSetBuilder) throws IOException, LoaderException {
+    public static void loadMeshes(AIScene scene, Rig.MeshSet.Builder meshSetBuilder) {
 
         // // Use first geometry entry as default
         // XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values().iterator().next();
@@ -719,6 +749,9 @@ public class ModelUtil {
         // HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
 
         ArrayList<ModelUtil.Bone> skeleton = loadSkeleton(scene);
+
+        ArrayList<String> materials = loadMaterials(scene);
+        meshSetBuilder.addAllMaterials(materials);
 
         // XMLInput vpos_input = findInput(mesh.vertices.inputs, "POSITION", true);
         // XMLInput vertex_input = findInput(mesh.triangles.inputs, "VERTEX", true);
@@ -963,7 +996,11 @@ public class ModelUtil {
 
         meshSetBuilder.addAllMeshes(meshes);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
-        meshSetBuilder.setSlotCount(1);
+
+        for (ModelUtil.Bone bone : skeleton) {
+            meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
+        }
+
 
         // List<String> boneRefArray = createBoneReferenceList(collada);
         // if (boneRefArray != null && !boneRefArray.isEmpty()) {
@@ -1322,7 +1359,7 @@ public class ModelUtil {
         return skeleton;
     }
 
-    public static ArrayList<ModelUtil.Bone> loadSkeleton(AIScene aiScene) throws IOException, LoaderException {
+    public static ArrayList<ModelUtil.Bone> loadSkeleton(AIScene aiScene) {
         // if (collada.libraryVisualScenes.size() != 1) {
         //     return null;
         // }
