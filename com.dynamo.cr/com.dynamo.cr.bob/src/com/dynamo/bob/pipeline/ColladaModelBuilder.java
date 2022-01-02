@@ -53,6 +53,8 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 @BuilderParams(name="ColladaModel", inExts=".dae", outExt=".meshsetc")
 public class ColladaModelBuilder extends Builder<Void>  {
 
+    private static final String USE_JAGATOO=System.getenv("USE_JAGATOO");
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -179,80 +181,87 @@ public class ColladaModelBuilder extends Builder<Void>  {
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
-System.out.printf("assimp: Collada file: %s", task.input(0).getAbsPath());
-
-        if (!task.input(0).getPath().contains("car"))
+        if (USE_JAGATOO != null)
         {
-            System.out.printf("    skip\n");
+            buildJagatooCollada(task);
             return;
         }
 
+System.out.printf("assimp: File: %s", task.input(0).getAbsPath());
 
-        // LWJGL only supports direct byte buffers
-        byte[] content = task.input(0).getContent();
-        ByteBuffer buffer = ByteBuffer.allocateDirect(content.length);
-        buffer.put(ByteBuffer.wrap(content));
-        buffer.rewind();
-
-        String path = task.input(0).getPath();
-        String suffix = path.substring(path.lastIndexOf(".") + 1);
-
-        AIScene aiScene = aiImportFileFromMemory(buffer, aiProcess_Triangulate, suffix);
+        AIScene aiScene = ModelUtil.loadScene(task.input(0).getContent(), BuilderUtil.getSuffix(task.input(0).getPath()));
         if (aiScene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
         }
 
-        int numMaterials = aiScene.mNumMaterials();
-
-System.out.printf("Num materials: %d\n", numMaterials);
-
-        PointerBuffer aiMaterials = aiScene.mMaterials();
-        //List<Material> materials = new ArrayList<>();
-        for (int i = 0; i < numMaterials; i++) {
-            AIMaterial aiMaterial = AIMaterial.create(aiMaterials.get(i));
-            //processMaterial(aiMaterial, materials, texturesDir);
-
-            // check which inputs it uses: diffuse, normal, extra (aiTextureType_DIFFUSE etc) // https://javadoc.lwjgl.org/index.html?org/lwjgl/assimp/Assimp.html
-            // and enable those flags on the material (for the editor do enable these slots, and the user to assign them)
-
-            // AI_MATKEY_NAME
-
-            String materialID = getMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME);
-            if (materialID == null)
-            {
-                materialID = "null";
+        // Skeleton
+        {
+            Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+            try {
+                ModelUtil.loadSkeleton(aiScene, skeletonBuilder);
+            } catch (LoaderException e) {
+                throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
             }
 
-            // AIMaterialProperty.Buffer
-            // AIString aiID = AIString.calloc();
-            // Assimp.aiGetMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME, aiID);
+            ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+            skeletonBuilder.build().writeTo(out);
+            out.close();
+            task.output(1).setContent(out.toByteArray());
+        }
 
-            System.out.printf("  Material %d: %s\n", i, materialID);
-
-
-            AIString texture_path = AIString.calloc();
-            Assimp.aiGetMaterialTexture(aiMaterial, aiTextureType_DIFFUSE, 0, texture_path, (IntBuffer) null, null, null, null, null, null);
-            String textPath = texture_path.dataString();
-            //Texture texture = null;
-            if (textPath != null && textPath.length() > 0) {
-                //TextureCache textCache = TextureCache.getInstance();
-                //texture = textCache.getTexture(texturesDir + "/" + textPath);
-                System.out.printf("  diffuse: %s\n", i, textPath);
+        // MeshSet
+        {
+            MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+            try {
+                ModelUtil.loadMeshes(aiScene, meshSetBuilder);
+            } catch (LoaderException e) {
+                throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh: " + e.getLocalizedMessage(), e);
             }
+            ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+            meshSetBuilder.build().writeTo(out);
+            out.close();
+            task.output(0).setContent(out.toByteArray());
         }
 
-        int numMeshes = aiScene.mNumMeshes();
 
-        System.out.printf("Num meshes: %d\n", numMeshes);
+//         int numMaterials = aiScene.mNumMaterials();
 
-        PointerBuffer aiMeshes = aiScene.mMeshes();
-        //Mesh[] meshes = new Mesh[numMeshes];
-        for (int i = 0; i < numMeshes; i++) {
-            AIMesh aiMesh = AIMesh.create(aiMeshes.get(i));
-            processMesh(aiMesh);
-            //Mesh mesh = processMesh(aiMesh, materials);
-            //meshes[i] = mesh;
-        }
+// System.out.printf("Num materials: %d\n", numMaterials);
+
+//         PointerBuffer aiMaterials = aiScene.mMaterials();
+//         //List<Material> materials = new ArrayList<>();
+//         for (int i = 0; i < numMaterials; i++) {
+//             AIMaterial aiMaterial = AIMaterial.create(aiMaterials.get(i));
+//             //processMaterial(aiMaterial, materials, texturesDir);
+
+//             // check which inputs it uses: diffuse, normal, extra (aiTextureType_DIFFUSE etc) // https://javadoc.lwjgl.org/index.html?org/lwjgl/assimp/Assimp.html
+//             // and enable those flags on the material (for the editor do enable these slots, and the user to assign them)
+
+//             // AI_MATKEY_NAME
+
+//             String materialID = getMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME);
+//             if (materialID == null)
+//             {
+//                 materialID = "null";
+//             }
+
+//             // AIMaterialProperty.Buffer
+//             // AIString aiID = AIString.calloc();
+//             // Assimp.aiGetMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME, aiID);
+
+//             System.out.printf("  Material %d: %s\n", i, materialID);
+
+
+//             AIString texture_path = AIString.calloc();
+//             Assimp.aiGetMaterialTexture(aiMaterial, aiTextureType_DIFFUSE, 0, texture_path, (IntBuffer) null, null, null, null, null, null);
+//             String textPath = texture_path.dataString();
+//             //Texture texture = null;
+//             if (textPath != null && textPath.length() > 0) {
+//                 //TextureCache textCache = TextureCache.getInstance();
+//                 //texture = textCache.getTexture(texturesDir + "/" + textPath);
+//                 System.out.printf("  diffuse: %s\n", i, textPath);
+//             }
+//         }
 
         aiReleaseImport(aiScene);
     }

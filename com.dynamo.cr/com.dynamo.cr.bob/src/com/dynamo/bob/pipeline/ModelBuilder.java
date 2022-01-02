@@ -68,7 +68,6 @@ public class ModelBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         ByteArrayInputStream model_is = new ByteArrayInputStream(task.input(0).getContent());
@@ -78,23 +77,18 @@ public class ModelBuilder extends Builder<Void> {
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
-        rigBuilder.setMeshSet(BuilderUtil.replaceExt(modelDescBuilder.getMesh(), ".dae", ".meshsetc"));
+        rigBuilder.setMeshSet(BuilderUtil.replaceExt(modelDescBuilder.getMesh(), ".meshsetc"));
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            rigBuilder.setSkeleton(BuilderUtil.replaceExt(modelDescBuilder.getSkeleton(), ".dae", ".skeletonc"));
+            rigBuilder.setSkeleton(BuilderUtil.replaceExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
         if(!modelDescBuilder.getAnimations().isEmpty()) {
-            if(modelDescBuilder.getAnimations().endsWith(".dae")) {
-                // if a collada file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh collada file
-                // we define this a generated file as the animation set does not come from an animset resource, but is exported directly from this collada file
-                // and because we alseo avoid possible resource name collision (ref: atlas <-> texture).
-                rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".dae", "_generated_0.animationsetc"));
-            } else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
-                // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
-                rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".animationset", ".animationsetc"));
-            } else {
-                throw new CompileExceptionError(task.input(0), -1, "Unknown animation format: " + modelDescBuilder.getAnimations());
-            }
+            // if a collada file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh collada file
+            // we define this a generated file as the animation set does not come from an animset resource, but is exported directly from this collada file
+            // and because we alseo avoid possible resource name collision (ref: atlas <-> texture).
 
+            // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
+
+            rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".animationsetc"));
         }
 
         rigBuilder.setTextureSet(""); // this is set in the model

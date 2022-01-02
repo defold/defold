@@ -42,6 +42,7 @@ The following software has licenses which require inclusion of their respective 
     * vpx/vp8
     * Tremolo
     * Sony Vector Math library
+    * LWJGL + Assimp
   * LGPL 2.0
     * OpenAL
 

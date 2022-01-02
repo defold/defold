@@ -109,7 +109,12 @@ public class AnimationSetBuilder extends Builder<Void>  {
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
             ArrayList<String> animationIds = new ArrayList<String>();
             try {
-                ColladaUtil.loadAnimations(animFileIS, animBuilder, animId, animationIds);
+                String USE_JAGATOO=System.getenv("USE_JAGATOO");
+                if (USE_JAGATOO!=null)
+                    ColladaUtil.loadAnimations(animFileIS, animBuilder, animId, animationIds);
+                else
+                    ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), animBuilder, animId, animationIds);
+
             } catch (XMLStreamException e) {
                 throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
             } catch (LoaderException e) {
