@@ -1140,11 +1140,11 @@ namespace dmSocket
 
     Result Select(Selector* selector, int32_t timeout)
     {
-        int r = dmFileDescriptor::Wait(&selector->m_Poller, timeout);
         if (timeout > 0)
         {
             timeout = timeout / 1000;
         }
+        int r = dmFileDescriptor::Wait(&selector->m_Poller, (timeout < 0) ? 0 : timeout);
         if (r < 0)
         {
             return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO);
