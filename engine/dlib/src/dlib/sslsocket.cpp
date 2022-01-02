@@ -236,7 +236,7 @@ static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t tim
 
     dmFileDescriptor::Poller poller;
     dmFileDescriptor::PollerSetEvent(&poller, dmFileDescriptor::EVENT_READ, fd);
-    ret = dmFileDescriptor::Wait(&poller, timeout);
+    ret = dmFileDescriptor::Wait(&poller, timeout == 0 ? -1 : timeout);
 
     // Zero fds ready means we timed out
     if( ret == 0 )
