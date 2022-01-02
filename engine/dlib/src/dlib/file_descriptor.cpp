@@ -141,7 +141,7 @@ namespace dmFileDescriptor
         dmLogInfo("poller size = %d ", poller->m_Pollfds.Size());
         for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
         {
-            dmLogInfo("poller i = %d fd = %d events = %d", i, poller->m_Pollfds[i].fd, poller->m_Pollfds[i].events);
+            dmLogInfo("poller i = %d fd = %d events = %d revents = %d", i, poller->m_Pollfds[i].fd, poller->m_Pollfds[i].events, poller->m_Pollfds[i].revents);
         }
     }
 
