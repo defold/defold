@@ -75,7 +75,7 @@ namespace dmFileDescriptor
 
 
     /*#
-     * Set capacity pf poller.
+     * Set capacity of poller.
      * @name PollerSetCapacity
      * @param poller [type:Poller*] Poller
      * @param capacity [type:uint32_T] Capacity
@@ -114,7 +114,7 @@ namespace dmFileDescriptor
 
     /*#
      * Reset poller.
-     * @name SelectorZero
+     * @name PollerReset
      * @param spoller [type:Poller*] Poller
      * @return [type:void]
      */
@@ -124,7 +124,7 @@ namespace dmFileDescriptor
      * Wait for event
      * @name Wait
      * @param poller [type:Poller*] Poller
-     * @param timeout [type:int] Timeout. For blocking pass -1. (microseconds)
+     * @param timeout [type:int] Timeout. For blocking pass -1. (milliseconds)
      * @return [type:Result] Non-negative value on success, 0 on timeout and
      * -1 on error with errno set to indicate the error
      */
