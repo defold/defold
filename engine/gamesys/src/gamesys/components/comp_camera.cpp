@@ -310,12 +310,6 @@ namespace dmGameSystem
     {
         CameraComponent* component = (CameraComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
-
-        if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
-        {
-            return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-        }
-
         if (CAMERA_PROP_ASPECT_RATIO == set_property)
         {
             component->m_AspectRatio = params.m_Value.m_Number;
