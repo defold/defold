@@ -35,21 +35,21 @@ function luajit_configure() {
 			XFLAGS="$COMMON_FLAGS_32"
 			export CROSS=""
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="clang"
+			export HOST_CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
 			export HOST_CFLAGS="$XFLAGS -m32 -isysroot $OSX_SDK_ROOT -I."
-			export HOST_ALDFLAGS="-m32"
+			export HOST_ALDFLAGS="-m32 -isysroot $OSX_SDK_ROOT"
 			export TARGET_FLAGS="$CFLAGS"
 			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM"
-            export SKIPLUAJIT=true
+			export SKIPLUAJIT=true
 			;;
 		arm64-darwin)
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_64"
 			export CROSS=""
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="clang"
+			export HOST_CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
-			export HOST_ALDFLAGS="-m64"
+			export HOST_ALDFLAGS="-m64 -isysroot $OSX_SDK_ROOT"
 			export TARGET_FLAGS="$CFLAGS"
 			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64"
 			;;
@@ -57,9 +57,9 @@ function luajit_configure() {
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_64"
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="clang"
+			export HOST_CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
-			export HOST_ALDFLAGS="-m64"
+			export HOST_ALDFLAGS="-m64 -isysroot $OSX_SDK_ROOT"
 			export TARGET_FLAGS="$CFLAGS"
 			;;
 		armv7-android)
@@ -184,21 +184,7 @@ case $1 in
 
 					# Since GC32 mode isn't supported on macOS, in the new version.
 					# We'll just use the old built executable from the previous package
-
-					# mkdir foo
-					# cd foo
-					# tar xvf ../../../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz
-					# tar xvf ../../build/luajit-2.1.0-beta3-x86_64-darwin.tar.gz
-					# tar zcvf ../luajit-2.1.0-beta3-x86_64-darwin.tar.gz .
-
-					# export DEFOLD_ARCH="32"
-					# export TARGET_CFLAGS="-DLUAJIT_DISABLE_GC64"
-					# echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
-					# set -e
-					# make -j8
-					# make install
-					# make clean
-					# set +e
+					# (we need the GC32 for generating 32 bit Lua source for 32 bit platforms: win32, armv7-android)
 
 					export DEFOLD_ARCH="64"
 					export TARGET_CFLAGS=""
