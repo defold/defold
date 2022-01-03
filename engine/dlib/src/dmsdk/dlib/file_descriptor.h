@@ -30,20 +30,6 @@
  */
 namespace dmFileDescriptor
 {
-
-    /*# file descriptor result
-     * File descriptor result
-     * @enum
-     * @name Result
-     * @member RESULT_OK 0
-     */
-    enum Result
-    {
-        RESULT_OK             = 0,
-        RESULT_TIMEOUT        = 1,
-        RESULT_ERROR          = 2
-    };
-
     /*#
      * Poll events
      * @enum
