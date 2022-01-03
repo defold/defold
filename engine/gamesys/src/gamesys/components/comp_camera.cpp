@@ -265,4 +265,36 @@ namespace dmGameSystem
         camera->m_FarZ = cam_resource->m_DDF->m_FarZ;
         camera->m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
     }
+
+    dmGameObject::PropertyResult CompCameraGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
+        dmhash_t get_property = params.m_PropertyId;
+
+        if (IsReferencingProperty(SPRITE_PROP_SCALE, get_property))
+        {
+            return GetProperty(out_value, get_property, component->m_Scale, SPRITE_PROP_SCALE);
+        }
+        else if (IsReferencingProperty(SPRITE_PROP_SIZE, get_property))
+        {
+            return GetProperty(out_value, get_property, component->m_Size, SPRITE_PROP_SIZE);
+        }
+    }
+
+    dmGameObject::PropertyResult CompCameraSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
+        dmhash_t set_property = params.m_PropertyId;
+
+        if (IsReferencingProperty(SPRITE_PROP_SCALE, set_property))
+        {
+            return SetProperty(set_property, params.m_Value, component->m_Scale, SPRITE_PROP_SCALE);
+        }
+        else if (IsReferencingProperty(SPRITE_PROP_SIZE, set_property))
+        {
+            return SetProperty(set_property, params.m_Value, component->m_Size, SPRITE_PROP_SIZE);
+        }
+    }
 }

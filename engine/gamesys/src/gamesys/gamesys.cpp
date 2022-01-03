@@ -220,7 +220,7 @@ namespace dmGameSystem
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
                 &CompCameraCreate, &CompCameraDestroy, 0, 0, &CompCameraAddToUpdate, 0,
                 &CompCameraUpdate, 0, 0, &CompCameraOnMessage, 0,
-                &CompCameraOnReload, 0, 0,
+                &CompCameraOnReload, CompCameraGetProperty, CompCameraSetProperty,
                 0, 0,
                 1);
 
