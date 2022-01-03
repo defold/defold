@@ -1109,9 +1109,10 @@ namespace dmSocket
                 return dmFileDescriptor::EVENT_READ;
             case SELECTOR_KIND_WRITE:
                 return dmFileDescriptor::EVENT_WRITE;
-            default:
             case SELECTOR_KIND_EXCEPT:
                 return dmFileDescriptor::EVENT_ERROR;
+            default:
+                assert(false);
         }
     }
 

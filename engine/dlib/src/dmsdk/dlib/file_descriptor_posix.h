@@ -10,9 +10,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_FILE_DESCRIPTOR_H
-#define DM_FILE_DESCRIPTOR_H
+#ifndef DMSDK_FILE_DESCRIPTOR_POSIX_H
+#define DMSDK_FILE_DESCRIPTOR_POSIX_H
 
-#include <dmsdk/dlib/file_descriptor.h>
+#include <poll.h>
 
-#endif // DM_FILE_DESCRIPTOR_H
+namespace dmFileDescriptor
+{
+    typedef pollfd PollFD;
+}
+
+#endif // DMSDK_FILE_DESCRIPTOR_POSIX_H

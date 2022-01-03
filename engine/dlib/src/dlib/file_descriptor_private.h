@@ -10,9 +10,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_FILE_DESCRIPTOR_H
-#define DM_FILE_DESCRIPTOR_H
+#ifndef DM_FILE_DESCRIPTOR_PRIVATE_H
+#define DM_FILE_DESCRIPTOR_PRIVATE_H
 
-#include <dmsdk/dlib/file_descriptor.h>
+namespace dmFileDescriptor
+{
+	int PollEventToNative(PollEvent event);
+	int PollReturnEventToNative(PollEvent event);
+}
 
-#endif // DM_FILE_DESCRIPTOR_H
+#endif // DM_FILE_DESCRIPTOR_PRIVATE_H

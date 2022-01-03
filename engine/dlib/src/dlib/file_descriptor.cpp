@@ -11,64 +11,15 @@
 // specific language governing permissions and limitations under the License.
 
 #include "file_descriptor.h"
+#include "file_descriptor_private.h"
 #include "log.h"
 #include <stdint.h>
-#include <assert.h>
-#if defined(_WIN32)
-#include <winsock2.h>
-#else
-#include <poll.h>
-#endif
-
 
 namespace dmFileDescriptor
 {
     void PollerSetCapacity(Poller* poller, uint32_t capacity)
     {
         poller->m_Pollfds.SetCapacity(capacity);
-    }
-
-    int PollEventToNative(PollEvent event)
-    {
-        #if defined(_WIN32)
-        switch (event)
-        {
-            case EVENT_READ: return POLLRDNORM;
-            case EVENT_WRITE: return POLLWRNORM;
-            default:
-            case EVENT_ERROR: return POLLRDBAND;
-        }
-        #else
-        switch (event)
-        {
-            case EVENT_READ: return POLLIN;
-            // case EVENT_READ: return POLLIN | POLLPRI;
-            case EVENT_WRITE: return POLLOUT;
-            default:
-            case EVENT_ERROR: return POLLPRI;
-        }
-        #endif
-    }
-    int PollReturnEventToNative(PollEvent event)
-    {
-        #if defined(_WIN32)
-        switch (event)
-        {
-            case EVENT_READ: return POLLRDNORM;
-            case EVENT_WRITE: return POLLWRNORM;
-            default:
-            case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL | POLLRDBAND;
-        }
-        #else
-        switch (event)
-        {
-            case EVENT_READ: return POLLIN;
-            // case EVENT_READ: return POLLIN | POLLPRI;
-            case EVENT_WRITE: return POLLOUT;
-            default:
-            case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL;
-        }
-        #endif
     }
 
     void PollerClearEvent(Poller* poller, PollEvent event, int fd)
@@ -101,17 +52,10 @@ namespace dmFileDescriptor
             poller->m_Pollfds.OffsetCapacity(4);
         }
 
-        #if defined(_WIN32)
-        WSAPOLLFD pfd;
+        PollFD pfd;
         pfd.fd = fd;
         pfd.events = e;
         poller->m_Pollfds.Push(pfd);
-        #else
-        pollfd pfd;
-        pfd.fd = fd;
-        pfd.events = e;
-        poller->m_Pollfds.Push(pfd);
-        #endif
     }
 
     bool PollerHasEvent(Poller* poller, PollEvent event, int fd)
@@ -143,16 +87,5 @@ namespace dmFileDescriptor
         {
             dmLogInfo("poller i = %d fd = %d events = %d revents = %d", i, poller->m_Pollfds[i].fd, poller->m_Pollfds[i].events, poller->m_Pollfds[i].revents);
         }
-    }
-
-    int Wait(Poller* poller, int timeout)
-    {
-        int r;
-        #if defined(_WIN32)
-        r = WSAPoll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
-        #else
-        r = poll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
-        #endif
-        return r;
     }
 }

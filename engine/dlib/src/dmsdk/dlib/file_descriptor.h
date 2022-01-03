@@ -15,9 +15,9 @@
 
 #include <dmsdk/dlib/array.h>
 #if defined(_WIN32)
-#include <winsock2.h>
+    #include <dmsdk/dlib/file_descriptor_win32.h>
 #else
-#include <poll.h>
+    #include <dmsdk/dlib/file_descriptor_posix.h>
 #endif
 
 /*# SDK File Descriptor API documentation
@@ -52,11 +52,7 @@ namespace dmFileDescriptor
      */
     struct Poller
     {
-        #if defined(_WIN32)
-        dmArray<WSAPOLLFD> m_Pollfds;
-        #else
-        dmArray<pollfd> m_Pollfds;
-        #endif
+        dmArray<PollFD> m_Pollfds;
     };
 
 
