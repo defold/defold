@@ -52,11 +52,9 @@ namespace dmGameSystem
         dmArray<CameraComponent*> m_FocusStack;
     };
 
-    static const dmhash_t CAMERA_PROP_ASPECT_RATIO= dmHashString64("aspect_ratio");
     static const dmhash_t CAMERA_PROP_FOV = dmHashString64("fov");
     static const dmhash_t CAMERA_PROP_NEAR_Z = dmHashString64("near_z");
     static const dmhash_t CAMERA_PROP_FAR_Z = dmHashString64("far_z");
-    static const dmhash_t CAMERA_PROP_AUTO_ASPECT_RATIO= dmHashString64("auto_aspect_ratio");
 
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -278,12 +276,7 @@ namespace dmGameSystem
         CameraComponent* component = (CameraComponent*)*params.m_UserData;
         dmhash_t get_property = params.m_PropertyId;
 
-        if (CAMERA_PROP_ASPECT_RATIO == get_property)
-        {
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_AspectRatio);
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        else if (CAMERA_PROP_FOV == get_property)
+        if (CAMERA_PROP_FOV == get_property)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_Fov);
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -298,11 +291,6 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_FarZ);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        else if (CAMERA_PROP_AUTO_ASPECT_RATIO == get_property)
-        {
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_AutoAspectRatio == 1);
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -310,12 +298,8 @@ namespace dmGameSystem
     {
         CameraComponent* component = (CameraComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
-        if (CAMERA_PROP_ASPECT_RATIO == set_property)
-        {
-            component->m_AspectRatio = params.m_Value.m_Number;
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        else if (CAMERA_PROP_FOV == set_property)
+        
+        if (CAMERA_PROP_FOV == set_property)
         {
             component->m_Fov = params.m_Value.m_Number;
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -328,11 +312,6 @@ namespace dmGameSystem
         else if (CAMERA_PROP_FAR_Z == set_property)
         {
             component->m_FarZ = params.m_Value.m_Number;
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        else if (CAMERA_PROP_AUTO_ASPECT_RATIO == set_property)
-        {
-            component->m_AutoAspectRatio = params.m_Value.m_Bool;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
