@@ -38,12 +38,11 @@
 
 #include "internal.h"
 
-_GLFWwin                    g_Savewin;
-
 EAGLContext*                g_glContext = 0;
 EAGLContext*                g_glAuxContext = 0;
 
 // AppDelegate.m
+extern _GLFWwin             g_Savewin;
 extern UIWindow*            g_ApplicationWindow;
 extern AppDelegate*         g_ApplicationDelegate;
 
