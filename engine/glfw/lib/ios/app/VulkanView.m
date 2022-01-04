@@ -17,9 +17,8 @@
 
 #include "internal.h"
 
-_GLFWwin          		g_Savewin;
-
 // AppDelegate.m
+extern _GLFWwin         g_Savewin;
 extern UIWindow*        g_ApplicationWindow;
 extern AppDelegate*     g_ApplicationDelegate;
 
