@@ -36,7 +36,7 @@ namespace dmCrash
         bool is_debug_mode = dLib::IsDebugMode();
         dLib::SetDebugMode(true);
 
-        HANDLE hFile = CreateFile( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+        HANDLE hFile = CreateFile( (LPCWSTR)path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 
         if( ( hFile != NULL ) && ( hFile != INVALID_HANDLE_VALUE ) )
         {
