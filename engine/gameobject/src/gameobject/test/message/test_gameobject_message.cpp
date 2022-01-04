@@ -370,11 +370,11 @@ TEST_F(MessageTest, TestInputFocus)
 
 struct GameObjectTransformContext
 {
-    Vectormath::Aos::Point3 m_Position;
-    Vectormath::Aos::Quat m_Rotation;
+    dmVMath::Point3 m_Position;
+    dmVMath::Quat m_Rotation;
     float m_Scale;
-    Vectormath::Aos::Point3 m_WorldPosition;
-    Vectormath::Aos::Quat m_WorldRotation;
+    dmVMath::Point3 m_WorldPosition;
+    dmVMath::Quat m_WorldRotation;
     float m_WorldScale;
 };
 
@@ -405,12 +405,12 @@ TEST_F(MessageTest, TestGameObjectTransform)
     dmGameObject::SetParent(go, parent);
 
     float sq_2_half = sqrtf(2.0f) * 0.5f;
-    dmGameObject::SetPosition(parent, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
-    dmGameObject::SetRotation(parent, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+    dmGameObject::SetPosition(parent, dmVMath::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(parent, dmVMath::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
     dmGameObject::SetScale(parent, 2.0f);
 
-    dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
-    dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+    dmGameObject::SetPosition(go, dmVMath::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(go, dmVMath::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
     dmGameObject::SetScale(go, 2.0f);
 
     dmhash_t message_id = dmGameObjectDDF::RequestTransform::m_DDFDescriptor->m_NameHash;
@@ -433,11 +433,11 @@ TEST_F(MessageTest, TestGameObjectTransform)
 
     ASSERT_EQ(1u, dmMessage::Dispatch(socket, DispatchGameObjectTransformCallback, &context));
 
-    Vectormath::Aos::Point3 position = dmGameObject::GetPosition(go);
-    Vectormath::Aos::Quat rotation = dmGameObject::GetRotation(go);
+    dmVMath::Point3 position = dmGameObject::GetPosition(go);
+    dmVMath::Quat rotation = dmGameObject::GetRotation(go);
     float scale = dmGameObject::GetUniformScale(go);
-    Vectormath::Aos::Point3 world_position = dmGameObject::GetWorldPosition(go);
-    Vectormath::Aos::Quat world_rotation = dmGameObject::GetWorldRotation(go);
+    dmVMath::Point3 world_position = dmGameObject::GetWorldPosition(go);
+    dmVMath::Quat world_rotation = dmGameObject::GetWorldRotation(go);
     float world_scale = dmGameObject::GetWorldUniformScale(go);
 
     ASSERT_EQ(position.getX(), context.m_Position.getX());
@@ -468,11 +468,11 @@ TEST_F(MessageTest, TestSetParent)
     const float sq_2_half = sqrtf(2.0f) * 0.5f;
     const float epsilon = 0.000001f;
 
-    dmGameObject::SetPosition(parent, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
-    dmGameObject::SetRotation(parent, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+    dmGameObject::SetPosition(parent, dmVMath::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(parent, dmVMath::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
 
-    dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
-    dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+    dmGameObject::SetPosition(go, dmVMath::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(go, dmVMath::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
 
     dmhash_t message_id = dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash;
     dmMessage::URL receiver;
@@ -518,8 +518,8 @@ TEST_F(MessageTest, TestSetParent)
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
-    dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
-    dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+    dmGameObject::SetPosition(go, dmVMath::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(go, dmVMath::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
 
     ddf.m_ParentId = parent_id;
     ddf.m_KeepWorldTransform = 1;

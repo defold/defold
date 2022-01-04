@@ -14,9 +14,13 @@
 
 #include "gui_private.h"
 #include "gui_script.h"
+#include <rig/rig.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGui
 {
+    using namespace dmVMath;
+
     // gui_script_null.cpp
 
     void SetDefaultNewContextParams(NewContextParams* params)

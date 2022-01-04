@@ -14,6 +14,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <hid/hid.h>
 
@@ -29,7 +30,7 @@
 #include <Carbon/Carbon.h>
 #endif
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 int main(int argc, char *argv[])
 {
@@ -85,14 +86,14 @@ namespace dmFontView
 
             dmRender::DrawTextParams params;
             params.m_Text = context->m_TestString;
-            params.m_WorldTransform = Matrix4::translation(Vectormath::Aos::Vector3(x, y, 0.0f));
-            params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+            params.m_WorldTransform = Matrix4::translation(dmVMath::Vector3(x, y, 0.0f));
+            params.m_FaceColor = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
             dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, params);
 
             y += 60;
 
             params.m_Text = buffer;
-            params.m_WorldTransform = Matrix4::translation(Vectormath::Aos::Vector3(x, y, 0.0f));
+            params.m_WorldTransform = Matrix4::translation(dmVMath::Vector3(x, y, 0.0f));
 
             dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, params);
 

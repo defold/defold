@@ -18,7 +18,7 @@
 #include <dlib/profile.h>
 #include <dlib/hash.h>
 #include <dlib/align.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
@@ -155,8 +155,6 @@ PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 #error "Platform not supported."
 #endif
 
-using namespace Vectormath::Aos;
-
 // OpenGLES compatibility
 #if defined(GL_ES_VERSION_2_0)
 #define glClearDepth glClearDepthf
@@ -175,6 +173,8 @@ using namespace Vectormath::Aos;
 
 namespace dmGraphics
 {
+    using namespace dmVMath;
+
 static void LogGLError(GLint err, const char* fnname, int line)
 {
 #if defined(GL_ES_VERSION_2_0)

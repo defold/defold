@@ -53,7 +53,7 @@ namespace dmGameSystem
 
     const char* CompLabelGetText(const LabelComponent* component);
 
-    Vectormath::Aos::Matrix4 CompLabelLocalTransform(const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, const Vectormath::Aos::Vector3& scale, const Vectormath::Aos::Vector3& size, uint32_t pivot);
+    dmVMath::Matrix4 CompLabelLocalTransform(const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale, const dmVMath::Vector3& size, uint32_t pivot);
 }
 
 #endif // DM_GAMESYS_COMP_LABEL_H

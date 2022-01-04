@@ -18,6 +18,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -304,17 +305,17 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
         CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
 
-        Vectormath::Aos::Point3 position;
+        dmVMath::Point3 position;
         if (top >= 2 && !lua_isnil(L, 2))
         {
-            position = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
+            position = dmVMath::Point3(*dmScript::CheckVector3(L, 2));
         }
         else
         {
             position = dmGameObject::GetWorldPosition(sender_instance);
         }
 
-        Vectormath::Aos::Quat rotation;
+        dmVMath::Quat rotation;
         if (top >= 3 && !lua_isnil(L, 3))
         {
             rotation = *dmScript::CheckQuat(L, 3);
@@ -365,11 +366,11 @@ namespace dmGameSystem
             }
         }
 
-        Vector3 scale;
+        dmVMath::Vector3 scale;
         if (top >= 5 && !lua_isnil(L, 5))
         {
             // We check for zero in the ToTransform/ResetScale in transform.h
-            Vector3* v = dmScript::ToVector3(L, 5);
+            dmVMath::Vector3* v = dmScript::ToVector3(L, 5);
             if (v != 0)
             {
                 scale = *v;
@@ -377,7 +378,7 @@ namespace dmGameSystem
             else
             {
                 float val = luaL_checknumber(L, 5);
-                scale = Vector3(val, val, val);
+                scale = dmVMath::Vector3(val, val, val);
             }
         }
         else

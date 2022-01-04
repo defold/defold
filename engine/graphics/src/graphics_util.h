@@ -14,11 +14,11 @@
 #define DM_GRAPHICS_UTIL_H
 
 #include <dlib/endian.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGraphics
 {
-    inline uint32_t PackRGBA(const Vectormath::Aos::Vector4& in_color)
+    inline uint32_t PackRGBA(const dmVMath::Vector4& in_color)
     {
         uint8_t r = (uint8_t)(in_color.getX() * 255.0f);
         uint8_t g = (uint8_t)(in_color.getY() * 255.0f);
@@ -33,7 +33,7 @@ namespace dmGraphics
         return c;
     }
 
-    inline const Vectormath::Aos::Vector4 UnpackRGBA(uint32_t in_color)
+    inline const dmVMath::Vector4 UnpackRGBA(uint32_t in_color)
     {
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
         float r = (float)((in_color & 0x000000FF)      ) / 255.0f;
@@ -46,7 +46,7 @@ namespace dmGraphics
         float b = (float)((in_color & 0x0000FF00) >>  8) / 255.0f;
         float a = (float)((in_color & 0x000000FF)      ) / 255.0f;
 #endif
-        return Vectormath::Aos::Vector4(r,g,b,a);
+        return dmVMath::Vector4(r,g,b,a);
     }
 }
 

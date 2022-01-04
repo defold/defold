@@ -15,6 +15,7 @@
 
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "physics.h"
 #include "physics_private.h"
@@ -72,24 +73,24 @@ namespace dmPhysics
         uint8_t                     :7;
     };
 
-    inline void ToB2(const Vectormath::Aos::Point3& p0, b2Vec2& p1, float scale)
+    inline void ToB2(const dmVMath::Point3& p0, b2Vec2& p1, float scale)
     {
         p1.Set(p0.getX() * scale, p0.getY() * scale);
     }
 
-    inline void ToB2(const Vectormath::Aos::Vector3& p0, b2Vec2& p1, float scale)
+    inline void ToB2(const dmVMath::Vector3& p0, b2Vec2& p1, float scale)
     {
         p1.Set(p0.getX() * scale, p0.getY() * scale);
     }
 
-    inline void FromB2(const b2Vec2& p0, Vectormath::Aos::Vector3& p1, float inv_scale)
+    inline void FromB2(const b2Vec2& p0, dmVMath::Vector3& p1, float inv_scale)
     {
         p1.setX(p0.x * inv_scale);
         p1.setY(p0.y * inv_scale);
         p1.setZ(0.0f);
     }
 
-    inline void FromB2(const b2Vec2& p0, Vectormath::Aos::Point3& p1, float inv_scale)
+    inline void FromB2(const b2Vec2& p0, dmVMath::Point3& p1, float inv_scale)
     {
         p1.setX(p0.x * inv_scale);
         p1.setY(p0.y * inv_scale);

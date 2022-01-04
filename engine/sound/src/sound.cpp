@@ -19,6 +19,7 @@
 #include <dlib/profile.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "sound.h"
 #include "sound_codec.h"
@@ -34,7 +35,7 @@
  */
 namespace dmSound
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     #define SOUND_MAX_MIX_CHANNELS (2)
     #define SOUND_OUTBUFFER_COUNT (6)

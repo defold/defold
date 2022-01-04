@@ -15,6 +15,7 @@
 
 #include <dlib/hash.h>
 #include <dmsdk/graphics/graphics.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGraphics
 {
@@ -108,8 +109,8 @@ namespace dmGraphics
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     typedef uint32_t (*GetUniformCountFn)(HProgram prog);
     typedef int32_t (* GetUniformLocationFn)(HProgram prog, const char* name);
-    typedef void (*SetConstantV4Fn)(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    typedef void (*SetConstantM4Fn)(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
+    typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
+    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int base_register);
     typedef void (*SetSamplerFn)(HContext context, int32_t location, int32_t unit);
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);

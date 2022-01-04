@@ -307,8 +307,8 @@ namespace dmGameSystem
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection");
         }
 
-        Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
-        Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
+        dmVMath::Point3 from( *dmScript::CheckVector3(L, 1) );
+        dmVMath::Point3 to( *dmScript::CheckVector3(L, 2) );
 
         uint32_t mask = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
@@ -346,7 +346,7 @@ namespace dmGameSystem
     {
         lua_pushnumber(L, response.m_Fraction);
         lua_setfield(L, -2, "fraction");
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
+        dmScript::PushVector3(L, dmVMath::Vector3(response.m_Position));
         lua_setfield(L, -2, "position");
         dmScript::PushVector3(L, response.m_Normal);
         lua_setfield(L, -2, "normal");
@@ -420,8 +420,8 @@ namespace dmGameSystem
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
         
-        Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
-        Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
+        dmVMath::Point3 from( *dmScript::CheckVector3(L, 1) );
+        dmVMath::Point3 to( *dmScript::CheckVector3(L, 2) );
 
         uint32_t mask = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
@@ -535,7 +535,7 @@ namespace dmGameSystem
     {
         if (GetTableField(L, table_index, table_field, LUA_TUSERDATA))
         {
-            Vectormath::Aos::Vector3* v3 = dmScript::ToVector3(L, -1);
+            dmVMath::Vector3* v3 = dmScript::ToVector3(L, -1);
             if (!v3) {
                 lua_pop(L, 1);
                 luaL_error(L, "joint property table field %s must be of vmath.vector3 type.", table_field);
@@ -675,8 +675,8 @@ namespace dmGameSystem
         }
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 3);
-        Vectormath::Aos::Point3 pos_a = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 4));
-        Vectormath::Aos::Point3 pos_b = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 6));
+        dmVMath::Point3 pos_a = dmVMath::Point3(*dmScript::CheckVector3(L, 4));
+        dmVMath::Point3 pos_b = dmVMath::Point3(*dmScript::CheckVector3(L, 6));
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
@@ -802,7 +802,7 @@ namespace dmGameSystem
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
-                    Vectormath::Aos::Vector3 v(joint_params.m_SliderJointParams.m_LocalAxisA[0], joint_params.m_SliderJointParams.m_LocalAxisA[1], joint_params.m_SliderJointParams.m_LocalAxisA[2]);
+                    dmVMath::Vector3 v(joint_params.m_SliderJointParams.m_LocalAxisA[0], joint_params.m_SliderJointParams.m_LocalAxisA[1], joint_params.m_SliderJointParams.m_LocalAxisA[2]);
                     dmScript::PushVector3(L, v);
                     lua_setfield(L, -2, "local_axis_a");
                     lua_pushnumber(L, joint_params.m_SliderJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
@@ -899,7 +899,7 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
-        Vectormath::Aos::Vector3 reaction_force(0.0f);
+        dmVMath::Vector3 reaction_force(0.0f);
         dmPhysics::JointResult r = GetJointReactionForce(comp_world, comp, joint_id, reaction_force);
         if (r != dmPhysics::RESULT_OK)
         {
@@ -985,7 +985,7 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-        Vectormath::Aos::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
+        dmVMath::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
 
         dmGameSystem::SetGravity(world, new_gravity);
 
@@ -1032,7 +1032,7 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-        Vectormath::Aos::Vector3 gravity = dmGameSystem::GetGravity(world);
+        dmVMath::Vector3 gravity = dmGameSystem::GetGravity(world);
         dmScript::PushVector3(L, gravity);
 
         return 1;

@@ -630,25 +630,25 @@ class LabelTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        m_Position = Vectormath::Aos::Point3(0.0);
-        m_Size = Vectormath::Aos::Vector3(2.0, 2.0, 0.0);
-        m_Scale = Vectormath::Aos::Vector3(1.0, 1.0, 0.0);
+        m_Position = dmVMath::Point3(0.0);
+        m_Size = dmVMath::Vector3(2.0, 2.0, 0.0);
+        m_Scale = dmVMath::Vector3(1.0, 1.0, 0.0);
 
-        m_BottomLeft = Vectormath::Aos::Point3(0.0, 0.0, 0.0);
-        m_TopLeft = Vectormath::Aos::Point3(0.0, m_Size.getY(), 0.0);
-        m_TopRight = Vectormath::Aos::Point3(m_Size.getX(), m_Size.getY(), 0.0);
-        m_BottomRight = Vectormath::Aos::Point3(m_Size.getX(), 0.0, 0.0);
+        m_BottomLeft = dmVMath::Point3(0.0, 0.0, 0.0);
+        m_TopLeft = dmVMath::Point3(0.0, m_Size.getY(), 0.0);
+        m_TopRight = dmVMath::Point3(m_Size.getX(), m_Size.getY(), 0.0);
+        m_BottomRight = dmVMath::Point3(m_Size.getX(), 0.0, 0.0);
 
-        m_Rotation = dmVMath::EulerToQuat(Vectormath::Aos::Vector3(0, 0, -180));
+        m_Rotation = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, -180));
         m_Rotation = normalize(m_Rotation);
     }
 
-    Vectormath::Aos::Quat m_Rotation;
-    Vectormath::Aos::Point3 m_Position;
-    Vectormath::Aos::Point3 m_BottomLeft;
-    Vectormath::Aos::Point3 m_TopLeft;
-    Vectormath::Aos::Point3 m_TopRight;
-    Vectormath::Aos::Point3 m_BottomRight;
-    Vectormath::Aos::Vector3 m_Size;
-    Vectormath::Aos::Vector3 m_Scale;
+    dmVMath::Quat m_Rotation;
+    dmVMath::Point3 m_Position;
+    dmVMath::Point3 m_BottomLeft;
+    dmVMath::Point3 m_TopLeft;
+    dmVMath::Point3 m_TopRight;
+    dmVMath::Point3 m_BottomRight;
+    dmVMath::Vector3 m_Size;
+    dmVMath::Vector3 m_Scale;
 };

@@ -26,6 +26,8 @@
 #include <dlib/dstrings.h>
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
+#include <dlib/transform.h>
+#include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <render/font_renderer.h>
@@ -38,10 +40,12 @@
 
 #include <gamesys/label_ddf.h>
 #include <gamesys/gamesys_ddf.h>
+#include <dmsdk/gamesys/render_constants.h>
 
-using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
+    using namespace dmVMath;
+
     struct LabelComponent
     {
         dmGameObject::HInstance     m_Instance;
@@ -300,7 +304,7 @@ namespace dmGameSystem
                 w = dmTransform::MulNoScaleZ(world, local);
             }
 
-            w = dmTransform::appendScale(w, c->m_Scale);
+            w = appendScale(w, c->m_Scale);
             Vector4 position = w.getCol3();
             if (!sub_pixels)
             {

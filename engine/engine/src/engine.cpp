@@ -14,7 +14,7 @@
 
 #include "engine_private.h"
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <sys/stat.h>
 
 #include <stdio.h>
@@ -91,8 +91,6 @@ extern uint32_t DEBUG_FPC_SIZE;
     extern uint32_t GAME_PROJECT_SIZE;
 #endif
 
-using namespace Vectormath::Aos;
-
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
@@ -106,6 +104,9 @@ extern "C" {
 
 namespace dmEngine
 {
+
+    using namespace dmVMath;
+
 #define SYSTEM_SOCKET_NAME "@system"
 
     dmEngineService::HEngineService g_EngineService = 0;

@@ -24,6 +24,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <gameobject/gameobject_ddf.h>
@@ -37,10 +38,12 @@
 #include <gamesys/gamesys_ddf.h>
 
 #include <dmsdk/gameobject/script.h>
+#include <dmsdk/gamesys/render_constants.h>
 
-using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
+    using namespace dmVMath;
+
     struct SpriteComponent
     {
         dmGameObject::HInstance     m_Instance;

@@ -13,7 +13,7 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "render/render.h"
 #include "render/font_renderer.h"
@@ -22,7 +22,7 @@
 
 #include "render/render_ddf.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 namespace
 {
