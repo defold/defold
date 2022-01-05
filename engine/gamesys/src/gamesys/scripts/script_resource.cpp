@@ -400,10 +400,10 @@ T CheckTableValue(lua_State* L, int index, const char* name, T default_value)
 
 ////////////////////////////////////
 
-static bool CheckTableBoolean(lua_State* L, int index, const char* name)
-{
-    return CheckTableValue<bool>(L, index, name);
-}
+// static bool CheckTableBoolean(lua_State* L, int index, const char* name)
+// {
+//     return CheckTableValue<bool>(L, index, name);
+// }
 static bool CheckTableBoolean(lua_State* L, int index, const char* name, bool default_value)
 {
     return CheckTableValue<bool>(L, index, name, default_value);
@@ -412,14 +412,14 @@ static int CheckTableInteger(lua_State* L, int index, const char* name)
 {
     return CheckTableValue<int>(L, index, name);
 }
-static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
-{
-    return CheckTableValue<int>(L, index, name, default_value);
-}
-static float CheckTableNumber(lua_State* L, int index, const char* name)
-{
-    return CheckTableValue<float>(L, index, name);
-}
+// static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
+// {
+//     return CheckTableValue<int>(L, index, name, default_value);
+// }
+// static float CheckTableNumber(lua_State* L, int index, const char* name)
+// {
+//     return CheckTableValue<float>(L, index, name);
+// }
 static float CheckTableNumber(lua_State* L, int index, const char* name, float default_value)
 {
     return CheckTableValue<float>(L, index, name, default_value);

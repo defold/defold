@@ -39,6 +39,8 @@
 
 namespace dmGui
 {
+    using namespace dmVMath;
+
     /**
      * Default layer id
      */

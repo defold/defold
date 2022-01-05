@@ -21,11 +21,11 @@
 #include <dlib/dstrings.h>
 #include <render/render.h>
 #include <gameobject/gameobject.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     struct DM_ALIGNED(16) Light
     {

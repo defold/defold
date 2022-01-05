@@ -20,6 +20,7 @@
 #include <dlib/math.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 #include <particle/particle.h>
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
@@ -32,6 +33,8 @@ extern "C"
 #include "lua/lua.h"
 #include "lua/lauxlib.h"
 }
+
+using namespace dmVMath;
 
 extern unsigned char BUG352_LUA[];
 extern uint32_t BUG352_LUA_SIZE;
@@ -160,7 +163,7 @@ public:
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
 
-    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
             const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
     {
         dmGuiTest* self = (dmGuiTest*) context;
@@ -635,7 +638,7 @@ static void DynamicSetTextureData(dmGui::HScene scene, void* texture, uint32_t w
 {
 }
 
-static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*) context;
@@ -3366,7 +3369,7 @@ TEST_F(dmGuiTest, ReparentKeepTransAnchoring)
 #undef _LOG_PARENTING_INFO
 
 // This render function simply flags a provided boolean when called
-static void RenderEnabledNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+static void RenderEnabledNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     if (node_count > 0)
@@ -3470,7 +3473,7 @@ TEST_F(dmGuiTest, ScriptRecursiveEnabled)
     ASSERT_TRUE(node2->m_Node.m_Enabled);
 }
 
-static void RenderNodesOrder(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+static void RenderNodesOrder(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     std::map<dmGui::HNode, uint16_t>* order = (std::map<dmGui::HNode, uint16_t>*)context;
@@ -3628,7 +3631,7 @@ TEST_F(dmGuiTest, MoveNodesScript)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
-static void RenderNodesCount(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+static void RenderNodesCount(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*)context;
@@ -3837,11 +3840,11 @@ TEST_F(dmGuiTest, Parenting)
     ASSERT_EQ(1u, order[n3]);
 }
 
-void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
-    Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
-    memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
+    dmVMath::Matrix4* out_transforms = (dmVMath::Matrix4*)context;
+    memcpy(out_transforms, node_transforms, sizeof(dmVMath::Matrix4) * node_count);
 }
 
 #define ASSERT_MAT4(m1, m2)\
@@ -3853,30 +3856,30 @@ void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* no
     }
 
 // Verify that the rendered transforms are correct with VectorMath library as a reference
-// n1 == Vectormath::Aos::Matrix4
+// n1 == dmVMath::Matrix4
 TEST_F(dmGuiTest, NodeTransform)
 {
     Vector3 size(1.0f, 1.0f, 1.0f);
     Vector3 pos(0.25f, 0.5f, 0.75f);
-    Vectormath::Aos::Matrix4 transforms[1];
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(pos), size, dmGui::NODE_TYPE_BOX, 0);
+    dmVMath::Matrix4 transforms[1];
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(pos), size, dmGui::NODE_TYPE_BOX);
     dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_SW);
 
-    Vectormath::Aos::Matrix4 ref_mat;
-    ref_mat = Vectormath::Aos::Matrix4::identity();
+    dmVMath::Matrix4 ref_mat;
+    ref_mat = dmVMath::Matrix4::identity();
     ref_mat.setTranslation(pos);
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
     ASSERT_MAT4(transforms[0], ref_mat);
 
     const float radians = 90.0f * M_PI / 180.0f;
-    ref_mat *= Vectormath::Aos::Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
-    ref_mat *= Vectormath::Aos::Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
-    ref_mat *= Vectormath::Aos::Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));
+    ref_mat *= dmVMath::Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= dmVMath::Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= dmVMath::Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(90.0f*0.25f, 90.0f*0.5f, 90.0f, 0.0f));
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
     ASSERT_MAT4(transforms[0], ref_mat);
 
-    ref_mat *= Vectormath::Aos::Matrix4::scale(Vector3(0.25f, 0.5f, 0.75f));
+    ref_mat *= dmVMath::Matrix4::scale(Vector3(0.25f, 0.5f, 0.75f));
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_SCALE, Vector4(0.25f, 0.5f, 0.75f, 1.0f));
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
     ASSERT_MAT4(transforms[0], ref_mat);
@@ -3903,7 +3906,7 @@ TEST_F(dmGuiTest, HierarchicalTransforms)
     dmGui::SetNodeParent(m_Scene, n3, n2, false);
     dmGui::SetNodeParent(m_Scene, n2, n1, false);
 
-    Vectormath::Aos::Matrix4 transforms[3];
+    dmVMath::Matrix4 transforms[3];
 
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
     ASSERT_MAT4(transforms[0], transforms[1]);
@@ -3931,11 +3934,11 @@ TEST_F(dmGuiTest, HierarchicalTransforms)
 
 struct TransformColorData
 {
-    Vectormath::Aos::Matrix4 m_Transform;
+    dmVMath::Matrix4 m_Transform;
     float m_Opacity;
 };
 
-void RenderNodesStoreOpacityAndTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+void RenderNodesStoreOpacityAndTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     TransformColorData* out_data = (TransformColorData*) context;

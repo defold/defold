@@ -15,10 +15,11 @@
 #include <dlib/dstrings.h>
 #include "gamesys_private.h"
 #include "components/comp_private.h"
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     void LogMessageError(dmMessage::Message* message, const char* format, ...)
     {

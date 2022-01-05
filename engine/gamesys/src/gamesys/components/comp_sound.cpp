@@ -324,7 +324,7 @@ namespace dmGameSystem
                     return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
                 }
 
-                dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, type, Vectormath::Aos::Vector4(v, 0, 0, 0));
+                dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, type, dmVMath::Vector4(v, 0, 0, 0));
                 if (r != dmSound::RESULT_OK)
                 {
                     return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
@@ -389,9 +389,9 @@ namespace dmGameSystem
                     float gain = play_sound->m_Gain * component->m_Gain;
                     float pan = play_sound->m_Pan + component->m_Pan;
                     float speed = play_sound->m_Speed * component->m_Speed;
-                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
-                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
-                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(speed, 0, 0, 0));
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(gain, 0, 0, 0));
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, dmVMath::Vector4(pan, 0, 0, 0));
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(speed, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
 
                     entry.m_Listener = params.m_Message->m_Sender;

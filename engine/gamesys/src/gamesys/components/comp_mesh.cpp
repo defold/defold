@@ -25,7 +25,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
-#include <dlib/vmath.h>
+#include <dmsdk/dlib/vmath.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -36,12 +36,13 @@
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/mesh_ddf.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 #include "../resources/res_mesh.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
     struct MeshComponent

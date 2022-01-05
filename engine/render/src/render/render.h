@@ -15,7 +15,7 @@
 
 #include <string.h>
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/render/render.h>
 
 #include <dlib/hash.h>
@@ -26,8 +26,6 @@
 
 namespace dmRender
 {
-    using namespace Vectormath::Aos;
-
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
@@ -125,9 +123,9 @@ namespace dmRender
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
-    const Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
-    void SetViewMatrix(HRenderContext render_context, const Matrix4& view);
-    void SetProjectionMatrix(HRenderContext render_context, const Matrix4& projection);
+    const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
+    void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
+    void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
     Result ClearRenderObjects(HRenderContext context);
 
@@ -148,7 +146,7 @@ namespace dmRender
      * @param y1 y coordinate of the bottom edge of the square
      * @param color Color
      */
-    void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color);
+    void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, dmVMath::Vector4 color);
 
     /**
      * Render debug triangle in world space.
@@ -156,7 +154,7 @@ namespace dmRender
      * @param vertices Vertices of the triangle, CW winding
      * @param color Color
      */
-    void Triangle3d(HRenderContext context, Point3 vertices[3], Vector4 color);
+    void Triangle3d(HRenderContext context, dmVMath::Point3 vertices[3], dmVMath::Vector4 color);
 
     /**
      * Render debug line. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
@@ -168,7 +166,7 @@ namespace dmRender
      * @param color0 Color of the start of the line
      * @param color1 Color of the end of the line
      */
-    void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1);
+    void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, dmVMath::Vector4 color0, dmVMath::Vector4 color1);
 
     /**
      * Line3D Render debug line
@@ -177,7 +175,7 @@ namespace dmRender
      * @param end End point
      * @param color Color
      */
-    void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color);
+    void Line3D(HRenderContext context, dmVMath::Point3 start, dmVMath::Point3 end, dmVMath::Vector4 start_color, dmVMath::Vector4 end_color);
 
     HRenderScript   NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source);
 
@@ -220,7 +218,7 @@ namespace dmRender
      */
     bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
 
-    void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4* constant, uint32_t count);
+    void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);

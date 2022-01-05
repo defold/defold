@@ -13,7 +13,7 @@
 #ifndef RENDERINTERNAL_H
 #define RENDERINTERNAL_H
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/array.h>
 #include <dlib/message.h>
@@ -30,7 +30,7 @@ extern "C"
 
 namespace dmRender
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
 #define DEBUG_3D_NAME "_debug3d"
 #define DEBUG_2D_NAME "_debug2d"

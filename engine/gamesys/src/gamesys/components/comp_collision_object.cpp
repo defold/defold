@@ -17,6 +17,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <physics/physics.h>
 
@@ -32,7 +33,7 @@
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     /// Config key to use for tweaking maximum number of collisions reported
     const char* PHYSICS_MAX_COLLISIONS_KEY  = "physics.max_collisions";
@@ -138,7 +139,7 @@ namespace dmGameSystem
     // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
     static int g_NumPhysicsTransformsUpdated = 0;
 
-    static void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+    static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation)
     {
         if (!user_data)
             return;
@@ -151,7 +152,7 @@ namespace dmGameSystem
         else
         {
             // Preserve z for 2D physics
-            Vectormath::Aos::Point3 p = dmGameObject::GetPosition(instance);
+            dmVMath::Point3 p = dmGameObject::GetPosition(instance);
             p.setX(position.getX());
             p.setY(position.getY());
             dmGameObject::SetPosition(instance, p);
@@ -1220,18 +1221,18 @@ namespace dmGameSystem
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             if (physics_context->m_3D) {
-                dmPhysics::SetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+                dmPhysics::SetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             } else {
-                dmPhysics::SetLinearVelocity2D(physics_context->m_Context2D, component->m_Object2D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+                dmPhysics::SetLinearVelocity2D(physics_context->m_Context2D, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             }
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_ANGULAR_VELOCITY) {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             if (physics_context->m_3D) {
-                dmPhysics::SetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+                dmPhysics::SetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             } else {
-                dmPhysics::SetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+                dmPhysics::SetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             }
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_BULLET) {
@@ -1312,7 +1313,7 @@ namespace dmGameSystem
     }
 
     // Connects a joint between two components, a JointEntry with the id must exist for this to succeed.
-    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
+    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const dmVMath::Point3& apos, void* _component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (!IsJointsSupported(world)) {
@@ -1503,7 +1504,7 @@ namespace dmGameSystem
         }
     }
 
-    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, Vectormath::Aos::Vector3& force)
+    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, dmVMath::Vector3& force)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (!IsJointsSupported(world)) {
@@ -1547,7 +1548,7 @@ namespace dmGameSystem
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
-    void SetGravity(void* _world, const Vectormath::Aos::Vector3& gravity)
+    void SetGravity(void* _world, const dmVMath::Vector3& gravity)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (world->m_3D)
@@ -1560,7 +1561,7 @@ namespace dmGameSystem
         }
     }
 
-    Vectormath::Aos::Vector3 GetGravity(void* _world)
+    dmVMath::Vector3 GetGravity(void* _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (world->m_3D)

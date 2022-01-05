@@ -16,6 +16,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <render/render.h>
 
@@ -25,7 +26,7 @@
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const uint32_t MAX_COUNT = 64;
     const uint8_t MAX_STACK_COUNT = 8;
@@ -152,13 +153,13 @@ namespace dmGameSystem
                 float height = (float)dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
                 aspect_ratio = width / height;
             }
-            Vectormath::Aos::Matrix4 projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
+            dmVMath::Matrix4 projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
 
-            Vectormath::Aos::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
-            Vectormath::Aos::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
-            Point3 look_at = pos + Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 0.0f, -1.0f));
-            Vector3 up = Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 1.0f, 0.0f));
-            Vectormath::Aos::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
+            dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
+            dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
+            Point3 look_at = pos + Vectormath::Aos::rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+            Vector3 up = Vectormath::Aos::rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
+            dmVMath::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
 
             // Send the matrices to the render script
 

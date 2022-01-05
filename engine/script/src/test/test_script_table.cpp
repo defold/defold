@@ -583,7 +583,7 @@ TEST_F(LuaTableTest, Vector3)
 {
     // Create table
     lua_newtable(L);
-    dmScript::PushVector3(L, Vectormath::Aos::Vector3(1,2,3));
+    dmScript::PushVector3(L, dmVMath::Vector3(1,2,3));
     lua_setfield(L, -2, "v");
 
     uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
@@ -593,12 +593,12 @@ TEST_F(LuaTableTest, Vector3)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    Vectormath::Aos::Vector3* v1 = dmScript::ToVector3(L, -1);
+    dmVMath::Vector3* v1 = dmScript::ToVector3(L, -1);
     ASSERT_EQ(1, v1->getX());
     ASSERT_EQ(2, v1->getY());
     ASSERT_EQ(3, v1->getZ());
 
-    Vectormath::Aos::Vector3* v2 = dmScript::CheckVector3(L, -1);
+    dmVMath::Vector3* v2 = dmScript::CheckVector3(L, -1);
     ASSERT_EQ(1, v2->getX());
     ASSERT_EQ(2, v2->getY());
     ASSERT_EQ(3, v2->getZ());
@@ -611,7 +611,7 @@ TEST_F(LuaTableTest, Vector4)
 {
     // Create table
     lua_newtable(L);
-    dmScript::PushVector4(L, Vectormath::Aos::Vector4(1,2,3,4));
+    dmScript::PushVector4(L, dmVMath::Vector4(1,2,3,4));
     lua_setfield(L, -2, "v");
 
     uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
@@ -621,13 +621,13 @@ TEST_F(LuaTableTest, Vector4)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    Vectormath::Aos::Vector4* v1 = dmScript::ToVector4(L, -1);
+    dmVMath::Vector4* v1 = dmScript::ToVector4(L, -1);
     ASSERT_EQ(1, v1->getX());
     ASSERT_EQ(2, v1->getY());
     ASSERT_EQ(3, v1->getZ());
     ASSERT_EQ(4, v1->getW());
 
-    Vectormath::Aos::Vector4* v2 = dmScript::CheckVector4(L, -1);
+    dmVMath::Vector4* v2 = dmScript::CheckVector4(L, -1);
     ASSERT_EQ(1, v2->getX());
     ASSERT_EQ(2, v2->getY());
     ASSERT_EQ(3, v2->getZ());
@@ -641,7 +641,7 @@ TEST_F(LuaTableTest, Quat)
 {
     // Create table
     lua_newtable(L);
-    dmScript::PushQuat(L, Vectormath::Aos::Quat(1,2,3,4));
+    dmScript::PushQuat(L, dmVMath::Quat(1,2,3,4));
     lua_setfield(L, -2, "v");
 
     uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
@@ -651,13 +651,13 @@ TEST_F(LuaTableTest, Quat)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    Vectormath::Aos::Quat* v1 = dmScript::ToQuat(L, -1);
+    dmVMath::Quat* v1 = dmScript::ToQuat(L, -1);
     ASSERT_EQ(1, v1->getX());
     ASSERT_EQ(2, v1->getY());
     ASSERT_EQ(3, v1->getZ());
     ASSERT_EQ(4, v1->getW());
 
-    Vectormath::Aos::Quat* v2 = dmScript::CheckQuat(L, -1);
+    dmVMath::Quat* v2 = dmScript::CheckQuat(L, -1);
     ASSERT_EQ(1, v2->getX());
     ASSERT_EQ(2, v2->getY());
     ASSERT_EQ(3, v2->getZ());
@@ -671,7 +671,7 @@ TEST_F(LuaTableTest, Matrix4)
 {
     // Create table
     lua_newtable(L);
-    Vectormath::Aos::Matrix4 m;
+    dmVMath::Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             m.setElem((float) i, (float) j, (float) (i * 4 + j));
@@ -685,12 +685,12 @@ TEST_F(LuaTableTest, Matrix4)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    Vectormath::Aos::Matrix4* m1 = dmScript::ToMatrix4(L, -1);
+    dmVMath::Matrix4* m1 = dmScript::ToMatrix4(L, -1);
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             ASSERT_EQ(i * 4 + j, m1->getElem(i, j));
 
-    Vectormath::Aos::Matrix4* m2 = dmScript::CheckMatrix4(L, -1);
+    dmVMath::Matrix4* m2 = dmScript::CheckMatrix4(L, -1);
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             ASSERT_EQ(i * 4 + j, m2->getElem(i, j));

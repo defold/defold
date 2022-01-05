@@ -25,15 +25,15 @@ struct VisualObject
 {
     VisualObject();
 
-    Vectormath::Aos::Point3 m_Position;
-    Vectormath::Aos::Quat   m_Rotation;
+    dmVMath::Point3         m_Position;
+    dmVMath::Quat           m_Rotation;
     float                   m_Scale;
     int                     m_CollisionCount;
     uint16_t                m_FirstCollisionGroup;
 };
 
 void GetWorldTransform(void* visual_object, dmTransform::Transform& world_transform);
-void SetWorldTransform(void* visual_object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
+void SetWorldTransform(void* visual_object, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
 bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
 bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data);
 
@@ -90,25 +90,25 @@ struct Funcs
     typedef void (*SetCollisionCallbackFunc)(typename T::WorldType world, dmPhysics::CollisionCallback callback, void* user_data);
     typedef void (*SetContactPointCallbackFunc)(typename T::WorldType world, dmPhysics::ContactPointCallback callback, void* user_data);
     typedef void (*SetDrawDebugFunc)(typename T::WorldType world, bool);
-    typedef typename T::CollisionShapeType (*NewBoxShapeFunc)(typename T::ContextType context, const Vectormath::Aos::Vector3& half_extents);
+    typedef typename T::CollisionShapeType (*NewBoxShapeFunc)(typename T::ContextType context, const dmVMath::Vector3& half_extents);
     typedef typename T::CollisionShapeType (*NewSphereShapeFunc)(typename T::ContextType context, float radius);
     typedef typename T::CollisionShapeType (*NewCapsuleShapeFunc)(typename T::ContextType context, float radius, float height);
     typedef typename T::CollisionShapeType (*NewConvexHullShapeFunc)(typename T::ContextType context, const float* vertices, uint32_t vertex_count);
     typedef void (*DeleteCollisionShapeFunc)(typename T::CollisionShapeType shape);
     typedef typename T::CollisionObjectType (*NewCollisionObjectFunc)(typename T::WorldType world, const dmPhysics::CollisionObjectData& data, typename T::CollisionShapeType* shapes, uint32_t shape_count);
-    typedef typename T::CollisionObjectType (*NewCollisionObjectFunc2)(typename T::WorldType world, const dmPhysics::CollisionObjectData& data, typename T::CollisionShapeType* shapes, Vectormath::Aos::Vector3* translations, Vectormath::Aos::Quat* rotations, uint32_t shape_count);
+    typedef typename T::CollisionObjectType (*NewCollisionObjectFunc2)(typename T::WorldType world, const dmPhysics::CollisionObjectData& data, typename T::CollisionShapeType* shapes, dmVMath::Vector3* translations, dmVMath::Quat* rotations, uint32_t shape_count);
     typedef void (*DeleteCollisionObjectFunc)(typename T::WorldType world, typename T::CollisionObjectType collision_object);
     typedef uint32_t (*GetCollisionShapesFunc)(typename T::CollisionObjectType collision_object, typename T::CollisionShapeType* out_buffer, uint32_t buffer_size);
     typedef void (*SetCollisionObjectUserDataFunc)(typename T::CollisionObjectType collision_object, void* user_data);
     typedef void* (*GetCollisionObjectUserDataFunc)(typename T::CollisionObjectType collision_object);
-    typedef void (*ApplyForceFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
-    typedef Vectormath::Aos::Vector3 (*GetTotalForceFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
-    typedef Vectormath::Aos::Point3 (*GetWorldPositionFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
-    typedef Vectormath::Aos::Quat (*GetWorldRotationFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
-    typedef Vectormath::Aos::Vector3 (*GetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
-    typedef Vectormath::Aos::Vector3 (*GetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
-    typedef void (*SetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const Vectormath::Aos::Vector3& velocity);
-    typedef void (*SetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const Vectormath::Aos::Vector3& velocity);
+    typedef void (*ApplyForceFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const dmVMath::Vector3& force, const dmVMath::Point3& position);
+    typedef dmVMath::Vector3 (*GetTotalForceFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
+    typedef dmVMath::Point3 (*GetWorldPositionFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
+    typedef dmVMath::Quat (*GetWorldRotationFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
+    typedef dmVMath::Vector3 (*GetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
+    typedef dmVMath::Vector3 (*GetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
+    typedef void (*SetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const dmVMath::Vector3& velocity);
+    typedef void (*SetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const dmVMath::Vector3& velocity);
     typedef bool (*IsEnabledFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetEnabledFunc)(typename T::WorldType world, typename T::CollisionObjectType collision_object, bool enabled);
     typedef bool (*IsSleepingFunc)(typename T::CollisionObjectType collision_object);
@@ -123,10 +123,10 @@ struct Funcs
     typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);
-    typedef void (*SetGravityFunc)(typename T::WorldType world, const Vectormath::Aos::Vector3& gravity);
+    typedef void (*SetGravityFunc)(typename T::WorldType world, const dmVMath::Vector3& gravity);
     typedef bool (*IsBulletFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetBulletFunc)(typename T::CollisionObjectType collision_object, bool value);
-    typedef Vectormath::Aos::Vector3 (*GetGravityFunc)(typename T::WorldType world);
+    typedef dmVMath::Vector3 (*GetGravityFunc)(typename T::WorldType world);
 };
 
 struct Test3D

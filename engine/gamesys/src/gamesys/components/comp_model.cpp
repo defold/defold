@@ -23,7 +23,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
-#include <dlib/vmath.h>
+#include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <rig/rig.h>
 #include <render/render.h>
@@ -40,12 +40,11 @@
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
-
-using namespace Vectormath::Aos;
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
     struct ModelComponent
