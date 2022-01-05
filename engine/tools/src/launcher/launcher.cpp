@@ -300,7 +300,7 @@ int Launch(int argc, char **argv) {
     if (!ret) {
         char* msg;
         DWORD err = GetLastError();
-        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR)&msg, 0, 0);
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
         dmLogFatal("Failed to launch application: %s (%d)", msg, err);
         LocalFree((HLOCAL) msg);
         exit(5);

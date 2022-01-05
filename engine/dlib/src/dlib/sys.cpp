@@ -30,8 +30,6 @@
 #include <Shellapi.h>
 #include <io.h>
 #include <direct.h>
-#include <atlbase.h>
-#include <WinUser.h>
 #else
 #include <unistd.h>
 #include <sys/utsname.h>
@@ -125,7 +123,7 @@ namespace dmSys
     Result RenameFile(const char* dst_filename, const char* src_filename)
     {
 #if defined(_WIN32)
-        bool rename_result = MoveFileEx(CA2W(src_filename), CA2W(dst_filename), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+        bool rename_result = MoveFileExA(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
 #else
         bool rename_result = rename(src_filename, dst_filename) != -1;
 #endif
@@ -260,7 +258,7 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        int ret = (int) ShellExecute(NULL, L"open", CA2W(url), NULL, NULL, SW_SHOWNORMAL);
+        int ret = (int) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
         if (ret == 32)
         {
             return RESULT_OK;
@@ -768,7 +766,7 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
-        PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "GetUserDefaultLocaleName");
+        PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetUserDefaultLocaleName");
         dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
         OSVERSIONINFOA version_info;

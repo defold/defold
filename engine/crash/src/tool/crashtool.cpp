@@ -197,7 +197,7 @@ uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
 
         char* msg;
         DWORD err = GetLastError();
-        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR)&msg, 0, 0);
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
         fprintf(stderr, "Error: %s (%d)\n", msg, err);
         LocalFree((HLOCAL) msg);
     }
