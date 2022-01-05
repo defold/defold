@@ -354,6 +354,7 @@ namespace dmGui
         scene->m_CreateCustomNodeCallback = params->m_CreateCustomNodeCallback;
         scene->m_DestroyCustomNodeCallback = params->m_DestroyCustomNodeCallback;
         scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
+        scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
@@ -2044,18 +2045,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         uint32_t total_nodes = 0;
         uint32_t active_nodes = 0;
-        // Deferred deletion of nodes
         node_count = scene->m_Nodes.Size();
         nodes      = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < node_count; ++i)
         {
             InternalNode* node = &nodes[i];
+
+            // Deferred deletion of nodes
             if (node->m_Deleted)
             {
-                uint16_t index = node->m_Index;
-                uint16_t version = node->m_Version;
-                HNode hnode = ((uint32_t) version) << 16 | index;
-                DeleteNode(scene, hnode, false);
+                DeleteNode(scene, GetNodeHandle(node), false);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
                 node_count = scene->m_Nodes.Size();
             }
@@ -2064,6 +2063,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 ++total_nodes;
                 if (node->m_Node.m_Enabled)
                     ++active_nodes;
+
+                if (node->m_Node.m_CustomType != 0)
+                {
+                    scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
+                                                        node->m_Node.m_CustomType, node->m_Node.m_CustomData, dt);
+                }
             }
         }
 

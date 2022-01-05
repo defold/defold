@@ -150,25 +150,36 @@ namespace dmGameSystem
         uint8_t DM_ALIGNED(16) DM_COMPGUI_PASTE_SYMREG2(symbol, __LINE__)[dmGameSystem::s_CompGuiNodeTypeDescBufferSize]; \
         DM_REGISTER_COMPGUI_TYPE(symbol, DM_COMPGUI_PASTE_SYMREG2(symbol, __LINE__), name, type_create_fn, type_destroy_fn);
 
-    struct CompGuiCreateContext
+    struct CompGuiNodeContext
     {
         void* m_GetResourceContext;
         void* (*m_GetResourceFn)(void* get_resource_context, dmhash_t name_hash);
     };
 
-    typedef void* (*CompGuiCreateNodeFn)(const CompGuiCreateContext* createctx, void* typecontext, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
-    typedef void  (*CompGuiDestroyNodeFn)(const CompGuiCreateContext* createctx, void* typecontext, void* node_data);
-    typedef void  (*CompGuiSetPropertyFn)(const CompGuiCreateContext* createctx, void* typecontext, void* node_data, dmhash_t name_hash, const dmGuiDDF::PropertyVariant* variant);
-    typedef void  (*CompGuiGetVerticesFn)(void* typecontext, void* node_data, uint32_t decl_size, dmBuffer::StreamDeclaration* decl, uint32_t struct_size, dmArray<uint8_t>& vertices);
+    struct CustomNodeCtx
+    {
+        void*           m_NodeData;     // The custom created data
+        void*           m_TypeContext;
+        dmGui::HScene   m_Scene;
+        dmGui::HNode    m_Node;
+        uint32_t        m_Type; // the custom type
+    };
+
+    typedef void* (*CompGuiNodeCreateFn)(const CompGuiNodeContext* createctx, void* typecontext, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
+    typedef void  (*CompGuiNodeDestroyFn)(const CompGuiNodeContext* createctx, const CustomNodeCtx* node);
+    typedef void  (*CompGuiNodeSetPropertyFn)(const CompGuiNodeContext* createctx, const CustomNodeCtx* node, dmhash_t name_hash, const dmGuiDDF::PropertyVariant* variant);
+    typedef void  (*CompGuiNodeUpdateFn)(const CustomNodeCtx* node, float dt);
+    typedef void  (*CompGuiNodeGetVerticesFn)(const CustomNodeCtx* node, uint32_t decl_size, dmBuffer::StreamDeclaration* decl, uint32_t struct_size, dmArray<uint8_t>& vertices);
 
 
-    void CompGuiNodeTypeSetCreateNodeFn(CompGuiNodeType* type, CompGuiCreateNodeFn fn);
-    void CompGuiNodeTypeSetDestroyNodeFn(CompGuiNodeType* type, CompGuiDestroyNodeFn fn);
-    void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiSetPropertyFn fn);
+    void CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn);
+    void CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn);
+    void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn);
+    void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn);
     /*#
      * Get the vertices in local space
      */
-    void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiGetVerticesFn fn);
+    void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn);
 
 }
 

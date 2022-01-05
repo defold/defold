@@ -130,6 +130,11 @@ namespace dmGui
      */
     typedef void (*DestroyCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
 
+    /**
+     * Callback to update custom node data
+     */
+    typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+
 
     /**
      * Scene creation
@@ -151,6 +156,7 @@ namespace dmGui
         CreateCustomNodeCallback    m_CreateCustomNodeCallback;
         DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
         CloneCustomNodeCallback     m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
         void*                       m_CreateCustomNodeCallbackContext;
 
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;

@@ -53,8 +53,6 @@ namespace dmGameSystem
     static bool g_CompGuiNodeTypesInitialized = false;
 
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
-    // static bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
-    // static void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data);
 
     // implemention in comp_particlefx.cpp
     extern dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
@@ -64,6 +62,7 @@ namespace dmGameSystem
     static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
+    static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
@@ -583,7 +582,7 @@ namespace dmGameSystem
                 void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
                 const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
 
-                CompGuiCreateContext ctx;
+                CompGuiNodeContext ctx;
                 ctx.m_GetResourceContext = gui_component;
                 ctx.m_GetResourceFn = GetResourceByHash;
 
@@ -593,7 +592,15 @@ namespace dmGameSystem
                 for (uint32_t p = 0; p < node_desc->m_CustomProperties.m_Count; ++p)
                 {
                     const dmGuiDDF::PropertyVariant* variant = &node_desc->m_CustomProperties.m_Data[p];
-                    node_type->m_SetPropertyFn(&ctx, node_type->m_Context, custom_node_data, variant->m_NameHash, variant);
+
+                    CustomNodeCtx nodectx;
+                    nodectx.m_Scene = scene;
+                    nodectx.m_Node = n;
+                    nodectx.m_TypeContext = node_type->m_Context;
+                    nodectx.m_NodeData = custom_node_data;
+                    nodectx.m_Type = custom_type;
+
+                    node_type->m_SetProperty(&ctx, &nodectx, variant->m_NameHash, variant);
                 }
             }
         }
@@ -700,6 +707,7 @@ namespace dmGameSystem
         scene_params.m_CreateCustomNodeCallback = &CreateCustomNodeCallback;
         scene_params.m_DestroyCustomNodeCallback = &DestroyCustomNodeCallback;
         scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
+        scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
         scene_params.m_CreateCustomNodeCallbackContext = gui_component;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
@@ -1262,10 +1270,18 @@ namespace dmGameSystem
                 continue;
             }
 
+            void* custom_node_data = dmGui::GetNodeCustomData(scene, node);
+
+            CustomNodeCtx nodectx;
+            nodectx.m_Scene = scene;
+            nodectx.m_Node = node;
+            nodectx.m_TypeContext = type->m_Context;
+            nodectx.m_NodeData = custom_node_data;
+            nodectx.m_Type = custom_type;
+
             // Ideally, dmBuffer would support dynamic arrays, but for now this is what we do
             dmArray<uint8_t> node_vertices;
-            void* custom_node_data = dmGui::GetNodeCustomData(scene, node);
-            type->m_GetVerticesFn(type->m_Context, custom_node_data, DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, struct_size, node_vertices);
+            type->m_GetVertices(&nodectx, DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, struct_size, node_vertices);
 
             uint32_t node_vertex_count = node_vertices.Size() / struct_size;
             vertex_count += node_vertex_count;
@@ -2136,13 +2152,13 @@ namespace dmGameSystem
         GuiComponent* gui_component = (GuiComponent*)context;
         CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
-        CompGuiCreateContext ctx;
+        CompGuiNodeContext ctx;
         ctx.m_GetResourceContext = gui_component;
         ctx.m_GetResourceFn = GetResourceByHash;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         dmLogWarning("%s  type: %p", __FUNCTION__, type);
-        return type->m_CreateNodeFn(&ctx, type->m_Context, scene, node, custom_type);
+        return type->m_Create(&ctx, type->m_Context, scene, node, custom_type);
     }
 
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
@@ -2150,28 +2166,61 @@ namespace dmGameSystem
         // GuiComponent* gui_component = (GuiComponent*)context;
         // CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
-        // CompGuiCreateContext ctx;
+        // CompGuiNodeContext ctx;
         // ctx.m_GetResourceContext = gui_component;
         // ctx.m_GetResourceFn = GetResourceByHash;
 
         // const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         // dmLogWarning("%s  type: %p", __FUNCTION__, type);
-        // return type->m_CloneNodeFn(&ctx, type->m_Context, node, custom_type, node_data);
+        // return type->m_Clone(&ctx, type->m_Context, node, custom_type, node_data);
 // TODO:
         return 0;
     }
 
-    static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode hnode, uint32_t custom_type, void* node_data)
+    static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
         GuiComponent* gui_component = (GuiComponent*)context;
         CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
-        CompGuiCreateContext ctx;
+        const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
+        if (!type->m_Destroy)
+            return;
+
+        CompGuiNodeContext ctx;
         ctx.m_GetResourceContext = gui_component;
         ctx.m_GetResourceFn = GetResourceByHash;
 
+        CustomNodeCtx nodectx;
+        nodectx.m_Scene = scene;
+        nodectx.m_Node = node;
+        nodectx.m_TypeContext = type->m_Context;
+        nodectx.m_NodeData = node_data;
+        nodectx.m_Type = custom_type;
+
+        type->m_Destroy(&ctx, &nodectx);
+    }
+
+    static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt)
+    {
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
-        return type->m_DestroyNodeFn(&ctx, type->m_Context, node_data);
+        if (!type->m_Update)
+            return;
+
+        CompGuiNodeContext ctx;
+        ctx.m_GetResourceContext = gui_component;
+        ctx.m_GetResourceFn = GetResourceByHash;
+
+        CustomNodeCtx nodectx;
+        nodectx.m_Scene = scene;
+        nodectx.m_Node = node;
+        nodectx.m_TypeContext = type->m_Context;
+        nodectx.m_NodeData = node_data;
+        nodectx.m_Type = custom_type;
+
+        type->m_Update(&nodectx, dt);
     }
 
     // static bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
@@ -2854,8 +2903,6 @@ namespace dmGameSystem
 
     dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)
     {
-        dmLogWarning("MAWE %s", __FUNCTION__);
-
         if (g_CompGuiNodeTypesInitialized)
             return dmGameObject::RESULT_OK;
 
@@ -2880,38 +2927,7 @@ namespace dmGameSystem
             }
             comp_gui_context->m_CustomNodeTypes.Put(type_desc->m_NameHash, node_type);
 
-            dmLogWarning("MAWE put type: %s %u   p: %p sz: %u", type_desc->m_Name, type_desc->m_NameHash, &comp_gui_context->m_CustomNodeTypes, comp_gui_context->m_CustomNodeTypes.Size());
-
-            //node_type->m_Context = node_type->m_CreateContext();
-
-
-            // dmResource::ResourceType resource_type;
-            // dmResource::Result factory_result = dmResource::GetTypeFromExtension(ctx->m_Factory, type_desc->m_Name, &resource_type);
-            // if (factory_result != dmResource::RESULT_OK)
-            // {
-            //     dmLogWarning("Unable to get resource type for '%s': %s", type_desc->m_Name, dmResource::ResultToString(factory_result));
-            //     return dmGameObject::RESULT_UNKNOWN_ERROR;
-            // }
-
-            // uint32_t component_type_index = 0;
-            // if (dmGameObject::FindCompGuiNodeType(ctx->m_Register, resource_type, &component_type_index) != 0)
-            // {
-            //     dmLogWarning("Component type '%s' already added!", type_desc->m_Name);
-            // }
-
-            // component_type.m_ResourceType = resource_type;
-            // component_type.m_Name = type_desc->m_Name;
-            // component_type.m_NameHash = dmHashString64(type_desc->m_Name);
-            // component_type.m_InstanceHasUserData = true;
-
-            // Now, let the callback add the function pointers
-            // dmGameObject::Result result = type_desc->m_CreateFn(ctx, &component_type);
-            // if (result != dmGameObject::RESULT_OK)
-            //     return result;
-
-            // result = RegisterCompGuiNodeType(ctx->m_Register, component_type);
-            // if (result != dmGameObject::RESULT_OK)
-            //     return result;
+            dmLogWarning("MAWE registered com gui type: %s %u   p: %p sz: %u", type_desc->m_Name, type_desc->m_NameHash, &comp_gui_context->m_CustomNodeTypes, comp_gui_context->m_CustomNodeTypes.Size());
 
             type_desc = type_desc->m_Next;
         }
@@ -2919,12 +2935,6 @@ namespace dmGameSystem
 
         return dmGameObject::RESULT_OK;
     }
-
-    // template <>
-    // static void HTDeleteNodeType(void*, const uint32_t* key, CompGuiNodeType** node_type)
-    // {
-    //     delete *node_type;
-    // }
 
     static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)
     {
@@ -2953,57 +2963,11 @@ namespace dmGameSystem
         return dmGameObject::RESULT_OK;
     }
 
-
-    // static dmGameObject::Result CompGuiRegister(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
-    // {
-    //             // REGISTER_COMPONENT_TYPE("guic", 300, gui_context,
-    //             // CompGuiNewWorld, CompGuiDeleteWorld,
-    //             // CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal, CompGuiAddToUpdate, 0,
-    //             // CompGuiUpdate, CompGuiRender, 0, CompGuiOnMessage, CompGuiOnInput,
-    //             // CompGuiOnReload, CompGuiGetProperty, CompGuiSetProperty,
-    //             // CompGuiIterChildren, CompGuiIterProperties,
-    //             // 0);
-
-    //     // SpineModelContext* spinemodelctx = new SpineModelContext;
-    //     // spinemodelctx->m_Factory = ctx->m_Factory;
-    //     // spinemodelctx->m_GraphicsContext = *(dmGraphics::HContext*)ctx->m_Contexts.Get(dmHashString64("graphics"));
-    //     // spinemodelctx->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
-
-    //     // int32_t max_rig_instance = dmConfigFile::GetInt(ctx->m_Config, "rig.max_instance_count", 128);
-    //     // spinemodelctx->m_MaxSpineModelCount = dmMath::Max(dmConfigFile::GetInt(ctx->m_Config, "spine.max_count", 128), max_rig_instance);
-
-    //     ComponentTypeSetPrio(type, 300);
-
-    //     //ComponentTypeSetContext(type, spinemodelctx);
-    //     ComponentTypeSetHasUserData(type, true);
-    //     ComponentTypeSetReadsTransforms(type, false);
-
-    //     ComponentTypeSetNewWorldFn(type, CompSpineModelNewWorld);
-    //     ComponentTypeSetDeleteWorldFn(type, CompSpineModelDeleteWorld);
-    //     ComponentTypeSetCreateFn(type, CompSpineModelCreate);
-    //     ComponentTypeSetDestroyFn(type, CompSpineModelDestroy);
-    //         // ComponentTypeSetInitFn(type, CompSpineModelInit);
-    //         // ComponentTypeSetFinalFn(type, CompSpineModelFinal);
-    //     ComponentTypeSetAddToUpdateFn(type, CompSpineModelAddToUpdate);
-    //     ComponentTypeSetUpdateFn(type, CompSpineModelUpdate);
-    //     ComponentTypeSetRenderFn(type, CompSpineModelRender);
-    //     ComponentTypeSetOnMessageFn(type, CompSpineModelOnMessage);
-    //         // ComponentTypeSetOnInputFn(type, CompSpineModelOnInput);
-    //     ComponentTypeSetOnReloadFn(type, CompSpineModelOnReload);
-    //         // ComponentTypeSetSetPropertiesFn(type, CompSpineModelSetProperties);
-    //     ComponentTypeSetGetPropertyFn(type, CompSpineModelGetProperty);
-    //     ComponentTypeSetSetPropertyFn(type, CompSpineModelSetProperty);
-    //         // ComponentTypeSetPropertyIteratorFn(type, CompSpineModelIterProperties);
-    //     ComponentTypeSetGetFn(type, CompSpineModelGetComponent);
-
-    //     return dmGameObject::RESULT_OK;
-    // }
-
-
-    void CompGuiNodeTypeSetCreateNodeFn(CompGuiNodeType* type, CompGuiCreateNodeFn fn)      { type->m_CreateNodeFn = fn; }
-    void CompGuiNodeTypeSetDestroyNodeFn(CompGuiNodeType* type, CompGuiDestroyNodeFn fn)    { type->m_DestroyNodeFn = fn; }
-    void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiGetVerticesFn fn)    { type->m_GetVerticesFn = fn; }
-    void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiSetPropertyFn fn)    { type->m_SetPropertyFn = fn; }
+    void CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn)      { type->m_Create = fn; }
+    void CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn)    { type->m_Destroy = fn; }
+    void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn)              { type->m_Update = fn; }
+    void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn)    { type->m_GetVertices = fn; }
+    void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn)    { type->m_SetProperty = fn; }
 }
 
 

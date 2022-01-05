@@ -106,10 +106,11 @@ namespace dmGameSystem
         CompGuiNodeTypeDescriptor*  m_TypeDesc;
         void*                       m_Context;
 
-        CompGuiCreateNodeFn m_CreateNodeFn;
-        CompGuiDestroyNodeFn m_DestroyNodeFn;
-        CompGuiGetVerticesFn m_GetVerticesFn;
-        CompGuiSetPropertyFn m_SetPropertyFn;
+        CompGuiNodeCreateFn         m_Create;
+        CompGuiNodeDestroyFn        m_Destroy;
+        CompGuiNodeUpdateFn         m_Update;
+        CompGuiNodeGetVerticesFn    m_GetVertices;
+        CompGuiNodeSetPropertyFn    m_SetProperty;
     };
 
 

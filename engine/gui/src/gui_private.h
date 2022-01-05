@@ -298,6 +298,7 @@ namespace dmGui
         CreateCustomNodeCallback    m_CreateCustomNodeCallback;
         DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
         CloneCustomNodeCallback     m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
         void*                       m_CreateCustomNodeCallbackContext;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
