@@ -36,6 +36,8 @@ extern "C"
     #define MOUNTFS
 #endif
 
+using namespace dmVMath;
+
 class ScriptVmathTest : public jc_test_base_class
 {
 protected:
@@ -108,9 +110,9 @@ TEST_F(ScriptVmathTest, TestVectorFail)
 TEST_F(ScriptVmathTest, TestVector3)
 {
     int top = lua_gettop(L);
-    Vectormath::Aos::Vector3 v(1.0f, 2.0f, 3.0f);
+    Vector3 v(1.0f, 2.0f, 3.0f);
     dmScript::PushVector3(L, v);
-    Vectormath::Aos::Vector3* vp = dmScript::CheckVector3(L, -1);
+    Vector3* vp = dmScript::CheckVector3(L, -1);
     ASSERT_NE((void*)0x0, vp);
     ASSERT_EQ(v.getX(), vp->getX());
     ASSERT_EQ(v.getY(), vp->getY());
@@ -162,9 +164,9 @@ TEST_F(ScriptVmathTest, TestVector3Fail)
 TEST_F(ScriptVmathTest, TestVector4)
 {
     int top = lua_gettop(L);
-    Vectormath::Aos::Vector4 v(1.0f, 2.0f, 3.0f, 4.0f);
+    Vector4 v(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushVector4(L, v);
-    Vectormath::Aos::Vector4* vp = dmScript::CheckVector4(L, -1);
+    Vector4* vp = dmScript::CheckVector4(L, -1);
     ASSERT_NE((void*)0x0, vp);
     ASSERT_EQ(v.getX(), vp->getX());
     ASSERT_EQ(v.getY(), vp->getY());
@@ -211,9 +213,9 @@ TEST_F(ScriptVmathTest, TestVector4Fail)
 TEST_F(ScriptVmathTest, TestQuat)
 {
     int top = lua_gettop(L);
-    Vectormath::Aos::Quat q(1.0f, 2.0f, 3.0f, 4.0f);
+    Quat q(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushQuat(L, q);
-    Vectormath::Aos::Quat* qp = dmScript::CheckQuat(L, -1);
+    Quat* qp = dmScript::CheckQuat(L, -1);
     ASSERT_NE((void*)0x0, qp);
     ASSERT_EQ(q.getX(), qp->getX());
     ASSERT_EQ(q.getY(), qp->getY());
@@ -260,8 +262,8 @@ TEST_F(ScriptVmathTest, TestQuatFail)
 TEST_F(ScriptVmathTest, TestTransform)
 {
     int top = lua_gettop(L);
-    Vectormath::Aos::Vector3 pos(1.0f, 2.0f, 3.0f);
-    Vectormath::Aos::Quat rot(4.0f, 5.0f, 6.0f, 7.0f);
+    Vector3 pos(1.0f, 2.0f, 3.0f);
+    Quat rot(4.0f, 5.0f, 6.0f, 7.0f);
     lua_newtable(L);
     dmScript::PushVector3(L, pos);
     lua_setfield(L, -2, "Position");
@@ -272,7 +274,7 @@ TEST_F(ScriptVmathTest, TestTransform)
 
     lua_pushstring(L, "Position");
     lua_rawget(L, -2);
-    Vectormath::Aos::Vector3* vp = dmScript::CheckVector3(L, -1);
+    Vector3* vp = dmScript::CheckVector3(L, -1);
     ASSERT_NE((void*)0x0, (void*)vp);
     ASSERT_EQ(pos.getX(), vp->getX());
     ASSERT_EQ(pos.getY(), vp->getY());
@@ -281,7 +283,7 @@ TEST_F(ScriptVmathTest, TestTransform)
 
     lua_pushstring(L, "Rotation");
     lua_rawget(L, -2);
-    Vectormath::Aos::Quat* qp = dmScript::CheckQuat(L, -1);
+    Quat* qp = dmScript::CheckQuat(L, -1);
     ASSERT_NE((void*)0x0, (void*)qp);
     ASSERT_EQ(rot.getX(), qp->getX());
     ASSERT_EQ(rot.getY(), qp->getY());
@@ -297,13 +299,13 @@ TEST_F(ScriptVmathTest, TestTransform)
 TEST_F(ScriptVmathTest, TestMatrix4)
 {
     int top = lua_gettop(L);
-    Vectormath::Aos::Matrix4 m;
+    Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             m.setElem((float) i, (float) j, (float) (i * 4 + j));
     dmScript::PushMatrix4(L, m);
 
-    Vectormath::Aos::Matrix4* mp1 = dmScript::ToMatrix4(L, -1);
+    Matrix4* mp1 = dmScript::ToMatrix4(L, -1);
     ASSERT_NE((void*)0x0, mp1);
     for (int i = 0; i < 4; ++i)
     {
@@ -313,7 +315,7 @@ TEST_F(ScriptVmathTest, TestMatrix4)
         }
     }
 
-    Vectormath::Aos::Matrix4* mp2 = dmScript::CheckMatrix4(L, -1);
+    Matrix4* mp2 = dmScript::CheckMatrix4(L, -1);
     ASSERT_NE((void*)0x0, mp2);
     for (int i = 0; i < 4; ++i)
     {
@@ -347,9 +349,9 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
 TEST_F(ScriptVmathTest, TestToValueFn)
 {
     int top = lua_gettop(L);
-    Vectormath::Aos::Vector3 v3(1.0f, 2.0f, 3.0f);
+    Vector3 v3(1.0f, 2.0f, 3.0f);
     dmScript::PushVector3(L, v3);
-    Vectormath::Aos::Vector3* pv3 = dmScript::ToVector3(L, -1);
+    Vector3* pv3 = dmScript::ToVector3(L, -1);
     ASSERT_NE((void*)0, pv3);
     ASSERT_EQ(v3.getX(), pv3->getX());
     ASSERT_EQ(v3.getY(), pv3->getY());
@@ -359,9 +361,9 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
     lua_pop(L, 1);
 
-    Vectormath::Aos::Vector4 v4(1.0f, 2.0f, 3.0f, 4.0f);
+    Vector4 v4(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushVector4(L, v4);
-    Vectormath::Aos::Vector4* pv4 = dmScript::ToVector4(L, -1);
+    Vector4* pv4 = dmScript::ToVector4(L, -1);
     ASSERT_NE((void*)0, pv4);
     ASSERT_EQ(v4.getX(), pv4->getX());
     ASSERT_EQ(v4.getY(), pv4->getY());
@@ -372,9 +374,9 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
     lua_pop(L, 1);
 
-    Vectormath::Aos::Quat q(1.0f, 2.0f, 3.0f, 4.0f);
+    Quat q(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushQuat(L, q);
-    Vectormath::Aos::Quat* pq = dmScript::ToQuat(L, -1);
+    Quat* pq = dmScript::ToQuat(L, -1);
     ASSERT_NE((void*)0, pq);
     ASSERT_EQ(q.getX(), pq->getX());
     ASSERT_EQ(q.getY(), pq->getY());
@@ -386,13 +388,13 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     lua_pop(L, 1);
 
 
-    Vectormath::Aos::Matrix4 m;
+    Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             m.setElem((float) i, (float) j, (float) (i * 4 + j));
     dmScript::PushMatrix4(L, m);
 
-    Vectormath::Aos::Matrix4* pm = dmScript::ToMatrix4(L, -1);
+    Matrix4* pm = dmScript::ToMatrix4(L, -1);
     ASSERT_NE((void*)0, pm);
     ASSERT_EQ(0, dmScript::ToVector3(L, -1));
     ASSERT_EQ(0, dmScript::ToVector4(L, -1));

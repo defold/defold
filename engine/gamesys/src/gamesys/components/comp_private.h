@@ -14,20 +14,17 @@
 #define DM_GAMESYS_COMP_PRIVATE_H
 
 #include <dlib/hash.h>
-#include <dlib/math.h>
 #include <gameobject/gameobject.h>
-#include <render/render.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
-#include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gamesys/property.h>
 
 namespace dmGameSystem
 {
-    dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector3& ref_value, const PropVector3& property);
-    dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector3& set_value, const PropVector3& property);
+    dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const dmVMath::Vector3& ref_value, const PropVector3& property);
+    dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, dmVMath::Vector3& set_value, const PropVector3& property);
 
-    dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector4& ref_value, const PropVector4& property);
-    dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector4& set_value, const PropVector4& property);
+    dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const dmVMath::Vector4& ref_value, const PropVector4& property);
+    dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, dmVMath::Vector4& set_value, const PropVector4& property);
 }
 
 #endif // DM_GAMESYS_COMP_PRIVATE_H

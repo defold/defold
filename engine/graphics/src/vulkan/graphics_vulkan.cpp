@@ -2435,7 +2435,7 @@ bail:
         return -1;
     }
 
-    static void VulkanSetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register)
+    static void VulkanSetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
         assert(context->m_CurrentProgram);
         assert(base_register >= 0);
@@ -2452,7 +2452,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * count);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2463,11 +2463,11 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * count);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
         }
     }
 
-    static void VulkanSetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
+    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
     {
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
@@ -2482,7 +2482,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2493,7 +2493,7 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
         }
     }
 

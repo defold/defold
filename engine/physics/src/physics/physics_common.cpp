@@ -17,8 +17,6 @@
 
 namespace dmPhysics
 {
-    using namespace Vectormath::Aos;
-
     const char* PHYSICS_SOCKET_NAME = "@physics";
 
     NewContextParams::NewContextParams()

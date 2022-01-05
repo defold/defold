@@ -27,6 +27,7 @@
 
 namespace dmPhysics
 {
+    using namespace dmVMath;
 
     Context2D::Context2D()
     : m_Worlds()
@@ -55,7 +56,7 @@ namespace dmPhysics
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
-    	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
+        m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
@@ -419,13 +420,13 @@ namespace dmPhysics
                 // translate & rotation
                 if (retrieve_gameworld_transform || body->GetType() == b2_kinematicBody)
                 {
-                    Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
+                    Point3 old_position = GetWorldPosition2D(context, body);
                     dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
-                    Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                    Point3 position = Point3(world_transform.GetTranslation());
                     // Ignore z-component
                     position.setZ(0.0f);
-                    Vectormath::Aos::Quat rotation = world_transform.GetRotation();
+                    Quat rotation = world_transform.GetRotation();
                     float dp = distSqr(old_position, position);
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                     float old_angle = body->GetAngle();
@@ -463,9 +464,9 @@ namespace dmPhysics
                 {
                     if (body->GetType() == b2_dynamicBody && body->IsActive())
                     {
-                        Vectormath::Aos::Point3 position;
+                        Point3 position;
                         FromB2(body->GetPosition(), position, inv_scale);
-                        Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
+                        Quat rotation = Quat::rotationZ(body->GetAngle());
                         (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
                     }
                 }
@@ -578,7 +579,7 @@ namespace dmPhysics
         return shape;
     }
 
-    HCollisionShape2D NewBoxShape2D(HContext2D context, const Vectormath::Aos::Vector3& half_extents)
+    HCollisionShape2D NewBoxShape2D(HContext2D context, const Vector3& half_extents)
     {
         b2PolygonShape* shape = new b2PolygonShape();
         float scale = context->m_Scale;
@@ -619,7 +620,7 @@ namespace dmPhysics
     }
 
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
-                                     const Vectormath::Aos::Point3& position,
+                                     const Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count)
     {
@@ -738,8 +739,8 @@ namespace dmPhysics
      */
     static b2Shape* TransformCopyShape(HContext2D context,
                                        const b2Shape* shape,
-                                       const Vectormath::Aos::Vector3& translation,
-                                       const Vectormath::Aos::Quat& rotation,
+                                       const Vector3& translation,
+                                       const Quat& rotation,
                                        float scale)
     {
         b2Vec2 t;
@@ -864,7 +865,7 @@ namespace dmPhysics
      * with per-child transform.
      */
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes,
-                                            Vectormath::Aos::Vector3* translations, Vectormath::Aos::Quat* rotations,
+                                            Vector3* translations, Quat* rotations,
                                             uint32_t shape_count)
     {
         if (shape_count == 0)
@@ -899,8 +900,8 @@ namespace dmPhysics
             {
                 dmTransform::Transform world_transform;
                 (*world->m_GetWorldTransformCallback)(data.m_UserData, world_transform);
-                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
-                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
+                Point3 position = Point3(world_transform.GetTranslation());
+                Quat rotation = Quat(world_transform.GetRotation());
                 ToB2(position, def.position, context->m_Scale);
                 def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                 scale = GetUniformScale2D(world_transform);
@@ -929,7 +930,7 @@ namespace dmPhysics
         def.bullet = data.m_Bullet;
         def.active = data.m_Enabled;
         b2Body* body = world->m_World.CreateBody(&def);
-        Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);
+        Vector3 zero_vec3 = Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i) {
             // Add shapes in reverse order. The fixture list in the body
             // is a single linked list and cells are prepended.
@@ -942,7 +943,7 @@ namespace dmPhysics
             }
             else
             {
-                s = TransformCopyShape(context, s, zero_vec3, Vectormath::Aos::Quat::identity(), scale);
+                s = TransformCopyShape(context, s, zero_vec3, Quat::identity(), scale);
             }
 
             b2FixtureDef f_def;
@@ -1007,7 +1008,7 @@ namespace dmPhysics
         return ((b2Body*)collision_object)->GetUserData();
     }
 
-    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
+    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& force, const Point3& position)
     {
         float scale = context->m_Scale;
         b2Vec2 b2_force;
@@ -1017,50 +1018,50 @@ namespace dmPhysics
         ((b2Body*)collision_object)->ApplyForce(b2_force, b2_position);
     }
 
-    Vectormath::Aos::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
+    Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
         const b2Vec2& b2_force = ((b2Body*)collision_object)->GetForce();
-        Vectormath::Aos::Vector3 force;
+        Vector3 force;
         FromB2(b2_force, force, context->m_InvScale);
         return force;
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
+    Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
     {
         const b2Vec2& b2_position = ((b2Body*)collision_object)->GetPosition();
-        Vectormath::Aos::Point3 position;
+        Point3 position;
         FromB2(b2_position, position, context->m_InvScale);
         return position;
     }
 
-    Vectormath::Aos::Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
+    Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
     {
         float rotation = ((b2Body*)collision_object)->GetAngle();
-        return Vectormath::Aos::Quat::rotationZ(rotation);
+        return Quat::rotationZ(rotation);
     }
 
-    Vectormath::Aos::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
+    Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
         b2Vec2 b2_lin_vel = ((b2Body*)collision_object)->GetLinearVelocity();
-        Vectormath::Aos::Vector3 lin_vel;
+        Vector3 lin_vel;
         FromB2(b2_lin_vel, lin_vel, context->m_InvScale);
         return lin_vel;
     }
 
-    Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
+    Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
         float ang_vel = ((b2Body*)collision_object)->GetAngularVelocity();
-        return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel);
+        return Vector3(0.0f, 0.0f, ang_vel);
     }
 
-    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
         b2Vec2 b2_velocity;
         ToB2(velocity, b2_velocity, context->m_Scale);
         ((b2Body*)collision_object)->SetLinearVelocity(b2_velocity);
     }
 
-    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
         ((b2Body*)collision_object)->SetAngularVelocity(velocity.getZ());
     }
@@ -1086,8 +1087,8 @@ namespace dmPhysics
             {
                 dmTransform::Transform world_transform;
                 (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
-                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
-                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
+                Point3 position = Point3(world_transform.GetTranslation());
+                Quat rotation = Quat(world_transform.GetRotation());
                 float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                 b2Vec2 b2_position;
                 ToB2(position, b2_position, world->m_Context->m_Scale);
@@ -1215,9 +1216,9 @@ namespace dmPhysics
         {
             // Verify that the ray is not 0-length
             // We need to remove the z-value before calculating length (DEF-1286)
-            const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
-            const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
-            if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
+            const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+            const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+            if (lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
             }
@@ -1244,9 +1245,9 @@ namespace dmPhysics
     {
         DM_PROFILE(Physics, "RayCasts");
 
-        const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
-        const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
-        if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
+        const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+        const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+        if (lengthSqr(to2d - from2d) <= 0.0f)
         {
             dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
             return;
@@ -1281,17 +1282,17 @@ namespace dmPhysics
         }
     }
 
-    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity)
+    void SetGravity2D(HWorld2D world, const Vector3& gravity)
     {
         b2Vec2 gravity_b;
         ToB2(gravity, gravity_b, world->m_Context->m_Scale);
         world->m_World.SetGravity(gravity_b);
     }
 
-    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world)
+    Vector3 GetGravity2D(HWorld2D world)
     {
         b2Vec2 gravity_b = world->m_World.GetGravity();
-        Vectormath::Aos::Vector3 gravity;
+        Vector3 gravity;
         FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
         return gravity;
     }
@@ -1360,7 +1361,7 @@ namespace dmPhysics
         }
     }
 
-    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Point3& pos_a, HCollisionObject2D obj_b, const Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
     {
         float scale = world->m_Context->m_Scale;
         b2Vec2 pa;
@@ -1426,7 +1427,7 @@ namespace dmPhysics
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     b2Vec2 axis;
-                    Vectormath::Aos::Vector3 apa(params.m_SliderJointParams.m_LocalAxisA[0], params.m_SliderJointParams.m_LocalAxisA[1], params.m_SliderJointParams.m_LocalAxisA[2]);
+                    Vector3 apa(params.m_SliderJointParams.m_LocalAxisA[0], params.m_SliderJointParams.m_LocalAxisA[1], params.m_SliderJointParams.m_LocalAxisA[2]);
                     ToB2(apa, axis, 1.0f);
                     jointDef.localAxisA       = axis;
                     jointDef.referenceAngle   = params.m_SliderJointParams.m_ReferenceAngle;
@@ -1599,7 +1600,7 @@ namespace dmPhysics
         world->m_World.DestroyJoint((b2Joint*)_joint);
     }
 
-    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vectormath::Aos::Vector3& force, float inv_dt)
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force, float inv_dt)
     {
         float inv_scale = world->m_Context->m_InvScale;
 

@@ -101,7 +101,7 @@ namespace dmRender
 
         const char* name = luaL_checkstring(L, 2);
         dmhash_t name_hash = dmHashString64(name);
-        Vectormath::Aos::Vector4* values;
+        dmVMath::Vector4* values;
         uint32_t num_values = 0;
         if (GetNamedConstant(*cb, name_hash, &values, &num_values))
         {
@@ -123,7 +123,7 @@ namespace dmRender
 
         const char* name = luaL_checkstring(L, 2);
         dmhash_t name_hash = dmHashString64(name);
-        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
+        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
         SetNamedConstant(*cb, name_hash, value, 1);
         assert(top == lua_gettop(L));
         return 0;
@@ -1262,7 +1262,7 @@ namespace dmRender
 
         uint32_t flags = 0;
 
-        Vectormath::Aos::Vector4 color(0.0f, 0.0f, 0.0f, 0.0f);
+        dmVMath::Vector4 color(0.0f, 0.0f, 0.0f, 0.0f);
         float depth = 0.0f;
         uint32_t stencil = 0;
 
@@ -1438,9 +1438,9 @@ namespace dmRender
     int RenderScript_SetView(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        Vectormath::Aos::Matrix4 view = *dmScript::CheckMatrix4(L, 1);
+        dmVMath::Matrix4 view = *dmScript::CheckMatrix4(L, 1);
 
-        Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
+        dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = view;
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uintptr_t)matrix)))
             return 0;
@@ -1465,8 +1465,8 @@ namespace dmRender
     int RenderScript_SetProjection(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
-        Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
+        dmVMath::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
+        dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = projection;
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uintptr_t)matrix)))
             return 0;
@@ -2879,15 +2879,15 @@ bail:
                     dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
                     const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
                     params.m_Text = text;
-                    params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
-                    params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+                    params.m_WorldTransform.setTranslation(dmVMath::Vector3(dt->m_Position));
+                    params.m_FaceColor = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
                 }
                 else
                 {
                     dmRenderDDF::DrawDebugText* dt = (dmRenderDDF::DrawDebugText*)message->m_Data;
                     const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
                     params.m_Text = text;
-                    params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
+                    params.m_WorldTransform.setTranslation(dmVMath::Vector3(dt->m_Position));
                     params.m_FaceColor = dt->m_Color;
                 }
                 DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, 0, 0, params);

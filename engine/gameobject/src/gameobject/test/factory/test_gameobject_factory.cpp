@@ -21,7 +21,7 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class FactoryTest : public jc_test_base_class
 {

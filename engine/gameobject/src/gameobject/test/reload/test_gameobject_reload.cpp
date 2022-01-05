@@ -13,7 +13,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/hash.h>
 
@@ -24,7 +24,7 @@
 
 #include "gameobject/test/reload/test_gameobject_reload_ddf.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 struct ReloadTargetComponent
 {

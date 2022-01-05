@@ -27,7 +27,7 @@
 
 #define EPSILON 0.000001f
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class HierarchyTest : public jc_test_base_class
 {

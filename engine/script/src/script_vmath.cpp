@@ -12,7 +12,7 @@
 
 #include "script.h"
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
@@ -29,6 +29,8 @@ extern "C"
 
 namespace dmScript
 {
+    using namespace dmVMath;
+
     /*# Vector math API documentation
      *
      * Functions for mathematical operations on vectors, matrices and quaternions.
@@ -119,7 +121,7 @@ namespace dmScript
 
     static int Vector_len(lua_State *L)
     {
-        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
 
         lua_pushnumber(L, v->size);
         return 1;
@@ -127,7 +129,7 @@ namespace dmScript
 
     static int Vector_index(lua_State *L)
     {
-        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
 
         int key = luaL_checkinteger(L, 2);
         if (key > 0 && key <= v->size)
@@ -148,7 +150,7 @@ namespace dmScript
 
     static int Vector_newindex(lua_State *L)
     {
-        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
 
         int key = luaL_checkinteger(L, 2);
         if (key > 0 && key <= v->size)
@@ -169,14 +171,14 @@ namespace dmScript
 
     static int Vector_tostring(lua_State *L)
     {
-        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
         lua_pushfstring(L, "%s.%s (size: %d)", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
         return 1;
     }
 
     static int Vector_gc(lua_State *L)
     {
-        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
         delete v;
         return 0;
     }
@@ -196,21 +198,21 @@ namespace dmScript
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR3];
     }
 
-    Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index)
+    Vector3* ToVector3(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Vector3*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3]);
+        return (Vector3*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3]);
     }
 
     static int Vector3_tostring(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
+        Vector3* v = (Vector3*)lua_touserdata(L, 1);
         lua_pushfstring(L, "vmath.%s(%f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         return 1;
     }
 
     static int Vector3_index(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
+        Vector3* v = (Vector3*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -236,7 +238,7 @@ namespace dmScript
 
     static int Vector3_newindex(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
+        Vector3* v = (Vector3*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -260,23 +262,23 @@ namespace dmScript
 
     static int Vector3_add(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+        Vector3* v1 = CheckVector3(L, 1);
+        Vector3* v2 = CheckVector3(L, 2);
         PushVector3(L, *v1 + *v2);
         return 1;
     }
 
     static int Vector3_sub(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+        Vector3* v1 = CheckVector3(L, 1);
+        Vector3* v2 = CheckVector3(L, 2);
         PushVector3(L, *v1 - *v2);
         return 1;
     }
 
     static int Vector3_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = ToVector3(L, 1);
+        Vector3* v = ToVector3(L, 1);
         float s;
         if (v != 0)
         {
@@ -293,7 +295,7 @@ namespace dmScript
 
     static int Vector3_div(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+        Vector3* v = CheckVector3(L, 1);
         float s = (float) luaL_checknumber(L, 2);
         PushVector3(L, *v / s);
         return 1;
@@ -301,7 +303,7 @@ namespace dmScript
 
     static int Vector3_unm(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
+        Vector3* v = (Vector3*)lua_touserdata(L, 1);
         PushVector3(L, - *v);
         return 1;
     }
@@ -310,7 +312,7 @@ namespace dmScript
     {
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
+        Vector3* v = CheckVector3(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_VECTOR3 + 1;
         char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
@@ -322,8 +324,8 @@ namespace dmScript
 
     static int Vector3_eq(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v1 = ToVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = ToVector3(L, 2);
+        Vector3* v1 = ToVector3(L, 1);
+        Vector3* v2 = ToVector3(L, 2);
         lua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ());
         return 1;
     }
@@ -352,21 +354,21 @@ namespace dmScript
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR4];
     }
 
-    Vectormath::Aos::Vector4* ToVector4(lua_State *L, int index)
+    Vector4* ToVector4(lua_State *L, int index)
     {
-        return (Vectormath::Aos::Vector4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4]);
+        return (Vector4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4]);
     }
 
     static int Vector4_tostring(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
+        Vector4* v = (Vector4*)lua_touserdata(L, 1);
         lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
         return 1;
     }
 
     static int Vector4_index(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
+        Vector4* v = (Vector4*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -397,7 +399,7 @@ namespace dmScript
 
     static int Vector4_newindex(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
+        Vector4* v = (Vector4*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -425,23 +427,23 @@ namespace dmScript
 
     static int Vector4_add(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
-        Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+        Vector4* v1 = CheckVector4(L, 1);
+        Vector4* v2 = CheckVector4(L, 2);
         PushVector4(L, *v1 + *v2);
         return 1;
     }
 
     static int Vector4_sub(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
-        Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+        Vector4* v1 = CheckVector4(L, 1);
+        Vector4* v2 = CheckVector4(L, 2);
         PushVector4(L, *v1 - *v2);
         return 1;
     }
 
     static int Vector4_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = ToVector4(L, 1);
+        Vector4* v = ToVector4(L, 1);
         float s;
         if (v != 0)
         {
@@ -458,7 +460,7 @@ namespace dmScript
 
     static int Vector4_div(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        Vector4* v = CheckVector4(L, 1);
         float s = (float) luaL_checknumber(L, 2);
         PushVector4(L, *v / s);
         return 1;
@@ -466,7 +468,7 @@ namespace dmScript
 
     static int Vector4_unm(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
+        Vector4* v = (Vector4*)lua_touserdata(L, 1);
         PushVector4(L, - *v);
         return 1;
     }
@@ -475,7 +477,7 @@ namespace dmScript
     {
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
+        Vector4* v = CheckVector4(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_VECTOR4 + 1;
         char* buffer = new char[size + buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
@@ -487,8 +489,8 @@ namespace dmScript
 
     static int Vector4_eq(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v1 = ToVector4(L, 1);
-        Vectormath::Aos::Vector4* v2 = ToVector4(L, 2);
+        Vector4* v1 = ToVector4(L, 1);
+        Vector4* v2 = ToVector4(L, 2);
         lua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ() && v1->getW() == v2->getW());
         return 1;
     }
@@ -517,21 +519,21 @@ namespace dmScript
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_QUAT];
     }
 
-    Vectormath::Aos::Quat* ToQuat(lua_State *L, int index)
+    Quat* ToQuat(lua_State *L, int index)
     {
-        return (Vectormath::Aos::Quat*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT]);
+        return (Quat*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT]);
     }
 
     static int Quat_tostring(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)lua_touserdata(L, 1);
+        Quat* q = (Quat*)lua_touserdata(L, 1);
         lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
         return 1;
     }
 
     static int Quat_index(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)lua_touserdata(L, 1);
+        Quat* q = (Quat*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -563,7 +565,7 @@ namespace dmScript
 
     static int Quat_newindex(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)lua_touserdata(L, 1);
+        Quat* q = (Quat*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -591,8 +593,8 @@ namespace dmScript
 
     static int Quat_mul(lua_State *L)
     {
-        Vectormath::Aos::Quat* q1 = CheckQuat(L, 1);
-        Vectormath::Aos::Quat* q2 = CheckQuat(L, 2);
+        Quat* q1 = CheckQuat(L, 1);
+        Quat* q2 = CheckQuat(L, 2);
         PushQuat(L, *q1 * *q2);
         return 1;
     }
@@ -601,7 +603,7 @@ namespace dmScript
     {
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
-        Vectormath::Aos::Quat* q = CheckQuat(L, 2);
+        Quat* q = CheckQuat(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_QUAT + 1;
         char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
@@ -613,8 +615,8 @@ namespace dmScript
 
     static int Quat_eq(lua_State *L)
     {
-        Vectormath::Aos::Quat* q1 = ToQuat(L, 1);
-        Vectormath::Aos::Quat* q2 = ToQuat(L, 2);
+        Quat* q1 = ToQuat(L, 1);
+        Quat* q2 = ToQuat(L, 2);
         lua_pushboolean(L, q1 && q2 && q1->getX() == q2->getX() && q1->getY() == q2->getY() && q1->getZ() == q2->getZ() && q1->getW() == q2->getW());
         return 1;
     }
@@ -639,14 +641,14 @@ namespace dmScript
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_MATRIX4];
     }
 
-    Vectormath::Aos::Matrix4* ToMatrix4(lua_State *L, int index)
+    Matrix4* ToMatrix4(lua_State *L, int index)
     {
-        return (Vectormath::Aos::Matrix4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4]);
+        return (Matrix4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4]);
     }
 
     static int Matrix4_tostring(lua_State *L)
     {
-        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
+        Matrix4* m = (Matrix4*)lua_touserdata(L, 1);
         lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
@@ -657,7 +659,7 @@ namespace dmScript
 
     static int Matrix4_index(lua_State *L)
     {
-        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
+        Matrix4* m = (Matrix4*)lua_touserdata(L, 1);
 
         size_t key_len = 0;
         const char* key = luaL_checklstring(L, 2, &key_len);
@@ -685,7 +687,7 @@ namespace dmScript
 
     static int Matrix4_newindex(lua_State *L)
     {
-        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
+        Matrix4* m = (Matrix4*)lua_touserdata(L, 1);
 
         size_t key_len = 0;
         const char* key = luaL_checklstring(L, 2, &key_len);
@@ -704,7 +706,7 @@ namespace dmScript
             int col = key[1] - (char)'0';
             if (0 <= col && col < 4)
             {
-                Vectormath::Aos::Vector4* vec = CheckVector4(L, -1);
+                Vector4* vec = CheckVector4(L, -1);
                 m->setCol(col, *vec);
                 return 0;
             }
@@ -714,7 +716,7 @@ namespace dmScript
 
     static int Matrix4_mul(lua_State *L)
     {
-        Vectormath::Aos::Matrix4 m1;
+        Matrix4 m1;
         if (lua_isnumber(L, 1))
         {
             float f = (float) lua_tonumber(L, 1);
@@ -724,8 +726,8 @@ namespace dmScript
         else
         {
             m1 = *CheckMatrix4(L, 1);
-            Vectormath::Aos::Matrix4* m2 = ToMatrix4(L, 2);
-            Vectormath::Aos::Vector4* v = m2 != 0 ? 0 : ToVector4(L, 2);
+            Matrix4* m2 = ToMatrix4(L, 2);
+            Vector4* v = m2 != 0 ? 0 : ToVector4(L, 2);
             if (m2 != 0)
             {
                 PushMatrix4(L, m1 * *m2);
@@ -751,7 +753,7 @@ namespace dmScript
     {
         size_t size = 0;
         const char* s = luaL_checklstring(L, 1, &size);
-        Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 2);
+        Matrix4* m = CheckMatrix4(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_MATRIX4 + 1;
         char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
@@ -767,8 +769,8 @@ namespace dmScript
 
     static int Matrix4_eq(lua_State *L)
     {
-        Vectormath::Aos::Matrix4* m1 = ToMatrix4(L, 1);
-        Vectormath::Aos::Matrix4* m2 = ToMatrix4(L, 2);
+        Matrix4* m1 = ToMatrix4(L, 1);
+        Matrix4* m2 = ToMatrix4(L, 2);
         lua_pushboolean(L,
             m1 && m2 &&
             m1->getElem(0, 0) == m2->getElem(0, 0) && m1->getElem(1, 0) == m2->getElem(1, 0) && m1->getElem(2, 0) == m2->getElem(2, 0) && m1->getElem(3, 0) == m2->getElem(3, 0) &&
@@ -817,16 +819,16 @@ namespace dmScript
      */
     static int Vector_new(lua_State* L)
     {
-        dmVMath::FloatVector *v;
+        FloatVector *v;
         if (lua_gettop(L) == 0)
         {
-            v = new dmVMath::FloatVector(0);
+            v = new FloatVector(0);
         }
         else
         {
             luaL_checktype(L, 1, LUA_TTABLE);
             int array_size = lua_objlen(L, 1);
-            v = new dmVMath::FloatVector(array_size);
+            v = new FloatVector(array_size);
 
             for (int i = 0; i < array_size; i++)
             {
@@ -917,10 +919,10 @@ namespace dmScript
      */
     static int Vector3_new(lua_State* L)
     {
-        Vectormath::Aos::Vector3 v;
+        Vector3 v;
         if (lua_gettop(L) == 0)
         {
-            v = Vectormath::Aos::Vector3(0.0f, 0.0f, 0.0f);
+            v = Vector3(0.0f, 0.0f, 0.0f);
         }
         else if (lua_gettop(L) == 1)
         {
@@ -928,7 +930,7 @@ namespace dmScript
             if (type == LUA_TNUMBER)
             {
                 float x = (float) lua_tonumber(L, -1);
-                v = Vectormath::Aos::Vector3(x, x, x);
+                v = Vector3(x, x, x);
             }
             else
             {
@@ -1023,14 +1025,14 @@ namespace dmScript
      */
     static int Vector4_new(lua_State* L)
     {
-        Vectormath::Aos::Vector4 v;
+        Vector4 v;
         // NOTE: The following comment is obsolete
         // "No empty constructor, since the value of w matters"
         // Don't understand why. Every component matters :-)
         // Empty constructor added.
         if (lua_gettop(L) == 0)
         {
-            v = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+            v = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
         }
         else if (lua_gettop(L) == 1)
         {
@@ -1038,7 +1040,7 @@ namespace dmScript
             if (type == LUA_TNUMBER)
             {
                 float x = (float) lua_tonumber(L, -1);
-                v = Vectormath::Aos::Vector4(x, x, x, x);
+                v = Vector4(x, x, x, x);
             }
             else
             {
@@ -1116,10 +1118,10 @@ namespace dmScript
      */
     static int Quat_new(lua_State* L)
     {
-        Vectormath::Aos::Quat q;
+        Quat q;
         if (lua_gettop(L) == 0)
         {
-            q = Vectormath::Aos::Quat::identity();
+            q = Quat::identity();
         }
         else if (lua_gettop(L) == 1)
         {
@@ -1160,9 +1162,9 @@ namespace dmScript
      */
     static int Quat_FromTo(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
-        PushQuat(L, Vectormath::Aos::Quat::rotation(*v1, *v2));
+        Vector3* v1 = CheckVector3(L, 1);
+        Vector3* v2 = CheckVector3(L, 2);
+        PushQuat(L, Quat::rotation(*v1, *v2));
         return 1;
     }
 
@@ -1186,9 +1188,9 @@ namespace dmScript
      */
     static int Quat_AxisAngle(lua_State* L)
     {
-        Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
+        Vector3* axis = CheckVector3(L, 1);
         float angle = (float) luaL_checknumber(L, 2);
-        PushQuat(L, Vectormath::Aos::Quat::rotation(angle, *axis));
+        PushQuat(L, Quat::rotation(angle, *axis));
         return 1;
     }
 
@@ -1220,14 +1222,14 @@ namespace dmScript
      */
     static int Quat_Basis(lua_State* L)
     {
-        Vectormath::Aos::Vector3* x = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* y = CheckVector3(L, 2);
-        Vectormath::Aos::Vector3* z = CheckVector3(L, 3);
-        Vectormath::Aos::Matrix3 m;
+        Vector3* x = CheckVector3(L, 1);
+        Vector3* y = CheckVector3(L, 2);
+        Vector3* z = CheckVector3(L, 3);
+        Matrix3 m;
         m.setCol0(*x);
         m.setCol1(*y);
         m.setCol2(*z);
-        PushQuat(L, Vectormath::Aos::Quat(m));
+        PushQuat(L, Quat(m));
         return 1;
     }
 
@@ -1250,7 +1252,7 @@ namespace dmScript
     static int Quat_RotationX(lua_State* L)
     {
         float angle = (float) luaL_checknumber(L, 1);
-        PushQuat(L, Vectormath::Aos::Quat::rotationX(angle));
+        PushQuat(L, Quat::rotationX(angle));
         return 1;
     }
 
@@ -1273,7 +1275,7 @@ namespace dmScript
     static int Quat_RotationY(lua_State* L)
     {
         float angle = (float) luaL_checknumber(L, 1);
-        PushQuat(L, Vectormath::Aos::Quat::rotationY(angle));
+        PushQuat(L, Quat::rotationY(angle));
         return 1;
     }
 
@@ -1296,7 +1298,7 @@ namespace dmScript
     static int Quat_RotationZ(lua_State* L)
     {
         float angle = (float) luaL_checknumber(L, 1);
-        PushQuat(L, Vectormath::Aos::Quat::rotationZ(angle));
+        PushQuat(L, Quat::rotationZ(angle));
         return 1;
     }
 
@@ -1341,10 +1343,10 @@ namespace dmScript
      */
     static int Matrix4_new(lua_State* L)
     {
-        Vectormath::Aos::Matrix4 m;
+        Matrix4 m;
         if (lua_gettop(L) == 0)
         {
-            m = Vectormath::Aos::Matrix4::identity();
+            m = Matrix4::identity();
         }
         else if (lua_gettop(L) == 1)
         {
@@ -1395,7 +1397,7 @@ namespace dmScript
             dmLogWarning("%sperspective projection invalid, znear = 0", lua_tostring(L,-1));
         }
         float far_z = (float) luaL_checknumber(L, 6);
-        PushMatrix4(L, Vectormath::Aos::Matrix4::frustum(left, right, bottom, top, near_z, far_z));
+        PushMatrix4(L, Matrix4::frustum(left, right, bottom, top, near_z, far_z));
         return 1;
     }
 
@@ -1426,7 +1428,7 @@ namespace dmScript
      */
     static int Matrix4_LookAt(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::lookAt(Vectormath::Aos::Point3(*CheckVector3(L, 1)), Vectormath::Aos::Point3(*CheckVector3(L, 2)), *CheckVector3(L, 3)));
+        PushMatrix4(L, Matrix4::lookAt(Point3(*CheckVector3(L, 1)), Point3(*CheckVector3(L, 2)), *CheckVector3(L, 3)));
         return 1;
     }
 
@@ -1461,7 +1463,7 @@ namespace dmScript
         float top = (float) luaL_checknumber(L, 4);
         float near_z = (float) luaL_checknumber(L, 5);
         float far_z = (float) luaL_checknumber(L, 6);
-        PushMatrix4(L, Vectormath::Aos::Matrix4::orthographic(left, right, bottom, top, near_z, far_z));
+        PushMatrix4(L, Matrix4::orthographic(left, right, bottom, top, near_z, far_z));
         return 1;
     }
 
@@ -1500,7 +1502,7 @@ namespace dmScript
             luaL_where(L, 1);
             dmLogWarning("%sperspective projection invalid, znear = 0", lua_tostring(L,-1));
         }
-        PushMatrix4(L, Vectormath::Aos::Matrix4::perspective(fov, aspect, near_z, far_z));
+        PushMatrix4(L, Matrix4::perspective(fov, aspect, near_z, far_z));
         return 1;
     }
 
@@ -1521,7 +1523,7 @@ namespace dmScript
      */
     static int Matrix4_FromQuat(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotation(*CheckQuat(L, 1)));
+        PushMatrix4(L, Matrix4::rotation(*CheckQuat(L, 1)));
         return 1;
     }
 
@@ -1543,9 +1545,9 @@ namespace dmScript
      */
     static int Matrix4_AxisAngle(lua_State* L)
     {
-        Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
+        Vector3* axis = CheckVector3(L, 1);
         float angle = (float) luaL_checknumber(L, 2);
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotation(angle, *axis));
+        PushMatrix4(L, Matrix4::rotation(angle, *axis));
         return 1;
     }
 
@@ -1566,7 +1568,7 @@ namespace dmScript
      */
     static int Matrix4_RotationX(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationX((float) luaL_checknumber(L, 1)));
+        PushMatrix4(L, Matrix4::rotationX((float) luaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1587,7 +1589,7 @@ namespace dmScript
      */
     static int Matrix4_RotationY(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationY((float) luaL_checknumber(L, 1)));
+        PushMatrix4(L, Matrix4::rotationY((float) luaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1608,7 +1610,7 @@ namespace dmScript
      */
     static int Matrix4_RotationZ(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationZ((float) luaL_checknumber(L, 1)));
+        PushMatrix4(L, Matrix4::rotationZ((float) luaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1634,13 +1636,13 @@ namespace dmScript
 
         if (v_type == SCRIPT_TYPE_VECTOR3)
         {
-            const Vectormath::Aos::Vector3* t1 = CheckVector3(L, 1);
-            PushMatrix4(L, Vectormath::Aos::Matrix4::translation(*t1));
+            const Vector3* t1 = CheckVector3(L, 1);
+            PushMatrix4(L, Matrix4::translation(*t1));
         }
         else if (v_type == SCRIPT_TYPE_VECTOR4)
         {
-            const Vectormath::Aos::Vector4* t1 = CheckVector4(L, 1);
-            PushMatrix4(L, Vectormath::Aos::Matrix4::translation(t1->getXYZ()));
+            const Vector4* t1 = CheckVector4(L, 1);
+            PushMatrix4(L, Matrix4::translation(t1->getXYZ()));
         }
         else
         {
@@ -1673,8 +1675,8 @@ namespace dmScript
      */
     static int Inverse(lua_State* L)
     {
-        const Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
-        Vectormath::Aos::Matrix4 mi = Vectormath::Aos::inverse(*m);
+        const Matrix4* m = CheckMatrix4(L, 1);
+        Matrix4 mi = Vectormath::Aos::inverse(*m);
         PushMatrix4(L, mi);
         return 1;
     }
@@ -1701,8 +1703,8 @@ namespace dmScript
      */
     static int OrthoInverse(lua_State* L)
     {
-        const Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
-        Vectormath::Aos::Matrix4 mi = Vectormath::Aos::orthoInverse(*m);
+        const Matrix4* m = CheckMatrix4(L, 1);
+        Matrix4 mi = Vectormath::Aos::orthoInverse(*m);
         PushMatrix4(L, mi);
         return 1;
     }
@@ -1743,14 +1745,14 @@ namespace dmScript
         }
         if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
         {
-            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+            Vector3* v1 = CheckVector3(L, 1);
+            Vector3* v2 = CheckVector3(L, 2);
             lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
         }
         else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
         {
-            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
-            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+            Vector4* v1 = CheckVector4(L, 1);
+            Vector4* v2 = CheckVector4(L, 2);
             lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
         }
         else
@@ -1781,17 +1783,17 @@ namespace dmScript
         const ScriptUserType type = GetType(L, 1);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
-            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            Vector3* v = CheckVector3(L, 1);
             lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
-            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+            Vector4* v = CheckVector4(L, 1);
             lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
-            Vectormath::Aos::Quat* value = CheckQuat(L, 1);
+            Quat* value = CheckQuat(L, 1);
             // quat doesn't have a lengthSqr(), but this is what's called before the sqrtf in length()
             lua_pushnumber(L, Vectormath::Aos::norm(*value));
         }
@@ -1830,17 +1832,17 @@ namespace dmScript
         const ScriptUserType type = GetType(L, 1);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
-            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            Vector3* v = CheckVector3(L, 1);
             lua_pushnumber(L, Vectormath::Aos::length(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
-            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+            Vector4* v = CheckVector4(L, 1);
             lua_pushnumber(L, Vectormath::Aos::length(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
-            Vectormath::Aos::Quat* value = CheckQuat(L, 1);
+            Quat* value = CheckQuat(L, 1);
             lua_pushnumber(L, Vectormath::Aos::length(*value));
         }
         else
@@ -1875,17 +1877,17 @@ namespace dmScript
         const ScriptUserType type = GetType(L, 1);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
-            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            Vector3* v = CheckVector3(L, 1);
             PushVector3(L, Vectormath::Aos::normalize(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
-            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+            Vector4* v = CheckVector4(L, 1);
             PushVector4(L, Vectormath::Aos::normalize(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
-            Vectormath::Aos::Quat* value = CheckQuat(L, 1);
+            Quat* value = CheckQuat(L, 1);
             PushQuat(L, Vectormath::Aos::normalize(*value));
         }
         else
@@ -1921,8 +1923,8 @@ namespace dmScript
      */
     static int Cross(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+        Vector3* v1 = CheckVector3(L, 1);
+        Vector3* v2 = CheckVector3(L, 2);
         PushVector3(L, Vectormath::Aos::cross(*v1, *v2));
         return 1;
     }
@@ -2033,22 +2035,22 @@ namespace dmScript
         {
             if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
             {
-                Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
-                Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
+                Vector3* v1 = CheckVector3(L, 2);
+                Vector3* v2 = CheckVector3(L, 3);
                 PushVector3(L, Vectormath::Aos::lerp(t, *v1, *v2));
                 return 1;
             }
             else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
             {
-                Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
-                Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
+                Vector4* v1 = CheckVector4(L, 2);
+                Vector4* v2 = CheckVector4(L, 3);
                 PushVector4(L, Vectormath::Aos::lerp(t, *v1, *v2));
                 return 1;
             }
             else if (type1 == SCRIPT_TYPE_QUAT && type2 == SCRIPT_TYPE_QUAT)
             {
-                Vectormath::Aos::Quat* q1 = CheckQuat(L, 2);
-                Vectormath::Aos::Quat* q2 = CheckQuat(L, 3);
+                Quat* q1 = CheckQuat(L, 2);
+                Quat* q2 = CheckQuat(L, 3);
                 PushQuat(L, Vectormath::Aos::lerp(t, *q1, *q2));
                 return 1;
             }
@@ -2145,22 +2147,22 @@ namespace dmScript
             float t = (float) luaL_checknumber(L, 1);
             if (type1 == SCRIPT_TYPE_QUAT && type2 == SCRIPT_TYPE_QUAT)
             {
-                Vectormath::Aos::Quat* q1 = (Vectormath::Aos::Quat*)lua_touserdata(L, 2);
-                Vectormath::Aos::Quat* q2 = (Vectormath::Aos::Quat*)lua_touserdata(L, 3);
+                Quat* q1 = (Quat*)lua_touserdata(L, 2);
+                Quat* q2 = (Quat*)lua_touserdata(L, 3);
                 PushQuat(L, Vectormath::Aos::slerp(t, *q1, *q2));
                 return 1;
             }
             else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
             {
-                Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
-                Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
+                Vector4* v1 = CheckVector4(L, 2);
+                Vector4* v2 = CheckVector4(L, 3);
                 PushVector4(L, Vectormath::Aos::slerp(t, *v1, *v2));
                 return 1;
             }
             else if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
             {
-                Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
-                Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
+                Vector3* v1 = CheckVector3(L, 2);
+                Vector3* v2 = CheckVector3(L, 3);
                 PushVector3(L, Vectormath::Aos::slerp(t, *v1, *v2));
                 return 1;
             }
@@ -2188,7 +2190,7 @@ namespace dmScript
      */
     static int Conj(lua_State* L)
     {
-        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
+        Quat* q = CheckQuat(L, 1);
         PushQuat(L, Vectormath::Aos::conj(*q));
         return 1;
     }
@@ -2213,8 +2215,8 @@ namespace dmScript
      */
     static int Rotate(lua_State* L)
     {
-        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
+        Quat* q = CheckQuat(L, 1);
+        Vector3* v = CheckVector3(L, 2);
         PushVector3(L, Vectormath::Aos::rotate(*q, *v));
         return 1;
     }
@@ -2242,8 +2244,8 @@ namespace dmScript
      */
     static int Project(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+        Vector3* v1 = CheckVector3(L, 1);
+        Vector3* v2 = CheckVector3(L, 2);
         float sq_len = Vectormath::Aos::lengthSqr(*v2);
         if (sq_len == 0.0f)
             return luaL_error(L, "The second %s.%s to %s.%s must have a length bigger than 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, "project");
@@ -2279,14 +2281,14 @@ namespace dmScript
         }
         if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
         {
-            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+            Vector3* v1 = CheckVector3(L, 1);
+            Vector3* v2 = CheckVector3(L, 2);
             PushVector3(L, Vectormath::Aos::mulPerElem(*v1, *v2));
         }
         else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
         {
-            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
-            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+            Vector4* v1 = CheckVector4(L, 1);
+            Vector4* v2 = CheckVector4(L, 2);
             PushVector4(L, Vectormath::Aos::mulPerElem(*v1, *v2));
         }
         else
@@ -2364,30 +2366,30 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void PushVector(lua_State* L, dmVMath::FloatVector* v)
+    void PushVector(lua_State* L, FloatVector* v)
     {
-        dmVMath::FloatVector** vp = (dmVMath::FloatVector**)lua_newuserdata(L, sizeof(dmVMath::FloatVector*));
+        FloatVector** vp = (FloatVector**)lua_newuserdata(L, sizeof(FloatVector*));
         *vp = v;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR);
         lua_setmetatable(L, -2);
     }
 
-    dmVMath::FloatVector* CheckVector(lua_State* L, int index)
+    FloatVector* CheckVector(lua_State* L, int index)
     {
-        return *(dmVMath::FloatVector**)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR], 0);
+        return *(FloatVector**)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR], 0);
     }
 
-    void PushVector3(lua_State* L, const Vectormath::Aos::Vector3& v)
+    void PushVector3(lua_State* L, const Vector3& v)
     {
-        Vectormath::Aos::Vector3* vp = (Vectormath::Aos::Vector3*)lua_newuserdata(L, sizeof(Vectormath::Aos::Vector3));
+        Vector3* vp = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
         *vp = v;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR3);
         lua_setmetatable(L, -2);
     }
 
-    Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index)
+    Vector3* CheckVector3(lua_State* L, int index)
     {
-        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
+        Vector3* v = (Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
         if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()))
         {
             luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
@@ -2395,17 +2397,17 @@ namespace dmScript
         return v;
     }
 
-    void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v)
+    void PushVector4(lua_State* L, const Vector4& v)
     {
-        Vectormath::Aos::Vector4* vp = (Vectormath::Aos::Vector4*)lua_newuserdata(L, sizeof(Vectormath::Aos::Vector4));
+        Vector4* vp = (Vector4*)lua_newuserdata(L, sizeof(Vector4));
         *vp = v;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR4);
         lua_setmetatable(L, -2);
     }
 
-    Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index)
+    Vector4* CheckVector4(lua_State* L, int index)
     {
-        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
+        Vector4* v = (Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
         if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()) || isnan(v->getW()))
         {
             luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
@@ -2413,17 +2415,17 @@ namespace dmScript
         return v;
     }
 
-    void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q)
+    void PushQuat(lua_State* L, const Quat& q)
     {
-        Vectormath::Aos::Quat* qp = (Vectormath::Aos::Quat*)lua_newuserdata(L, sizeof(Vectormath::Aos::Quat));
+        Quat* qp = (Quat*)lua_newuserdata(L, sizeof(Quat));
         *qp = q;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_QUAT);
         lua_setmetatable(L, -2);
     }
 
-    Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index)
+    Quat* CheckQuat(lua_State* L, int index)
     {
-        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
+        Quat* q = (Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
         if (isnan(q->getX()) || isnan(q->getY()) || isnan(q->getZ()) || isnan(q->getW()))
         {
             luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
@@ -2431,17 +2433,17 @@ namespace dmScript
         return q;
     }
 
-    void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m)
+    void PushMatrix4(lua_State* L, const Matrix4& m)
     {
-        Vectormath::Aos::Matrix4* mp = (Vectormath::Aos::Matrix4*)lua_newuserdata(L, sizeof(Vectormath::Aos::Matrix4));
+        Matrix4* mp = (Matrix4*)lua_newuserdata(L, sizeof(Matrix4));
         *mp = m;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_MATRIX4);
         lua_setmetatable(L, -2);
     }
 
-    Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index)
+    Matrix4* CheckMatrix4(lua_State* L, int index)
     {
-        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
+        Matrix4* m = (Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
         if (
             isnan(m->getElem(0, 0)) || isnan(m->getElem(1, 0)) || isnan(m->getElem(2, 0)) || isnan(m->getElem(3, 0)) ||
             isnan(m->getElem(0, 1)) || isnan(m->getElem(1, 1)) || isnan(m->getElem(2, 1)) || isnan(m->getElem(3, 1)) ||

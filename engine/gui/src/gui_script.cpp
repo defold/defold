@@ -16,7 +16,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
-#include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
 
@@ -104,6 +104,8 @@ namespace dmGui
      * end
      * ```
      */
+
+    using namespace dmVMath;
 
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"

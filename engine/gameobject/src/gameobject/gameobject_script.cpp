@@ -22,6 +22,7 @@
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
 
@@ -944,7 +945,7 @@ namespace dmGameObject
     int Script_GetPosition(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(instance)));
+        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetPosition(instance)));
         return 1;
     }
 
@@ -1081,8 +1082,8 @@ namespace dmGameObject
     int Script_SetPosition(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
-        Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, 1);
-        dmGameObject::SetPosition(instance, Vectormath::Aos::Point3(*v));
+        dmVMath::Vector3* v = dmScript::CheckVector3(L, 1);
+        dmGameObject::SetPosition(instance, dmVMath::Point3(*v));
         return 0;
     }
 
@@ -1111,7 +1112,7 @@ namespace dmGameObject
     int Script_SetRotation(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
-        Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, 1);
+        dmVMath::Quat* q = dmScript::CheckQuat(L, 1);
         dmGameObject::SetRotation(instance, *q);
         return 0;
     }
@@ -1327,7 +1328,7 @@ namespace dmGameObject
     int Script_GetWorldPosition(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(instance)));
+        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetWorldPosition(instance)));
         return 1;
     }
 

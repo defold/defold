@@ -15,10 +15,12 @@
 #include <string.h>
 
 #include <dlib/array.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmSound
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
+
     dmArray<SoundInstance*>* g_Instances = 0x0;
 
     struct SoundData

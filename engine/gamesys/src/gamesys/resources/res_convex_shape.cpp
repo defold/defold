@@ -63,9 +63,9 @@ namespace dmGameSystem
             else
             {
                 if (context->m_3D)
-                    resource->m_Shape3D = dmPhysics::NewBoxShape3D(context->m_Context3D, Vectormath::Aos::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
+                    resource->m_Shape3D = dmPhysics::NewBoxShape3D(context->m_Context3D, dmVMath::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
                 else
-                    resource->m_Shape2D = dmPhysics::NewBoxShape2D(context->m_Context2D, Vectormath::Aos::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
+                    resource->m_Shape2D = dmPhysics::NewBoxShape2D(context->m_Context2D, dmVMath::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
             }
             break;
         case dmPhysicsDDF::ConvexShape::TYPE_CAPSULE:
