@@ -47,6 +47,8 @@
 
 namespace dmGameSystem
 {
+    using namespace dmVMath;
+
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
@@ -59,9 +61,9 @@ namespace dmGameSystem
 
     static dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
     static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
-    static void* CreateCustomNodeCallback(void* context, dmGui::HNode hnode, uint32_t custom_type);
-    static void* CloneCustomNodeCallback(void* context, dmGui::HNode hnode, uint32_t custom_type, void* node_data);
-    static void DestroyCustomNodeCallback(void* context, dmGui::HNode hnode, uint32_t custom_type, void* node_data);
+    static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
+    static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
+    static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
@@ -280,6 +282,8 @@ namespace dmGameSystem
         dmGui::SetNodeSizeMode(scene, n, (dmGui::SizeMode) node_desc->m_SizeMode);
         if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
         {
+            dmLogWarning("MAWE: Texture: %s", node_desc->m_Texture);
+
             const size_t path_str_size_max = 512;
             size_t path_str_size = strlen(node_desc->m_Texture)+1;
             if(path_str_size > path_str_size_max)
@@ -317,6 +321,7 @@ namespace dmGameSystem
         else
         {
             dmGui::SetNodeTexture(scene, n, "");
+            dmLogWarning("MAWE: no texture :(");
         }
 
         // layer setup
@@ -2094,6 +2099,9 @@ namespace dmGameSystem
         TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
         dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
         uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
+
+        dmLogWarning("MAWE: FetchTextureSetAnimCallback: %llu, %s: %p", animation, dmHashReverseSafe64(animation), anim_index);
+
         if (anim_index)
         {
             if (texture_set->m_TexCoords.m_Count == 0)
@@ -2123,7 +2131,7 @@ namespace dmGameSystem
         }
     }
 
-    static void* CreateCustomNodeCallback(void* context, dmGui::HNode hnode, uint32_t custom_type)
+    static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type)
     {
         GuiComponent* gui_component = (GuiComponent*)context;
         CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
@@ -2134,10 +2142,10 @@ namespace dmGameSystem
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         dmLogWarning("%s  type: %p", __FUNCTION__, type);
-        return type->m_CreateNodeFn(&ctx, type->m_Context, hnode, custom_type);
+        return type->m_CreateNodeFn(&ctx, type->m_Context, scene, node, custom_type);
     }
 
-    static void* CloneCustomNodeCallback(void* context, dmGui::HNode hnode, uint32_t custom_type, void* node_data)
+    static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
         // GuiComponent* gui_component = (GuiComponent*)context;
         // CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
@@ -2148,12 +2156,12 @@ namespace dmGameSystem
 
         // const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         // dmLogWarning("%s  type: %p", __FUNCTION__, type);
-        // return type->m_CloneNodeFn(&ctx, type->m_Context, hnode, custom_type, node_data);
+        // return type->m_CloneNodeFn(&ctx, type->m_Context, node, custom_type, node_data);
 // TODO:
         return 0;
     }
 
-    static void DestroyCustomNodeCallback(void* context, dmGui::HNode hnode, uint32_t custom_type, void* node_data)
+    static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode hnode, uint32_t custom_type, void* node_data)
     {
         GuiComponent* gui_component = (GuiComponent*)context;
         CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;

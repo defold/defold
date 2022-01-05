@@ -156,7 +156,7 @@ namespace dmGameSystem
         void* (*m_GetResourceFn)(void* get_resource_context, dmhash_t name_hash);
     };
 
-    typedef void* (*CompGuiCreateNodeFn)(const CompGuiCreateContext* createctx, void* typecontext, dmGui::HNode node, uint32_t custom_type);
+    typedef void* (*CompGuiCreateNodeFn)(const CompGuiCreateContext* createctx, void* typecontext, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
     typedef void  (*CompGuiDestroyNodeFn)(const CompGuiCreateContext* createctx, void* typecontext, void* node_data);
     typedef void  (*CompGuiSetPropertyFn)(const CompGuiCreateContext* createctx, void* typecontext, void* node_data, dmhash_t name_hash, const dmGuiDDF::PropertyVariant* variant);
     typedef void  (*CompGuiGetVerticesFn)(void* typecontext, void* node_data, uint32_t decl_size, dmBuffer::StreamDeclaration* decl, uint32_t struct_size, dmArray<uint8_t>& vertices);

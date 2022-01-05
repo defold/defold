@@ -43,35 +43,12 @@
 namespace dmGui
 {
     typedef struct Context* HContext;
-    typedef struct Scene* HScene;
     typedef struct Script* HScript;
 
     /**
      * Default layout id
      */
     extern const dmhash_t DEFAULT_LAYOUT;
-
-    /**
-     * Animation
-     */
-    enum Playback
-    {
-        PLAYBACK_ONCE_FORWARD  = 0,
-        PLAYBACK_ONCE_BACKWARD = 1,
-        PLAYBACK_ONCE_PINGPONG = 2,
-        PLAYBACK_LOOP_FORWARD  = 3,
-        PLAYBACK_LOOP_BACKWARD = 4,
-        PLAYBACK_LOOP_PINGPONG = 5,
-        PLAYBACK_NONE = 6,
-        PLAYBACK_COUNT = 7,
-    };
-
-    enum AdjustReference
-    {
-        ADJUST_REFERENCE_LEGACY   = 0,
-        ADJUST_REFERENCE_PARENT   = 1,
-        ADJUST_REFERENCE_DISABLED = 2
-    };
 
     /**
      * Textureset animation
@@ -141,17 +118,17 @@ namespace dmGui
     /**
      * Callback to create custom node data
      */
-    typedef void* (*CreateCustomNodeCallback)(void* context, dmGui::HNode node, uint32_t custom_type);
+    typedef void* (*CreateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
 
     /**
      * Callback to clone custom node data
      */
-    typedef void* (*CloneCustomNodeCallback)(void* context, dmGui::HNode node, uint32_t custom_type, void* node_data);
+    typedef void* (*CloneCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
 
     /**
      * Callback to destroy custom node data
      */
-    typedef void (*DestroyCustomNodeCallback)(void* context, dmGui::HNode node, uint32_t custom_type, void* node_data);
+    typedef void (*DestroyCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
 
 
     /**
@@ -268,20 +245,6 @@ namespace dmGui
         }
     };
 
-    enum Result
-    {
-        RESULT_OK = 0,
-        RESULT_SYNTAX_ERROR = -1,
-        RESULT_SCRIPT_ERROR = -2,
-        RESULT_OUT_OF_RESOURCES = -4,
-        RESULT_RESOURCE_NOT_FOUND = -5,
-        RESULT_TEXTURE_ALREADY_EXISTS = -6,
-        RESULT_INVAL_ERROR = -7,
-        RESULT_INF_RECURSION = -8,
-        RESULT_DATA_ERROR = -9,
-        RESULT_WRONG_TYPE = -10,
-    };
-
     enum Property
     {
         PROPERTY_POSITION   = 0,
@@ -387,15 +350,6 @@ namespace dmGui
     {
         PIEBOUNDS_RECTANGLE = 0,
         PIEBOUNDS_ELLIPSE   = 1,
-    };
-
-    // This enum denotes what kind of texture type the m_Texture pointer is referencing.
-    enum NodeTextureType
-    {
-        NODE_TEXTURE_TYPE_NONE,
-        NODE_TEXTURE_TYPE_TEXTURE,
-        NODE_TEXTURE_TYPE_TEXTURE_SET,
-        NODE_TEXTURE_TYPE_DYNAMIC
     };
 
     /**
@@ -984,8 +938,6 @@ namespace dmGui
     float GetNodeTextTracking(HScene scene, HNode node);
 
     void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
-    dmhash_t GetNodeTextureId(HScene scene, HNode node);
-    Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
 
     void* GetNodeCustomData(HScene scene, HNode node);

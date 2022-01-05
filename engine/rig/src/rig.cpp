@@ -16,6 +16,7 @@
 #include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 
 namespace dmRig

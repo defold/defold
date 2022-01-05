@@ -14,34 +14,26 @@
 #define DMSDK_GUI_H
 
 #include <stdint.h>
-#include <dlib/message.h>
-#include <ddf/ddf.h>
-#include <dlib/hash.h>
-#include <dlib/message.h>
-#include <dlib/easing.h>
-#include <dlib/image.h>
-#include <hid/hid.h>
-#include <particle/particle.h>
-#include <rig/rig.h>
+#include <dmsdk/dlib/hash.h>
 
-#include <script/script.h>
 
-#include <dmsdk/dlib/vmath.h>
-
-/**
- * Defold GUI system
+/*# Defold GUI system
  *
- * About properties:
- * Previously properties where referred to using the enum Property.
- * When support for animating individual tracks was added a more generic access scheme
- * was introduced (hash of a string).
- * With the hash version of the property scalar components
- * can be referred to with "PROPERTY.COMPONENT", e.g. "position.x".
- * Note that when vector values are animated multiple tracks are created internally - one
- * for each component.
+ * @document
+ * @name Gui
+ * @namespace dmGui
+ * @path engine/gui/src/dmsdk/gui/gui.h
  */
 namespace dmGui
 {
+
+    /*#
+     * A handle to a gui scene
+     * @name HScene
+     * @type typedef
+     */
+    typedef struct Scene* HScene;
+
     /*#
      * A handle to a gui node
      * @name HNode
@@ -55,6 +47,117 @@ namespace dmGui
      * @type HNode
      */
     const HNode INVALID_HANDLE = 0;
+
+
+    /*#
+     * @name Playback
+     * @type enum
+     * @member PLAYBACK_ONCE_FORWARD
+     * @member PLAYBACK_ONCE_BACKWARD
+     * @member PLAYBACK_ONCE_PINGPONG
+     * @member PLAYBACK_LOOP_FORWARD
+     * @member PLAYBACK_LOOP_BACKWARD
+     * @member PLAYBACK_LOOP_PINGPONG
+     * @member PLAYBACK_NONE
+     */
+    enum Playback
+    {
+        PLAYBACK_ONCE_FORWARD  = 0,
+        PLAYBACK_ONCE_BACKWARD = 1,
+        PLAYBACK_ONCE_PINGPONG = 2,
+        PLAYBACK_LOOP_FORWARD  = 3,
+        PLAYBACK_LOOP_BACKWARD = 4,
+        PLAYBACK_LOOP_PINGPONG = 5,
+        PLAYBACK_NONE = 6,
+        PLAYBACK_COUNT = 7,
+    };
+
+    /*#
+     * @name AdjustReference
+     * @type enum
+     * @member ADJUST_REFERENCE_PARENT
+     * @member ADJUST_REFERENCE_DISABLED
+     */
+    enum AdjustReference
+    {
+        ADJUST_REFERENCE_LEGACY   = 0,
+        ADJUST_REFERENCE_PARENT   = 1,
+        ADJUST_REFERENCE_DISABLED = 2
+    };
+
+    /*#
+     * This enum denotes what kind of texture type the m_Texture pointer is referencing.
+     * @name NodeTextureType
+     * @type enum
+     * @member NODE_TEXTURE_TYPE_NONE
+     * @member NODE_TEXTURE_TYPE_TEXTURE
+     * @member NODE_TEXTURE_TYPE_TEXTURE_SET
+     * @member NODE_TEXTURE_TYPE_DYNAMIC
+     */
+    enum NodeTextureType
+    {
+        NODE_TEXTURE_TYPE_NONE,
+        NODE_TEXTURE_TYPE_TEXTURE,
+        NODE_TEXTURE_TYPE_TEXTURE_SET,
+        NODE_TEXTURE_TYPE_DYNAMIC
+    };
+
+
+    /*#
+     * @name Result
+     * @type enum
+     * @member NODE_TEXTURE_TYPE_NONE
+     * @member RESULT_OK //!< 0
+     * @member RESULT_SYNTAX_ERROR //!< -1
+     * @member RESULT_SCRIPT_ERROR //!< -2
+     * @member RESULT_OUT_OF_RESOURCES //!< -4
+     * @member RESULT_RESOURCE_NOT_FOUND //!< -5
+     * @member RESULT_TEXTURE_ALREADY_EXISTS //!< -6
+     * @member RESULT_INVAL_ERROR //!< -7
+     * @member RESULT_INF_RECURSION //!< -8
+     * @member RESULT_DATA_ERROR //!< -9
+     * @member RESULT_WRONG_TYPE //!< -10
+     */
+    enum Result
+    {
+        RESULT_OK = 0,
+        RESULT_SYNTAX_ERROR = -1,
+        RESULT_SCRIPT_ERROR = -2,
+        RESULT_OUT_OF_RESOURCES = -4,
+        RESULT_RESOURCE_NOT_FOUND = -5,
+        RESULT_TEXTURE_ALREADY_EXISTS = -6,
+        RESULT_INVAL_ERROR = -7,
+        RESULT_INF_RECURSION = -8,
+        RESULT_DATA_ERROR = -9,
+        RESULT_WRONG_TYPE = -10,
+    };
+
+    /*# get node texture
+     * @name GetNodeTextureId
+     * @param scene [type:HScene] the gui scene
+     * @param node [type:HNode] the gui node
+     * @return texture [type: dmhash_t] the currently assigned texture
+     */
+    dmhash_t GetNodeTextureId(HScene scene, HNode node);
+
+    /*# set node texture
+     * @name SetNodeTexture
+     * @param scene [type:HScene] the gui scene
+     * @param node [type:HNode] the gui node
+     * @param texture_id [type: dmhash_t] the texture id
+     */
+    Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
+
+    /*# set node texture
+     * @name SetNodeTexture
+     * @param scene [type:HScene] the gui scene
+     * @param node [type:HNode] the gui node
+     * @param type [type:NodeTextureType] the type of texture
+     * @param texture [type: void*] A pointer to a e.g. dmGameSystem::TextureSetResource*
+     */
+    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture);
+
+    // possibly use "add texture instead"
 }
 
 #endif

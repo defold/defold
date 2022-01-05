@@ -393,7 +393,7 @@ namespace dmGui
 
             if (n->m_Node.m_CustomType != 0)
             {
-                scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
+                scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
             }
 
             if (n->m_Node.m_Text)
@@ -2307,7 +2307,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         if (custom_type != 0)
         {
-            void* custom_node_data = scene->m_CreateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, hnode, custom_type);
+            void* custom_node_data = scene->m_CreateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, hnode, custom_type);
             node->m_Node.m_CustomData = custom_node_data;
         }
 
@@ -2469,7 +2469,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         if (n->m_Node.m_CustomType != 0)
         {
-            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
+            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
         }
 
         // Stop (or destroy) any living particle instances started on this node
@@ -2879,6 +2879,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id)
     {
         return SetNodeTexture(scene, node, dmHashString64(texture_id));
+    }
+
+    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_TextureHash = (uintptr_t)texture;
+        n->m_Node.m_TextureType = type;
+        n->m_Node.m_Texture = texture;
+        return RESULT_OK;
     }
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id)
@@ -3982,7 +3991,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         if (n->m_Node.m_CustomType != 0)
         {
             void* src_custom_data = n->m_Node.m_CustomData;
-            out_n->m_Node.m_CustomData = scene->m_CloneCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, node, n->m_Node.m_CustomType, src_custom_data);
+            out_n->m_Node.m_CustomData = scene->m_CloneCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, src_custom_data);
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)

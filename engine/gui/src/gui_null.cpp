@@ -21,8 +21,6 @@ namespace dmGui
 {
     using namespace dmVMath;
 
-    // gui_script_null.cpp
-
     void SetDefaultNewContextParams(NewContextParams* params)
     {
     }
