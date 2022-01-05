@@ -427,7 +427,7 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setProjectIdentifier(projectIdentifier);
         manifestBuilder.setExcludedResources(excludedResources);
 
-        // If manifest signing keys are specified, use them instead of generating them.
+        // Try manifest signing keys specified through the publisher
         if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
             if (!Files.exists(Paths.get(privateKeyFilepath))) {
                 String altPrivateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
@@ -443,30 +443,38 @@ public class GameProjectBuilder extends Builder<Void> {
                     throw new IOException(String.format("Couldn't find public key at either: '%s' or '%s'", publicKeyFilepath, altPublicKeyFilepath));
                 }
                 publicKeyFilepath = altPublicKeyFilepath;
-
+            }
+        }
+        // Try manifest signing keys specified in project options
+        else {
+            privateKeyFilepath = project.option("manifest-private-key", "");
+            if (!privateKeyFilepath.isEmpty() && !Files.exists(Paths.get(privateKeyFilepath))) {
+                throw new IOException(String.format("Couldn't find private key at: '%s'", privateKeyFilepath));
+            }
+            publicKeyFilepath = project.option("manifest-public-key", "");
+            if (!publicKeyFilepath.isEmpty() && !Files.exists(Paths.get(publicKeyFilepath))) {
+                throw new IOException(String.format("Couldn't find public key at: '%s'", publicKeyFilepath));
             }
         }
 
-        // If loading supplied keys failed or none were supplied, generate them instead.
+        // If no keys were provided, generate them instead.
         if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
-            if (project.option("liveupdate", "false").equals("true")) {
-                System.err.println("\nWarning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
-            }
-            File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
-            privateKeyFileHandle.deleteOnExit();
-
-            File publicKeyFileHandle = File.createTempFile("defold.public_", ".der");
-            publicKeyFileHandle.deleteOnExit();
+            File privateKeyFileHandle = Paths.get(project.getRootDirectory(), "manifest.private.der").toFile();
+            File publicKeyFileHandle = Paths.get(project.getRootDirectory(), "manifest.public.der").toFile();
 
             privateKeyFilepath = privateKeyFileHandle.getAbsolutePath();
             publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
-            try {
-                ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
-            } catch (NoSuchAlgorithmException exception) {
-                throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
-            }
 
+            if (!privateKeyFileHandle.exists() || !publicKeyFileHandle.exists()) {
+                Bob.verbose("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
+                try {
+                    ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
+                } catch (NoSuchAlgorithmException exception) {
+                    throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
+                }
+            }
         }
+
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
         manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
@@ -498,6 +506,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
+        Bob.verbose("GameProjectBuilder.build()");
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
         FileInputStream resourcePackInputStream = null;
