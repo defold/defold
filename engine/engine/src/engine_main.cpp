@@ -108,10 +108,10 @@ int engine_main(int argc, char *argv[])
     g_AndroidApp->onInputEvent = glfwAndroidHandleInput;
 
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
-    // After phone unlock app may receive APP_CMD_DESTROY without APP_CMD_INIT_WINDOW
-    // in this case app should exit immidiatly
     if (!WaitForWindow())
     {
+        // When phone lock/unlock app may receive APP_CMD_DESTROY without APP_CMD_INIT_WINDOW
+        // in this case app should exit immidiatly
         return 0;
     }
 
