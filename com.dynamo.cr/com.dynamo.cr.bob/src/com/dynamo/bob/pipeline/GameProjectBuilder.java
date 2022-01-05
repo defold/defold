@@ -506,7 +506,6 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        Bob.verbose("GameProjectBuilder.build()");
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
         FileInputStream resourcePackInputStream = null;
