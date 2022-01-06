@@ -41,7 +41,7 @@
 
 // We use versioned window class names in order not to cause conflicts
 // between applications using different versions of GLFW
-#define _GLFW_WNDCLASSNAME "GLFW27"
+#define _GLFW_WNDCLASSNAME L"GLFW27"
 
 // Resource ID that holds the application icon.
 #define _GLFW_ICON_RES_ID 100
@@ -1221,7 +1221,7 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
 
     _glfwWin.window = CreateWindowEx( _glfwWin.dwExStyle,    // Extended style
                                       _GLFW_WNDCLASSNAME,    // Class name
-                                      "",                    // Window title
+                                      L"",                    // Window title
                                       _glfwWin.dwStyle,      // Defined window style
                                       wa.left, wa.top,       // Window position
                                       fullWidth,             // Decorated window width
