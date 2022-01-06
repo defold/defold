@@ -709,6 +709,57 @@ public class ModelUtil {
         return meshBuilder.build();
     }
 
+    public static Matrix4d getTransform(AINode node) {
+        if (node == null) {
+            Matrix4d identity = new Matrix4d();
+            identity.setIdentity();
+            return identity;
+        }
+        Matrix4d transform = convertMatrix4x4(node.mTransformation());
+        Matrix4d parentTransform = getTransform(node.mParent());
+        transform.mul(parentTransform, transform);
+        return transform;
+    }
+
+    public static void loadMeshInstances(AINode node, ArrayList<Rig.MeshInstance> mesh_instances) {
+        int num_meshes = node.mNumMeshes();
+        IntBuffer meshrefs = node.mMeshes();
+        for (int i = 0; i < num_meshes; ++i) {
+            int meshref = meshrefs.get(i);
+
+            Rig.MeshInstance.Builder meshInstanceBuilder = Rig.MeshInstance.newBuilder();
+
+            Matrix4d transform = getTransform(node);
+
+            Vector3d position = new Vector3d();
+            Quat4d rotation = new Quat4d();
+            Vector3d scale = new Vector3d();
+            MathUtil.decompose(transform, position, rotation, scale);
+
+            Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position));
+            meshInstanceBuilder.setPosition(ddfpos);
+
+            Quat ddfrot = MathUtil.vecmathToDDF(rotation);
+            meshInstanceBuilder.setRotation(ddfrot);
+
+            Vector3 ddfscale = MathUtil.vecmathToDDF(scale);
+            meshInstanceBuilder.setScale(ddfscale);
+
+            meshInstanceBuilder.setIndex(meshref);
+
+            mesh_instances.add(meshInstanceBuilder.build());
+
+            //System.out.printf("MESH INSTANCE:\n");
+            printMatrix4d(node.mName().dataString(), transform);
+        }
+
+        PointerBuffer children = node.mChildren();
+        for (int i = 0; i < node.mNumChildren(); ++i) {
+            AINode child = AINode.create(children.get(i));
+            loadMeshInstances(child, mesh_instances);
+        }
+    }
+
     public static void loadMeshes(AIScene scene, Rig.MeshSet.Builder meshSetBuilder) {
 
         // // Use first geometry entry as default
@@ -946,68 +997,29 @@ public class ModelUtil {
         // }
         // indices_bytes.rewind();
 
-        // List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
-        // List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
-        // int max_bone_count = loadVertexWeights(scene, skeleton, bone_weights_list, bone_indices_list);
-
-        // We currently only support one mesh per collada file
-        // This result in one dmRigDDF::Mesh, one dmRigDDF::MeshEntry with only one MeshSlot.
-        // The MeshSlot will only contain one "mesh attachment" pointing to the Mesh (index: 0),
-        // the active index should be 0 to indicate the one and only attachment.
-
-        // Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
-        // meshBuilder.addAllVertices(mesh_vertex_indices);
-        // meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
-        // meshBuilder.setIndicesFormat(indices_format);
-        // if(normals != null) {
-        //     meshBuilder.addAllNormals(normal_list);
-        //     meshBuilder.addAllNormalsIndices(normal_indices_list);
-        // }
-        // meshBuilder.addAllPositions(position_list);
-        // meshBuilder.addAllTexcoord0(texcoord_list);
-        // meshBuilder.addAllPositionIndices(position_indices_list);
-        // meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
-        // meshBuilder.addAllWeights(bone_weights_list);
-        // meshBuilder.addAllBoneIndices(bone_indices_list);
-
-        // MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
-        // meshSlotBuilder.addMeshAttachments(0);
-        // meshSlotBuilder.setActiveIndex(0);
-        // meshSlotBuilder.addSlotColor(1.0f);
-        // meshSlotBuilder.addSlotColor(1.0f);
-        // meshSlotBuilder.addSlotColor(1.0f);
-        // meshSlotBuilder.addSlotColor(1.0f);
-
-        // MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
-        // //meshEntryBuilder.addMeshSlots(meshSlotBuilder);
-        // meshEntryBuilder.setId(0);
-
-        //meshSetBuilder.addMeshAttachments(meshBuilder);
-        //meshSetBuilder.addMeshEntries(meshEntryBuilder);
-
         ArrayList<Rig.Mesh> meshes = new ArrayList<>();
 
         PointerBuffer aiMeshes = scene.mMeshes();
         for (int i = 0; i < scene.mNumMeshes(); ++i) {
             AIMesh aiMesh = AIMesh.create(aiMeshes.get(i));
+
+            String mesh_name = aiMesh.mName().dataString();
+            System.out.printf("MESH: %s\n", mesh_name);
+
             Rig.Mesh mesh = loadMesh(aiMesh, skeleton);
             meshes.add(mesh);
         }
 
+        ArrayList<Rig.MeshInstance> mesh_instances = new ArrayList<>();
+        loadMeshInstances(scene.mRootNode(), mesh_instances);
+
         meshSetBuilder.addAllMeshes(meshes);
+        meshSetBuilder.addAllInstances(mesh_instances);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
 
         for (ModelUtil.Bone bone : skeleton) {
             meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
         }
-
-
-        // List<String> boneRefArray = createBoneReferenceList(collada);
-        // if (boneRefArray != null && !boneRefArray.isEmpty()) {
-        //     for (int i = 0; i < boneRefArray.size(); i++) {
-        //         meshSetBuilder.addBoneList(MurmurHash.hash64(boneRefArray.get(i)));
-        //     }
-        // }
     }
 
 

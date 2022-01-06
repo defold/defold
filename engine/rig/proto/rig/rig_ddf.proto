@@ -194,6 +194,15 @@ message Mesh
     optional uint32 material_index = 18; // index in to the mesh set material list
 }
 
+// A model file may contain more than one mesh
+message MeshInstance
+{
+    required dmMath.Point3  position = 1;
+    required dmMath.Quat    rotation = 2;
+    required dmMath.Vector3 scale    = 3;
+    required uint32         index    = 4; // Index into the array of meshes
+}
+
 // Each mesh slot can have different mesh attachments, with indices pointing
 // to the actual mesh data in the MeshSet.
 // The list of mesh attachments will never change during runtime,
@@ -216,20 +225,21 @@ message MeshEntry
 message MeshSet
 {
     // new way
-    repeated Mesh meshes = 1;
-    repeated string materials = 2;
+    repeated Mesh           meshes = 1;
+    repeated MeshInstance   instances = 2;
+    repeated string         materials = 3;
 
     // old way, more spine centric
-    repeated MeshEntry mesh_entries = 3;
-    repeated Mesh mesh_attachments = 4;
+    repeated MeshEntry mesh_entries = 4;
+    repeated Mesh mesh_attachments = 5;
 
     // List of bone names that represent the order of the bone influences.
     // Not used for Spine rigs since they don't have support for external skeletons.
-    repeated uint64 bone_list = 5;
+    repeated uint64 bone_list = 6;
     // Max number of bones used in any of the meshes (in the bone_indices list)
-    optional uint32 max_bone_count = 6;
+    optional uint32 max_bone_count = 7;
     // number of spine scene slot entries
-    optional uint32 slot_count = 7 [default = 0];
+    optional uint32 slot_count = 8 [default = 0];
 }
 
 message RigScene
