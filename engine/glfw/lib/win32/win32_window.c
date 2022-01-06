@@ -32,6 +32,7 @@
 
 #include <windows.h>
 #include <assert.h>
+#include <Stringapiset.h>
 
 
 //************************************************************************
@@ -1526,10 +1527,18 @@ int _glfwPlatformGetDefaultFramebuffer( )
 //========================================================================
 // Set the window title
 //========================================================================
+#define MAX_WINDOW_TITLE_LENGTH 255
 
 void _glfwPlatformSetWindowTitle( const char *title )
 {
-    (void) SetWindowText( _glfwWin.window, title );
+    int title_len = (int)strlen(title);
+    wchar_t unicode_title[MAX_WINDOW_TITLE_LENGTH];
+    int res = MultiByteToWideChar(CP_UTF8, 0, title, title_len, &unicode_title, MAX_WINDOW_TITLE_LENGTH);
+    if (res <= 0)
+    {
+        unicode_title[0] = 0;
+    }
+    (void) SetWindowTextW( _glfwWin.window, unicode_title );
 }
 
 
