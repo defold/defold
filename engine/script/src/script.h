@@ -247,15 +247,6 @@ namespace dmScript
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
 
-    /**
-     * Push DDF message to Lua stack
-     * @param L Lua state
-     * @param descriptor Field descriptor
-     * @param pointers_are_offets if pointers are offsets
-     * @param data DDF data
-     */
-    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
-
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
     /**
@@ -473,13 +464,6 @@ namespace dmScript
      *  [-1] value
     */
     void GetScriptWorldContextValue(HScriptWorld script_world);
-
-    /**
-     * Retrieve lua state from the context
-     * @param context script context
-     * @return lua state
-     */
-    lua_State* GetLuaState(HContext context);
 
     /**
      * Retrieve the Lua traceback from the current context

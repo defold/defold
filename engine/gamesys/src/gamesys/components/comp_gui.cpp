@@ -679,8 +679,6 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
-        //CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
-
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
@@ -2846,6 +2844,7 @@ namespace dmGameSystem
         gui_node_ctx.m_Render = gui_context->m_RenderContext;
         gui_node_ctx.m_Factory = gui_context->m_Factory;
         gui_node_ctx.m_GuiContext = gui_context->m_GuiContext;
+        gui_node_ctx.m_Script = gui_context->m_ScriptContext;
         gui_node_ctx.m_Contexts.SetCapacity(7, ((dmGameObject::ComponentTypeCreateCtx*)ctx)->m_Contexts.Capacity());
         ctx->m_Contexts.Iterate(HTCopyCallback, &gui_node_ctx.m_Contexts);
         dmGameObject::Result r = dmGameSystem::CreateRegisteredCompGuiNodeTypes(&gui_node_ctx, gui_context);
@@ -2873,6 +2872,7 @@ namespace dmGameSystem
         gui_node_ctx.m_Render = gui_context->m_RenderContext;
         gui_node_ctx.m_Factory = gui_context->m_Factory;
         gui_node_ctx.m_GuiContext = gui_context->m_GuiContext;
+        gui_node_ctx.m_Script = gui_context->m_ScriptContext;
         gui_node_ctx.m_Contexts.SetCapacity(7, ((dmGameObject::ComponentTypeCreateCtx*)ctx)->m_Contexts.Capacity());
         ctx->m_Contexts.Iterate(HTCopyCallback, &gui_node_ctx.m_Contexts);
 
@@ -2963,11 +2963,19 @@ namespace dmGameSystem
         return dmGameObject::RESULT_OK;
     }
 
-    void CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn)      { type->m_Create = fn; }
-    void CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn)    { type->m_Destroy = fn; }
+    void  CompGuiNodeTypeSetContext(CompGuiNodeType* type, void* typectx)                       { type->m_Context = typectx; }
+    void* CompGuiNodeTypeGetContext(CompGuiNodeType* type)                                      { return type->m_Context; }
+    void CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn)              { type->m_Create = fn; }
+    void CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn)            { type->m_Destroy = fn; }
     void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn)              { type->m_Update = fn; }
     void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn)    { type->m_GetVertices = fn; }
     void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn)    { type->m_SetProperty = fn; }
+
+    void*                   GetContext(const struct CompGuiNodeTypeCtx* ctx, dmhash_t name)     { void* const * p = ctx->m_Contexts.Get(name); if (p) return *p; else return 0; }
+    lua_State*              GetLuaState(const struct CompGuiNodeTypeCtx* ctx)                   { return dmScript::GetLuaState(ctx->m_Script); }
+    dmScript::HContext      GetScript(const struct CompGuiNodeTypeCtx* ctx)                     { return ctx->m_Script; }
+    dmConfigFile::HConfig   GetConfigFile(const struct CompGuiNodeTypeCtx* ctx)                 { return ctx->m_Config; }
+    dmResource::HFactory    GetFactory(const struct CompGuiNodeTypeCtx* ctx)                    { return ctx->m_Factory; }
 }
 
 

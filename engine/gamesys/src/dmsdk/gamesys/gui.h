@@ -13,8 +13,11 @@
 #ifndef DMSDK_GAMESYSTEM_GUI_H
 #define DMSDK_GAMESYSTEM_GUI_H
 
+#include <dmsdk/dlib/configfile.h>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gui/gui.h>
+#include <dmsdk/script/script.h>
 #include <gamesys/gui_ddf.h>
 
 namespace dmBuffer
@@ -47,41 +50,6 @@ namespace dmGameSystem
     struct CompGuiNodeType;
 
     /*#
-     * Register a new component type
-     * @param regist Gameobject register
-     * @param type Collection of component type registration data
-     * @return RESULT_OK on success
-     */
-    //dmGameObject::Result RegisterCompGuiNodeType(dmGameObject::HRegister regist, const CompGuiNodeType& type);
-
-
-    /*#
-     * Register a new component type
-     * @name RegisterCompGuiNodeType
-     * @param regist [type:dmGameObject::HRegister] Gameobject register
-     * @param name [type:const char*] The custom type name
-     * @param context [type:void*] A user defined context
-     * @param gui_node_type [type:CompGuiNodeType**] (out) Returns the pointer to the gui node type if successful.
-     * @return RESULT_OK on success
-     */
-    //dmGameObject::Result RegisterCompGuiNodeType(dmGameObject::HRegister regist, const char* name, void* context, CompGuiNodeType** gui_node_type);
-
-    /*#
-     * Deregisters a gui component node type
-     * @name RegisterCompGuiNodeType
-     */
-    //dmGameObject::Result UnregisterCompGuiNodeType(dmGameObject::HRegister regist, const CompGuiNodeType* gui_node_type);
-
-    /*#
-     * Retrieves a registered component type given its resource type.
-     * @name FindCompGuiNodeType
-     * @param regist [type:dmGameObject::HRegister] Gameobject register
-     * @param name [type:const char*] The custom type name
-     * @return the registered component type or 0x0 if not found
-     */
-    //CompGuiNodeType* FindCompGuiNodeType(dmGameObject::HRegister regist, const char* name);
-
-    /*#
      * @name GuiNodeTypeDestroyFunction
      * @type typedef
      */
@@ -104,6 +72,12 @@ namespace dmGameSystem
         const char*                 m_Name;
         uint32_t                    m_NameHash;
     };
+
+    void*                   GetContext(const struct CompGuiNodeTypeCtx* ctx, dmhash_t name);
+    lua_State*              GetLuaState(const struct CompGuiNodeTypeCtx* ctx);
+    dmScript::HContext      GetScript(const struct CompGuiNodeTypeCtx* ctx);
+    dmConfigFile::HConfig   GetConfigFile(const struct CompGuiNodeTypeCtx* ctx);
+    dmResource::HFactory    GetFactory(const struct CompGuiNodeTypeCtx* ctx);
 
     /**
      * Register a new component type (Internal)
@@ -171,7 +145,8 @@ namespace dmGameSystem
     typedef void  (*CompGuiNodeUpdateFn)(const CustomNodeCtx* node, float dt);
     typedef void  (*CompGuiNodeGetVerticesFn)(const CustomNodeCtx* node, uint32_t decl_size, dmBuffer::StreamDeclaration* decl, uint32_t struct_size, dmArray<uint8_t>& vertices);
 
-
+    void  CompGuiNodeTypeSetContext(CompGuiNodeType* type, void* typectx);
+    void* CompGuiNodeTypeGetContext(CompGuiNodeType* type);
     void CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn);
     void CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn);
     void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn);

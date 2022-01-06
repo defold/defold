@@ -21,6 +21,7 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gamesys/gui.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/script/script.h>
 
 namespace dmGameSystem
 {
@@ -96,6 +97,7 @@ namespace dmGameSystem
         dmResource::HFactory     m_Factory;
         dmRender::HRenderContext m_Render;
         dmGui::HContext          m_GuiContext;
+        dmScript::HContext       m_Script;
         dmHashTable64<void*>     m_Contexts;
     };
 

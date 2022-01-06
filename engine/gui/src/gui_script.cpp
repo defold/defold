@@ -150,31 +150,36 @@ namespace dmGui
         {0, 0}
     };
 
-    static Scene* GetScene(lua_State* L)
+    HScene GetScene(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
         dmScript::GetInstance(L);
-        Scene* scene = (Scene*)dmScript::ToUserType(L, -1, GUI_SCRIPT_INSTANCE_TYPE_HASH);
+        HScene scene = (Scene*)dmScript::ToUserType(L, -1, GUI_SCRIPT_INSTANCE_TYPE_HASH);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return scene;
     }
 
-    static Scene* GuiScriptInstance_Check(lua_State *L, int index)
+    static Scene* GuiScriptInstance_Check(lua_State* L, int index)
     {
         return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE_TYPE_HASH, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
     }
 
-    static Scene* GuiScriptInstance_Check(lua_State *L)
+    static HScene GuiScriptInstance_Check(lua_State* L)
     {
         dmScript::GetInstance(L);
-        Scene* scene = GuiScriptInstance_Check(L, -1);
+        HScene scene = GuiScriptInstance_Check(L, -1);
         lua_pop(L, 1);
         return scene;
     }
 
-    static int GuiScriptInstance_tostring (lua_State *L)
+    HScene LuaCheckScene(lua_State* L)
+    {
+        return GuiScriptInstance_Check(L);
+    }
+
+    static int GuiScriptInstance_tostring(lua_State *L)
     {
         lua_pushfstring(L, "GuiScript: %p", lua_touserdata(L, 1));
         return 1;
@@ -283,7 +288,7 @@ namespace dmGui
         }
     }
 
-    static InternalNode* LuaCheckNode(lua_State*L, int index, HNode* hnode)
+    static InternalNode* LuaCheckNodeInternal(lua_State* L, int index, HNode* hnode)
     {
         NodeProxy* np = NodeProxy_Check(L, index);
         if (np->m_Scene != GetScene(L))
@@ -301,6 +306,14 @@ namespace dmGui
         }
 
         return 0; // Never reached
+    }
+
+    HNode LuaCheckNode(lua_State* L, int index)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, index, &hnode);
+        (void)n;
+        return hnode;
     }
 
     static int NodeProxy_tostring (lua_State *L)
@@ -352,7 +365,7 @@ namespace dmGui
 
     static int NodeProxy_index(lua_State *L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         (void)n;
 
         const char* key = luaL_checkstring(L, 2);
@@ -362,7 +375,7 @@ namespace dmGui
     static int NodeProxy_newindex(lua_State *L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
         const char* key = luaL_checkstring(L, 2);
 
@@ -386,8 +399,8 @@ namespace dmGui
         }
 
         HNode hn1, hn2;
-        InternalNode* n1 = LuaCheckNode(L, 1, &hn1);
-        InternalNode* n2 = LuaCheckNode(L, 2, &hn2);
+        InternalNode* n1 = LuaCheckNodeInternal(L, 1, &hn1);
+        InternalNode* n2 = LuaCheckNodeInternal(L, 2, &hn2);
         (void) n1;
         (void) n2;
 
@@ -488,7 +501,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
 
         dmScript::PushHash(L, n->m_NameHash);
 
@@ -528,7 +541,7 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
         HNode hnode;
-        LuaCheckNode(L, 1, &hnode);
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         dmhash_t id = 0;
         if (lua_isstring(L, 2))
@@ -578,7 +591,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
 
         uint32_t index = 0;
         uint16_t i = scene->m_RenderHead;
@@ -620,7 +633,7 @@ namespace dmGui
         DM_LUA_STACK_CHECK(L, 0);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         if (n->m_Node.m_IsBone) {
             return luaL_error(L, "Unable to delete bone nodes");
             return 0;
@@ -1040,7 +1053,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* node = LuaCheckNode(L, 1, &hnode);
+        InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
         dmhash_t property_hash;
@@ -1173,7 +1186,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* node = LuaCheckNode(L, 1, &hnode);
+        InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
         dmhash_t property_hash;
@@ -1193,7 +1206,7 @@ namespace dmGui
         return 0;
     }
 
-    static void LuaPushNode(lua_State* L, dmGui::HScene scene, dmGui::HNode node)
+    void LuaPushNode(lua_State* L, dmGui::HScene scene, dmGui::HNode node)
     {
         NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
         node_proxy->m_Scene = scene;
@@ -1298,7 +1311,7 @@ namespace dmGui
      */
     static int LuaGetText(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         lua_pushstring(L, n->m_Node.m_Text);
         return 1;
     }
@@ -1313,7 +1326,7 @@ namespace dmGui
     static int LuaSetText(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         const char* text = luaL_checkstring(L, 2);
         if (n->m_Node.m_Text)
             free((void*) n->m_Node.m_Text);
@@ -1331,7 +1344,7 @@ namespace dmGui
      */
     static int LuaGetLineBreak(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         lua_pushboolean(L, n->m_Node.m_LineBreak);
         return 1;
     }
@@ -1347,7 +1360,7 @@ namespace dmGui
     static int LuaSetLineBreak(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         bool line_break = (bool) lua_toboolean(L, 2);
         n->m_Node.m_LineBreak = line_break;
         return 0;
@@ -1368,7 +1381,7 @@ namespace dmGui
      */
     static int LuaGetBlendMode(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         lua_pushnumber(L, (lua_Number) n->m_Node.m_BlendMode);
         return 1;
     }
@@ -1389,7 +1402,7 @@ namespace dmGui
     static int LuaSetBlendMode(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int blend_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_BlendMode = (BlendMode) blend_mode;
         return 0;
@@ -1409,7 +1422,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         dmScript::PushHash(L, dmGui::GetNodeTextureId(scene, hnode));
@@ -1461,7 +1474,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
         if (lua_isstring(L, 2))
         {
@@ -1499,7 +1512,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         dmScript::PushHash(L, dmGui::GetNodeFlipbookAnimId(scene, hnode));
@@ -1564,7 +1577,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         int node_ref = LUA_NOREF;
@@ -1626,7 +1639,7 @@ namespace dmGui
     static int LuaCancelFlipbook(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
         Scene* scene = GuiScriptInstance_Check(L);
         CancelNodeFlipbookAnim(scene, hnode);
@@ -1872,7 +1885,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         dmScript::PushHash(L, dmGui::GetNodeFontId(scene, hnode));
@@ -1936,7 +1949,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         if (lua_isstring(L, 2))
@@ -1977,7 +1990,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         dmScript::PushHash(L, dmGui::GetNodeLayerId(scene, hnode));
@@ -2000,7 +2013,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         if (lua_isstring(L, 2))
@@ -2055,7 +2068,7 @@ namespace dmGui
      */
     static int LuaGetClippingMode(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         lua_pushnumber(L, (lua_Number) n->m_Node.m_ClippingMode);
         return 1;
     }
@@ -2074,7 +2087,7 @@ namespace dmGui
     static int LuaSetClippingMode(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int clipping_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_ClippingMode = (ClippingMode) clipping_mode;
         return 0;
@@ -2090,7 +2103,7 @@ namespace dmGui
     static int LuaGetClippingVisible(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         lua_pushboolean(L, n->m_Node.m_ClippingVisible);
         return 1;
     }
@@ -2105,7 +2118,7 @@ namespace dmGui
     static int LuaSetClippingVisible(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int visible = lua_toboolean(L, 2);
         n->m_Node.m_ClippingVisible = visible;
         return 0;
@@ -2121,7 +2134,7 @@ namespace dmGui
     static int LuaGetClippingInverted(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         lua_pushboolean(L, n->m_Node.m_ClippingInverted);
         return 1;
     }
@@ -2136,7 +2149,7 @@ namespace dmGui
     static int LuaSetClippingInverted(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int inverted = lua_toboolean(L, 2);
         n->m_Node.m_ClippingInverted = inverted;
         return 0;
@@ -2175,7 +2188,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void)n;
 
         dmhash_t font_id_hash = dmGui::GetNodeFontId(scene, hnode);
@@ -2251,7 +2264,7 @@ namespace dmGui
     static int LuaGetXAnchor(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         Scene* scene = GuiScriptInstance_Check(L);
@@ -2278,7 +2291,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         int anchor = luaL_checkint(L, 2);
@@ -2312,7 +2325,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         Scene* scene = GuiScriptInstance_Check(L);
@@ -2340,7 +2353,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         int anchor = luaL_checkint(L, 2);
@@ -2383,7 +2396,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushnumber(L, dmGui::GetNodePivot(scene, hnode));
@@ -2416,7 +2429,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         int pivot = luaL_checkint(L, 2);
@@ -2474,7 +2487,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         Vector4* v4;
@@ -2502,7 +2515,7 @@ namespace dmGui
     static int LuaGetSlice9(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         Scene* scene = GuiScriptInstance_Check(L);
@@ -2523,7 +2536,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         const int vertices = luaL_checkint(L, 2);
@@ -2554,7 +2567,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushinteger(L, dmGui::GetNodePerimeterVertices(scene, hnode));
@@ -2576,7 +2589,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         float angle = luaL_checknumber(L, 2);
@@ -2606,7 +2619,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushnumber(L, dmGui::GetNodePieFillAngle(scene, hnode));
@@ -2629,7 +2642,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         float inner_radius = luaL_checknumber(L, 2);
@@ -2660,7 +2673,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushnumber(L, dmGui::GetNodeInnerRadius(scene, hnode));
@@ -2685,7 +2698,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         int bounds = luaL_checkint(L, 2);
@@ -2718,7 +2731,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushinteger(L, dmGui::GetNodeOuterBounds(scene, hnode));
@@ -2741,7 +2754,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_Number leading = luaL_checknumber(L, 2);
@@ -2767,7 +2780,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushnumber(L, (lua_Number) dmGui::GetNodeTextLeading(scene, hnode));
@@ -2790,7 +2803,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_Number tracking = luaL_checknumber(L, 2);
@@ -2816,7 +2829,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushnumber(L, (lua_Number) dmGui::GetNodeTextTracking(scene, hnode));
@@ -2838,7 +2851,7 @@ namespace dmGui
     static int LuaPickNode(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_Number x = luaL_checknumber(L, 2);
@@ -2863,7 +2876,7 @@ namespace dmGui
     {
         DM_LUA_STACK_CHECK(L, 1);
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         Scene* scene = GuiScriptInstance_Check(L);
@@ -2885,7 +2898,7 @@ namespace dmGui
     static int LuaSetEnabled(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         int enabled = lua_toboolean(L, 2);
@@ -2912,7 +2925,7 @@ namespace dmGui
      */
     static int LuaGetAdjustMode(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         lua_pushnumber(L, (lua_Number) n->m_Node.m_AdjustMode);
         return 1;
     }
@@ -2933,7 +2946,7 @@ namespace dmGui
     static int LuaSetAdjustMode(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int adjust_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_AdjustMode = (AdjustMode) adjust_mode;
         return 0;
@@ -2956,7 +2969,7 @@ namespace dmGui
      */
     static int LuaGetSizeMode(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         lua_pushnumber(L, (lua_Number) n->m_Node.m_SizeMode);
         return 1;
     }
@@ -2979,7 +2992,7 @@ namespace dmGui
     static int LuaSetSizeMode(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int size_mode = (int) luaL_checknumber(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         dmGui::SetNodeSizeMode(scene, GetNodeHandle(n), (SizeMode)size_mode);
@@ -2998,11 +3011,11 @@ namespace dmGui
     static int LuaMoveAbove(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         HNode r = INVALID_HANDLE;
         if (!lua_isnil(L, 2))
         {
-            r = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
+            r = GetNodeHandle(LuaCheckNodeInternal(L, 2, &hnode));
         }
         Scene* scene = GuiScriptInstance_Check(L);
         MoveNodeAbove(scene, GetNodeHandle(n), r);
@@ -3021,11 +3034,11 @@ namespace dmGui
     static int LuaMoveBelow(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         HNode r = INVALID_HANDLE;
         if (!lua_isnil(L, 2))
         {
-            r = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
+            r = GetNodeHandle(LuaCheckNodeInternal(L, 2, &hnode));
         }
         Scene* scene = GuiScriptInstance_Check(L);
         MoveNodeBelow(scene, GetNodeHandle(n), r);
@@ -3048,7 +3061,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
 
         if (n->m_ParentIndex != INVALID_INDEX)
         {
@@ -3082,14 +3095,14 @@ namespace dmGui
         int top = lua_gettop(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         if(n->m_Node.m_IsBone) {
             return 0;
         }
         HNode parent = INVALID_HANDLE;
         if (!lua_isnil(L, 2))
         {
-            parent = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
+            parent = GetNodeHandle(LuaCheckNodeInternal(L, 2, &hnode));
         }
         bool keep_scene_transform = false;
         if (top > 2 && lua_isboolean(L, 3) && lua_toboolean(L, 3))
@@ -3124,7 +3137,7 @@ namespace dmGui
         (void) top;
 
         HNode hnode;
-        LuaCheckNode(L, 1, &hnode);
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         Scene* scene = GuiScriptInstance_Check(L);
         HNode out_node;
@@ -3219,7 +3232,7 @@ namespace dmGui
         if (!lua_isnil(L, 1))
         {
             dmGui::HNode hnode;
-            InternalNode* root = LuaCheckNode(L, 1, &hnode);
+            InternalNode* root = LuaCheckNodeInternal(L, 1, &hnode);
             dmGui::HNode out_node;
             result = CloneNodeToTable(L, scene, root, &out_node);
             if (result == dmGui::RESULT_OK)
@@ -3485,7 +3498,7 @@ namespace dmGui
         int LuaSet##name(lua_State* L)\
         {\
             HNode hnode;\
-            InternalNode* n = LuaCheckNode(L, 1, &hnode);\
+            InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);\
             if (n->m_Node.m_IsBone) {\
                 return 0;\
             }\
@@ -3507,7 +3520,7 @@ namespace dmGui
 #define LUAGETSETV3(name, property) \
     int LuaGet##name(lua_State* L)\
     {\
-        InternalNode* n = LuaCheckNode(L, 1, 0);\
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);\
         const Vector4& v = n->m_Node.m_Properties[property];\
         dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));\
         return 1;\
@@ -3517,7 +3530,7 @@ namespace dmGui
 #define LUAGETSETV4(name, property) \
     int LuaGet##name(lua_State* L)\
     {\
-        InternalNode* n = LuaCheckNode(L, 1, 0);\
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);\
         dmScript::PushVector4(L, n->m_Node.m_Properties[property]);\
         return 1;\
     }\
@@ -3535,7 +3548,7 @@ namespace dmGui
     // pass a quaternion for rotations of GUI nodes.
     int LuaGetRotation(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
         dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
         return 1;
@@ -3544,7 +3557,7 @@ namespace dmGui
     int LuaSetRotation(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         if (n->m_Node.m_IsBone) {
             return 0;
         }
@@ -3590,7 +3603,7 @@ namespace dmGui
     int LuaSetSize(lua_State* L)
     {
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
         {
             dmLogWarning("Can not set size on auto-sized nodes.");
@@ -3624,7 +3637,7 @@ namespace dmGui
      */
     int LuaGetSize(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         Vector3 v(n->m_Node.m_Properties[PROPERTY_SIZE].getX(), n->m_Node.m_Properties[PROPERTY_SIZE].getY(), n->m_Node.m_Properties[PROPERTY_SIZE].getZ());
         dmScript::PushVector3(L, v);
         return 1;
@@ -3641,7 +3654,7 @@ namespace dmGui
      */
     int LuaGetScreenPosition(lua_State* L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         Scene* scene = GuiScriptInstance_Check(L);
         Matrix4 node_transform;
         Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
@@ -3664,7 +3677,7 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
         HNode node;
-        LuaCheckNode(L, 1, &node);
+        LuaCheckNodeInternal(L, 1, &node);
 
         if (dmGui::GetNodeIsBone(scene, node))
         {
@@ -3690,7 +3703,7 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
         HNode node;
-        LuaCheckNode(L, 1, &node);
+        LuaCheckNodeInternal(L, 1, &node);
 
         if (dmGui::GetNodeIsBone(scene, node))
         {
@@ -3715,7 +3728,7 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
         HNode node;
-        LuaCheckNode(L, 1, &node);
+        LuaCheckNodeInternal(L, 1, &node);
 
         if (dmGui::GetNodeIsBone(scene, node))
         {
@@ -3740,7 +3753,7 @@ namespace dmGui
 
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &node);
+        LuaCheckNodeInternal(L, 1, &node);
 
         if(dmGui::GetNodeIsBone(scene, node))
         {
@@ -3887,7 +3900,7 @@ namespace dmGui
 
         HNode hnode;
         Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &hnode);
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         GuiEmitterStateChangedData* script_data = 0;
         if (lua_gettop(L) > 1 && !lua_isnil(L, 2) )
@@ -3936,7 +3949,7 @@ namespace dmGui
 
         HNode hnode;
         Scene* scene = GuiScriptInstance_Check(L);
-        LuaCheckNode(L, 1, &hnode);
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         dmGui::Result res;
         res = dmGui::StopNodeParticlefx(scene, hnode);
@@ -3962,7 +3975,7 @@ namespace dmGui
         DM_LUA_STACK_CHECK(L, 0);
 
         HNode hnode;
-        LuaCheckNode(L, 1, &hnode);
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         dmhash_t particlefx_id = dmScript::CheckHashOrString(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
@@ -3991,7 +4004,7 @@ namespace dmGui
         DM_LUA_STACK_CHECK(L, 1);
 
         HNode hnode;
-        LuaCheckNode(L, 1, &hnode);
+        LuaCheckNodeInternal(L, 1, &hnode);
         Scene* scene = GuiScriptInstance_Check(L);
         dmhash_t particlefx_id = 0;
         Result r = GetNodeParticlefx(scene, hnode, particlefx_id);
@@ -4013,7 +4026,7 @@ namespace dmGui
         int top = lua_gettop(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         lua_pushboolean(L, n->m_Node.m_InheritAlpha);
 
         assert(top + 1 == lua_gettop(L));
@@ -4031,7 +4044,7 @@ namespace dmGui
         int top = lua_gettop(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int inherit_alpha = lua_toboolean(L, 2);
         n->m_Node.m_InheritAlpha = inherit_alpha;
 
@@ -4051,7 +4064,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_pushnumber(L, (lua_Number) dmGui::GetNodeAlpha(scene, hnode));
@@ -4070,7 +4083,7 @@ namespace dmGui
         DM_LUA_STACK_CHECK(L, 0)
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         (void) n;
 
         lua_Number alpha = luaL_checknumber(L, 2);

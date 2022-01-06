@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/script/script.h>
 
 
 /*# Defold GUI system
@@ -132,6 +133,22 @@ namespace dmGui
         RESULT_WRONG_TYPE = -10,
     };
 
+    /*# get node custom type
+     * @name GetNodeCustomData
+     * @param scene [type:HScene] the gui scene
+     * @param node [type:HNode] the gui node
+     * @return type [type: uint32_t] the custom type. Or 0 if it is no custom type
+     */
+    uint32_t GetNodeCustomType(HScene scene, HNode node);
+
+    /*# get node custom data
+     * @name GetNodeCustomData
+     * @param scene [type:HScene] the gui scene
+     * @param node [type:HNode] the gui node
+     * @return data [type: void*] the custom data created per node by the gui node type extension
+     */
+    void* GetNodeCustomData(HScene scene, HNode node);
+
     /*# get node texture
      * @name GetNodeTextureId
      * @param scene [type:HScene] the gui scene
@@ -158,6 +175,20 @@ namespace dmGui
     Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture);
 
     // possibly use "add texture instead"
+
+    // Scripting
+
+    /*#
+     * Pushes a dmGui::HNode to the stack
+     * @name LuaPushNode
+     * @param L [type:lua_State*] the Lua scene
+     * @param scene [type:HScene] the gui scene
+     * @param node [type:HNode] the gui node
+     */
+    void LuaPushNode(lua_State* L, dmGui::HScene scene, dmGui::HNode node);
+
+    HScene LuaCheckScene(lua_State* L);
+    HNode LuaCheckNode(lua_State* L, int index);
 }
 
 #endif

@@ -886,8 +886,6 @@ namespace dmGui
 
     NodeType GetNodeType(HScene scene, HNode node);
 
-    uint32_t GetNodeCustomType(HScene scene, HNode node);
-
     dmVMath::Point3 GetNodePosition(HScene scene, HNode node);
     dmVMath::Matrix4 GetNodeWorldTransform(HScene scene, HNode node);
 
@@ -945,8 +943,6 @@ namespace dmGui
 
     void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
-
-    void* GetNodeCustomData(HScene scene, HNode node);
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
     Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
