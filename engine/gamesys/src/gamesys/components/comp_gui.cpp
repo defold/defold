@@ -2114,8 +2114,6 @@ namespace dmGameSystem
         dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
         uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
 
-        dmLogWarning("MAWE: FetchTextureSetAnimCallback: %llu, %s: %p", animation, dmHashReverseSafe64(animation), anim_index);
-
         if (anim_index)
         {
             if (texture_set->m_TexCoords.m_Count == 0)
