@@ -6290,6 +6290,42 @@ TEST_F(dmGuiTest, ScriptGetSetAlpha)
 }
 
 
+TEST_F(dmGuiTest, CloneNodeAndAnim)
+{
+    int t1;
+    dmGui::Result r;
+
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // clone the node
+    dmGui::HNode clone;
+    dmGui::CloneNode(m_Scene, node, &clone);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    // same texture on the node?
+    ASSERT_EQ(dmGui::GetNodeTextureId(m_Scene, node), dmGui::GetNodeTextureId(m_Scene, clone));
+
+    // same playback rate?
+    ASSERT_EQ(dmGui::GetNodeFlipbookPlaybackRate(m_Scene, node), dmGui::GetNodeFlipbookPlaybackRate(m_Scene, clone));
+
+    // same animation?
+    ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), dmGui::GetNodeFlipbookAnimId(m_Scene, clone));
+
+    // cleanup
+    dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
+}
+
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
