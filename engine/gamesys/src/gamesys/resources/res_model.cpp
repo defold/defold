@@ -17,11 +17,14 @@
 #include <dlib/path.h>
 #include <dlib/dstrings.h>
 #include <dlib/memory.h>
+#include <dmsdk/dlib/transform.h>
 #include <rig/rig.h>
 
 
 namespace dmGameSystem
 {
+    using namespace dmVMath;
+
     static inline void GetModelVertex(const dmRigDDF::Mesh& mesh, const dmRigDDF::MeshVertexIndices *in, dmRig::RigModelVertex* out)
     {
         const float* v = &mesh.m_Positions[in->m_Position*3];
@@ -37,16 +40,18 @@ namespace dmGameSystem
         out->nz = v[2];
     }
 
-    static void CreateGPUBuffers(dmGraphics::HContext context, ModelResource* resource, dmRigDDF::Mesh& mesh)
+    static ModelResourceMesh* CreateGPUBuffers(dmGraphics::HContext context, dmRigDDF::Mesh& mesh)
     {
+        ModelResourceMesh* outmesh = new ModelResourceMesh;
+
         if(mesh.m_IndicesFormat == dmRig::INDEXBUFFER_FORMAT_32)
         {
-            const uint32_t index_count = mesh.m_Indices.m_Count>>2;
+            const uint32_t index_count = mesh.m_Indices.m_Count / 4;
             if(dmGraphics::IsIndexBufferFormatSupported(context, dmGraphics::INDEXBUFFER_FORMAT_32))
             {
-                resource->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, mesh.m_Indices.m_Count, mesh.m_Indices.m_Data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                resource->m_IndexBufferElementType = dmGraphics::TYPE_UNSIGNED_INT;
-                resource->m_ElementCount = index_count;
+                outmesh->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, mesh.m_Indices.m_Count, mesh.m_Indices.m_Data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                outmesh->m_IndexBufferElementType = dmGraphics::TYPE_UNSIGNED_INT;
+                outmesh->m_ElementCount = index_count;
             }
             else
             {
@@ -59,18 +64,20 @@ namespace dmGameSystem
                 {
                     GetModelVertex(mesh, &mvi[*mi], rmv);
                 }
-                resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, index_count*sizeof(dmRig::RigModelVertex), rmv_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                outmesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, index_count*sizeof(dmRig::RigModelVertex), rmv_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
                 delete []rmv_buffer;
-                resource->m_ElementCount = index_count;
-                return;
+                outmesh->m_ElementCount = index_count;
+                return outmesh;
             }
         }
         else
         {
-            resource->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, mesh.m_Indices.m_Count, mesh.m_Indices.m_Data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-            resource->m_IndexBufferElementType = dmGraphics::TYPE_UNSIGNED_SHORT;
-            resource->m_ElementCount = mesh.m_Indices.m_Count>>1;;
+            outmesh->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, mesh.m_Indices.m_Count, mesh.m_Indices.m_Data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            outmesh->m_IndexBufferElementType = dmGraphics::TYPE_UNSIGNED_SHORT;
+            outmesh->m_ElementCount = mesh.m_Indices.m_Count>>1;;
         }
+
+        // TODO: I really think this should be done in the build step /MAWE
         dmRig::RigModelVertex* rmv_buffer = new dmRig::RigModelVertex[mesh.m_Vertices.m_Count];
         dmRig::RigModelVertex* rmv = rmv_buffer;
         dmRigDDF::MeshVertexIndices* mvi =  mesh.m_Vertices.m_Data;
@@ -78,9 +85,29 @@ namespace dmGameSystem
         {
             GetModelVertex(mesh, mvi, rmv);
         }
-        resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, mesh.m_Vertices.m_Count*sizeof(dmRig::RigModelVertex), rmv_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-        delete []rmv_buffer;
+        outmesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, mesh.m_Vertices.m_Count*sizeof(dmRig::RigModelVertex), rmv_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        delete[] rmv_buffer;
+
+        return outmesh;
     }
+
+    static void AddMesh(ModelResource* resource, ModelResourceMesh* mesh)
+    {
+        if (resource->m_Meshes.Full())
+        {
+            resource->m_Meshes.OffsetCapacity(1);
+        }
+        resource->m_Meshes.Push(mesh);
+    }
+
+    // static void AddMeshEntry(ModelResource* resource, ModelResourceMeshEntry* instance)
+    // {
+    //     if (resource->m_MeshEntries.Full())
+    //     {
+    //         resource->m_MeshEntries.OffsetCapacity(1);
+    //     }
+    //     resource->m_MeshEntries.Push(*instance);
+    // }
 
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename)
     {
@@ -131,10 +158,54 @@ namespace dmGameSystem
             dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
             if(mesh_set)
             {
-                if(mesh_set->m_MeshEntries.m_Count && mesh_set->m_MeshAttachments.m_Count)
+                // if(mesh_set->m_Meshes.m_Count)
+                // {
+                //     for (uint32_t i = 0; i < mesh_set->m_Meshes.m_Count; ++i)
+                //     {
+                //         ModelResourceMesh* mesh = CreateGPUBuffers(context, mesh_set->m_Meshes[i]);
+                //         AddMesh(resource, mesh);
+                //     }
+
+                //     for (uint32_t i = 0; i < mesh_set->m_Instances.m_Count; ++i)
+                //     {
+                //         ModelResourceMeshInstance instance;
+
+                //         dmTransform::Transform transform(Vector3(mesh_set->m_Instances[i].m_Position),
+                //                                 mesh_set->m_Instances[i].m_Rotation,
+                //                                 mesh_set->m_Instances[i].m_Scale);
+
+                //         instance.m_Transform = dmTransform::ToMatrix4(transform);
+                //         instance.m_MeshIndex = mesh_set->m_Instances[i].m_Index;
+                //         AddMeshEntry(resource, &instance);
+                //     }
+                // }
+                // else
+
+                for (uint32_t i = 0; i < mesh_set->m_MeshAttachments.m_Count; ++i)
                 {
-                    CreateGPUBuffers(context, resource, mesh_set->m_MeshAttachments[0]);
+                    ModelResourceMesh* mesh = CreateGPUBuffers(context, mesh_set->m_MeshAttachments[i]);
+                    AddMesh(resource, mesh);
                 }
+
+                // for (uint32_t i = 0; i < mesh_set->m_MeshAttachments.m_Count; ++i)
+                // {
+                //     dmRigDDF::MeshEntry* mesh_entry = &mesh_set->m_MeshAttachments
+                //     ModelResourceMeshInstance instance;
+                //     instance.m_Transform = Matrix4::identity();
+                //     instance.m_MeshEntry = mesh_entry;
+                //     AddMeshEntry(resource, instance);
+                // }
+
+                // if(mesh_set->m_MeshEntries.m_Count && mesh_set->m_MeshAttachments.m_Count)
+                // {
+                //     ModelResourceMesh* mesh = CreateGPUBuffers(context, mesh_set->m_MeshAttachments[0]);
+                //     AddMesh(resource, mesh);
+
+                //     ModelResourceMeshInstance instance;
+                //     instance.m_Transform = Matrix4::identity();
+                //     instance.m_MeshIndex = 0;
+                //     AddMeshEntry(resource, &instance);
+                // }
             }
         }
 
@@ -143,17 +214,17 @@ namespace dmGameSystem
 
     static void ReleaseResources(dmResource::HFactory factory, ModelResource* resource)
     {
-        if (resource->m_VertexBuffer != 0x0)
+        for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
-            dmGraphics::DeleteVertexBuffer(resource->m_VertexBuffer);
-            resource->m_VertexBuffer = 0x0;
+            ModelResourceMesh* mesh = resource->m_Meshes[i];
+            if (mesh->m_VertexBuffer != 0x0)
+                dmGraphics::DeleteVertexBuffer(mesh->m_VertexBuffer);
+            if (mesh->m_IndexBuffer != 0x0)
+                dmGraphics::DeleteIndexBuffer(mesh->m_IndexBuffer);
+            delete mesh;
         }
-        if (resource->m_IndexBuffer != 0x0)
-        {
-            dmGraphics::DeleteVertexBuffer(resource->m_IndexBuffer);
-            resource->m_IndexBuffer = 0x0;
-            resource->m_ElementCount = 0;
-        }
+        resource->m_Meshes.SetSize(0);
+
         if (resource->m_Model != 0x0)
             dmDDF::FreeMessage(resource->m_Model);
         resource->m_Model = 0x0;

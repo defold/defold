@@ -48,6 +48,15 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
 
+    struct ModelRenderItem
+    {
+        struct ModelComponent*      m_Component;
+        ModelResourceMesh*          m_MeshBuffers;
+        dmRigDDF::MeshEntry*        m_MeshEntry;
+        dmRigDDF::MeshSlot*         m_MeshSlot;
+        //ModelResourceMeshEntry*     m_MeshEntries;
+    };
+
     struct ModelComponent
     {
         dmGameObject::HInstance     m_Instance;
@@ -62,6 +71,7 @@ namespace dmGameSystem
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmRender::HMaterial         m_Material;
 
+        dmArray<ModelRenderItem>    m_RenderItems;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         uint16_t                    m_ComponentIndex;
@@ -227,6 +237,8 @@ namespace dmGameSystem
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
+        dmLogWarning("CompModelPoseCallback: %u", pose.Size());
+
         if (!pose.Empty()) {
             dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, pose.Begin(), pose.Size());
         }
@@ -248,6 +260,11 @@ namespace dmGameSystem
         bool reverse = false;
         ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
+// TODO: We need to create a hash for each mesh entry!
+// TODO: Each skinned instance has its own state of the skeleton!
+//  If they _do_ have the same state, we should probably use that fact so that they can batch together,
+//  and we can later use instancing?
+// TODO: Each mesh has its own material!
         dmRender::HMaterial material = GetMaterial(component, resource);
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         // We have to hash individually since we don't know which textures are set as properties
@@ -402,8 +419,10 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
-        create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
-        create_params.m_MeshId           = 0; // not implemented for models
+        create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
+
+        dmRigDDF::MeshEntry* entry       = rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count > 0 ? &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[0] : 0;
+        create_params.m_MeshId           = entry->m_Id; // not implemented for models
         create_params.m_DefaultAnimation = dmHashString64(resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
@@ -414,6 +433,28 @@ namespace dmGameSystem
             }
             DestroyComponent(world, index);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        // At any given time, we can max show X slots
+        uint32_t num_slots = rig_resource->m_MeshSetRes->m_MeshSet->m_SlotCount;
+        component->m_RenderItems.SetCapacity(num_slots);
+        for (uint32_t i = 0; i < rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count; ++i)
+        {
+            dmRigDDF::MeshEntry* entry = &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[i];
+
+            for (uint32_t j = 0; j < entry->m_MeshSlots.m_Count; ++j)
+            {
+                dmRigDDF::MeshSlot* slot = &entry->m_MeshSlots[j];
+
+                ModelRenderItem item;
+                item.m_Component = component;
+                item.m_MeshEntry = entry;
+                item.m_MeshSlot = slot;
+
+                uint32_t mesh_index = slot->m_ActiveIndex;
+                item.m_MeshBuffers = resource->m_Meshes[mesh_index];
+                component->m_RenderItems.Push(item);
+            }
         }
 
         component->m_ReHash = 1;
@@ -466,31 +507,32 @@ namespace dmGameSystem
 
         for (uint32_t *i=begin;i!=end;i++)
         {
-            dmRender::RenderObject& ro = *world->m_RenderObjects.End();
-            world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
+            const ModelRenderItem* render_item = (ModelRenderItem*) buf[*i].m_UserData;
+            const ModelResourceMesh* render_mesh = render_item->m_MeshBuffers;
+            const ModelComponent* component = render_item->m_Component;
 
-            ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
-            const ModelResource* mr = component->m_Resource;
-            assert(mr->m_VertexBuffer);
+            // We currently have no support for instancing, so we generate a separate draw call for each model
+            world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
+            dmRender::RenderObject& ro = world->m_RenderObjects.Back();
 
             ro.Init();
             ro.m_VertexDeclaration = world->m_VertexDeclaration;
-            ro.m_VertexBuffer = mr->m_VertexBuffer;
-            ro.m_Material = GetMaterial(component, mr);
+            ro.m_VertexBuffer = render_mesh->m_VertexBuffer;
+            ro.m_Material = GetMaterial(component, component->m_Resource);
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro.m_VertexStart = 0;
-            ro.m_VertexCount = mr->m_ElementCount;
+            ro.m_VertexCount = render_mesh->m_ElementCount;
             ro.m_WorldTransform = component->m_World;
 
-            if(mr->m_IndexBuffer)
+            if(render_mesh->m_IndexBuffer)
             {
-                ro.m_IndexBuffer = mr->m_IndexBuffer;
-                ro.m_IndexType = mr->m_IndexBufferElementType;
+                ro.m_IndexBuffer = render_mesh->m_IndexBuffer;
+                ro.m_IndexType = render_mesh->m_IndexBufferElementType;
             }
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
-                ro.m_Textures[i] = GetTexture(component, mr, i);
+                ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
             }
 
             if (component->m_RenderConstants) {
@@ -504,7 +546,6 @@ namespace dmGameSystem
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Model, "RenderBatchWorld");
-
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
@@ -572,8 +613,10 @@ namespace dmGameSystem
     {
         DM_PROFILE(Model, "RenderBatch");
 
-        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
-        dmRender::HMaterial material = first->m_Resource->m_Material;
+        const ModelRenderItem* render_item = (ModelRenderItem*) buf[*begin].m_UserData;
+        const ModelComponent* component = render_item->m_Component;
+        dmRender::HMaterial material = component->m_Resource->m_Material;
+
         switch(dmRender::GetMaterialVertexSpace(material))
         {
             case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
@@ -603,11 +646,11 @@ namespace dmGameSystem
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
-
             if (dmRig::IsValid(c->m_RigInstance))
             {
                 const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
+
                 if (dmGameObject::ScaleAlongZ(c->m_Instance))
                 {
                     c->m_World = go_world * local;
@@ -711,39 +754,56 @@ namespace dmGameSystem
         UpdateTransforms(world);
 
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
-        const uint32_t count = components.Size();
+
+        uint32_t num_components = components.Size();
+        uint32_t instance_count = 0;
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            ModelComponent& component = *components[i];
+            if (!component.m_DoRender)
+                continue;
+            instance_count += component.m_RenderItems.Size();
+        }
 
         // Prepare list submit
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, instance_count);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         const uint32_t max_elements_vertices = world->m_MaxElementsVertices;
         uint32_t minor_order = 0; // Will translate to vb index.
         uint32_t vertex_count_total = 0;
-        for (uint32_t i = 0; i < count; ++i)
+        for (uint32_t i = 0; i < num_components; ++i)
         {
             ModelComponent& component = *components[i];
             if (!component.m_DoRender)
                 continue;
 
-            uint32_t vertex_count = dmRig::GetVertexCount(component.m_RigInstance);
-            if(vertex_count_total + vertex_count >= max_elements_vertices)
+            uint32_t item_count = component.m_RenderItems.Size();
+            for (uint32_t j = 0; j < item_count; ++j)
             {
-                vertex_count_total = 0;
-                minor_order = dmMath::Min(minor_order + 1, VERTEX_BUFFER_MAX_BATCHES-1);
-            }
-            vertex_count_total += vertex_count;
+                const ModelRenderItem& render_item = component.m_RenderItems[j];
 
-            const Vector4 trans = component.m_World.getCol(3);
-            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
-            write_ptr->m_UserData = (uintptr_t) &component;
-            write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
-            write_ptr->m_Dispatch = dispatch;
-            write_ptr->m_MinorOrder = minor_order;
-            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
-            ++write_ptr;
+                uint32_t vertex_count = dmRig::GetVertexCount(component.m_RigInstance);
+                if(vertex_count_total + vertex_count >= max_elements_vertices)
+                {
+                    vertex_count_total = 0;
+                    minor_order = dmMath::Min(minor_order + 1, VERTEX_BUFFER_MAX_BATCHES-1);
+                }
+                vertex_count_total += vertex_count;
+
+// TODO: Create correct m_World for each item
+                const Vector4 trans = component.m_World.getCol(3);
+                write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+                write_ptr->m_UserData = (uintptr_t) &render_item;
+// TODO: Currently assuming only one material for all meshes
+                write_ptr->m_BatchKey = component.m_MixedHash;
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
+                write_ptr->m_Dispatch = dispatch;
+                write_ptr->m_MinorOrder = minor_order;
+                write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+                ++write_ptr;
+            }
         }
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);
@@ -861,8 +921,11 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
-        create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
-        create_params.m_MeshId           = 0; // not implemented for models
+        create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
+
+// TODO: Fix for models without skins (i.e. we don't want a single "skin")
+        dmRigDDF::MeshEntry* entry       = rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count > 0 ? &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[0] : 0;
+        create_params.m_MeshId           = entry->m_Id;
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);

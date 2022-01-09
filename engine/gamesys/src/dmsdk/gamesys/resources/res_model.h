@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/gamesys/resources/res_rig_scene.h>
@@ -23,17 +24,22 @@
 
 namespace dmGameSystem
 {
+    struct ModelResourceMesh
+    {
+        dmGraphics::HVertexBuffer   m_VertexBuffer;
+        dmGraphics::HIndexBuffer    m_IndexBuffer;
+        dmGraphics::Type            m_IndexBufferElementType;
+        uint32_t                    m_ElementCount;
+    };
+
     struct ModelResource
     {
-        dmModelDDF::Model*      m_Model;
-        RigSceneResource*       m_RigScene;
-        dmRender::HMaterial     m_Material;
-        dmGraphics::HVertexBuffer m_VertexBuffer;
-        dmGraphics::HIndexBuffer m_IndexBuffer;
-        dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmGraphics::Type        m_IndexBufferElementType;
-        uint32_t                m_ElementCount;
+        dmModelDDF::Model*          m_Model;
+        RigSceneResource*           m_RigScene;
+        dmRender::HMaterial         m_Material; // TODO: Make a list of these, and add a material index into the mesh instance
+        dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                    m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmArray<ModelResourceMesh*> m_Meshes;
     };
 }
 

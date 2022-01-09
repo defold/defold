@@ -300,7 +300,7 @@ namespace dmGameSystem
                 w = dmTransform::MulNoScaleZ(world, local);
             }
 
-            w = dmTransform::appendScale(w, c->m_Scale);
+            w = Vectormath::Aos::appendScale(w, c->m_Scale);
             Vector4 position = w.getCol3();
             if (!sub_pixels)
             {

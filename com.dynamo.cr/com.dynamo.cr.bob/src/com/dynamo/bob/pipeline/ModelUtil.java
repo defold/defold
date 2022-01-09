@@ -60,6 +60,7 @@ import com.dynamo.bob.util.RigUtil.Weight;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Matrix4;
 
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
@@ -947,84 +948,57 @@ public class ModelUtil {
         return transform;
     }
 
-    public static void loadMeshInstances(AINode node, ArrayList<Rig.MeshInstance> mesh_instances) {
+    public static void loadMeshInstances(AINode node, ArrayList<String> mesh_names, ArrayList<Rig.MeshEntry> mesh_entries) {
         int num_meshes = node.mNumMeshes();
-        IntBuffer meshrefs = node.mMeshes();
-        for (int i = 0; i < num_meshes; ++i) {
-            int meshref = meshrefs.get(i);
 
-            Rig.MeshInstance.Builder meshInstanceBuilder = Rig.MeshInstance.newBuilder();
+        if (num_meshes > 0)
+        {
+            IntBuffer meshrefs = node.mMeshes();
 
-            Matrix4d transform = getTransform(node);
+            String node_name = node.mName().dataString();
 
-            Vector3d position = new Vector3d();
-            Quat4d rotation = new Quat4d();
-            Vector3d scale = new Vector3d();
-            MathUtil.decompose(transform, position, rotation, scale);
+            Rig.MeshEntry.Builder meshEntryBuilder = Rig.MeshEntry.newBuilder();
+            meshEntryBuilder.setId(MurmurHash.hash64(node_name));
 
-            Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position));
-            meshInstanceBuilder.setPosition(ddfpos);
+            Matrix4d transformd = getTransform(node);
+            Matrix4 transform = MathUtil.vecmathToDDF(transformd);
+            meshEntryBuilder.setTransform(transform);
 
-            Quat ddfrot = MathUtil.vecmathToDDF(rotation);
-            meshInstanceBuilder.setRotation(ddfrot);
+            for (int i = 0; i < num_meshes; ++i) {
+                int meshref = meshrefs.get(i);
 
-            Vector3 ddfscale = MathUtil.vecmathToDDF(scale);
-            meshInstanceBuilder.setScale(ddfscale);
+                Rig.MeshSlot.Builder meshSlotBuilder = Rig.MeshSlot.newBuilder();
 
-            meshInstanceBuilder.setIndex(meshref);
+                String mesh_name = mesh_names.get(meshref);
+                System.out.printf("MESH SLOT: %s  %d \n", mesh_name, MurmurHash.hash64(mesh_name));
+                meshSlotBuilder.setId(MurmurHash.hash64(mesh_name));
+                meshSlotBuilder.setActiveIndex(0); // Default to the first mesh in the mesh attachments
+                meshSlotBuilder.addMeshAttachments(meshref);
 
-            mesh_instances.add(meshInstanceBuilder.build());
+                // // Not really used by models
+                // meshSlotBuilder.addSlotColor(1.0f);
+                // meshSlotBuilder.addSlotColor(1.0f);
+                // meshSlotBuilder.addSlotColor(1.0f);
+                // meshSlotBuilder.addSlotColor(1.0f);
 
-            //System.out.printf("MESH INSTANCE:\n");
-            printMatrix4d(node.mName().dataString(), transform);
+                meshEntryBuilder.addMeshSlots(meshSlotBuilder);
+
+                printMatrix4d(node.mName().dataString(), transformd);
+            }
+
+            System.out.printf("MESH ENTRY: %s %d\n", node_name, MurmurHash.hash64(node_name));
+
+            mesh_entries.add(meshEntryBuilder.build());
         }
 
         PointerBuffer children = node.mChildren();
         for (int i = 0; i < node.mNumChildren(); ++i) {
             AINode child = AINode.create(children.get(i));
-            loadMeshInstances(child, mesh_instances);
+            loadMeshInstances(child, mesh_names, mesh_entries);
         }
     }
 
     public static void loadMeshes(AIScene scene, Rig.MeshSet.Builder meshSetBuilder) {
-
-        // // Use first geometry entry as default
-        // XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values().iterator().next();
-
-        // // Find first node in visual scene tree that has a instance geometry
-        // XMLNode sceneNode = null;
-        // Matrix4d sceneNodeMatrix = null;
-        // if (collada.libraryVisualScenes.size() > 0) {
-        //     sceneNode = getFirstNodeWithGeoemtry(collada.libraryVisualScenes.get(0).scenes.values());
-        //     if (sceneNode != null) {
-        //         XMLInstanceGeometry instanceGeo = sceneNode.instanceGeometries.get(0);
-        //         String geometryId = instanceGeo.url;
-
-        //         // Get node transform if available
-        //         sceneNodeMatrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(sceneNode.matrix.matrix4f));
-
-        //         // Find geometry entry
-        //         for (XMLGeometry geomEntry : collada.libraryGeometries.get(0).geometries.values())
-        //         {
-        //             if (geomEntry.equals(geometryId)) {
-        //                 geom = geomEntry;
-        //                 break;
-        //             }
-        //         }
-        //     }
-        // }
-        // if (sceneNodeMatrix == null) {
-        //     sceneNodeMatrix = new Matrix4d();
-        //     sceneNodeMatrix.setIdentity();
-        // }
-
-        // XMLMesh mesh = geom.mesh;
-        // if(mesh == null || mesh.triangles == null) {
-        //     return;
-        // }
-        // List<XMLSource> sources = mesh.sources;
-        // HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
-
 // TODO: Compare with the skeleton that is set as the "skeleton" !
 // Report error if
 // * this internal skeleton contains nodes that are not part of the external skeleton
@@ -1035,217 +1009,33 @@ public class ModelUtil {
         ArrayList<String> materials = loadMaterials(scene);
         meshSetBuilder.addAllMaterials(materials);
 
-        // XMLInput vpos_input = findInput(mesh.vertices.inputs, "POSITION", true);
-        // XMLInput vertex_input = findInput(mesh.triangles.inputs, "VERTEX", true);
-        // XMLInput normal_input = findInput(mesh.triangles.inputs, "NORMAL", false);
-        // XMLInput texcoord_input = findInput(mesh.triangles.inputs, "TEXCOORD", false);
-
-        // Get bind shape from skin, if it exist
-        // Matrix4d bindShapeMatrix = null;
-        // XMLSkin skin = null;
-        // if (!collada.libraryControllers.isEmpty()) {
-        //     skin = findFirstSkin(collada.libraryControllers.get(0));
-        //     if (skin != null && skin.bindShapeMatrix != null) {
-        //         bindShapeMatrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(skin.bindShapeMatrix.matrix4f));
-        //     }
-        // }
-        // if (bindShapeMatrix == null) {
-        //     bindShapeMatrix = new Matrix4d();
-        //     bindShapeMatrix.setIdentity();
-        // }
-
-        // // Apply any matrix found for scene node
-        // bindShapeMatrix.mul(sceneNodeMatrix);
-
-        // // NOTE: Normals could be part of the vertex of specified directly in triangles...
-        // int normalOffset;
-        // if (normal_input  != null) {
-        //     normalOffset = normal_input.offset;
-        // } else {
-        //     normalOffset = 0;
-        //     normal_input = findInput(mesh.vertices.inputs, "NORMAL", false);
-        // }
-
-        // if (mesh.triangles.inputs.size() == 0)
-        //     throw new LoaderException("No inputs in triangles");
-
-        // int stride = 0;
-        // for (XMLInput i : mesh.triangles.inputs) {
-        //     stride = Math.max(stride, i.offset);
-        // }
-        // stride += 1;
-
-        // XMLSource positions = sourcesMap.get(vpos_input.source);
-        // XMLSource normals = null;
-        // if (normal_input != null) {
-        //     normals = sourcesMap.get(normal_input.source);
-        // }
-
-        // XMLSource texcoords = null;
-        // if (texcoord_input != null) {
-        //     texcoords = sourcesMap.get(texcoord_input.source);
-        // }
-
-        // // Apply the up-axis matrix on the bind shape matrix.
-        // AssetSpace assetSpace = getAssetSpace(collada.asset);
-        // Matrix4d assetSpaceMtx = new Matrix4d();
-        // Matrix4d assetScaleMtx = new Matrix4d();
-        // assetScaleMtx.setIdentity();
-        // assetScaleMtx.setScale(assetSpace.unit);
-        // assetSpaceMtx.mul(assetSpace.rotation, assetScaleMtx);
-        // bindShapeMatrix.mul(assetSpaceMtx, bindShapeMatrix);
-
-        // List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
-        // for (int i = 0; i < positions.floatArray.count / 3; ++i) {
-        //     Point3f p = new Point3f(positions.floatArray.floats[i*3], positions.floatArray.floats[i*3+1], positions.floatArray.floats[i*3+2]);
-        //     bindShapeMatrix.transform(p);
-        //     position_list.add(p.getX());
-        //     position_list.add(p.getY());
-        //     position_list.add(p.getZ());
-        // }
-
-        // // Create a normal matrix which is the transposed inverse of
-        // // the bind shape matrix (which already include the up axis matrix).
-        // Matrix4f normalMatrix = new Matrix4f(bindShapeMatrix);
-        // normalMatrix.invert();
-        // normalMatrix.transpose();
-
-        // List<Float> normal_list = null;
-        // if(normals != null) {
-        //     normal_list = new ArrayList<Float>(normals.floatArray.count);
-        //     for (int i = 0; i < normals.floatArray.count / 3; ++i) {
-        //         Vector3f n = new Vector3f(normals.floatArray.floats[i*3], normals.floatArray.floats[i*3+1], normals.floatArray.floats[i*3+2]);
-        //         normalMatrix.transform(n);
-        //         if (n.lengthSquared() > 0.0) {
-        //             n.normalize();
-        //         }
-        //         normal_list.add(n.getX());
-        //         normal_list.add(n.getY());
-        //         normal_list.add(n.getZ());
-        //     }
-        // }
-
-        // List<Float> texcoord_list;
-        // if(texcoords == null) {
-        //     texcoord_list = new ArrayList<Float>(Arrays.asList(0f, 0f));
-        // } else {
-        //     texcoord_list = new ArrayList<Float>(texcoords.floatArray.count);
-        //     for (int i = 0; i < texcoords.floatArray.count; i += 2 ) {
-        //         texcoord_list.add(texcoords.floatArray.floats[i]);
-        //         texcoord_list.add(texcoords.floatArray.floats[i+1]);
-        //     }
-        // }
-
-        // List<Integer> position_indices_list = new ArrayList<Integer>(num_triangles*3);
-        // List<Integer> normal_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
-        // List<Integer> texcoord_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
-
-        // // Sometimes the <p> values can be -1 from Maya exports, we clamp it below to 0 instead.
-        // // Similar solution as AssImp; https://github.com/assimp/assimp/blob/master/code/ColladaParser.cpp#L2336
-        // for (int i = 0; i < mesh.triangles.count; ++i) {
-
-        //     for (int j = 0; j < 3; ++j) {
-        //         int idx = i * stride * 3 + vertex_input.offset;
-        //         int vert_idx = Math.max(0, mesh.triangles.p[idx + stride * j]);
-        //         position_indices_list.add(vert_idx);
-
-        //         if (normals != null) {
-        //             idx = i * stride * 3 + normalOffset;
-        //             vert_idx = Math.max(0, mesh.triangles.p[idx + stride * j]);
-        //             normal_indices_list.add(vert_idx);
-        //         }
-
-        //         if (texcoords == null) {
-        //             texcoord_indices_list.add(0);
-        //         } else {
-        //             idx = i * stride * 3 + texcoord_input.offset;
-        //             vert_idx = Math.max(0, mesh.triangles.p[idx + stride * j]);
-        //             texcoord_indices_list.add(vert_idx);
-        //         }
-
-        //     }
-
-        // }
-
-        // class MeshVertexIndex {
-        //     public int position, texcoord0, normal;
-        //     public boolean equals(Object o) {
-        //         MeshVertexIndex m = (MeshVertexIndex) o;
-        //         return (this.position == m.position && this.texcoord0 == m.texcoord0 && this.normal == m.normal);
-        //     }
-        // }
-
-        // // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
-        // // We can then use this to quickly build am optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
-        // boolean mesh_has_normals = normal_indices_list.size() > 0;
-        // List<MeshVertexIndex> shared_vertex_indices = new ArrayList<MeshVertexIndex>(mesh.triangles.count*3);
-        // List<Integer> mesh_index_list = new ArrayList<Integer>(mesh.triangles.count*3);
-        // for (int i = 0; i < mesh.triangles.count*3; ++i) {
-        //     MeshVertexIndex ci = new MeshVertexIndex();
-        //     ci.position = position_indices_list.get(i);
-        //     ci.texcoord0 = texcoord_indices_list.get(i);
-        //     ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
-        //     int index = optimize ? shared_vertex_indices.indexOf(ci) : -1;
-        //     if(index == -1) {
-        //         // create new vertex as this is not equal to any existing in generated list
-        //         mesh_index_list.add(shared_vertex_indices.size());
-        //         shared_vertex_indices.add(ci);
-        //     } else {
-        //         // shared vertex, add index to existing vertex in generating list instead of adding new
-        //         mesh_index_list.add(index);
-        //     }
-        // }
-        // List<Rig.MeshVertexIndices> mesh_vertex_indices = new ArrayList<Rig.MeshVertexIndices>(mesh.triangles.count*3);
-        // for (int i = 0; i < shared_vertex_indices.size() ; ++i) {
-        //     Rig.MeshVertexIndices.Builder b = Rig.MeshVertexIndices.newBuilder();
-        //     MeshVertexIndex ci = shared_vertex_indices.get(i);
-        //     b.setPosition(ci.position);
-        //     b.setTexcoord0(ci.texcoord0);
-        //     b.setNormal(ci.normal);
-        //     mesh_vertex_indices.add(b.build());
-        // }
-
-        // Rig.IndexBufferFormat indices_format;
-        // ByteBuffer indices_bytes;
-        // if(shared_vertex_indices.size() <= 65536)
-        // {
-        //     // if we only need 16-bit indices, use this primarily. Less data to upload to GPU and ES2.0 core functionality.
-        //     indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16;
-        //     indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 2);
-        //     indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
-        //     for (int i = 0; i < mesh_index_list.size();) {
-        //         indices_bytes.putShort(mesh_index_list.get(i++).shortValue());
-        //     }
-        // }
-        // else
-        // {
-        //     indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32;
-        //     indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 4);
-        //     indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
-        //     for (int i = 0; i < mesh_index_list.size();) {
-        //         indices_bytes.putInt(mesh_index_list.get(i++));
-        //     }
-        // }
-        // indices_bytes.rewind();
-
         ArrayList<Rig.Mesh> meshes = new ArrayList<>();
+        ArrayList<String> mesh_names = new ArrayList<>();
 
         PointerBuffer aiMeshes = scene.mMeshes();
         for (int i = 0; i < scene.mNumMeshes(); ++i) {
             AIMesh aiMesh = AIMesh.create(aiMeshes.get(i));
 
             String mesh_name = aiMesh.mName().dataString();
+            mesh_names.add(mesh_name);
             System.out.printf("MESH: %s\n", mesh_name);
 
             Rig.Mesh mesh = loadMesh(aiMesh, skeleton);
             meshes.add(mesh);
         }
 
-        ArrayList<Rig.MeshInstance> mesh_instances = new ArrayList<>();
-        loadMeshInstances(scene.mRootNode(), mesh_instances);
+        ArrayList<Rig.MeshEntry> mesh_entries = new ArrayList<>();
+        loadMeshInstances(scene.mRootNode(), mesh_names, mesh_entries);
 
-        meshSetBuilder.addAllMeshes(meshes);
-        meshSetBuilder.addAllInstances(mesh_instances);
+        // The total number of slots in the scene (we can use it to preallocate data)
+        int num_slots = 0;
+        for (Rig.MeshEntry entry : mesh_entries) {
+            num_slots += entry.getMeshSlotsCount();
+        }
+        meshSetBuilder.setSlotCount(num_slots);
+
+        meshSetBuilder.addAllMeshAttachments(meshes);
+        meshSetBuilder.addAllMeshEntries(mesh_entries);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
 
         for (ModelUtil.Bone bone : skeleton) {
@@ -1259,63 +1049,6 @@ public class ModelUtil {
         loadSkeleton(aiScene, skeletonBuilder);
     }
 
-    // private static Rig.Bone loadBone(AIBone bone, AssetSpace assetSpace, HashMap<String, Matrix4d> boneTransforms) {
-    // }
-
-
-    // private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, AssetSpace assetSpace, HashMap<String, Matrix4d> boneTransforms) {
-
-    //     // Get the bone transform for this bone from the transform lookup map.
-    //     Matrix4d boneBindMatrix = new Matrix4d();
-    //     if (boneTransforms.containsKey(node.id)) {
-    //         boneBindMatrix = new Matrix4d(boneTransforms.get(node.id));
-    //     }
-
-    //     // Apply the asset space scale to all bone positions,
-    //     // only apply the asset space rotation to the root bone.
-    //     if (assetSpace != null) {
-    //         boneBindMatrix.m03 *= assetSpace.unit;
-    //         boneBindMatrix.m13 *= assetSpace.unit;
-    //         boneBindMatrix.m23 *= assetSpace.unit;
-
-    //         boneBindMatrix.mul(assetSpace.rotation, boneBindMatrix);
-
-    //         // Reset asset space rotation to identity,
-    //         // so it's only used for root.
-    //         assetSpace.rotation.setIdentity();
-    //     }
-
-    //     Bone newBone = new Bone(node, node.sid, node.name, MathUtil.vecmath1ToVecmath2(new Matrix4f(boneBindMatrix)), new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
-
-    //     // Add bone and bone id to the bone list and bone id array.
-    //     boneList.add(newBone);
-    //     boneIds.add(newBone.getSourceId());
-
-    //     // Iterate over children and look for other JOINTs.
-    //     for(XMLNode childNode : node.childrenList) {
-    //         if(childNode.type == XMLNode.Type.JOINT) {
-    //             Bone childBone = loadBone(childNode, boneList, boneIds, assetSpace, boneTransforms);
-    //             newBone.addChild(childBone);
-    //         }
-    //     }
-
-    //     return newBone;
-    // }
-
-    // // Recursive helper function for the below function (getBoneReferenceList()).
-    // // Goes through the JOINT nodes in the scene and add their ids (bone id).
-    // private static void getBoneReferenceFromSceneNode(XMLNode node, ArrayList<String> boneList, HashSet<String> boneIdLut) {
-    //     if (!boneIdLut.contains(node.id)) {
-    //         boneList.add(node.id);
-    //         boneIdLut.add(node.id);
-    //     }
-
-    //     for(XMLNode childNode : node.childrenList) {
-    //         if(childNode.type == XMLNode.Type.JOINT) {
-    //             getBoneReferenceFromSceneNode(childNode, boneList, boneIdLut);
-    //         }
-    //     }
-    // }
 
     // // Creates a list of bone ids ordered by their index.
     // // Their index is first taken from the order they appear in the skin entry of the collada file,
@@ -1619,7 +1352,6 @@ public class ModelUtil {
             } else {
                 offset_matrix.set(1.0f,0.0f,0.0f,0.0f, 0.0f,1.0f,0.0f,0.0f, 0.0f,0.0f,1.0f,0.0f, 0.0f,0.0f,0.0f,1.0f);
             }
-            //bone.transform = bone.bone.
 
             printMatrix4x4(bone.name, offset_matrix);
 
@@ -1637,7 +1369,7 @@ public class ModelUtil {
     // Generate skeleton DDF data of bones.
     // It will extract the position, rotation and scale from the bone transform as needed by the runtime.
     private static void boneToDDF(ModelUtil.Bone bone, ArrayList<Rig.Bone> ddfBones) {
-        com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
+        Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
         b.setParent(bone.parentIndex);
         b.setId(MurmurHash.hash64(bone.name));

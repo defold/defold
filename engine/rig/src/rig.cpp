@@ -170,6 +170,7 @@ namespace dmRig
         return instance->m_MeshId;
     }
 
+    // TODO: Rename to "SetSkin" or similar
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id)
     {
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
