@@ -196,6 +196,25 @@ public class ModelUtil {
     //     return samplersLUT;
     // }
 
+
+    public static AIScene loadScene(byte[] content, String suffix) {
+        // LWJGL only supports direct byte buffers
+        ByteBuffer buffer = ByteBuffer.allocateDirect(content.length);
+        buffer.put(ByteBuffer.wrap(content));
+        buffer.rewind();
+
+        // Like the texture_profiles, we might want a model_profiles
+        // https://github.com/assimp/assimp/blob/e157d7550b02414834c7532143d8751fb30bc886/include/assimp/postprocess.h
+        //  aiProcess_ImproveCacheLocality
+        //  aiProcess_OptimizeMeshes
+
+        // aiProcess_FlipUVs
+
+        // aiProcess_GenBoundingBoxes - undocumented?
+
+        return aiImportFileFromMemory(buffer, aiProcess_Triangulate | aiProcess_LimitBoneWeights, suffix);
+    }
+
     private static AnimationKey createKey(float t, boolean stepped, int componentSize) {
         AnimationKey key = new AnimationKey();
         key.t = t;
@@ -218,64 +237,139 @@ public class ModelUtil {
     }
 
 
-    // private static void ExtractMatrixKeys(Bone bone, Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
+    private static void ExtractMatrixKeys(AINodeAnim anim, Matrix4d localToParent, AssetSpace assetSpace, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
 
-    //     Vector3d bindP = new Vector3d();
-    //     Quat4d bindR = new Quat4d();
-    //     Vector3d bindS = new Vector3d();
-    //     MathUtil.decompose(localToParent, bindP, bindR, bindS);
-    //     bindR.inverse();
-    //     Vector4d lastR = new Vector4d(0.0, 0.0, 0.0, 0.0);
+        Vector3d bindP = new Vector3d();
+        Quat4d bindR = new Quat4d();
+        Vector3d bindS = new Vector3d();
+        MathUtil.decompose(localToParent, bindP, bindR, bindS);
+        bindR.inverse();
 
-    //     int keyCount = animation.getInput().length;
-    //     float[] time = animation.getInput();
-    //     float[] values = animation.getOutput();
-    //     for (int key = 0; key < keyCount; ++key) {
-    //         int index = key * 16;
-    //         Matrix4d m = new Matrix4d(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
-    //         if (assetSpace != null) {
-    //             m.m03 *= assetSpace.unit;
-    //             m.m13 *= assetSpace.unit;
-    //             m.m23 *= assetSpace.unit;
-    //             m.mul(assetSpace.rotation, m);
-    //         }
 
-    //         Vector3d p = new Vector3d();
-    //         Quat4d r = new Quat4d();
-    //         Vector3d s = new Vector3d();
-    //         MathUtil.decompose(m, p, r, s);
+        // https://github.com/LWJGL/lwjgl3/blob/02e5523774b104866e502e706141ae1a468183e6/modules/lwjgl/assimp/src/generated/java/org/lwjgl/assimp/AINodeAnim.java
+        // Highlights:
+        // * The keys are absolute, and not relative the parent
 
-    //         // Check if dot product of decomposed rotation and previous frame is < 0,
-    //         // if that is the case; flip rotation.
-    //         // This is to avoid a problem that can occur when we decompose the matrix and
-    //         // we get a quaternion representing the same rotation but in the opposite direction.
-    //         // See this answer on SO: http://stackoverflow.com/a/2887128
-    //         Vector4d rv = new Vector4d(r.x, r.y, r.z, r.w);
-    //         if (lastR.dot(rv) < 0.0) {
-    //             r.scale(-1.0);
-    //             rv.scale(-1.0);
-    //         }
-    //         lastR = rv;
+        int num_position_keys = anim.mNumPositionKeys();
+        int num_rotation_keys = anim.mNumRotationKeys();
+        int num_scale_keys = anim.mNumScalingKeys();
 
-    //         // Get pose relative transform
-    //         p.set(p.getX() - bindP.getX(), p.getY() - bindP.getY(), p.getZ() - bindP.getZ());
-    //         r.mul(bindR, r);
-    //         s.set(s.getX() / bindS.getX(), s.getY() / bindS.getY(), s.getZ() / bindS.getZ());
+        System.out.printf("  BONE: %s nKeys: t %d, r %d, s %d\n", anim.mNodeName().dataString(), num_position_keys, num_rotation_keys, num_scale_keys);
 
-    //         float t = time[key];
-    //         AnimationKey posKey = createKey(t, false, 3);
-    //         toFloats(p, posKey.value);
-    //         posTrack.keys.add(posKey);
-    //         AnimationKey rotKey = createKey(t, false, 4);
-    //         toFloats(r, rotKey.value);
-    //         rotTrack.keys.add(rotKey);
-    //         AnimationKey scaleKey = createKey(t, false, 3);
-    //         toFloats(s, scaleKey.value);
-    //         scaleTrack.keys.add(scaleKey);
-    //     }
-    // }
+        {
+            AIVectorKey.Buffer buffer = anim.mPositionKeys();
+            while (buffer.remaining() > 0) {
+                AIVectorKey key = buffer.get();
+                double time = key.mTime();
+                AIVector3D v = key.mValue();
 
-    // private static void ExtractKeys(Bone bone, Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
+                Vector3d p = new Vector3d();
+                p.set(v.x() - bindP.getX(), v.y() - bindP.getY(), v.z() - bindP.getZ());
+
+                AnimationKey posKey = createKey((float)time, false, 3);
+                toFloats(p, posKey.value);
+                posTrack.keys.add(posKey);
+            }
+        }
+
+        {
+            Vector4d lastR = new Vector4d(0.0, 0.0, 0.0, 0.0);
+
+            AIQuatKey.Buffer buffer = anim.mRotationKeys();
+            while (buffer.remaining() > 0) {
+                AIQuatKey key = buffer.get();
+                double time = key.mTime();
+                AIQuaternion v = key.mValue();
+
+                Quat4d r = new Quat4d(v.x(), v.y(), v.z(), v.w());
+
+                // Check if dot product of decomposed rotation and previous frame is < 0,
+                // if that is the case; flip rotation.
+                // This is to avoid a problem that can occur when we decompose the matrix and
+                // we get a quaternion representing the same rotation but in the opposite direction.
+                // See this answer on SO: http://stackoverflow.com/a/2887128
+                Vector4d rv = new Vector4d(r.x, r.y, r.z, r.w);
+                if (lastR.dot(rv) < 0.0) {
+                    r.scale(-1.0);
+                    rv.scale(-1.0);
+                }
+                lastR = rv;
+
+                r.mul(bindR, r);
+
+                AnimationKey rot = createKey((float)time, false, 4);
+                toFloats(r, rot.value);
+                rotTrack.keys.add(rot);
+            }
+        }
+
+        {
+            AIVectorKey.Buffer buffer = anim.mScalingKeys();
+            while (buffer.remaining() > 0) {
+                AIVectorKey key = buffer.get();
+                double time = key.mTime();
+                AIVector3D v = key.mValue();
+
+                Vector3d s = new Vector3d();
+                s.set(v.x() / bindS.getX(), v.y() / bindS.getY(), v.z() / bindS.getZ());
+
+                AnimationKey scaleKey = createKey((float)time, false, 3);
+                toFloats(s, scaleKey.value);
+                scaleTrack.keys.add(scaleKey);
+            }
+        }
+
+        /*
+        int keyCount = animation.getInput().length;
+        float[] time = animation.getInput();
+        float[] values = animation.getOutput();
+        for (int key = 0; key < keyCount; ++key) {
+            int index = key * 16;
+            Matrix4d m = new Matrix4d(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
+            if (assetSpace != null) {
+                m.m03 *= assetSpace.unit;
+                m.m13 *= assetSpace.unit;
+                m.m23 *= assetSpace.unit;
+                m.mul(assetSpace.rotation, m);
+            }
+
+            Vector3d p = new Vector3d();
+            Quat4d r = new Quat4d();
+            Vector3d s = new Vector3d();
+            MathUtil.decompose(m, p, r, s);
+
+            // Check if dot product of decomposed rotation and previous frame is < 0,
+            // if that is the case; flip rotation.
+            // This is to avoid a problem that can occur when we decompose the matrix and
+            // we get a quaternion representing the same rotation but in the opposite direction.
+            // See this answer on SO: http://stackoverflow.com/a/2887128
+            Vector4d rv = new Vector4d(r.x, r.y, r.z, r.w);
+            if (lastR.dot(rv) < 0.0) {
+                r.scale(-1.0);
+                rv.scale(-1.0);
+            }
+            lastR = rv;
+
+            // Get pose relative transform
+            p.set(p.getX() - bindP.getX(), p.getY() - bindP.getY(), p.getZ() - bindP.getZ());
+            r.mul(bindR, r);
+            s.set(s.getX() / bindS.getX(), s.getY() / bindS.getY(), s.getZ() / bindS.getZ());
+
+            float t = time[key];
+            AnimationKey posKey = createKey(t, false, 3);
+            toFloats(p, posKey.value);
+            posTrack.keys.add(posKey);
+            AnimationKey rotKey = createKey(t, false, 4);
+            toFloats(r, rotKey.value);
+            rotTrack.keys.add(rotKey);
+            AnimationKey scaleKey = createKey(t, false, 3);
+            toFloats(s, scaleKey.value);
+            scaleTrack.keys.add(scaleKey);
+        }
+        */
+    }
+
+    // private static void ExtractKeys(Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
     //     switch (animation.getType()) {
     //     case TRANSLATE:
     //     case SCALE:
@@ -283,7 +377,7 @@ public class ModelUtil {
     //         throw new LoaderException("Currently only collada files with matrix animations are supported.");
     //     case TRANSFORM:
     //     case MATRIX:
-    //         ExtractMatrixKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
+    //         ExtractMatrixKeys(localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
     //         break;
     //     default:
     //         throw new LoaderException(String.format("Animations of type %s are not supported.", animation.getType().name()));
@@ -421,77 +515,35 @@ public class ModelUtil {
         }
     }
 
-    public interface ColladaResourceResolver {
-        public InputStream getResource(String resourceName) throws FileNotFoundException;
-    }
-    private static void loadAnimationClipIds(InputStream is, String parentId, ArrayList<String> animationIds) throws IOException, LoaderException {
-        XMLCOLLADA collada = loadDAE(is);
-        ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
-        if(animClips.isEmpty()) {
-            if(!collada.libraryAnimations.isEmpty()) {
-                animationIds.add(parentId);
-            }
-            return;
-        }
-        for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
-            if (clip.name != null) {
-                animationIds.add(parentId + "/" + clip.name);
-            } else if (clip.id != null) {
-                animationIds.add(parentId + "/" + clip.id);
-            } else {
-                throw new LoaderException("Animation clip must contain name or id.");
-            }
-        }
-    }
-
-    public static void loadAnimationIds(String resourceName, String parentId, ArrayList<String> animationIds, final ColladaResourceResolver resourceResolver) throws IOException, LoaderException {
-        InputStream is;
-        try {
-            is = resourceResolver.getResource(resourceName);
-        } catch (FileNotFoundException e) {
-            throw new IOException("Could not extract animation id from resource: " + resourceName);
-        }
-        String animId  = FilenameUtils.getBaseName(resourceName);
-        if(resourceName.toLowerCase().endsWith(".dae")) {
-            loadAnimationClipIds(is, animId, animationIds);
-            return;
-        }
-        animId  = (parentId.isEmpty() ? "" : parentId + "/") + animId;
-        InputStreamReader animset_isr = new InputStreamReader(is);
-        AnimationSetDesc.Builder animationDescBuilder = AnimationSetDesc.newBuilder();
-        TextFormat.merge(animset_isr, animationDescBuilder);
-
-        for(AnimationInstanceDesc animationSet : animationDescBuilder.getAnimationsList()) {
-            loadAnimationIds(animationSet.getAnimation(), animId, animationIds, resourceResolver);
-        }
-    }
-
 */
 
-    public static AIScene loadScene(byte[] content, String suffix) {
-        // LWJGL only supports direct byte buffers
-        ByteBuffer buffer = ByteBuffer.allocateDirect(content.length);
-        buffer.put(ByteBuffer.wrap(content));
-        buffer.rewind();
+    public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, AssetSpace assetSpace, AINodeAnim anim, ModelUtil.Bone bone, int boneIndex, double duration, double sceneStartTime, double sampleRate) {
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        animTrackBuilder.setBoneIndex(boneIndex);
 
-        // Like the texture_profiles, we might want a model_profiles
-        // https://github.com/assimp/assimp/blob/e157d7550b02414834c7532143d8751fb30bc886/include/assimp/postprocess.h
-        //  aiProcess_ImproveCacheLocality
-        //  aiProcess_OptimizeMeshes
+        RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
+        posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
+        RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
+        rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+        RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
+        scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-        // aiProcess_FlipUVs
+        ExtractMatrixKeys(anim, bone.transform, assetSpace, posTrack, rotTrack, scaleTrack);
 
-        // aiProcess_GenBoundingBoxes - undocumented?
+        double spf = 1.0 / sampleRate;
 
-        return aiImportFileFromMemory(buffer, aiProcess_Triangulate | aiProcess_LimitBoneWeights, suffix);
+        samplePosTrack(animBuilder, boneIndex, posTrack, duration, sceneStartTime, sampleRate, spf, true);
+        sampleRotTrack(animBuilder, boneIndex, rotTrack, duration, sceneStartTime, sampleRate, spf, true);
+        sampleScaleTrack(animBuilder, boneIndex, scaleTrack, duration, sceneStartTime, sampleRate, spf, true);
+
     }
 
-    public static void loadAnimations(byte[] content, String suffix, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, LoaderException {
-        AIScene aiScene = loadScene(content, suffix);
-        loadAnimations(aiScene, animationSetBuilder, parentAnimationId, animationIds);
+    public static void loadAnimations(byte[] content, String suffix, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+        AIScene scene = loadScene(content, suffix);
+        loadAnimations(scene, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    public static void loadAnimations(AIScene aiScene, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, LoaderException {
+    public static void loadAnimations(AIScene scene, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
         // if (collada.libraryAnimations.size() != 1) {
         //     return;
         // }
@@ -509,10 +561,70 @@ public class ModelUtil {
         //     boneRefMap.put(boneRef, i);
         //     animationSetBuilder.addBoneList(boneRef);
         // }
-        System.out.printf("ModelUtil: loadAnimations\n");
+
+        AssetSpace assetSpace = getAssetSpace(scene);
 
         // Load skeleton to get bone bind poses
-        ArrayList<ModelUtil.Bone> boneList = loadSkeleton(aiScene);
+        ArrayList<ModelUtil.Bone> skeleton = loadSkeleton(scene);
+
+        for (ModelUtil.Bone bone : skeleton) {
+            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
+        }
+
+
+        System.out.printf("loadAnimations skeleton: size: %d\n", skeleton.size());
+
+        int num_animations = scene.mNumAnimations();
+
+        System.out.printf("ModelUtil: loadAnimations: %d\n", num_animations);
+
+        PointerBuffer aianimations = scene.mAnimations();
+        for (int i = 0; i < num_animations; ++i) {
+            AIAnimation aianimation = AIAnimation.create(aianimations.get(i));
+            String animation_name = aianimation.mName().dataString();
+
+            double duration = aianimation.mDuration();
+            double tickPerSecond = aianimation.mTicksPerSecond();
+            double durationTime = duration/tickPerSecond;
+            double sampleRate = 30.0;
+
+            int num_channels = aianimation.mNumChannels();
+
+            Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
+            animBuilder.setDuration((float)durationTime);
+
+            // We use the supplied framerate (if available) as samplerate to get correct timings when
+            // sampling the animation data. We used to have a static sample rate of 30, which would mean
+            // if the scene was saved with a different framerate the animation would either be too fast or too slow.
+            animBuilder.setSampleRate((float)sampleRate);
+
+            double startTime = 0.0;
+
+            double spf = 1.0 / sampleRate;
+
+            System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f   mNumChannels: %d\n", animation_name, (float)sampleRate, (float)tickPerSecond, num_channels);
+
+            PointerBuffer aiChannels = aianimation.mChannels();
+            for (int c = 0; c < num_channels; ++c) {
+                AINodeAnim aiNodeAnim = AINodeAnim.create(aiChannels.get(c));
+                String node_name = aiNodeAnim.mNodeName().dataString();
+                int bone_index = 0;
+                ModelUtil.Bone current_bone = null;
+                for (ModelUtil.Bone bone : skeleton) {
+                    if (bone.name.equals(node_name)) {
+                        current_bone = bone;
+                        break;
+                    }
+                    ++bone_index;
+                }
+
+                loadAnimationTracks(animBuilder, assetSpace, aiNodeAnim, current_bone, bone_index, durationTime, startTime, spf);
+            }
+
+            animBuilder.setId(MurmurHash.hash64(parentAnimationId));
+            animationIds.add(parentAnimationId);
+            animationSetBuilder.addAnimations(animBuilder.build());
+        }
 
         // // Animation clips
         // ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
@@ -551,27 +663,6 @@ public class ModelUtil {
         //     animationSetBuilder.addAnimations(animBuilder.build());
         // }
     }
-
-    // public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder) throws IOException, LoaderException {
-    //     loadMesh(is, meshSetBuilder, false);
-    // }
-
-    // public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, LoaderException {
-    //     XMLCOLLADA collada = loadDAE(is);
-    //     loadMesh(collada, meshSetBuilder, optimize);
-    // }
-
-    // private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
-    //     for (XMLVisualScene scene : scenes) {
-    //         for (XMLNode node : scene.nodes.values()) {
-    //             if (node.instanceGeometries.size() > 0) {
-    //                 return node;
-    //             }
-    //         }
-    //     }
-
-    //     return null;
-    // }
 
     private static ArrayList<Float> getVertexData(AIVector3D.Buffer buffer) {
         if (buffer == null)
@@ -672,6 +763,94 @@ public class ModelUtil {
         return materials;
     }
 
+    private class OptimizedMesh
+    {
+        Rig.IndexBufferFormat indices_format;
+        int                   indices_count;
+        ByteBuffer            indices_bytes;
+        List<Rig.MeshVertexIndices> mesh_vertex_indices;
+    };
+
+    private static void createMeshIndices(Rig.Mesh.Builder meshBuilder,
+                                        int triangle_count,
+                                        boolean optimize,
+                                        List<Integer> position_indices_list,
+                                        List<Integer> normal_indices_list,
+                                        List<Integer> texcoord0_indices_list) {
+        class MeshVertexIndex {
+            public int position, texcoord0, normal;
+            public boolean equals(Object o) {
+                MeshVertexIndex m = (MeshVertexIndex) o;
+                return (this.position == m.position && this.texcoord0 == m.texcoord0 && this.normal == m.normal);
+            }
+        }
+
+        // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
+        // We can then use this to quickly build am optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
+        boolean mesh_has_normals = normal_indices_list.size() > 0;
+        List<MeshVertexIndex> shared_vertex_indices = new ArrayList<MeshVertexIndex>(triangle_count*3);
+        List<Integer> mesh_index_list = new ArrayList<Integer>(triangle_count*3);
+        for (int i = 0; i < triangle_count*3; ++i) {
+            MeshVertexIndex ci = new MeshVertexIndex();
+            ci.position = position_indices_list.get(i);
+            ci.texcoord0 = texcoord0_indices_list.get(i);
+            ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
+            int index = optimize ? shared_vertex_indices.indexOf(ci) : -1;
+            if(index == -1) {
+                // create new vertex as this is not equal to any existing in generated list
+                mesh_index_list.add(shared_vertex_indices.size());
+                shared_vertex_indices.add(ci);
+            } else {
+                // shared vertex, add index to existing vertex in generating list instead of adding new
+                mesh_index_list.add(index);
+            }
+        }
+
+        // We use this list to recreate a vertex buffer, in those cases that the index buffer is 32-bit,
+        // but the platform doesn't support 32-bit index buffers. See res_model.cpp
+        List<Rig.MeshVertexIndices> mesh_vertex_indices = new ArrayList<Rig.MeshVertexIndices>(triangle_count*3);
+        for (int i = 0; i < shared_vertex_indices.size() ; ++i) {
+            Rig.MeshVertexIndices.Builder b = Rig.MeshVertexIndices.newBuilder();
+            MeshVertexIndex ci = shared_vertex_indices.get(i);
+            b.setPosition(ci.position);
+            b.setTexcoord0(ci.texcoord0);
+            b.setNormal(ci.normal);
+            mesh_vertex_indices.add(b.build());
+        }
+
+        Rig.IndexBufferFormat indices_format;
+        ByteBuffer indices_bytes;
+        if(shared_vertex_indices.size() <= 65536)
+        {
+            // if we only need 16-bit indices, use this primarily. Less data to upload to GPU and ES2.0 core functionality.
+            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16;
+            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 2);
+            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+            for (int i = 0; i < mesh_index_list.size();) {
+                indices_bytes.putShort(mesh_index_list.get(i++).shortValue());
+            }
+        }
+        else
+        {
+            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32;
+            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 4);
+            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+            for (int i = 0; i < mesh_index_list.size();) {
+                indices_bytes.putInt(mesh_index_list.get(i++));
+            }
+        }
+        indices_bytes.rewind();
+
+
+        meshBuilder.addAllVertices(mesh_vertex_indices);
+        meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
+        meshBuilder.setIndicesFormat(indices_format);
+
+
+        System.out.printf("opt: mesh_vertex_indices: %d\n", mesh_vertex_indices.size());
+        System.out.printf("opt: num_indices:         %d\n", mesh_index_list.size());
+    }
+
     public static Rig.Mesh loadMesh(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton) {
         ArrayList<Float> positions = getVertexData(mesh.mVertices());
         ArrayList<Float> normals = getVertexData(mesh.mNormals());
@@ -700,6 +879,53 @@ public class ModelUtil {
             meshBuilder.addAllTexcoord1(texcoord1);
             meshBuilder.setNumTexcoord0Components(mesh.mNumUVComponents(1));
         }
+
+        int triangle_count = mesh.mNumFaces();
+
+        List<Integer> position_indices_list = new ArrayList<Integer>(triangle_count*3);
+        List<Integer> normal_indices_list = new ArrayList<Integer>(triangle_count*3);
+        List<Integer> texcoord0_indices_list = new ArrayList<Integer>(triangle_count*3);
+
+        AIFace.Buffer faces = mesh.mFaces();
+        for (int f = 0; f < triangle_count; ++f) {
+            AIFace face = faces.get(f);
+            assert(face.mNumIndices() == 3); // We only allow triangles
+
+            IntBuffer indices = face.mIndices();
+            for (int i = 0; i < 3; ++i) {
+
+                // Sometimes the <p> values can be -1 from Maya exports, we clamp it below to 0 instead.
+                // Similar solution as AssImp; https://github.com/assimp/assimp/blob/master/code/ColladaParser.cpp#L2336
+                // TODO: Is it really true when using the AssImp library?
+
+                int vertex_index = indices.get(i);
+                vertex_index = Math.max(0, vertex_index);
+
+                position_indices_list.add(vertex_index);
+
+                if (normals != null) {
+                    normal_indices_list.add(vertex_index);
+                }
+
+                if (texcoord0 != null) {
+                    texcoord0_indices_list.add(vertex_index);
+                } else {
+                    texcoord0_indices_list.add(0);
+                }
+            }
+        }
+
+        if(normals != null) {
+            meshBuilder.addAllNormalsIndices(normal_indices_list);
+        }
+        meshBuilder.addAllPositionIndices(position_indices_list);
+        meshBuilder.addAllTexcoord0Indices(texcoord0_indices_list);
+
+        System.out.printf("position_indices_list: %d\n", position_indices_list.size());
+        System.out.printf("normal_indices_list: %d\n", normal_indices_list.size());
+        System.out.printf("texcoord0_indices_list: %d\n", texcoord0_indices_list.size());
+
+        createMeshIndices(meshBuilder, triangle_count, true, position_indices_list, normal_indices_list, texcoord0_indices_list);
 
         int material_index = mesh.mMaterialIndex();
         meshBuilder.setMaterialIndex(material_index);
@@ -798,6 +1024,11 @@ public class ModelUtil {
         // }
         // List<XMLSource> sources = mesh.sources;
         // HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
+
+// TODO: Compare with the skeleton that is set as the "skeleton" !
+// Report error if
+// * this internal skeleton contains nodes that are not part of the external skeleton
+// Remap indices if the layout is different?
 
         ArrayList<ModelUtil.Bone> skeleton = loadSkeleton(scene);
 
@@ -905,7 +1136,7 @@ public class ModelUtil {
         //     }
         // }
 
-        // List<Integer> position_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
+        // List<Integer> position_indices_list = new ArrayList<Integer>(num_triangles*3);
         // List<Integer> normal_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
         // List<Integer> texcoord_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
 
@@ -1329,7 +1560,8 @@ public class ModelUtil {
             for (int b = 0; b < numBones; ++b) {
                 AIBone bone = AIBone.create(bones.get(b));
                 String bone_name = bone.mName().dataString();
-                System.out.printf("  bone: %s\n", bone_name);
+                System.out.printf("  bone: %s 0x%016X\n", bone_name, MurmurHash.hash64(bone_name));
+
                 boneMap.put(bone_name, bone);
 
                 AINode bone_node = nodeMap.get(bone_name);
@@ -1355,15 +1587,15 @@ public class ModelUtil {
 
         System.out.printf("root bone: %s\n", root_bone.mName().dataString());
 
-        //findNessaryNodes(root, necessityMap);
         ArrayList<ModelUtil.Bone> skeleton = new ArrayList<>();
         gatherSkeleton(root_bone, BONE_NO_PARENT, boneSet, skeleton);
 
+        int index = 0;
         for (ModelUtil.Bone bone : skeleton) {
             // Note that some bones might not actually influence any vertices, and won't have an AIBone
             bone.bone = boneMap.getOrDefault(bone.name, null);
 
-            System.out.printf("Skeleton: %s\n", bone.name);
+            System.out.printf("Skeleton %2d: %s       0x%016X\n", index++, bone.name, MurmurHash.hash64(bone.name));
 
             // TODO: check that the bone.bone.mNumWeights() is <= 4, otherwise output a warning
         }
@@ -1372,10 +1604,6 @@ public class ModelUtil {
     }
 
     public static ArrayList<ModelUtil.Bone> loadSkeleton(AIScene aiScene) {
-        // if (collada.libraryVisualScenes.size() != 1) {
-        //     return null;
-        // }
-
         AssetSpace assetSpace = getAssetSpace(aiScene);
 
         ArrayList<ModelUtil.Bone> skeleton = findSkeleton(aiScene);

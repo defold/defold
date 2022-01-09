@@ -118,60 +118,6 @@ public class ColladaModelBuilder extends Builder<Void>  {
 
     }
 
-    private static ByteBuffer cloneBuffer(ByteBuffer original) {
-       ByteBuffer clone = ByteBuffer.allocate(original.capacity());
-       original.rewind();//copy from the beginning
-       clone.put(original);
-       original.rewind();
-       clone.flip();
-       return clone;
-    }
-
-    private static void processVertices(AIMesh aiMesh, List<Float> vertices) {
-        AIVector3D.Buffer aiVertices = aiMesh.mVertices();
-        System.out.printf("num vertices: %d\n", aiVertices.remaining());
-        while (aiVertices.remaining() > 0) {
-            AIVector3D aiVertex = aiVertices.get();
-            vertices.add(aiVertex.x());
-            vertices.add(aiVertex.y());
-            vertices.add(aiVertex.z());
-        }
-    }
-
-    //private static Mesh processMesh(AIMesh aiMesh, List<Material> materials) {
-    //private static void processMesh(AIMesh aiMesh, List<Material> materials) {
-    private static void processMesh(AIMesh aiMesh) {
-        List<Float> vertices = new ArrayList<>();
-        List<Float> textures = new ArrayList<>();
-        List<Float> normals = new ArrayList<>();
-        List<Integer> indices = new ArrayList();
-
-        processVertices(aiMesh, vertices);
-        // processNormals(aiMesh, normals);
-        // processTextCoords(aiMesh, textures);
-        // processIndices(aiMesh, indices);
-
-        // Mesh mesh = new Mesh(Utils.listToArray(vertices),
-        //     Utils.listToArray(textures),
-        //     Utils.listToArray(normals),
-        //     Utils.listIntToArray(indices)
-        // );
-
-        //Material material;
-        int materialIdx = aiMesh.mMaterialIndex();
-        System.out.printf("materialIdx: %d\n", materialIdx);
-
-        // if (materialIdx >= 0 && materialIdx < materials.size()) {
-        //     material = materials.get(materialIdx);
-        // } else {
-        //     material = new Material();
-        // }
-        // mesh.setMaterial(material);
-
-        //return mesh;
-    }
-
-
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
@@ -181,11 +127,20 @@ public class ColladaModelBuilder extends Builder<Void>  {
             return;
         }
 
-System.out.printf("assimp: File: %s", task.input(0).getAbsPath());
-
         AIScene aiScene = ModelUtil.loadScene(task.input(0).getContent(), BuilderUtil.getSuffix(task.input(0).getPath()));
         if (aiScene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
+        }
+
+        // MeshSet
+        {
+            MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+            ModelUtil.loadMeshes(aiScene, meshSetBuilder);
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+            meshSetBuilder.build().writeTo(out);
+            out.close();
+            task.output(0).setContent(out.toByteArray());
         }
 
         // Skeleton
@@ -203,56 +158,16 @@ System.out.printf("assimp: File: %s", task.input(0).getAbsPath());
             task.output(1).setContent(out.toByteArray());
         }
 
-        // MeshSet
+        // Animationset
         {
-            MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-            ModelUtil.loadMeshes(aiScene, meshSetBuilder);
+            AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
+            ModelUtil.loadAnimations(aiScene, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-            meshSetBuilder.build().writeTo(out);
+            animationSetBuilder.build().writeTo(out);
             out.close();
-            task.output(0).setContent(out.toByteArray());
+            task.output(2).setContent(out.toByteArray());
         }
-
-
-//         int numMaterials = aiScene.mNumMaterials();
-
-// System.out.printf("Num materials: %d\n", numMaterials);
-
-//         PointerBuffer aiMaterials = aiScene.mMaterials();
-//         //List<Material> materials = new ArrayList<>();
-//         for (int i = 0; i < numMaterials; i++) {
-//             AIMaterial aiMaterial = AIMaterial.create(aiMaterials.get(i));
-//             //processMaterial(aiMaterial, materials, texturesDir);
-
-//             // check which inputs it uses: diffuse, normal, extra (aiTextureType_DIFFUSE etc) // https://javadoc.lwjgl.org/index.html?org/lwjgl/assimp/Assimp.html
-//             // and enable those flags on the material (for the editor do enable these slots, and the user to assign them)
-
-//             // AI_MATKEY_NAME
-
-//             String materialID = getMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME);
-//             if (materialID == null)
-//             {
-//                 materialID = "null";
-//             }
-
-//             // AIMaterialProperty.Buffer
-//             // AIString aiID = AIString.calloc();
-//             // Assimp.aiGetMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME, aiID);
-
-//             System.out.printf("  Material %d: %s\n", i, materialID);
-
-
-//             AIString texture_path = AIString.calloc();
-//             Assimp.aiGetMaterialTexture(aiMaterial, aiTextureType_DIFFUSE, 0, texture_path, (IntBuffer) null, null, null, null, null, null);
-//             String textPath = texture_path.dataString();
-//             //Texture texture = null;
-//             if (textPath != null && textPath.length() > 0) {
-//                 //TextureCache textCache = TextureCache.getInstance();
-//                 //texture = textCache.getTexture(texturesDir + "/" + textPath);
-//                 System.out.printf("  diffuse: %s\n", i, textPath);
-//             }
-//         }
 
         aiReleaseImport(aiScene);
     }
