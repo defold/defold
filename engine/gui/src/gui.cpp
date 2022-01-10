@@ -3992,11 +3992,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         out_n->m_ChildTail = INVALID_INDEX;
         scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
 
-// TODO: Handle node cloning via the extension
         if (n->m_Node.m_CustomType != 0)
         {
             void* src_custom_data = n->m_Node.m_CustomData;
-            out_n->m_Node.m_CustomData = scene->m_CloneCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, src_custom_data);
+            out_n->m_Node.m_CustomData = scene->m_CloneCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, *out_node, n->m_Node.m_CustomType, src_custom_data);
+            out_n->m_Node.m_CustomType = n->m_Node.m_CustomType;
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)

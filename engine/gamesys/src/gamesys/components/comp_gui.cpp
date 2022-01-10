@@ -2153,24 +2153,27 @@ namespace dmGameSystem
         ctx.m_GetResourceFn = GetResourceByHash;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
-        dmLogWarning("%s  type: %p", __FUNCTION__, type);
         return type->m_Create(&ctx, type->m_Context, scene, node, custom_type);
     }
 
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
-        // GuiComponent* gui_component = (GuiComponent*)context;
-        // CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
-        // CompGuiNodeContext ctx;
-        // ctx.m_GetResourceContext = gui_component;
-        // ctx.m_GetResourceFn = GetResourceByHash;
+        CompGuiNodeContext ctx;
+        ctx.m_GetResourceContext = gui_component;
+        ctx.m_GetResourceFn = GetResourceByHash;
 
-        // const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
-        // dmLogWarning("%s  type: %p", __FUNCTION__, type);
-        // return type->m_Clone(&ctx, type->m_Context, node, custom_type, node_data);
-// TODO:
-        return 0;
+        const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
+
+        CustomNodeCtx nodectx;
+        nodectx.m_Scene = scene;
+        nodectx.m_Node = node;
+        nodectx.m_TypeContext = type->m_Context;
+        nodectx.m_NodeData = node_data;
+        nodectx.m_Type = custom_type;
+        return type->m_Clone(&ctx, &nodectx);
     }
 
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
@@ -2961,13 +2964,14 @@ namespace dmGameSystem
         return dmGameObject::RESULT_OK;
     }
 
-    void  CompGuiNodeTypeSetContext(CompGuiNodeType* type, void* typectx)                       { type->m_Context = typectx; }
-    void* CompGuiNodeTypeGetContext(CompGuiNodeType* type)                                      { return type->m_Context; }
-    void CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn)              { type->m_Create = fn; }
-    void CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn)            { type->m_Destroy = fn; }
-    void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn)              { type->m_Update = fn; }
-    void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn)    { type->m_GetVertices = fn; }
-    void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn)    { type->m_SetProperty = fn; }
+    void    CompGuiNodeTypeSetContext(CompGuiNodeType* type, void* typectx)                       { type->m_Context = typectx; }
+    void*   CompGuiNodeTypeGetContext(CompGuiNodeType* type)                                      { return type->m_Context; }
+    void    CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn)             { type->m_Create = fn; }
+    void    CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn)           { type->m_Destroy = fn; }
+    void    CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn)               { type->m_Clone = fn; }
+    void    CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn)             { type->m_Update = fn; }
+    void    CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn)   { type->m_GetVertices = fn; }
+    void    CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn)   { type->m_SetProperty = fn; }
 
     void*                   GetContext(const struct CompGuiNodeTypeCtx* ctx, dmhash_t name)     { void* const * p = ctx->m_Contexts.Get(name); if (p) return *p; else return 0; }
     lua_State*              GetLuaState(const struct CompGuiNodeTypeCtx* ctx)                   { return dmScript::GetLuaState(ctx->m_Script); }

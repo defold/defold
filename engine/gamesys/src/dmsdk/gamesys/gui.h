@@ -141,6 +141,7 @@ namespace dmGameSystem
 
     typedef void* (*CompGuiNodeCreateFn)(const CompGuiNodeContext* createctx, void* typecontext, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
     typedef void  (*CompGuiNodeDestroyFn)(const CompGuiNodeContext* createctx, const CustomNodeCtx* node);
+    typedef void* (*CompGuiNodeCloneFn)(const CompGuiNodeContext* createctx, const CustomNodeCtx* node);
     typedef void  (*CompGuiNodeSetPropertyFn)(const CompGuiNodeContext* createctx, const CustomNodeCtx* node, dmhash_t name_hash, const dmGuiDDF::PropertyVariant* variant);
     typedef void  (*CompGuiNodeUpdateFn)(const CustomNodeCtx* node, float dt);
     typedef void  (*CompGuiNodeGetVerticesFn)(const CustomNodeCtx* node, uint32_t decl_size, dmBuffer::StreamDeclaration* decl, uint32_t struct_size, dmArray<uint8_t>& vertices);
@@ -149,6 +150,7 @@ namespace dmGameSystem
     void* CompGuiNodeTypeGetContext(CompGuiNodeType* type);
     void CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn);
     void CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn);
+    void CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn);
     void CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn);
     void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn);
     /*#
