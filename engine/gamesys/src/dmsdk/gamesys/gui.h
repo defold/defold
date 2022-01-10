@@ -126,8 +126,7 @@ namespace dmGameSystem
 
     struct CompGuiNodeContext
     {
-        void* m_GetResourceContext;
-        void* (*m_GetResourceFn)(void* get_resource_context, dmhash_t name_hash);
+        // Currently empty, but we might need it later
     };
 
     struct CustomNodeCtx

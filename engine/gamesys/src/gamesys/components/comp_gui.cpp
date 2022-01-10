@@ -472,19 +472,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void* GetResourceByHash(void* ctx, dmhash_t name_hash)
-    {
-        // DEPRECATED in favor of GetSceneResourceByHash
-        GuiComponent* gui_component = (GuiComponent*)ctx;
-        GuiSceneResource* resource = gui_component->m_Resource;
-        void** outresource = resource->m_Resources.Get(name_hash);
-        if (outresource)
-            return *outresource;
-
-        dmLogError("Failed to find resource matching name: %s", dmHashReverseSafe64(name_hash));
-        return 0;
-    }
-
     static bool SetupGuiScene(GuiWorld* gui_world, GuiComponent* gui_component, dmGui::HScene scene, GuiSceneResource* scene_resource)
     {
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
@@ -610,8 +597,6 @@ namespace dmGameSystem
                 const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
 
                 CompGuiNodeContext ctx;
-                ctx.m_GetResourceContext = gui_component;
-                ctx.m_GetResourceFn = GetResourceByHash;
 
                 dmLogWarning("Found custom node: %s of type %u (hash32(Spine) == %u)", node_desc->m_Id, custom_type, dmHashString32("Spine"));
 
@@ -2178,8 +2163,6 @@ namespace dmGameSystem
         CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
-        ctx.m_GetResourceContext = gui_component;
-        ctx.m_GetResourceFn = GetResourceByHash;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         return type->m_Create(&ctx, type->m_Context, scene, node, custom_type);
@@ -2191,8 +2174,6 @@ namespace dmGameSystem
         CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
-        ctx.m_GetResourceContext = gui_component;
-        ctx.m_GetResourceFn = GetResourceByHash;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
 
@@ -2215,8 +2196,6 @@ namespace dmGameSystem
             return;
 
         CompGuiNodeContext ctx;
-        ctx.m_GetResourceContext = gui_component;
-        ctx.m_GetResourceFn = GetResourceByHash;
 
         CustomNodeCtx nodectx;
         nodectx.m_Scene = scene;
@@ -2236,10 +2215,6 @@ namespace dmGameSystem
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         if (!type->m_Update)
             return;
-
-        CompGuiNodeContext ctx;
-        ctx.m_GetResourceContext = gui_component;
-        ctx.m_GetResourceFn = GetResourceByHash;
 
         CustomNodeCtx nodectx;
         nodectx.m_Scene = scene;
