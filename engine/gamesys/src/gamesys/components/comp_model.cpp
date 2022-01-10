@@ -549,12 +549,19 @@ namespace dmGameSystem
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
-        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
-        const ModelResource* resource = first->m_Resource;
+
+        const ModelRenderItem* render_item = (ModelRenderItem*) buf[*begin].m_UserData;
+        const ModelResourceMesh* render_mesh = render_item->m_MeshBuffers;
+        const ModelComponent* component = render_item->m_Component;
+
+        // const ModelComponent* component = (ModelComponent*) buf[*begin].m_UserData;
+        // const ModelResource* resource = component->m_Resource;
 
         for (uint32_t *i=begin;i!=end;i++)
         {
-            const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
+            //const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
+            const ModelRenderItem* render_item = (ModelRenderItem*) buf[*i].m_UserData;
+            const ModelComponent* c = render_item->m_Component;
             uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
             vertex_count += count;
             max_component_vertices = dmMath::Max(max_component_vertices, count);
@@ -576,10 +583,12 @@ namespace dmGameSystem
         dmRig::RigModelVertex *vb_end = vb_begin;
         for (uint32_t *i=begin;i!=end;i++)
         {
-            const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
+            //const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
+            const ModelRenderItem* render_item = (ModelRenderItem*) buf[*i].m_UserData;
+            const ModelComponent* c = render_item->m_Component;
             dmRig::HRigContext rig_context = world->m_RigContext;
-            Matrix4 normal_matrix = inverse(c->m_World);
-            normal_matrix = transpose(normal_matrix);
+            Matrix4 normal_matrix = Vectormath::Aos::inverse(c->m_World);
+            normal_matrix = Vectormath::Aos::transpose(normal_matrix);
             vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
@@ -594,16 +603,16 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
-        ro.m_Material = GetMaterial(first, resource);
+        ro.m_Material = GetMaterial(component, component->m_Resource);
         ro.m_WorldTransform = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            ro.m_Textures[i] = GetTexture(first, resource, i);
+            ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
         }
 
-        if (first->m_RenderConstants) {
-            dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
+        if (component->m_RenderConstants) {
+            dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
         }
 
         dmRender::AddToRender(render_context, &ro);

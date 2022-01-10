@@ -148,64 +148,22 @@ namespace dmGameSystem
         }
         memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
-        if(dmRender::GetMaterialVertexSpace(resource->m_Material) ==  dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
+        if(dmRender::GetMaterialVertexSpace(resource->m_Material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
         {
             if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
             {
                 dmLogError("Failed to create Model component. Material vertex space option VERTEX_SPACE_LOCAL does not support skinning.");
                 return dmResource::RESULT_NOT_SUPPORTED;
             }
-            dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
-            if(mesh_set)
+        }
+
+        dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
+        if(mesh_set)
+        {
+            for (uint32_t i = 0; i < mesh_set->m_MeshAttachments.m_Count; ++i)
             {
-                // if(mesh_set->m_Meshes.m_Count)
-                // {
-                //     for (uint32_t i = 0; i < mesh_set->m_Meshes.m_Count; ++i)
-                //     {
-                //         ModelResourceMesh* mesh = CreateGPUBuffers(context, mesh_set->m_Meshes[i]);
-                //         AddMesh(resource, mesh);
-                //     }
-
-                //     for (uint32_t i = 0; i < mesh_set->m_Instances.m_Count; ++i)
-                //     {
-                //         ModelResourceMeshInstance instance;
-
-                //         dmTransform::Transform transform(Vector3(mesh_set->m_Instances[i].m_Position),
-                //                                 mesh_set->m_Instances[i].m_Rotation,
-                //                                 mesh_set->m_Instances[i].m_Scale);
-
-                //         instance.m_Transform = dmTransform::ToMatrix4(transform);
-                //         instance.m_MeshIndex = mesh_set->m_Instances[i].m_Index;
-                //         AddMeshEntry(resource, &instance);
-                //     }
-                // }
-                // else
-
-                for (uint32_t i = 0; i < mesh_set->m_MeshAttachments.m_Count; ++i)
-                {
-                    ModelResourceMesh* mesh = CreateGPUBuffers(context, mesh_set->m_MeshAttachments[i]);
-                    AddMesh(resource, mesh);
-                }
-
-                // for (uint32_t i = 0; i < mesh_set->m_MeshAttachments.m_Count; ++i)
-                // {
-                //     dmRigDDF::MeshEntry* mesh_entry = &mesh_set->m_MeshAttachments
-                //     ModelResourceMeshInstance instance;
-                //     instance.m_Transform = Matrix4::identity();
-                //     instance.m_MeshEntry = mesh_entry;
-                //     AddMeshEntry(resource, instance);
-                // }
-
-                // if(mesh_set->m_MeshEntries.m_Count && mesh_set->m_MeshAttachments.m_Count)
-                // {
-                //     ModelResourceMesh* mesh = CreateGPUBuffers(context, mesh_set->m_MeshAttachments[0]);
-                //     AddMesh(resource, mesh);
-
-                //     ModelResourceMeshInstance instance;
-                //     instance.m_Transform = Matrix4::identity();
-                //     instance.m_MeshIndex = 0;
-                //     AddMeshEntry(resource, &instance);
-                // }
+                ModelResourceMesh* mesh = CreateGPUBuffers(context, mesh_set->m_MeshAttachments[i]);
+                AddMesh(resource, mesh);
             }
         }
 
