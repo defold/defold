@@ -639,7 +639,6 @@ namespace dmGameSystem
             "size",
             "text"
         };
-        dmLogError("~~~~~~~~~~~~~CompLabelIterPropertiesGetNext");
         uint32_t num_properties = DM_ARRAY_SIZE(property_names);
         if (index < 4)
         {
