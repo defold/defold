@@ -356,6 +356,8 @@ namespace dmGui
         scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
         scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
+        scene->m_GetResourceCallback = params->m_GetResourceCallback;
+        scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
 
@@ -4053,6 +4055,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             out_transform = parent_trans * out_transform;
         }
+    }
+
+    void* GetResource(dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot)
+    {
+        // First, ask the comp_gui.cpp for the resource (it might be overridden!)
+        if (scene->m_GetResourceCallback)
+            return scene->m_GetResourceCallback(scene->m_GetResourceCallbackContext, scene, resource_id, suffix_with_dot);
+
+        // Check the internal resources (if we ever need to)
+        return 0;
     }
 
     static void ResetScript(HScript script) {

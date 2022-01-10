@@ -446,8 +446,35 @@ namespace dmGameSystem
         }
     }
 
+    static void* GetSceneResourceByHash(void* ctx, dmGui::HScene scene, dmhash_t name_hash, dmhash_t suffix_with_dot)
+    {
+        (void)scene;
+        GuiComponent* gui_component = (GuiComponent*)ctx;
+        GuiSceneResource* resource = gui_component->m_Resource;
+
+        dmhash_t* suffix = resource->m_ResourceTypes.Get(name_hash);
+        if (!suffix)
+        {
+            dmLogError("Failed to find resource %s with suffix %s", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(suffix_with_dot));
+            return 0;
+        }
+        if (*suffix != suffix_with_dot)
+        {
+            dmLogError("The resource %s was of type %s, but you requested type %s", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(*suffix), dmHashReverseSafe64(suffix_with_dot));
+            return 0;
+        }
+
+        void** outresource = resource->m_Resources.Get(name_hash);
+        if (outresource)
+            return *outresource;
+
+        dmLogError("Failed to find resource matching name: %s", dmHashReverseSafe64(name_hash));
+        return 0;
+    }
+
     static void* GetResourceByHash(void* ctx, dmhash_t name_hash)
     {
+        // DEPRECATED in favor of GetSceneResourceByHash
         GuiComponent* gui_component = (GuiComponent*)ctx;
         GuiSceneResource* resource = gui_component->m_Resource;
         void** outresource = resource->m_Resources.Get(name_hash);
@@ -707,6 +734,8 @@ namespace dmGameSystem
         scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
         scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
         scene_params.m_CreateCustomNodeCallbackContext = gui_component;
+        scene_params.m_GetResourceCallback = GetSceneResourceByHash;
+        scene_params.m_GetResourceCallbackContext = gui_component;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);

@@ -135,6 +135,11 @@ namespace dmGui
      */
     typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
 
+    /**
+     * Callback to get custom resource data
+     */
+    typedef void* (*GetResourceCallback)(void* ctx, dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot);
+
 
     /**
      * Scene creation
@@ -158,6 +163,8 @@ namespace dmGui
         CloneCustomNodeCallback     m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
         void*                       m_CreateCustomNodeCallbackContext;
+        GetResourceCallback         m_GetResourceCallback;
+        void*                       m_GetResourceCallbackContext;
 
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
@@ -284,20 +291,6 @@ namespace dmGui
     {
         CLIPPING_MODE_NONE    = 0,
         CLIPPING_MODE_STENCIL = 2,
-    };
-
-    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
-    // Don't forget to change gui_ddf.proto if you change here
-    enum NodeType
-    {
-        NODE_TYPE_BOX  = 0,
-        NODE_TYPE_TEXT = 1,
-        NODE_TYPE_PIE  = 2,
-        NODE_TYPE_TEMPLATE = 3,
-        NODE_TYPE_SPINE = 4, // Deprecated, can we remove it from the ddf?
-        NODE_TYPE_PARTICLEFX = 5,
-        NODE_TYPE_CUSTOM = 6,
-        NODE_TYPE_COUNT = 7,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -854,8 +847,6 @@ namespace dmGui
     Result SetSceneScript(HScene scene, HScript script);
 
     HScript GetSceneScript(HScene scene);
-
-    HNode NewNode(HScene scene, const dmVMath::Point3& position, const dmVMath::Vector3& size, NodeType node_type, uint32_t custom_type);
 
     void SetNodeId(HScene scene, HNode node, dmhash_t id);
     void SetNodeId(HScene scene, HNode node, const char* id);

@@ -42,6 +42,7 @@ namespace dmGameSystem
         dmGui::HContext                 m_GuiContext;
         dmRender::HMaterial             m_Material;
         dmHashTable64<void*>            m_Resources;
+        dmHashTable64<dmhash_t>         m_ResourceTypes;
     };
 }
 

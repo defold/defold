@@ -103,6 +103,32 @@ namespace dmGui
         NODE_TEXTURE_TYPE_DYNAMIC
     };
 
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+
+    /*#
+     * @name Result
+     * @type enum
+     * @member NODE_TYPE_BOX //!< 0,
+     * @member NODE_TYPE_TEXT //!< 1,
+     * @member NODE_TYPE_PIE //!< 2,
+     * @member NODE_TYPE_TEMPLATE //!< 3,
+     * @member NODE_TYPE_PARTICLEFX //!< 5,
+     * @member NODE_TYPE_CUSTOM //!< 6,
+     * @member NODE_TYPE_COUNT //!< 7,
+     */
+    enum NodeType
+    {
+        NODE_TYPE_BOX  = 0,
+        NODE_TYPE_TEXT = 1,
+        NODE_TYPE_PIE  = 2,
+        NODE_TYPE_TEMPLATE = 3,
+        //NODE_TYPE_SPINE = 4, // Deprecated, can we remove it from the ddf?
+        NODE_TYPE_PARTICLEFX = 5,
+        NODE_TYPE_CUSTOM = 6,
+        NODE_TYPE_COUNT = 7,
+    };
+
 
     /*#
      * @name Result
@@ -132,6 +158,17 @@ namespace dmGui
         RESULT_DATA_ERROR = -9,
         RESULT_WRONG_TYPE = -10,
     };
+
+    /*#
+     * @name NewNode
+     * @param scene [type:HScene] the gui scene
+     * @param position [type:dmVMath::Point3] the position
+     * @param size [type:dmVMath::Vector3] the size
+     * @param node_type [type:dmGui::NodeType] the node type
+     * @param custom_type [type:uint32_t] If node_type == dmGui::NODE_TYPE_CUSTOM, then this is used to create a custom node data for the registered custom type
+     * @return node [type: dmGui::HNode] the created node
+     */
+    HNode NewNode(HScene scene, const dmVMath::Point3& position, const dmVMath::Vector3& size, NodeType node_type, uint32_t custom_type);
 
     /*# get node custom type
      * @name GetNodeCustomData
@@ -175,6 +212,16 @@ namespace dmGui
     Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture);
 
     // possibly use "add texture instead"
+
+    /*#
+     * Gets a resource by its resource alias.
+     * @name GetResource
+     * @param scene [type:HScene] the gui scene
+     * @param resource_id [type:dmhash_t] the resource alias
+     * @param suffix_with_dot [type:dmhash_t] the hash of the suffix: hash(".spinescenec")
+     * @return resource [type: void*] the resource if successful
+     */
+    void* GetResource(dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot);
 
     // Scripting
 

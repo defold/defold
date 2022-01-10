@@ -45,15 +45,21 @@ namespace dmGameSystem
         }
 
         dmLogWarning("MAWE res_gui: num_custom_resources: %u", resource->m_SceneDesc->m_Resources.m_Count);
-        resource->m_Resources.SetCapacity(dmMath::Max(1U, resource->m_SceneDesc->m_Resources.m_Count/3), resource->m_SceneDesc->m_Resources.m_Count);
+        uint32_t table_size = dmMath::Max(1U, resource->m_SceneDesc->m_Resources.m_Count/3);
+        resource->m_Resources.SetCapacity(table_size, resource->m_SceneDesc->m_Resources.m_Count);
+        resource->m_ResourceTypes.SetCapacity(table_size, resource->m_SceneDesc->m_Resources.m_Count);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Resources.m_Count; ++i)
         {
             void* custom_resource = 0;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Resources[i].m_Path, &custom_resource);
             if (r != dmResource::RESULT_OK)
                 return r;
-            dmLogWarning("MAWE res_gui: %s %s", resource->m_SceneDesc->m_Resources[i].m_Name, resource->m_SceneDesc->m_Resources[i].m_Path);
-            resource->m_Resources.Put(dmHashString64(resource->m_SceneDesc->m_Resources[i].m_Name), custom_resource);
+            const char* suffix = strrchr(resource->m_SceneDesc->m_Resources[i].m_Path, '.');
+
+            dmhash_t resource_id = dmHashString64(resource->m_SceneDesc->m_Resources[i].m_Name);
+            dmhash_t suffix_hash = dmHashString64(suffix);
+            resource->m_Resources.Put(resource_id, custom_resource);
+            resource->m_ResourceTypes.Put(resource_id, suffix_hash);
         }
 
         resource->m_ParticlePrototypes.SetCapacity(resource->m_SceneDesc->m_Particlefxs.m_Count);
