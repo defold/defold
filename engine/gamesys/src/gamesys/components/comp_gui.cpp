@@ -281,8 +281,6 @@ namespace dmGameSystem
         dmGui::SetNodeSizeMode(scene, n, (dmGui::SizeMode) node_desc->m_SizeMode);
         if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
         {
-            dmLogWarning("MAWE: Texture: %s", node_desc->m_Texture);
-
             const size_t path_str_size_max = 512;
             size_t path_str_size = strlen(node_desc->m_Texture)+1;
             if(path_str_size > path_str_size_max)
@@ -320,7 +318,6 @@ namespace dmGameSystem
         else
         {
             dmGui::SetNodeTexture(scene, n, "");
-            dmLogWarning("MAWE: no texture :(");
         }
 
         // layer setup
