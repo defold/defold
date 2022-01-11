@@ -4446,7 +4446,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         if (n->m_Node.m_FlipbookAnimHash != 0)
         {
             float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
-            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, 0.0f, playback_rate, 0, 0, 0);
+            float cursor = GetNodeFlipbookCursor(scene, node);
+            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, cursor, playback_rate, 0, 0, 0);
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)

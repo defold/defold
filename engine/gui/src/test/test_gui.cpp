@@ -6304,7 +6304,7 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
     r = dmGui::SetNodeTexture(m_Scene, node, "t1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.5f, 2.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // clone the node
@@ -6317,6 +6317,9 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
 
     // same playback rate?
     ASSERT_EQ(dmGui::GetNodeFlipbookPlaybackRate(m_Scene, node), dmGui::GetNodeFlipbookPlaybackRate(m_Scene, clone));
+
+    // same cursor?
+    ASSERT_EQ(dmGui::GetNodeFlipbookCursor(m_Scene, node), dmGui::GetNodeFlipbookCursor(m_Scene, clone));
 
     // same animation?
     ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), dmGui::GetNodeFlipbookAnimId(m_Scene, clone));
