@@ -328,7 +328,7 @@ namespace dmGameSystem
                 CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate, CompLabelGetComponent,
                 CompLabelUpdate, CompLabelRender, 0, CompLabelOnMessage, 0,
                 CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
-                0, 0,
+                0, CompLabelIterProperties,
                 1);
 
         #undef REGISTER_COMPONENT_TYPE

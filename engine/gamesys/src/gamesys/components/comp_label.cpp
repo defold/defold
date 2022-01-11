@@ -619,4 +619,102 @@ namespace dmGameSystem
         }
         return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, CompLabelSetConstantCallback, component);
     }
+
+    static bool CompLabelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        LabelWorld* label_world = (LabelWorld*)pit->m_Node->m_ComponentWorld;
+        LabelComponent* component = &label_world->m_Components.Get(pit->m_Node->m_Component);
+
+        uint64_t index = pit->m_Next++;
+
+        const char* property_names[] = {
+            "position",
+            "rotation",
+            "scale",
+            "size",
+            "text"
+        };
+        uint32_t num_properties = DM_ARRAY_SIZE(property_names);
+        if (index < 4)
+        {
+            int num_elements = 3;
+            Vector4 value;
+            switch(index)
+            {
+            case 0: value = Vector4(component->m_Position); break;
+            case 1: value = Vector4(component->m_Rotation); num_elements = 4; break;
+            case 2: value = Vector4(component->m_Scale); break;
+            case 3: value = Vector4(component->m_Size); break;
+            }
+
+            pit->m_Property.m_NameHash = dmHashString64(property_names[index]);
+            pit->m_Property.m_Type = num_elements == 3 ? dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3 : dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
+            pit->m_Property.m_Value.m_V4[0] = value.getX();
+            pit->m_Property.m_Value.m_V4[1] = value.getY();
+            pit->m_Property.m_Value.m_V4[2] = value.getZ();
+            pit->m_Property.m_Value.m_V4[3] = value.getW();
+
+            return true;
+        }
+        else if (index == 4)
+        {
+            pit->m_Property.m_NameHash = dmHashString64(property_names[index]);
+            pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT;
+            pit->m_Property.m_Value.m_Text = CompLabelGetText(component);
+            return true;
+        }
+
+        index -= num_properties;
+
+        const char* world_property_names[] = {
+            "world_position",
+            "world_rotation",
+            "world_scale",
+            "world_size",
+        };
+
+        uint32_t num_world_properties = DM_ARRAY_SIZE(world_property_names);
+        if (index < num_world_properties)
+        {
+            dmTransform::Transform transform = dmTransform::ToTransform(component->m_World);
+
+            dmGameObject::SceneNodePropertyType type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3;
+            Vector4 value;
+            switch(index)
+            {
+                case 0: value = Vector4(transform.GetTranslation()); break;
+                case 1: value = Vector4(transform.GetRotation()); type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4; break;
+                case 2:
+                    {
+                        // Since the size is baked into the matrix, we divide by it here
+                        Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
+                        value = Vector4(Vectormath::Aos::divPerElem(transform.GetScale(), size));
+                    }
+                    break;
+                case 3: value = Vector4(transform.GetScale()); break; // the size is baked into this matrix as the scale
+                default:
+                    return false;
+            }
+
+            pit->m_Property.m_Type = type;
+            pit->m_Property.m_NameHash = dmHashString64(world_property_names[index]);
+            pit->m_Property.m_Value.m_V4[0] = value.getX();
+            pit->m_Property.m_Value.m_V4[1] = value.getY();
+            pit->m_Property.m_Value.m_V4[2] = value.getZ();
+            pit->m_Property.m_Value.m_V4[3] = value.getW();
+            return true;
+        }
+        index -= num_world_properties;
+
+        return false;
+    }
+
+    void CompLabelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompLabelIterPropertiesGetNext;
+    }
 }
