@@ -588,7 +588,6 @@ bail:
             server->m_Reconnect = 0;
         }
         dmSocket::Selector selector;
-        dmSocket::SelectorZero(&selector);
         dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, server->m_ServerSocket);
 
         dmSocket::Result r = dmSocket::Select(&selector, 0);
