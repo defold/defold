@@ -111,7 +111,7 @@ int engine_main(int argc, char *argv[])
     if (!WaitForWindow())
     {
         // When phone lock/unlock app may receive APP_CMD_DESTROY without APP_CMD_INIT_WINDOW
-        // in this case app should exit immidiatly
+        // in this case app should exit immediately
         return 0;
     }
 
