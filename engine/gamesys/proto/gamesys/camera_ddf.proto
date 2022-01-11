@@ -89,3 +89,58 @@ message AcquireCameraFocus {}
  * ```
  */
 message ReleaseCameraFocus {}
+
+/*# [type:float] camera fov
+ *
+ * Vertical field of view of the camera.
+ * The type of the property is float.
+ *
+ * @name fov
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   local fov = go.get("#camera", "fov")
+ *   go.set("#sprite", "fov", fov + 0.1)
+ *   go.animate("#camera", "fov", go.PLAYBACK_ONCE_PINGPONG, 1.2, go.EASING_LINEAR, 1)
+ * end
+ * ```
+ */
+
+ /*# [type:float] camera near_z
+ *
+ * Camera frustum near plane.
+ * The type of the property is float.
+ *
+ * @name near_z
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   local near_z = go.get("#camera", "near_z")
+ *   go.set("#sprite", "near_z", 10)
+ * end
+ * ```
+ */
+
+/*# [type:float] camera far_z
+ *
+ * Camera frustum far plane.
+ * The type of the property is float.
+ *
+ * @name far_z
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   local far_z = go.get("#camera", "far_z")
+ *   go.set("#sprite", "far_z", 10)
+ * end
+ * ```
+ */
