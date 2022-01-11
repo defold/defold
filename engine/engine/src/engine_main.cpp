@@ -69,7 +69,7 @@ static void EngineMainThread(void* ctx)
     args->m_Finished = 1;
 }
 
-static void WaitForWindow()
+static int WaitForWindow()
 {
     while (glfwAndroidWindowOpened() == 0)
     {
@@ -86,8 +86,12 @@ static void WaitForWindow()
         }
 
         glfwAndroidFlushEvents();
+        if (g_AndroidApp->destroyRequested) {
+            return 0;
+        }
         dmTime::Sleep(300);
     }
+    return 1;
 }
 
 int engine_main(int argc, char *argv[])
@@ -104,7 +108,12 @@ int engine_main(int argc, char *argv[])
     g_AndroidApp->onInputEvent = glfwAndroidHandleInput;
 
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
-    WaitForWindow();
+    if (!WaitForWindow())
+    {
+        // When phone lock/unlock app may receive APP_CMD_DESTROY without APP_CMD_INIT_WINDOW
+        // in this case app should exit immediately
+        return 0;
+    }
 
     glfwInit();
 
