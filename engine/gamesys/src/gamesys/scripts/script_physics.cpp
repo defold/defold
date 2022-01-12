@@ -419,7 +419,7 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-        
+
         dmVMath::Point3 from( *dmScript::CheckVector3(L, 1) );
         dmVMath::Point3 to( *dmScript::CheckVector3(L, 2) );
 
@@ -557,7 +557,7 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
     }
-    
+
     static bool CheckBoolean(lua_State* L, int index)
     {
         if ( lua_isboolean( L, index ) )
@@ -1140,15 +1140,15 @@ namespace dmGameSystem
 
     /*# change the group of a collision object
      *
-     * Updates the group property of a collision object to the specified 
-     * string value. The group name should exist i.e. have been used in 
+     * Updates the group property of a collision object to the specified
+     * string value. The group name should exist i.e. have been used in
      * a collision object in the editor.
      *
      * @name physics.set_group
      * @param url [type:string|hash|url] the collision object affected.
      * @param group [type:string] the new group name to be assigned.
      * ```lua
-     * function changeCollisionGroup()
+     * local function change_collision_group()
      *      physics.set_group("#collisionobject", "enemy")
      * end
      * ```
@@ -1162,13 +1162,13 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
-        
+
         if (! dmGameSystem::SetCollisionGroup(comp_world, comp, group_id)) {
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
 
         return 0;
-    }    
+    }
 
     /*# returns the group of a collision object
      *
@@ -1178,12 +1178,12 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collision object to return the group of.
      * @return [type:hash] hash value of the group.
      * ```lua
-     * function checkIsEnemy()
-     *     local grp = physics.get_group("#collisionobject")
-     *     assert( grp == hash("enemy") )
+     * local function check_is_enemy()
+     *     local group = physics.get_group("#collisionobject")
+     *     return group == hash("enemy")
      * end
      * ```
-     */    
+     */
     static int Physics_GetGroup(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -1192,12 +1192,12 @@ namespace dmGameSystem
         void* comp = 0x0;
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
-        
+
         dmhash_t group_hash = dmGameSystem::GetCollisionGroup(comp_world, comp);
         dmScript::PushHash(L, group_hash);
-        
+
         return 1;
-    }    
+    }
 
     /*# updates the mask of a collision object
      *
@@ -1206,11 +1206,11 @@ namespace dmGameSystem
      * @name physics.set_maskbit
      * @param url [type:string|hash|url] the collision object to change the mask of.
      * @param group [type:string] the name of the group (maskbit) to modify in the mask.
-     * @param [type:boolean] boolean value of the new maskbit. 'true' to enable, 'false' to disable.
+     * @param maskbit [type:boolean] boolean value of the new maskbit. 'true' to enable, 'false' to disable.
      * ```lua
-     * function makeUserAlly()
-     *     -- no longer collide with the "user" group
-     *     physics.set_maskbit("#collisionobject","user",false)
+     * local function make_invincible()
+     *     -- no longer collide with the "bullet" group
+     *     physics.set_maskbit("#collisionobject", "bullet", false)
      * end
      * ```
      */
@@ -1224,17 +1224,17 @@ namespace dmGameSystem
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
         bool boolvalue = CheckBoolean(L, 3);
-        
+
         if (! dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue)) {
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
 
         return 0;
-    }    
-    
+    }
+
     /*# checks the presense of a group in the mask (maskbit) of a collision object
      *
-     * Returns true if the specified group is set in the mask of a collision 
+     * Returns true if the specified group is set in the mask of a collision
      * object, false otherwise.
      *
      * @name physics.get_maskbit
@@ -1242,13 +1242,13 @@ namespace dmGameSystem
      * @param group [type:string] the name of the group to check for.
      * @return [type:boolean] boolean value of the maskbit. 'true' if present, 'false' otherwise.
      * ```lua
-     * function checkCollideWithUser()
-     *     -- to check if the collisionobject would collide with "user" group
-     *     local hits_user = physics.get_maskbit("#collisionobject","user")
-     *     return hits_user
+     * local function is_invincible()
+     *     -- check if the collisionobject would collide with the "bullet" group
+     *     local invincible = physics.get_maskbit("#collisionobject", "bullet")
+     *     return invincible
      * end
      * ```
-     */    
+     */
     static int Physics_GetMaskBit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -1258,15 +1258,15 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
-        
+
         bool boolvalue;
         if (! dmGameSystem::GetCollisionMaskBit(comp_world, comp, group_id, &boolvalue)) {
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
         lua_pushboolean(L, (int) boolvalue);
-        
+
         return 1;
-    } 
+    }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
