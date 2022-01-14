@@ -79,7 +79,7 @@
              :label "Gui"
              :icon gui-icon
              :pb-class Gui$SceneDesc
-             :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene] [:particlefxs :particlefx]]
+             :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene] [:particlefxs :particlefx] [:resources :path]]
              :tags #{:component :non-embeddable}
              :tag-opts {:component {:transform-properties #{}}}})
 
@@ -387,6 +387,7 @@
    [:spine-scene-names :spine-scene-names]
    [:particlefx-infos :particlefx-infos]
    [:particlefx-resource-names :particlefx-resource-names]
+   [:resource-names :resource-names]
    [:id-prefix :id-prefix]
    [:current-layout :current-layout]])
 
@@ -412,7 +413,7 @@
       (g/connect gui-node source parent target))))
 
 (declare GuiSceneNode GuiNode NodeTree LayoutsNode LayoutNode BoxNode PieNode
-         TextNode TemplateNode SpineNode ParticleFXNode)
+         TextNode TemplateNode ParticleFXNode)
 
 (declare node-type->kw kw->node-type)
 
@@ -454,7 +455,9 @@
 
 ;; Schema validation is disabled because it severely affects project load times.
 ;; You might want to enable these before making drastic changes to Gui nodes.
-(g/deftype ^:private GuiResourceNames s/Any #_(sorted-set s/Str))
+
+;; SDK api
+(g/deftype GuiResourceNames s/Any #_(sorted-set s/Str))
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
 (g/deftype ^:private TextureAnimDatas s/Any #_{s/Str (s/maybe {s/Keyword s/Any})})
@@ -465,7 +468,7 @@
                                                      :spine-scene-structure (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (g/deftype ^:private ParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
-(g/deftype ^:private NameCounts {s/Str s/Int})
+(g/deftype NameCounts {s/Str s/Int}) ;; SDK api
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
@@ -486,34 +489,41 @@
 (defn- validate-gui-resource [severity fmt prop-kw node-id coll key]
   (validate-contains severity fmt prop-kw node-id coll key))
 
-(defn- validate-required-gui-resource [fmt prop-kw node-id coll key]
+;; SDK api
+(defn validate-required-gui-resource [fmt prop-kw node-id coll key]
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-empty? key (properties/keyword->name prop-kw))
       (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
 
-(defn- validate-optional-gui-resource [fmt prop-kw node-id coll key]
+;; SDK api
+(defn validate-optional-gui-resource [fmt prop-kw node-id coll key]
   (when-not (empty? key)
     (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
 
-(defn- required-gui-resource-choicebox [coll]
+;; SDK api
+(defn required-gui-resource-choicebox [coll]
   ;; The coll will contain a "" entry representing "No Selection". This is used
   ;; to lookup rendering resources in case the value has not been assigned.
   ;; We don't want any of these as an option in the dropdown.
   (properties/->choicebox (sort (remove empty? coll))))
 
-(defn- optional-gui-resource-choicebox [coll]
+;; SDK api
+(defn optional-gui-resource-choicebox [coll]
   ;; The coll will contain a "" entry representing "No Selection". Remove this
   ;; before sorting the collection. We then provide the "" entry at the top.
   (properties/->choicebox (cons "" (sort (remove empty? coll)))))
 
-(defn- prop-unique-id-error [node-id prop-kw prop-value id-counts prop-name]
+;; SDK api
+(defn prop-unique-id-error [node-id prop-kw prop-value id-counts prop-name]
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-empty? prop-value prop-name)
       (validation/prop-error :fatal node-id prop-kw (partial validation/prop-id-duplicate? id-counts) prop-value)))
 
-(defn- prop-resource-error [node-id prop-kw prop-value prop-name]
+;; SDK api
+(defn prop-resource-error [node-id prop-kw prop-value prop-name]
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
+;; SDK api
+(defn references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
   (and (g/property-value-origin? (:basis evaluation-context) node-id prop-kw)
        (= gui-resource-name (g/node-value node-id prop-kw evaluation-context))))
 
@@ -525,7 +535,8 @@
 (defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
 
 ;; used by (property x (set (partial ...)), thus evaluation-context in signature
-(defn- update-gui-resource-references [gui-resource-type evaluation-context gui-resource-node-id old-name new-name]
+;; SDK api
+(defn update-gui-resource-references [gui-resource-type evaluation-context gui-resource-node-id old-name new-name]
   (assert (keyword? gui-resource-type))
   (assert (or (nil? old-name) (string? old-name)))
   (assert (string? new-name))
@@ -624,13 +635,15 @@
   (output particlefx-infos ParticleFXInfos (gu/passthrough particlefx-infos))
   (input particlefx-resource-names GuiResourceNames)
   (output particlefx-resource-names GuiResourceNames (gu/passthrough particlefx-resource-names))
+  (input resource-names GuiResourceNames)
+  (output resource-names GuiResourceNames (gu/passthrough resource-names))
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
   (output node-outline-link resource/Resource (g/constantly nil))
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [child-outlines]
                                                                      (vec (sort-by :child-index child-outlines))))
   (output node-outline-reqs g/Any :cached (g/fnk []
-                                            (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
+                                                 (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) (node-type->kw))))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type own-build-errors _overridden-properties]
             (cond-> {:node-id _node-id
@@ -712,6 +725,7 @@
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
+;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]
   [_ evaluation-context node-id old-name new-name]
   (when (references-gui-resource? evaluation-context node-id :layer old-name)
@@ -1329,6 +1343,7 @@
                                                                   [:spine-scene-names :aux-spine-scene-names]
                                                                   [:particlefx-infos :aux-particlefx-infos]
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
+                                                                  [:resource-names :aux-resource-names]
                                                                   [:template-prefix :id-prefix]
                                                                   [:current-layout :current-layout]]]
                                                    (g/connect self from or-scene to)))))))))
@@ -1391,114 +1406,6 @@
                                                      build-errors-gui-node
                                                      (prop-resource-error _node-id :template template-resource "Template")))))
 
-;; Spine nodes
-
-(def ^:private validate-spine-scene (partial validate-required-gui-resource "spine scene '%s' does not exist in the scene" :spine-scene))
-
-(defn- validate-spine-default-animation [node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene]
-  (when-not (g/error? (validate-spine-scene node-id spine-scene-names spine-scene))
-    (validate-optional-gui-resource "animation '%s' could not be found in the specified spine scene" :spine-default-animation node-id spine-anim-ids spine-default-animation)))
-
-(defn- validate-spine-skin [node-id spine-scene-names spine-skin-ids spine-skin spine-scene]
-  (when-not (g/error? (validate-spine-scene node-id spine-scene-names spine-scene))
-    (spine/validate-skin node-id :spine-skin spine-skin-ids spine-skin)))
-
-(g/defnode SpineNode
-  (inherits VisualNode)
-
-  (property spine-scene g/Str
-    (default "")
-    (dynamic edit-type (g/fnk [spine-scene-names] (required-gui-resource-choicebox spine-scene-names)))
-    (dynamic error (g/fnk [_node-id spine-scene spine-scene-names]
-                     (validate-spine-scene _node-id spine-scene-names spine-scene))))
-  (property spine-default-animation g/Str
-    (dynamic label (g/constantly "Default Animation"))
-    (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene spine-scene-names]
-                     (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)))
-    (dynamic edit-type (g/fnk [spine-anim-ids] (optional-gui-resource-choicebox spine-anim-ids))))
-  (property spine-skin g/Str
-    (dynamic label (g/constantly "Skin"))
-    (dynamic error (g/fnk [_node-id spine-scene spine-scene-names spine-skin spine-skin-ids]
-                     (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))
-    (dynamic edit-type (g/fnk [spine-skin-ids] (spine/->skin-choicebox spine-skin-ids))))
-
-  (property clipping-mode g/Keyword (default :clipping-mode-none)
-    (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
-  (property clipping-visible g/Bool (default true))
-  (property clipping-inverted g/Bool (default false))
-
-  (property size types/Vec3
-    (dynamic visible (g/constantly false)))
-
-  (display-order (into base-display-order
-                       [:spine-scene :spine-default-animation :spine-skin :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
-                        :adjust-mode :clipping :visible-clipper :inverted-clipper]))
-
-  (output spine-anim-ids GuiResourceNames (g/fnk [spine-scene-element-ids spine-scene]
-                                            (:spine-anim-ids (or (spine-scene-element-ids spine-scene)
-                                                                 (spine-scene-element-ids "")))))
-  (output spine-skin-ids GuiResourceNames (g/fnk [spine-scene-element-ids spine-scene]
-                                            (:spine-skin-ids (or (spine-scene-element-ids spine-scene)
-                                                                 (spine-scene-element-ids "")))))
-  (output spine-scene-scene g/Any (g/fnk [spine-scene-infos spine-scene]
-                                    (:spine-scene-scene (or (spine-scene-infos spine-scene)
-                                                            (spine-scene-infos "")))))
-  (output spine-scene-structure g/Any (g/fnk [spine-scene-infos spine-scene]
-                                        (:spine-scene-structure (or (spine-scene-infos spine-scene)
-                                                                    (spine-scene-infos "")))))
-  (output spine-scene-pb g/Any (g/fnk [spine-scene-infos spine-scene]
-                                 (:spine-scene-pb (or (spine-scene-infos spine-scene)
-                                                      (spine-scene-infos "")))))
-  (output gpu-texture TextureLifecycle (g/constantly nil))
-
-  (output aabb g/Any (g/fnk [spine-scene-infos spine-scene spine-skin pivot]
-                       (or (get-in spine-scene-infos [spine-scene :spine-skin-aabbs (if (= spine-skin "") "default" spine-skin)])
-                           geom/empty-bounding-box)))
-
-  (output scene-renderable-user-data g/Any :cached (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
-                                                     (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
-                                                                            :color color+alpha
-                                                                            :renderable-tags #{:gui-spine}
-                                                                            :skin spine-skin)]
-                                                       (cond-> user-data
-                                                               (not= :clipping-mode-none clipping-mode)
-                                                               (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
-
-  (output bone-node-msgs g/Any :cached (g/fnk [node-msgs spine-scene-structure spine-scene-pb adjust-mode]
-                                         (let [pb-msg (first node-msgs)
-                                               gui-node-id (:id pb-msg)
-                                               id-fn (fn [b] (format "%s/%s" gui-node-id (:name b)))
-                                               bones (tree-seq :children :children (:skeleton spine-scene-structure))
-                                               bone-order (zipmap (map id-fn (-> spine-scene-pb :skeleton :bones)) (range))
-                                               child-to-parent (reduce (fn [m b] (into m (map (fn [c] [(:name c) b]) (:children b)))) {} bones)
-                                               bone-msg {:spine-node-child true
-                                                         :size [0.0 0.0 0.0 0.0]
-                                                         :position [0.0 0.0 0.0 0.0]
-                                                         :scale [1.0 1.0 1.0 0.0]
-                                                         :type :type-box
-                                                         :adjust-mode adjust-mode}
-                                               bone-msgs (mapv (fn [b] (assoc bone-msg :id (id-fn b) :parent (if (contains? child-to-parent (:name b))
-                                                                                                               (id-fn (get child-to-parent (:name b)))
-                                                                                                               gui-node-id))) bones)]
-                                           ;; Bone nodes need to be sorted in same order as bones in rig scene
-                                           (sort-by #(bone-order (:id %)) bone-msgs))))
-
-  (output node-rt-msgs g/Any :cached
-    (g/fnk [node-msgs node-rt-msgs bone-node-msgs spine-skin-ids]
-      (let [pb-msg (first node-msgs)
-            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (or skin "")))])]
-        (into rt-pb-msgs bone-node-msgs))))
-  (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-names]
-                                   (g/package-errors _node-id
-                                                     build-errors-visual-node
-                                                     (validate-spine-scene _node-id spine-scene-names spine-scene)
-                                                     (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)
-                                                     (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))))
-
-(defmethod update-gui-resource-reference [::SpineNode :spine-scene]
-  [_ evaluation-context node-id old-name new-name]
-  (when (references-gui-resource? evaluation-context node-id :spine-scene old-name)
-    (g/set-property node-id :spine-scene new-name)))
 
 ;; Particle FX
 
@@ -1748,78 +1655,53 @@
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")))))
 
-(g/defnk produce-spine-scene-element-ids [name spine-anim-ids spine-scene spine-scene-structure]
-  ;; If the referenced spine-scene-resource is missing, we don't return an entry.
-  ;; This will cause every usage to fall back on the no-spine-scene entry for "".
-  ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
-  ;; It does not have any data, but it should still return an entry.
-  (when (or (and (= "" name) (nil? spine-scene))
-            (every? some? [spine-anim-ids spine-scene-structure]))
-    {name {:spine-anim-ids (into (sorted-set) spine-anim-ids)
-           :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}}))
+;; Only kept to migrate the old spine scenes to the new ResourceNode format
+(g/defnode OldSpineSceneNode
+  (inherits outline/OutlineNode)
+  (property name g/Str)
+  (property spine-scene resource/Resource))
 
-(g/defnk produce-spine-scene-infos [_node-id name spine-scene spine-scene-pb spine-scene-scene spine-scene-structure spine-skin-aabbs]
-  ;; If the referenced spine-scene-resource is missing, we don't return an entry.
-  ;; This will cause every usage to fall back on the no-spine-scene entry for "".
-  ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
-  ;; It does not have any data, but it should still return an entry.
-  (when (or (and (= "" name) (nil? spine-scene))
-            (every? some? [spine-scene-pb spine-scene-scene spine-scene-structure]))
-    {name {:spine-skin-aabbs spine-skin-aabbs
-           :spine-scene-pb spine-scene-pb
-           :spine-scene-scene spine-scene-scene
-           :spine-scene-structure spine-scene-structure}}))
-
-(g/defnode SpineSceneNode
+(g/defnode ResourceNode
   (inherits outline/OutlineNode)
   (property name g/Str
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
-            (set (partial update-gui-resource-references :spine-scene)))
-  (property spine-scene resource/Resource
-            (value (gu/passthrough spine-scene-resource))
+            (set (partial update-gui-resource-references :path)))
+  (property path resource/Resource
+            (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
-                     evaluation-context self old-value new-value
-                     [:resource :spine-scene-resource]
-                     [:build-targets :dep-build-targets]
-                     [:spine-anim-ids :spine-anim-ids]
-                     [:scene :spine-scene-scene]
-                     [:skin-aabbs :spine-skin-aabbs]
-                     [:scene-structure :spine-scene-structure]
-                     [:spine-scene-pb :spine-scene-pb])))
-            (dynamic error (g/fnk [_node-id spine-scene]
-                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")))
+                    evaluation-context self old-value new-value
+                    [:resource :resource]
+                    [:build-targets :dep-build-targets])))
+            (dynamic error (g/fnk [_node-id path]
+                                  (prop-resource-error _node-id :path path "Path")))
             (dynamic edit-type (g/constantly
-                                 {:type resource/Resource
-                                  :ext ["spinescene"]})))
+                                {:type resource/Resource})))
+
+  (input resource resource/Resource)
+  (output resource-path g/Str (g/fnk [resource] (resource/resource->proj-path resource)))
 
   (input name-counts NameCounts)
-  (input spine-scene-resource resource/Resource)
-  (input spine-anim-ids g/Any :substitute (constantly nil))
-  (input dep-build-targets g/Any)
-  (input spine-scene-scene g/Any :substitute (constantly nil))
-  (input spine-skin-aabbs g/Any :substitute (constantly nil))
-  (input spine-scene-structure g/Any :substitute (constantly nil))
-  (input spine-scene-pb g/Any :substitute (constantly nil))
-
-  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name spine-scene-resource build-errors]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name resource build-errors]
                                                           (cond-> {:node-id _node-id
                                                                    :node-outline-key name
                                                                    :label name
-                                                                   :icon spine/spine-scene-icon
+                                                                   :icon layer-icon
                                                                    :outline-error? (g/error-fatal? build-errors)}
-                                                                  (resource/openable-resource? spine-scene-resource) (assoc :link spine-scene-resource :outline-show-link? true))))
-  (output pb-msg g/Any (g/fnk [name spine-scene]
+                                                            (resource/openable-resource? resource) (assoc :link resource :outline-show-link? true))))
+
+  (output resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
+
+  (input dep-build-targets g/Any)
+  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
+
+  (output pb-msg g/Any (g/fnk [name resource-path]
                               {:name name
-                               :spine-scene (resource/resource->proj-path spine-scene)}))
-  (output spine-scene-element-ids SpineSceneElementIds :cached produce-spine-scene-element-ids)
-  (output spine-scene-infos SpineSceneInfos :cached produce-spine-scene-infos)
-  (output spine-scene-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-  (output build-errors g/Any (g/fnk [_node-id name name-counts spine-scene]
-                               (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")))))
+                               :path resource-path}))
+  (output build-errors g/Any (g/fnk [_node-id name name-counts path]
+                                    (g/package-errors _node-id
+                                                      (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                      (prop-resource-error _node-id :path path "Path")))))
 
 (g/defnode ParticleFXResource
   (inherits outline/OutlineNode)
@@ -1842,9 +1724,9 @@
 
   (input name-counts NameCounts)
   (input particlefx-resource resource/Resource)
-  (input dep-build-targets g/Any)
   (input particlefx-scene g/Any :substitute (g/constantly nil))
 
+  (input dep-build-targets g/Any)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource build-errors]
                                                      (cond-> {:node-id _node-id
@@ -1956,7 +1838,7 @@
   (input child-indices NodeIndex :array)
   (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
+          (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) (node-type->kw))))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                 {:node-id _node-id
                                  :aabb geom/null-aabb
@@ -2007,6 +1889,8 @@
   (output particlefx-infos ParticleFXInfos (gu/passthrough particlefx-infos))
   (input particlefx-resource-names GuiResourceNames)
   (output particlefx-resource-names GuiResourceNames (gu/passthrough particlefx-resource-names))
+  (input resource-names GuiResourceNames)
+  (output resource-names GuiResourceNames (gu/passthrough resource-names))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
@@ -2061,21 +1945,22 @@
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" "Layouts" 4 false [])))
 
-(g/defnode SpineScenesNode
-  (inherits outline/OutlineNode)
-  (input names g/Str :array)
-  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
-  (input build-errors g/Any :array)
-  (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Spine Scenes" "Spine Scenes" 5 false [])))
-
 (g/defnode ParticleFXResources
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Particle FX" "Particle FX" 6 false [])))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Particle FX" "Particle FX" 5 false [])))
+
+(g/defnode ResourcesNode
+  (inherits outline/OutlineNode)
+  (input names g/Str :array)
+  (input paths g/Str :array)
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
+  (input build-errors g/Any :array)
+  (output build-errors g/Any (gu/passthrough build-errors))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Resources" "Resources" 6 false [])))
 
 (defn- apply-alpha [parent-alpha scene]
   (let [scene-alpha (get-in scene [:renderable :user-data :color 3] 1.0)]
@@ -2125,7 +2010,7 @@
       clipping/setup-states
       sort-scene)))
 
-(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs spine-scene-msgs particlefx-resource-msgs]
+(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   {:script (resource/resource->proj-path script-resource)
    :material (resource/resource->proj-path material-resource)
    :adjust-reference adjust-reference
@@ -2136,14 +2021,14 @@
    :fonts font-msgs
    :textures texture-msgs
    :layouts layout-msgs
-   :spine-scenes spine-scene-msgs
-   :particlefxs particlefx-resource-msgs})
+   :particlefxs particlefx-resource-msgs
+   :resources resource-msgs})
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs spine-scene-msgs particlefx-resource-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs spine-scene-msgs particlefx-resource-msgs))
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs))
 
-(g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs))
+(g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs particlefx-resource-msgs resource-msgs]
+  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs particlefx-resource-msgs resource-msgs))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
@@ -2160,11 +2045,12 @@
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
   (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
-        [textures fonts spine-scenes particlefx-resources]
+        [textures fonts spine-scenes particlefx-resources resources]
         (loop [textures (transient {})
                fonts (transient {})
                spine-scenes (transient {})
                particlefx-resources (transient {})
+               resources (transient {})
                msgs (conj (mapv #(get-in % [:user-data :pb]) template-build-targets) rt-pb-msg)]
           (if-let [msg (first msgs)]
             (recur
@@ -2172,9 +2058,10 @@
               (merge-fn! fonts msg :fonts)
               (merge-fn! spine-scenes msg :spine-scenes)
               (merge-fn! particlefx-resources msg :particlefxs)
+              (merge-fn! resources msg :resources)
               (next msgs))
-            [(persistent! textures) (persistent! fonts) (persistent! spine-scenes) (persistent! particlefx-resources)]))]
-    (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :spine-scenes (mapv second spine-scenes) :particlefxs (mapv second particlefx-resources))))
+            [(persistent! textures) (persistent! fonts) (persistent! spine-scenes) (persistent! particlefx-resources) (persistent! resources)]))]
+    (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :spine-scenes (mapv second spine-scenes) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource rt-pb-msg dep-build-targets template-build-targets]
   (g/precluding-errors build-errors
@@ -2266,7 +2153,7 @@
   (input textures-node g/NodeID)
   (input layers-node g/NodeID)
   (input layouts-node g/NodeID)
-  (input spine-scenes-node g/NodeID)
+  (input resources-node g/NodeID)
   (input particlefx-resources-node g/NodeID)
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
@@ -2287,8 +2174,9 @@
   (output layer-msgs g/Any (g/fnk [layer-msgs] (map #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input layout-msgs g/Any :array)
   (input layout-rt-msgs g/Any :array)
-  (input spine-scene-msgs g/Any :array)
+  ;;(input spine-scene-msgs g/Any :array)
   (input particlefx-resource-msgs g/Any :array)
+  (input resource-msgs g/Any :array)
   (input node-ids IDMap)
   (output node-ids IDMap (gu/passthrough node-ids))
   (input layout-names g/Str :array)
@@ -2334,6 +2222,10 @@
   (input aux-particlefx-resource-names GuiResourceNames :array)
   (input particlefx-resource-names GuiResourceNames :array)
   (output particlefx-resource-names GuiResourceNames :cached (g/fnk [aux-particlefx-resource-names particlefx-resource-names] (into (sorted-set) cat (concat aux-particlefx-resource-names particlefx-resource-names))))
+
+  (input aux-resource-names GuiResourceNames :array)
+  (input resource-names GuiResourceNames :array)
+  (output resource-names GuiResourceNames :cached (g/fnk [aux-resource-names resource-names] (into (sorted-set) cat (concat aux-resource-names resource-names))))
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
@@ -2452,23 +2344,23 @@
     (for [[from to] [[:id-prefix :id-prefix]]]
       (g/connect self from layout to))))
 
-(defn- attach-spine-scene
-  ([self spine-scenes-node spine-scene]
-   (attach-spine-scene self spine-scenes-node spine-scene false))
-  ([self spine-scenes-node spine-scene internal?]
+(defn- attach-resource 
+  ([self resources-node resource-node]
+   (attach-resource self resources-node resource-node false))
+  ([self resources-node resource-node internal?]
    (concat
-     (g/connect spine-scene :_node-id self :nodes)
-     (g/connect spine-scene :spine-scene-element-ids self :spine-scene-element-ids)
-     (g/connect spine-scene :spine-scene-infos self :spine-scene-infos)
-     (when (not internal?)
-       (concat
-         (g/connect spine-scene :spine-scene-names self :spine-scene-names)
-         (g/connect spine-scene :dep-build-targets self :dep-build-targets)
-         (g/connect spine-scene :pb-msg self :spine-scene-msgs)
-         (g/connect spine-scene :build-errors spine-scenes-node :build-errors)
-         (g/connect spine-scene :node-outline spine-scenes-node :child-outlines)
-         (g/connect spine-scene :name spine-scenes-node :names)
-         (g/connect spine-scenes-node :name-counts spine-scene :name-counts))))))
+    (g/connect resource-node :_node-id self :nodes)
+    (when (not internal?)
+      (concat
+       (g/connect resource-node :dep-build-targets self :dep-build-targets)
+       (g/connect resource-node :resource-names    self :resource-names)
+       (g/connect resource-node :pb-msg            self :resource-msgs)
+       (g/connect resource-node :build-errors      resources-node :build-errors)
+       (g/connect resource-node :node-outline      resources-node :child-outlines)
+       (g/connect resource-node :name              resources-node :names)
+       (g/connect resource-node :resource-path     resources-node :paths)
+       (g/connect resources-node :name-counts resource-node :name-counts))))))
+
 
 (defn- attach-particlefx-resource
   ([self particlefx-resources-node particlefx-resource]
@@ -2480,11 +2372,11 @@
      (when (not internal?)
        (concat
          (g/connect particlefx-resource :particlefx-resource-names self :particlefx-resource-names)
-         (g/connect particlefx-resource :dep-build-targets self :dep-build-targets)
-         (g/connect particlefx-resource :pb-msg self :particlefx-resource-msgs)
+         (g/connect particlefx-resource :dep-build-targets         self :dep-build-targets)
+         (g/connect particlefx-resource :pb-msg                    self :particlefx-resource-msgs)
          (g/connect particlefx-resource :build-errors particlefx-resources-node :build-errors)
          (g/connect particlefx-resource :node-outline particlefx-resources-node :child-outlines)
-         (g/connect particlefx-resource :name particlefx-resources-node :names)
+         (g/connect particlefx-resource :name         particlefx-resources-node :names)
          (g/connect particlefx-resources-node :name-counts particlefx-resource :name-counts))))))
 
 (defn- v4->v3 [v4]
@@ -2500,7 +2392,7 @@
   (let [node-tree (g/node-value scene :node-tree)
         taken-ids (g/node-value node-tree :id-counts)
         id (outline/resolve-id (subs (name node-type) 5) taken-ids)
-        def-node-type (get kw->node-type node-type GuiNode)
+        def-node-type (get (kw->node-type) node-type GuiNode)
         child-indices (g/node-value parent :child-indices)
         next-index (next-child-index child-indices)]
     (-> (concat
@@ -2579,15 +2471,6 @@
                     (when select-fn
                       (select-fn [node]))))))
 
-(defn add-spine-scene [scene spine-scenes-node resource name]
-  (g/make-nodes (g/node-id->graph-id scene) [node [SpineSceneNode :name name :spine-scene resource]]
-                (attach-spine-scene scene spine-scenes-node node)))
-
-(defn- add-spine-scenes-handler [project {:keys [scene parent]} select-fn]
-  (query-and-add-resources!
-    "Spine Scenes" [spine/spine-scene-ext] (g/node-value parent :name-counts) project select-fn
-    (partial add-spine-scene scene parent)))
-
 (defn add-particlefx-resource [scene particlefx-resources-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [ParticleFXResource :name name :particlefx resource]]
                 (attach-particlefx-resource scene particlefx-resources-node node)))
@@ -2596,6 +2479,18 @@
   (query-and-add-resources!
     "Particle FX" [particlefx/particlefx-ext] (g/node-value parent :name-counts) project select-fn
     (partial add-particlefx-resource scene parent)))
+
+(defn add-resource [scene resources-node resource name]
+  (prn "MAWE add-resource resource name" resource name)
+  (g/make-nodes (g/node-id->graph-id scene) [node [ResourceNode :name name :resource resource]]
+                (attach-resource scene resources-node node)))
+
+;; Use the registered resource types
+(defn- add-resources-handler [project {:keys [scene parent]} select-fn]
+  (query-and-add-resources!
+   ;; TODO: List all the registered resource types here!
+   "Spine Scenes" ["spinescene"] (g/node-value parent :name-counts) project select-fn
+   (partial add-resource scene parent)))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :add
@@ -2646,17 +2541,19 @@
                                        (g/node-value scene :layouts-node)
                                        node)]
                           (make-add-handler scene parent "Layout" layout-icon add-layout-handler {:layout true})))
-        spine-scene-option (if (some #(g/node-instance? % node) [GuiSceneNode SpineScenesNode])
+        
+        resource-option (if (some #(g/node-instance? % node) [GuiSceneNode ResourcesNode])
                              (let [parent (if (= node scene)
-                                            (g/node-value scene :spine-scenes-node)
+                                            (g/node-value scene :resources-node)
                                             node)]
-                               (make-add-handler scene parent "Spine Scenes..." spine/spine-scene-icon add-spine-scenes-handler {})))
+                               (make-add-handler scene parent "Resources..." template-icon add-resources-handler {})))
+
         particlefx-resource-option (if (some #(g/node-instance? % node) [GuiSceneNode ParticleFXResources])
                                      (let [parent (if (= node scene)
                                                     (g/node-value scene :particlefx-resources-node)
                                                     node)]
                                        (make-add-handler scene parent "Particle FX..." particlefx/particle-fx-icon add-particlefx-resources-handler {})))]
-    (filter some? (conj node-options texture-option font-option layer-option layout-option spine-scene-option particlefx-resource-option))))
+    (filter some? (conj node-options texture-option font-option layer-option layout-option resource-option particlefx-resource-option))))
 
 (defn- unused-display-profiles [scene]
   (let [layouts (set (map :name (g/node-value scene :layout-msgs)))]
@@ -2725,165 +2622,182 @@
                                                                                   [r nil]))))])
                                          tmpl-roots))]
     (concat
-      (g/set-property self :script (workspace/resolve-resource resource (:script scene)))
-      (g/set-property self :material (workspace/resolve-resource resource (:material scene)))
-      (g/set-property self :adjust-reference (:adjust-reference scene))
-      (g/set-property self :pb scene)
-      (g/set-property self :def def)
-      (g/set-property self :background-color (:background-color scene))
-      (g/set-property self :max-nodes (:max-nodes scene))
-      (g/connect project :settings self :project-settings)
-      (g/connect project :default-tex-params self :default-tex-params)
-      (g/connect project :display-profiles self :display-profiles)
-      (g/make-nodes graph-id [fonts-node FontsNode
-                              no-font [FontNode
-                                       :name ""
-                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
-                    (g/connect fonts-node :_node-id self :fonts-node)
-                    (g/connect fonts-node :_node-id self :nodes)
-                    (g/connect fonts-node :build-errors self :build-errors)
-                    (g/connect fonts-node :node-outline self :child-outlines)
-                    (attach-font self fonts-node no-font true)
-                    (for [font-desc (:fonts scene)]
-                      (g/make-nodes graph-id [font [FontNode
-                                                    :name (:name font-desc)
-                                                    :font (workspace/resolve-resource resource (:font font-desc))]]
-                                    (attach-font self fonts-node font))))
-      (g/make-nodes graph-id [textures-node TexturesNode
-                              no-texture [InternalTextureNode
-                                          :name ""
-                                          :gpu-texture texture/white-pixel]]
-                    (g/connect textures-node :_node-id self :textures-node)
-                    (g/connect textures-node :_node-id self :nodes)
-                    (g/connect textures-node :build-errors self :build-errors)
-                    (g/connect textures-node :node-outline self :child-outlines)
-                    (attach-texture self textures-node no-texture true)
-                    (for [texture-desc (:textures scene)
-                          :let [resource (workspace/resolve-resource resource (:texture texture-desc))]]
-                      (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
-                                    (attach-texture self textures-node texture))))
-      (g/make-nodes graph-id [spine-scenes-node SpineScenesNode
-                              no-spine-scene [SpineSceneNode
-                                              :name ""]]
-                    (g/connect spine-scenes-node :_node-id self :spine-scenes-node)
-                    (g/connect spine-scenes-node :_node-id self :nodes)
-                    (g/connect spine-scenes-node :build-errors self :build-errors)
-                    (g/connect spine-scenes-node :node-outline self :child-outlines)
-                    (attach-spine-scene self spine-scenes-node no-spine-scene true)
-                    (let [prop-keys (g/declared-property-labels SpineSceneNode)]
-                      (for [spine-scene-desc (:spine-scenes scene)
-                            :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
-                        (g/make-nodes graph-id [spine-scene [SpineSceneNode
-                                                             :name (:name spine-scene-desc)
-                                                             :spine-scene (workspace/resolve-resource resource (:spine-scene spine-scene-desc))]]
-                                      (attach-spine-scene self spine-scenes-node spine-scene)))))
-      (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources
-                              no-particlefx-resource [ParticleFXResource
-                                                      :name ""]]
-                    (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node)
-                    (g/connect particlefx-resources-node :_node-id self :nodes)
-                    (g/connect particlefx-resources-node :build-errors self :build-errors)
-                    (g/connect particlefx-resources-node :node-outline self :child-outlines)
-                    (attach-particlefx-resource self particlefx-resources-node no-particlefx-resource true)
-                    (let [prop-keys (g/declared-property-labels ParticleFXResource)]
-                      (for [particlefx-desc (:particlefxs scene)
-                            :let [particlefx-desc (select-keys particlefx-desc prop-keys)]]
-                        (g/make-nodes graph-id [particlefx-resource [ParticleFXResource
-                                                                     :name (:name particlefx-desc)
-                                                                     :particlefx (workspace/resolve-resource resource (:particlefx particlefx-desc))]]
-                                      (attach-particlefx-resource self particlefx-resources-node particlefx-resource)))))
-      (g/make-nodes graph-id [layers-node LayersNode
-                              no-layer [LayerNode
-                                        :name ""]]
-                    (g/connect layers-node :_node-id self :layers-node)
-                    (g/connect layers-node :_node-id self :nodes)
-                    (g/connect layers-node :layer-msgs self :layer-msgs)
-                    (g/connect layers-node :layer-names self :layer-names)
-                    (g/connect layers-node :layer->index self :layer->index)
-                    (g/connect layers-node :build-errors self :build-errors)
-                    (g/connect layers-node :node-outline self :child-outlines)
-                    (attach-layer layers-node no-layer true)
-                    (loop [[layer-desc & more] (:layers scene)
-                           tx-data []
-                           child-index 0]
-                      (if layer-desc
-                        (let [layer-tx-data (g/make-nodes graph-id
-                                                          [layer [LayerNode
-                                                                  :name (:name layer-desc)
-                                                                  :child-index child-index]]
-                                                          (attach-layer layers-node layer))]
-                          (recur more (conj tx-data layer-tx-data) (inc child-index)))
-                        tx-data)))
-      (g/make-nodes graph-id [node-tree NodeTree]
-                    (for [[from to] [[:_node-id :node-tree]
-                                     [:_node-id :nodes]
-                                     [:node-outline :default-node-outline]
-                                     [:node-msgs :node-msgs]
-                                     [:node-rt-msgs :node-rt-msgs]
-                                     [:scene :default-scene]
-                                     [:node-ids :node-ids]
-                                     [:node-overrides :node-overrides]
-                                     [:build-errors :build-errors]
-                                     [:template-build-targets :template-build-targets]]]
-                      (g/connect node-tree from self to))
-                    (for [[from to] [[:material-shader :material-shader]
-                                     [:texture-gpu-textures :texture-gpu-textures]
-                                     [:texture-anim-datas :texture-anim-datas]
-                                     [:texture-names :texture-names]
-                                     [:font-shaders :font-shaders]
-                                     [:font-datas :font-datas]
-                                     [:font-names :font-names]
-                                     [:layer-names :layer-names]
-                                     [:layer->index :layer->index]
-                                     [:spine-scene-element-ids :spine-scene-element-ids]
-                                     [:spine-scene-infos :spine-scene-infos]
-                                     [:spine-scene-names :spine-scene-names]
-                                     [:particlefx-infos :particlefx-infos]
-                                     [:particlefx-resource-names :particlefx-resource-names]
-                                     [:id-prefix :id-prefix]
-                                     [:current-layout :current-layout]]]
-                      (g/connect self from node-tree to))
+     (g/set-property self :script (workspace/resolve-resource resource (:script scene)))
+     (g/set-property self :material (workspace/resolve-resource resource (:material scene)))
+     (g/set-property self :adjust-reference (:adjust-reference scene))
+     (g/set-property self :pb scene)
+     (g/set-property self :def def)
+     (g/set-property self :background-color (:background-color scene))
+     (g/set-property self :max-nodes (:max-nodes scene))
+     (g/connect project :settings self :project-settings)
+     (g/connect project :default-tex-params self :default-tex-params)
+     (g/connect project :display-profiles self :display-profiles)
+     (g/make-nodes graph-id [fonts-node FontsNode
+                             no-font [FontNode
+                                      :name ""
+                                      :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                   (g/connect fonts-node :_node-id self :fonts-node)
+                   (g/connect fonts-node :_node-id self :nodes)
+                   (g/connect fonts-node :build-errors self :build-errors)
+                   (g/connect fonts-node :node-outline self :child-outlines)
+                   (attach-font self fonts-node no-font true)
+                   (for [font-desc (:fonts scene)]
+                     (g/make-nodes graph-id [font [FontNode
+                                                   :name (:name font-desc)
+                                                   :font (workspace/resolve-resource resource (:font font-desc))]]
+                                   (attach-font self fonts-node font))))
+     (g/make-nodes graph-id [textures-node TexturesNode
+                             no-texture [InternalTextureNode
+                                         :name ""
+                                         :gpu-texture texture/white-pixel]]
+                   (g/connect textures-node :_node-id self :textures-node)
+                   (g/connect textures-node :_node-id self :nodes)
+                   (g/connect textures-node :build-errors self :build-errors)
+                   (g/connect textures-node :node-outline self :child-outlines)
+                   (attach-texture self textures-node no-texture true)
+                   (for [texture-desc (:textures scene)
+                         :let [resource (workspace/resolve-resource resource (:texture texture-desc))]]
+                     (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
+                                   (attach-texture self textures-node texture))))
+
+     (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources
+                             no-particlefx-resource [ParticleFXResource
+                                                     :name ""]]
+                   (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node)
+                   (g/connect particlefx-resources-node :_node-id self :nodes)
+                   (g/connect particlefx-resources-node :build-errors self :build-errors)
+                   (g/connect particlefx-resources-node :node-outline self :child-outlines)
+                   (attach-particlefx-resource self particlefx-resources-node no-particlefx-resource true)
+                   (let [prop-keys (g/declared-property-labels ParticleFXResource)]
+                     (for [particlefx-desc (:particlefxs scene)
+                           :let [particlefx-desc (select-keys particlefx-desc prop-keys)]]
+                       (g/make-nodes graph-id [particlefx-resource [ParticleFXResource
+                                                                    :name (:name particlefx-desc)
+                                                                    :particlefx (workspace/resolve-resource resource (:particlefx particlefx-desc))]]
+                                     (attach-particlefx-resource self particlefx-resources-node particlefx-resource)))))
+
+     (g/make-nodes graph-id [resources-node ResourcesNode
+                             no-resource [ResourceNode
+                                             :name ""]]
+                   (g/connect resources-node :_node-id self :resources-node)
+                   (g/connect resources-node :_node-id self :nodes)
+                   (g/connect resources-node :build-errors self :build-errors)
+                   (g/connect resources-node :node-outline self :child-outlines)
+                   (attach-resource self resources-node no-resource true)
+                   (let [prop-keys (g/declared-property-labels ResourceNode)]
+                     (for [resource-desc (:resources scene)
+                           :let [resource-desc (select-keys resource-desc prop-keys)]]
+                       (g/make-nodes graph-id [resource-node [ResourceNode
+                                                            :name (:name resource-desc)
+                                                            :path (workspace/resolve-resource resource (:path resource-desc))]]
+                                     (attach-resource self resources-node resource-node))))
+                   
+                   (let [prop-keys (g/declared-property-labels OldSpineSceneNode)]
+                     (for [spine-scene-desc (:spine-scenes scene)
+                           :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
+                       (g/make-nodes graph-id [resource-node [ResourceNode
+                                                              :name (:name spine-scene-desc)
+                                                              :path (workspace/resolve-resource resource (:spine-scene spine-scene-desc))]]
+                                     (attach-resource self resources-node resource-node)))))
+     
+     (g/make-nodes graph-id [layers-node LayersNode
+                             no-layer [LayerNode
+                                       :name ""]]
+                   (g/connect layers-node :_node-id self :layers-node)
+                   (g/connect layers-node :_node-id self :nodes)
+                   (g/connect layers-node :layer-msgs self :layer-msgs)
+                   (g/connect layers-node :layer-names self :layer-names)
+                   (g/connect layers-node :layer->index self :layer->index)
+                   (g/connect layers-node :build-errors self :build-errors)
+                   (g/connect layers-node :node-outline self :child-outlines)
+                   (attach-layer layers-node no-layer true)
+                   (loop [[layer-desc & more] (:layers scene)
+                          tx-data []
+                          child-index 0]
+                     (if layer-desc
+                       (let [layer-tx-data (g/make-nodes graph-id
+                                                         [layer [LayerNode
+                                                                 :name (:name layer-desc)
+                                                                 :child-index child-index]]
+                                                         (attach-layer layers-node layer))]
+                         (recur more (conj tx-data layer-tx-data) (inc child-index)))
+                       tx-data)))
+     (g/make-nodes graph-id [node-tree NodeTree]
+                   (for [[from to] [[:_node-id :node-tree]
+                                    [:_node-id :nodes]
+                                    [:node-outline :default-node-outline]
+                                    [:node-msgs :node-msgs]
+                                    [:node-rt-msgs :node-rt-msgs]
+                                    [:scene :default-scene]
+                                    [:node-ids :node-ids]
+                                    [:node-overrides :node-overrides]
+                                    [:build-errors :build-errors]
+                                    [:template-build-targets :template-build-targets]]]
+                     (g/connect node-tree from self to))
+                   (for [[from to] [[:material-shader :material-shader]
+                                    [:texture-gpu-textures :texture-gpu-textures]
+                                    [:texture-anim-datas :texture-anim-datas]
+                                    [:texture-names :texture-names]
+                                    [:font-shaders :font-shaders]
+                                    [:font-datas :font-datas]
+                                    [:font-names :font-names]
+                                    [:layer-names :layer-names]
+                                    [:layer->index :layer->index]
+                                    [:spine-scene-element-ids :spine-scene-element-ids]
+                                    [:spine-scene-infos :spine-scene-infos]
+                                    [:spine-scene-names :spine-scene-names]
+                                    [:particlefx-infos :particlefx-infos]
+                                    [:particlefx-resource-names :particlefx-resource-names]
+                                    [:resource-names :resource-names]
+                                    [:id-prefix :id-prefix]
+                                    [:current-layout :current-layout]]]
+                     (g/connect self from node-tree to))
                     ;; Note that the child-index used below is
                     ;; not "local" to the parent but a global ordering of nodes.
                     ;; The indices used for sibling nodes may not be a
                     ;; continuous range. The order should still be
                     ;; correct.
-                    (loop [[node-desc & more] (sort-node-descs node-descs)
-                           id->node {}
-                           all-tx-data []
-                           child-index 0]
-                      (if node-desc
-                        (let [node-type (get kw->node-type (:type node-desc) GuiNode)
-                              props (-> node-desc
-                                        (assoc :child-index child-index)
-                                        (select-keys (g/declared-property-labels node-type))
-                                        (cond->
-                                          (= :type-template (:type node-desc))
-                                          (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
-                                                            :overrides (get template-data (:id node-desc) {})})))
-                              tx-data (g/make-nodes graph-id [gui-node [node-type props]]
-                                                    (let [parent (if (empty? (:parent node-desc))
-                                                                   node-tree
-                                                                   (id->node (:parent node-desc)))]
-                                                      (attach-gui-node node-tree parent gui-node (:type node-desc))))
-                              node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
-                          (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc child-index)))
-                        all-tx-data)))
-      (g/make-nodes graph-id [layouts-node LayoutsNode]
-                    (g/connect layouts-node :_node-id self :layouts-node)
-                    (g/connect layouts-node :_node-id self :nodes)
-                    (g/connect layouts-node :build-errors self :build-errors)
-                    (g/connect layouts-node :node-outline self :child-outlines)
-                    (let [prop-keys (g/declared-property-labels LayoutNode)]
-                      (for [layout-desc (:layouts scene)
-                            :let [layout-desc (-> layout-desc
-                                                  (select-keys prop-keys)
-                                                  (update :nodes (fn [nodes] (->> nodes
-                                                                                  (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
-                                                                                  (into {})))))]]
-                        (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
-                                      (attach-layout self layouts-node layout)
-                                      (g/set-property layout :nodes (:nodes layout-desc)))))))))
+                   (loop [[node-desc & more] (sort-node-descs node-descs)
+                          id->node {}
+                          all-tx-data []
+                          child-index 0]
+                     (if node-desc
+                       (let [node-type (get (kw->node-type) (:type node-desc) GuiNode)
+                             test-1 (prn "MAWE" "node-desc" node-desc)
+                             test-2 (prn "MAWE" "node-type" node-type)
+
+                             props (-> node-desc
+                                       (assoc :child-index child-index)
+                                       (select-keys (g/declared-property-labels node-type))
+                                       (cond->
+                                        (= :type-template (:type node-desc)) (assoc :template {})
+                                        ;;(= :type-template (:type node-desc))
+                                        ;;  (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
+                                        ;;                    :overrides (get template-data (:id node-desc) {})})
+                                         ))
+                             tx-data (g/make-nodes graph-id [gui-node [node-type props]]
+                                                   (let [parent (if (empty? (:parent node-desc))
+                                                                  node-tree
+                                                                  (id->node (:parent node-desc)))]
+                                                     (attach-gui-node node-tree parent gui-node (:type node-desc))))
+                             node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
+                         (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc child-index)))
+                       all-tx-data)))
+     (g/make-nodes graph-id [layouts-node LayoutsNode]
+                   (g/connect layouts-node :_node-id self :layouts-node)
+                   (g/connect layouts-node :_node-id self :nodes)
+                   (g/connect layouts-node :build-errors self :build-errors)
+                   (g/connect layouts-node :node-outline self :child-outlines)
+                   (let [prop-keys (g/declared-property-labels LayoutNode)]
+                     (for [layout-desc (:layouts scene)
+                           :let [layout-desc (-> layout-desc
+                                                 (select-keys prop-keys)
+                                                 (update :nodes (fn [nodes] (->> nodes
+                                                                                 (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
+                                                                                 (into {})))))]]
+                       (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
+                                     (attach-layout self layouts-node layout)
+                                     (g/set-property layout :nodes (:nodes layout-desc)))))))))
 
 (defn- color-alpha [node-desc color-field alpha-field]
   ;; The alpha field replaced the fourth component of color,
@@ -2931,6 +2845,8 @@
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
+    
+    (prn "MAWE GUI register:" exts)
     (for [ext exts]
       (resource-node/register-ddf-resource-type workspace
         :ext ext
@@ -3034,11 +2950,25 @@
     :command :set-gui-layout
     :label "Test"}])
 
-(def ^:private node-type->kw {BoxNode :type-box
-                              PieNode :type-pie
-                              TextNode :type-text
-                              TemplateNode :type-template
-                              SpineNode :type-spine
-                              ParticleFXNode :type-particlefx})
+(def base-node-types {BoxNode :type-box
+                      PieNode :type-pie
+                      TextNode :type-text
+                      TemplateNode :type-template
+                      ParticleFXNode :type-particlefx})
 
-(def ^:private kw->node-type (set/map-invert node-type->kw))
+(def ^:private custom-node-types (atom {}))
+
+(defn- get-registered-types []
+  (merge base-node-types @custom-node-types))
+
+(defn- node-type->kw []
+  (get-registered-types))
+
+(defn- kw->node-type []
+  (set/map-invert (get-registered-types)))
+
+(defn register-resource-type [type type-name]
+  (swap! custom-node-types assoc type type-name))
+
+(defn print-resource-types []
+  (prn (get-registered-types)))
