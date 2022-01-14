@@ -3345,7 +3345,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Properties[PROPERTY_COLOR].setW(alpha);
     }
-    
+
     float GetNodeAlpha(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -4441,6 +4441,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             out_n->m_Node.m_RigInstance = 0x0;
             SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), GetNodeSpineSkin(scene, node), GetNodeSpineAnimation(scene, node), false);
+        }
+
+        if (n->m_Node.m_FlipbookAnimHash != 0)
+        {
+            float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
+            float cursor = GetNodeFlipbookCursor(scene, node);
+            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, cursor, playback_rate, 0, 0, 0);
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)
