@@ -49,9 +49,9 @@ TEST_F(ScriptDDFTest, TransformToDDF)
     int top = lua_gettop(L);
 
     lua_newtable(L);
-    dmScript::PushVector3(L, Vectormath::Aos::Vector3(1.0f, 2.0f, 3.0f));
+    dmScript::PushVector3(L, dmVMath::Vector3(1.0f, 2.0f, 3.0f));
     lua_setfield(L, -2, "position");
-    dmScript::PushQuat(L, Vectormath::Aos::Quat(4.0f, 5.0f, 6.0f, 7.0f));
+    dmScript::PushQuat(L, dmVMath::Quat(4.0f, 5.0f, 6.0f, 7.0f));
     lua_setfield(L, -2, "rotation");
 
     char* buf = new char[sizeof(TestScript::Transform)];
@@ -93,9 +93,9 @@ TEST_F(ScriptDDFTest, TransformToLua)
 
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
     lua_getfield(L, -1, "position");
-    Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, -1);
+    dmVMath::Vector3* position = dmScript::CheckVector3(L, -1);
     lua_getfield(L, -2, "rotation");
-    Vectormath::Aos::Quat* rotation = dmScript::CheckQuat(L, -1);
+    dmVMath::Quat* rotation = dmScript::CheckQuat(L, -1);
     ASSERT_NE((void*)0x0, (void*)position);
     ASSERT_NE((void*)0x0, (void*)rotation);
     ASSERT_EQ(1.0f, position->getX());
@@ -127,16 +127,16 @@ TEST_F(ScriptDDFTest, MessageInMessageToDDF)
     lua_pushstring(L, "string_value");
     lua_setfield(L, -2, "string_value");
 
-    dmScript::PushVector3(L, Vectormath::Aos::Vector3(1.0f, 2.0f, 3.0f));
+    dmScript::PushVector3(L, dmVMath::Vector3(1.0f, 2.0f, 3.0f));
     lua_setfield(L, -2, "vec3_value");
 
-    dmScript::PushVector4(L, Vectormath::Aos::Vector4(1.0f, 2.0f, 3.0f, 4.0f));
+    dmScript::PushVector4(L, dmVMath::Vector4(1.0f, 2.0f, 3.0f, 4.0f));
     lua_setfield(L, -2, "vec4_value");
 
-    dmScript::PushQuat(L, Vectormath::Aos::Quat(1.0f, 2.0f, 3.0f, 4.0f));
+    dmScript::PushQuat(L, dmVMath::Quat(1.0f, 2.0f, 3.0f, 4.0f));
     lua_setfield(L, -2, "quat_value");
 
-    Vectormath::Aos::Matrix4 m;
+    dmVMath::Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             m.setElem((float) i, (float) j, (float) (i * 4 + j));
@@ -217,7 +217,7 @@ TEST_F(ScriptDDFTest, MessageInMessageToLua)
     lua_getfield(L, -1, "string_value"); ASSERT_STREQ("foo", luaL_checkstring(L, -1)); lua_pop(L, 1);
 
     lua_getfield(L, -1, "vec3_value");
-    Vectormath::Aos::Vector3* v3 = dmScript::CheckVector3(L, -1);
+    dmVMath::Vector3* v3 = dmScript::CheckVector3(L, -1);
     ASSERT_NE((void*)0x0, (void*)v3);
     ASSERT_EQ(1.0f, v3->getX());
     ASSERT_EQ(2.0f, v3->getY());
@@ -225,7 +225,7 @@ TEST_F(ScriptDDFTest, MessageInMessageToLua)
     lua_pop(L, 1);
 
     lua_getfield(L, -1, "vec4_value");
-    Vectormath::Aos::Vector4* v4 = dmScript::CheckVector4(L, -1);
+    dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
     ASSERT_NE((void*)0x0, (void*)v4);
     ASSERT_EQ(1.0f, v4->getX());
     ASSERT_EQ(2.0f, v4->getY());

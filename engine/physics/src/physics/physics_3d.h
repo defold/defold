@@ -59,24 +59,24 @@ namespace dmPhysics
         uint8_t                     :7;
     };
 
-    inline void ToBt(const Vectormath::Aos::Point3& p0, btVector3& p1, float scale)
+    inline void ToBt(const dmVMath::Point3& p0, btVector3& p1, float scale)
     {
         p1.setValue(p0.getX() * scale, p0.getY() * scale, p0.getZ() * scale);
     }
 
-    inline void ToBt(const Vectormath::Aos::Vector3& p0, btVector3& p1, float scale)
+    inline void ToBt(const dmVMath::Vector3& p0, btVector3& p1, float scale)
     {
         p1.setValue(p0.getX() * scale, p0.getY() * scale, p0.getZ() * scale);
     }
 
-    inline void FromBt(const btVector3& p0, Vectormath::Aos::Point3& p1, float inv_scale)
+    inline void FromBt(const btVector3& p0, dmVMath::Point3& p1, float inv_scale)
     {
         p1.setX(p0.getX() * inv_scale);
         p1.setY(p0.getY() * inv_scale);
         p1.setZ(p0.getZ() * inv_scale);
     }
 
-    inline void FromBt(const btVector3& p0, Vectormath::Aos::Vector3& p1, float inv_scale)
+    inline void FromBt(const btVector3& p0, dmVMath::Vector3& p1, float inv_scale)
     {
         p1.setX(p0.getX() * inv_scale);
         p1.setY(p0.getY() * inv_scale);

@@ -21,7 +21,8 @@
 #include "render/render.h"
 #include "render/render_private.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
+
 namespace dmGraphics
 {
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, int base_register);

@@ -15,10 +15,11 @@
 #include <dmsdk/resource/resource.h>
 #include <resource/resource.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, AnimationSetResource* resource, const char* filename)
     {

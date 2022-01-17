@@ -13,10 +13,14 @@
 #include "comp_private.h"
 #include "resources/res_textureset.h"
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
+#include <render/render.h>
+#include <dmsdk/gamesys/render_constants.h>
 
-using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
+
+using namespace dmVMath;
 
 dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vector3& ref_value, const PropVector3& property)
 {

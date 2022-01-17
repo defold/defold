@@ -106,14 +106,14 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_VIEW:
                 {
-                    Vectormath::Aos::Matrix4* matrix = (Vectormath::Aos::Matrix4*)c->m_Operands[0];
+                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
                     dmRender::SetViewMatrix(render_context, *matrix);
                     delete matrix;
                     break;
                 }
                 case COMMAND_TYPE_SET_PROJECTION:
                 {
-                    Vectormath::Aos::Matrix4* matrix = (Vectormath::Aos::Matrix4*)c->m_Operands[0];
+                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
                     dmRender::SetProjectionMatrix(render_context, *matrix);
                     delete matrix;
                     break;

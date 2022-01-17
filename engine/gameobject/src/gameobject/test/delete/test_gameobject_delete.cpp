@@ -187,7 +187,7 @@ TEST_F(DeleteTest, DeleteSelf)
         for (int i = 0; i < 512; ++i)
         {
             dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go.goc");
-            dmGameObject::SetPosition(go, Vectormath::Aos::Point3((float) i,(float) i, (float) i));
+            dmGameObject::SetPosition(go, dmVMath::Point3((float) i,(float) i, (float) i));
             ASSERT_NE((void*) 0, (void*) go);
             m_DeleteSelfInstances.push_back(go);
             m_DeleteSelfIndexToInstance[i] = go;

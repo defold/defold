@@ -12,7 +12,7 @@
 
 #include <string.h>
 #include <assert.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -25,8 +25,6 @@
 #include "graphics_null_private.h"
 #include "glsl_uniform_parser.h"
 
-using namespace Vectormath::Aos;
-
 uint64_t g_DrawCount = 0;
 uint64_t g_Flipped = 0;
 
@@ -36,6 +34,8 @@ bool g_ForceVertexReloadFail = false;
 
 namespace dmGraphics
 {
+    using namespace dmVMath;
+
     uint16_t TYPE_SIZE[] =
     {
         sizeof(char), // TYPE_BYTE

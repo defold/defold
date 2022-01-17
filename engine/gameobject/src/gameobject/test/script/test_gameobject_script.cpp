@@ -28,7 +28,7 @@
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../proto/gameobject/lua_ddf.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"

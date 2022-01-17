@@ -40,14 +40,14 @@ namespace dmGameSystem
     struct BoxVertex
     {
         inline BoxVertex() {}
-        inline BoxVertex(const Vectormath::Aos::Vector4& p, float u, float v, const Vectormath::Aos::Vector4& color)
+        inline BoxVertex(const dmVMath::Vector4& p, float u, float v, const dmVMath::Vector4& color)
         {
             SetPosition(p);
             SetUV(u, v);
             SetColor(color);
         }
 
-        inline void SetPosition(const Vectormath::Aos::Vector4& p)
+        inline void SetPosition(const dmVMath::Vector4& p)
         {
             m_Position[0] = p.getX();
             m_Position[1] = p.getY();
@@ -60,7 +60,7 @@ namespace dmGameSystem
             m_UV[1] = v;
         }
 
-        inline void SetColor(const Vectormath::Aos::Vector4& c)
+        inline void SetColor(const dmVMath::Vector4& c)
         {
             m_Color[0] = c.getX();
             m_Color[1] = c.getY();

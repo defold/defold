@@ -13,7 +13,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
@@ -25,7 +25,7 @@
 
 #include "gameobject/test/input/test_gameobject_input_ddf.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class InputTest : public jc_test_base_class
 {

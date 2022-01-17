@@ -24,7 +24,7 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class dmGraphicsTest : public jc_test_base_class
 {

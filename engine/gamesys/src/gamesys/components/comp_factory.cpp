@@ -20,7 +20,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include "../resources/res_factory.h"
 
 #include "../gamesys.h"
@@ -28,7 +28,7 @@
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* FACTORY_MAX_COUNT_KEY = "factory.max_count";
 

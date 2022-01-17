@@ -26,7 +26,7 @@
 #include <render/render.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <gamesys/tile_ddf.h>
 #include "../gamesys.h"
@@ -34,12 +34,13 @@
 #include <gamesys/tile_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include "../resources/res_tilegrid.h"
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
     const uint32_t TILEGRID_REGION_SIZE = 32;
 
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     // A "region" spans all layers (in Z) for a bounding box [(x1,y1), (x2,y2)]
     // where the the box spans TILEGRID_REGION_SIZE tiles in each direction
@@ -75,9 +76,9 @@ namespace dmGameSystem
         {
         }
 
-        Vectormath::Aos::Vector3    m_Translation;
-        Vectormath::Aos::Quat       m_Rotation;
-        Vectormath::Aos::Matrix4    m_World;
+        dmVMath::Vector3            m_Translation;
+        dmVMath::Quat               m_Rotation;
+        dmVMath::Matrix4            m_World;
         dmGameObject::HInstance     m_Instance;
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;

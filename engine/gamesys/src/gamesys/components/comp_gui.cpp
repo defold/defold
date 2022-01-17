@@ -20,6 +20,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <render/display_profiles.h>
@@ -43,6 +44,8 @@
 
 namespace dmGameSystem
 {
+    using namespace dmVMath;
+
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
     static bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
     static void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data);
@@ -1235,22 +1238,22 @@ namespace dmGameSystem
             {
                 BoxVertex v00;
                 v00.SetColor(pm_color);
-                v00.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
+                v00.SetPosition(node_transforms[i] * Point3(0, 0, 0));
                 v00.SetUV(0, 0);
 
                 BoxVertex v10;
                 v10.SetColor(pm_color);
-                v10.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+                v10.SetPosition(node_transforms[i] * Point3(1, 0, 0));
                 v10.SetUV(1, 0);
 
                 BoxVertex v01;
                 v01.SetColor(pm_color);
-                v01.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
+                v01.SetPosition(node_transforms[i] * Point3(0, 1, 0));
                 v01.SetUV(0, 1);
 
                 BoxVertex v11;
                 v11.SetColor(pm_color);
-                v11.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
+                v11.SetPosition(node_transforms[i] * Point3(1, 1, 0));
                 v11.SetUV(1, 1);
 
                 gui_world->m_ClientVertexBuffer.Push(v00);
@@ -1383,12 +1386,12 @@ namespace dmGameSystem
             ys[2] = 1 - sy * slice9.getY();
 
             const Matrix4* transform = &node_transforms[i];
-            Vectormath::Aos::Vector4 pts[4][4];
+            Vector4 pts[4][4];
             for (int y=0;y<4;y++)
             {
                 for (int x=0;x<4;x++)
                 {
-                    pts[y][x] = (*transform * Vectormath::Aos::Point3(xs[x], ys[y], 0));
+                    pts[y][x] = (*transform * Point3(xs[x], ys[y], 0));
                 }
             }
 
@@ -1617,7 +1620,7 @@ namespace dmGameSystem
                 // make inner vertex
                 float u = 0.5f + innerMultiplier * c;
                 float v = 0.5f + innerMultiplier * s;
-                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
+                BoxVertex vInner(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
 
                 // make outer vertex
                 float d;
@@ -1628,7 +1631,7 @@ namespace dmGameSystem
 
                 u = 0.5f + d * c;
                 v = 0.5f + d * s;
-                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
+                BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
 
                 // both inner & outer are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
@@ -2165,7 +2168,7 @@ namespace dmGameSystem
     static dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
-        if (set_property== PROP_MATERIAL) {
+        if (set_property == PROP_MATERIAL) {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(gui_component, gui_component->m_Resource), out_value);
         }
         else if (set_property == PROP_FONTS) {
@@ -2394,7 +2397,7 @@ namespace dmGameSystem
                 case 0: value = Vector4(transform.GetTranslation()); break;
                 case 1: value = Vector4(transform.GetRotation()); type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4; break;
                 case 2: value = Vector4(transform.GetScale()); break;
-                case 3: value = Vectormath::Aos::mulPerElem(dmGui::GetNodeProperty(component->m_Scene, node, dmGui::PROPERTY_SIZE), Vector4(transform.GetScale())); break;
+                case 3: value = mulPerElem(dmGui::GetNodeProperty(component->m_Scene, node, dmGui::PROPERTY_SIZE), Vector4(transform.GetScale())); break;
                 default:
                     return false;
             }

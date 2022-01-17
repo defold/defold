@@ -13,10 +13,11 @@
 #include "res_meshset.h"
 
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     dmResource::Result AcquireResources(dmResource::HFactory factory, MeshSetResource* resource, const char* filename)
     {

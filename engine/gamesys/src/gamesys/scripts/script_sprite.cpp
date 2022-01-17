@@ -305,7 +305,7 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
+        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
 
         dmGameSystemDDF::SetConstant msg;
         msg.m_NameHash = name_hash;
@@ -369,7 +369,7 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        Vectormath::Aos::Vector3* scale = dmScript::CheckVector3(L, 2);
+        dmVMath::Vector3* scale = dmScript::CheckVector3(L, 2);
 
         dmGameSystemDDF::SetScale msg;
         msg.m_Scale = *scale;

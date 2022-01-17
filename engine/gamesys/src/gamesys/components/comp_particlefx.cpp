@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include <dmsdk/dlib/vmath.h>
 #include <dlib/index_pool.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -34,6 +35,8 @@
 
 namespace dmGameSystem
 {
+    using namespace dmVMath;
+
     struct ParticleFXWorld;
 
     struct ParticleFXComponentPrototype
@@ -171,7 +174,7 @@ namespace dmGameSystem
 
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode);
     static void SetRenderConstants(dmRender::HNamedConstantBuffer constant_buffer, dmParticle::RenderConstant* constants, uint32_t constant_count);
-    void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
+    void RenderLineCallback(void* usercontext, const dmVMath::Point3& start, const dmVMath::Point3& end, const dmVMath::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
     dmGameObject::CreateResult CompParticleFXAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
@@ -531,7 +534,7 @@ namespace dmGameSystem
         }
     }
 
-    void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color)
+    void RenderLineCallback(void* usercontext, const dmVMath::Point3& start, const dmVMath::Point3& end, const dmVMath::Vector4& color)
     {
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
     }

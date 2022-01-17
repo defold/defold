@@ -15,7 +15,7 @@
 
 #include <string.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/log.h>
 #include <dlib/hash.h>
@@ -43,7 +43,7 @@ namespace dmGameSystem
      * @namespace collectionproxy
      */
 
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
 

@@ -16,7 +16,7 @@
 
 const float epsilon = 0.0001f;
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 TEST(dmVMath, QuatFromAngle)
 {

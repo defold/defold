@@ -57,7 +57,7 @@ namespace dmPhysics
         return 0;
     }
 
-    HCollisionShape3D NewBoxShape3D(HContext3D context, const Vectormath::Aos::Vector3& half_extents)
+    HCollisionShape3D NewBoxShape3D(HContext3D context, const dmVMath::Vector3& half_extents)
     {
         return 0;
     }
@@ -83,8 +83,8 @@ namespace dmPhysics
 
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data,
                                             HCollisionShape3D* shapes,
-                                            Vectormath::Aos::Vector3* translations,
-                                            Vectormath::Aos::Quat* rotations,
+                                            dmVMath::Vector3* translations,
+                                            dmVMath::Quat* rotations,
                                             uint32_t shape_count)
     {
         return 0;
@@ -108,40 +108,40 @@ namespace dmPhysics
         return 0;
     }
 
-    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
+    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& force, const dmVMath::Point3& position)
     {
     }
 
-    Vectormath::Aos::Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Point3();
+        return dmVMath::Point3();
     }
 
-    Vectormath::Aos::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Quat();
+        return dmVMath::Quat();
     }
 
-    Vectormath::Aos::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    Vectormath::Aos::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& velocity)
     {
     }
 
-    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& velocity)
     {
     }
 
@@ -216,13 +216,13 @@ namespace dmPhysics
     {
     }
 
-    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity)
+    void SetGravity3D(HWorld3D world, const dmVMath::Vector3& gravity)
     {
     }
 
-    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world)
+    dmVMath::Vector3 GetGravity3D(HWorld3D world)
     {
-        return Vectormath::Aos::Vector3(0.0f);
+        return dmVMath::Vector3(0.0f);
     }
 
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)

@@ -17,11 +17,12 @@
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class BonesTest : public jc_test_base_class
 {

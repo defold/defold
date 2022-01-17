@@ -18,7 +18,7 @@
 #include <dlib/profile.h>
 #include <dlib/hash.h>
 #include <dlib/align.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
@@ -155,8 +155,6 @@ PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 #error "Platform not supported."
 #endif
 
-using namespace Vectormath::Aos;
-
 // OpenGLES compatibility
 #if defined(GL_ES_VERSION_2_0)
 #define glClearDepth glClearDepthf
@@ -175,6 +173,8 @@ using namespace Vectormath::Aos;
 
 namespace dmGraphics
 {
+    using namespace dmVMath;
+
 static void LogGLError(GLint err, const char* fnname, int line)
 {
 #if defined(GL_ES_VERSION_2_0)
@@ -737,9 +737,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             if (is_desktop) {
                 dmLogWarning("Trying OpenGL 3.1 compat mode");
 
-                // Try a second time, this time without core profile, and lower the minor version
-                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1); // We currently cannot go lower since we support shader model 140
-                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+                // Try a second time, this time without core profile, and lower the minor version.
+                // And GLFW clears hints, so we have to set them again.
+                if (params->m_HighDPI) {
+                    glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
+                }
+                glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+                glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+
+                // We currently cannot go lower since we support shader model 140
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
                 if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
                 {
