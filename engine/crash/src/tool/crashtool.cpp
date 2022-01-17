@@ -377,7 +377,7 @@ int main(int argc, char** argv)
 
     int ret = 0;
 
-    dmCrash::HDump dump = dmCrash::LoadPreviousPath(argv[1]);
+    dmCrash::HDump dump = dmCrash::LoadPath(argv[1]);
     if(dump)
     {
     	const char* names[dmCrash::SYSFIELD_MAX] = {

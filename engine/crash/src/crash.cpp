@@ -29,7 +29,7 @@
 namespace dmCrash
 {
     AppState g_AppState;
-    AppState g_PreviousAppState;
+    AppState g_LoadedAppState;
 
     // The default path is where the dumps are stored before the application configures a different path.
     static char g_FilePathDefault[AppState::FILEPATH_MAX];
@@ -118,16 +118,16 @@ namespace dmCrash
         return RESULT_INVALID_PARAM;
     }
 
-    static HDump LoadPrevious(FILE *f)
+    static HDump Load(FILE *f)
     {
         AppStateHeader header;
         memset(&header, 0x0, sizeof(AppStateHeader));
         if (fread(&header, 1, sizeof(AppStateHeader), f) == sizeof(AppStateHeader))
         {
-            memset(&g_PreviousAppState, 0x0, sizeof(AppState));
+            memset(&g_LoadedAppState, 0x0, sizeof(AppState));
             if (header.version == AppState::VERSION && header.struct_size == sizeof(AppState))
             {
-                if (fread(&g_PreviousAppState, 1, sizeof(AppState), f) == sizeof(AppState))
+                if (fread(&g_LoadedAppState, 1, sizeof(AppState), f) == sizeof(AppState))
                 {
                     return 1;
                 }
@@ -149,13 +149,13 @@ namespace dmCrash
         return 0;
     }
 
-    HDump LoadPreviousPath(const char *where)
+    HDump LoadPath(const char *where)
     {
         HDump ret = 0;
         FILE* fhandle = fopen(where, "rb");
         if (fhandle)
         {
-            ret = LoadPrevious(fhandle);
+            ret = Load(fhandle);
             fclose(fhandle);
         }
 
@@ -166,27 +166,27 @@ namespace dmCrash
     HDump LoadPrevious()
     {
         HDump dump = 0;
-        if ((dump = LoadPreviousPath(g_FilePathDefault)) != 0)
+        if ((dump = LoadPath(g_FilePathDefault)) != 0)
         {
             return dump;
         }
 
-        return LoadPreviousPath(g_FilePath);
+        return LoadPath(g_FilePath);
     }
 
     void Release(HDump dump)
     {
         if (dump == 1)
         {
-            memset(&g_PreviousAppState, 0x0, sizeof(AppState));
+            memset(&g_LoadedAppState, 0x0, sizeof(AppState));
         }
     }
 
     AppState* Check(HDump dump)
     {
-        if (dump == 1 && g_PreviousAppState.m_EngineVersion[0] != 0x0)
+        if (dump == 1 && g_LoadedAppState.m_EngineVersion[0] != 0x0)
         {
-            return &g_PreviousAppState;
+            return &g_LoadedAppState;
         }
 
         return NULL;

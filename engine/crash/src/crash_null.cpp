@@ -18,7 +18,7 @@ namespace dmCrash
 {
     // A bit silly that we need these for a null implementation...
     AppState g_AppState;
-    AppState g_PreviousAppState;
+    AppState g_LoadedAppState;
     char g_FilePath[AppState::FILEPATH_MAX];
 
 
@@ -61,7 +61,7 @@ namespace dmCrash
         return RESULT_OK;
     }
 
-    HDump LoadPreviousPath(const char* where)
+    HDump LoadPath(const char* where)
     {
         (void)where;
         return 0;
@@ -146,4 +146,3 @@ namespace dmCrash
         return 0;
     }
 }
-

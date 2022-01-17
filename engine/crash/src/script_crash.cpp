@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -75,6 +75,29 @@ namespace dmCrash
         const char* path = luaL_checkstring(L, 1);
         SetFilePath(path);
         return 0;
+    }
+
+    /*# loads a crash dump
+     *
+     * As opposed to crash.load_previous the dump will NOT be removed from disk
+     * upon a successful load.
+     *
+     * @name crash.load
+     * @return handle [type:number] handle to the loaded dump, or nil if no dump was found
+     */
+    static int Crash_Load(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        HDump dump = LoadPath(path);
+        if (dump != 0)
+        {
+            lua_pushnumber(L, dump);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
     }
 
     /*# loads a previously written crash dump
@@ -304,6 +327,7 @@ namespace dmCrash
     static const luaL_reg Crash_methods[] =
     {
         {"set_file_path", Crash_SetFilePath},
+        {"load", Crash_Load},
         {"load_previous", Crash_LoadPrevious},
         {"get_user_field", Crash_GetUserField},
         {"get_sys_field", Crash_GetSysField},
@@ -441,4 +465,3 @@ namespace dmCrash
 
     DM_DECLARE_EXTENSION(CrashExt, "Crash", 0, 0, InitializeCrash, 0, 0, FinalizeCrash)
 }
-

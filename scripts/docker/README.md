@@ -15,7 +15,7 @@ Currently supported platforms:
 
 # Run
 
-* Run the container (wit or withhout path specified)
+* Run the container (with or without path specified)
 
   defold$ ./scripts/docker/run.sh [./path/to/folder]
 
@@ -29,4 +29,3 @@ and it will mount that folder into the container, and you can start typing right
 * Run the debug script
 
   defold$ ./scripts/docker/run.sh
-

@@ -98,13 +98,13 @@ namespace dmCrash
 
 
     /**
-     * Load a previously written crash dump from a path.
+     * Load a crash dump from a path.
      * @return handle to loaded dump, 0 if no dump found
      */
-    HDump LoadPreviousPath(const char* path);
+    HDump LoadPath(const char* path);
 
     /**
-     * Unloads a previously loaded crash dump.
+     * Unloads a loaded crash dump.
      * @param dump The crash dump to unload
      */
     void Release(HDump dump);
