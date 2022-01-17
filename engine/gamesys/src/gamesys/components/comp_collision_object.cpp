@@ -407,10 +407,7 @@ namespace dmGameSystem
                 component->m_Object2D = collision_object;
 
                 SetupEmptyTileGrid(world,component);
-
-                if (enabled) {
-                    SetupTileGrid(world, component);
-                }
+                SetupTileGrid(world, component);
             }
             else
             {
@@ -862,7 +859,6 @@ namespace dmGameSystem
             dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_StartAsEnabled);
         } else {
             dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, component->m_StartAsEnabled);
-            SetupTileGrid(world, component);
         }
         component->m_AddedToUpdate = true;
 
