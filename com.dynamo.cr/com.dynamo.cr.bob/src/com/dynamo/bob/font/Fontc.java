@@ -453,9 +453,9 @@ public class Fontc {
             channelCount = 4;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                    inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-            // If font has shadow, we'll need 3 channels. Not all platforms universally support
+            // If font has shadow and blur, we'll need 3 channels. Not all platforms universally support
             // texture formats with only 2 channels (such as LUMINANCE_ALPHA)
-            if (fontDesc.getShadowAlpha() > 0.0f) {
+            if (fontDesc.getShadowBlur() > 0.0f && fontDesc.getShadowAlpha() > 0.0f) {
                 channelCount = 3;
             }
             else {
