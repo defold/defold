@@ -1531,9 +1531,8 @@ int _glfwPlatformGetDefaultFramebuffer( )
 
 void _glfwPlatformSetWindowTitle( const char *title )
 {
-    int title_len = (int)strlen(title);
     wchar_t unicode_title[MAX_WINDOW_TITLE_LENGTH];
-    int res = MultiByteToWideChar(CP_UTF8, 0, title, title_len, &unicode_title, MAX_WINDOW_TITLE_LENGTH);
+    int res = MultiByteToWideChar(CP_UTF8, 0, title, -1, &unicode_title, MAX_WINDOW_TITLE_LENGTH);
     if (res <= 0)
     {
         unicode_title[0] = 0;
