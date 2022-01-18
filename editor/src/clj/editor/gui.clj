@@ -79,7 +79,7 @@
              :label "Gui"
              :icon gui-icon
              :pb-class Gui$SceneDesc
-             :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene] [:particlefxs :particlefx] [:resources :path]]
+             :resource-fields [:script :material [:fonts :font] [:textures :texture] [:particlefxs :particlefx] [:resources :path]]
              :tags #{:component :non-embeddable}
              :tag-opts {:component {:transform-properties #{}}}})
 
@@ -2240,10 +2240,9 @@
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
   (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
-        [textures fonts spine-scenes particlefx-resources resources]
+        [textures fonts particlefx-resources resources]
         (loop [textures (transient {})
                fonts (transient {})
-               spine-scenes (transient {})
                particlefx-resources (transient {})
                resources (transient {})
                msgs (conj (mapv #(get-in % [:user-data :pb]) template-build-targets) rt-pb-msg)]
@@ -2251,12 +2250,11 @@
             (recur
               (merge-fn! textures msg :textures)
               (merge-fn! fonts msg :fonts)
-              (merge-fn! spine-scenes msg :spine-scenes)
               (merge-fn! particlefx-resources msg :particlefxs)
               (merge-fn! resources msg :resources)
               (next msgs))
-            [(persistent! textures) (persistent! fonts) (persistent! spine-scenes) (persistent! particlefx-resources) (persistent! resources)]))]
-    (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :spine-scenes (mapv second spine-scenes) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
+            [(persistent! textures) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
+    (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource rt-pb-msg dep-build-targets template-build-targets]
   (g/precluding-errors build-errors
@@ -2344,15 +2342,7 @@
   (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
-
   (input handler-infos g/Any :array)
-  (input fonts-node g/NodeID) ;; deprecated
-  (input textures-node g/NodeID) ;; deprecated
-  (input layers-node g/NodeID) ;; deprecated
-  (input layouts-node g/NodeID) ;; deprecated
-  (input resources-node g/NodeID) ;; deprecated
-  (input particlefx-resources-node g/NodeID) ;; deprecated
-
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
   (input default-tex-params g/Any)
@@ -2372,7 +2362,6 @@
   (output layer-msgs g/Any (g/fnk [layer-msgs] (map #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input layout-msgs g/Any :array)
   (input layout-rt-msgs g/Any :array)
-  ;;(input spine-scene-msgs g/Any :array)
   (input particlefx-resource-msgs g/Any :array)
   (input resource-msgs g/Any :array)
   (input node-ids IDMap)
@@ -2644,7 +2633,6 @@
                               no-font [FontNode
                                        :name ""
                                        :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
-                    (g/connect fonts-node :_node-id self :fonts-node)
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)
                     (g/connect fonts-node :node-outline self :child-outlines)
@@ -2659,7 +2647,6 @@
                               no-texture [InternalTextureNode
                                           :name ""
                                           :gpu-texture texture/white-pixel]]
-                    (g/connect textures-node :_node-id self :textures-node)
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
@@ -2673,7 +2660,6 @@
       (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources
                               no-particlefx-resource [ParticleFXResource
                                                       :name ""]]
-                    (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node)
                     (g/connect particlefx-resources-node :_node-id self :nodes)
                     (g/connect particlefx-resources-node :build-errors self :build-errors)
                     (g/connect particlefx-resources-node :node-outline self :child-outlines)
@@ -2690,7 +2676,6 @@
       (g/make-nodes graph-id [layers-node LayersNode
                               no-layer [LayerNode
                                         :name ""]]
-                    (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
                     (g/connect layers-node :layer-names self :layer-names)
@@ -2751,17 +2736,13 @@
                            child-index 0]
                       (if node-desc
                         (let [node-type (get (kw->node-type) (:type node-desc) GuiNode)
-                              test-1 (prn "MAWE" "node-desc" node-desc)
-                              test-2 (prn "MAWE" "node-type" node-type)
-;; TODO: Check and fix this code!
                               props (-> node-desc
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
                                         (cond->
-                                         (= :type-template (:type node-desc)) (assoc :template {})))
-                                        ;;(= :type-template (:type node-desc))
-                                        ;;  (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
-                                        ;;                    :overrides (get template-data (:id node-desc) {})})
+                                         (= :type-template (:type node-desc))
+                                          (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
+                                                            :overrides (get template-data (:id node-desc) {})})))
 
                               tx-data (g/make-nodes graph-id [gui-node [node-type props]]
                                                     (let [parent (if (empty? (:parent node-desc))
@@ -2772,7 +2753,6 @@
                           (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc child-index)))
                         all-tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
-                    (g/connect layouts-node :_node-id self :layouts-node)
                     (g/connect layouts-node :_node-id self :nodes)
                     (g/connect layouts-node :build-errors self :build-errors)
                     (g/connect layouts-node :node-outline self :child-outlines)
