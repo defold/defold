@@ -340,7 +340,9 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
 
     if (ret != 0)
     {
-        SSL_LOGE("mbedtls_ssl_handshake failed", ret);
+        char buffer[512] = "";
+        mbedtls_strerror(ret, buffer, sizeof(buffer));
+        dmLogError("SSLSocket mbedtls_ssl_handshake: 0x%04x - %s",ret, buffer);
         if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
         {
             dmLogError("Unable to verify the server's certificate.");
