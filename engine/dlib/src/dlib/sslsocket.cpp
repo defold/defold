@@ -16,7 +16,7 @@
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/ssl.h>
 #include <mbedtls/pk.h>
-#include <mbedtls/platform_util.h>
+#include <mbedtls/x509_crt.h>
 
 // For the select stuff. We could possibly use our own select from socket.h
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
@@ -67,7 +67,7 @@ struct SSLSocketContext
     mbedtls_entropy_context     m_MbedEntropy;
     mbedtls_ctr_drbg_context    m_MbedCtrDrbg;
     mbedtls_ssl_config          m_MbedConf;
-    mbedtls_pk_context          m_MbedPk;
+    mbedtls_x509_crt            m_x509CertChain;
     bool                        m_KeyLoaded;
 } g_SSLSocketContext;
 
@@ -189,30 +189,20 @@ Result Finalize()
     mbedtls_ssl_config_free( &g_SSLSocketContext.m_MbedConf );
     mbedtls_ctr_drbg_free( &g_SSLSocketContext.m_MbedCtrDrbg );
     mbedtls_entropy_free( &g_SSLSocketContext.m_MbedEntropy );
-    if (g_SSLSocketContext.m_KeyLoaded)
-    {
-        mbedtls_pk_free( &g_SSLSocketContext.m_MbedPk );
-    }
     return RESULT_OK;
 }
 
-void LoadPublicKeys(const uint8_t* key, uint32_t keylen)
-{;
-    mbedtls_pk_init(&g_SSLSocketContext.m_MbedPk);
-
+Result LoadPublicKeys(const uint8_t* key, uint32_t keylen)
+{
     int ret;
-    if ((ret = mbedtls_pk_parse_public_key(&g_SSLSocketContext.m_MbedPk, key, keylen)) != 0)
+    if ((ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen)) != 0)
     {
-        mbedtls_pk_free(&g_SSLSocketContext.m_MbedPk);
-        char buffer[512] = "";
-        mbedtls_strerror(ret, buffer, sizeof(buffer));
-        dmLogError("mbedtls: %s0x%04x - %s", ret < 0 ? "-":"", ret < 0 ? -ret:ret, buffer);
-        dmLogError("LoadPublicKeys: mbedtls_pk_parse_public_key failed: %d", ret);
-        return;
+        dmLogError("LoadPublicKeys: mbedtls_x509_crt_parse failed: %d", ret);
+        return RESULT_SSL_INIT_FAILED;
     }
     g_SSLSocketContext.m_KeyLoaded = true;
-    mbedtls_platform_zeroize((void*)key, keylen);
     mbedtls_ssl_conf_authmode( &g_SSLSocketContext.m_MbedConf, MBEDTLS_SSL_VERIFY_REQUIRED );
+    return RESULT_OK;
 }
 
 static void TimingSetDelay(void* data, uint32_t int_ms, uint32_t fin_ms)
@@ -306,6 +296,11 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
     c->m_SSLNetContext->m_Timeout = timeout;
 
     mbedtls_ssl_init( c->m_SSLContext );
+
+    if (g_SSLSocketContext.m_KeyLoaded)
+    {
+        mbedtls_ssl_conf_ca_chain( &g_SSLSocketContext.m_MbedConf, &g_SSLSocketContext.m_x509CertChain, NULL);
+    }
 
     int ret = 0;
     if( ( ret = mbedtls_ssl_setup( c->m_SSLContext, &g_SSLSocketContext.m_MbedConf ) ) != 0 )

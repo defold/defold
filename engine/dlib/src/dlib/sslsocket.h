@@ -41,8 +41,9 @@ namespace dmSSLSocket
      * @param key key
      * @param keylen key length
      * @name dmSSLSocket::LoadPublicKeys
+     * @return RESULT_OK on success
      */
-    void LoadPublicKeys(const uint8_t* key, uint32_t keylen);
+    Result LoadPublicKeys(const uint8_t* key, uint32_t keylen);
 }
 
 #endif // DM_SSLSOCKET_H

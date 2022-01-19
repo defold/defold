@@ -446,23 +446,23 @@ namespace dmEngine
         return false;
     }
 
-    static void LoadSslKeys(int argc, char *argv[])
+    static bool LoadSslKeys(int argc, char *argv[])
     {
         char res_path[DMPATH_MAX_PATH];
         if (dmSys::GetResourcesPath(argc, argv, res_path, sizeof(res_path)) != dmSys::RESULT_OK)
         {
-            return;
+            return false;
         }
         char ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(res_path, "ssl_keys.pem", ssl_keys_path, sizeof(ssl_keys_path));
         if (!dmSys::ResourceExists(ssl_keys_path))
         {
-            return;
+            return false;
         }
         uint32_t file_size;
         if (dmSys::ResourceSize(ssl_keys_path, &file_size) != dmSys::RESULT_OK)
         {
-            return;
+            return false;
         }
         uint8_t* ssl_keys_buf = (uint8_t*)malloc(file_size);
         uint32_t loaded_file_size = 0;
@@ -471,10 +471,11 @@ namespace dmEngine
         {
             dmLogError("Failed to read ssl_keys.pem at %s (%i)", ssl_keys_path, load_result);
             free(ssl_keys_buf);
-            return;
+            return false;
         }
-        dmSSLSocket::LoadPublicKeys(ssl_keys_buf, loaded_file_size);
+        dmSSLSocket::Result loadind_key_result = dmSSLSocket::LoadPublicKeys(ssl_keys_buf, loaded_file_size);
         free(ssl_keys_buf);
+        return loadind_key_result == dmSSLSocket::RESULT_OK;
     }
 
     static void SetSwapInterval(HEngine engine, int swap_interval)
@@ -564,7 +565,10 @@ namespace dmEngine
         engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
-        LoadSslKeys(argc, argv);
+        if (LoadSslKeys(argc, argv))
+        {
+            dmLogInfo("SSL verification enabled");
+        }
 
         char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
