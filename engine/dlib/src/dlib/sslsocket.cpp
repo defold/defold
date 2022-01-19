@@ -194,7 +194,8 @@ Result Finalize()
 
 Result LoadPublicKeys(const uint8_t* key, uint32_t keylen)
 {
-    int ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen);
+    // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
+    int ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen + 1);
     if (ret != 0)
     {
         char buffer[512] = "";
