@@ -473,6 +473,12 @@ namespace dmEngine
             free(ssl_keys_buf);
             return false;
         }
+        if (loaded_file_size != file_size)
+        {
+            dmLogError("Failed to load ssl_keys.pem: tried reading %d bytes, got %d bytes", file_size, loaded_file_size);
+            free(ssl_keys_buf);
+            return false;
+        }
         dmSSLSocket::Result loadind_key_result = dmSSLSocket::LoadPublicKeys(ssl_keys_buf, loaded_file_size);
         free(ssl_keys_buf);
         return loadind_key_result == dmSSLSocket::RESULT_OK;

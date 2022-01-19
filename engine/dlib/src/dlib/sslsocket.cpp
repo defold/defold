@@ -194,10 +194,12 @@ Result Finalize()
 
 Result LoadPublicKeys(const uint8_t* key, uint32_t keylen)
 {
-    int ret;
-    if ((ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen)) != 0)
+    int ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen);
+    if (ret != 0)
     {
-        dmLogError("LoadPublicKeys: mbedtls_x509_crt_parse failed: %d", ret);
+        char buffer[512] = "";
+        mbedtls_strerror(ret, buffer, sizeof(buffer));
+        dmLogError("SSLSocket mbedtls_x509_crt_parse: %s0x%04x - %s", ret < 0 ? "-":"", ret < 0 ? -ret:ret, buffer);
         return RESULT_SSL_INIT_FAILED;
     }
     g_SSLSocketContext.m_KeyLoaded = true;
