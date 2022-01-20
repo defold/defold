@@ -112,7 +112,7 @@ The installation of the HTML5 compiler is done by calling the build function `in
 ## Linux
 
 We use packages from [Clang](https://github.com/llvm/llvm-project/releases) for the Ubuntu16.04 target.
-Current version: https://releases.llvm.org/9.0.0/clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+Current version: https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0/clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
 
 Download this file and put it into your `./local_sdks` folder.
 The package will then be extracted when you run the `./scripts/build.py install_ext` command.
