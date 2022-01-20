@@ -511,8 +511,9 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
             // copy Defold archive files to the assets/ dir
-            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
-                File source = new File(new File(project.getRootDirectory(), project.getBuildDirectory()), name);
+            File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                File source = new File(buildDir, name);
                 File dest = new File(assetsDir, name);
                 log("Copying asset " + source + " to " + dest);
                 FileUtils.copyFile(source, dest);

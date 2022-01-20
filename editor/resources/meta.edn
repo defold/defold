@@ -317,6 +317,12 @@
    :help "http timeout in seconds. zero to disable timeout",
    :default 0.0,
    :path ["network" "http_timeout"]}
+  {:type :resource,
+   :filter "pem"
+   :default "",
+   :help "file reference of the ssl certificates pem file",
+   :preserve-extension true,
+   :path ["network" "ssl_certificates"]}
   {:type :integer,
    :help "max number of instances per collection, 1024 by default",
    :default 1024,

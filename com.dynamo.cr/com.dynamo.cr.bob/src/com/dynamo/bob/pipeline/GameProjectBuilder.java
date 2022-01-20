@@ -569,6 +569,16 @@ public class GameProjectBuilder extends Builder<Void> {
                 project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
                 project.getPublisher().Publish();
 
+                // Copy SSL public keys if specified
+                String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
+                if (sslCertificatesPath != null && !sslCertificatesPath.isEmpty())
+                {
+                    File source = new File(project.getRootDirectory(), sslCertificatesPath);
+                    File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+                    File dist = new File(buildDir, "ssl_keys.pem");
+                    FileUtils.copyFile(source, dist);
+                }
+
                 manifestTmpFileHandle.delete();
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
                 if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {

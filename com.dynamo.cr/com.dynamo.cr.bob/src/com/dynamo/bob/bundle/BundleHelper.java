@@ -87,6 +87,15 @@ public class BundleHelper {
     public static final String MANIFEST_NAME_OSX        = "Info.plist";
     public static final String MANIFEST_NAME_HTML5      = "engine_template.html";
 
+    private static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
+    private static final String[] ARCHIVE_FILE_NAMES = {
+        "game.projectc",
+        "game.arci",
+        "game.arcd",
+        "game.dmanifest",
+        "game.public.der"
+    };
+
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public static void throwIfCanceled(ICanceled canceled) {
@@ -117,6 +126,16 @@ public class BundleHelper {
         }
 
         this.variant = variant;
+    }
+
+    public static String[] getArchiveFilenames(File buildDir) {
+        File sslCerts = new File(buildDir, SSL_CERTIFICATES_NAME);
+        if (sslCerts.exists()) {
+            String[] files = Arrays.copyOf(ARCHIVE_FILE_NAMES, ARCHIVE_FILE_NAMES.length + 1);
+            files[ARCHIVE_FILE_NAMES.length] = SSL_CERTIFICATES_NAME;
+            return files;
+        }
+        return ARCHIVE_FILE_NAMES;
     }
 
     public static String projectNameToBinaryName(String projectName) {
