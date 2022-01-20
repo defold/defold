@@ -60,20 +60,14 @@
 (def ^:private texture-icon "icons/32/Icons_25-AT-Image.png")
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private gui-icon "icons/32/Icons_38-GUI.png")
-(def ^:private text-icon "icons/32/Icons_39-GUI-Text-node.png")
-(def ^:private box-icon "icons/32/Icons_40-GUI-Box-node.png")
-(def ^:private pie-icon "icons/32/Icons_41-GUI-Pie-node.png")
 (def ^:private virtual-icon "icons/32/Icons_01-Folder-closed.png")
 (def ^:private layer-icon "icons/32/Icons_42-Layers.png")
 (def ^:private layout-icon "icons/32/Icons_50-Display-profiles.png")
 (def ^:private template-icon gui-icon)
 
-(def ^:private node-icons {:type-box box-icon
-                           :type-pie pie-icon
-                           :type-text text-icon
-                           :type-template template-icon
-                           :type-spine spine/spine-model-icon
-                           :type-particlefx particlefx/particle-fx-icon})
+(def ^:private text-icon "icons/32/Icons_39-GUI-Text-node.png")
+(def ^:private box-icon "icons/32/Icons_40-GUI-Box-node.png")
+(def ^:private pie-icon "icons/32/Icons_41-GUI-Pie-node.png")
 
 (def pb-def {:ext "gui"
              :label "Gui"
@@ -330,6 +324,10 @@
       properties/round-vec
       (conj 1.0)))
 
+(declare get-registered-node-type-info get-registered-node-type-infos)
+
+;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 (g/defnk produce-node-msg [type parent child-index _declared-properties]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
@@ -382,9 +380,11 @@
    [:font-names :font-names]
    [:layer-names :layer-names]
    [:layer->index :layer->index]
+
    [:spine-scene-element-ids :spine-scene-element-ids]
    [:spine-scene-infos :spine-scene-infos]
    [:spine-scene-names :spine-scene-names]
+
    [:particlefx-infos :particlefx-infos]
    [:particlefx-resource-names :particlefx-resource-names]
    [:resource-names :resource-names]
@@ -415,7 +415,7 @@
 (declare GuiSceneNode GuiNode NodeTree LayoutsNode LayoutNode BoxNode PieNode
          TextNode TemplateNode ParticleFXNode)
 
-(declare node-type->kw kw->node-type)
+(declare get-registered-node-type-cls)
 
 (defn- node->node-tree
   ([node]
@@ -570,6 +570,7 @@
 
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0))
   (property type g/Keyword (dynamic visible (g/constantly false)))
+  (property custom-type g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (input id-counts NameCounts)
   (input id-prefix g/Str)
@@ -625,12 +626,14 @@
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
+  
   (input spine-scene-element-ids SpineSceneElementIds)
   (output spine-scene-element-ids SpineSceneElementIds (gu/passthrough spine-scene-element-ids))
   (input spine-scene-infos SpineSceneInfos)
   (output spine-scene-infos SpineSceneInfos (gu/passthrough spine-scene-infos))
   (input spine-scene-names GuiResourceNames)
   (output spine-scene-names GuiResourceNames (gu/passthrough spine-scene-names))
+
   (input particlefx-infos ParticleFXInfos)
   (output particlefx-infos ParticleFXInfos (gu/passthrough particlefx-infos))
   (input particlefx-resource-names GuiResourceNames)
@@ -643,14 +646,17 @@
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [child-outlines]
                                                                      (vec (sort-by :child-index child-outlines))))
   (output node-outline-reqs g/Any :cached (g/fnk []
-                                                 (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) (node-type->kw))))
+                                                 (mapv (fn [type-info] {:node-type (:node-cls type-info)
+                                                                        :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
+                                                       (get-registered-node-type-infos))))
+  
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type own-build-errors _overridden-properties]
+          (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type custom-type own-build-errors _overridden-properties]
             (cond-> {:node-id _node-id
                      :node-outline-key id
                      :label id
                      :child-index child-index
-                     :icon (node-icons type)
+                     :icon (:icon (get-registered-node-type-info type custom-type))
                      :child-reqs node-outline-reqs
                      :copy-include-fn (fn [node]
                                         (let [node-id (g/node-id node)]
@@ -1341,9 +1347,11 @@
                                                                   [:font-shaders :aux-font-shaders]
                                                                   [:font-datas :aux-font-datas]
                                                                   [:font-names :aux-font-names]
+                                                                  
                                                                   [:spine-scene-element-ids :aux-spine-scene-element-ids]
                                                                   [:spine-scene-infos :aux-spine-scene-infos]
                                                                   [:spine-scene-names :aux-spine-scene-names]
+
                                                                   [:particlefx-infos :aux-particlefx-infos]
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
@@ -1839,9 +1847,12 @@
 
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
-  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
+  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))           
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) (node-type->kw))))
+          (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [type-info] {:node-type (:node-cls type-info)
+                                                                     :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
+                                                    (get-registered-node-type-infos))))
+
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                 {:node-id _node-id
                                  :aabb geom/null-aabb
@@ -2482,16 +2493,16 @@
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
 
-(defn add-gui-node! [project scene parent node-type select-fn]
+(defn add-gui-node! [project scene parent node-type custom-type select-fn]
   (let [node-tree (g/node-value scene :node-tree)
         taken-ids (g/node-value node-tree :id-counts)
         id (outline/resolve-id (subs (name node-type) 5) taken-ids)
-        def-node-type (get (kw->node-type) node-type GuiNode)
+        def-node-type (get-registered-node-type-cls node-type custom-type)
         child-indices (g/node-value parent :child-indices)
         next-index (next-child-index child-indices)]
     (-> (concat
           (g/operation-label "Add Gui Node")
-          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :child-index next-index :type node-type :size [200.0 100.0 0.0]]]
+          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :child-index next-index :type node-type :custom-type custom-type :size [200.0 100.0 0.0]]]
                         (attach-gui-node node-tree parent gui-node node-type)
                         (when select-fn
                           (select-fn [gui-node]))))
@@ -2499,42 +2510,44 @@
       g/tx-nodes-added
       first)))
 
-(defn add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
-  (add-gui-node! project scene parent node-type select-fn))
+(defn- add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
+  (add-gui-node! project scene parent node-type custom-type select-fn))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :add
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
 
 (defn- add-handler-options [node]
-  (let [types (protobuf/enum-values Gui$NodeDesc$Type)
+  (let [type-infos (get-registered-node-type-infos)
         node (g/override-root node)
         scene (node->gui-scene node)
         node-options (cond
                        (g/node-instance? TemplateNode node)
                        (if-some [template-scene (g/override-root (g/node-feeding-into node :template-resource))]
                          (let [parent (g/node-value template-scene :node-tree)]
-                           (mapv (fn [[type info]]
-                                   (make-add-handler template-scene parent (:display-name info) (get node-icons type)
-                                                     add-gui-node-handler {:node-type type}))
-                                 types))
+                           (mapv (fn [info]
+                                   (if-not (:deprecated info)
+                                     (make-add-handler template-scene parent (:display-name info) (:icon info)
+                                                       add-gui-node-handler (into {} info))))
+                                 type-infos))
                          [])
 
                        (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
                                       (g/node-value scene :node-tree)
                                       node)]
-                         (mapv (fn [[type info]]
-                                 (make-add-handler scene parent (:display-name info) (get node-icons type)
-                                                   add-gui-node-handler {:node-type type}))
-                               types))
+                         (mapv (fn [info]
+                                 (if-not (:deprecated info)
+                                   (make-add-handler scene parent (:display-name info) (:icon info)
+                                                     add-gui-node-handler (into {} info))))
+                               type-infos))
 
                        :else
                        [])
         handler-options (when (empty? node-options)
-                              (let [[parent menu-label menu-icon add-fn opts] (g/node-value node :add-handler-info)
-                                    parent (if (= node scene) parent node)]
-                                (make-add-handler scene parent menu-label menu-icon add-fn opts)))]
+                          (let [[parent menu-label menu-icon add-fn opts] (g/node-value node :add-handler-info)
+                                parent (if (= node scene) parent node)]
+                            (make-add-handler scene parent menu-label menu-icon add-fn opts)))]
       (filter some? (conj node-options handler-options))))
 
 (defn- unused-display-profiles [scene]
@@ -2716,9 +2729,11 @@
                                      [:font-names :font-names]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
+
                                      [:spine-scene-element-ids :spine-scene-element-ids]
                                      [:spine-scene-infos :spine-scene-infos]
                                      [:spine-scene-names :spine-scene-names]
+
                                      [:particlefx-infos :particlefx-infos]
                                      [:particlefx-resource-names :particlefx-resource-names]
                                      [:resource-names :resource-names]
@@ -2735,7 +2750,7 @@
                            all-tx-data []
                            child-index 0]
                       (if node-desc
-                        (let [node-type (get (kw->node-type) (:type node-desc) GuiNode)
+                        (let [node-type (get-registered-node-type-cls (:type node-desc) (:custom-type node-desc))
                               props (-> node-desc
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
@@ -2918,27 +2933,60 @@
     :command :set-gui-layout
     :label "Test"}])
 
-;; /////////////////////////////////////////////////////////////
+;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(def base-node-types {BoxNode :type-box
-                      PieNode :type-pie
-                      TextNode :type-text
-                      TemplateNode :type-template
-                      ParticleFXNode :type-particlefx})
+;; Auto generated from the gui_ddf.proto enum
 
-(def ^:private custom-node-types (atom {}))
+(def ^:private base-node-type-infos [{:node-type :type-box
+                                      :node-cls BoxNode
+                                      :display-name "Box"
+                                      :custom-type 0
+                                      :icon box-icon
+                                      :output-type :type-box}
+                                     {:node-type :type-pie
+                                     :node-cls PieNode
+                                     :display-name "Pie"
+                                     :custom-type 0
+                                     :icon pie-icon
+                                     :output-type :type-pie}
+                                     {:node-type :type-text
+                                     :node-cls TextNode
+                                     :display-name "Text"
+                                     :custom-type 0
+                                     :icon text-icon
+                                     :output-type :type-text}
+                                     {:node-type :type-template
+                                     :node-cls TemplateNode
+                                     :display-name "Template"
+                                     :custom-type 0
+                                     :icon template-icon
+                                     :output-type :type-template}
+                                     {:node-type :type-particlefx
+                                     :node-cls ParticleFXNode
+                                     :display-name "ParticleFX"
+                                     :custom-type 0
+                                     :icon particlefx/particle-fx-icon
+                                     :output-type :type-particlefx}])
 
-(defn- get-registered-types []
-  (merge base-node-types @custom-node-types))
+(def ^:private custom-node-type-infos (atom []))
 
-(defn- node-type->kw []
-  (get-registered-types))
+(defn- get-registered-node-type-infos []
+  (concat base-node-type-infos @custom-node-type-infos))
 
-(defn- kw->node-type []
-  (set/map-invert (get-registered-types)))
+(defn- get-registered-node-type-info [node-type custom-type]
+  (let [infos (filter (fn [info] (and
+                                  (= (:node-type info) node-type)
+                                  (= (:custom-type info) custom-type))) (get-registered-node-type-infos))
+        info (first infos)]
+    info))
 
-(defn register-resource-type! [type-name type]
-  (swap! custom-node-types assoc type type-name))
+(defn- get-registered-node-type-cls [node-type custom-type]
+  (let [info (get-registered-node-type-info node-type custom-type)
+        cls (if (nil? info)
+              GuiNode
+              (:node-cls info))]
+    cls))
 
-;; /////////////////////////////////////////////////////////////
-
+;; SDK api
+(defn register-node-type-info! [type-info]
+  (swap! custom-node-type-infos conj type-info))

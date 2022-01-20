@@ -43,7 +43,7 @@ message NodeDesc
         TYPE_TEXT = 1 [(displayName) = "Text"];
         TYPE_PIE  = 2 [(displayName) = "Pie"];
         TYPE_TEMPLATE = 3 [(displayName) = "Template"];
-        TYPE_SPINE = 4 [(displayName) = "Spine"];
+        TYPE_SPINE = 4 [(displayName) = "Spine"]; // Deprecated
         TYPE_PARTICLEFX = 5 [(displayName) = "ParticleFX"];
         TYPE_CUSTOM = 6 [(displayName) = "Custom"];
     }
