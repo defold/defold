@@ -365,8 +365,6 @@ def create_bundle(options):
         tmp_dir = "tmp"
 
         is_mac = 'darwin' in platform
-        is_win = 'win32' in platform
-        is_linux = 'linux' in platform
         if is_mac:
             resources_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources')
             packages_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources/packages')
