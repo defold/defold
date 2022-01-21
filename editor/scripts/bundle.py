@@ -312,6 +312,17 @@ def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
 
+def strip_platform_tools(platform, jar):
+    zip = zipfile.ZipFile(jar)
+    files = zip.namelist()
+    folder = "libexec/%s" % platform
+    for file in files:
+        # only delete files in the libexec platform folder
+        # ignore the folder itself and the dmengine files
+        if file.startswith(folder) and not file.endswith("/") and not "dmengine" in file:
+            exec_command(['zip', '-d', jar, file])
+
+
 def create_bundle(options):
     jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
     build_jdk = download_build_jdk()
@@ -329,20 +340,21 @@ def create_bundle(options):
 
         tmp_dir = "tmp"
 
-        if 'darwin' in platform:
+        is_mac = 'darwin' in platform
+        is_win = 'win32' in platform
+        is_linux = 'linux' in platform
+        if is_mac:
             resources_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources')
             packages_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources/packages')
             bundle_dir = os.path.join(tmp_dir, 'Defold.app')
             exe_dir = os.path.join(tmp_dir, 'Defold.app/Contents/MacOS')
             icon = 'logo.icns'
-            is_mac = True
         else:
             resources_dir = os.path.join(tmp_dir, 'Defold')
             packages_dir = os.path.join(tmp_dir, 'Defold/packages')
             bundle_dir = os.path.join(tmp_dir, 'Defold')
             exe_dir = os.path.join(tmp_dir, 'Defold')
             icon = None
-            is_mac = False
 
         mkdirs(tmp_dir)
         mkdirs(bundle_dir)
@@ -372,7 +384,13 @@ def create_bundle(options):
         with open('%s/config' % resources_dir, 'wb') as f:
             config.write(f)
 
-        shutil.copy(jar_file, '%s/defold-%s.jar' % (packages_dir, options.editor_sha1))
+        defold_jar = '%s/defold-%s.jar' % (packages_dir, options.editor_sha1)
+        shutil.copy(jar_file, defold_jar)
+
+        # strip tools for the platforms we're not currently bundling
+        for tool_platform in [ "x86_64-darwin", "x86_64-linux", "x86_64-win32" ]:
+            if platform != tool_platform:
+                strip_platform_tools(tool_platform, defold_jar)
 
         # copy editor executable (the launcher)
         launcher = launcher_path(options, platform, get_exe_suffix(platform))
