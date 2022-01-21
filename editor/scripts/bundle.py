@@ -312,15 +312,39 @@ def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
 
-def strip_platform_tools(platform, jar):
-    zip = zipfile.ZipFile(jar)
-    files = zip.namelist()
-    folder = "libexec/%s" % platform
+def strip_platform_files(platform, jar):
+    zin = zipfile.ZipFile(jar, 'r')
+    files = zin.namelist()
+    files_to_remove = []
+
+    # find files to remove from libexec/* except dmengine and except in platform folder
+    libexec_platform = "libexec/" + platform
     for file in files:
-        # only delete files in the libexec platform folder
-        # ignore the folder itself and the dmengine files
-        if file.startswith(folder) and not file.endswith("/") and not "dmengine" in file:
-            exec_command(['zip', '-d', jar, file])
+        if file.startswith("libexec") and not file.startswith(libexec_platform) and not file.endswith("/") and not "dmengine" in file:
+            files_to_remove.append(file)
+
+    # find libs to remove in the root folder
+    for file in files:
+        if "/" not in file:
+            if platform == "x86_64-darwin" and (file.endswith(".so") or file.endswith(".dll")):
+                files_to_remove.append(file)
+            elif platform == "x86_64-win32" and (file.endswith(".so") or file.endswith(".dylib")):
+                files_to_remove.append(file)
+            elif platform == "x86_64-linux" and (file.endswith(".dll") or file.endswith(".dylib")):
+                files_to_remove.append(file)
+
+    # write new jar without the files that should be removed
+    newjar = jar + "_new"
+    zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
+    for file in files:
+        if file not in files_to_remove:
+            zout.writestr(file, zin.read(file))
+    zout.close()
+    zin.close()
+
+    # switch to jar without removed files
+    os.remove(jar)
+    os.rename(newjar, jar)
 
 
 def create_bundle(options):
@@ -387,10 +411,8 @@ def create_bundle(options):
         defold_jar = '%s/defold-%s.jar' % (packages_dir, options.editor_sha1)
         shutil.copy(jar_file, defold_jar)
 
-        # strip tools for the platforms we're not currently bundling
-        for tool_platform in [ "x86_64-darwin", "x86_64-linux", "x86_64-win32" ]:
-            if platform != tool_platform:
-                strip_platform_tools(tool_platform, defold_jar)
+        # strip tools and libs for the platforms we're not currently bundling
+        strip_platform_files(platform, defold_jar)
 
         # copy editor executable (the launcher)
         launcher = launcher_path(options, platform, get_exe_suffix(platform))
