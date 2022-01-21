@@ -446,7 +446,7 @@ namespace dmEngine
         return false;
     }
 
-    static bool LoadSslKeys(int argc, char *argv[])
+    static bool LoadSslKeys(int argc, char *argv[], const char* content_root, const char* path_in_editor)
     {
         char res_path[DMPATH_MAX_PATH];
         if (dmSys::GetResourcesPath(argc, argv, res_path, sizeof(res_path)) != dmSys::RESULT_OK)
@@ -457,7 +457,11 @@ namespace dmEngine
         dmPath::Concat(res_path, "ssl_keys.pem", ssl_keys_path, sizeof(ssl_keys_path));
         if (!dmSys::ResourceExists(ssl_keys_path))
         {
-            return false;
+            dmPath::Concat(content_root, path_in_editor, ssl_keys_path, sizeof(ssl_keys_path));
+            if (!dmSys::ResourceExists(ssl_keys_path))
+            {
+                return false;
+            }
         }
         uint32_t file_size;
         if (dmSys::ResourceSize(ssl_keys_path, &file_size) != dmSys::RESULT_OK)
@@ -571,11 +575,6 @@ namespace dmEngine
         engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
-        if (LoadSslKeys(argc, argv))
-        {
-            dmLogInfo("SSL verification enabled");
-        }
-
         char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
@@ -631,6 +630,11 @@ namespace dmEngine
             }
             engine->m_ConnectionAppMode = true;
 #endif
+        }
+
+        if (LoadSslKeys(argc, argv, content_root, dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", "")))
+        {
+            dmLogInfo("SSL verification enabled");
         }
 
         #if defined(__EMSCRIPTEN__)
