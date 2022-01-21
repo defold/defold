@@ -25,7 +25,7 @@ def build(bld):
                                 resource_name='builtins',
                                 use_compression=True)
 
-    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts')
+    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts builtins/ca-certificates')
 
     # DEF-3259 - The resource build system doesn't take into account that several builds using same source contnt
     # may be running at the same time. And, as a fix, we add a synchronization point here for the builds,
