@@ -336,8 +336,8 @@ def strip_platform_files(platform, jar):
     # write new jar without the files that should be removed
     newjar = jar + "_new"
     zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
-    for file in files:
-        if file not in files_to_remove:
+    for file in zin.infolist():
+        if file.filename not in files_to_remove:
             zout.writestr(file, zin.read(file))
     zout.close()
     zin.close()
