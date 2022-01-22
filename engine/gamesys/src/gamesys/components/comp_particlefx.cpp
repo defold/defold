@@ -77,6 +77,14 @@ namespace dmGameSystem
         uint32_t m_WarnOutOfROs : 1;
     };
 
+    static void SetRenderObjectsCount(ParticleFXWorld* world, uint32_t count)
+    {
+        world->m_RenderObjects.SetCapacity(count);
+        world->m_ConstantBuffers.SetCapacity(count);
+        world->m_ConstantBuffers.SetSize(count);
+        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*count); 
+    }
+
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         assert(params.m_Context);
@@ -87,10 +95,7 @@ namespace dmGameSystem
         uint32_t particle_fx_count = dmMath::Min(params.m_MaxComponentInstances, ctx->m_MaxParticleFXCount);
         world->m_ParticleContext = dmParticle::CreateContext(particle_fx_count, ctx->m_MaxParticleCount);
         world->m_Components.SetCapacity(particle_fx_count);
-        world->m_RenderObjects.SetCapacity(particle_fx_count);
-        world->m_ConstantBuffers.SetCapacity(particle_fx_count);
-        world->m_ConstantBuffers.SetSize(particle_fx_count);
-        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*particle_fx_count);
+        SetRenderObjectsCount(world, particle_fx_count);
 
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
@@ -323,6 +328,11 @@ namespace dmGameSystem
 
         uint32_t count = components.Size();
         uint32_t world_emitter_count = pfx_world->m_EmitterCount;
+
+        if (pfx_world->m_RenderObjects.Capacity() < world_emitter_count)
+        {
+            SetRenderObjectsCount(pfx_world, world_emitter_count);
+        }
 
         if (ctx->m_Debug)
         {
