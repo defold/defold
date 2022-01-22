@@ -402,6 +402,10 @@
    :default 64,
    :path ["particle_fx" "max_count"]}
   {:type :integer,
+   :help "max number of particle fx emitters, 64 by default",
+   :default 64,
+   :path ["particle_fx" "max_emitter_count"]}
+  {:type :integer,
    :help "max total number of living particles, 1024 by default",
    :default 1024,
    :path ["particle_fx" "max_particle_count"]}

@@ -87,10 +87,11 @@ namespace dmGameSystem
         uint32_t particle_fx_count = dmMath::Min(params.m_MaxComponentInstances, ctx->m_MaxParticleFXCount);
         world->m_ParticleContext = dmParticle::CreateContext(particle_fx_count, ctx->m_MaxParticleCount);
         world->m_Components.SetCapacity(particle_fx_count);
-        world->m_RenderObjects.SetCapacity(particle_fx_count);
-        world->m_ConstantBuffers.SetCapacity(particle_fx_count);
-        world->m_ConstantBuffers.SetSize(particle_fx_count);
-        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*particle_fx_count);
+        uint16_t max_emitter_count = ctx->m_MaxEmitterCount;
+        world->m_RenderObjects.SetCapacity(max_emitter_count);
+        world->m_ConstantBuffers.SetCapacity(max_emitter_count);
+        world->m_ConstantBuffers.SetSize(max_emitter_count);
+        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
 
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
@@ -323,6 +324,12 @@ namespace dmGameSystem
 
         uint32_t count = components.Size();
         uint32_t world_emitter_count = pfx_world->m_EmitterCount;
+
+        if (pfx_world->m_RenderObjects.Capacity() < world_emitter_count)
+        {
+            dmLogWarning("Max number of emitters reached (%u), some objects will not be rendered. Increase the capacity with particle_fx.max_emitter_count", pfx_world->m_RenderObjects.Capacity());
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
 
         if (ctx->m_Debug)
         {
