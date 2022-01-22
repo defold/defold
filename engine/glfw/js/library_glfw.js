@@ -659,6 +659,7 @@ var LibraryGLFW = {
       stencil: (GLFW.params[0x0002000A] > 0) // GLFW_STENCIL_BITS
     };
 
+    // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.
     var iOSVersion = false;
     try {
       iOSVersion = parseFloat(('' + (/CPU.*OS ([0-9_]{1,5})|(CPU like).*AppleWebKit.*Mobile/i.exec(navigator.userAgent) || [0,''])[1]) .replace('undefined', '3_2').replace('_', '.').replace('_', '')) || false;
@@ -668,7 +669,6 @@ var LibraryGLFW = {
     {
       contextAttributes.majorVersion = 1;
     }
-    
 
     // Browser.createContext: https://github.com/emscripten-core/emscripten/blob/master/src/library_browser.js#L312
     Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
