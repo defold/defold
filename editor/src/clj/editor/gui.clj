@@ -2545,9 +2545,10 @@
                        :else
                        [])
         handler-options (when (empty? node-options)
-                          (let [[parent menu-label menu-icon add-fn opts] (g/node-value node :add-handler-info)
-                                parent (if (= node scene) parent node)]
-                            (make-add-handler scene parent menu-label menu-icon add-fn opts)))]
+                          (when (g/has-output? (g/node-type* node) :add-handler-info)
+                            (let [[parent menu-label menu-icon add-fn opts] (g/node-value node :add-handler-info)
+                                  parent (if (= node scene) parent node)]
+                              (make-add-handler scene parent menu-label menu-icon add-fn opts))))]
       (filter some? (conj node-options handler-options))))
 
 (defn- unused-display-profiles [scene]
