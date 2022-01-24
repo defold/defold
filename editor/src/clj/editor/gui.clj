@@ -219,8 +219,8 @@
       (get-in user-data [:text-data :font-data])
       (gen-font-vb gl user-data renderables)
 
-      (contains? user-data :spine-scene-pb)
-      (spine/gen-vb renderables))))
+      (contains? user-data :gen-vb)
+      ((:gen-vb user-data) renderables))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [user-data (get-in renderables [0 :user-data])
@@ -464,8 +464,9 @@
 (g/deftype ^:private FontDatas s/Any #_{s/Str {s/Keyword s/Any}})
 (g/deftype ^:private SpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (sorted-set s/Str)
                                                           :spine-skin-ids (sorted-set s/Str)}})
-(g/deftype ^:private SpineSceneInfos s/Any #_{s/Str {:spine-scene-scene (s/maybe {s/Keyword s/Any})
-                                                     :spine-scene-structure (s/maybe {s/Keyword s/Any})
+(g/deftype ^:private SpineSceneInfos s/Any #_{s/Str {:spine-data-handle (s/maybe {s/Int s/Any})
+                                                     :spine-bones (s/maybe {s/Keyword s/Any})
+                                                     :spine-scene-scene (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (g/deftype ^:private ParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
 (g/deftype NameCounts {s/Str s/Int}) ;; SDK api
