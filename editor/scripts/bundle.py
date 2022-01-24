@@ -312,7 +312,7 @@ def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
 
-def strip_platform_files(platform, jar):
+def remove_platform_files_from_archive(platform, jar):
     zin = zipfile.ZipFile(jar, 'r')
     files = zin.namelist()
     files_to_remove = []
@@ -410,7 +410,7 @@ def create_bundle(options):
         shutil.copy(jar_file, defold_jar)
 
         # strip tools and libs for the platforms we're not currently bundling
-        strip_platform_files(platform, defold_jar)
+        remove_platform_files_from_archive(platform, defold_jar)
 
         # copy editor executable (the launcher)
         launcher = launcher_path(options, platform, get_exe_suffix(platform))
