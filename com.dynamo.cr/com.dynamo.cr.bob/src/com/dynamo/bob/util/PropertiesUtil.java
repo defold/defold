@@ -23,6 +23,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.pipeline.CubemapBuilder;
 import com.dynamo.bob.pipeline.ProtoBuilders;
 import com.dynamo.bob.pipeline.TextureBuilder;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
@@ -143,10 +144,10 @@ public class PropertiesUtil {
     }
 
     public static void createResourcePropertyTasks(Project project, IResource resource, IResource input) throws CompileExceptionError {
-        //Textures
-        Class<? extends Builder<?>> klass = TextureBuilder.class;
-        if (project.getBuilderFromExtension(resource) == klass) {
-            Task<?> embedTask = project.createTask(resource, klass);
+        // Textures and cubemaps
+        Class<? extends Builder<?>> klass = project.getBuilderFromExtension(resource);
+        if ( klass == TextureBuilder.class || klass == CubemapBuilder.class) {
+            Task<?> embedTask = project.createTask(resource);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,

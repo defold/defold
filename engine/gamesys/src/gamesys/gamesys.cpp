@@ -220,7 +220,7 @@ namespace dmGameSystem
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
                 &CompCameraCreate, &CompCameraDestroy, 0, 0, &CompCameraAddToUpdate, 0,
                 &CompCameraUpdate, 0, 0, &CompCameraOnMessage, 0,
-                &CompCameraOnReload, 0, 0,
+                &CompCameraOnReload, CompCameraGetProperty, CompCameraSetProperty,
                 0, 0,
                 1);
 
@@ -309,7 +309,7 @@ namespace dmGameSystem
                 CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate, CompLabelGetComponent,
                 CompLabelUpdate, CompLabelRender, 0, CompLabelOnMessage, 0,
                 CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
-                0, 0,
+                0, CompLabelIterProperties,
                 1);
 
         #undef REGISTER_COMPONENT_TYPE

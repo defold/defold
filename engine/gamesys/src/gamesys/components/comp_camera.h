@@ -31,6 +31,10 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCameraOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
+    dmGameObject::PropertyResult CompCameraGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+
+    dmGameObject::PropertyResult CompCameraSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
     void CompCameraOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 

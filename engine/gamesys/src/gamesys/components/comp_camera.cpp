@@ -23,6 +23,7 @@
 #include "../resources/res_camera.h"
 #include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
+#include "comp_private.h"
 
 namespace dmGameSystem
 {
@@ -51,6 +52,10 @@ namespace dmGameSystem
         dmArray<CameraComponent> m_Cameras;
         dmArray<CameraComponent*> m_FocusStack;
     };
+
+    static const dmhash_t CAMERA_PROP_FOV = dmHashString64("fov");
+    static const dmhash_t CAMERA_PROP_NEAR_Z = dmHashString64("near_z");
+    static const dmhash_t CAMERA_PROP_FAR_Z = dmHashString64("far_z");
 
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -265,5 +270,51 @@ namespace dmGameSystem
         camera->m_NearZ = cam_resource->m_DDF->m_NearZ;
         camera->m_FarZ = cam_resource->m_DDF->m_FarZ;
         camera->m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
+    }
+
+    dmGameObject::PropertyResult CompCameraGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        CameraComponent* component = (CameraComponent*)*params.m_UserData;
+        dmhash_t get_property = params.m_PropertyId;
+
+        if (CAMERA_PROP_FOV == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Fov);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_NEAR_Z == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_NearZ);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_FAR_Z == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_FarZ);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult CompCameraSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        CameraComponent* component = (CameraComponent*)*params.m_UserData;
+        dmhash_t set_property = params.m_PropertyId;
+        
+        if (CAMERA_PROP_FOV == set_property)
+        {
+            component->m_Fov = params.m_Value.m_Number;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_NEAR_Z == set_property)
+        {
+            component->m_NearZ = params.m_Value.m_Number;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_FAR_Z == set_property)
+        {
+            component->m_FarZ = params.m_Value.m_Number;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 }

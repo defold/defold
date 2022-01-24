@@ -437,6 +437,9 @@ public class Bob {
         addOption(options, null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.", false);
         addOption(options, null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.", false);
 
+        addOption(options, null, "manifest-private-key", true, "Private key to use when signing manifest and archive.", false);
+        addOption(options, null, "manifest-public-key", true, "Public key to use when signing manifest and archive.", false);
+
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
 
@@ -663,10 +666,6 @@ public class Bob {
             project.setOption("texture-compression", texCompression);
         }
 
-        if (cmd.hasOption("use-vanilla-lua")) {
-            project.setOption("use-vanilla-lua", "true");
-        }
-
         if (cmd.hasOption("archive-resource-padding")) {
             String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
             int resourcePadding = 0;
@@ -687,17 +686,9 @@ public class Bob {
             project.setOption("archive-resource-padding", resourcePaddingStr);
         }
 
-        if (cmd.hasOption("bundle-format")) {
-            project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
-        }
-
         if (project.hasOption("build-artifacts")) {
             String[] validArtifacts = {"engine", "plugins"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
-        }
-
-        if (cmd.hasOption("resource-cache-local")) {
-            project.setOption("resource-cache-local", cmd.getOptionValue("resource-cache-local"));
         }
 
         boolean ret = true;

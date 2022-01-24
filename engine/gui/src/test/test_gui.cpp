@@ -3862,7 +3862,7 @@ TEST_F(dmGuiTest, NodeTransform)
     Vector3 size(1.0f, 1.0f, 1.0f);
     Vector3 pos(0.25f, 0.5f, 0.75f);
     dmVMath::Matrix4 transforms[1];
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(pos), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(pos), size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_SW);
 
     dmVMath::Matrix4 ref_mat;
@@ -5275,6 +5275,45 @@ TEST_F(dmGuiTest, ScriptGetSetAlpha)
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+
+TEST_F(dmGuiTest, CloneNodeAndAnim)
+{
+    int t1;
+    dmGui::Result r;
+
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.5f, 2.0f, 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // clone the node
+    dmGui::HNode clone;
+    dmGui::CloneNode(m_Scene, node, &clone);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    // same texture on the node?
+    ASSERT_EQ(dmGui::GetNodeTextureId(m_Scene, node), dmGui::GetNodeTextureId(m_Scene, clone));
+
+    // same playback rate?
+    ASSERT_EQ(dmGui::GetNodeFlipbookPlaybackRate(m_Scene, node), dmGui::GetNodeFlipbookPlaybackRate(m_Scene, clone));
+
+    // same cursor?
+    ASSERT_EQ(dmGui::GetNodeFlipbookCursor(m_Scene, node), dmGui::GetNodeFlipbookCursor(m_Scene, clone));
+
+    // same animation?
+    ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), dmGui::GetNodeFlipbookAnimId(m_Scene, clone));
+
+    // cleanup
+    dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
 }
 
 
