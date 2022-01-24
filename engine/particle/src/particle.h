@@ -58,6 +58,8 @@ namespace dmParticle
 
     /// Config key to use for tweaking maximum number of instances in a context.
     extern const char* MAX_INSTANCE_COUNT_KEY;
+    /// Config key to use for tweaking maximum number of emitters in a context.
+    extern const char* MAX_EMITTER_COUNT_KEY;
     /// Config key to use for tweaking the total maximum number of particles in a context.
     extern const char* MAX_PARTICLE_COUNT_KEY;
 
