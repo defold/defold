@@ -87,7 +87,7 @@ public class BundleHelper {
     public static final String MANIFEST_NAME_OSX        = "Info.plist";
     public static final String MANIFEST_NAME_HTML5      = "engine_template.html";
 
-    private static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
+    public static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
     private static final String[] ARCHIVE_FILE_NAMES = {
         "game.projectc",
         "game.arci",

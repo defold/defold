@@ -398,7 +398,7 @@ namespace dmEngine
         }
     }
 
-    static bool GetProjectFile(int argc, char *argv[], char* project_file, uint32_t project_file_size)
+    static bool GetProjectFile(int argc, char *argv[], char* res_path, char* project_file, uint32_t project_file_size)
     {
         if (argc > 1 && argv[argc-1][0] != '-')
         {
@@ -410,7 +410,6 @@ namespace dmEngine
             char p1[DMPATH_MAX_PATH];
             char p2[DMPATH_MAX_PATH];
             char p3[DMPATH_MAX_PATH];
-            char tmp[DMPATH_MAX_PATH];
             char* paths[3];
             uint32_t count = 0;
 
@@ -427,9 +426,9 @@ namespace dmEngine
             paths[count++] = p1;
             paths[count++] = p2;
 
-            if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
+            if (res_path)
             {
-                dmPath::Concat(tmp, "game.projectc", p3, sizeof(p3));
+                dmPath::Concat(res_path, "game.projectc", p3, sizeof(p3));
                 paths[count++] = p3;
             }
 
@@ -446,10 +445,9 @@ namespace dmEngine
         return false;
     }
 
-    static bool LoadSslKeys(int argc, char *argv[], const char* content_root, const char* path_in_editor)
+    static bool LoadAndSetSslKeys(char* res_path, const char* content_root, const char* path_in_editor)
     {
-        char res_path[DMPATH_MAX_PATH];
-        if (dmSys::GetResourcesPath(argc, argv, res_path, sizeof(res_path)) != dmSys::RESULT_OK)
+        if (!res_path)
         {
             return false;
         }
@@ -483,7 +481,7 @@ namespace dmEngine
             free(ssl_keys_buf);
             return false;
         }
-        dmSSLSocket::Result loadind_key_result = dmSSLSocket::LoadPublicKeys(ssl_keys_buf, loaded_file_size);
+        dmSSLSocket::Result loadind_key_result = dmSSLSocket::SetSslPublicKeys(ssl_keys_buf, loaded_file_size);
         free(ssl_keys_buf);
         return loadind_key_result == dmSSLSocket::RESULT_OK;
     }
@@ -581,7 +579,11 @@ namespace dmEngine
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
         bool loaded_ok = false;
-        if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
+
+        char res_path[DMPATH_MAX_PATH];
+        dmSys::GetResourcesPath(argc, argv, res_path, sizeof(res_path));
+
+        if (GetProjectFile(argc, argv, res_path, project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
@@ -632,7 +634,8 @@ namespace dmEngine
 #endif
         }
 
-        if (LoadSslKeys(argc, argv, content_root, dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", "")))
+        const char* alt_ssl_key_path = dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", "");
+        if (LoadAndSetSslKeys(res_path, content_root, alt_ssl_key_path))
         {
             dmLogInfo("SSL verification enabled");
         }

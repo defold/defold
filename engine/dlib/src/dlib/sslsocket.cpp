@@ -186,13 +186,17 @@ Result Initialize()
 
 Result Finalize()
 {
+    if (g_SSLSocketContext.m_KeyLoaded)
+    {
+        mbedtls_x509_crt_free( &g_SSLSocketContext.m_x509CertChain );
+    }
     mbedtls_ssl_config_free( &g_SSLSocketContext.m_MbedConf );
     mbedtls_ctr_drbg_free( &g_SSLSocketContext.m_MbedCtrDrbg );
     mbedtls_entropy_free( &g_SSLSocketContext.m_MbedEntropy );
     return RESULT_OK;
 }
 
-Result LoadPublicKeys(const uint8_t* key, uint32_t keylen)
+Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
 {
     // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
     int ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen + 1);

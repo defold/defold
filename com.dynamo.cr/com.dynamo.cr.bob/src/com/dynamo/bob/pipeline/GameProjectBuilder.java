@@ -41,6 +41,7 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Platform;
@@ -575,7 +576,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 {
                     File source = new File(project.getRootDirectory(), sslCertificatesPath);
                     File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
-                    File dist = new File(buildDir, "ssl_keys.pem");
+                    File dist = new File(buildDir, BundleHelper.SSL_CERTIFICATES_NAME);
                     FileUtils.copyFile(source, dist);
                 }
 
