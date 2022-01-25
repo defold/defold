@@ -44,7 +44,6 @@
             [editor.dialogs :as dialogs]
             [editor.outline :as outline]
             [editor.material :as material]
-            [editor.spine :as spine]
             [editor.particlefx :as particlefx]
             [editor.validation :as validation])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
@@ -657,7 +656,7 @@
                      :node-outline-key id
                      :label id
                      :child-index child-index
-                     :icon (:icon (get-registered-node-type-info type custom-type))
+                     :icon (or (:icon (get-registered-node-type-info type custom-type)) gui-icon)
                      :child-reqs node-outline-reqs
                      :copy-include-fn (fn [node]
                                         (let [node-id (g/node-id node)]
@@ -2354,6 +2353,11 @@
   (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
+  (input layers-node g/NodeID) ; for tests
+  (input layouts-node g/NodeID) ; for tests
+  (input fonts-node g/NodeID) ; for tests
+  (input textures-node g/NodeID) ; for tests
+  (input particlefx-resources-node g/NodeID) ; for tests
   (input handler-infos g/Any :array)
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
@@ -2511,7 +2515,7 @@
       g/tx-nodes-added
       first)))
 
-(defn- add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
+(defn add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
   (add-gui-node! project scene parent node-type custom-type select-fn))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
@@ -2648,6 +2652,7 @@
                               no-font [FontNode
                                        :name ""
                                        :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                    (g/connect fonts-node :_node-id self :fonts-node) ; for the tests :/
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)
                     (g/connect fonts-node :node-outline self :child-outlines)
@@ -2662,6 +2667,7 @@
                               no-texture [InternalTextureNode
                                           :name ""
                                           :gpu-texture texture/white-pixel]]
+                    (g/connect textures-node :_node-id self :textures-node) ; for the tests :/
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
@@ -2675,6 +2681,7 @@
       (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources
                               no-particlefx-resource [ParticleFXResource
                                                       :name ""]]
+                    (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node) ; for the tests :/
                     (g/connect particlefx-resources-node :_node-id self :nodes)
                     (g/connect particlefx-resources-node :build-errors self :build-errors)
                     (g/connect particlefx-resources-node :node-outline self :child-outlines)
@@ -2691,6 +2698,7 @@
       (g/make-nodes graph-id [layers-node LayersNode
                               no-layer [LayerNode
                                         :name ""]]
+                    (g/connect layers-node :_node-id self :layers-node) ; for the tests :/
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
                     (g/connect layers-node :layer-names self :layer-names)
@@ -2770,6 +2778,7 @@
                           (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc child-index)))
                         all-tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
+                    (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
                     (g/connect layouts-node :_node-id self :nodes)
                     (g/connect layouts-node :build-errors self :build-errors)
                     (g/connect layouts-node :node-outline self :child-outlines)

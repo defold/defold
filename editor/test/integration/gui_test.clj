@@ -386,7 +386,7 @@
     (let [node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
-          new-tmpl (gui/add-gui-node! project node-id parent :type-template (fn [node-ids] (app-view/select app-view node-ids)))
+          new-tmpl (gui/add-gui-node! project node-id parent :type-template 0 (fn [node-ids] (app-view/select app-view node-ids)))
           super-template (gui-node super "scene")]
       (is (= new-tmpl (gui-node node-id "template")))
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
