@@ -68,7 +68,7 @@ struct SSLSocketContext
     mbedtls_ctr_drbg_context    m_MbedCtrDrbg;
     mbedtls_ssl_config          m_MbedConf;
     mbedtls_x509_crt            m_x509CertChain;
-    bool                        m_KeyLoaded;
+    bool                        m_SslKeysSet;
 } g_SSLSocketContext;
 
 #define MBEDTLS_RESULT_TO_STRING_CASE(x) case x: return #x;
@@ -149,7 +149,7 @@ static dmSocket::Result SSLToSocket(int r) {
 
 Result Initialize()
 {
-    g_SSLSocketContext.m_KeyLoaded = false;
+    g_SSLSocketContext.m_SslKeysSet = false;
     mbedtls_ssl_config_init( &g_SSLSocketContext.m_MbedConf );
     mbedtls_ctr_drbg_init( &g_SSLSocketContext.m_MbedCtrDrbg );
     mbedtls_entropy_init( &g_SSLSocketContext.m_MbedEntropy );
@@ -186,7 +186,7 @@ Result Initialize()
 
 Result Finalize()
 {
-    if (g_SSLSocketContext.m_KeyLoaded)
+    if (g_SSLSocketContext.m_SslKeysSet)
     {
         mbedtls_x509_crt_free( &g_SSLSocketContext.m_x509CertChain );
     }
@@ -207,7 +207,7 @@ Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
         dmLogError("SSLSocket mbedtls_x509_crt_parse: %s0x%04x - %s", ret < 0 ? "-":"", ret < 0 ? -ret:ret, buffer);
         return RESULT_SSL_INIT_FAILED;
     }
-    g_SSLSocketContext.m_KeyLoaded = true;
+    g_SSLSocketContext.m_SslKeysSet = true;
     mbedtls_ssl_conf_authmode( &g_SSLSocketContext.m_MbedConf, MBEDTLS_SSL_VERIFY_REQUIRED );
     return RESULT_OK;
 }
@@ -304,7 +304,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
 
     mbedtls_ssl_init( c->m_SSLContext );
 
-    if (g_SSLSocketContext.m_KeyLoaded)
+    if (g_SSLSocketContext.m_SslKeysSet)
     {
         mbedtls_ssl_conf_ca_chain( &g_SSLSocketContext.m_MbedConf, &g_SSLSocketContext.m_x509CertChain, NULL);
     }
