@@ -220,7 +220,7 @@
       (gen-font-vb gl user-data renderables)
 
       (contains? user-data :gen-vb)
-      ((:gen-vb user-data) renderables))))
+      ((:gen-vb user-data) user-data renderables))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [user-data (get-in renderables [0 :user-data])
