@@ -449,6 +449,15 @@ public class Project {
         List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
         excludeFolders.addAll(loadDefoldIgnore());
 
+        // remove initial "/" from excluded folder names
+        for(int i = 0; i < excludeFolders.size(); i++) {
+            String excludeFolder = excludeFolders.get(i);
+            if (excludeFolder.startsWith("/")) {
+                excludeFolders.set(i, excludeFolder.substring(1));
+            }
+        }
+
+        // create tasks for inputs that are not excluded
         for (String input : sortedInputs) {
             boolean skipped = false;
             for (String excludeFolder : excludeFolders) {
