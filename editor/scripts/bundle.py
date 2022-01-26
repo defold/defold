@@ -317,10 +317,23 @@ def remove_platform_files_from_archive(platform, jar):
     files = zin.namelist()
     files_to_remove = []
 
-    # find files to remove from libexec/* except dmengine and except in platform folder
+    # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
     for file in files:
-        if file.startswith("libexec") and not file.startswith(libexec_platform) and not file.endswith("/") and not "dmengine" in file:
+        if file.startswith("libexec"):
+            # don't remove any folders
+            if file.endswith("/"):
+                continue
+            # don't touch anything for the current platform
+            if file.startswith(libexec_platform):
+                continue
+            # don't touch any of the dmengine files
+            if "dmengine" in file:
+                continue
+            # don't remove the cross-platform bundletool-all.jar
+            if "bundletool-all.jar" in file:
+                continue
+            # anything else should be removed
             files_to_remove.append(file)
 
     # find libs to remove in the root folder
