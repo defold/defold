@@ -407,7 +407,7 @@ namespace dmConnectionPool
         // try connecting to the host using ipv4 first
         uint64_t dial_started = dmTime::GetTime();
         Result r = DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 1, 0);
-        if (r != RESULT_SOCKET_ERROR)
+        if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES)
         {
             return r;
         }
