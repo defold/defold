@@ -14,7 +14,7 @@
   (:import [com.dynamo.bob.util MurmurHash]))
 
 (defn hash32 [v]
-  (MurmurHash/hash64 v))
+  (MurmurHash/hash32 v))
 
 (defn hash64 [v]
   (MurmurHash/hash64 v))

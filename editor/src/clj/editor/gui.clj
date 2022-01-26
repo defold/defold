@@ -327,7 +327,7 @@
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(g/defnk produce-node-msg [type parent child-index _declared-properties]
+(g/defnk produce-node-msg [type custom-type parent child-index _declared-properties]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
                     :generated-id :id}
@@ -338,28 +338,29 @@
                                (sort)
                                (vec))
         msg (-> {:type type
+                 :custom-type custom-type
                  :child-index child-index
                  :template-node-child false
                  :overridden-fields overridden-fields}
-              (into (map (fn [[k v]] [k (:value v)])
-                         (filter (fn [[k v]] (and (get v :visible true)
-                                                  (not (contains? (set (keys pb-renames)) k))))
-                                 props)))
-              (cond->
-                (and parent (not-empty parent)) (assoc :parent parent)
-                (= type :type-template) (->
+                (into (map (fn [[k v]] [k (:value v)])
+                           (filter (fn [[k v]] (and (get v :visible true)
+                                                    (not (contains? (set (keys pb-renames)) k))))
+                                   props)))
+                (cond->
+                 (and parent (not-empty parent)) (assoc :parent parent)
+                 (= type :type-template) (->
                                           (update :template (fn [t] (resource/resource->proj-path (:resource t))))
                                           (assoc :color [1.0 1.0 1.0 1.0]))
 
                 ;; To handle save "bugs" in the old editor; size and size-mode should not have been saved at all
-                (= type :type-spine) (->
+                 (= type :type-spine) (->
                                        (assoc :size [1.0 1.0 0.0 1.0])
                                        (assoc :size-mode :size-mode-auto))
-                (= type :type-particlefx) (->
+                 (= type :type-particlefx) (->
                                             (assoc
-                                              :size [1.0 1.0 0.0 1.0]
-                                              :size-mode :size-mode-auto)))
-              (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
+                                             :size [1.0 1.0 0.0 1.0]
+                                             :size-mode :size-mode-auto)))
+                (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (-> (reduce (fn [msg [k default]]
                           (update msg k v3->v4 default))
                         msg
@@ -2119,14 +2120,6 @@
           (g/fnk [_node-id]
                  [_node-id "Layout" layout-icon add-layout-handler {}])))
 
-;; (g/defnode SpineScenesNode
-;;   (inherits outline/OutlineNode)
-;;   (input names g/Str :array)
-;;   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
-;;   (input build-errors g/Any :array)
-;;   (output build-errors g/Any (gu/passthrough build-errors))
-;;   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Spine Scenes" "Spine Scenes" 5 false [])))
-
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 (defn- attach-particlefx-resource
@@ -2761,6 +2754,7 @@
                            child-index 0]
                       (if node-desc
                         (let [node-type (get-registered-node-type-cls (:type node-desc) (:custom-type node-desc))
+                              node-type-info (get-registered-node-type-info (:type node-desc) (:custom-type node-desc))
                               props (-> node-desc
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
@@ -2816,15 +2810,23 @@
 (defn- sanitize-node-rotation [node]
   (update node :rotation (comp clj-quat->euler-v4 euler-v4->clj-quat)))
 
-(defn- sanitize-node [node]
-  (cond-> (-> node
-              sanitize-node-colors
-              sanitize-node-rotation)
+(defn- sanitize-node [node-desc]
+  (let [node-type (:type node-desc)
+        custom-type (:custom-type node-desc 0)
+        node-type-info (get-registered-node-type-info node-type custom-type)
+        convert-fn (:convert-fn node-type-info)
+        convert-fn (if (not= convert-fn nil)
+                     convert-fn
+                     (fn [info x] x))
+        node-desc (convert-fn node-type-info node-desc)]
+    (cond-> (-> node-desc
+                sanitize-node-colors
+                sanitize-node-rotation)
 
           ;; Size mode is not applicable for text nodes, but might still be
           ;; stored in the files from editor 1.
-          (= :type-text (:type node))
-          (dissoc :size-mode)))
+      (= :type-text (:type node-desc))
+      (dissoc :size-mode))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 
@@ -2952,32 +2954,27 @@
                                       :node-cls BoxNode
                                       :display-name "Box"
                                       :custom-type 0
-                                      :icon box-icon
-                                      :output-type :type-box}
+                                      :icon box-icon}
                                      {:node-type :type-pie
                                      :node-cls PieNode
                                      :display-name "Pie"
                                      :custom-type 0
-                                     :icon pie-icon
-                                     :output-type :type-pie}
+                                     :icon pie-icon}
                                      {:node-type :type-text
                                      :node-cls TextNode
                                      :display-name "Text"
                                      :custom-type 0
-                                     :icon text-icon
-                                     :output-type :type-text}
+                                     :icon text-icon}
                                      {:node-type :type-template
                                      :node-cls TemplateNode
                                      :display-name "Template"
                                      :custom-type 0
-                                     :icon template-icon
-                                     :output-type :type-template}
+                                     :icon template-icon}
                                      {:node-type :type-particlefx
                                      :node-cls ParticleFXNode
                                      :display-name "ParticleFX"
                                      :custom-type 0
-                                     :icon particlefx/particle-fx-icon
-                                     :output-type :type-particlefx}])
+                                     :icon particlefx/particle-fx-icon}])
 
 (def ^:private custom-node-type-infos (atom []))
 
