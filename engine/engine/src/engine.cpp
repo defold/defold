@@ -627,20 +627,12 @@ namespace dmEngine
         }
 
         // Try loading SSL keys
-        char* paths[2];
-        uint32_t count = 0;
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
-        if (resources_path)
-        {
-            dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
-            paths[count] = engine_ssl_keys_path;
-            count++;
-        }
+        dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
         char editor_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(project_file_folder, dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", ""), editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
-        paths[count] = editor_ssl_keys_path;
-        count++;
-        for (uint32_t i = 0; i < count; ++i)
+        const char* paths[] = {engine_ssl_keys_path, editor_ssl_keys_path};
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
         {
             if (paths[i] && LoadAndSetSslKeys(paths[i]))
             {
