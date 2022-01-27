@@ -90,8 +90,10 @@ namespace dmSys
         char m_DeviceModel[32];
         /// Device manufacturer if available
         char m_Manufacturer[32];
-        /// System name, i.e. OS name, e.g. "Darwin", "iPhone OS", "Linux", etc
+        /// System name, hardcoded per platform e.g. "Darwin", "iPhone OS", "Linux", etc
         char m_SystemName[32];
+        /// OS name, as reported by the system, e.g. "Darwin", "iPadOS", "iPhone OS", "Linux", "Windows", "Windows Server" etc
+        char m_OperatingSystemName[32];
         /// System version, e.g. 12.0.1
         char m_SystemVersion[32];
         /// Api version, e.g. 23 for android, 9.1 for iOS, empty for platforms with no concept of an api or sdk

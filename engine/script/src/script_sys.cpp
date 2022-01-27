@@ -502,7 +502,10 @@ union SaveLoadBuffer
      * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
      *
      * `system_name`
-     * : [type:string] The system OS name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
+     * : [type:string] The system name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
+     *
+     * `os_name`
+     * : [type:string] The system OS name: "Windows", "Windows Server", "HTML5", "Android", "iPadOS", "iPhone OS" etc
      *
      * `system_version`
      * : [type:string] The system OS version.
@@ -555,6 +558,9 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "system_name");
         lua_pushstring(L, info.m_SystemName);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "os_name");
+        lua_pushstring(L, info.m_OperatingSystemName);
         lua_rawset(L, -3);
         lua_pushliteral(L, "system_version");
         lua_pushstring(L, info.m_SystemVersion);
@@ -1174,7 +1180,7 @@ union SaveLoadBuffer
      */
 
     static int Sys_Deserialize(lua_State* L)
-    {   
+    {
         DM_LUA_STACK_CHECK(L, 1);
         size_t bytes_lenght;
         const char* bytes = luaL_checklstring(L, 1, &bytes_lenght);

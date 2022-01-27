@@ -141,6 +141,7 @@ TEST(dmSys, GetSystemInfo)
 
     dmLogInfo("DeviceModel: '%s'", info.m_DeviceModel);
     dmLogInfo("SystemName: '%s'", info.m_SystemName);
+    dmLogInfo("OperatingSystemName: '%s'", info.m_OperatingSystemName);
     dmLogInfo("SystemVersion: '%s'", info.m_SystemVersion);
     dmLogInfo("SystemApiVersion: '%s'", info.m_ApiVersion);
     dmLogInfo("Language: '%s'", info.m_Language);

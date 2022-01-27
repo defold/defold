@@ -654,8 +654,9 @@ namespace dmSys
 #if defined(__EMSCRIPTEN__)
         dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
 #else
-        dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemName, "Linux", sizeof(info->m_SystemName));
 #endif
+        dmStrlCpy(info->m_OperatingSystemName, uts.sysname, sizeof(info->m_OperatingSystemName));
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';
 
@@ -683,7 +684,11 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
+        struct utsname uts;
+        uname(&uts);
+
         dmStrlCpy(info->m_SystemName, "Android", sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_OperatingSystemName, uts.sysname, sizeof(info->m_OperatingSystemName));
 
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
@@ -772,6 +777,16 @@ namespace dmSys
         OSVERSIONINFOA version_info;
         version_info.dwOSVersionInfoSize = sizeof(version_info);
         GetVersionExA(&version_info);
+
+        // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoexa#remarks
+        if (version_info.wProductType == VER_NT_WORKSTATION)
+        {
+            dmStrlCpy(info->m_OperatingSystemName, "Windows", sizeof(info->m_OperatingSystemName));
+        }
+        else
+        {
+            dmStrlCpy(info->m_OperatingSystemName, "Windows Server", sizeof(info->m_OperatingSystemName));
+        }
 
         const int max_len = 256;
         char lang[max_len];
