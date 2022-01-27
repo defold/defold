@@ -409,7 +409,7 @@ namespace dmConnectionPool
         Result r = DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 1, 0);
         // Only if handshake failed NOT because of timeout
         if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES ||
-            (r == RESULT_HANDSHAKE_FAILED && *sock_res != dmSSLSocket::RESULT_WOULDBLOCK))
+            (r == RESULT_HANDSHAKE_FAILED && *sock_res != dmSocket::RESULT_WOULDBLOCK))
         {
             return r;
         }
