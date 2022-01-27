@@ -92,13 +92,19 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         List<String> particlefxSceneList = new ArrayList<>();
         for (ParticleFXDesc p : builder.getParticlefxsList()) {
-            if (!p.getParticlefx().isEmpty() && particlefxSceneList.contains(p.getParticlefx())) {
+            if (!p.getParticlefx().isEmpty() && !particlefxSceneList.contains(p.getParticlefx())) {
                 particlefxSceneList.add(p.getParticlefx());
                 taskBuilder.addInput(this.project.getResource(p.getParticlefx()));
             }
         }
 
-        // TODO: Resources list
+        List<String> resourcesList = new ArrayList<>();
+        for (ResourceDesc resource : builder.getResourcesList()) {
+            if (!resource.getPath().isEmpty() && !resourcesList.contains(resource.getPath())) {
+                resourcesList.add(resource.getPath());
+                taskBuilder.addInput(this.project.getResource(resource.getPath()));
+            }
+        }
 
         return taskBuilder.build();
     }
