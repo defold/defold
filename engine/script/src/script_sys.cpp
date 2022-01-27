@@ -505,7 +505,7 @@ union SaveLoadBuffer
      * : [type:string] The system name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
      *
      * `os_name`
-     * : [type:string] The system OS name: "Windows", "Windows Server", "HTML5", "Android", "iPadOS", "iPhone OS" etc
+     * : [type:string] The system OS name: "Windows", "Windows Server", "Emscripten", "Android", "iPadOS", "iPhone OS" etc
      *
      * `system_version`
      * : [type:string] The system OS version.
