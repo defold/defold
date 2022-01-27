@@ -776,7 +776,7 @@ namespace dmSys
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
         OSVERSIONINFOEXA version_info;
         version_info.dwOSVersionInfoSize = sizeof(version_info);
-        GetVersionExA(&version_info);
+        GetVersionExA((LPOSVERSIONINFOEXA*)&version_info);
 
         // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoexa#remarks
         if (version_info.wProductType == VER_NT_WORKSTATION)
