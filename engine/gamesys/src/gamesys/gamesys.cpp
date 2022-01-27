@@ -301,7 +301,7 @@ namespace dmGameSystem
                 CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, 0,
                 CompTileGridUpdate, CompTileGridRender, 0, CompTileGridOnMessage, 0,
                 CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
-                0, 0,
+                0, CompTileGridIterProperties,
                 1);
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
