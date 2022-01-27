@@ -44,7 +44,6 @@ namespace dmGameSystem
                 return fr;
         }
 
-        dmLogWarning("MAWE res_gui: num_custom_resources: %u", resource->m_SceneDesc->m_Resources.m_Count);
         uint32_t table_size = dmMath::Max(1U, resource->m_SceneDesc->m_Resources.m_Count/3);
         resource->m_Resources.SetCapacity(table_size, resource->m_SceneDesc->m_Resources.m_Count);
         resource->m_ResourceTypes.SetCapacity(table_size, resource->m_SceneDesc->m_Resources.m_Count);
