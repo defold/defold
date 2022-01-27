@@ -113,7 +113,7 @@ namespace dmGameSystem
         CompGuiNodeCloneFn          m_Clone;
         CompGuiNodeUpdateFn         m_Update;
         CompGuiNodeGetVerticesFn    m_GetVertices;
-        CompGuiNodeSetPropertyFn    m_SetProperty;
+        CompGuiNodeSetNodeDescFn    m_SetNodeDesc;
     };
 
 

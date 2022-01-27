@@ -560,8 +560,6 @@ namespace dmGameSystem
             }
         }
 
-        dmLogWarning("GUI SCENE");
-
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
             // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
@@ -587,20 +585,14 @@ namespace dmGameSystem
                 result = false;
             }
 
-            dmLogWarning("type: %d  id: %s\n", type, node_desc->m_Id);
             if (type == dmGui::NODE_TYPE_CUSTOM)
             {
                 void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
                 const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
 
-                CompGuiNodeContext ctx;
-
-                dmLogWarning("Found custom node: %s of type %u (hash32(Spine) == %u)", node_desc->m_Id, custom_type, dmHashString32("Spine"));
-
-                dmLogWarning("Found %u properties", node_desc->m_CustomProperties.m_Count);
-                for (uint32_t p = 0; p < node_desc->m_CustomProperties.m_Count; ++p)
+                if (node_type->m_SetNodeDesc)
                 {
-                    const dmGuiDDF::PropertyVariant* variant = &node_desc->m_CustomProperties.m_Data[p];
+                    CompGuiNodeContext ctx;
 
                     CustomNodeCtx nodectx;
                     nodectx.m_Scene = scene;
@@ -609,7 +601,7 @@ namespace dmGameSystem
                     nodectx.m_NodeData = custom_node_data;
                     nodectx.m_Type = custom_type;
 
-                    node_type->m_SetProperty(&ctx, &nodectx, variant->m_NameHash, variant);
+                    node_type->m_SetNodeDesc(&ctx, &nodectx, node_desc);
                 }
             }
         }
@@ -2929,8 +2921,6 @@ namespace dmGameSystem
             }
             comp_gui_context->m_CustomNodeTypes.Put(type_desc->m_NameHash, node_type);
 
-            dmLogWarning("MAWE registered com gui type: %s %u   p: %p sz: %u", type_desc->m_Name, type_desc->m_NameHash, &comp_gui_context->m_CustomNodeTypes, comp_gui_context->m_CustomNodeTypes.Size());
-
             type_desc = type_desc->m_Next;
         }
         g_CompGuiNodeTypesInitialized = true;
@@ -2940,8 +2930,6 @@ namespace dmGameSystem
 
     static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)
     {
-        dmLogWarning("MAWE %s", __FUNCTION__);
-
         if (!g_CompGuiNodeTypesInitialized)
             return dmGameObject::RESULT_OK;
 
@@ -2972,7 +2960,7 @@ namespace dmGameSystem
     void    CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn)               { type->m_Clone = fn; }
     void    CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn)             { type->m_Update = fn; }
     void    CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn)   { type->m_GetVertices = fn; }
-    void    CompGuiNodeTypeSetSetPropertyFn(CompGuiNodeType* type, CompGuiNodeSetPropertyFn fn)   { type->m_SetProperty = fn; }
+    void    CompGuiNodeTypeSetNodeDescFn(CompGuiNodeType* type, CompGuiNodeSetNodeDescFn fn)      { type->m_SetNodeDesc = fn; }
 
     void*                   GetContext(const struct CompGuiNodeTypeCtx* ctx, dmhash_t name)     { void* const * p = ctx->m_Contexts.Get(name); if (p) return *p; else return 0; }
     lua_State*              GetLuaState(const struct CompGuiNodeTypeCtx* ctx)                   { return dmScript::GetLuaState(ctx->m_Script); }

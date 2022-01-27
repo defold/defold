@@ -41,8 +41,6 @@ import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.proto.DdfMath.Vector4;
-import com.dynamo.gamesys.proto.Gui.PropertyVariant;
-import com.dynamo.gamesys.proto.Gui.PropertyType;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.Type;
@@ -479,31 +477,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             // backwards compatibility
             if(node.getType() == Type.TYPE_SPINE) {
-
                 NodeDesc.Builder newNode = node.toBuilder();
                 newNode.setType(Type.TYPE_CUSTOM);
                 newNode.setCustomType(MurmurHash.hash32("Spine"));
-
-                // convert the spine properties to custom properties
-                ArrayList<PropertyVariant> propertiesList = new ArrayList<>();
-
-                PropertyVariant.Builder propertybuilder;
-
-                propertybuilder = PropertyVariant.newBuilder();
-                propertybuilder.setNameHash(MurmurHash.hash64("spine_scene")).setVString(node.getSpineScene()).setType(PropertyType.PROPERTY_TYPE_STRING);
-                propertiesList.add(propertybuilder.build());
-
-                propertybuilder = PropertyVariant.newBuilder();
-                propertybuilder.setNameHash(MurmurHash.hash64("spine_default_animation")).setVString(node.getSpineDefaultAnimation()).setType(PropertyType.PROPERTY_TYPE_STRING);
-                propertiesList.add(propertybuilder.build());
-
-                propertybuilder = PropertyVariant.newBuilder();
-                propertybuilder.setNameHash(MurmurHash.hash64("spine_skin")).setVString(node.getSpineSkin()).setType(PropertyType.PROPERTY_TYPE_STRING);
-                propertiesList.add(propertybuilder.build());
-
-                newNode.clearCustomProperties();
-                newNode.addAllCustomProperties(propertiesList);
-
                 node = newNode.build();
             }
 

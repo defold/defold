@@ -351,11 +351,6 @@
                  (= type :type-template) (->
                                           (update :template (fn [t] (resource/resource->proj-path (:resource t))))
                                           (assoc :color [1.0 1.0 1.0 1.0]))
-
-                ;; To handle save "bugs" in the old editor; size and size-mode should not have been saved at all
-                 (= type :type-spine) (->
-                                       (assoc :size [1.0 1.0 0.0 1.0])
-                                       (assoc :size-mode :size-mode-auto))
                  (= type :type-particlefx) (->
                                             (assoc
                                              :size [1.0 1.0 0.0 1.0]
@@ -366,7 +361,13 @@
                         msg
                         v3-fields)
                 (update :rotation (fn [rotation]
-                                    (clj-quat->euler-v4 (or rotation [0.0 0.0 0.0 1.0])))))]
+                                    (clj-quat->euler-v4 (or rotation [0.0 0.0 0.0 1.0])))))
+        node-type-info (get-registered-node-type-info type custom-type)
+        convert-fn (:convert-fn node-type-info)
+        convert-fn (if (not= convert-fn nil)
+                     convert-fn
+                     (fn [info x] x))
+        msg (convert-fn node-type-info msg)]
     msg))
 
 (def gui-node-parent-attachments

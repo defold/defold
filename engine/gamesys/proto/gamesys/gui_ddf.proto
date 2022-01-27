@@ -13,27 +13,6 @@ option java_outer_classname = "Gui";
  * @namespace gui
  */
 
-
-enum PropertyType
-{
-    PROPERTY_TYPE_UINT32 = 0;
-    PROPERTY_TYPE_FLOAT = 1;
-    PROPERTY_TYPE_BOOL = 2;
-    PROPERTY_TYPE_STRING = 3;
-    PROPERTY_TYPE_VECTOR4 = 4;
-}
-
-message PropertyVariant
-{
-    required uint64             name_hash = 1;
-    required PropertyType       type = 2;
-    optional string             v_string = 3;
-    optional bool               v_bool = 4;
-    optional float              v_float = 5;
-    optional uint32             v_uint32 = 6;
-    optional dmMath.Vector4     v_vector4 = 7;
-}
-
 message NodeDesc
 {
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -171,8 +150,6 @@ message NodeDesc
     optional string particlefx              = 43;
 
     optional uint32 custom_type             = 44 [default = 0]; // for custom types
-
-    repeated PropertyVariant custom_properties = 45; // For custom types
 }
 
 message SceneDesc
