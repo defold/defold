@@ -249,8 +249,6 @@ namespace dmGui
         uint32_t                m_DefaultProjectWidth;
         uint32_t                m_DefaultProjectHeight;
         uint32_t                m_Dpi;
-        //dmHID::HContext         m_HidContext;
-        //dmResource::HFactory    m_Factory;
 
         NewContextParams()
         {
@@ -654,24 +652,6 @@ namespace dmGui
      * @param particlefx_name Name of the particlefx that will be used in the gui scripts
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
-
-    /**
-     * Adds a spine scene with the specified name to the scene.
-     * @note Any nodes connected to the same spine_scene_name will also be connected to the new spine scene. This makes this function O(n), where n is #nodes.
-     * @param scene Scene to add spine scene to
-     * @param spine_scene_name Name of the spine scene that will be used in the gui scripts
-     * @param spine_scene The spine scene to add
-     * @return Outcome of the operation
-     */
-    //Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene);
-
-    /**
-     * Removes a spine scene with the specified name from the scene.
-     * @note Any nodes connected to the same spine_scene_name will also be disconnected from the spine scene. This makes this function O(n), where n is #nodes.
-     * @param scene Scene to remove spine scene from
-     * @param spine_scene_name Name of the spine scene that will be used in the gui scripts
-     */
-    //void RemoveSpineScene(HScene scene, const char* spine_scene_name);
 
     /**
      * Adds a layer with the specified name to the scene.

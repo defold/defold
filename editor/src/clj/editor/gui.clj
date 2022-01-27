@@ -1668,12 +1668,6 @@
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")))))
 
-;; Only kept to migrate the old spine scenes to the new ResourceNode format
-(g/defnode OldSpineSceneNode
-  (inherits outline/OutlineNode)
-  (property name g/Str)
-  (property spine-scene resource/Resource))
-
 (g/defnode ResourceNode
   (inherits outline/OutlineNode)
   (property name g/Str
@@ -1849,7 +1843,7 @@
 
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
-  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))           
+  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [type-info] {:node-type (:node-cls type-info)
                                                                      :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
