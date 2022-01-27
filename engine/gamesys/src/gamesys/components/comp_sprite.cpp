@@ -1262,7 +1262,7 @@ namespace dmGameSystem
         }
         index -= num_world_properties;
 
-            uint32_t num_bool_properties = 1;
+        uint32_t num_bool_properties = 1;
         if (index < num_bool_properties)
         {
             if (index == 0)
