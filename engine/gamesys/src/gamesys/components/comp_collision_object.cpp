@@ -1696,7 +1696,7 @@ namespace dmGameSystem
     static bool CompCollisionIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
         CollisionWorld* world = (CollisionWorld*)pit->m_Node->m_ComponentWorld;
-        CollisionComponent* component = world->m_Components[pit->m_Node->m_Component];
+        CollisionComponent* component = (CollisionComponent*)pit->m_Node->m_Component;
 
         uint64_t index = pit->m_Next++;
 

@@ -973,7 +973,7 @@ namespace dmGameSystem
     static bool CompTileGridIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
         TileGridWorld* world = (TileGridWorld*)pit->m_Node->m_ComponentWorld;
-        TileGridComponent* component = world->m_Components[pit->m_Node->m_Component];
+        TileGridComponent* component = (TileGridComponent*)pit->m_Node->m_Component;
 
         uint64_t index = pit->m_Next++;
 
