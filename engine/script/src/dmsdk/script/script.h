@@ -19,6 +19,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/message.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/ddf/ddf.h>
 
 extern "C"
 {
@@ -245,6 +246,13 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
+    /*#
+     * Retrieve Lua state from the context
+     * @param context [type: HContext] the script context
+     * @return state [type: lua_State*] the lua state
+     */
+    lua_State* GetLuaState(HContext context);
+
     /*# get the value at index as a dmVMath::Vector3*
      * Get the value at index as a dmVMath::Vector3*
      * @name dmScript::ToVector3
@@ -455,6 +463,15 @@ namespace dmScript
      */
     int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
 
+
+    /*#
+     * Push DDF message to Lua stack
+     * @param L [type: lua_State*] the Lua state
+     * @param descriptor [type: const dmDDF::Descriptor*] field descriptor
+     * @param pointers_are_offets [type: bool] True if pointers are offsets
+     * @param data [type: const char*] the message data (i.e. the message struct)
+     */
+    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua

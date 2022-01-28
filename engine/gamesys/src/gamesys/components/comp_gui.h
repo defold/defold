@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <gui/gui.h>
+#include <dmsdk/gamesys/gui.h>
 
 namespace dmMessage
 {

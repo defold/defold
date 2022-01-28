@@ -110,8 +110,9 @@ namespace dmGui
         dmVMath::Vector4    m_LocalAdjustScale;
         uint32_t            m_ResetPointState;
 
-        uint32_t m_PerimeterVertices;
-        PieBounds m_OuterBounds;
+        uint32_t    m_HasResetPoint         : 1; // If true, we have stored a copy of the m_State, into m_ResetPointState
+        uint32_t    m_PerimeterVertices     :31;
+        PieBounds   m_OuterBounds;
 
         union
         {
@@ -139,7 +140,8 @@ namespace dmGui
             uint32_t m_State;
         };
 
-        bool        m_HasResetPoint;
+        uint32_t    m_CustomType; // Valid if m_State.m_NodeType == NODE_TYPE_CUSTOM
+
         const char* m_Text;
 
         uint64_t    m_TextureHash;
@@ -157,9 +159,7 @@ namespace dmGui
 
         void**      m_NodeDescTable;
 
-        uint64_t            m_SpineSceneHash;
-        void*               m_SpineScene;
-        dmRig::HRigInstance m_RigInstance;
+        void*       m_CustomData;
 
         uint64_t                m_ParticlefxHash;
         void*                   m_ParticlefxPrototype;
@@ -209,15 +209,6 @@ namespace dmGui
         uint16_t m_AnimationCompleteCalled : 1;
         uint16_t m_Cancelled : 1;
         uint16_t m_Backwards : 1;
-    };
-
-    struct SpineAnimation
-    {
-        HNode    m_Node;
-        AnimationComplete m_AnimationComplete;
-        RigEventDataCallback m_EventDataCallback;
-        void*    m_Userdata1;
-        void*    m_Userdata2;
     };
 
     struct Script
@@ -280,13 +271,10 @@ namespace dmGui
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
-        dmArray<SpineAnimation> m_SpineAnimations;
         dmHashTable<uintptr_t, dmhash_t> m_ResourceToPath;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
-        dmRig::HRigContext      m_RigContext;
-        dmHashTable64<void*>    m_SpineScenes;
         dmParticle::HParticleContext m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
         dmArray<ParticlefxComponent> m_AliveParticlefxs;
@@ -307,9 +295,14 @@ namespace dmGui
         uint32_t                m_Width;
         uint32_t                m_Height;
         dmScript::ScriptWorld*  m_ScriptWorld;
+        CreateCustomNodeCallback    m_CreateCustomNodeCallback;
+        DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
+        CloneCustomNodeCallback     m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
+        void*                       m_CreateCustomNodeCallbackContext;
+        GetResourceCallback         m_GetResourceCallback;
+        void*                       m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
-        RigEventDataCallback    m_RigEventDataCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
     };
 

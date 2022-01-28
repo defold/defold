@@ -434,7 +434,11 @@ namespace dmGameObject
 
     /*#
      * Callback when iterating over the properties for a component.
-     @name
+     * @note This function is only available/used in debug builds, when traversing the scene graph in order to export
+     * this data for external tools (e.g. external testing libraries like Poco)
+     * @name ComponentIterProperties
+     * @param pit [type:dmGameObject::SceneNodePropertyIterator] the property iterator
+     * @param node [type:dmGameObject::SceneNode*] the scene node
      */
     typedef void (*ComponentIterProperties)(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 

@@ -19,16 +19,15 @@ public class Messages extends BobNLS {
 
     public static String BuilderUtil_EMPTY_RESOURCE;
     public static String BuilderUtil_MISSING_RESOURCE;
+    public static String BuilderUtil_DUPLICATE_RESOURCE;
 
     public static String GuiBuilder_MISSING_TEXTURE;
     public static String GuiBuilder_MISSING_FONT;
-    public static String GuiBuilder_MISSING_SPINESCENE;
     public static String GuiBuilder_MISSING_PARTICLEFX;
     public static String GuiBuilder_MISSING_LAYER;
 
     public static String GuiBuilder_DUPLICATED_TEXTURE;
     public static String GuiBuilder_DUPLICATED_FONT;
-    public static String GuiBuilder_DUPLICATED_SPINESCENE;
     public static String GuiBuilder_DUPLICATED_PARTICLEFX;
     public static String GuiBuilder_DUPLICATED_LAYER;
 

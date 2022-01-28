@@ -968,7 +968,6 @@ namespace dmEngine
         gui_params.m_DefaultProjectWidth = engine->m_Width;
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
-        gui_params.m_HidContext = engine->m_HidContext;
 
         engine->m_GuiContext = dmGui::NewContext(&gui_params);
 

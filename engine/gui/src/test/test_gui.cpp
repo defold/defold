@@ -64,8 +64,6 @@ extern uint32_t BUG352_LUA_SIZE;
 // Render
 //
 // Adjust reference
-//
-// Spine
 
 #define MAX_NODES 64U
 #define MAX_ANIMATIONS 32U
@@ -86,98 +84,6 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
-static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dmhash_t id, Vector4 color, Vector4 slot_color = Vector4(1.0f))
-{
-    dmRigDDF::MeshEntry& mesh_entry = mesh_set->m_MeshEntries.m_Data[mesh_entry_index];
-    int mesh_attachment_index = mesh_set->m_MeshAttachments.m_Count++;
-    dmRigDDF::Mesh& mesh = mesh_set->m_MeshAttachments.m_Data[mesh_attachment_index];
-
-    mesh_entry.m_MeshSlots[0].m_MeshAttachments[0] = mesh_attachment_index;
-    mesh_entry.m_MeshSlots[0].m_ActiveIndex = 0;
-    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data = new float[4];
-    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[0] = slot_color.getX();
-    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[1] = slot_color.getY();
-    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[2] = slot_color.getZ();
-    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[3] = slot_color.getW();
-    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Count = 4;
-
-    mesh_entry.m_Id = id;
-
-    uint32_t vert_count = 3;
-
-    // set vertice position so they match bone positions
-    mesh.m_Positions.m_Data = new float[vert_count*3];
-    mesh.m_Positions.m_Count = vert_count*3;
-    mesh.m_Positions.m_Data[0] = 0.0f;
-    mesh.m_Positions.m_Data[1] = 0.0f;
-    mesh.m_Positions.m_Data[2] = 0.0f;
-    mesh.m_Positions.m_Data[3] = 1.0f;
-    mesh.m_Positions.m_Data[4] = 0.0f;
-    mesh.m_Positions.m_Data[5] = 0.0f;
-    mesh.m_Positions.m_Data[6] = 2.0f;
-    mesh.m_Positions.m_Data[7] = 0.0f;
-    mesh.m_Positions.m_Data[8] = 0.0f;
-
-    // data for each vertex (tex coords and normals not used)
-    mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
-    mesh.m_Texcoord0.m_Count      = vert_count*2;
-    mesh.m_Normals.m_Data         = new float[vert_count*3];
-    mesh.m_Normals.m_Count        = vert_count*3;
-
-    mesh.m_MeshColor.m_Data           = new float[vert_count*4];
-    mesh.m_MeshColor.m_Count          = vert_count*4;
-    mesh.m_MeshColor[0]               = color.getX();
-    mesh.m_MeshColor[1]               = color.getY();
-    mesh.m_MeshColor[2]               = color.getZ();
-    mesh.m_MeshColor[3]               = color.getW();
-    mesh.m_MeshColor[4]               = color.getX();
-    mesh.m_MeshColor[5]               = color.getY();
-    mesh.m_MeshColor[6]               = color.getZ();
-    mesh.m_MeshColor[7]               = color.getW();
-    mesh.m_MeshColor[8]               = color.getX();
-    mesh.m_MeshColor[9]               = color.getY();
-    mesh.m_MeshColor[10]              = color.getZ();
-    mesh.m_MeshColor[11]              = color.getW();
-
-    mesh.m_PositionIndices.m_Data     = new uint32_t[vert_count];
-    mesh.m_PositionIndices.m_Count    = vert_count;
-    mesh.m_PositionIndices.m_Data[0]  = 0;
-    mesh.m_PositionIndices.m_Data[1]  = 1;
-    mesh.m_PositionIndices.m_Data[2]  = 2;
-    mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
-    mesh.m_BoneIndices.m_Count    = vert_count*4;
-    mesh.m_BoneIndices.m_Data[0]  = 0;
-    mesh.m_BoneIndices.m_Data[1]  = 1;
-    mesh.m_BoneIndices.m_Data[2]  = 0;
-    mesh.m_BoneIndices.m_Data[3]  = 0;
-    mesh.m_BoneIndices.m_Data[4]  = 0;
-    mesh.m_BoneIndices.m_Data[5]  = 1;
-    mesh.m_BoneIndices.m_Data[6]  = 0;
-    mesh.m_BoneIndices.m_Data[7]  = 0;
-    mesh.m_BoneIndices.m_Data[8]  = 0;
-    mesh.m_BoneIndices.m_Data[9]  = 1;
-    mesh.m_BoneIndices.m_Data[10] = 0;
-    mesh.m_BoneIndices.m_Data[11] = 0;
-
-    mesh.m_Weights.m_Data         = new float[vert_count*4];
-    mesh.m_Weights.m_Count        = vert_count*4;
-    mesh.m_Weights.m_Data[0]      = 1.0f;
-    mesh.m_Weights.m_Data[1]      = 0.0f;
-    mesh.m_Weights.m_Data[2]      = 0.0f;
-    mesh.m_Weights.m_Data[3]      = 0.0f;
-    mesh.m_Weights.m_Data[4]      = 0.0f;
-    mesh.m_Weights.m_Data[5]      = 1.0f;
-    mesh.m_Weights.m_Data[6]      = 0.0f;
-    mesh.m_Weights.m_Data[7]      = 0.0f;
-    mesh.m_Weights.m_Data[8]      = 0.0f;
-    mesh.m_Weights.m_Data[9]      = 1.0f;
-    mesh.m_Weights.m_Data[10]     = 0.0f;
-    mesh.m_Weights.m_Data[11]     = 0.0f;
-
-    // Make sure these are set to zero, so we can check against them during tear down.
-    mesh.m_NormalsIndices.m_Count = 0;
-    mesh.m_Texcoord0Indices.m_Count = 0;
-}
 
 static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
 {
@@ -206,28 +112,6 @@ dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_p
     return dmGui::FETCH_ANIMATION_OK;
 }
 
-bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
-{
-    if (!spine_scene) {
-        return false;
-    }
-
-    dmGui::RigSceneDataDesc* spine_scene_ptr = (dmGui::RigSceneDataDesc*)spine_scene;
-    out_data->m_BindPose = spine_scene_ptr->m_BindPose;
-    out_data->m_TrackIdxToPose = spine_scene_ptr->m_TrackIdxToPose;
-    out_data->m_Skeleton = spine_scene_ptr->m_Skeleton;
-    out_data->m_MeshSet = spine_scene_ptr->m_MeshSet;
-    out_data->m_AnimationSet = spine_scene_ptr->m_AnimationSet;
-
-    return true;
-}
-
-uint32_t SpineAnimationKeyEventCount = 0;
-void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
-{
-    ++SpineAnimationKeyEventCount;
-}
-
 class dmGuiTest : public jc_test_base_class
 {
 public:
@@ -239,14 +123,6 @@ public:
     std::map<std::string, dmGui::HNode> m_NodeTextToNode;
     std::map<std::string, Point3> m_NodeTextToRenderedPosition;
     std::map<std::string, Vector3> m_NodeTextToRenderedSize;
-
-    dmRig::HRigContext      m_RigContext;
-    dmRig::HRigInstance     m_RigInstance;
-    dmArray<dmRig::RigBone> m_BindPose;
-    dmArray<uint32_t>       m_TrackIdxToPose;
-    dmRigDDF::Skeleton*     m_Skeleton;
-    dmRigDDF::MeshSet*      m_MeshSet;
-    dmRigDDF::AnimationSet* m_AnimationSet;
 
     virtual void SetUp()
     {
@@ -269,32 +145,22 @@ public:
         m_Context->m_SceneTraversalCache.m_Data.SetCapacity(MAX_NODES);
         m_Context->m_SceneTraversalCache.m_Data.SetSize(MAX_NODES);
 
-        dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &m_RigContext;
-        rig_params.m_MaxRigInstanceCount = 2;
-        dmRig::NewContext(rig_params);
-
         // Bogus font for the metric callback to be run (not actually using the default font)
         dmGui::SetDefaultFont(m_Context, (void*)0x1);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
-        params.m_RigContext = m_RigContext;
 
         params.m_MaxParticlefxs = MAX_PARTICLEFXS;
         params.m_MaxParticlefx = MAX_PARTICLEFX;
         params.m_ParticlefxContext = dmParticle::CreateContext(MAX_PARTICLEFX, MAX_PARTICLES);
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
-        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
-        params.m_RigEventDataCallback = RigEventDataCallback;
         params.m_OnWindowResizeCallback = 0x0;
         m_Scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneResolution(m_Scene, 1, 1);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
-
-        SetUpSimpleSpine();
     }
 
     static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
@@ -318,11 +184,9 @@ public:
 
     virtual void TearDown()
     {
-        TearDownSimpleSpine();
         dmParticle::DestroyContext(m_Scene->m_ParticlefxContext);
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
-        dmRig::DeleteContext(m_RigContext);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmMessage::DeleteSocket(m_Socket);
         dmScript::Finalize(m_ScriptContext);
@@ -330,327 +194,6 @@ public:
     }
 
 private:
-    // code from test_rig.cpp
-    void SetUpSimpleSpine()
-    {
-        m_RigInstance = 0x0;
-        dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = m_RigContext;
-        create_params.m_Instance = &m_RigInstance;
-
-        m_Skeleton     = new dmRigDDF::Skeleton();
-        m_MeshSet      = new dmRigDDF::MeshSet();
-        m_AnimationSet = new dmRigDDF::AnimationSet();
-
-        //            Bones:
-        //            A:
-        //            (0)---->(1)---->
-        //             |
-        //         B:  |
-        //             v
-        //            (2)
-        //             |
-        //             |
-        //             v
-        //            (3)
-        //             |
-        //             |
-        //             v
-        //
-        //         A: 0: Pos; (0,0), rotation: 0
-        //            1: Pos; (1,0), rotation: 0
-        //
-        //         B: 0: Pos; (0,0), rotation: 0
-        //            2: Pos; (0,1), rotation: 0
-        //            3: Pos; (0,2), rotation: 0
-        //
-        //        ------------------------------------
-        //
-        //            Animation (id: "valid") for Bone A:
-        //
-        //            I:
-        //            (0)---->(1)---->
-        //
-        //            II:
-        //            (0)---->(1)
-        //                     |
-        //                     |
-        //                     v
-        //
-        //            III:
-        //            (0)
-        //             |
-        //             |
-        //             v
-        //            (1)
-        //             |
-        //             |
-        //             v
-        //
-        //
-        //        ------------------------------------
-        //
-        //            Animation (id: "ik_anim") for IK on Bone B.
-
-        uint32_t bone_count = 5;
-        m_Skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
-        m_Skeleton->m_Bones.m_Count = bone_count;
-        // Bone 0
-        dmRigDDF::Bone& bone0 = m_Skeleton->m_Bones.m_Data[0];
-        bone0.m_Parent       = 0xffff;
-        bone0.m_Id           = 0;
-        bone0.m_Position     = dmVMath::Point3(0.0f, 0.0f, 0.0f);
-        bone0.m_Rotation     = dmVMath::Quat::identity();
-        bone0.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        bone0.m_InheritScale = false;
-        bone0.m_Length       = 0.0f;
-
-        // Bone 1
-        dmRigDDF::Bone& bone1 = m_Skeleton->m_Bones.m_Data[1];
-        bone1.m_Parent       = 0;
-        bone1.m_Id           = 1;
-        bone1.m_Position     = dmVMath::Point3(1.0f, 0.0f, 0.0f);
-        bone1.m_Rotation     = dmVMath::Quat::identity();
-        bone1.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        bone1.m_InheritScale = false;
-        bone1.m_Length       = 1.0f;
-
-        // Bone 2
-        dmRigDDF::Bone& bone2 = m_Skeleton->m_Bones.m_Data[2];
-        bone2.m_Parent       = 0;
-        bone2.m_Id           = 2;
-        bone2.m_Position     = dmVMath::Point3(0.0f, 1.0f, 0.0f);
-        bone2.m_Rotation     = dmVMath::Quat::identity();
-        bone2.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        bone2.m_InheritScale = false;
-        bone2.m_Length       = 1.0f;
-
-        // Bone 3
-        dmRigDDF::Bone& bone3 = m_Skeleton->m_Bones.m_Data[3];
-        bone3.m_Parent       = 2;
-        bone3.m_Id           = 3;
-        bone3.m_Position     = dmVMath::Point3(0.0f, 1.0f, 0.0f);
-        bone3.m_Rotation     = dmVMath::Quat::identity();
-        bone3.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        bone3.m_InheritScale = false;
-        bone3.m_Length       = 1.0f;
-
-        // Bone 4
-        dmRigDDF::Bone& bone4 = m_Skeleton->m_Bones.m_Data[4];
-        bone4.m_Parent       = 3;
-        bone4.m_Id           = 4;
-        bone4.m_Position     = dmVMath::Point3(0.0f, 1.0f, 0.0f);
-        bone4.m_Rotation     = dmVMath::Quat::identity();
-        bone4.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        bone4.m_InheritScale = false;
-        bone4.m_Length       = 1.0f;
-
-        m_BindPose.SetCapacity(bone_count);
-        m_BindPose.SetSize(bone_count);
-
-        m_TrackIdxToPose.SetCapacity(bone_count);
-        m_TrackIdxToPose.SetSize(bone_count);
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            m_TrackIdxToPose[i] = i;
-        }
-
-        // IK
-        m_Skeleton->m_Iks.m_Data = new dmRigDDF::IK[1];
-        m_Skeleton->m_Iks.m_Count = 1;
-        dmRigDDF::IK& ik_target = m_Skeleton->m_Iks.m_Data[0];
-        ik_target.m_Id       = dmHashString64("test_ik");
-        ik_target.m_Parent   = 3;
-        ik_target.m_Child    = 2;
-        ik_target.m_Target   = 4;
-        ik_target.m_Positive = true;
-        ik_target.m_Mix      = 1.0f;
-
-        // Calculate bind pose
-        dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
-
-        // Bone animations
-        uint32_t animation_count = 2;
-        m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
-        m_AnimationSet->m_Animations.m_Count = animation_count;
-        dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
-        dmRigDDF::RigAnimation& anim1 = m_AnimationSet->m_Animations.m_Data[1];
-        anim0.m_Id = dmHashString64("valid");
-        anim0.m_Duration            = 2.0f;
-        anim0.m_SampleRate          = 1.0f;
-        anim0.m_EventTracks.m_Count = 1;
-        anim0.m_MeshTracks.m_Count  = 0;
-        anim0.m_IkTracks.m_Count    = 0;
-        anim0.m_EventTracks.m_Data = new dmRigDDF::EventTrack[1];
-        dmRigDDF::EventTrack* event_track = &anim0.m_EventTracks.m_Data[0];
-        event_track->m_Keys.m_Count = 1;
-        event_track->m_Keys.m_Data = new dmRigDDF::EventKey[1];
-        dmRigDDF::EventKey* event_key = &event_track->m_Keys.m_Data[0];
-        event_key->m_T = 0.5f;
-        event_key->m_Integer = 0;
-        event_key->m_String = dmHashString64("a_spine_event");
-
-        anim1.m_Id = dmHashString64("ik_anim");
-        anim1.m_Duration            = 3.0f;
-        anim1.m_SampleRate          = 1.0f;
-        anim1.m_Tracks.m_Count      = 0;
-        anim1.m_EventTracks.m_Count = 0;
-        anim1.m_MeshTracks.m_Count  = 0;
-
-        uint32_t bone_track_count = 2;
-        anim0.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[bone_track_count];
-        anim0.m_Tracks.m_Count = bone_track_count;
-        dmRigDDF::AnimationTrack& anim_track0 = anim0.m_Tracks.m_Data[0];
-        dmRigDDF::AnimationTrack& anim_track1 = anim0.m_Tracks.m_Data[1];
-
-        anim_track0.m_BoneIndex         = 0;
-        anim_track0.m_Positions.m_Count = 0;
-        anim_track0.m_Scale.m_Count     = 0;
-
-        anim_track1.m_BoneIndex         = 1;
-        anim_track1.m_Positions.m_Count = 0;
-        anim_track1.m_Scale.m_Count     = 0;
-
-        uint32_t samples = 4;
-        anim_track0.m_Rotations.m_Data = new float[samples*4];
-        anim_track0.m_Rotations.m_Count = samples*4;
-        ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::identity();
-        ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
-        ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
-        ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
-
-        anim_track1.m_Rotations.m_Data = new float[samples*4];
-        anim_track1.m_Rotations.m_Count = samples*4;
-        ((Quat*)anim_track1.m_Rotations.m_Data)[0] = Quat::identity();
-        ((Quat*)anim_track1.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
-        ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::identity();
-        ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
-
-        // IK animation
-        anim1.m_IkTracks.m_Data = new dmRigDDF::IKAnimationTrack[1];
-        anim1.m_IkTracks.m_Count = 1;
-        dmRigDDF::IKAnimationTrack& ik_track = anim1.m_IkTracks.m_Data[0];
-        ik_track.m_IkIndex = 0;
-        ik_track.m_Mix.m_Data = new float[samples];
-        ik_track.m_Mix.m_Count = samples;
-        ik_track.m_Mix.m_Data[0] = 1.0f;
-        ik_track.m_Mix.m_Data[1] = 1.0f;
-        ik_track.m_Mix.m_Data[2] = 1.0f;
-        ik_track.m_Mix.m_Data[3] = 1.0f;
-        ik_track.m_Positive.m_Data = new bool[samples];
-        ik_track.m_Positive.m_Count = samples;
-        ik_track.m_Positive.m_Data[0] = 1.0f;
-        ik_track.m_Positive.m_Data[1] = 1.0f;
-        ik_track.m_Positive.m_Data[2] = 1.0f;
-        ik_track.m_Positive.m_Data[3] = 1.0f;
-
-        // Meshes / skins
-        m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
-        m_MeshSet->m_MeshEntries.m_Count = 2;
-
-        m_MeshSet->m_SlotCount = 3;
-
-        // Every slot will get two attachment points.
-        // Make all slot attachment point to -1, ie no meshes attached/visible
-        for (uint32_t i = 0; i < m_MeshSet->m_MeshEntries.m_Count; i++) {
-            m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[m_MeshSet->m_SlotCount];
-            m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = m_MeshSet->m_SlotCount;
-
-            for (uint32_t j = 0; j < m_MeshSet->m_SlotCount; j++) {
-                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
-                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
-                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
-                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[1] = -1;
-                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_ActiveIndex = -1;
-                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_SlotColor.m_Count = 0;
-            }
-        }
-
-        uint32_t available_mesh_count = 2;
-        m_MeshSet->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[available_mesh_count];
-        m_MeshSet->m_MeshAttachments.m_Count = 0;
-
-        CreateTestSkin(m_MeshSet, 0, dmHashString64("test"), Vector4(0.0f));
-        CreateTestSkin(m_MeshSet, 1, dmHashString64("secondary_skin"), Vector4(1.0f));
-
-        // For sanity, check that all the expected meshes were added.
-        assert(m_MeshSet->m_MeshAttachments.m_Count == available_mesh_count);
-
-        // ------------------
-
-        // Data
-        create_params.m_BindPose     = &m_BindPose;
-        create_params.m_TrackIdxToPose = &m_TrackIdxToPose;
-        create_params.m_Skeleton     = m_Skeleton;
-        create_params.m_MeshSet      = m_MeshSet;
-        create_params.m_AnimationSet = m_AnimationSet;
-
-        create_params.m_MeshId           = dmHashString64((const char*)"test");
-        create_params.m_DefaultAnimation = dmHashString64((const char*)"");
-
-        if (dmRig::RESULT_OK != dmRig::InstanceCreate(create_params))
-        {
-            dmLogError("Could not create rig instance!");
-        }
-    }
-
-    void TearDownSimpleSpine() {
-
-        dmRig::InstanceDestroyParams destroy_params = {0};
-        destroy_params.m_Context = m_RigContext;
-        destroy_params.m_Instance = m_RigInstance;
-        if (dmRig::RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
-            dmLogError("Could not delete rig instance!");
-        }
-
-        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks[0].m_Keys.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data;
-        delete [] m_Skeleton->m_Bones.m_Data;
-        delete [] m_Skeleton->m_Iks.m_Data;
-
-        // Delete mesh attachments and their data
-        uint32_t mesh_count = m_MeshSet->m_MeshAttachments.m_Count;
-        for (uint32_t i = 0; i < mesh_count; ++i)
-        {
-            dmRigDDF::Mesh& mesh = m_MeshSet->m_MeshAttachments.m_Data[i];
-            if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
-            if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
-            if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
-            if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-            if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
-            if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
-            if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
-            if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
-            if (mesh.m_PositionIndices.m_Count > 0)  { delete [] mesh.m_PositionIndices.m_Data; }
-        }
-        delete [] m_MeshSet->m_MeshAttachments.m_Data;
-
-        // Delete mesh entries and their slot data
-        uint32_t mesh_entry_count = m_MeshSet->m_MeshEntries.m_Count;
-        for (uint32_t i = 0; i < mesh_entry_count; ++i)
-        {
-            dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
-            uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
-            for (uint32_t j = 0; j < mesh_slot_count; j++) {
-                dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
-                if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
-                if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
-            }
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
-        }
-        delete [] m_MeshSet->m_MeshEntries.m_Data;
-
-        delete m_Skeleton;
-        delete m_MeshSet;
-        delete m_AnimationSet;
-    }
 };
 
 void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
@@ -688,11 +231,11 @@ TEST_F(dmGuiTest, Basic)
 {
     for (uint32_t i = 0; i < MAX_NODES; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
         ASSERT_NE((dmGui::HNode) 0, node);
     }
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_EQ((dmGui::HNode) 0, node);
     ASSERT_EQ(m_Script, dmGui::GetSceneScript(m_Scene));
 }
@@ -703,7 +246,7 @@ TEST_F(dmGuiTest, RecreateNodes)
     uint32_t n = MAX_NODES + 1;
     for (uint32_t i = 0; i < n; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
         ASSERT_NE((dmGui::HNode) 0, node);
         ASSERT_EQ(dmGui::PIVOT_CENTER, dmGui::GetNodePivot(m_Scene, node));
         dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_E);
@@ -715,7 +258,7 @@ TEST_F(dmGuiTest, RecreateNodes)
 
 TEST_F(dmGuiTest, Name)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     dmGui::HNode get_node = dmGui::GetNodeById(m_Scene, "my_node");
@@ -794,7 +337,7 @@ TEST_F(dmGuiTest, Layouts)
     Point3 p0(0,0,0);
     Point3 p1(1,0,0);
     Point3 p2(2,0,0);
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(3,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(3,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
     ASSERT_EQ(3, dmGui::GetNodePosition(m_Scene, node).getX());
 
@@ -863,7 +406,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t1");
@@ -910,7 +453,7 @@ TEST_F(dmGuiTest, SizeMode)
     r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t1");
@@ -936,7 +479,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t1");
@@ -1008,7 +551,7 @@ TEST_F(dmGuiTest, TextureFontLayer)
     dmGui::AddLayer(m_Scene, "l1");
     dmGui::AddLayer(m_Scene, "l2");
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     dmGui::Result r;
@@ -1136,7 +679,7 @@ TEST_F(dmGuiTest, DynamicTexture)
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "foo");
@@ -1262,7 +805,7 @@ TEST_F(dmGuiTest, ScriptFlipbookAnim)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     const char* id = "n";
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
     dmGui::SetNodeId(m_Scene, node, id);
 
@@ -1307,7 +850,7 @@ TEST_F(dmGuiTest, ScriptTextureFontLayer)
     dmGui::AddLayer(m_Scene, "l");
 
     const char* id = "n";
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
     dmGui::SetNodeId(m_Scene, node, id);
 
@@ -1337,7 +880,7 @@ TEST_F(dmGuiTest, ScriptTextureFontLayer)
 TEST_F(dmGuiTest, ScriptDynamicTexture)
 {
     const char* id = "n";
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
     dmGui::SetNodeId(m_Scene, node, id);
 
@@ -1374,12 +917,12 @@ TEST_F(dmGuiTest, ScriptDynamicTexture)
 TEST_F(dmGuiTest, ScriptIndex)
 {
     const char* id = "n";
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
     dmGui::SetNodeId(m_Scene, node, id);
 
     const char* id2 = "n2";
-    node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
     dmGui::SetNodeId(m_Scene, node, id2);
 
@@ -1400,7 +943,7 @@ TEST_F(dmGuiTest, NewDeleteNode)
 
     for (uint32_t i = 0; i < MAX_NODES; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX, 0);
         ASSERT_NE((dmGui::HNode) 0, node);
         node_to_pos[node] = (float) i;
     }
@@ -1423,7 +966,7 @@ TEST_F(dmGuiTest, NewDeleteNode)
         node_to_pos.erase(iter);
         dmGui::DeleteNode(m_Scene, node_to_remove, true);
 
-        dmGui::HNode new_node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode new_node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX, 0);
         ASSERT_NE((dmGui::HNode) 0, new_node);
         node_to_pos[new_node] = (float) i;
     }
@@ -1433,17 +976,17 @@ TEST_F(dmGuiTest, ClearNodes)
 {
     for (uint32_t i = 0; i < MAX_NODES; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX, 0);
         ASSERT_NE((dmGui::HNode) 0, node);
     }
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_EQ((dmGui::HNode) 0, node);
 
     dmGui::ClearNodes(m_Scene);
     for (uint32_t i = 0; i < MAX_NODES; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX, 0);
         ASSERT_NE((dmGui::HNode) 0, node);
     }
 }
@@ -1453,7 +996,7 @@ TEST_F(dmGuiTest, AnimateNode)
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
         dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.5f, 0, 0, 0);
 
         ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
@@ -1489,7 +1032,7 @@ TEST_F(dmGuiTest, CustomEasingAnimation)
         vector.values[i] = t;
     }
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
@@ -1510,7 +1053,7 @@ TEST_F(dmGuiTest, Playback)
     const float duration = 4 / 60.0f;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX, 0);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_BACKWARD, duration, 0, 0, 0, 0);
@@ -1577,7 +1120,7 @@ TEST_F(dmGuiTest, Playback)
 TEST_F(dmGuiTest, AnimateNode2)
 {
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
@@ -1595,7 +1138,7 @@ TEST_F(dmGuiTest, AnimateNode2)
 TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
 {
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
@@ -1617,7 +1160,7 @@ TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
 TEST_F(dmGuiTest, AnimateNodeDelete)
 {
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
@@ -1629,7 +1172,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
         if (i == 30)
         {
             dmGui::DeleteNode(m_Scene, node, true);
-            node2 = dmGui::NewNode(m_Scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+            node2 = dmGui::NewNode(m_Scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
         }
 
         dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
@@ -1655,7 +1198,7 @@ void MyAnimationComplete(dmGui::HScene scene,
 
 TEST_F(dmGuiTest, AnimateComplete)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     Point3 completed_position;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*)(uintptr_t) node, (void*)&completed_position);
@@ -1713,7 +1256,7 @@ void MyPingPongComplete2(dmGui::HScene scene,
 
 TEST_F(dmGuiTest, PingPong)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*)(uintptr_t) node, 0);
 
@@ -1734,8 +1277,8 @@ TEST_F(dmGuiTest, PingPong)
 
 TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
 {
-    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeParent(m_Scene, child, parent, false);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::AnimateNodeHash(m_Scene, child, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
@@ -1756,8 +1299,8 @@ TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
 
 TEST_F(dmGuiTest, Reset)
 {
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 20, 30), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(100, 200, 300), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 20, 30), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(100, 200, 300), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     // Set reset point only for the first node
     dmGui::SetNodeResetPoint(m_Scene, n1);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
@@ -1775,7 +1318,7 @@ TEST_F(dmGuiTest, Reset)
 
 TEST_F(dmGuiTest, ScriptAnimate)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
@@ -1834,7 +1377,7 @@ TEST_F(dmGuiTest, ScriptPlayback)
                     "end\n";
     for (int i = 0; i < DM_ARRAY_SIZE(durations); ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
         dmGui::SetNodeId(m_Scene, node, "n");
         char buffer[1024];
 
@@ -1871,7 +1414,7 @@ TEST_F(dmGuiTest, ScriptPlayback)
 
 TEST_F(dmGuiTest, ScriptAnimatePreserveAlpha)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
@@ -1902,7 +1445,7 @@ TEST_F(dmGuiTest, ScriptAnimatePreserveAlpha)
 
 TEST_F(dmGuiTest, ScriptAnimateComponent)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
@@ -1935,7 +1478,7 @@ TEST_F(dmGuiTest, ScriptAnimateComponent)
 
 TEST_F(dmGuiTest, ScriptAnimateComplete)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function cb(self, node)\n"
                     "    assert(self.foobar == 123)\n"
@@ -1976,8 +1519,8 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
 
 TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
 {
-    dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node1, "n1");
     dmGui::SetNodeId(m_Scene, node2, "n2");
     const char* s = "function cb(self, node)\n"
@@ -2014,7 +1557,7 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
 TEST_F(dmGuiTest, ScriptAnimateCancel1)
 {
     // Immediate cancel
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
@@ -2051,7 +1594,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel1)
 TEST_F(dmGuiTest, ScriptAnimateCancel2)
 {
     // Cancel after 50% has elapsed
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
@@ -2110,7 +1653,7 @@ TEST_F(dmGuiTest, ScriptOutOfNodes)
 
 TEST_F(dmGuiTest, ScriptGetNode)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
 
@@ -2125,7 +1668,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
 
 TEST_F(dmGuiTest, ScriptGetMissingNode)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"x\")\n print(n)\n end";
 
@@ -2140,7 +1683,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
 
 TEST_F(dmGuiTest, ScriptGetDeletedNode)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
     dmGui::DeleteNode(m_Scene, node, true);
@@ -2154,8 +1697,8 @@ TEST_F(dmGuiTest, ScriptGetDeletedNode)
 
 TEST_F(dmGuiTest, ScriptEqNode)
 {
-    dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(1,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(1,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node1, "n");
     dmGui::SetNodeId(m_Scene, node2, "m");
 
@@ -2605,7 +2148,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
 
 TEST_F(dmGuiTest, SaveNode)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.n = gui.get_node(\"n\")\n"
@@ -2626,7 +2169,7 @@ TEST_F(dmGuiTest, SaveNode)
 
 TEST_F(dmGuiTest, UseDeletedNode)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self) self.n = gui.get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
@@ -2646,7 +2189,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
 
 TEST_F(dmGuiTest, NodeProperties)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.n = gui.get_node(\"n\")\n"
@@ -2679,8 +2222,8 @@ TEST_F(dmGuiTest, ReplaceAnimation)
      // * Internally the animation will removed an "erased-swapped". Used to test that the last animation
      // * for node1 really invalidates the first animation of node1
 
-    dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
 
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::AnimateNodeHash(m_Scene, node2, property, Vector4(123,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 0.5f, 0, 0, 0, 0);
@@ -2888,7 +2431,7 @@ TEST_F(dmGuiTest, Scaling)
     dmGui::SetSceneResolution(m_Scene, width, height);
 
     const char* n1_name = "n1";
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2.0f, height/2.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2.0f, height/2.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
 
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
@@ -2912,13 +2455,13 @@ TEST_F(dmGuiTest, Anchoring)
     Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
 
     const char* n1_name = "n1";
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
     dmGui::SetNodeXAnchor(m_Scene, n1, dmGui::XANCHOR_LEFT);
     dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_BOTTOM);
 
     const char* n2_name = "n2";
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10.0f, height - 10.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10.0f, height - 10.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, n2, n2_name);
     dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
     dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_TOP);
@@ -3043,19 +2586,19 @@ TEST_F(dmGuiTest, AdjustMode)
             const float size_val = size_vals[t];
 
             const char* center_name = "center";
-            dmGui::HNode center_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t]);
+            dmGui::HNode center_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t], 0);
             dmGui::SetNodeText(m_Scene, center_node, center_name);
             dmGui::SetNodePivot(m_Scene, center_node, dmGui::PIVOT_CENTER);
             dmGui::SetNodeAdjustMode(m_Scene, center_node, mode);
 
             const char* bl_name = "bottom_left";
-            dmGui::HNode bl_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t]);
+            dmGui::HNode bl_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t], 0);
             dmGui::SetNodeText(m_Scene, bl_node, bl_name);
             dmGui::SetNodePivot(m_Scene, bl_node, dmGui::PIVOT_SW);
             dmGui::SetNodeAdjustMode(m_Scene, bl_node, mode);
 
             const char* tr_name = "top_right";
-            dmGui::HNode tr_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t]);
+            dmGui::HNode tr_node = dmGui::NewNode(m_Scene, Point3(pos_val, pos_val, 0), Vector3(size_val, size_val, 0), types[t], 0);
             dmGui::SetNodeText(m_Scene, tr_node, tr_name);
             dmGui::SetNodePivot(m_Scene, tr_node, dmGui::PIVOT_NE);
             dmGui::SetNodeAdjustMode(m_Scene, tr_node, mode);
@@ -3085,7 +2628,7 @@ TEST_F(dmGuiTest, AdjustMode)
 
 TEST_F(dmGuiTest, ScriptErroneousReturnValues)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    return true\n"
@@ -3150,7 +2693,7 @@ TEST_F(dmGuiTest, Picking)
 
     Vector3 size(10, 10, 0);
     Point3 pos(size * 0.5f);
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
 
     // Account for some loss in precision
     Vector3 tmin(EPSILON, EPSILON, 0);
@@ -3184,7 +2727,7 @@ TEST_F(dmGuiTest, PickingDisabledAdjust)
 
     Vector3 size(10, 10, 0);
     Point3 pos(size * 0.5f);
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
 
     // Account for some loss in precision
     Vector3 tmin(EPSILON, EPSILON, 0);
@@ -3260,17 +2803,17 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     Point3 pos(10, 10, 0);
     Vector3 size(20, 20, 0);
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n1, 0x1);
 
     pos = Point3(20, 20, 0);
     size = Vector3(15, 15, 0);
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n2, 0x2);
 
     pos = Point3(30, 30, 0);
     size = Vector3(10, 10, 0);
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n3, 0x3);
 
     dmGui::SetNodeParent(m_Scene, n2, n1, false);
@@ -3333,17 +2876,17 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     Point3 pos(10, 10, 0);
     Vector3 size(20, 20, 0);
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n1, 0x1);
 
     pos = Point3(20, 20, 0);
     size = Vector3(15, 15, 0);
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n2, 0x2);
 
     pos = Point3(30, 30, 0);
     size = Vector3(10, 10, 0);
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n3, 0x3);
 
     dmGui::SetNodeParent(m_Scene, n2, n1, false);
@@ -3464,23 +3007,23 @@ TEST_F(dmGuiTest, ReparentKeepTrans)
 
     Point3 pos_root(50, 50, 0); // center of gui
     Vector3 size(10, 10, 0);
-    dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_root, 0x1);
 
     Point3 pos_top(50, 100, 0); // top edge of gui
-    dmGui::HNode n_top = dmGui::NewNode(m_Scene, pos_top, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_top = dmGui::NewNode(m_Scene, pos_top, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_top, 0x2);
 
     Point3 pos_right(100, 50, 0); // right edge of gui
-    dmGui::HNode n_right = dmGui::NewNode(m_Scene, pos_right, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_right = dmGui::NewNode(m_Scene, pos_right, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_right, 0x3);
 
     Point3 pos_bottom(50, 0, 0); // bottom edge of gui
-    dmGui::HNode n_bottom = dmGui::NewNode(m_Scene, pos_bottom, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_bottom = dmGui::NewNode(m_Scene, pos_bottom, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_bottom, 0x4);
 
     Point3 pos_left(0, 50, 0); // left edge of gui
-    dmGui::HNode n_left = dmGui::NewNode(m_Scene, pos_left, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_left = dmGui::NewNode(m_Scene, pos_left, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_left, 0x5);
 
 
@@ -3629,11 +3172,11 @@ TEST_F(dmGuiTest, ReparentKeepTransDifferentAdjust)
 
     Point3 pos_root(50, 50, 0);
     Vector3 size(10, 10, 0);
-    dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_root, 0x1);
 
     Point3 pos_child(100, 50, 0);
-    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_child, 0x2);
 
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
@@ -3691,20 +3234,20 @@ TEST_F(dmGuiTest, ReparentKeepTransComplexTree)
 
     Point3 pos_offset(10, 10, 0);
     Vector3 size(10, 10, 0);
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeId(m_Scene, n1, 0x1);
 
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
     dmGui::SetNodeId(m_Scene, n2, 0x2);
 
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
     dmGui::SetNodeId(m_Scene, n3, 0x3);
 
     Point3 pos_child(75, 75, 0);
-    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_child, 0x4);
 
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
@@ -3757,12 +3300,12 @@ TEST_F(dmGuiTest, ReparentKeepTransAnchoring)
 
     Point3 pos_root(50, 50, 0);
     Vector3 size(10, 10, 0);
-    dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_root, 0x1);
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
 
     Point3 pos_child(100, 50, 0);
-    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n_child, 0x2);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_FIT);
 
@@ -3841,7 +3384,7 @@ TEST_F(dmGuiTest, EnableDisable)
     // Setup
     Vector3 size(10, 10, 0);
     Point3 pos(size * 0.5f);
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
 
     // Initially enabled
     dmGui::InternalNode* node = dmGui::GetNode(m_Scene, n1);
@@ -3970,7 +3513,7 @@ TEST_F(dmGuiTest, MoveNodes)
     std::map<dmGui::HNode, uint16_t> order;
 
     // Edge case: single node
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
     // Move to top
@@ -3991,7 +3534,7 @@ TEST_F(dmGuiTest, MoveNodes)
     ASSERT_EQ(0u, order[n1]);
 
     // Two nodes
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
     ASSERT_EQ(1u, order[n2]);
@@ -4017,7 +3560,7 @@ TEST_F(dmGuiTest, MoveNodes)
     ASSERT_EQ(1u, order[n2]);
 
     // Three nodes
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
     ASSERT_EQ(1u, order[n2]);
@@ -4067,10 +3610,10 @@ TEST_F(dmGuiTest, MoveNodesScript)
     Point3 pos(size * 0.5f);
 
     const char* id1 = "n1";
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n1, id1);
     const char* id2 = "n2";
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeId(m_Scene, n2, id2);
     const char* s = "function init(self)\n"
                     "    local n1 = gui.get_node(\"n1\")\n"
@@ -4127,7 +3670,7 @@ TEST_F(dmGuiTest, MoveNodesLoad)
 
     for (uint32_t i = 0; i < node_count; ++i)
     {
-        dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX);
+        dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     }
     uint32_t current_count = node_count;
     uint32_t render_count = 0;
@@ -4166,7 +3709,7 @@ TEST_F(dmGuiTest, MoveNodesLoad)
         switch (op_type)
         {
         case OP_ADD:
-            dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX);
+            dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
             ++current_count;
             break;
         case OP_DELETE:
@@ -4245,7 +3788,7 @@ TEST_F(dmGuiTest, Parenting)
     std::map<dmGui::HNode, uint16_t> order;
 
     // Edge case: single node
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
     // parent to nil
@@ -4258,7 +3801,7 @@ TEST_F(dmGuiTest, Parenting)
     ASSERT_EQ(0u, order[n1]);
 
     // Two nodes
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
     ASSERT_EQ(1u, order[n2]);
@@ -4284,7 +3827,7 @@ TEST_F(dmGuiTest, Parenting)
     ASSERT_EQ(1u, order[n2]);
 
     // Three nodes
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
     ASSERT_EQ(1u, order[n2]);
@@ -4319,7 +3862,7 @@ TEST_F(dmGuiTest, NodeTransform)
     Vector3 size(1.0f, 1.0f, 1.0f);
     Vector3 pos(0.25f, 0.5f, 0.75f);
     dmVMath::Matrix4 transforms[1];
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(pos), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(pos), size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_SW);
 
     dmVMath::Matrix4 ref_mat;
@@ -4356,9 +3899,9 @@ TEST_F(dmGuiTest, HierarchicalTransforms)
     // Setup
     Vector3 size(1, 1, 0);
 
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX, 0);
     // parent first to second, second to third
     dmGui::SetNodeParent(m_Scene, n3, n2, false);
     dmGui::SetNodeParent(m_Scene, n2, n1, false);
@@ -4423,7 +3966,7 @@ TEST_F(dmGuiTest, HierarchicalColors)
     const size_t node_count = sizeof(node)/sizeof(dmGui::HNode);
 
     for(uint32_t i = 0; i < node_count; ++i) {
-        node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX, 0);
         dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
     }
 
@@ -4490,14 +4033,14 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 
     for(uint32_t i = 0; i < node_count; ++i)
     {
-        dummy_node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        dummy_node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX, 0);
     }
 
     float a;
     a = 1.0f;
     for(uint32_t i = 0; i < node_count_h; ++i)
     {
-        node[i] = dmGui::NewNode(m_Scene, Point3(1.0f, 1.0f, 1.0f), size, dmGui::NODE_TYPE_BOX);
+        node[i] = dmGui::NewNode(m_Scene, Point3(1.0f, 1.0f, 1.0f), size, dmGui::NODE_TYPE_BOX, 0);
         dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
         dmGui::SetNodePivot(m_Scene, node[i], dmGui::PIVOT_SW);
         dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(1, 1, 1, a));
@@ -4507,7 +4050,7 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
     a = 0.5f;
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
-        node[i] = dmGui::NewNode(m_Scene, Point3(0.5f, 0.5f, 0.5f), size, dmGui::NODE_TYPE_BOX);
+        node[i] = dmGui::NewNode(m_Scene, Point3(0.5f, 0.5f, 0.5f), size, dmGui::NODE_TYPE_BOX, 0);
         dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
         dmGui::SetNodePivot(m_Scene, node[i], dmGui::PIVOT_SW);
         dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(1, 1, 1, a));
@@ -4591,7 +4134,7 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 
 TEST_F(dmGuiTest, ScriptClippingFunctions)
 {
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
     dmGui::SetNodeId(m_Scene, node, "clipping_node");
     dmGui::HNode get_node = dmGui::GetNodeById(m_Scene, "clipping_node");
@@ -4631,8 +4174,8 @@ TEST_F(dmGuiTest, LayerRendering)
     std::map<dmGui::HNode, uint16_t> order;
 
     // Initial case
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
 
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
@@ -4670,13 +4213,13 @@ TEST_F(dmGuiTest, LayerRenderingHierarchies)
     std::map<dmGui::HNode, uint16_t> order;
 
     // Initial case
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeLayer(m_Scene, n1, "l1");
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeParent(m_Scene, n2, n1, false);
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeLayer(m_Scene, n3, "l2");
-    dmGui::HNode n4 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n4 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeParent(m_Scene, n4, n3, false);
     dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
     ASSERT_EQ(0u, order[n1]);
@@ -4703,9 +4246,9 @@ TEST_F(dmGuiTest, NoRenderOfDisabledTree)
     uint32_t count;
 
     // Edge case: single node
-    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeParent(m_Scene, child, parent, false);
     dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
     ASSERT_EQ(3u, count);
@@ -4724,8 +4267,8 @@ TEST_F(dmGuiTest, DeleteTree)
 
     uint32_t count;
 
-    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
 
     dmGui::SetNodeParent(m_Scene, child, parent, false);
     dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
@@ -4743,7 +4286,7 @@ TEST_F(dmGuiTest, PhysResUpdatesTransform)
     Vector3 size(10, 10, 0);
     Point3 pos(size);
 
-    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
 
     Matrix4 transform;
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, &transform);
@@ -4791,14 +4334,14 @@ TEST_F(dmGuiTest, AdjustReference)
     ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
 
     // create nodes
-    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
     dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_LEFT);
     dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_BOTTOM);
     dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
 
-    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
     dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_LEFT);
@@ -4875,14 +4418,14 @@ TEST_F(dmGuiTest, AdjustReferenceDisabled)
     ASSERT_EQ(dmGui::ADJUST_REFERENCE_DISABLED, dmGui::GetSceneAdjustReference(m_Scene));
 
     // create nodes
-    dmGui::HNode node_levelB = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_levelB = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_levelB, "node_levelB");
     dmGui::SetNodePivot(m_Scene, node_levelB, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_levelB, dmGui::XANCHOR_LEFT);
     dmGui::SetNodeYAnchor(m_Scene, node_levelB, dmGui::YANCHOR_BOTTOM);
     dmGui::SetNodeAdjustMode(m_Scene, node_levelB, dmGui::ADJUST_MODE_STRETCH);
 
-    dmGui::HNode node_levelC = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_levelC = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_levelC, "node_levelC");
     dmGui::SetNodePivot(m_Scene, node_levelC, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_levelC, dmGui::XANCHOR_LEFT);
@@ -4959,14 +4502,14 @@ TEST_F(dmGuiTest, AdjustReferenceMultiLevel)
     ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
 
     // create nodes
-    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
     dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_LEFT);
     dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_BOTTOM);
     dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
 
-    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
     dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_LEFT);
@@ -4974,7 +4517,7 @@ TEST_F(dmGuiTest, AdjustReferenceMultiLevel)
     dmGui::SetNodeAdjustMode(m_Scene, node_level1, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeParent(m_Scene, node_level1, node_level0, false);
 
-    dmGui::HNode node_level2 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level2 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level2, "node_level2");
     dmGui::SetNodePivot(m_Scene, node_level2, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_level2, dmGui::XANCHOR_LEFT);
@@ -5034,14 +4577,14 @@ TEST_F(dmGuiTest, AdjustReferenceOffset)
     ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
 
     // create nodes
-    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(50.0f, 25.0f, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(50.0f, 25.0f, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
     dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_CENTER);
     dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_NONE);
     dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_NONE);
     dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
 
-    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(50, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(50, 50, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
     dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_CENTER);
     dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_NONE);
@@ -5049,7 +4592,7 @@ TEST_F(dmGuiTest, AdjustReferenceOffset)
     dmGui::SetNodeAdjustMode(m_Scene, node_level1, dmGui::ADJUST_MODE_FIT);
     dmGui::SetNodeParent(m_Scene, node_level1, node_level0, false);
 
-    dmGui::HNode node_level2 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level2 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level2, "node_level2");
     dmGui::SetNodePivot(m_Scene, node_level2, dmGui::PIVOT_CENTER);
     dmGui::SetNodeXAnchor(m_Scene, node_level2, dmGui::XANCHOR_NONE);
@@ -5111,7 +4654,7 @@ TEST_F(dmGuiTest, AdjustReferenceAnchoring)
 
     Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
 
-    dmGui::HNode root_node = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0), Vector3(1024, 768, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode root_node = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0), Vector3(1024, 768, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, root_node, "root_node");
     dmGui::SetNodePivot(m_Scene, root_node, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, root_node, dmGui::XANCHOR_NONE);
@@ -5119,14 +4662,14 @@ TEST_F(dmGuiTest, AdjustReferenceAnchoring)
     dmGui::SetNodeAdjustMode(m_Scene, root_node, dmGui::ADJUST_MODE_STRETCH);
 
     const char* n1_name = "n1";
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
     dmGui::SetNodeXAnchor(m_Scene, n1, dmGui::XANCHOR_LEFT);
     dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_BOTTOM);
     dmGui::SetNodeParent(m_Scene, n1, root_node, false);
 
     const char* n2_name = "n2";
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10.0f, height - 10.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10.0f, height - 10.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, n2, n2_name);
     dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
     dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_TOP);
@@ -5160,14 +4703,14 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
     ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
 
     // create nodes
-    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
     dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_LEFT);
     dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_BOTTOM);
     dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
 
-    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
     dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_SW);
     dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_LEFT);
@@ -5205,475 +4748,6 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
     dmGui::DeleteNode(m_Scene, node_level1, true);
     dmGui::DeleteNode(m_Scene, node_level0, true);
 
-}
-
-static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
-{
-    dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
-    dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
-    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
-
-    uint32_t bone_count = 2;
-    skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
-    skeleton->m_Bones.m_Count = bone_count;
-
-    // Bone 0
-    dmRigDDF::Bone& bone0 = skeleton->m_Bones.m_Data[0];
-    bone0.m_Parent       = 0xffff;
-    bone0.m_Id           = 0;
-    bone0.m_Position     = dmVMath::Point3(0.0f, 0.0f, 0.0f);
-    bone0.m_Rotation     = dmVMath::Quat::identity();
-    bone0.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-    bone0.m_InheritScale = false;
-    bone0.m_Length       = 0.0f;
-
-    // Bone 1
-    dmRigDDF::Bone& bone1 = skeleton->m_Bones.m_Data[1];
-    bone1.m_Parent       = 0;
-    bone1.m_Id           = 1;
-    bone1.m_Position     = dmVMath::Point3(1.0f, 0.0f, 0.0f);
-    bone1.m_Rotation     = dmVMath::Quat::identity();
-    bone1.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-    bone1.m_InheritScale = false;
-    bone1.m_Length       = 1.0f;
-
-    dummy_data->m_BindPose = new dmArray<dmRig::RigBone>();
-    dummy_data->m_Skeleton = skeleton;
-    dummy_data->m_MeshSet = mesh_set;
-    dummy_data->m_AnimationSet = animation_set;
-
-    dmRig::CreateBindPose(*skeleton, *dummy_data->m_BindPose);
-
-    if(num_dummy_mesh_entries > 0)
-    {
-        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[num_dummy_mesh_entries];
-        mesh_set->m_MeshEntries.m_Count = num_dummy_mesh_entries;
-
-        mesh_set->m_SlotCount = 3;
-
-        // Every slot will get two attachment points.
-        // Make all slot attachment point to -1, ie no meshes attached/visible
-        for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
-            mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[mesh_set->m_SlotCount];
-            mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = mesh_set->m_SlotCount;
-
-            for (uint32_t j = 0; j < mesh_set->m_SlotCount; j++) {
-                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
-                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
-                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
-                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[1] = -1;
-                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_ActiveIndex = -1;
-                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_SlotColor.m_Count = 0;
-            }
-        }
-
-        mesh_set->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[num_dummy_mesh_entries];
-        mesh_set->m_MeshAttachments.m_Count = 0; // We will use this and update it in CreateTestSkin
-    }
-
-    char buf[64];
-    for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
-    {
-        sprintf(buf, "skin%i", i);
-        CreateTestSkin(mesh_set, i, dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
-    }
-
-    // For sanity, check that all the expected meshes were added.
-    assert(mesh_set->m_MeshAttachments.m_Count == num_dummy_mesh_entries);
-}
-
-static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
-{
-    if (num_dummy_mesh_entries > 0)
-    {
-        // Delete mesh attachments and their data
-        for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
-        {
-            dmRigDDF::Mesh& mesh = dummy_data->m_MeshSet->m_MeshAttachments.m_Data[i];
-            if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
-            if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
-            if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
-            if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-            if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
-            if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
-            if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
-            if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
-            if (mesh.m_PositionIndices.m_Count > 0)  { delete [] mesh.m_PositionIndices.m_Data; }
-        }
-        delete [] dummy_data->m_MeshSet->m_MeshAttachments.m_Data;
-
-        // Delete mesh entries and their slot data
-        for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
-        {
-            dmRigDDF::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
-            uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
-            for (uint32_t j = 0; j < mesh_slot_count; j++) {
-                dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
-                if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
-                if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
-            }
-            delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
-        }
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
-    }
-
-    delete dummy_data->m_BindPose;
-    delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
-    delete dummy_data->m_Skeleton;
-    delete dummy_data->m_MeshSet;
-    delete dummy_data->m_AnimationSet;
-    delete dummy_data;
-}
-
-TEST_F(dmGuiTest, SpineNodeNoData)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    // create nodes
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, "test_spine", 0, 0, true));
-}
-
-TEST_F(dmGuiTest, SpineNode)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
-
-    // create nodes
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
-    DeleteSpineDummyData(dummy_data);
-}
-
-TEST_F(dmGuiTest, SpineNodeSetSkin)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-    uint32_t num_dummy_mesh_entries = 2;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data, num_dummy_mesh_entries);
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
-
-    // create nodes
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy-skin"), dmHashString64((const char*)""), true));
-
-    // set skin
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineSkin(m_Scene, node, dmHashString64("skin1")));
-    // verify
-    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
-
-    DeleteSpineDummyData(dummy_data, num_dummy_mesh_entries);
-}
-
-TEST_F(dmGuiTest, SpineNodeGetSkin)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create nodes
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // get skin
-    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
-}
-
-TEST_F(dmGuiTest, SpineNodeGetAnimation)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create node
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // get animation id when no animation playing
-    ASSERT_EQ(0U, dmGui::GetNodeSpineAnimation(m_Scene, node));
-
-    // play invalid animation
-    ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
-    ASSERT_EQ(0U, dmGui::GetNodeSpineAnimation(m_Scene, node));
-
-    // play valid animation
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
-    ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
-
-    // play invalid animation
-    ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
-    ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
-}
-
-TEST_F(dmGuiTest, SpineNodeEventCallback)
-{
-    SpineAnimationKeyEventCount = 0;
-    uint32_t width = 100;
-    uint32_t height = 50;
-    float dt = 1.0f;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create node
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // duration is 3.0 seconds, event key located at 0.5 seconds
-    // play animation with event key
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0x0, (void*)m_Scene, 0));
-    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(1U, SpineAnimationKeyEventCount);
-}
-
-uint32_t SpineAnimationCompleteCount = 0;
-void SpineAnimationComplete(dmGui::HScene scene,
-                         dmGui::HNode node,
-                         bool finished,
-                         void* userdata1,
-                         void* userdata2)
-{
-    SpineAnimationCompleteCount++;
-}
-TEST_F(dmGuiTest, SpineNodeCompleteCallback)
-{
-    SpineAnimationCompleteCount = 0;
-    uint32_t width = 100;
-    uint32_t height = 50;
-    float dt = 1.500001;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create node
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // duration is 3.0 seconds
-    // play animation with cb
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
-    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(1U, SpineAnimationCompleteCount);
-
-    // play animation without cb
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0, 0, 0));
-    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(1U, SpineAnimationCompleteCount);
-
-    // play animation with cb once more
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
-    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(2U, SpineAnimationCompleteCount);
-}
-
-TEST_F(dmGuiTest, SpineNodeSetCursor)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-    float cursor = 0.5f;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create node
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // play animation
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
-
-    // set cursor
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineCursor(m_Scene, node, cursor));
-    ASSERT_NEAR(cursor, dmGui::GetNodeSpineCursor(m_Scene, node), EPSILON);
-}
-
-TEST_F(dmGuiTest, SpineNodeGetCursor)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-    float cursor_offset = 0.3f;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create node
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // play animation with cursor initial offset
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, cursor_offset, 1.0, 0,0,0));
-
-    // get cursor
-    ASSERT_EQ(cursor_offset, dmGui::GetNodeSpineCursor(m_Scene, node));
-}
-
-TEST_F(dmGuiTest, SpineNodeSetPlaybackRate)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-    float playback_rate = 0.5f;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create node
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // play animation
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
-
-    // set playback rate
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpinePlaybackRate(m_Scene, node, playback_rate));
-    ASSERT_NEAR(playback_rate, dmGui::GetNodeSpinePlaybackRate(m_Scene, node), EPSILON);
-}
-
-TEST_F(dmGuiTest, SpineNodeGetPlaybackRate)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-    float playback_rate = 0.5f;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc rig_scene_desc;
-    rig_scene_desc.m_BindPose = &m_BindPose;
-    rig_scene_desc.m_Skeleton = m_Skeleton;
-    rig_scene_desc.m_MeshSet = m_MeshSet;
-    rig_scene_desc.m_AnimationSet = m_AnimationSet;
-    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
-
-    // create node
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
-
-    // play animation
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, playback_rate, 0,0,0));
-
-    // get playback rate
-    ASSERT_NEAR(playback_rate, dmGui::GetNodeSpinePlaybackRate(m_Scene, node), EPSILON);
-}
-
-TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data);
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
-
-    // create nodes
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
-    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
-
-    ASSERT_EQ(0U, GetNodeSpineBone(m_Scene, node, 123));
-    ASSERT_NE(0U, GetNodeSpineBone(m_Scene, node, 0));
-    ASSERT_NE(0U, GetNodeSpineBone(m_Scene, node, 1));
-    ASSERT_EQ(0U, GetNodeSpineBone(m_Scene, node, 2));
-
-    ASSERT_EQ(0, dmGui::GetNodePosition(m_Scene, GetNodeSpineBone(m_Scene, node, 0)).getX());
-    ASSERT_EQ(1, dmGui::GetNodePosition(m_Scene, GetNodeSpineBone(m_Scene, node, 1)).getX());
-
-    DeleteSpineDummyData(dummy_data);
 }
 
 bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
@@ -5723,10 +4797,10 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
     ASSERT_EQ(res, dmGui::RESULT_OK);
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
-    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
-    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE, 0);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT, 0);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
 
@@ -5759,10 +4833,10 @@ TEST_F(dmGuiTest, PlayNodeParticlefx)
     ASSERT_EQ(res, dmGui::RESULT_OK);
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
-    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
-    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE, 0);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT, 0);
 
     ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
@@ -5792,7 +4866,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxInitialTransform)
     ASSERT_EQ(res, dmGui::RESULT_OK);
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(10,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(10,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
 
     // should only succeed when trying to play particlefx on correct node type
@@ -5822,7 +4896,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     ASSERT_EQ(res, dmGui::RESULT_OK);
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(10,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(10,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
 
@@ -5851,7 +4925,7 @@ TEST_F(dmGuiTest, NewNodeParticlefx)
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
     dmhash_t particlefx_id_wrong = dmHashString64("this_resource_does_not_exist.particlefxc");
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id_wrong));
@@ -5884,7 +4958,7 @@ static inline dmGui::HNode SetupGuiTestScene(dmGuiTest* _this, const char* parti
 
     dmGui::AddParticlefx(_this->m_Scene, particlefx_name, (void*)prototype);
 
-    dmGui::HNode node_pfx = dmGui::NewNode(_this->m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_pfx = dmGui::NewNode(_this->m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
     dmGui::SetNodeParticlefx(_this->m_Scene, node_pfx, particlefx_id);
@@ -6006,10 +5080,10 @@ TEST_F(dmGuiTest, StopNodeParticlefx)
     ASSERT_EQ(res, dmGui::RESULT_OK);
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
-    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
-    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE, 0);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT, 0);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
@@ -6042,7 +5116,7 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
 
     // Test playing three particlefx from one node
-    dmGui::HNode node_pfx_1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_pfx_1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx_1, particlefx_id));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_1, 0));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_1, 0));
@@ -6057,7 +5131,7 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
     ASSERT_EQ(0U, dmGui::GetParticlefxCount(m_Scene));
 
     // Test playing particlefx's from two separate nodes
-    dmGui::HNode node_pfx_2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_pfx_2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx_2, particlefx_id));
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_1, 0));
@@ -6099,10 +5173,10 @@ TEST_F(dmGuiTest, SetNodeParticlefx)
     ASSERT_EQ(res, dmGui::RESULT_OK);
 
     // create nodes
-    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
-    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE, 0);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT, 0);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
 
     // should not be able to set particlefx to any other node than particlefx node type
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
@@ -6130,98 +5204,12 @@ TEST_F(dmGuiTest, GetNodeParticlefx)
     ASSERT_EQ(res, dmGui::RESULT_OK);
 
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
-    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX, 0);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     dmhash_t ret_particlefx_id = 0;
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeParticlefx(m_Scene, node_pfx, ret_particlefx_id));
     ASSERT_EQ(particlefx_id, ret_particlefx_id);
     UnloadParticlefxPrototype(prototype);
-}
-
-TEST_F(dmGuiTest, BoxNodeSetSpineScene)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data);
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
-
-    // create nodes
-    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
-    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
-    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
-    dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
-
-    // should not be able to set spine scene for any other node than spine nodes
-    dmhash_t spine_scene_id = dmHashString64("test_spine");
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_box, spine_scene_id, 0, 0, true));
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_pie, spine_scene_id, 0, 0, true));
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_text, spine_scene_id, 0, 0, true));
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, spine_scene_id, 0, 0, true));
-
-    DeleteSpineDummyData(dummy_data);
-}
-
-TEST_F(dmGuiTest, DeleteSpineNode)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data);
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
-
-    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
-    dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0, true));
-
-    // Spine node + 2 bone nodes
-    ASSERT_EQ(3U, dmGui::GetNodeCount(m_Scene));
-
-    // Delete spine node will delete bone nodes also
-    dmGui::DeleteNode(m_Scene, node_spine, true);
-    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
-
-    DeleteSpineDummyData(dummy_data);
-}
-
-TEST_F(dmGuiTest, DeleteBoneNode)
-{
-    uint32_t width = 100;
-    uint32_t height = 50;
-
-    dmGui::SetPhysicalResolution(m_Context, width, height);
-    dmGui::SetSceneResolution(m_Scene, width, height);
-
-    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data);
-
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
-
-    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
-    dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0, true));
-
-    dmGui::HNode node_bone = dmGui::GetNodeSpineBone(m_Scene, node_spine, 1);
-    ASSERT_NE(0U, node_bone);
-
-    // Spine node + 2 bone nodes
-    ASSERT_EQ(3U, dmGui::GetNodeCount(m_Scene));
-
-    // Delete spine node will delete bone nodes also
-    dmGui::DeleteNode(m_Scene, node_spine, true);
-    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
-
-    DeleteSpineDummyData(dummy_data);
 }
 
 TEST_F(dmGuiTest, InheritAlpha)
@@ -6298,7 +5286,7 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
     r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t1");

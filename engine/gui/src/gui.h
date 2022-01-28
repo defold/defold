@@ -22,11 +22,11 @@
 #include <dlib/image.h>
 #include <hid/hid.h>
 #include <particle/particle.h>
-#include <rig/rig.h>
 
 #include <script/script.h>
 
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/gui/gui.h>
 
 /**
  * Defold GUI system
@@ -43,41 +43,12 @@
 namespace dmGui
 {
     typedef struct Context* HContext;
-    typedef struct Scene* HScene;
     typedef struct Script* HScript;
-    typedef uint32_t HNode;
-
-    /**
-     * Invalid node handle
-     */
-    const HNode INVALID_HANDLE = 0;
 
     /**
      * Default layout id
      */
     extern const dmhash_t DEFAULT_LAYOUT;
-
-    /**
-     * Animation
-     */
-    enum Playback
-    {
-        PLAYBACK_ONCE_FORWARD  = 0,
-        PLAYBACK_ONCE_BACKWARD = 1,
-        PLAYBACK_ONCE_PINGPONG = 2,
-        PLAYBACK_LOOP_FORWARD  = 3,
-        PLAYBACK_LOOP_BACKWARD = 4,
-        PLAYBACK_LOOP_PINGPONG = 5,
-        PLAYBACK_NONE = 6,
-        PLAYBACK_COUNT = 7,
-    };
-
-    enum AdjustReference
-    {
-        ADJUST_REFERENCE_LEGACY   = 0,
-        ADJUST_REFERENCE_PARENT   = 1,
-        ADJUST_REFERENCE_DISABLED = 2
-    };
 
     /**
      * Textureset animation
@@ -134,21 +105,6 @@ namespace dmGui
      */
     typedef FetchTextureSetAnimResult (*FetchTextureSetAnimCallback)(void* texture_set_ptr, dmhash_t anim, TextureSetAnimDesc* out_data);
 
-    struct RigSceneDataDesc
-    {
-        dmArray<dmRig::RigBone>* m_BindPose;
-        dmRigDDF::Skeleton*      m_Skeleton;
-        dmRigDDF::MeshSet*       m_MeshSet;
-        dmRigDDF::AnimationSet*  m_AnimationSet;
-        const dmArray<uint32_t>* m_PoseIdxToInfluence;
-        const dmArray<uint32_t>* m_TrackIdxToPose;
-        void*                    m_Texture;
-        void*                    m_TextureSet;
-    };
-
-    typedef bool (*FetchRigSceneDataCallback)(void* spine_scene, dmhash_t rig_scene_id, RigSceneDataDesc* out_data);
-
-
     /**
      * Callback to set node from node descriptor
      */
@@ -160,11 +116,30 @@ namespace dmGui
     typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
 
     /**
-     * Callback for rig events
+     * Callback to create custom node data
      */
-    typedef void (*RigEventDataCallback)(HScene scene,
-                                      void* node_ref,
-                                      void* event_data);
+    typedef void* (*CreateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
+
+    /**
+     * Callback to clone custom node data
+     */
+    typedef void* (*CloneCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
+
+    /**
+     * Callback to destroy custom node data
+     */
+    typedef void (*DestroyCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
+
+    /**
+     * Callback to update custom node data
+     */
+    typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+
+    /**
+     * Callback to get custom resource data
+     */
+    typedef void* (*GetResourceCallback)(void* ctx, dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot);
+
 
     /**
      * Scene creation
@@ -178,16 +153,20 @@ namespace dmGui
         uint32_t m_MaxAnimations;
         uint32_t m_MaxTextures;
         uint32_t m_MaxFonts;
-        uint32_t m_MaxSpineScenes;
         uint32_t m_MaxParticlefxs;
         uint32_t m_MaxParticlefx;
         uint32_t m_MaxLayers;
-        dmRig::HRigContext m_RigContext;
         dmParticle::HParticleContext m_ParticlefxContext;
         void*    m_UserData;
+        CreateCustomNodeCallback    m_CreateCustomNodeCallback;
+        DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
+        CloneCustomNodeCallback     m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
+        void*                       m_CreateCustomNodeCallbackContext;
+        GetResourceCallback         m_GetResourceCallback;
+        void*                       m_GetResourceCallbackContext;
+
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
-        RigEventDataCallback m_RigEventDataCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
         AdjustReference m_AdjustReference;
         dmScript::ScriptWorld* m_ScriptWorld;
@@ -270,27 +249,11 @@ namespace dmGui
         uint32_t                m_DefaultProjectWidth;
         uint32_t                m_DefaultProjectHeight;
         uint32_t                m_Dpi;
-        dmHID::HContext         m_HidContext;
-        dmResource::HFactory    m_Factory;
 
         NewContextParams()
         {
             SetDefaultNewContextParams(this);
         }
-    };
-
-    enum Result
-    {
-        RESULT_OK = 0,
-        RESULT_SYNTAX_ERROR = -1,
-        RESULT_SCRIPT_ERROR = -2,
-        RESULT_OUT_OF_RESOURCES = -4,
-        RESULT_RESOURCE_NOT_FOUND = -5,
-        RESULT_TEXTURE_ALREADY_EXISTS = -6,
-        RESULT_INVAL_ERROR = -7,
-        RESULT_INF_RECURSION = -8,
-        RESULT_DATA_ERROR = -9,
-        RESULT_WRONG_TYPE = -10,
     };
 
     enum Property
@@ -326,19 +289,6 @@ namespace dmGui
     {
         CLIPPING_MODE_NONE    = 0,
         CLIPPING_MODE_STENCIL = 2,
-    };
-
-    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
-    // Don't forget to change gui_ddf.proto if you change here
-    enum NodeType
-    {
-        NODE_TYPE_BOX  = 0,
-        NODE_TYPE_TEXT = 1,
-        NODE_TYPE_PIE  = 2,
-        NODE_TYPE_TEMPLATE = 3,
-        NODE_TYPE_SPINE = 4,
-        NODE_TYPE_PARTICLEFX = 5,
-        NODE_TYPE_COUNT = 6,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -397,15 +347,6 @@ namespace dmGui
     {
         PIEBOUNDS_RECTANGLE = 0,
         PIEBOUNDS_ELLIPSE   = 1,
-    };
-
-    // This enum denotes what kind of texture type the m_Texture pointer is referencing.
-    enum NodeTextureType
-    {
-        NODE_TEXTURE_TYPE_NONE,
-        NODE_TEXTURE_TYPE_TEXTURE,
-        NODE_TEXTURE_TYPE_TEXTURE_SET,
-        NODE_TEXTURE_TYPE_DYNAMIC
     };
 
     /**
@@ -570,8 +511,6 @@ namespace dmGui
 
     AdjustReference GetSceneAdjustReference(HScene scene);
 
-    dmRig::HRigContext GetRigContext(HScene scene);
-
     /**
      * Adds a texture and optional textureset with the specified name to the scene.
      * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
@@ -713,24 +652,6 @@ namespace dmGui
      * @param particlefx_name Name of the particlefx that will be used in the gui scripts
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
-
-    /**
-     * Adds a spine scene with the specified name to the scene.
-     * @note Any nodes connected to the same spine_scene_name will also be connected to the new spine scene. This makes this function O(n), where n is #nodes.
-     * @param scene Scene to add spine scene to
-     * @param spine_scene_name Name of the spine scene that will be used in the gui scripts
-     * @param spine_scene The spine scene to add
-     * @return Outcome of the operation
-     */
-    Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene);
-
-    /**
-     * Removes a spine scene with the specified name from the scene.
-     * @note Any nodes connected to the same spine_scene_name will also be disconnected from the spine scene. This makes this function O(n), where n is #nodes.
-     * @param scene Scene to remove spine scene from
-     * @param spine_scene_name Name of the spine scene that will be used in the gui scripts
-     */
-    void RemoveSpineScene(HScene scene, const char* spine_scene_name);
 
     /**
      * Adds a layer with the specified name to the scene.
@@ -907,8 +828,6 @@ namespace dmGui
 
     HScript GetSceneScript(HScene scene);
 
-    HNode NewNode(HScene scene, const dmVMath::Point3& position, const dmVMath::Vector3& size, NodeType node_type);
-
     void SetNodeId(HScene scene, HNode node, dmhash_t id);
     void SetNodeId(HScene scene, HNode node, const char* id);
     dmhash_t GetNodeId(HScene scene, HNode node);
@@ -994,18 +913,7 @@ namespace dmGui
     float GetNodeTextTracking(HScene scene, HNode node);
 
     void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
-    dmhash_t GetNodeTextureId(HScene scene, HNode node);
-    Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
-    dmhash_t GetNodeSpineSceneId(HScene scene, HNode node);
-    Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
-    Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
-    dmhash_t GetNodeSpineScene(HScene scene, HNode node);
-    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id);
-    dmhash_t GetNodeSpineSkin(HScene scene, HNode node);
-    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id);
-    dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
-    HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
     Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
@@ -1037,14 +945,6 @@ namespace dmGui
 
     float GetNodeAlpha(HScene scene, HNode node);
     void SetNodeAlpha(HScene scene, HNode node, float alpha);
-
-    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
-    float GetNodeSpineCursor(HScene scene, HNode node);
-    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);
-    float GetNodeSpinePlaybackRate(HScene scene, HNode node);
-    dmhash_t GetNodeSpineAnimation(HScene scene, HNode node);
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
-    Result CancelNodeSpineAnim(HScene scene, HNode node);
 
     Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* data);
     Result StopNodeParticlefx(HScene scene, HNode node);

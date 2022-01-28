@@ -46,7 +46,6 @@
             [editor.rig :as rig]
             [editor.script-api :as script-api]
             [editor.sound :as sound]
-            [editor.spine :as spine]
             [editor.sprite :as sprite]
             [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]))
@@ -84,7 +83,6 @@
       (render-pb/register-resource-types workspace)
       (rig/register-resource-types workspace)
       (sound/register-resource-types workspace)
-      (spine/register-resource-types workspace)
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)

@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include <dlib/array.h>
+#include <dlib/buffer.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -38,20 +39,30 @@
 #include "../resources/res_animationset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
-#include <gamesys/spine_ddf.h>
 #include <particle/particle.h>
 #include <gui/gui_script.h>
+
+#include <dmsdk/gamesys/gui.h>
 
 namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
+    static bool g_CompGuiNodeTypesInitialized = false;
+
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
-    static bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
-    static void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data);
 
     // implemention in comp_particlefx.cpp
     extern dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
+
+    static dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
+    static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
+    static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
+    static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
+    static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
+    static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+    static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -84,7 +95,8 @@ namespace dmGameSystem
 
     struct CompGuiContext
     {
-        dmArray<GuiWorld*>          m_Worlds;
+        dmArray<GuiWorld*>              m_Worlds;
+        dmHashTable32<CompGuiNodeType*> m_CustomNodeTypes;
 
         dmResource::HFactory        m_Factory;
         dmRender::HRenderContext    m_RenderContext;
@@ -94,7 +106,6 @@ namespace dmGameSystem
         uint32_t                    m_MaxGuiComponents;
         uint32_t                    m_MaxParticleFXCount;
         uint32_t                    m_MaxParticleCount;
-        uint32_t                    m_MaxSpineCount;
     };
 
     static void GuiResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
@@ -125,15 +136,8 @@ namespace dmGameSystem
             dmLogWarning("The gui world could not be stored since the buffer is full (%d). Increase number in gui.max_instance_count", gui_context->m_Worlds.Size());
         }
 
-        dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &gui_world->m_RigContext;
-        rig_params.m_MaxRigInstanceCount = gui_context->m_MaxSpineCount;
-        dmRig::Result rr = dmRig::NewContext(rig_params);
-        if (rr != dmRig::RESULT_OK)
-        {
-            dmLogFatal("Unable to create gui rig context: %d", rr);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
+        gui_world->m_CompGuiContext = gui_context;
+
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, gui_context->m_MaxGuiComponents);
         gui_world->m_Components.SetCapacity(comp_count);
 
@@ -232,8 +236,6 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
-
-        dmRig::DeleteContext(gui_world->m_RigContext);
 
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 
@@ -337,6 +339,7 @@ namespace dmGameSystem
         dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
         dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
 
+        // TODO: Left a reminder that we have some bone related tasks left to fix
         if (node_desc->m_SpineNodeChild) {
             dmGui::SetNodeIsBone(scene, n, true);
         }
@@ -357,10 +360,6 @@ namespace dmGameSystem
                 dmGui::SetNodeInnerRadius(scene, n, node_desc->m_Innerradius);
                 dmGui::SetNodeOuterBounds(scene, n, (dmGui::PieBounds) node_desc->m_Outerbounds);
                 dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
-            break;
-
-            case dmGuiDDF::NodeDesc::TYPE_SPINE:
-                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineSkin), dmHashString64(node_desc->m_SpineDefaultAnimation), false);
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_PARTICLEFX:
@@ -428,7 +427,33 @@ namespace dmGameSystem
         }
     }
 
-    static bool SetupGuiScene(dmGui::HScene scene, GuiSceneResource* scene_resource)
+    static void* GetSceneResourceByHash(void* ctx, dmGui::HScene scene, dmhash_t name_hash, dmhash_t suffix_with_dot)
+    {
+        (void)scene;
+        GuiComponent* gui_component = (GuiComponent*)ctx;
+        GuiSceneResource* resource = gui_component->m_Resource;
+
+        dmhash_t* suffix = resource->m_ResourceTypes.Get(name_hash);
+        if (!suffix)
+        {
+            dmLogError("Failed to find resource %s with suffix %s", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(suffix_with_dot));
+            return 0;
+        }
+        if (*suffix != suffix_with_dot)
+        {
+            dmLogError("The resource %s was of type %s, but you requested type %s", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(*suffix), dmHashReverseSafe64(suffix_with_dot));
+            return 0;
+        }
+
+        void** outresource = resource->m_Resources.Get(name_hash);
+        if (outresource)
+            return *outresource;
+
+        dmLogError("Failed to find resource matching name: %s", dmHashReverseSafe64(name_hash));
+        return 0;
+    }
+
+    static bool SetupGuiScene(GuiWorld* gui_world, GuiComponent* gui_component, dmGui::HScene scene, GuiSceneResource* scene_resource)
     {
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
@@ -443,16 +468,6 @@ namespace dmGameSystem
             dmGui::Result r = dmGui::AddFont(scene, dmHashString64(name), (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
-                return false;
-            }
-        }
-
-        for (uint32_t i = 0; i < scene_resource->m_RigScenes.Size(); ++i)
-        {
-            const char* name = scene_desc->m_SpineScenes[i].m_Name;
-            dmGui::Result r = dmGui::AddSpineScene(scene, name, (void*) scene_resource->m_RigScenes[i]);
-            if (r != dmGui::RESULT_OK) {
-                dmLogError("Unable to add spine scene '%s' to GUI scene (%d)", name,  r);
                 return false;
             }
         }
@@ -524,9 +539,12 @@ namespace dmGameSystem
             // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
             const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
             dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
+            uint32_t custom_type = node_desc->m_CustomType;
+
+
             Vector4 position = node_desc->m_Position;
             Vector4 size = node_desc->m_Size;
-            dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(size.getXYZ()), type);
+            dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(size.getXYZ()), type, custom_type);
             if (n)
             {
                 if (node_desc->m_Id)
@@ -539,6 +557,26 @@ namespace dmGameSystem
             else
             {
                 result = false;
+            }
+
+            if (type == dmGui::NODE_TYPE_CUSTOM)
+            {
+                void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
+                const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
+
+                if (node_type->m_SetNodeDesc)
+                {
+                    CompGuiNodeContext ctx;
+
+                    CustomNodeCtx nodectx;
+                    nodectx.m_Scene = scene;
+                    nodectx.m_Node = n;
+                    nodectx.m_TypeContext = node_type->m_Context;
+                    nodectx.m_NodeData = custom_node_data;
+                    nodectx.m_Type = custom_type;
+
+                    node_type->m_SetNodeDesc(&ctx, &nodectx, node_desc);
+                }
             }
         }
         if (result)
@@ -616,12 +654,11 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
-        //CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
-
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
         GuiComponent* gui_component = new GuiComponent();
+        gui_component->m_World = gui_world;
         gui_component->m_Resource = scene_resource;
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_Material = 0;
@@ -638,18 +675,21 @@ namespace dmGameSystem
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
-        scene_params.m_MaxSpineScenes = 128;
-        scene_params.m_RigContext = gui_world->m_RigContext;
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
-        scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
-        scene_params.m_RigEventDataCallback = &RigEventDataCallback;
+        scene_params.m_CreateCustomNodeCallback = &CreateCustomNodeCallback;
+        scene_params.m_DestroyCustomNodeCallback = &DestroyCustomNodeCallback;
+        scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
+        scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
+        scene_params.m_CreateCustomNodeCallbackContext = gui_component;
+        scene_params.m_GetResourceCallback = GetSceneResourceByHash;
+        scene_params.m_GetResourceCallbackContext = gui_component;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
-        if (!SetupGuiScene(scene, scene_resource))
+        if (!SetupGuiScene(gui_world, gui_component, scene, scene_resource))
         {
             dmGui::DeleteScene(gui_component->m_Scene);
             delete gui_component;
@@ -659,39 +699,6 @@ namespace dmGameSystem
         *params.m_UserData = (uintptr_t)gui_component;
         gui_world->m_Components.Push(gui_component);
         return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    static void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
-    {
-        dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
-        const dmRig::RigKeyframeEventData* keyframe_event = (const dmRig::RigKeyframeEventData*)event_data;
-
-        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
-        uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
-
-        uint8_t buf[sizeof(dmMessage::Message) + sizeof(dmGameSystemDDF::SpineEvent)];
-        dmMessage::Message* message = (dmMessage::Message*)buf;
-        memset(message, 0, sizeof(dmMessage::Message));
-        message->m_Sender = dmMessage::URL();
-        message->m_Receiver = dmMessage::URL();
-        message->m_Id = message_id;
-        message->m_Descriptor = descriptor;
-        message->m_DataSize = data_size;
-
-        dmGameSystemDDF::SpineEvent* event = (dmGameSystemDDF::SpineEvent*)message->m_Data;
-        event->m_EventId     = keyframe_event->m_EventId;
-        event->m_AnimationId = keyframe_event->m_AnimationId;
-        event->m_BlendWeight = keyframe_event->m_BlendWeight;
-        event->m_T           = keyframe_event->m_T;
-        event->m_Integer     = keyframe_event->m_Integer;
-        event->m_Float       = keyframe_event->m_Float;
-        event->m_String      = keyframe_event->m_String;
-        event->m_Node.m_Ref  = ((uintptr_t) node_ref & 0xffffffff);
-        event->m_Node.m_ContextTableRef = dmGui::GetContextTableRef(scene);
-
-        dmGui::Result dispatch_result = DispatchMessage(scene, message);
-        if (dispatch_result != dmGui::RESULT_OK)
-            dmLogError("Could not send spine_event to listener.");
     }
 
     static dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)
@@ -870,10 +877,8 @@ namespace dmGameSystem
                          const float* node_opacities,
                          const dmGui::StencilScope** stencil_scopes,
                          uint32_t node_count,
-                         void* context)
+                         RenderGuiContext* gui_context)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
-
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -957,9 +962,8 @@ namespace dmGameSystem
                           const float* node_opacities,
                           const dmGui::StencilScope** stencil_scopes,
                           uint32_t node_count,
-                          void* context)
+                          RenderGuiContext* gui_context)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
         dmGui::HNode first_node = entries[0].m_Node;
         dmParticle::EmitterRenderData* first_emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
@@ -1071,45 +1075,111 @@ namespace dmGameSystem
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
 
-    static void RenderSpineNodes(dmGui::HScene scene,
-                          const dmGui::RenderEntry* entries,
-                          const Matrix4* node_transforms,
-                          const float* node_opacities,
-                          const dmGui::StencilScope** stencil_scopes,
-                          uint32_t node_count,
-                          void* context)
+    static GuiRenderObject* GetRenderObject(RenderGuiContext* gui_context)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
-
-        dmGui::HNode first_node = entries[0].m_Node;
-        dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
-        assert(node_type == dmGui::NODE_TYPE_SPINE);
 
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
 
-        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
-        dmRender::RenderObject& ro = gro.m_RenderObject;
-        gro.m_SortOrder = gui_context->m_NextSortOrder++;
+        return &gui_world->m_GuiRenderObjects[ro_count];
+    }
 
+    static void RenderCustomNodes(dmGui::HScene scene,
+                                uint32_t custom_type,
+                                const CompGuiNodeType* type,
+                                const dmGui::RenderEntry* entries,
+                                const Matrix4* node_transforms,
+                                const float* node_opacities,
+                                const dmGui::StencilScope** stencil_scopes,
+                                uint32_t node_count,
+                                RenderGuiContext* gui_context)
+    {
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
+
+        dmGui::HNode first_node = entries[0].m_Node;
+        dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
+        assert(node_type == dmGui::NODE_TYPE_CUSTOM);
+        assert(custom_type != 0);
+
+        GuiRenderObject* gro = GetRenderObject(gui_context);
+        gro->m_SortOrder = gui_context->m_NextSortOrder++;
+
+        dmRender::RenderObject& ro = gro->m_RenderObject;
+
+        uint32_t vertex_start = gui_world->m_ClientVertexBuffer.Size();
         uint32_t vertex_count = 0;
+
+        // Another way would be to use the vertex declaration, but that currently doesn't have an api
+        // and the buffer is well suited for this.
+        dmBuffer::StreamDeclaration boxvertex_stream_decl[] = {
+            {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
+            {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_FLOAT32, 2},
+            {dmHashString64("color"), dmBuffer::VALUE_TYPE_FLOAT32, 4}
+        };
+
+        uint32_t struct_size = 0;
+        dmBuffer::CalcStructSize(DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, &struct_size, 0);
+
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
                 continue;
             }
-            const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            uint32_t count = dmRig::GetVertexCount(rig_instance);
-            vertex_count += count;
+
+            void* custom_node_data = dmGui::GetNodeCustomData(scene, node);
+
+            CustomNodeCtx nodectx;
+            nodectx.m_Scene = scene;
+            nodectx.m_Node = node;
+            nodectx.m_TypeContext = type->m_Context;
+            nodectx.m_NodeData = custom_node_data;
+            nodectx.m_Type = custom_type;
+
+            // Ideally, dmBuffer would support dynamic arrays, but for now this is what we do
+            dmArray<uint8_t> node_vertices;
+            type->m_GetVertices(&nodectx, DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, struct_size, node_vertices);
+
+            uint32_t node_vertex_count = node_vertices.Size() / struct_size;
+            vertex_count += node_vertex_count;
+
+            // Transform the vertices and modify the colors
+            const Matrix4& transform = node_transforms[i];
+            float opacity = node_opacities[i];
+            Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            color = Vector4(color.getXYZ(), opacity);
+
+            BoxVertex* vertices = (BoxVertex*)node_vertices.Begin();
+            for (uint32_t v = 0; v < node_vertex_count; ++v)
+            {
+                BoxVertex& vertex = vertices[v];
+                Point3 p(vertex.m_Position[0], vertex.m_Position[1], vertex.m_Position[2]);
+                Vector4 wp = transform * p;
+                vertex.m_Position[0] = wp.getX();
+                vertex.m_Position[1] = wp.getY();
+                vertex.m_Position[2] = wp.getZ();
+
+                vertex.m_Color[0] = color.getX() * vertex.m_Color[0];
+                vertex.m_Color[1] = color.getY() * vertex.m_Color[1];
+                vertex.m_Color[2] = color.getZ() * vertex.m_Color[2];
+                vertex.m_Color[3] = color.getW() * vertex.m_Color[3];
+            }
+
+            if (gui_world->m_ClientVertexBuffer.Remaining() < node_vertex_count) {
+                gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, node_vertex_count));
+            }
+
+            uint32_t node_vertex_start = gui_world->m_ClientVertexBuffer.Size();
+            gui_world->m_ClientVertexBuffer.SetSize(node_vertex_start + node_vertex_count);
+            memcpy(gui_world->m_ClientVertexBuffer.Begin() + node_vertex_start, node_vertices.Begin(), node_vertex_count * sizeof(BoxVertex));
         }
 
         ro.Init();
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
         ro.m_VertexBuffer = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_VertexStart = vertex_start;
         ro.m_VertexCount = vertex_count;
         ro.m_Material = gui_context->m_Material;
 
@@ -1126,28 +1196,6 @@ namespace dmGameSystem
         } else {
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
         }
-
-        if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
-            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
-        }
-
-        // Fill in vertex buffer
-        BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
-        BoxVertex *vb_end = vb_begin;
-        for (uint32_t i = 0; i < node_count; ++i)
-        {
-            const dmGui::HNode node = entries[i].m_Node;
-            if (dmGui::GetNodeIsBone(scene, node)) {
-                continue;
-            }
-            const dmRig::HRigContext rig_context = gui_world->m_RigContext;
-            const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            float opacity = node_opacities[i];
-            Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            color = Vector4(color.getXYZ(), opacity);
-            vb_end = (BoxVertex*)dmRig::GenerateVertexData(rig_context, rig_instance, node_transforms[i], Matrix4::identity(), color, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
-        }
-        gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
 
     static void RenderBoxNodes(dmGui::HScene scene,
@@ -1156,9 +1204,8 @@ namespace dmGameSystem
                         const float* node_opacities,
                         const dmGui::StencilScope** stencil_scopes,
                         uint32_t node_count,
-                        void* context)
+                        RenderGuiContext* gui_context)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
         dmGui::HNode first_node = entries[0].m_Node;
@@ -1462,9 +1509,8 @@ namespace dmGameSystem
                         const float* node_opacities,
                         const dmGui::StencilScope** stencil_scopes,
                         uint32_t node_count,
-                        void* context)
+                        RenderGuiContext* gui_context)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
         dmGui::HNode first_node = entries[0].m_Node;
@@ -1655,6 +1701,28 @@ namespace dmGameSystem
         ro.m_VertexCount = gui_world->m_ClientVertexBuffer.Size() - ro.m_VertexStart;
     }
 
+    static uint64_t GetCombinedNodeType(uint32_t node_type, uint32_t custom_type)
+    {
+        uint64_t combined_type = node_type;
+        if (node_type == (uint32_t)dmGui::NODE_TYPE_CUSTOM)
+        {
+            combined_type |= ((uint64_t)node_type) << 32;
+        }
+        return combined_type;
+    }
+
+    static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type)
+    {
+        CompGuiNodeType* const * type = gui_context->m_CustomNodeTypes.Get(custom_type);
+        if (!type)
+        {
+            dmLogOnceError("Couldn't find gui node type: %u", custom_type);
+            return 0;
+        }
+        return *type;
+    }
+
+    // Called from gui.cpp
     static void RenderNodes(dmGui::HScene scene,
                     const dmGui::RenderEntry* entries,
                     const Matrix4* node_transforms,
@@ -1677,6 +1745,8 @@ namespace dmGameSystem
         dmGui::HNode first_node = entries[0].m_Node;
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
+        uint32_t prev_custom_type = dmGui::GetNodeCustomType(scene, first_node);
+        uint64_t prev_combined_type = GetCombinedNodeType(prev_node_type, prev_custom_type);
         dmGraphics::HTexture prev_texture = dmGameSystem::GetNodeTexture(scene, first_node);
         void* prev_font = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
@@ -1700,6 +1770,8 @@ namespace dmGameSystem
 
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
+            uint32_t custom_type = dmGui::GetNodeCustomType(scene, node);
+            uint64_t combined_type = GetCombinedNodeType(node_type, custom_type);
             dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, node);
             void* font = dmGui::GetNodeFont(scene, node);
             const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
@@ -1711,8 +1783,13 @@ namespace dmGameSystem
                 emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
             }
 
-            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font || prev_stencil_scope != stencil_scope
-                || prev_emitter_batch_key != emitter_batch_key);
+            bool batch_change = combined_type != prev_combined_type ||
+                                blend_mode != prev_blend_mode ||
+                                texture != prev_texture ||
+                                font != prev_font ||
+                                prev_stencil_scope != stencil_scope ||
+                                prev_emitter_batch_key != emitter_batch_key;
+
             bool flush = (i > 0 && batch_change);
 
             if (flush) {
@@ -1721,20 +1798,20 @@ namespace dmGameSystem
                 switch (prev_node_type)
                 {
                     case dmGui::NODE_TYPE_TEXT:
-                        RenderTextNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                        RenderTextNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                         break;
                     case dmGui::NODE_TYPE_BOX:
-                        RenderBoxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                        RenderBoxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                         break;
                     case dmGui::NODE_TYPE_PIE:
-                        RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
-                        break;
-                    case dmGui::NODE_TYPE_SPINE:
-                        RenderSpineNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                        RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                         break;
                     case dmGui::NODE_TYPE_PARTICLEFX:
-                    	RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
-                    	break;
+                        RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
+                        break;
+                    case dmGui::NODE_TYPE_CUSTOM:
+                        RenderCustomNodes(scene, custom_type, GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type), entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
+                        break;
                     default:
                         break;
                 }
@@ -1742,6 +1819,8 @@ namespace dmGameSystem
                 start = i;
             }
             prev_node_type = node_type;
+            prev_custom_type = custom_type;
+            prev_combined_type = combined_type;
             prev_blend_mode = blend_mode;
             prev_texture = texture;
             prev_font = font;
@@ -1756,19 +1835,19 @@ namespace dmGameSystem
             switch (prev_node_type)
             {
                 case dmGui::NODE_TYPE_TEXT:
-                    RenderTextNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    RenderTextNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                     break;
                 case dmGui::NODE_TYPE_BOX:
-                    RenderBoxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    RenderBoxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                     break;
                 case dmGui::NODE_TYPE_PIE:
-                    RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
-                    break;
-                case dmGui::NODE_TYPE_SPINE:
-                    RenderSpineNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    RenderPieNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                     break;
                 case dmGui::NODE_TYPE_PARTICLEFX:
-                    RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
+                    break;
+                case dmGui::NODE_TYPE_CUSTOM:
+                    RenderCustomNodes(scene, prev_custom_type, GetCompGuiCustomType(gui_world->m_CompGuiContext, prev_custom_type), entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                     break;
                 default:
                     break;
@@ -1848,6 +1927,7 @@ namespace dmGameSystem
         TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
         dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
         uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
+
         if (anim_index)
         {
             if (texture_set->m_TexCoords.m_Count == 0)
@@ -1877,19 +1957,73 @@ namespace dmGameSystem
         }
     }
 
-    static bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
+    static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type)
     {
-        RigSceneResource* rig_res = (RigSceneResource*)spine_scene;
-        out_data->m_BindPose = &rig_res->m_BindPose;
-        out_data->m_Skeleton = rig_res->m_SkeletonRes->m_Skeleton;
-        out_data->m_MeshSet = rig_res->m_MeshSetRes->m_MeshSet;
-        out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
-        out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
-        out_data->m_TextureSet = rig_res->m_TextureSet;
-        out_data->m_PoseIdxToInfluence = &rig_res->m_PoseIdxToInfluence;
-        out_data->m_TrackIdxToPose     = &rig_res->m_TrackIdxToPose;
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
-        return true;
+        CompGuiNodeContext ctx;
+
+        const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
+        return type->m_Create(&ctx, type->m_Context, scene, node, custom_type);
+    }
+
+    static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
+    {
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+
+        CompGuiNodeContext ctx;
+
+        const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
+
+        CustomNodeCtx nodectx;
+        nodectx.m_Scene = scene;
+        nodectx.m_Node = node;
+        nodectx.m_TypeContext = type->m_Context;
+        nodectx.m_NodeData = node_data;
+        nodectx.m_Type = custom_type;
+        return type->m_Clone(&ctx, &nodectx);
+    }
+
+    static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
+    {
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+
+        const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
+        if (!type->m_Destroy)
+            return;
+
+        CompGuiNodeContext ctx;
+
+        CustomNodeCtx nodectx;
+        nodectx.m_Scene = scene;
+        nodectx.m_Node = node;
+        nodectx.m_TypeContext = type->m_Context;
+        nodectx.m_NodeData = node_data;
+        nodectx.m_Type = custom_type;
+
+        type->m_Destroy(&ctx, &nodectx);
+    }
+
+    static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt)
+    {
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+
+        const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
+        if (!type->m_Update)
+            return;
+
+        CustomNodeCtx nodectx;
+        nodectx.m_Scene = scene;
+        nodectx.m_Node = node;
+        nodectx.m_TypeContext = type->m_Context;
+        nodectx.m_NodeData = node_data;
+        nodectx.m_Type = custom_type;
+
+        type->m_Update(&nodectx, dt);
     }
 
     static dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
@@ -1905,8 +2039,6 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
         dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
-
-        dmRig::Update(gui_world->m_RigContext, params.m_UpdateContext->m_DT);
 
         gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
@@ -2093,6 +2225,7 @@ namespace dmGameSystem
 
     static void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
@@ -2105,7 +2238,7 @@ namespace dmGameSystem
         dmGui::ClearFonts(gui_component->m_Scene);
         dmGui::ClearNodes(gui_component->m_Scene);
         dmGui::ClearLayouts(gui_component->m_Scene);
-        if (SetupGuiScene(gui_component->m_Scene, scene_resource))
+        if (SetupGuiScene(gui_world, gui_component, gui_component->m_Scene, scene_resource))
         {
             result = dmGui::InitScene(gui_component->m_Scene);
             if (result != dmGui::RESULT_OK)
@@ -2307,12 +2440,13 @@ namespace dmGameSystem
 
         uint64_t index = pit->m_Next++;
 
-        const char* properties_common[] = { "type", "id", "pivot" };
+        const char* properties_common[] = { "type", "custom_type", "id", "pivot" };
         uint32_t num_properties_common = DM_ARRAY_SIZE(properties_common);
 
         if (index < num_properties_common)
         {
-            const char* type_names[] = {"gui_node_box", "gui_node_text", "gui_node_pie", "gui_node_template", "gui_node_spine", "gui_node_particlefx"};
+            const char* type_names[] = {"gui_node_box", "gui_node_text", "gui_node_pie", "gui_node_template", "gui_node_spine", "gui_node_particlefx", "gui_node_custom"};
+            // TODO: Get the correct custom type
             const uint32_t num_gui_types = DM_ARRAY_SIZE(type_names);
             DM_STATIC_ASSERT(num_gui_types == dmGui::NODE_TYPE_COUNT, _size_mismatch);
 
@@ -2321,11 +2455,20 @@ namespace dmGameSystem
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
                 pit->m_Property.m_Value.m_Hash = dmHashString64(type_names[type]);
-            } else if (index == 1) // id
+            } else if (index == 1) // custom_type
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
+                uint32_t length = 0;
+                uint32_t custom_type = dmGui::GetNodeCustomType(component->m_Scene, node);
+                const char* custom_type_name = (const char*)dmHashReverse32(custom_type, &length);
+                if (custom_type_name == 0)
+                    custom_type_name = "";
+                pit->m_Property.m_Value.m_Hash = dmHashString64(custom_type_name);
+            } else if (index == 2) // id
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
                 pit->m_Property.m_Value.m_Hash = dmGui::GetNodeId(component->m_Scene, node);
-            } else if (index == 2) // pivot
+            } else if (index == 3) // pivot
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
                 pit->m_Property.m_Value.m_Hash = PivotToHash(component->m_Scene, node);
@@ -2439,6 +2582,12 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompGuiIterPropertiesGetNext;
     }
 
+    template <typename T2>
+    static void HTCopyCallback(dmHashTable64<T2> *ht, const uint64_t* key, T2* value)
+    {
+        ht->Put(*key, *value);
+    }
+
     static dmGameObject::Result CompGuiTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
         CompGuiContext* gui_context = new CompGuiContext;
@@ -2447,10 +2596,6 @@ namespace dmGameSystem
         gui_context->m_GuiContext = *(dmGui::HContext*)ctx->m_Contexts.Get(dmHashString64("guic"));
         gui_context->m_ScriptContext = *(dmScript::HContext*)ctx->m_Contexts.Get(dmHashString64("gui_scriptc"));
 
-        int32_t max_rig_instance = dmConfigFile::GetInt(ctx->m_Config, "rig.max_instance_count", 128);
-        int32_t max_spine_count = dmMath::Max(dmConfigFile::GetInt(ctx->m_Config, "spine.max_count", 128), max_rig_instance);
-
-        gui_context->m_MaxSpineCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_spine_count", max_spine_count);
         gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
         gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
@@ -2485,15 +2630,142 @@ namespace dmGameSystem
         ComponentTypeSetPropertyIteratorFn(type, CompGuiIterProperties);
         ComponentTypeSetGetFn(type, CompGuiGetComponent);
 
+
+        // Now register the node types with the gui
+        CompGuiNodeTypeCtx gui_node_ctx;
+        gui_node_ctx.m_Config = ctx->m_Config;
+        gui_node_ctx.m_Render = gui_context->m_RenderContext;
+        gui_node_ctx.m_Factory = gui_context->m_Factory;
+        gui_node_ctx.m_GuiContext = gui_context->m_GuiContext;
+        gui_node_ctx.m_Script = gui_context->m_ScriptContext;
+        gui_node_ctx.m_Contexts.SetCapacity(7, ((dmGameObject::ComponentTypeCreateCtx*)ctx)->m_Contexts.Capacity());
+        ctx->m_Contexts.Iterate(HTCopyCallback, &gui_node_ctx.m_Contexts);
+        dmGameObject::Result r = dmGameSystem::CreateRegisteredCompGuiNodeTypes(&gui_node_ctx, gui_context);
+
+
+        if (dmGameObject::RESULT_OK != r)
+        {
+            dmLogError("Failed to initialize gui component custom node types: %d", r);//dmGameObject::ResultToString(r));
+        }
+
         return dmGameObject::RESULT_OK;
     }
 
     static dmGameObject::Result CompGuiTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
         CompGuiContext* gui_context = (CompGuiContext*)dmGameObject::ComponentTypeGetContext(type);
+        if (!gui_context)
+        {
+            // if the initialization process failed (e.g. unit tests)
+            return dmGameObject::RESULT_OK;
+        }
+
+        CompGuiNodeTypeCtx gui_node_ctx;
+        gui_node_ctx.m_Config = ctx->m_Config;
+        gui_node_ctx.m_Render = gui_context->m_RenderContext;
+        gui_node_ctx.m_Factory = gui_context->m_Factory;
+        gui_node_ctx.m_GuiContext = gui_context->m_GuiContext;
+        gui_node_ctx.m_Script = gui_context->m_ScriptContext;
+        gui_node_ctx.m_Contexts.SetCapacity(7, ((dmGameObject::ComponentTypeCreateCtx*)ctx)->m_Contexts.Capacity());
+        ctx->m_Contexts.Iterate(HTCopyCallback, &gui_node_ctx.m_Contexts);
+
+        dmGameObject::Result r = dmGameSystem::DestroyRegisteredCompGuiNodeTypes(&gui_node_ctx, gui_context);
+        if (dmGameObject::RESULT_OK != r)
+        {
+            dmLogError("Failed to initialize gui component custom node types: %d", r);//dmGameObject::ResultToString(r));
+        }
+
         delete gui_context;
         return dmGameObject::RESULT_OK;
     }
+
+    dmGameObject::Result RegisterCompGuiNodeTypeDescriptor(CompGuiNodeTypeDescriptor* desc, const char* name, GuiNodeTypeCreateFunction create_fn, GuiNodeTypeDestroyFunction destroy_fn)
+    {
+        DM_STATIC_ASSERT(dmGameSystem::s_CompGuiNodeTypeDescBufferSize >= sizeof(CompGuiNodeTypeDescriptor), Invalid_Struct_Size);
+
+        dmLogDebug("Registered comp_gui node type descriptor %s", name);
+        desc->m_Name = name;
+        desc->m_NameHash = dmHashString32(name);
+        desc->m_CreateFn = create_fn;
+        desc->m_DestroyFn = destroy_fn;
+        desc->m_Next = g_CompGuiNodeTypeSentinel.m_Next;
+        g_CompGuiNodeTypeSentinel.m_Next = desc;
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)
+    {
+        if (g_CompGuiNodeTypesInitialized)
+            return dmGameObject::RESULT_OK;
+
+        CompGuiNodeTypeDescriptor* type_desc = g_CompGuiNodeTypeSentinel.m_Next;
+        while (type_desc != 0)
+        {
+            CompGuiNodeType* node_type = new CompGuiNodeType;
+            node_type->m_TypeDesc = type_desc;
+            type_desc->m_NodeType = node_type;
+
+            dmGameObject::Result r = type_desc->m_CreateFn(ctx, node_type);
+            if (dmGameObject::RESULT_OK != r)
+            {
+                dmLogError("Failed to register custom gui node type: %s", type_desc->m_Name);
+                return r;
+            }
+
+            if (comp_gui_context->m_CustomNodeTypes.Full())
+            {
+                uint32_t capacity = comp_gui_context->m_CustomNodeTypes.Capacity() + 4;
+                comp_gui_context->m_CustomNodeTypes.SetCapacity(dmMath::Max(1U, capacity/3), capacity);
+            }
+            comp_gui_context->m_CustomNodeTypes.Put(type_desc->m_NameHash, node_type);
+
+            type_desc = type_desc->m_Next;
+        }
+        g_CompGuiNodeTypesInitialized = true;
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)
+    {
+        if (!g_CompGuiNodeTypesInitialized)
+            return dmGameObject::RESULT_OK;
+
+        CompGuiNodeTypeDescriptor* type_desc = g_CompGuiNodeTypeSentinel.m_Next;
+        while (type_desc != 0)
+        {
+            if (type_desc->m_DestroyFn)
+            {
+                dmGameObject::Result r = type_desc->m_DestroyFn(ctx, type_desc->m_NodeType);
+                if (dmGameObject::RESULT_OK != r)
+                {
+                    dmLogError("Failed to unregister custom gui node type: %s", type_desc->m_Name);
+                }
+            }
+
+            delete type_desc->m_NodeType;
+            type_desc = type_desc->m_Next;
+        }
+
+        comp_gui_context->m_CustomNodeTypes.Clear();
+        return dmGameObject::RESULT_OK;
+    }
+
+    void    CompGuiNodeTypeSetContext(CompGuiNodeType* type, void* typectx)                       { type->m_Context = typectx; }
+    void*   CompGuiNodeTypeGetContext(CompGuiNodeType* type)                                      { return type->m_Context; }
+    void    CompGuiNodeTypeSetCreateFn(CompGuiNodeType* type, CompGuiNodeCreateFn fn)             { type->m_Create = fn; }
+    void    CompGuiNodeTypeSetDestroyFn(CompGuiNodeType* type, CompGuiNodeDestroyFn fn)           { type->m_Destroy = fn; }
+    void    CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn)               { type->m_Clone = fn; }
+    void    CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn)             { type->m_Update = fn; }
+    void    CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn)   { type->m_GetVertices = fn; }
+    void    CompGuiNodeTypeSetNodeDescFn(CompGuiNodeType* type, CompGuiNodeSetNodeDescFn fn)      { type->m_SetNodeDesc = fn; }
+
+    void*                   GetContext(const struct CompGuiNodeTypeCtx* ctx, dmhash_t name)     { void* const * p = ctx->m_Contexts.Get(name); if (p) return *p; else return 0; }
+    lua_State*              GetLuaState(const struct CompGuiNodeTypeCtx* ctx)                   { return dmScript::GetLuaState(ctx->m_Script); }
+    dmScript::HContext      GetScript(const struct CompGuiNodeTypeCtx* ctx)                     { return ctx->m_Script; }
+    dmConfigFile::HConfig   GetConfigFile(const struct CompGuiNodeTypeCtx* ctx)                 { return ctx->m_Config; }
+    dmResource::HFactory    GetFactory(const struct CompGuiNodeTypeCtx* ctx)                    { return ctx->m_Factory; }
 }
 
 
