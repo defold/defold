@@ -20,7 +20,7 @@ def build(bld):
     uselib = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PLATFORM_SOCKET', 'LUA', 'CARES']
 
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
-                    includes = '../../../src .',
+                    includes = '. ..',
                     uselib = uselib,
                     uselib_local = 'gui',
                     web_libs = ['library_sys.js', 'library_script.js'],
@@ -29,7 +29,7 @@ def build(bld):
                     embed_source = 'bug352.lua')
 
     test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed test',
-                    includes = '../../../src .',
+                    includes = '. ..',
                     uselib = uselib,
                     uselib_local = 'gui',
                     web_libs = ['library_sys.js', 'library_script.js'],
@@ -37,7 +37,7 @@ def build(bld):
                     source = 'test_gui_script.cpp')
 
     test_gui_clipping = bld.new_task_gen(features = 'cxx cprogram embed test',
-                    includes = '../../../src .',
+                    includes = '. ..',
                     uselib = uselib,
                     uselib_local = 'gui',
                     web_libs = ['library_sys.js', 'library_script.js'],
@@ -54,5 +54,5 @@ def build(bld):
                         uselib = uselib,
                         uselib_local = 'gui_null',
                         web_libs = ['library_sys.js', 'library_script.js'],
-                        includes = '../../../src .',
+                        includes = '. ..',
                         target = test.target + '_null')
