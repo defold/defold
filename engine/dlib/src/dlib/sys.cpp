@@ -683,9 +683,6 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
-        struct utsname uts;
-        uname(&uts);
-
         dmStrlCpy(info->m_SystemName, "Android", sizeof(info->m_SystemName));
 
         dmAndroid::ThreadAttacher thread;
@@ -772,9 +769,9 @@ namespace dmSys
         PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetUserDefaultLocaleName");
         dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
-        OSVERSIONINFOEXA version_info;
+        OSVERSIONINFOA version_info;
         version_info.dwOSVersionInfoSize = sizeof(version_info);
-        GetVersionExA((LPOSVERSIONINFOA)&version_info);
+        GetVersionExA(&version_info);
 
         const int max_len = 256;
         char lang[max_len];
