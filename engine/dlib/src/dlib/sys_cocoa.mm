@@ -184,7 +184,6 @@ namespace dmSys
         dmStrlCpy(info->m_Manufacturer, "Apple", sizeof(info->m_Manufacturer));
         dmStrlCpy(info->m_DeviceModel, uts.machine, sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "iPhone OS", sizeof(info->m_SystemName));
-        dmStrlCpy(info->m_OperatingSystemName, uts.sysname, sizeof(info->m_OperatingSystemName));
         dmStrlCpy(info->m_SystemVersion, [d.systemVersion UTF8String], sizeof(info->m_SystemVersion));
         dmStrlCpy(info->m_ApiVersion, [d.systemVersion UTF8String], sizeof(info->m_ApiVersion));
 
@@ -236,7 +235,6 @@ namespace dmSys
 
         dmStrlCpy(info->m_SystemName, "Darwin", sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
-        dmStrlCpy(info->m_OperatingSystemName, uts.sysname, sizeof(info->m_OperatingSystemName));
         info->m_DeviceModel[0] = '\0';
 
         const char* default_lang = "en_US";

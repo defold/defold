@@ -504,9 +504,6 @@ union SaveLoadBuffer
      * `system_name`
      * : [type:string] The system name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
      *
-     * `os_name`
-     * : [type:string] The system OS name: "Windows", "Windows Server", "Emscripten", "Android", "iPadOS", "iPhone OS" etc
-     *
      * `system_version`
      * : [type:string] The system OS version.
      *
@@ -558,9 +555,6 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "system_name");
         lua_pushstring(L, info.m_SystemName);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "os_name");
-        lua_pushstring(L, info.m_OperatingSystemName);
         lua_rawset(L, -3);
         lua_pushliteral(L, "system_version");
         lua_pushstring(L, info.m_SystemVersion);
