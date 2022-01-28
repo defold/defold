@@ -336,6 +336,7 @@ message Enable
  * - Sprite
  * - Tile Grid
  * - Model
+ * - Mesh
  *
  * @message
  * @name disable

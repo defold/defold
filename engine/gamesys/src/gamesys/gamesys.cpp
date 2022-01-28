@@ -213,7 +213,7 @@ namespace dmGameSystem
                 &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, 0,
                 &CompCollisionObjectUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
                 &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
-                0, 0,
+                0, CompCollisionIterProperties,
                 1);
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,

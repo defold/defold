@@ -1692,5 +1692,44 @@ namespace dmGameSystem
         }
         return true;
     }
+
+    static bool CompCollisionIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        CollisionWorld* world = (CollisionWorld*)pit->m_Node->m_ComponentWorld;
+        CollisionComponent* component = world->m_Components[pit->m_Node->m_Component];
+
+        uint64_t index = pit->m_Next++;
+
+        uint32_t num_bool_properties = 1;
+        if (index < num_bool_properties)
+        {
+            if (index == 0)
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+                if (world->m_3D) 
+                {
+                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled3D(component->m_Object3D);
+                }
+                else
+                {
+                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled2D(component->m_Object2D);
+                }
+                pit->m_Property.m_NameHash = dmHashString64("enabled");
+            }
+            return true;
+        }
+        index -= num_bool_properties;
+
+        return false;
+    }
+
+    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
+    }
     
 }
