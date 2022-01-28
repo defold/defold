@@ -135,7 +135,10 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     # Todo: Detect ASAN dependency
     # ".../lib/arm64/libSoundTest.so": dlopen failed: library "libclang_rt.asan-aarch64-android.so" not found
 
-    ${ZIP} -qr "${REPACKZIP}" "."
+    ${ZIP} -qr "${REPACKZIP}" "." -x "resources.arsc"
+    # Targeting R+ (version 30 and above) requires the resources.arsc of installed
+    # APKs to be stored uncompressed and aligned on a 4-byte boundary
+    ${ZIP} -q -Z store "${REPACKZIP}" "resources.arsc"
 )
 
 "${ZIPALIGN}" -v 4 "${REPACKZIP}" "${REPACKZIP_ALIGNED}" > /dev/null 2>&1

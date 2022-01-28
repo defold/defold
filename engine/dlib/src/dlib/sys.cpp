@@ -654,7 +654,7 @@ namespace dmSys
 #if defined(__EMSCRIPTEN__)
         dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
 #else
-        dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemName, "Linux", sizeof(info->m_SystemName));
 #endif
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';

@@ -502,7 +502,7 @@ union SaveLoadBuffer
      * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
      *
      * `system_name`
-     * : [type:string] The system OS name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
+     * : [type:string] The system name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
      *
      * `system_version`
      * : [type:string] The system OS version.
@@ -1174,7 +1174,7 @@ union SaveLoadBuffer
      */
 
     static int Sys_Deserialize(lua_State* L)
-    {   
+    {
         DM_LUA_STACK_CHECK(L, 1);
         size_t bytes_lenght;
         const char* bytes = luaL_checklstring(L, 1, &bytes_lenght);

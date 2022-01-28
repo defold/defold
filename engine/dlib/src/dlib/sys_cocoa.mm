@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,16 +31,6 @@
 
 namespace dmSys
 {
-    static inline void PatchSystemName(char *system_name, uint32_t buffer_size)
-    {
-        // Apple have in iOS 9.1 beta changed from "iPhone OS" to "iOS" as part of their rebranding sceme.
-        // In case this beta reached a public release, we patch "iOS" to "iPhone OS" as system name to guarantee continuity on existing products.
-        if(dmStrCaseCmp(system_name, "iOS")==0)
-        {
-            dmStrlCpy(system_name, "iPhone OS", buffer_size);
-        }
-    }
-
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
     	assert(path_len > 0);
@@ -57,7 +47,7 @@ namespace dmSys
     	}
     	return RESULT_OK;
     }
-    
+
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
     {
         return GetApplicationSupportPath(application_name, path, path_len);
@@ -193,8 +183,7 @@ namespace dmSys
 
         dmStrlCpy(info->m_Manufacturer, "Apple", sizeof(info->m_Manufacturer));
         dmStrlCpy(info->m_DeviceModel, uts.machine, sizeof(info->m_DeviceModel));
-        dmStrlCpy(info->m_SystemName, [d.systemName UTF8String], sizeof(info->m_SystemName));
-        PatchSystemName(info->m_SystemName, sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemName, "iPhone OS", sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, [d.systemVersion UTF8String], sizeof(info->m_SystemVersion));
         dmStrlCpy(info->m_ApiVersion, [d.systemVersion UTF8String], sizeof(info->m_ApiVersion));
 
@@ -244,8 +233,7 @@ namespace dmSys
         struct utsname uts;
         uname(&uts);
 
-        dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
-        PatchSystemName(info->m_SystemName, sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemName, "Darwin", sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';
 
