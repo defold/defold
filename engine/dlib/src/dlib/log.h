@@ -86,8 +86,9 @@ void Setlevel(Severity severity);
  * Subsequent invocations to this function will close previous opened file.
  * If the file can't be created a message will be logged to the "console"
  * @param path log path
+ * @return true if file successfully created.
  */
-void SetLogFile(const char* path);
+bool SetLogFile(const char* path);
 
 /**
  * Callback declaration for SetCustomLogCallback

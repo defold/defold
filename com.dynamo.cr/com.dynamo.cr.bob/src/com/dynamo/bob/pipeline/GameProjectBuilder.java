@@ -51,6 +51,7 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -502,6 +503,11 @@ public class GameProjectBuilder extends Builder<Void> {
             properties.putBooleanValue("display", "vsync", false);
             properties.putIntValue("display", "update_frequency", 0);
         }
+
+        // Convert project title to a string which may be used as a folder name and save in project.title_as_file_name
+        String title = properties.getStringValue("project", "title", "Unnamed");
+        String fileNameTitle = BundleHelper.projectNameToBinaryName(title);
+        properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
     @Override

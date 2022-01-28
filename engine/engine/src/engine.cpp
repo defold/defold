@@ -692,14 +692,38 @@ namespace dmEngine
 
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
+            uint32_t count = 0;
+            char* log_paths[2];
             char sys_path[DMPATH_MAX_PATH];
-            if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {
-                const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
-                char full[DMPATH_MAX_PATH];
-                dmPath::Concat(path, "log.txt", full, sizeof(full));
-                dmLog::SetLogFile(full);
-            } else {
+            char main_log_path[DMPATH_MAX_PATH];
+            if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK)
+            {
+                const char* main_dir = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
+                dmPath::Concat(main_dir, "log.txt", main_log_path, sizeof(main_log_path));
+                log_paths[count] = main_log_path;
+                count++;
+            }
+            else
+            {
                 dmLogFatal("Unable to get log-file path");
+            }
+
+
+            char application_support_path[DMPATH_MAX_PATH];
+            char application_support_log_path[DMPATH_MAX_PATH];
+            const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "DefoldLogs");
+            if (dmSys::GetApplicationSavePath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
+            {
+                dmPath::Concat(application_support_path, "log.txt", application_support_log_path, sizeof(application_support_log_path));
+                log_paths[count] = application_support_log_path;
+                count++;
+            }
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (dmLog::SetLogFile(log_paths[i]))
+                {
+                    break;
+                }
             }
         }
 
