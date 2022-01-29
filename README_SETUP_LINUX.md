@@ -143,3 +143,37 @@ acolor() {
 }
 export PS1='\t \[\033[32m\]\w\[\033[$(acolor)m\] $(git_branch)\[\033[00m\] $ '
 ```
+
+
+## WSL (Windows Subsystem for Linux)
+
+It is possible to build Linux targets using WSL 1.
+
+Install relevant packages (git, java, python, clang etc) using `./scripts/linux/install_wsl_packages.sh`.
+If also updates your `~/.bashrc` with updated paths.
+
+### Git clone into a mounted folder
+
+In order to get the proper username of your files, we need to setup WSL for this.
+Otherwise the git clone won't work in a mounted C: drive folder.
+
+Open (or create) the config file:
+```
+sudo nano /etc/wsl.conf
+```
+
+Add these lines:
+```
+[automount]
+options = "metadata"
+```
+
+And restart your WSL session
+
+
+### X11
+
+The script also sets the `DISPLAY=localhost:0.0` which allows you to connect to a local X server.
+
+A popular choice is [VCXSRV](https://sourceforge.net/projects/vcxsrv/)
+
