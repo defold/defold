@@ -135,6 +135,11 @@ def install(args):
         call("sudo apt-get install -y apt-fast aria2")
 
         call("sudo apt-get install -y software-properties-common")
+
+        call("echo MAWE before")
+        call("sudo update-alternatives --all")
+        call("echo MAWE after")
+
         packages = [
             "libssl-dev",
             "openssl",
