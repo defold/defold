@@ -152,7 +152,8 @@ def install(args):
             "tree",
             "valgrind",
             "lib32z1",
-            "xvfb"
+            "xvfb",
+            "clang-12", "libc++-12-dev", "libc++abi-12-dev"
         ]
         aptfast(" ".join(packages))
 
