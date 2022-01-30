@@ -64,7 +64,7 @@ defold_info['x86_64-darwin']['version'] = VERSION_MACOSX
 defold_info['x86_64-darwin']['pattern'] = PACKAGES_MACOS_SDK
 
 defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['x86_64-linux']['pattern'] = 'linux'
+defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
 
 ## **********************************************************************************************
 ## DARWIN
@@ -218,6 +218,13 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, 'xcode')
+    
+    elif platform in ('x86_64-linux',):
+        info[platform] = {}
+        info[platform]['version'] = defold_info[platform]['version']
+        info[platform]['path'] = _get_defold_path(sdkfolder, platform)
+
+        print "MAWE", info
 
     return info
 
@@ -230,7 +237,8 @@ def _get_local_sdk_info(platform):
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
         info[platform]['path'] = get_local_darwin_sdk_path(platform)
-    if platform in ('x86_64-linux',):
+    
+    elif platform in ('x86_64-linux',):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
         info[platform]['path'] = get_local_compiler_path()
