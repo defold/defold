@@ -170,7 +170,13 @@ def install(args):
 
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
-    args = 'python scripts/build.py distclean install_ext'.split()
+    args = 'python scripts/build.py distclean'.split()
+
+    if platform not in ('x86_64-linux',):
+       args.append('install_sdk') # use the locally install version on the CI
+
+    args.append('install_ext')
+
     opts = []
     waf_opts = []
 

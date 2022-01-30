@@ -109,8 +109,6 @@ PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
-PACKAGES_LINUX_CLANG="clang-13.0.0"
-PACKAGES_LINUX_TOOLCHAIN="clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-16.04"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -558,10 +556,6 @@ class Configuration(object):
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
 
-        # Note: This is a step we want to separate from install_ext
-        # since it should actually be before install_ext (e.g. to build the extensions)
-        self.install_sdk()
-
     def get_local_or_remote_file(self, path):
         if os.path.isdir(self.package_path): # is is a local path?
             if os.path.exists(path):
@@ -624,11 +618,11 @@ class Configuration(object):
             download_sdk(self, '%s/%s-%s-android-30-30.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
-            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
+            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, sdk.PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), format='J')
 
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
-            if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
-                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
+            if not os.path.exists(join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'cctools')):
+                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), force_extract=True)
 
         build_private.install_sdk(self, target_platform)
 
@@ -918,7 +912,7 @@ class Configuration(object):
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
         if self.target_platform in ('x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
+            strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))
         return True
@@ -1968,7 +1962,7 @@ class Configuration(object):
         ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                             '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
         if self.host == 'x86_64-linux':
-            ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
+            ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, sdk.PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
