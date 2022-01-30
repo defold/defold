@@ -140,7 +140,13 @@ def install(args):
         call("ls /usr/bin/clang*")
         call("echo MAWE after")
 
-        call("sudo apt-get autoremove -y clang-11 libc++-11-dev libc++abi-11-dev")
+        call("sudo update-alternatives --remove-all clang")
+        call("sudo update-alternatives --remove-all clang++")
+        call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
+        call("sudo update-alternatives --query clang")
+        call("which clang")
+
+        #call("sudo apt-get autoremove -y clang-11 libc++-11-dev libc++abi-11-dev")
 
         packages = [
             "libssl-dev",
@@ -159,8 +165,7 @@ def install(args):
             "tree",
             "valgrind",
             "lib32z1",
-            "xvfb",
-            "clang-12", "libc++-12-dev", "libc++abi-12-dev"
+            "xvfb"
         ]
         aptfast(" ".join(packages))
 
