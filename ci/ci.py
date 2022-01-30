@@ -136,9 +136,11 @@ def install(args):
 
         call("sudo apt-get install -y software-properties-common")
 
-        call("echo MAWE before")
-        call("sudo update-alternatives --all")
+        call("echo MAWE list clang executables")
+        call("ls /usr/bin/clang*")
         call("echo MAWE after")
+
+        call("sudo apt-get autoremove -y clang-11 libc++-11-dev libc++abi-11-dev")
 
         packages = [
             "libssl-dev",
