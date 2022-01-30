@@ -1443,7 +1443,7 @@ def detect(conf):
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
-            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')]
+            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, 'x86_64-linux'),'bin')]
         else:
             path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
