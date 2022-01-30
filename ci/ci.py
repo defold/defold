@@ -143,10 +143,6 @@ def install(args):
         call("sudo update-alternatives --remove-all clang")
         call("sudo update-alternatives --remove-all clang++")
         call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
-        call("sudo update-alternatives --query clang")
-        call("which clang")
-
-        #call("sudo apt-get autoremove -y clang-11 libc++-11-dev libc++abi-11-dev")
 
         packages = [
             "libssl-dev",
@@ -178,12 +174,7 @@ def install(args):
 
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
-    args = 'python scripts/build.py distclean'.split()
-
-    if platform not in ('x86_64-linux',):
-       args.append('install_sdk') # use the locally install version on the CI
-
-    args.append('install_ext')
+    args = 'python scripts/build.py distclean install_sdk install_ext'.split()
 
     opts = []
     waf_opts = []
