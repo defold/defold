@@ -121,6 +121,7 @@ def setup_windows_cert(args):
 
 
 def install(args):
+    # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
