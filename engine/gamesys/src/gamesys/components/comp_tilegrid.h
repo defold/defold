@@ -42,6 +42,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
+    void CompTileGridIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
     // Script support
     struct TileGridComponent;
 

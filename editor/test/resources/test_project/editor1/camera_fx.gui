@@ -58,6 +58,7 @@ nodes {
   alpha: 1.0
   template_node_child: false
   size_mode: SIZE_MODE_MANUAL
+  custom_type: 0
 }
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_LEGACY

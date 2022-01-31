@@ -10,6 +10,7 @@ The order of priority is:
 import os
 import log
 import run
+import platform
 from collections import defaultdict
 
 DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dynamo_home'))
@@ -104,6 +105,28 @@ def get_local_darwin_sdk_version(platform):
 ## **********************************************************************************************
 
 # ANDROID_HOME
+
+
+## **********************************************************************************************
+
+# Linux
+
+_is_wsl = None
+
+def is_wsl():
+    global _is_wsl
+    if _is_wsl is not None:
+        return _is_wsl
+
+    """ Checks if we're running on native Linux on in WSL """
+    _is_wsl = False
+    if 'Linux' == platform.system():
+        with open("/proc/version") as f:
+            data = f.read()
+            _is_wsl = "Microsoft" in data
+    return _is_wsl
+
+## **********************************************************************************************
 
 def _get_defold_path(sdkfolder, platform):
     return os.path.join(sdkfolder, defold_info[platform]['pattern'])
