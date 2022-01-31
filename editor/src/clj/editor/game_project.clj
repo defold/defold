@@ -190,7 +190,9 @@
 
   (output custom-build-targets g/Any :cached
           (g/fnk [_node-id resource-map settings-map]
-                 (let [custom-paths (parse-custom-resource-paths (get settings-map ["project" "custom_resources"]))]
+                 (let [custom-resources (parse-custom-resource-paths (get settings-map ["project" "custom_resources"]))
+                       ssl-certificates (resource/proj-path (get settings-map ["network" "ssl_certificates"]))
+                       custom-paths (conj custom-resources ssl-certificates)]
                    (try
                      (map (partial make-custom-build-target _node-id)
                           (find-custom-resources resource-map custom-paths))

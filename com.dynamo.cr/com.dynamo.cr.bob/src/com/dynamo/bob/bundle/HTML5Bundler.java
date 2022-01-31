@@ -55,13 +55,6 @@ public class HTML5Bundler implements IBundler {
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
-    private static final String[] SplitFileNames = {
-        "game.projectc",
-        "game.arci",
-        "game.arcd",
-        "game.dmanifest",
-        "game.public.der"
-    };
 
     class SplitFile {
         private File source;
@@ -260,7 +253,7 @@ public class HTML5Bundler implements IBundler {
 
     private void createSplitFiles(File buildDir, File targetDir) throws IOException {
         ArrayList<SplitFile> splitFiles = new ArrayList<SplitFile>();
-        for (String name : SplitFileNames) {
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
             SplitFile toSplit = new SplitFile(new File(buildDir, name));
             toSplit.performSplit(targetDir);
             splitFiles.add(toSplit);

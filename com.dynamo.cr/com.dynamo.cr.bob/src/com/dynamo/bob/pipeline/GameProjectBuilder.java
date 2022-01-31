@@ -41,6 +41,7 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Platform;
@@ -568,6 +569,16 @@ public class GameProjectBuilder extends Builder<Void> {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
                 project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
                 project.getPublisher().Publish();
+
+                // Copy SSL public keys if specified
+                String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
+                if (sslCertificatesPath != null && !sslCertificatesPath.isEmpty())
+                {
+                    File source = new File(project.getRootDirectory(), sslCertificatesPath);
+                    File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+                    File dist = new File(buildDir, BundleHelper.SSL_CERTIFICATES_NAME);
+                    FileUtils.copyFile(source, dist);
+                }
 
                 manifestTmpFileHandle.delete();
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
