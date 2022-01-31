@@ -2555,6 +2555,20 @@ namespace dmGameSystem
         }
         index -= num_world_properties;
 
+        uint32_t num_bool_properties = 1;
+        if (index < num_bool_properties)
+        {
+            if (index == 0)
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+                pit->m_Property.m_Value.m_Bool = dmGui::IsNodeEnabled(component->m_Scene, node, false);
+                pit->m_Property.m_NameHash = dmHashString64("enabled");
+            }
+            return true;
+        }
+        index -= num_bool_properties;
+
+
         if (type == dmGui::NODE_TYPE_TEXT)
         {
             uint64_t num_text_properties = 1;

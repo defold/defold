@@ -48,6 +48,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
+    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
 
     // For script_physics.cpp
