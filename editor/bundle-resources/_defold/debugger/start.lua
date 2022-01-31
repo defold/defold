@@ -5,7 +5,7 @@
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
 
-local debugger = require '_defold.debugger.debugger'
+local debugger = require 'builtins.scripts.debugger'
 
 debugger.start(8172)
 
