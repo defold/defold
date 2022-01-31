@@ -213,7 +213,7 @@ namespace dmGameSystem
                 &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, 0,
                 &CompCollisionObjectUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
                 &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
-                0, 0,
+                0, CompCollisionIterProperties,
                 1);
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
@@ -237,7 +237,7 @@ namespace dmGameSystem
                 CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate, 0,
                 CompModelUpdate, CompModelRender, 0, CompModelOnMessage, 0,
                 0, CompModelGetProperty, CompModelSetProperty,
-                0, 0,
+                0, CompModelIterProperties,
                 0);
 
         REGISTER_COMPONENT_TYPE("meshc", 725, mesh_context,
@@ -245,7 +245,7 @@ namespace dmGameSystem
                 CompMeshCreate, CompMeshDestroy, 0, 0, CompMeshAddToUpdate, 0,
                 CompMeshUpdate, CompMeshRender, 0, CompMeshOnMessage, 0,
                 0, CompMeshGetProperty, CompMeshSetProperty,
-                0, 0,
+                0, CompMeshIterProperties,
                 0);
 
         REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,
@@ -301,7 +301,7 @@ namespace dmGameSystem
                 CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, 0,
                 CompTileGridUpdate, CompTileGridRender, 0, CompTileGridOnMessage, 0,
                 CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
-                0, 0,
+                0, CompTileGridIterProperties,
                 1);
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,

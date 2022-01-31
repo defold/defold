@@ -43,6 +43,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
+    void CompModelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
     // Used in the script_model.cpp
     struct ModelComponent;
     struct ModelWorld;
