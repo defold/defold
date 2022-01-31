@@ -85,6 +85,10 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         skip_http_run = True
 
+    skip_ssdp = False
+    if 'win32' in bld.env['PLATFORM']:
+        skip_ssdp = True
+
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
     create_test(bld, 'test_buffer')
@@ -122,7 +126,7 @@ def build(bld):
     create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
+    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], skip_run = skip_ssdp)
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run)
     create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
