@@ -29,7 +29,7 @@ You need Java JDK 11 installed to build the tools. [Download and install release
 choco install openjdk11
 ```
 
-When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+When Java is installed you may also need to add java to your PATH and export JAVA_HOME:
 
 ```sh
 > nano ~/.bashrc
@@ -98,7 +98,7 @@ You need to [download](https://git-scm.com/download/win) a command line version 
 
 During install, select the option to not do any CR/LF conversion.
 
-Before
+You most likely want to set up working with ssh keys as well.
 
 ### SSH Keys
 
