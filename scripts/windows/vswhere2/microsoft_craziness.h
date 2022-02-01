@@ -13,7 +13,7 @@
 // Changelog:
 //  2018-08-31 - Initial version (Jonathan Blow)
 //  2019-05-07 - Now also gets WindowsSDK + MSVC header include paths (Jan Ivanecky)
-//  2022-02-01 - Added WindowsSDK binary path (Mathias Westerdahl)
+//  2022-02-01 - Added WindowsSDK binary path + VS root dir + version (Mathias Westerdahl)
 
 #include <windows.h>
 #include <stdlib.h>
@@ -64,6 +64,8 @@ struct Find_Result {
     wchar_t *windows_sdk_shared_include_path = NULL;
     wchar_t *windows_sdk_exe_path = NULL;
     
+    wchar_t *vs_root = NULL;
+    wchar_t *vs_version = NULL;
     wchar_t *vs_exe_path = NULL;
     wchar_t *vs_library_path = NULL;
     wchar_t *vs_include_path = NULL;
@@ -80,6 +82,8 @@ void free_resources(Find_Result *result) {
     free(result->windows_sdk_ucrt_include_path);
     free(result->windows_sdk_shared_include_path);
     free(result->windows_sdk_exe_path);
+    free(result->vs_root);
+    free(result->vs_version);
     free(result->vs_exe_path);
     free(result->vs_library_path);
     free(result->vs_include_path);
@@ -491,6 +495,8 @@ bool find_visual_studio_2017_by_fighting_through_microsoft_craziness(Find_Result
 
         if (os_file_exists(library_file)) {
             auto link_exe_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", version, L"\\bin\\Hostx64\\x64");
+            result->vs_root          = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", version);
+            result->vs_version       = concat(version, L"");
             result->vs_exe_path      = link_exe_path;
             result->vs_library_path  = library_path;
             result->vs_include_path  = include_path;
@@ -539,6 +545,7 @@ void find_visual_studio_by_fighting_through_microsoft_craziness(Find_Result *res
         defer { free(vcruntime_filename); };
 
         if (os_file_exists(vcruntime_filename)) {
+            result->vs_root         = concat(buffer, v);
             result->vs_exe_path     = concat(buffer, L"VC\\bin\\amd64");
             result->vs_library_path = lib_path;
             return;

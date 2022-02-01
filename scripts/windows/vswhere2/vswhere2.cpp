@@ -30,10 +30,12 @@ enum Feature
 {
     SDK_ROOT            = 1 << 0,
     SDK_VERSION         = 1 << 1,
-    SDK_LIBRARY_PATHS   = 1 << 2,
-    SDK_INCLUDE_PATHS   = 1 << 3,
-    SDK_BIN_PATHS       = 1 << 4,
-    MAX                 = 1 << 5,
+    LIBRARY_PATHS       = 1 << 2,
+    INCLUDE_PATHS       = 1 << 3,
+    BIN_PATHS           = 1 << 4,
+    VS_ROOT             = 1 << 5,
+    VS_VERSION          = 1 << 6,
+    MAX                 = 1 << 7,
     ALL                 = 0xFF
 };
 
@@ -44,11 +46,15 @@ static Feature get_feature(const char* feature)
     if (strcmp(feature, "--sdk_version") == 0)
         return SDK_VERSION;
     if (strcmp(feature, "--lib_paths") == 0)
-        return SDK_LIBRARY_PATHS;
+        return LIBRARY_PATHS;
     if (strcmp(feature, "--includes") == 0)
-        return SDK_INCLUDE_PATHS;
+        return INCLUDE_PATHS;
     if (strcmp(feature, "--bin_paths") == 0)
-        return SDK_BIN_PATHS;
+        return BIN_PATHS;
+    if (strcmp(feature, "--vs_root") == 0)
+        return VS_ROOT;
+    if (strcmp(feature, "--vs_version") == 0)
+        return VS_VERSION;
     return ALL;
 }
 
@@ -81,11 +87,13 @@ int main(int argc, char const *argv[])
     if (argc > 1)
         feature = get_feature(argv[1]);
 
-    const wchar_t* sdk_root[1] = { result.windows_sdk_root };
-    const wchar_t* sdk_version[1] = { result.windows_sdk_version_specific };
-    const wchar_t* includes[] = { result.windows_sdk_um_include_path, result.windows_sdk_ucrt_include_path, result.windows_sdk_shared_include_path, result.vs_include_path };
-    const wchar_t* lib_paths[] = { result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path, result.vs_library_path };
-    const wchar_t* bin_paths[] = { result.vs_exe_path, result.windows_sdk_exe_path };
+    const wchar_t* sdk_root[]       = { result.windows_sdk_root };
+    const wchar_t* sdk_version[]    = { result.windows_sdk_version_specific };
+    const wchar_t* includes[]       = { result.windows_sdk_um_include_path, result.windows_sdk_ucrt_include_path, result.windows_sdk_shared_include_path, result.vs_include_path };
+    const wchar_t* lib_paths[]      = { result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path, result.vs_library_path };
+    const wchar_t* bin_paths[]      = { result.vs_exe_path, result.windows_sdk_exe_path };
+    const wchar_t* vs_root[]        = { result.vs_root };
+    const wchar_t* vs_version[]     = { result.vs_version };
 
     bool value_only = feature != ALL;
     for (uint32_t i = 1; i < MAX; ++i)
@@ -94,11 +102,13 @@ int main(int argc, char const *argv[])
         {
             switch(i)
             {
-            case SDK_ROOT:          output("sdk_root", 1, sdk_root, value_only); break;
-            case SDK_VERSION:       output("sdk_version", 1, sdk_version, value_only); break;
-            case SDK_INCLUDE_PATHS: output("includes", sizeof(includes)/sizeof(includes[0]), includes, value_only); break;
-            case SDK_LIBRARY_PATHS: output("lib_paths", sizeof(lib_paths)/sizeof(lib_paths[0]), lib_paths, value_only); break;
-            case SDK_BIN_PATHS:     output("bin_paths", sizeof(bin_paths)/sizeof(bin_paths[0]), bin_paths, value_only); break;
+            case SDK_ROOT:      output("sdk_root", sizeof(sdk_root)/sizeof(sdk_root[0]), sdk_root, value_only); break;
+            case SDK_VERSION:   output("sdk_version", sizeof(sdk_version)/sizeof(sdk_version[0]), sdk_version, value_only); break;
+            case INCLUDE_PATHS: output("includes", sizeof(includes)/sizeof(includes[0]), includes, value_only); break;
+            case LIBRARY_PATHS: output("lib_paths", sizeof(lib_paths)/sizeof(lib_paths[0]), lib_paths, value_only); break;
+            case BIN_PATHS:     output("bin_paths", sizeof(bin_paths)/sizeof(bin_paths[0]), bin_paths, value_only); break;
+            case VS_ROOT:       output("vs_root", sizeof(vs_root)/sizeof(vs_root[0]), vs_root, value_only); break;
+            case VS_VERSION:    output("vs_version", sizeof(vs_version)/sizeof(vs_version[0]), vs_version, value_only); break;
             }
 
             if (value_only)
