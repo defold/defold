@@ -90,7 +90,7 @@ def build(bld):
         skip_http_run = True
 
     skip_ssdp = False
-    if sdk.is_wsl():
+    if 'win32' in bld.env['PLATFORM'] or sdk.is_wsl():
         skip_ssdp = True
 
     create_test(bld, 'test_memory')
