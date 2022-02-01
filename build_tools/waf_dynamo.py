@@ -1495,12 +1495,12 @@ def detect(conf):
 
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        arch        = 'x86_64'
+        arch, prebuilt_platform = build_platform.split('-')
         target_arch = build_util.get_target_architecture()
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
-        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
+        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, prebuilt_platform, arch)
 
         conf.env['CC']       = '%s/%s' % (bintools, clang_name)
         conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
