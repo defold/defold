@@ -15,6 +15,9 @@
 // Updated by Jan Ivanecky
 // - Now also gets WindowsSDK + MSVC header include paths
 
+// Updated by Mathias Westerdahl
+// - Now also gets WindowsSDK ex path
+
 #include <windows.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,6 +65,7 @@ struct Find_Result {
     wchar_t *windows_sdk_um_include_path = NULL;
     wchar_t *windows_sdk_ucrt_include_path = NULL;
     wchar_t *windows_sdk_shared_include_path = NULL;
+    wchar_t *windows_sdk_exe_path = NULL;
     
     wchar_t *vs_exe_path = NULL;
     wchar_t *vs_library_path = NULL;
@@ -78,6 +82,7 @@ void free_resources(Find_Result *result) {
     free(result->windows_sdk_um_include_path);
     free(result->windows_sdk_ucrt_include_path);
     free(result->windows_sdk_shared_include_path);
+    free(result->windows_sdk_exe_path);
     free(result->vs_exe_path);
     free(result->vs_library_path);
     free(result->vs_include_path);
@@ -560,6 +565,7 @@ Find_Result find_visual_studio_and_windows_sdk() {
         result.windows_sdk_um_include_path     = concat(result.windows_sdk_root, L"include\\", result.windows_sdk_version_specific, L"\\um");
         result.windows_sdk_ucrt_include_path   = concat(result.windows_sdk_root, L"include\\", result.windows_sdk_version_specific, L"\\ucrt");
         result.windows_sdk_shared_include_path = concat(result.windows_sdk_root, L"include\\", result.windows_sdk_version_specific, L"\\shared");
+        result.windows_sdk_exe_path            = concat(result.windows_sdk_root, L"bin\\", result.windows_sdk_version_specific, L"\\x64");
     }
 
     find_visual_studio_by_fighting_through_microsoft_craziness(&result);

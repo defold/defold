@@ -85,7 +85,7 @@ int main(int argc, char const *argv[])
     const wchar_t* sdk_version[1] = { result.windows_sdk_version_specific };
     const wchar_t* includes[] = { result.windows_sdk_um_include_path, result.windows_sdk_ucrt_include_path, result.windows_sdk_shared_include_path, result.vs_include_path };
     const wchar_t* lib_paths[] = { result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path, result.vs_library_path };
-    const wchar_t* bin_paths[] = { result.vs_exe_path };
+    const wchar_t* bin_paths[] = { result.vs_exe_path, result.windows_sdk_exe_path };
 
     bool value_only = feature != ALL;
     for (uint32_t i = 1; i < MAX; ++i)
