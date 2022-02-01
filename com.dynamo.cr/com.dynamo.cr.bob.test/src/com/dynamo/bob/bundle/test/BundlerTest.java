@@ -374,12 +374,6 @@ public class BundlerTest {
         count++;
         createFile(outputContentRoot, "input/game.input_binding", "");
         count++;
-        createFile(outputContentRoot, "builtins/scripts/mobdebug.lua", "");
-        count++;
-        createFile(outputContentRoot, "builtins/scripts/debugger.lua", "");
-        count++;
-        createFile(outputContentRoot, "builtins/scripts/edn.lua", "");
-        count++;
 
         // These aren't put in the DARC file, so we don't count up
         createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "");
