@@ -13,6 +13,7 @@
 // "--sdk_version"  -- outputs only the sdk version number
 // "--includes"     -- outputs only the include paths
 // "--lib_paths"    -- outputs only the library paths
+// "--bin_paths"    -- outputs only the executable paths
 //
 // Version log:
 //  2022-02-01: Initial version
@@ -31,7 +32,8 @@ enum Feature
     SDK_VERSION         = 1 << 1,
     SDK_LIBRARY_PATHS   = 1 << 2,
     SDK_INCLUDE_PATHS   = 1 << 3,
-    MAX                 = 1 << 4,
+    SDK_BIN_PATHS       = 1 << 4,
+    MAX                 = 1 << 5,
     ALL                 = 0xFF
 };
 
@@ -45,6 +47,8 @@ static Feature get_feature(const char* feature)
         return SDK_LIBRARY_PATHS;
     if (strcmp(feature, "--includes") == 0)
         return SDK_INCLUDE_PATHS;
+    if (strcmp(feature, "--bin_paths") == 0)
+        return SDK_BIN_PATHS;
     return ALL;
 }
 
@@ -81,6 +85,7 @@ int main(int argc, char const *argv[])
     const wchar_t* sdk_version[1] = { result.windows_sdk_version_specific };
     const wchar_t* includes[] = { result.windows_sdk_um_include_path, result.windows_sdk_ucrt_include_path, result.windows_sdk_shared_include_path, result.vs_include_path };
     const wchar_t* lib_paths[] = { result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path, result.vs_library_path };
+    const wchar_t* bin_paths[] = { result.vs_exe_path };
 
     bool value_only = feature != ALL;
     for (uint32_t i = 1; i < MAX; ++i)
@@ -93,6 +98,7 @@ int main(int argc, char const *argv[])
             case SDK_VERSION:       output("sdk_version", 1, sdk_version, value_only); break;
             case SDK_INCLUDE_PATHS: output("includes", sizeof(includes)/sizeof(includes[0]), includes, value_only); break;
             case SDK_LIBRARY_PATHS: output("lib_paths", sizeof(lib_paths)/sizeof(lib_paths[0]), lib_paths, value_only); break;
+            case SDK_BIN_PATHS:     output("bin_paths", sizeof(bin_paths)/sizeof(bin_paths[0]), bin_paths, value_only); break;
             }
 
             if (value_only)
