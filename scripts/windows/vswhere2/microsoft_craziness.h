@@ -1,7 +1,6 @@
 //
 // Author:   Jonathan Blow
-// Version:  2
-// Date:     7 May, 2019  (update to original version released on 31 August, 2018).
+// Version:  3
 //
 // This code is released under the MIT license, which you can find at
 //
@@ -11,12 +10,10 @@
 //
 // See the comments for how to use this library just below the includes.
 //
-
-// Updated by Jan Ivanecky
-// - Now also gets WindowsSDK + MSVC header include paths
-
-// Updated by Mathias Westerdahl
-// - Now also gets WindowsSDK ex path
+// Changelog:
+//  2018-08-31 - Initial version (Jonathan Blow)
+//  2019-05-07 - Now also gets WindowsSDK + MSVC header include paths (Jan Ivanecky)
+//  2022-02-01 - Added WindowsSDK binary path (Mathias Westerdahl)
 
 #include <windows.h>
 #include <stdlib.h>
