@@ -102,10 +102,6 @@ DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
 
 PACKAGES_TAPI_VERSION="tapi1.6"
-WINDOWS_SDK_10_VERSION="10.0.18362.0"
-WINDOWS_MSVC_2019_VERSION="14.25.28610"
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
-PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
@@ -607,8 +603,8 @@ class Configuration(object):
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 

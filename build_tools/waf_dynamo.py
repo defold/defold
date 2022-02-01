@@ -1318,48 +1318,6 @@ def extract_symbols(self):
     ziptask.set_outputs(archive)
     ziptask.install_path = self.install_path
 
-def get_msvc_version(conf, platform):
-    # We return these mappings in a format that the waf tools would have returned (if they worked, and weren't very very slow)
-    dynamo_home = conf.env['DYNAMO_HOME']
-    msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
-    windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
-
-    arch = 'x64'
-    if platform == 'win32':
-        arch = 'x86'
-
-    # Since the programs(Windows!) can update, we do this dynamically to find the correct version
-    ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
-    ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
-    ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
-    ucrt_version = ucrt_dirs[-1]
-    if not ucrt_version.startswith('10.0'):
-        conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
-
-    msvc_version = [x for x in os.listdir(os.path.join(msvcdir,'VC','Tools','MSVC'))]
-    msvc_version = [x for x in msvc_version if x.startswith('14.')]
-    msvc_version.sort(key=lambda x: map(int, x.split('.')))
-    msvc_version = msvc_version[-1]
-    if not msvc_version.startswith('14.'):
-        conf.fatal("Unable to determine msvc version: '%s'" % msvc_version)
-
-    msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
-                os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
-
-    includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
-
-    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
-
-    return msvc_path, includes, libdirs
-
 def remove_flag_at_index(arr, index, count):
     for i in range(count):
         del arr[index]
@@ -1430,15 +1388,17 @@ def detect(conf):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
-        msvc_path, includes, libdirs = get_msvc_version(conf, platform)
+        includes = sdkinfo['includes']['path']
+        libdirs = sdkinfo['lib_paths']['path']
+        bindirs = sdkinfo['bin_paths']['path']
 
         if platform == 'x86_64-win32':
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (msvc_path, includes, libdirs)))])]
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (bindirs, includes, libdirs)))])]
         else:
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (msvc_path, includes, libdirs)))])]
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
 
         if not Options.options.skip_codesign:
-            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
