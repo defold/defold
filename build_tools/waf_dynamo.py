@@ -1376,18 +1376,11 @@ def detect(conf):
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
 
+    build_platform = sdk.get_host_platform()
+
     platform = None
     if getattr(Options.options, 'platform', None):
         platform=getattr(Options.options, 'platform')
-
-    if sys.platform == "darwin":
-        build_platform = "darwin"
-    elif sys.platform == "linux2":
-        build_platform = "linux"
-    elif sys.platform == "win32":
-        build_platform = "win32"
-    else:
-        conf.fatal("Unable to determine host platform")
 
     if not platform:
         platform = build_platform
@@ -1401,7 +1394,7 @@ def detect(conf):
     else:
         bob_build_platform = platform
 
-    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
+    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform # used in waf_gamesys.py TODO: Remove the need for BOB_BUILD_PLATFORM (weird names)
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
@@ -1417,6 +1410,7 @@ def detect(conf):
     conf.env['DYNAMO_HOME'] = dynamo_home
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
+    sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, build_platform)
 
     if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env['TESTS_UNSUPPORTED'] = True
@@ -1443,8 +1437,7 @@ def detect(conf):
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
-            sdkinfo_linux = sdk.get_sdk_info(SDK_ROOT, 'x86_64-linux')
-            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_linux, 'x86_64-linux'),'bin')]
+            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')]
         else:
             path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
@@ -1460,7 +1453,7 @@ def detect(conf):
         bin_dir = '%s/usr/bin' % (sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()))
         if 'linux' in build_platform:
             llvm_prefix = 'llvm-'
-            bin_dir = os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')
+            bin_dir = os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1474,7 +1467,7 @@ def detect(conf):
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in build_platform:
-            bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')
+            bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir

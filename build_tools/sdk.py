@@ -8,6 +8,7 @@ The order of priority is:
 """
 
 import os
+import sys
 import log
 import run
 import platform
@@ -272,11 +273,16 @@ def get_toolchain_root(sdkinfo, platform):
     return None
 
 
+def _is_64bit_machine():
+    return platform.machine().endswith('64')
 
-
-
-
-
-
-
+def get_host_platform():
+    if _is_64bit_machine():
+        if sys.platform == 'linux2':
+            return 'x86_64-linux'
+        elif sys.platform == 'win32':
+            return 'x86_64-win32'
+        elif sys.platform == 'darwin':
+            return 'x86_64-darwin'
+    raise Exception("Unsupported host platform: %s %s" % (sys.platform,  platform.machine()))
 
