@@ -248,8 +248,12 @@ def download_editor2(channel, platform = None):
     opts = []
     opts.append('--channel=%s' % channel)
 
+    install_sdk = ''
+    if 'win32' in host_platform: # until we can find the signtool in a faster way on CI
+        install_sdk ='install_sdk'
+
     for platform in platforms:
-        call('python scripts/build.py install_ext download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
+        call('python scripts/build.py %s install_ext download_editor2 --platform=%s %s' % (install_sdk, platform, ' '.join(opts)))
 
 
 def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
