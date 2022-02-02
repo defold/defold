@@ -706,7 +706,7 @@ public class Project {
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
-        bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
+        bundlers.put(Platform.Arm64Darwin, IOSBundler.class);
         bundlers.put(Platform.X86_64Ios, IOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
     }
@@ -778,7 +778,7 @@ public class Project {
         Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
+        if (p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();

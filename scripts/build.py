@@ -35,7 +35,7 @@ from ConfigParser import ConfigParser
 BASE_PLATFORMS = [  'x86_64-linux',
                     'x86_64-darwin',
                     'win32', 'x86_64-win32',
-                    'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
+                    'x86_64-ios', 'arm64-darwin',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web']
 

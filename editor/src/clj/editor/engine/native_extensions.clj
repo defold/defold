@@ -102,8 +102,6 @@
 (def ^:private extender-platforms
   {(.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
-   (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"
-                                     :library-paths #{"ios" "armv7-ios"}}
    (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
