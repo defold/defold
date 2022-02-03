@@ -541,7 +541,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 }
                 break;
 
-                case Armv7Darwin:
                 case Arm64Darwin:
                 case X86_64Ios:
                 {

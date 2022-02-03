@@ -31,7 +31,6 @@ The following platforms are supported:
 * `win32`
 * `x86_64-win32`
 * `x86_64-ios`
-* `armv7-darwin`
 * `arm64-darwin`
 * `armv7-android`
 * `arm64-android`

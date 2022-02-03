@@ -241,27 +241,7 @@ function cmi() {
     export PLATFORM=$1
 
     case $1 in
-        armv7-darwin)
-            [ ! -e "${IOS_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SDK_ROOT}" && exit 1
-            # NOTE: We set this PATH in order to use libtool from iOS SDK
-            # Otherwise we get the following error "malformed object (unknown load command 1)"
-            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch armv7 -isysroot ${IOS_SDK_ROOT}"
-            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch armv7 -isysroot ${IOS_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++"
-            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
-            # Wrong include-directories and defines are selected.
-            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
-            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 arm-darwin
-            ;;
-
         arm64-darwin)
-            # Essentially the same environment vars as armv7-darwin but with "-arch arm64".
-
             [ ! -e "${IOS_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SDK_ROOT}" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"

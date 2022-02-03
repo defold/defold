@@ -146,13 +146,12 @@ public class IOSBundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
-            throws IOException, CompileExceptionError {
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
 
         BundleHelper.throwIfCanceled(canceled);
 
-        final Platform platform = Platform.Armv7Darwin;
+        final Platform platform = Platform.Arm64Darwin;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
@@ -293,7 +292,7 @@ public class IOSBundler implements IBundler {
             logger.log(Level.WARNING, "ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, Platform.Arm64Darwin, bundleDir, variant);
 
         helper.copyOrWriteManifestFile(architectures.get(0), appDir);
         helper.copyIosIcons();

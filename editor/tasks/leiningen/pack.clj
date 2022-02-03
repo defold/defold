@@ -31,9 +31,6 @@
                     "lib" ["particle_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.so"]}
-   ;; The iOS version is needed for the "Sign iOS app" in the macOS editor
-   "armv7-darwin"  {"bin" ["dmengine"]
-                    "lib" []}
    "arm64-darwin"  {"bin" ["dmengine"]
                     "lib" []}})
 

@@ -30,18 +30,6 @@ function luajit_configure() {
 	COMMON_FLAGS_64="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL "
 
 	case $CONF_TARGET in
-		armv7-darwin)
-			TAR_SKIP_BIN=1
-			XFLAGS="$COMMON_FLAGS_32"
-			export CROSS=""
-			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-			export HOST_CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
-			export HOST_CFLAGS="$XFLAGS -m32 -isysroot $OSX_SDK_ROOT -I."
-			export HOST_ALDFLAGS="-m32 -isysroot $OSX_SDK_ROOT"
-			export TARGET_FLAGS="$CFLAGS"
-			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM"
-			export SKIPLUAJIT=true
-			;;
 		arm64-darwin)
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_64"
@@ -137,9 +125,6 @@ function cmi_patch() {
 export CONF_TARGET=$1
 
 case $1 in
-	armv7-darwin)
-		export TARGET_SYS=iOS
-		;;
 	arm64-darwin)
 		export TARGET_SYS=iOS
 		;;
