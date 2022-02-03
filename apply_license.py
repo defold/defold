@@ -4,7 +4,7 @@ import time
 import re
 import subprocess
 
-RE_LICENSE = r"(.*)^.*Copyright (\d\d\d\d) The Defold Foundation.*specific language governing permissions and limitations under the License.(.*)"
+RE_LICENSE = r"(.*?\n?\r?)[/#;-]?[/#;-]\sCopyright (\d\d\d\d) The Defold Foundation.*specific language governing permissions and limitations under the License.(.*)"
 
 YEAR = str(time.localtime().tm_year)
 LICENSE = ('''Copyright %s The Defold Foundation
@@ -136,11 +136,11 @@ for root, dirs, files in os.walk(".", topdown=True):
             # Remove it and reapply if file has been modified after license year
             if has_defold_license(contents):
                 modified_year = time.localtime(os.path.getmtime(filepath)).tm_year
-                license_year = int(re.search(RE_LICENSE, contents, flags=re.S).group(2))
+                license_year = int(re.search(RE_LICENSE, contents, flags=re.DOTALL).group(2))
                 if modified_year <= license_year:
                     continue
                 license = license.replace(YEAR, str(modified_year))
-                contents = re.sub(RE_LICENSE, r"\1" + license + r"\3", contents, flags=re.S)
+                contents = re.sub(RE_LICENSE, r"\1" + license + r"\3", contents, flags=re.DOTALL)
                 print("Updated: " + filepath)
             else:
                 contents = apply_license(license, contents)
