@@ -1071,4 +1071,36 @@ namespace dmGameSystem
     {
         return world->m_Components.Get(user_data);;
     }
+
+    static bool CompModelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        ModelWorld* world = (ModelWorld*)pit->m_Node->m_ComponentWorld;
+        ModelComponent* component = world->m_Components.Get(pit->m_Node->m_Component);
+
+        uint64_t index = pit->m_Next++;
+
+        uint32_t num_bool_properties = 1;
+        if (index < num_bool_properties)
+        {
+            if (index == 0)
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+                pit->m_Property.m_Value.m_Bool = component->m_Enabled;
+                pit->m_Property.m_NameHash = dmHashString64("enabled");
+            }
+            return true;
+        }
+        index -= num_bool_properties;
+
+        return false;
+    }
+
+    void CompModelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompModelIterPropertiesGetNext;
+    }
 }

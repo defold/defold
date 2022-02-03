@@ -588,7 +588,7 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
     }
 }
 
-void SetLogFile(const char* path)
+bool SetLogFile(const char* path)
 {
     if (g_LogFile) {
         fclose(g_LogFile);
@@ -599,7 +599,9 @@ void SetLogFile(const char* path)
         dmLogInfo("Writing log to: %s", path);
     } else {
         dmLogFatal("Failed to open log-file '%s'", path);
+        return false;
     }
+    return true;
 }
 
 void SetCustomLogCallback(CustomLogCallback callback, void* user_data)

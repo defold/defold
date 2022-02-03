@@ -15,6 +15,8 @@
 #include <mbedtls/error.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/ssl.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/x509_crt.h>
 
 // For the select stuff. We could possibly use our own select from socket.h
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
@@ -65,6 +67,8 @@ struct SSLSocketContext
     mbedtls_entropy_context     m_MbedEntropy;
     mbedtls_ctr_drbg_context    m_MbedCtrDrbg;
     mbedtls_ssl_config          m_MbedConf;
+    mbedtls_x509_crt            m_x509CertChain;
+    bool                        m_SslKeysSet;
 } g_SSLSocketContext;
 
 #define MBEDTLS_RESULT_TO_STRING_CASE(x) case x: return #x;
@@ -145,13 +149,7 @@ static dmSocket::Result SSLToSocket(int r) {
 
 Result Initialize()
 {
-    // We should manually and optionally verify certificates
-    // but it require that root-certs
-    // are bundled in the engine and some kind of lazy loading
-    // mechanism as we can't load every possible certificate for
-    // every connections. It's possible to introspect the SSL object
-    // to find out which certificates to load.
-
+    g_SSLSocketContext.m_SslKeysSet = false;
     mbedtls_ssl_config_init( &g_SSLSocketContext.m_MbedConf );
     mbedtls_ctr_drbg_init( &g_SSLSocketContext.m_MbedCtrDrbg );
     mbedtls_entropy_init( &g_SSLSocketContext.m_MbedEntropy );
@@ -188,9 +186,29 @@ Result Initialize()
 
 Result Finalize()
 {
+    if (g_SSLSocketContext.m_SslKeysSet)
+    {
+        mbedtls_x509_crt_free( &g_SSLSocketContext.m_x509CertChain );
+    }
     mbedtls_ssl_config_free( &g_SSLSocketContext.m_MbedConf );
     mbedtls_ctr_drbg_free( &g_SSLSocketContext.m_MbedCtrDrbg );
     mbedtls_entropy_free( &g_SSLSocketContext.m_MbedEntropy );
+    return RESULT_OK;
+}
+
+Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
+{
+    // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
+    int ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen + 1);
+    if (ret != 0)
+    {
+        char buffer[512] = "";
+        mbedtls_strerror(ret, buffer, sizeof(buffer));
+        dmLogError("SSLSocket mbedtls_x509_crt_parse: %s0x%04x - %s", ret < 0 ? "-":"", ret < 0 ? -ret:ret, buffer);
+        return RESULT_SSL_INIT_FAILED;
+    }
+    g_SSLSocketContext.m_SslKeysSet = true;
+    mbedtls_ssl_conf_authmode( &g_SSLSocketContext.m_MbedConf, MBEDTLS_SSL_VERIFY_REQUIRED );
     return RESULT_OK;
 }
 
@@ -286,6 +304,11 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
 
     mbedtls_ssl_init( c->m_SSLContext );
 
+    if (g_SSLSocketContext.m_SslKeysSet)
+    {
+        mbedtls_ssl_conf_ca_chain( &g_SSLSocketContext.m_MbedConf, &g_SSLSocketContext.m_x509CertChain, NULL);
+    }
+
     int ret = 0;
     if( ( ret = mbedtls_ssl_setup( c->m_SSLContext, &g_SSLSocketContext.m_MbedConf ) ) != 0 )
     {
@@ -321,7 +344,9 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
 
     if (ret != 0)
     {
-        SSL_LOGE("mbedtls_ssl_handshake failed", ret);
+        char buffer[512] = "";
+        mbedtls_strerror(ret, buffer, sizeof(buffer));
+        dmLogError("SSLSocket mbedtls_ssl_handshake: %d - %s",ret, buffer);
         if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
         {
             dmLogError("Unable to verify the server's certificate.");

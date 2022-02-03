@@ -55,8 +55,6 @@ defold_info = defaultdict(defaultdict)
 defold_info['xcode']['version'] = VERSION_XCODE
 defold_info['xcode']['pattern'] = PACKAGES_XCODE_TOOLCHAIN
 defold_info['xcode-clang']['version'] = VERSION_XCODE_CLANG
-defold_info['armv7-darwin']['version'] = VERSION_IPHONEOS
-defold_info['armv7-darwin']['pattern'] = PACKAGES_IOS_SDK
 defold_info['arm64-darwin']['version'] = VERSION_IPHONEOS
 defold_info['arm64-darwin']['pattern'] = PACKAGES_IOS_SDK
 defold_info['x86_64-ios']['version'] = VERSION_IPHONESIMULATOR
@@ -74,7 +72,7 @@ defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
 def _convert_darwin_platform(platform):
     if platform in ('x86_64-darwin',):
         return 'macosx'
-    if platform in ('armv7-darwin','arm64-darwin'):
+    if platform in ('arm64-darwin',):
         return 'iphoneos'
     if platform in ('x86_64-ios',):
         return 'iphonesimulator'
@@ -163,7 +161,6 @@ def get_local_compiler_version():
         return None
     return run.shell_command('%s -dumpversion' % tool).strip()
 
-    
 
 ## **********************************************************************************************
 
@@ -174,7 +171,7 @@ def check_defold_sdk(sdkfolder, platform):
     folders = []
     print "check_defold_sdk", sdkfolder, platform
 
-    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
@@ -202,7 +199,7 @@ def check_defold_sdk(sdkfolder, platform):
 
 
 def check_local_sdk(platform):
-    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
             return False
@@ -211,7 +208,7 @@ def check_local_sdk(platform):
 
 def _get_defold_sdk_info(sdkfolder, platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -231,7 +228,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
 
 def _get_local_sdk_info(platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
@@ -266,7 +263,7 @@ def get_sdk_info(sdkfolder, platform):
     return None
 
 def get_toolchain_root(sdkinfo, platform):
-    if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
         return sdkinfo['xcode']['path']
     if platform in ('x86_64-linux',):
         return sdkinfo['x86_64-linux']['path']

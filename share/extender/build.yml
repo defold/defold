@@ -198,46 +198,7 @@ platforms:
     manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
-  armv7-ios:
-    env:
-        PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
-        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_13_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_13_CLANG_VERSION}}"
-        SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        IOS_VERSION:            "{{env.IOS_15_VERSION}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_15_VERSION}}.sdk"
-    context:
-        frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "Security", "AVFAudio"]
-        weakFrameworks: ["Foundation"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
-        libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
-        defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]
-        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
-        flags:      ["-fno-exceptions", "-fvisibility=hidden"]
-        linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-Wl,-U,_objc_loadClassref']
-        libs:       ['clang_rt.ios']
-        dynamicLibs: []
-        symbols:    ["AudioDecoderTremolo"]
-
-    exePrefix: ''
-    exeExt: ''
-    shlibRe: 'lib(.+).dylib'
-    stlibRe: 'lib(.+).a'
-    sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|.mm|.m)'
-    writeLibPattern: 'lib%s.a'
-    writeExePattern: 'dmengine'
-    symbolsPattern: '.*dSYM'
-    zipContentPattern: 'dmengine'
-    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
-    allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+"]
-    compileCmd: 'clang++ -c -arch armv7 -target arm-apple-darwin19 -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd: 'clang++ -arch armv7 -target arm-apple-darwin19 -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 -isysroot {{env.SYSROOT}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
-    libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
-    manifestName:     'Info.plist'
-    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+  # armv7-ios removed in Defold 1.2.193
 
   x86_64-ios:
     env:

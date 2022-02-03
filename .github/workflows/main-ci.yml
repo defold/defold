@@ -110,7 +110,7 @@ jobs:
     needs: [pre-check]
     strategy:
       matrix:
-        platform: [armv7-darwin, arm64-darwin, x86_64-ios]
+        platform: [arm64-darwin, x86_64-ios]
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },

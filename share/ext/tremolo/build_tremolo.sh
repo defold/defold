@@ -52,10 +52,6 @@ case $1 in
         EXTRA_FLAGS="-mmacosx-version-min=10.7"
         ;;
 
-    armv7-darwin)
-        EXTRA_FLAGS="-miphoneos-version-min=6.0"
-        ;;
-
     arm64-darwin)
         EXTRA_FLAGS="-miphoneos-version-min=6.0"
         ;;

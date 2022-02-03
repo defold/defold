@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
     source = ['webview_null.cpp']
 
-    if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android'):
+    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios', 'armv7-android'):
         source = ['webview_mobile.cpp']
 
     webview = bld.new_task_gen(features = 'cxx cstaticlib',

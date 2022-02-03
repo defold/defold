@@ -38,6 +38,8 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompMeshGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
     dmGameObject::PropertyResult CompMeshSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    void CompMeshIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 }
 
 #endif // DM_GAMESYS_COMP_MESH_H

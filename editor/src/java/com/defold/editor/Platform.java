@@ -18,7 +18,6 @@ public enum Platform {
     X86Win32("x86", "win32", ".exe", "", "", ".dll"),
     X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll"),
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
-    Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
     Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
     Arm64Android("arm64", "android", ".so", "lib", "lib", ".so"),

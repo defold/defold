@@ -41,6 +41,7 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Platform;
@@ -51,6 +52,7 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -410,6 +412,11 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
+        // Editor debugger scripts
+        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
+            findResources(project, project.getResource("/builtins/scripts/debugger.luac"), resources);
+        }
+
         return resources;
     }
 
@@ -502,6 +509,11 @@ public class GameProjectBuilder extends Builder<Void> {
             properties.putBooleanValue("display", "vsync", false);
             properties.putIntValue("display", "update_frequency", 0);
         }
+
+        // Convert project title to a string which may be used as a folder name and save in project.title_as_file_name
+        String title = properties.getStringValue("project", "title", "Unnamed");
+        String fileNameTitle = BundleHelper.projectNameToBinaryName(title);
+        properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
     @Override
@@ -568,6 +580,16 @@ public class GameProjectBuilder extends Builder<Void> {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
                 project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
                 project.getPublisher().Publish();
+
+                // Copy SSL public keys if specified
+                String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
+                if (sslCertificatesPath != null && !sslCertificatesPath.isEmpty())
+                {
+                    File source = new File(project.getRootDirectory(), sslCertificatesPath);
+                    File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+                    File dist = new File(buildDir, BundleHelper.SSL_CERTIFICATES_NAME);
+                    FileUtils.copyFile(source, dist);
+                }
 
                 manifestTmpFileHandle.delete();
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
