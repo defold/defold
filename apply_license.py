@@ -82,7 +82,7 @@ def skip_filename(fullpath):
     return match_patterns(fullpath, excluded_files)
 
 def has_defold_license(s):
-    return "Licensed under the Defold License version" in s
+    return re.search(RE_LICENSE, s, flags=re.DOTALL) is not None
 
 def has_other_license(s):
     return ("Copyright" in s or "License" in s) and not has_defold_license(s)
