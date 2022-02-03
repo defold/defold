@@ -8,6 +8,7 @@ The order of priority is:
 """
 
 import os
+import sys
 import log
 import run
 import platform
@@ -32,6 +33,10 @@ VERSION_MACOSX_MIN="10.7"
 
 VERSION_XCODE_CLANG="13.0.0"
 SWIFT_VERSION="5.5"
+
+VERSION_LINUX_CLANG="13.0.0"
+PACKAGES_LINUX_CLANG="clang-%s" % VERSION_LINUX_CLANG
+PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION_LINUX_CLANG
 
 ## **********************************************************************************************
 # Android
@@ -63,15 +68,12 @@ defold_info = defaultdict(defaultdict)
 defold_info['xcode']['version'] = VERSION_XCODE
 defold_info['xcode']['pattern'] = PACKAGES_XCODE_TOOLCHAIN
 defold_info['xcode-clang']['version'] = VERSION_XCODE_CLANG
-defold_info['armv7-darwin']['version'] = VERSION_IPHONEOS
-defold_info['armv7-darwin']['pattern'] = PACKAGES_IOS_SDK
 defold_info['arm64-darwin']['version'] = VERSION_IPHONEOS
 defold_info['arm64-darwin']['pattern'] = PACKAGES_IOS_SDK
 defold_info['x86_64-ios']['version'] = VERSION_IPHONESIMULATOR
 defold_info['x86_64-ios']['pattern'] = PACKAGES_IOS_SIMULATOR_SDK
 defold_info['x86_64-darwin']['version'] = VERSION_MACOSX
 defold_info['x86_64-darwin']['pattern'] = PACKAGES_MACOS_SDK
-
 
 defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK_10
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
@@ -81,6 +83,8 @@ defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK_10
 defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
 
+defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
+defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
 
 ## **********************************************************************************************
 ## DARWIN
@@ -89,7 +93,7 @@ defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
 def _convert_darwin_platform(platform):
     if platform in ('x86_64-darwin',):
         return 'macosx'
-    if platform in ('armv7-darwin','arm64-darwin'):
+    if platform in ('arm64-darwin',):
         return 'iphoneos'
     if platform in ('x86_64-ios',):
         return 'iphonesimulator'
@@ -149,6 +153,35 @@ def is_wsl():
             data = f.read()
             _is_wsl = "Microsoft" in data
     return _is_wsl
+
+def get_local_compiler_from_bash():
+    path = run.shell_command('which clang++')
+    if path != None:
+        return "clang++"
+    path = run.shell_command('which g++')
+    if path != None:
+        return "g++"
+    return None
+
+def get_local_compiler_path():
+    tool = get_local_compiler_from_bash()
+    if tool is None:
+        return None
+
+    path = run.shell_command('which %s' % tool)
+    substr = '/bin'
+    if substr in path:
+        i = path.find(substr)
+        path = path[:i]
+        return path
+    return None
+
+def get_local_compiler_version():
+    tool = get_local_compiler_from_bash()
+    if tool is None:
+        return None
+    return run.shell_command('%s -dumpversion' % tool).strip()
+
 
 ## **********************************************************************************************
 
@@ -282,8 +315,9 @@ def _get_defold_path(sdkfolder, platform):
 
 def check_defold_sdk(sdkfolder, platform):
     folders = []
+    print "check_defold_sdk", sdkfolder, platform
 
-    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
@@ -295,16 +329,23 @@ def check_defold_sdk(sdkfolder, platform):
         folders.append(os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION))
         folders.append(os.path.join(sdkfolder, "android-sdk"))
 
-    ok = True
+    if platform in ('x86_64-linux',):
+        folders.append(os.path.join(sdkfolder, "linux"))
+
+    if not folders:
+        log.log("No SDK folders specified for %s" %platform)
+        return False
+
+    count = 0
     for f in folders:
         if not os.path.exists(f):
             log.log("Missing SDK in %s" % f)
-            ok = False
-    return ok
-
+        else:
+            count = count + 1
+    return count == len(folders)
 
 def check_local_sdk(platform):
-    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
             return False
@@ -317,7 +358,7 @@ def check_local_sdk(platform):
 
 def _get_defold_sdk_info(sdkfolder, platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -325,6 +366,13 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, 'xcode')
+    
+    elif platform in ('x86_64-linux',):
+        info[platform] = {}
+        info[platform]['version'] = defold_info[platform]['version']
+        info[platform]['path'] = _get_defold_path(sdkfolder, platform)
+
+        print "MAWE", info
 
     if platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
@@ -334,13 +382,18 @@ def _get_defold_sdk_info(sdkfolder, platform):
 
 def _get_local_sdk_info(platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
         info[platform]['path'] = get_local_darwin_sdk_path(platform)
+    
+    elif platform in ('x86_64-linux',):
+        info[platform] = {}
+        info[platform]['version'] = get_local_compiler_version()
+        info[platform]['path'] = get_local_compiler_path()
 
     if platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_local_sdk_info(platform)
@@ -368,16 +421,23 @@ def get_sdk_info(sdkfolder, platform):
     return None
 
 def get_toolchain_root(sdkinfo, platform):
-    if platform in ('x86_64-darwin','x86_64-ios','armv7-darwin','arm64-darwin'):
+    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
         return sdkinfo['xcode']['path']
+    if platform in ('x86_64-linux',):
+        return sdkinfo['x86_64-linux']['path']
     return None
 
 
+def _is_64bit_machine():
+    return platform.machine().endswith('64')
 
-
-
-
-
-
-
+def get_host_platform():
+    if _is_64bit_machine():
+        if sys.platform == 'linux2':
+            return 'x86_64-linux'
+        elif sys.platform == 'win32':
+            return 'x86_64-win32'
+        elif sys.platform == 'darwin':
+            return 'x86_64-darwin'
+    raise Exception("Unsupported host platform: %s %s" % (sys.platform,  platform.machine()))
 

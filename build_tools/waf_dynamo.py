@@ -52,7 +52,7 @@ if 'waf_dynamo_private' not in sys.modules:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'armv7-darwin', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -379,7 +379,7 @@ def default_flags(self):
             self.env.append_value(f, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN)
 
             self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
-            if self.env['BUILD_PLATFORM'] in ('linux', 'darwin'):
+            if self.env['BUILD_PLATFORM'] in ('x86_64-linux', 'x86_64-darwin'):
                 self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
@@ -423,7 +423,8 @@ def default_flags(self):
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
 
-        sysroot='%s/toolchains/llvm/prebuilt/%s-x86_64/sysroot' % (ANDROID_NDK_ROOT, self.env['BUILD_PLATFORM'])
+        bp_arch, bp_os = self.env['BUILD_PLATFORM'].split('-')
+        sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
@@ -827,7 +828,7 @@ Task.task_type_from_func('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','x86_64-darwin','arm64-darwin','armv7-android','arm64-android']:
         return 0 # return ok, path is still unstripped
 
     strip = "strip"
@@ -1334,18 +1335,11 @@ def detect(conf):
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
 
+    build_platform = sdk.get_host_platform()
+
     platform = None
     if getattr(Options.options, 'platform', None):
         platform=getattr(Options.options, 'platform')
-
-    if sys.platform == "darwin":
-        build_platform = "darwin"
-    elif sys.platform == "linux2":
-        build_platform = "linux"
-    elif sys.platform == "win32":
-        build_platform = "win32"
-    else:
-        conf.fatal("Unable to determine host platform")
 
     if not platform:
         platform = build_platform
@@ -1359,7 +1353,7 @@ def detect(conf):
     else:
         bob_build_platform = platform
 
-    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
+    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform # used in waf_gamesys.py TODO: Remove the need for BOB_BUILD_PLATFORM (weird names)
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
@@ -1375,8 +1369,9 @@ def detect(conf):
     conf.env['DYNAMO_HOME'] = dynamo_home
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
+    sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, build_platform)
 
-    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env['TESTS_UNSUPPORTED'] = True
         print "Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform)
 
@@ -1384,7 +1379,7 @@ def detect(conf):
         print "Codesign disabled", Options.options.skip_codesign
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('x86_64-ios','js-web','wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
@@ -1403,7 +1398,7 @@ def detect(conf):
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
-            path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')]
+            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')]
         else:
             path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
@@ -1419,7 +1414,7 @@ def detect(conf):
         bin_dir = '%s/usr/bin' % (sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()))
         if 'linux' in build_platform:
             llvm_prefix = 'llvm-'
-            bin_dir = os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')
+            bin_dir = os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1433,7 +1428,7 @@ def detect(conf):
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in build_platform:
-            bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')
+            bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1461,12 +1456,12 @@ def detect(conf):
 
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        arch        = 'x86_64'
+        bp_arch, bp_os = build_platform.split('-')
         target_arch = build_util.get_target_architecture()
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
-        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
+        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
         conf.env['CC']       = '%s/%s' % (bintools, clang_name)
         conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
@@ -1478,10 +1473,11 @@ def detect(conf):
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
     elif 'linux' == build_util.get_target_os():
-        bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,CLANG_VERSION,'bin')
+        bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')
+
         conf.find_program('clang', var='CLANG', mandatory = False, path_list=[bin_dir])
 
-        if conf.env.CLANG and CLANG_VERSION in conf.env.CLANG:
+        if conf.env.CLANG:
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
             conf.env['CPP']     = '%s/clang -E' % bin_dir
@@ -1493,7 +1489,7 @@ def detect(conf):
         else:
             # Fallback to default compiler
             conf.env.CXX = "clang++"
-            conf.env.CC = "clang++"
+            conf.env.CC = "clang"
             conf.env.CPP = "clang -E"
 
     platform_setup_tools(conf, build_util)
@@ -1552,7 +1548,7 @@ def detect(conf):
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
-    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.check_tool('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
@@ -1598,7 +1594,7 @@ def detect(conf):
 
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
-    elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    elif platform in ('arm64-darwin', 'x86_64-ios'):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
@@ -1635,7 +1631,7 @@ def detect(conf):
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
-    elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
+    elif platform in ('arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
@@ -1673,7 +1669,7 @@ def set_options(opt):
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
 
-    opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
