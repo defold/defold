@@ -240,6 +240,7 @@ def build_editor2(channel, engine_artifacts = None, skip_tests = False):
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
 
 def download_editor2(channel, platform = None):
+    host_platform = platform_from_host()
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
