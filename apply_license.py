@@ -135,7 +135,8 @@ for root, dirs, files in os.walk(".", topdown=True):
             # Already applied the Defold License?
             # Remove it and reapply if file has been modified after license year
             if has_defold_license(contents):
-                modified_year = time.localtime(os.path.getmtime(filepath)).tm_year
+                modified_year = int(subprocess.check_output(['git', 'log', '-1', '--pretty="%ci"', filepath])[1:5])
+                # modified_year = time.localtime(os.path.getmtime(filepath)).tm_year
                 license_year = int(re.search(RE_LICENSE, contents, flags=re.DOTALL).group(2))
                 if modified_year <= license_year:
                     continue
