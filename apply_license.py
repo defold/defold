@@ -6,7 +6,8 @@ import subprocess
 
 RE_LICENSE = r"(.*)^.*Copyright (\d\d\d\d) The Defold Foundation.*specific language governing permissions and limitations under the License.(.*)"
 
-LICENSE = ('''Copyright %d The Defold Foundation
+YEAR = str(time.localtime().tm_year)
+LICENSE = ('''Copyright %s The Defold Foundation
 Licensed under the Defold License version 1.0 (the "License"); you may not use
 this file except in compliance with the License.
 
@@ -16,7 +17,7 @@ https://www.defold.com/license
 Unless required by applicable law or agreed to in writing, software distributed
 under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.''') % time.localtime().tm_year
+specific language governing permissions and limitations under the License.''') % YEAR
 
 def license(comment):
     return "\n".join([comment + line for line in LICENSE.split("\n")])
@@ -68,36 +69,17 @@ excluded_paths = [
     "./engine/dlib/src/dlib/jsmn",
 ]
 
-# include_patterns = [
-#     "rig.cpp",
-#     "dstrings.cpp",
-#     "package_win32_sdk.sh",
-#     "Protocol.java",
-#     "script_bitop.cpp",
-# ]
-
 def match_patterns(s, patterns):
     for pattern in patterns:
         if pattern in s:
             return True
     return False
 
-
-# def force_include(fullpath):
-#     return match_patterns(fullpath, include_patterns)
-
 def skip_path(fullpath):
     return match_patterns(fullpath, excluded_paths)
 
-
-def skip_filename(fullpath, basename):
-    if basename in excluded_files:
-        return True
-
-    if match_patterns(fullpath, excluded_paths):
-        return True
-
-    return False
+def skip_filename(fullpath):
+    return match_patterns(fullpath, excluded_files)
 
 def has_defold_license(s):
     return "Licensed under the Defold License version" in s
@@ -119,7 +101,7 @@ def apply_license(license, contents):
         license = firstline + "\n" + license
     return license  + "\n\n" + contents
 
-def git_ignored(path):
+def check_ignored(path):
     return subprocess.call(['git', 'check-ignore', '-q', path]) == 0
 
 
@@ -127,33 +109,20 @@ def git_ignored(path):
 dryrun = True
 
 for root, dirs, files in os.walk(".", topdown=True):
-    included_dirs = []
-    for d in dirs:
-        path = os.path.join(root, d)
-        if not skip_path(path) and not git_ignored(path):
-            included_dirs.append(d)
-    dirs[:] = included_dirs
-
-# for subdir, dirs, files in os.walk("."):
-#     if skip_path(subdir) or git_ignored(subdir):
-#         print("Ignored: " + subdir)
-#         continue
+    # exclude dirs to avoid traversing them at all
+    # with topdown set to True we can make in place modifications of dirs to
+    # have os.walk() skip directories
+    dirs[:] = [ d for d in dirs if not skip_path(root + os.sep + d) and not check_ignored(root + os.sep + d) ]
 
     for file in files:
-        filepath = os.path.join(root, file)
+        filepath = root + os.sep + file
 
-        if git_ignored(filepath):
-            # print("Ignored: " + filepath)
+        # skip ignored files
+        if skip_filename(filepath) or check_ignored(filepath):
             continue
 
         license = get_license_for_file(filepath)
         if not license:
-            continue
-
-        # should_include = force_include(filepath)
-        # if not should_include and skip_filename(filepath, file):
-        if skip_filename(filepath, file):
-            # print("Excluded " + filepath)
             continue
 
         with open(filepath, "rb+") as f:
@@ -163,23 +132,21 @@ for root, dirs, files in os.walk(".", topdown=True):
             if has_other_license(contents):
                 continue;
 
-            # Make the license text into a language specific comment, based on extension
-
             # Already applied the Defold License?
+            # Remove it and reapply if file has been modified after license year
             if has_defold_license(contents):
-                year = time.localtime().tm_year
                 modified_year = time.localtime(os.path.getmtime(filepath)).tm_year
-                license_year = re.search(RE_LICENSE, contents, flags=re.S).group(2)
+                license_year = int(re.search(RE_LICENSE, contents, flags=re.S).group(2))
                 if modified_year <= license_year:
-                    print("Up-to-date: " + filepath)
                     continue
+                license = license.replace(YEAR, str(modified_year))
                 contents = re.sub(RE_LICENSE, r"\1" + license + r"\3", contents, flags=re.S)
-                print("Updated:    " + filepath)
+                print("Updated: " + filepath)
             else:
                 contents = apply_license(license, contents)
-                print("Applied:    " + filepath)
+                print("Applied: " + filepath)
 
-            # if not dryrun:
-            #     f.seek(0)
-            #     f.write(contents)
-            #     f.truncate()
+            if not dryrun:
+                f.seek(0)
+                f.write(contents)
+                f.truncate()
