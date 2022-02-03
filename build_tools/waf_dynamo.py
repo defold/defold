@@ -52,7 +52,7 @@ if 'waf_dynamo_private' not in sys.modules:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'armv7-darwin', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -827,7 +827,7 @@ Task.task_type_from_func('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','x86_64-darwin','arm64-darwin','armv7-android','arm64-android']:
         return 0 # return ok, path is still unstripped
 
     strip = "strip"
@@ -1418,7 +1418,7 @@ def detect(conf):
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
 
-    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env['TESTS_UNSUPPORTED'] = True
         print "Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform)
 
@@ -1426,7 +1426,7 @@ def detect(conf):
         print "Codesign disabled", Options.options.skip_codesign
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('x86_64-ios','js-web','wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
@@ -1592,7 +1592,7 @@ def detect(conf):
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
-    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.check_tool('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
@@ -1638,7 +1638,7 @@ def detect(conf):
 
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
-    elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    elif platform in ('arm64-darwin', 'x86_64-ios'):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
@@ -1675,7 +1675,7 @@ def detect(conf):
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
-    elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
+    elif platform in ('arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
@@ -1713,7 +1713,7 @@ def set_options(opt):
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
 
-    opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')

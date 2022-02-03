@@ -287,7 +287,6 @@
 (defn- get-ne-platform [platform]
   (case platform
     "arm64-darwin"  "arm64-ios"
-    "armv7-darwin"  "armv7-ios"
     "x86_64-darwin" "x86_64-osx"
     platform))
 

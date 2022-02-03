@@ -940,7 +940,6 @@ public class Project {
         for(String platform : platforms) {
             String symbolsFilename = null;
             switch(platform) {
-                case "armv7-darwin":
                 case "arm64-darwin":
                 case "x86_64-darwin":
                     symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);

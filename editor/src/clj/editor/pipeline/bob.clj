@@ -249,8 +249,7 @@
             keystore-pass (assoc "keystore-pass" (.getAbsolutePath keystore-pass)))))
 
 (def ^:private ios-architecture-option->bob-architecture-string
-  {:architecture-32bit? "armv7-darwin"
-   :architecture-64bit? "arm64-darwin"
+  {:architecture-64bit? "arm64-darwin"
    :architecture-simulator? "x86_64-ios"})
 
 (defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile sign-app?] :as bundle-options}]

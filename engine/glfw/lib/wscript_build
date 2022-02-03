@@ -11,7 +11,7 @@ darwin_vulkan_mobile  = False
 if platform == 'darwin' or platform == 'x86_64-darwin':
     dmglfw.find_sources_in_dirs('. cocoa')
     dmglfw.includes = '. cocoa'
-elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+elif platform in ('arm64-darwin', 'x86_64-ios'):
     dmglfw.find_sources_in_dirs('. ios ios/app')
     dmglfw.includes = '. ios'
     darwin_vulkan_mobile = True
