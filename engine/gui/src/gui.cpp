@@ -2547,6 +2547,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         ResetInternalNode(scene, n);
     }
 
+
+    void DeleteNode(HScene scene, HNode node)
+    {
+        DeleteNode(scene, node, false);
+    }
+
     void ClearNodes(HScene scene)
     {
         scene->m_Nodes.SetSize(0);
