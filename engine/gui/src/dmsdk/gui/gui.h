@@ -123,7 +123,7 @@ namespace dmGui
         NODE_TYPE_TEXT = 1,
         NODE_TYPE_PIE  = 2,
         NODE_TYPE_TEMPLATE = 3,
-        //NODE_TYPE_SPINE = 4, // Deprecated, can we remove it from the ddf?
+        NODE_TYPE_SPINE = 4, // Deprecated. Used in the ddf for loading old content
         NODE_TYPE_PARTICLEFX = 5,
         NODE_TYPE_CUSTOM = 6,
         NODE_TYPE_COUNT = 7,
@@ -133,7 +133,6 @@ namespace dmGui
     /*#
      * @name Result
      * @type enum
-     * @member NODE_TEXTURE_TYPE_NONE
      * @member RESULT_OK //!< 0
      * @member RESULT_SYNTAX_ERROR //!< -1
      * @member RESULT_SCRIPT_ERROR //!< -2
@@ -161,7 +160,7 @@ namespace dmGui
 
     /*#
      * @name NewNode
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param position [type:dmVMath::Point3] the position
      * @param size [type:dmVMath::Vector3] the size
      * @param node_type [type:dmGui::NodeType] the node type
@@ -170,9 +169,141 @@ namespace dmGui
      */
     HNode NewNode(HScene scene, const dmVMath::Point3& position, const dmVMath::Vector3& size, NodeType node_type, uint32_t custom_type);
 
+    /*#
+     * Defer delete a node
+     * @name DeleteNode
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the node to delete
+     */
+    void DeleteNode(HScene scene, HNode node);
+
+    /*#
+     * Set the id of a node.
+     * @note The id must be unique
+     * @name SetNodeId
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the gui node
+     * @param id [type:dmhash_t] the id
+     */
+    void SetNodeId(HScene scene, HNode node, dmhash_t id);
+
+    /*#
+     * Get the id of a node.
+     * @name GetNodeId
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the gui node
+     * @return id [type:dmhash_t] the id of the node
+     */
+    dmhash_t GetNodeId(HScene scene, HNode node);
+
+    /*#
+     * Set the parent of a gui node
+     * @name SetNodeParent
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the gui node
+     * @param parent [type:dmGui::HNode] the new parent. May be null
+     * @param keep_scene_transform [type:bool] true to keep the world position
+     * @return result [type:dmGui::Result] dmGui::RESULT_OK is successful
+     */
+    Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
+
+    /*#
+     * Query if the node is a bone
+     * @name GetNodeIsBone
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the gui node
+     * @return result [type:bool] true if the node is a bone
+     */
+    bool GetNodeIsBone(HScene scene, HNode node);
+
+    /*#
+     * Set the bone state of the node
+     * @name SetNodeIsBone
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the gui node
+     * @param is_bone [type:bool] true if the node is ot be used as a bone
+     */
+    void SetNodeIsBone(HScene scene, HNode node, bool is_bone);
+
+    /*#
+     * @name Property
+     * @type enum
+     * @member PROPERTY_POSITION    //!< 0
+     * @member PROPERTY_ROTATION    //!< 1
+     * @member PROPERTY_SCALE       //!< 2
+     * @member PROPERTY_COLOR       //!< 3
+     * @member PROPERTY_SIZE        //!< 4
+     * @member PROPERTY_OUTLINE     //!< 5
+     * @member PROPERTY_SHADOW      //!< 6
+     * @member PROPERTY_SLICE9      //!< 7
+     * @member PROPERTY_PIE_PARAMS  //!< 8
+     * @member PROPERTY_TEXT_PARAMS //!< 9
+     * @member PROPERTY_COUNT       //!< 10
+     */
+    enum Property
+    {
+        PROPERTY_POSITION   = 0,
+        PROPERTY_ROTATION   = 1,
+        PROPERTY_SCALE      = 2,
+        PROPERTY_COLOR      = 3,
+        PROPERTY_SIZE       = 4,
+        PROPERTY_OUTLINE    = 5,
+        PROPERTY_SHADOW     = 6,
+        PROPERTY_SLICE9     = 7,
+        PROPERTY_PIE_PARAMS = 8,
+        PROPERTY_TEXT_PARAMS= 9,
+
+        PROPERTY_COUNT      = 10,
+    };
+
+    /*#
+     * Get property value
+     * @name GetNodeProperty
+     * @param scene type: dmGui::HScene] scene
+     * @param node type: dmGui::HNode] node
+     * @param property [type: dmGui::Property] property enum
+     * @return value [type: dmVMath::Vector4]
+     */
+    dmVMath::Vector4 GetNodeProperty(HScene scene, HNode node, Property property);
+
+    /*#
+     * Set property value
+     * @name SetNodeProperty
+     * @param scene type: dmGui::HScene] scene
+     * @param node type: dmGui::HNode] node
+     * @param property [type: dmGui::Property] property enum
+     * @param value [type: dmVMath::Vector4]
+     */
+    void SetNodeProperty(HScene scene, HNode node, Property property, const dmVMath::Vector4& value);
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+    /*#
+     * @name AdjustMode
+     * @type enum
+     * @member ADJUST_MODE_FIT     //!< 0
+     * @member ADJUST_MODE_ZOOM    //!< 1
+     * @member ADJUST_MODE_STRETCH //!< 2
+     */
+    enum AdjustMode
+    {
+        ADJUST_MODE_FIT     = 0,
+        ADJUST_MODE_ZOOM    = 1,
+        ADJUST_MODE_STRETCH = 2,
+    };
+
+    /*#
+     * Set adjust mode
+     * @name SetNodeAdjustMode
+     * @param scene type: dmGui::HScene] scene
+     * @param node type: dmGui::HNode] node
+     * @param adjust_mode [type: AdjustMode] the adjust mode
+     */
+    void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
+
     /*# get node custom type
      * @name GetNodeCustomData
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param node [type:HNode] the gui node
      * @return type [type: uint32_t] the custom type. Or 0 if it is no custom type
      */
@@ -180,7 +311,7 @@ namespace dmGui
 
     /*# get node custom data
      * @name GetNodeCustomData
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param node [type:HNode] the gui node
      * @return data [type: void*] the custom data created per node by the gui node type extension
      */
@@ -188,7 +319,7 @@ namespace dmGui
 
     /*# get node texture
      * @name GetNodeTextureId
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param node [type:HNode] the gui node
      * @return texture [type: dmhash_t] the currently assigned texture
      */
@@ -196,7 +327,7 @@ namespace dmGui
 
     /*# set node texture
      * @name SetNodeTexture
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param node [type:HNode] the gui node
      * @param texture_id [type: dmhash_t] the texture id
      */
@@ -204,7 +335,7 @@ namespace dmGui
 
     /*# set node texture
      * @name SetNodeTexture
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param node [type:HNode] the gui node
      * @param type [type:NodeTextureType] the type of texture
      * @param texture [type: void*] A pointer to a e.g. dmGameSystem::TextureSetResource*
@@ -216,7 +347,7 @@ namespace dmGui
     /*#
      * Gets a resource by its resource alias.
      * @name GetResource
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param resource_id [type:dmhash_t] the resource alias
      * @param suffix_with_dot [type:dmhash_t] the hash of the suffix: hash(".spinescenec")
      * @return resource [type: void*] the resource if successful
@@ -229,7 +360,7 @@ namespace dmGui
      * Pushes a dmGui::HNode to the stack
      * @name LuaPushNode
      * @param L [type:lua_State*] the Lua scene
-     * @param scene [type:HScene] the gui scene
+     * @param scene [type:dmGui::HScene] the gui scene
      * @param node [type:HNode] the gui node
      */
     void LuaPushNode(lua_State* L, dmGui::HScene scene, dmGui::HNode node);
