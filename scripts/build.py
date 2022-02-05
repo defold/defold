@@ -1984,6 +1984,12 @@ class Configuration(object):
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
 
+        # This trickery is needed for the bash to properly inherit the PATH that we've set here
+        # See /etc/profile for further details
+        is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
+        if is_mingw:
+            env['ORIGINAL_PATH'] = env['PATH']
+
         go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
                                          join(self.defold, 'go')])
         env['GOPATH'] = go_paths
