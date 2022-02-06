@@ -3664,6 +3664,23 @@ namespace dmGui
         return 1;
     }
 
+    /*# sets screen position to the node
+     * 
+     * Set the screen position to the supplied node
+     *
+     * @name gui.set_screen_position
+     * @param node [type:node] node to set the screen position to
+     * @param position [type:vector3] screen position
+     */
+    int LuaSetScreenPosition(lua_State* L)
+    {
+        Scene* scene = GuiScriptInstance_Check(L);
+        InternalNode* node = LuaCheckNodeInternal(L, 1, 0);
+        dmVMath::Vector3* screen_pos = dmScript::ToVector3(L, 2);
+        SetScreenPosition(scene, GetNodeHandle(node), *screen_pos);
+        return 0;
+    }
+
     /*# gets the normalized cursor of the animation on a node with flipbook animation
      * This is only useful nodes with flipbook animations. Gets the normalized cursor of the flipbook animation on a node.
      *
@@ -4166,6 +4183,7 @@ namespace dmGui
         {"hide_keyboard",   LuaHideKeyboard},
         {"reset_keyboard",  LuaResetKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
+        {"set_screen_position", LuaSetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
         {"set_fill_angle", LuaSetPieFillAngle},

@@ -3863,6 +3863,73 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
+    void SetScreenPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_pos)
+    {
+        Matrix4 parent_m;
+
+        Vector4 reference_scale;
+        Vector4 adjust_scale;
+        Vector4 offset(0.0f);
+
+        // Calculate the new parents scene transform
+        // We also need to calculate values relative to adjustments and offset
+        // corresponding to the values that would be used in AdjustPosScale (see reasoning below).
+        if (parent_node != 0x0)
+        {
+            CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
+            reference_scale = parent_node->m_Node.m_LocalAdjustScale;
+            adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
+        } else {
+            reference_scale = CalculateReferenceScale(scene, 0x0);
+            adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
+            parent_m = Matrix4::scale(adjust_scale.getXYZ());
+
+            Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
+            Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
+            Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
+            offset = (ref_size - adjusted_dims) * 0.5f;
+        }
+
+        // We calculate a new position that will be the relative position once
+        // the node has been childed to the new parent.
+        Vector3 position = screen_pos - parent_m.getCol3().getXYZ();
+
+        // We need to perform the inverse of what AdjustPosScale will do to counteract when
+        // it will be applied during next call to CalculateNodeTransform.
+        // See AdjustPosScale for comparison on the steps being performed/inversed.
+        if (node->m_Node.m_XAnchor == XANCHOR_LEFT || node->m_Node.m_XAnchor == XANCHOR_RIGHT) {
+            offset.setX(0.0f);
+        }
+        if (node->m_Node.m_YAnchor == YANCHOR_TOP || node->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
+            offset.setY(0.0f);
+        }
+
+        Vector3 scaled_position = position - offset.getXYZ();
+        position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
+
+        if (node->m_Node.m_XAnchor == dmGui::XANCHOR_LEFT || node->m_Node.m_XAnchor == dmGui::XANCHOR_RIGHT) {
+            position.setX(scaled_position.getX() / reference_scale.getX());
+        }
+
+        if (node->m_Node.m_YAnchor == dmGui::YANCHOR_BOTTOM || node->m_Node.m_YAnchor == dmGui::YANCHOR_TOP) {
+            position.setY(scaled_position.getY() / reference_scale.getY());
+        }
+
+        node->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(position, 1.0f);
+        node->m_Node.m_DirtyLocal = 1;
+    }
+
+    void SetScreenPosition(HScene scene, HNode node, dmVMath::Vector3 screen_pos)
+    {
+        InternalNode* n = GetNode(scene, node);
+        InternalNode* parent_node = 0x0;
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            parent_node = &scene->m_Nodes[n->m_ParentIndex];
+        }
+        SetScreenPosition(scene, n, parent_node, screen_pos);
+    }
+
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)
     {
         if (node == parent)
@@ -3888,61 +3955,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (keep_scene_transform) {
 
                 Matrix4 node_m;
-                Matrix4 parent_m;
-
-                Vector4 reference_scale;
-                Vector4 adjust_scale;
-                Vector4 offset(0.0f);
-
                 // Calculate the nodes current scene transform
                 CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_m);
+                Vector3 node_pos = node_m.getCol3().getXYZ();
 
-                // Calculate the new parents scene transform
-                // We also need to calculate values relative to adjustments and offset
-                // corresponding to the values that would be used in AdjustPosScale (see reasoning below).
-                if (parent_node != 0x0)
-                {
-                    CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
-                    reference_scale = parent_node->m_Node.m_LocalAdjustScale;
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
-                } else {
-                    reference_scale = CalculateReferenceScale(scene, 0x0);
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
-                    parent_m = Matrix4::scale(adjust_scale.getXYZ());
-
-                    Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
-                    Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
-                    Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
-                    offset = (ref_size - adjusted_dims) * 0.5f;
-                }
-
-                // We calculate a new position that will be the relative position once
-                // the node has been childed to the new parent.
-                Vector3 position = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ();
-
-                // We need to perform the inverse of what AdjustPosScale will do to counteract when
-                // it will be applied during next call to CalculateNodeTransform.
-                // See AdjustPosScale for comparison on the steps being performed/inversed.
-                if (n->m_Node.m_XAnchor == XANCHOR_LEFT || n->m_Node.m_XAnchor == XANCHOR_RIGHT) {
-                    offset.setX(0.0f);
-                }
-                if (n->m_Node.m_YAnchor == YANCHOR_TOP || n->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
-                    offset.setY(0.0f);
-                }
-
-                Vector3 scaled_position = position - offset.getXYZ();
-                position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
-
-                if (n->m_Node.m_XAnchor == dmGui::XANCHOR_LEFT || n->m_Node.m_XAnchor == dmGui::XANCHOR_RIGHT) {
-                    position.setX(scaled_position.getX() / reference_scale.getX());
-                }
-
-                if (n->m_Node.m_YAnchor == dmGui::YANCHOR_BOTTOM || n->m_Node.m_YAnchor == dmGui::YANCHOR_TOP) {
-                    position.setY(scaled_position.getY() / reference_scale.getY());
-                }
-
-                n->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(position, 1.0f);
-                n->m_Node.m_DirtyLocal = 1;
+                SetScreenPosition(scene, n, parent_node, node_pos);
             }
 
             RemoveFromNodeList(scene, n);

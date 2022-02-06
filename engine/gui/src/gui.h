@@ -1098,6 +1098,8 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+    
+    void SetScreenPosition(HScene scene, HNode node, dmVMath::Vector3 screen_pos);
 
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
 
