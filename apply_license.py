@@ -43,6 +43,7 @@ ext_to_license = {
 }
 
 excluded_files = [
+    "apply_license.py"
     "ddfc.py",
     "edn.lua",
     "mobdebug.lua",
@@ -56,7 +57,9 @@ excluded_files = [
     "test_props_quat.lua",
     "test_props_bool.lua",
     "test_props_material.lua",
-    "apply_license.py"
+    # resource test files:
+    "file5.script",
+    "liveupdate.file6.script",
 ]
 
 excluded_paths = [
