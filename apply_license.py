@@ -106,7 +106,7 @@ def check_ignored(path):
 
 
 
-dryrun = False
+dryrun = True
 
 for root, dirs, files in os.walk(".", topdown=True):
     # exclude dirs to avoid traversing them at all

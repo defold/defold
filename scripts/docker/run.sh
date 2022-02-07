@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2021 The Defold Foundation
+# Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
 # 
