@@ -761,6 +761,7 @@ public class RigUtil {
                 }
             } else {
                 // No valid key yet, use default value
+                System.out.printf("No key found at time %f for key %d\n", cursor, i);
                 propertyBuilder.addComposite(defaultValue);
             }
         }

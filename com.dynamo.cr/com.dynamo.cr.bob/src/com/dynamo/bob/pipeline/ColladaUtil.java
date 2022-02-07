@@ -76,6 +76,7 @@ import com.dynamo.bob.util.RigUtil.Weight;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Matrix4;
 
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
@@ -306,6 +307,9 @@ public class ColladaUtil {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
+
+            System.out.printf("sampleScaleTrack: st: %f  dur: %f  sr: %f  spf: %f\n", (float)startTime, (float)duration, (float)sampleRate, (float)spf);
+
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
             animBuilder.addTracks(animTrackBuilder.build());
@@ -484,20 +488,20 @@ public class ColladaUtil {
 
             // Loop through all animations and build a bone-to-animations LUT
             Iterator<Entry<String, XMLAnimation>> it = libraryAnimation.animations.entrySet().iterator();
-            while (it.hasNext()) {
-                XMLAnimation animation = (XMLAnimation)it.next().getValue();
-                String boneTarget = animation.getTargetBone();
-                if (!boneToAnimations.containsKey(animation.getTargetBone())) {
-                    boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
-                }
-                boneToAnimations.get(boneTarget).add(animation);
+            // while (it.hasNext()) {
+            //     XMLAnimation animation = (XMLAnimation)it.next().getValue();
+            //     String boneTarget = animation.getTargetBone();
+            //     if (!boneToAnimations.containsKey(animation.getTargetBone())) {
+            //         boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
+            //     }
+            //     boneToAnimations.get(boneTarget).add(animation);
 
-                // Figure out the total duration of the animation.
-                HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
-                XMLSource inputSampler = samplersLUT.get("INPUT");
-                float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
-                totalAnimationLength = Math.max(totalAnimationLength, animLength);
-            }
+            //     // Figure out the total duration of the animation.
+            //     HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
+            //     XMLSource inputSampler = samplersLUT.get("INPUT");
+            //     float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
+            //     totalAnimationLength = Math.max(totalAnimationLength, animLength);
+            // }
 
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
@@ -803,6 +807,11 @@ public class ColladaUtil {
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
         meshEntryBuilder.addMeshSlots(meshSlotBuilder);
         meshEntryBuilder.setId(0);
+
+        Matrix4d transformd = new Matrix4d();
+        transformd.setIdentity();
+        Matrix4 transform = MathUtil.vecmathToDDF(transformd);
+        meshEntryBuilder.setTransform(transform);
 
         meshSetBuilder.addMeshAttachments(meshBuilder);
         meshSetBuilder.addMeshEntries(meshEntryBuilder);

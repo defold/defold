@@ -52,7 +52,9 @@ public class ModelBuilder extends Builder<Void> {
             IResource skeleton = BuilderUtil.checkResource(this.project, input, "skeleton", modelDescBuilder.getSkeleton());
             taskBuilder.addInput(skeleton);
         }
-        if((!modelDescBuilder.getAnimations().isEmpty()) && modelDescBuilder.getAnimations().endsWith(".dae")) {
+
+        // Check if it's an individual file or not
+        if((!modelDescBuilder.getAnimations().isEmpty()) && !modelDescBuilder.getAnimations().endsWith(".animationset")) {
             IResource animations = BuilderUtil.checkResource(this.project, input, "animation", modelDescBuilder.getAnimations());
             taskBuilder.addInput(animations);
         }

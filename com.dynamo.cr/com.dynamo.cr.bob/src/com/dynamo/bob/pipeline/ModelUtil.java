@@ -89,8 +89,10 @@ public class ModelUtil {
         String      name;
         AINode      node;
         AIBone      bone;
+        int         index;
         int         parentIndex;
-        Matrix4d    transform;
+        Matrix4d    offsetTransform; // the assimp transform
+        Matrix4d    transform;       // the local transform
     }
 
     private static void printMatrix4x4(String name, AIMatrix4x4 mat) {
@@ -126,17 +128,27 @@ public class ModelUtil {
             // Since LWJGL doesn't seem to support retrieving the values of a scene's metadata
             // We instead have to determine the orientation using the root transform
             //UpAxis guessedUpAxis = null;
-            // {
-            //     AINode scene_root = scene.mRootNode();
-            //     AIMatrix4x4 mat = scene_root.mTransformation();
+            {
+                AINode scene_root = scene.mRootNode();
+                AIMatrix4x4 mat = scene_root.mTransformation();
 
-            //     printMatrix4x4(scene_root.mName().dataString(), mat);
+                //printMatrix4x4(scene_root.mName().dataString(), mat);
 
-            //     assetSpace.rotation.setRow(0, new double[] {mat.a1(), mat.a2(), mat.a3(), 0.0});
-            //     assetSpace.rotation.setRow(1, new double[] {mat.b1(), mat.b2(), mat.b3(), 0.0});
-            //     assetSpace.rotation.setRow(2, new double[] {mat.c1(), mat.c2(), mat.c3(), 0.0});
-            //     assetSpace.rotation.transpose();
-            // }
+                // if (mat.a1() == 1.0 && mat.b3() == 1.0 && mat.c2() == -1.0) {
+                // }
+
+                assetSpace.rotation.setRow(0, new double[] {mat.a1(), mat.a2(), mat.a3(), 0.0});
+                assetSpace.rotation.setRow(1, new double[] {mat.b1(), mat.b2(), mat.b3(), 0.0});
+                assetSpace.rotation.setRow(2, new double[] {mat.c1(), mat.c2(), mat.c3(), 0.0});
+                //assetSpace.rotation.transpose();
+
+                // Blender usually defaults to Z_UP
+                // assetSpace.rotation.setRow(0, new double[] {1.0, 0.0, 0.0, 0.0});
+                // assetSpace.rotation.setRow(1, new double[] {0.0, 0.0, 1.0, 0.0});
+                // assetSpace.rotation.setRow(2, new double[] {0.0, -1.0, 0.0, 0.0});
+
+                printMatrix4d(scene_root.mName().dataString(), assetSpace.rotation);
+            }
 
 
             // UpAxis upAxis = guessedUpAxis != null ? guessedUpAxis : UpAxis.Y_UP;
@@ -238,7 +250,7 @@ public class ModelUtil {
     }
 
 
-    private static void ExtractMatrixKeys(AINodeAnim anim, Matrix4d localToParent, AssetSpace assetSpace, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
+    private static void ExtractMatrixKeys(AINodeAnim anim, double ticksPerSecond, Matrix4d localToParent, AssetSpace assetSpace, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
 
         Vector3d bindP = new Vector3d();
         Quat4d bindR = new Quat4d();
@@ -246,6 +258,15 @@ public class ModelUtil {
         MathUtil.decompose(localToParent, bindP, bindR, bindS);
         bindR.inverse();
 
+        Vector3d assetSpaceP = new Vector3d();
+        Quat4d assetSpaceR = new Quat4d();
+        Vector3d assetSpaceS = new Vector3d();
+        MathUtil.decompose(assetSpace.rotation, assetSpaceP, assetSpaceR, assetSpaceS);
+        assetSpaceR.inverse();
+
+        System.out.printf("  bindR %f, %f, %f, %f\n", bindR.x, bindR.y, bindR.z, bindR.w);
+
+        System.out.printf("  assetSpaceR %f, %f, %f, %f\n", assetSpaceR.x, assetSpaceR.y, assetSpaceR.z, assetSpaceR.w);
 
         // https://github.com/LWJGL/lwjgl3/blob/02e5523774b104866e502e706141ae1a468183e6/modules/lwjgl/assimp/src/generated/java/org/lwjgl/assimp/AINodeAnim.java
         // Highlights:
@@ -258,28 +279,41 @@ public class ModelUtil {
         System.out.printf("  BONE: %s nKeys: t %d, r %d, s %d\n", anim.mNodeName().dataString(), num_position_keys, num_rotation_keys, num_scale_keys);
 
         {
+            int keyIndex = 0;
             AIVectorKey.Buffer buffer = anim.mPositionKeys();
             while (buffer.remaining() > 0) {
                 AIVectorKey key = buffer.get();
-                double time = key.mTime();
+                double time = key.mTime() / ticksPerSecond;
                 AIVector3D v = key.mValue();
 
                 Vector3d p = new Vector3d();
+                // TODO: Use the assetspace scaling: assetSpace.unit
                 p.set(v.x() - bindP.getX(), v.y() - bindP.getY(), v.z() - bindP.getZ());
+
+                if (keyIndex == 0 && time > 0)
+                {
+                    // Always make sure we have a key at t == 0
+                    AnimationKey first = createKey(0.0f, false, 3);
+                    toFloats(p, first.value);
+                    posTrack.keys.add(first);
+                    keyIndex++;
+                }
 
                 AnimationKey posKey = createKey((float)time, false, 3);
                 toFloats(p, posKey.value);
                 posTrack.keys.add(posKey);
+                keyIndex++;
             }
         }
 
         {
             Vector4d lastR = new Vector4d(0.0, 0.0, 0.0, 0.0);
 
+            int keyIndex = 0;
             AIQuatKey.Buffer buffer = anim.mRotationKeys();
             while (buffer.remaining() > 0) {
                 AIQuatKey key = buffer.get();
-                double time = key.mTime();
+                double time = key.mTime() / ticksPerSecond;
                 AIQuaternion v = key.mValue();
 
                 Quat4d r = new Quat4d(v.x(), v.y(), v.z(), v.w());
@@ -296,27 +330,57 @@ public class ModelUtil {
                 }
                 lastR = rv;
 
-                r.mul(bindR, r);
+                //r.mul(assetSpaceR, r);
+                //r.mul(bindR, r);
+
+                if (keyIndex == 0 && time > 0)
+                {
+                    // Always make sure we have a key at t == 0
+                    AnimationKey first = createKey(0.0f, false, 4);
+                    toFloats(r, first.value);
+                    rotTrack.keys.add(first);
+                    keyIndex++;
+
+        //System.out.printf("  rotKey %d: t: %f   %f, %f, %f, %f   -> %f, %f, %f, %f\n", keyIndex, (float)first.t, (float)v.x(), (float)v.y(), (float)v.z(), (float)v.w(), (float)first.value[0], (float)first.value[1], (float)first.value[2], (float)first.value[3]);
+
+                }
 
                 AnimationKey rot = createKey((float)time, false, 4);
                 toFloats(r, rot.value);
                 rotTrack.keys.add(rot);
+                keyIndex++;
+
+        //System.out.printf("  rotKey %d: t: %f   %f, %f, %f, %f   -> %f, %f, %f, %f\n", keyIndex, (float)rot.t, (float)v.x(), (float)v.y(), (float)v.z(), (float)v.w(), (float)rot.value[0], (float)rot.value[1], (float)rot.value[2], (float)rot.value[3]);
+
+        //System.out.printf("      bindR %d: %f, %f, %f, %f\n", keyIndex, bindR.x, bindR.y, bindR.z, bindR.w);
+
             }
         }
 
         {
+            int keyIndex = 0;
             AIVectorKey.Buffer buffer = anim.mScalingKeys();
             while (buffer.remaining() > 0) {
                 AIVectorKey key = buffer.get();
-                double time = key.mTime();
+                double time = key.mTime() / ticksPerSecond;
                 AIVector3D v = key.mValue();
 
                 Vector3d s = new Vector3d();
                 s.set(v.x() / bindS.getX(), v.y() / bindS.getY(), v.z() / bindS.getZ());
 
+                if (keyIndex == 0 && time > 0)
+                {
+                    // Always make sure we have a key at t == 0
+                    AnimationKey first = createKey((float)time, false, 3);
+                    toFloats(s, first.value);
+                    scaleTrack.keys.add(first);
+                    keyIndex++;
+                }
+
                 AnimationKey scaleKey = createKey((float)time, false, 3);
                 toFloats(s, scaleKey.value);
                 scaleTrack.keys.add(scaleKey);
+                keyIndex++;
             }
         }
 
@@ -389,7 +453,7 @@ public class ModelUtil {
     //     return new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
     // }
 
-    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
@@ -399,17 +463,29 @@ public class ModelUtil {
         }
     }
 
-    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
+
+            System.out.printf("sampleTrack rotations:  startTime %f\n", (float)startTime);
             RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
+
+            Rig.AnimationTrack track2 = animTrackBuilder.build();
+            int num_rotations = track2.getRotationsCount() / 4;
+            System.out.printf("rotations count: %d\n", num_rotations);
+            for (int i = 0; i < num_rotations; ++i) {
+
+                System.out.printf(" track rot: %d  %f, %f, %f, %f\n", i, track2.getRotations(i*4+0), track2.getRotations(i*4+1), track2.getRotations(i*4+2), track2.getRotations(i*4+3));
+            }
+
+            animBuilder.addTracks(track2);
+            //animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
-    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
@@ -518,10 +594,7 @@ public class ModelUtil {
 
 */
 
-    public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, AssetSpace assetSpace, AINodeAnim anim, ModelUtil.Bone bone, int boneIndex, double duration, double sceneStartTime, double sampleRate) {
-        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
-
+    public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, AssetSpace assetSpace, AINodeAnim anim, Matrix4d localToParent, int boneIndex, double duration, double sceneStartTime, double sampleRate, double ticksPerSecond) {
         RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
         posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
         RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
@@ -529,22 +602,69 @@ public class ModelUtil {
         RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
         scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-        ExtractMatrixKeys(anim, bone.transform, assetSpace, posTrack, rotTrack, scaleTrack);
+        ExtractMatrixKeys(anim, ticksPerSecond, localToParent, assetSpace, posTrack, rotTrack, scaleTrack);
 
         double spf = 1.0 / sampleRate;
 
-        samplePosTrack(animBuilder, boneIndex, posTrack, duration, sceneStartTime, sampleRate, spf, true);
-        sampleRotTrack(animBuilder, boneIndex, rotTrack, duration, sceneStartTime, sampleRate, spf, true);
-        sampleScaleTrack(animBuilder, boneIndex, scaleTrack, duration, sceneStartTime, sampleRate, spf, true);
-
+        samplePosTrack(animBuilder, posTrack, boneIndex, duration, sceneStartTime, sampleRate, spf, true);
+        sampleRotTrack(animBuilder, rotTrack, boneIndex, duration, sceneStartTime, sampleRate, spf, true);
+        sampleScaleTrack(animBuilder, scaleTrack, boneIndex, duration, sceneStartTime, sampleRate, spf, true);
     }
 
-    public static void loadAnimations(byte[] content, String suffix, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        AIScene scene = loadScene(content, suffix);
-        loadAnimations(scene, animationSetBuilder, parentAnimationId, animationIds);
+    public static void loadAnimations(byte[] animContent, String suffix, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+        AIScene animScene = loadScene(animContent, suffix);
+        loadAnimations(animScene, bones, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    public static void loadAnimations(AIScene scene, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+    private static double getAnimationStartTime(AIAnimation anim) {
+        double startTime = 10000.0;
+
+        double ticksPerSecond = anim.mTicksPerSecond();
+        PointerBuffer aiChannels = anim.mChannels();
+        int num_channels = anim.mNumChannels();
+        for (int c = 0; c < num_channels; ++c) {
+            AINodeAnim nodeAnim = AINodeAnim.create(aiChannels.get(c));
+            {
+                AIVectorKey.Buffer buffer = nodeAnim.mPositionKeys();
+                while (buffer.remaining() > 0) {
+                    AIVectorKey key = buffer.get();
+                    double time = key.mTime() / ticksPerSecond;
+                    if (time < startTime) {
+                        startTime = time;
+                    }
+                    break;
+                }
+            }
+            {
+                AIQuatKey.Buffer buffer = nodeAnim.mRotationKeys();
+                while (buffer.remaining() > 0) {
+                    AIQuatKey key = buffer.get();
+                    double time = key.mTime() / ticksPerSecond;
+                    if (time < startTime) {
+                        startTime = time;
+                    }
+                    break;
+                }
+            }
+            {
+                AIVectorKey.Buffer buffer = nodeAnim.mScalingKeys();
+                while (buffer.remaining() > 0) {
+                    AIVectorKey key = buffer.get();
+                    double time = key.mTime() / ticksPerSecond;
+                    if (time < startTime) {
+                        startTime = time;
+                    }
+                    break;
+                }
+            }
+        }
+        if (startTime == 10000.0) {
+            startTime = 0.0;
+        }
+        return startTime;
+    }
+
+    public static void loadAnimations(AIScene scene, ArrayList<ModelUtil.Bone> skeleton, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
         // if (collada.libraryAnimations.size() != 1) {
         //     return;
         // }
@@ -563,15 +683,11 @@ public class ModelUtil {
         //     animationSetBuilder.addBoneList(boneRef);
         // }
 
+        // for (ModelUtil.Bone bone : skeleton) {
+        //     animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
+        // }
+
         AssetSpace assetSpace = getAssetSpace(scene);
-
-        // Load skeleton to get bone bind poses
-        ArrayList<ModelUtil.Bone> skeleton = loadSkeleton(scene);
-
-        for (ModelUtil.Bone bone : skeleton) {
-            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
-        }
-
 
         System.out.printf("loadAnimations skeleton: size: %d\n", skeleton.size());
 
@@ -585,8 +701,8 @@ public class ModelUtil {
             String animation_name = aianimation.mName().dataString();
 
             double duration = aianimation.mDuration();
-            double tickPerSecond = aianimation.mTicksPerSecond();
-            double durationTime = duration/tickPerSecond;
+            double ticksPerSecond = aianimation.mTicksPerSecond();
+            double durationTime = duration/ticksPerSecond;
             double sampleRate = 30.0;
 
             int num_channels = aianimation.mNumChannels();
@@ -599,16 +715,15 @@ public class ModelUtil {
             // if the scene was saved with a different framerate the animation would either be too fast or too slow.
             animBuilder.setSampleRate((float)sampleRate);
 
-            double startTime = 0.0;
+            double startTime = 0.0;//getAnimationStartTime(aianimation);
 
-            double spf = 1.0 / sampleRate;
-
-            System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f   mNumChannels: %d\n", animation_name, (float)sampleRate, (float)tickPerSecond, num_channels);
+            System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f  mNumChannels: %d\n", animation_name, (float)durationTime, (float)sampleRate, (float)startTime, num_channels);
 
             PointerBuffer aiChannels = aianimation.mChannels();
             for (int c = 0; c < num_channels; ++c) {
                 AINodeAnim aiNodeAnim = AINodeAnim.create(aiChannels.get(c));
                 String node_name = aiNodeAnim.mNodeName().dataString();
+
                 int bone_index = 0;
                 ModelUtil.Bone current_bone = null;
                 for (ModelUtil.Bone bone : skeleton) {
@@ -619,9 +734,24 @@ public class ModelUtil {
                     ++bone_index;
                 }
 
-                loadAnimationTracks(animBuilder, assetSpace, aiNodeAnim, current_bone, bone_index, durationTime, startTime, spf);
+                if (current_bone == null) {
+                    // If we have an empty skeleton, we have to rely on the # of animation tracks
+                    bone_index = c;
+                }
+
+                Matrix4d localToParent = current_bone.transform;
+
+                AssetSpace curAssetSpace = assetSpace;
+                if (bone_index != 0)
+                {
+                    // Only apply up axis rotation for first bone.
+                    curAssetSpace.rotation.setIdentity();
+                }
+
+                loadAnimationTracks(animBuilder, curAssetSpace, aiNodeAnim, localToParent, bone_index, durationTime, startTime, sampleRate, ticksPerSecond);
             }
 
+            // The file name is usually based on the file name itself
             animBuilder.setId(MurmurHash.hash64(parentAnimationId));
             animationIds.add(parentAnimationId);
             animationSetBuilder.addAnimations(animBuilder.build());
@@ -854,6 +984,17 @@ public class ModelUtil {
 
     public static Rig.Mesh loadMesh(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton) {
         ArrayList<Float> positions = getVertexData(mesh.mVertices());
+
+        String name = mesh.mName().dataString();
+// if (name.equals("Cube-mesh"))
+// {
+// System.out.printf("Mesh positions: %s\n", mesh.mName().dataString());
+//             for (int i = 0; i < positions.size()/3; ++i)
+//             {
+// System.out.printf("  position %d: %f %f %f \n", i, positions.get(i*3+0), positions.get(i*3+1), positions.get(i*3+2));
+//             }
+// }
+
         ArrayList<Float> normals = getVertexData(mesh.mNormals());
         ArrayList<Float> tangents = getVertexData(mesh.mTangents());
         //ArrayList<Float> bitangents = getVertexData(mesh.mBitangents());
@@ -1245,6 +1386,7 @@ public class ModelUtil {
         ModelUtil.Bone bone = new ModelUtil.Bone();
         bone.name = name;
         bone.node = node;
+        bone.index = skeleton.size();
         bone.parentIndex = parentIndex;
 
         parentIndex = skeleton.size();
@@ -1344,7 +1486,6 @@ public class ModelUtil {
         Matrix4d skeletonTransform = new Matrix4d();
         skeletonTransform.setIdentity();
 
-        int index = 0;
         for (ModelUtil.Bone bone : skeleton) {
             AIMatrix4x4 offset_matrix = AIMatrix4x4.create();
             if (bone.bone != null) {
@@ -1353,17 +1494,19 @@ public class ModelUtil {
                 offset_matrix.set(1.0f,0.0f,0.0f,0.0f, 0.0f,1.0f,0.0f,0.0f, 0.0f,0.0f,1.0f,0.0f, 0.0f,0.0f,0.0f,1.0f);
             }
 
-            printMatrix4x4(bone.name, offset_matrix);
+            // "The offset matrix is a 4x4 matrix that transforms from mesh space to bone space in bind pose." - https://github.com/assimp/assimp/blob/master/port/jassimp/jassimp/src/jassimp/AiBone.java
+            bone.offsetTransform = convertMatrix4x4(offset_matrix);
+            printMatrix4d("offsetTransform", bone.offsetTransform);
 
-            // Matrix4d bone_matrix = convertMatrix4x4(offset_matrix);
-            // printMatrix4d("converted", bone_matrix);
-
-            // bone_matrix.mul(assetSpace.rotation, bone_matrix);
-            // printMatrix4d("transformed", bone_matrix);
-
-            bone.transform = convertMatrix4x4(offset_matrix);
+            bone.transform = convertMatrix4x4(bone.node.mTransformation());
+            printMatrix4d("transform", bone.transform);
         }
         return skeleton;
+    }
+
+    public static ArrayList<ModelUtil.Bone> loadSkeleton(byte[] content, String suffix) {
+        AIScene aiScene = loadScene(content, suffix);
+        return loadSkeleton(aiScene);
     }
 
     // Generate skeleton DDF data of bones.
@@ -1397,9 +1540,6 @@ public class ModelUtil {
 
     public static void loadSkeleton(AIScene aiScene, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
         ArrayList<ModelUtil.Bone> boneList = loadSkeleton(aiScene);
-        // for (ModelUtil.Bone bone : boneList) {
-        //     boneIds.add(bone.name);
-        // }
 
         // Generate DDF representation of bones.
         ArrayList<Rig.Bone> ddfBones = new ArrayList<Rig.Bone>();

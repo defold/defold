@@ -152,6 +152,7 @@ message AnimationInstanceDesc
 message AnimationSetDesc
 {
     repeated AnimationInstanceDesc animations = 1;
+    optional string skeleton = 2;
 }
 
 enum IndexBufferFormat

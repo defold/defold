@@ -19,6 +19,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.murmur :as murmur])
   (:import [clojure.lang ExceptionInfo]
@@ -29,11 +30,14 @@
 
 (def ^:private animation-set-icon "icons/32/Icons_24-AT-Animation.png")
 
+(def supported-skeleton-formats #{"dae"})
+
 (defn- animation-instance-desc-pb-msg [resource]
   {:animation (resource/resource->proj-path resource)})
 
-(g/defnk produce-desc-pb-msg [animations]
-  {:animations (mapv animation-instance-desc-pb-msg animations)})
+(g/defnk produce-desc-pb-msg [skeleton animations]
+  {:skeleton (resource/resource->proj-path skeleton)
+   :animations (mapv animation-instance-desc-pb-msg animations)})
 
 (defn- prefix-animation-id [animation-resource animation]
   (update animation :id (fn [^String id]
@@ -93,29 +97,49 @@
   {:navigation false
    :sections
    [{:title "Animation Set"
-     :fields [{:path [:animations]
+     :fields [{:path [:skeleton]
+               :type :resource
+               :filter #{"dae"}
+               :label "Skeleton"
+               :default nil}
+              {:path [:animations]
                :type :list
                :label "Animations"
                :element {:type :resource
                          :filter #{"animationset" "dae"}
                          :default nil}}]}]})
 
-(defn- set-form-op [{:keys [node-id]} path value]
-  (assert (= path [:animations]))
-  (g/set-property! node-id :animations value))
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
 
-(g/defnk produce-form-data [_node-id animations]
-  (let [values {[:animations] animations}]
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
+(g/defnk produce-form-data [_node-id skeleton animations]
+  (let [values {[:skeleton] skeleton
+                [:animations] animations}]
     (-> form-sections
         (assoc :form-ops {:user-data {:node-id _node-id}
-                          :set set-form-op})
+                          :set set-form-op
+                          :clear clear-form-op})
         (assoc :values values))))
 
 (g/defnode AnimationSetNode
   (inherits resource-node/ResourceNode)
 
+  (input skeleton-resource resource/Resource)
   (input animation-resources resource/Resource :array)
   (input animation-sets g/Any :array)
+
+  (property skeleton resource/Resource
+            (value (gu/passthrough skeleton-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :skeleton-resource])))
+            (dynamic error (g/fnk [_node-id skeleton]
+                                  (or (validation/prop-error :info _node-id :skeleton validation/prop-nil? skeleton "Skeleton")
+                                      (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton"))))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-skeleton-formats})))
 
   (property animations resource/ResourceVec
             (value (gu/passthrough animation-resources))

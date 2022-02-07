@@ -29,6 +29,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
@@ -53,6 +54,11 @@ public class AnimationSetBuilder extends Builder<Void>  {
                 collectAnimations(taskBuilder, project, owner, subAnimSetDescBuilder);
             }
         }
+
+        if(!animSetDescBuilder.getSkeleton().isEmpty()) {
+            IResource skeleton = BuilderUtil.checkResource(project, owner, "skeleton", animSetDescBuilder.getSkeleton());
+            taskBuilder.addInput(skeleton);
+        }
     }
 
 
@@ -75,29 +81,30 @@ public class AnimationSetBuilder extends Builder<Void>  {
         return taskBuilder.build();
     }
 
-    private void validateFile(Task<Void> task, String path) throws CompileExceptionError {
+    private void validateAndAddFile(Task<Void> task, String path) throws CompileExceptionError {
         if(animFiles.contains(path)) {
             throw new CompileExceptionError(task.input(0), -1, "Animation file referenced more than once: " + path);
         }
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task<Void> task, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder, String parentId) throws CompileExceptionError, IOException {
+    private void buildAnimations(Task<Void> task, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder, String parentId, ArrayList<ModelUtil.Bone> bones) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
-        List<Long> boneList = new ArrayList<Long>();
+        //List<Long> boneList = new ArrayList<Long>();
+
         for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
             if(instance.getAnimation().endsWith(".animationset")) {
                 IResource animFile = BuilderUtil.checkResource(this.project, task.input(0), "animationset", instance.getAnimation());
-                validateFile(task, animFile.getAbsPath());
+                validateAndAddFile(task, animFile.getAbsPath());
                 ByteArrayInputStream animFileIS = new ByteArrayInputStream(animFile.getContent());
                 InputStreamReader subAnimSetDescBuilderISR = new InputStreamReader(animFileIS);
                 AnimationSetDesc.Builder subAnimSetDescBuilder = AnimationSetDesc.newBuilder();
                 TextFormat.merge(subAnimSetDescBuilderISR, subAnimSetDescBuilder);
-                buildAnimations(task, subAnimSetDescBuilder, animationSetBuilder, FilenameUtils.getBaseName(animFile.getPath()));
+                buildAnimations(task, subAnimSetDescBuilder, animationSetBuilder, FilenameUtils.getBaseName(animFile.getPath()), bones);
                 continue;
             }
             IResource animFile = BuilderUtil.checkResource(this.project, task.input(0), "animation", instance.getAnimation());
-            validateFile(task, animFile.getAbsPath());
+            validateAndAddFile(task, animFile.getAbsPath());
 
             String animId = (parentId.isEmpty() ? "" : parentId + "/" ) + FilenameUtils.getBaseName(animFile.getPath());
             if(idList.contains(animId)) {
@@ -112,8 +119,9 @@ public class AnimationSetBuilder extends Builder<Void>  {
                 String USE_JAGATOO=System.getenv("USE_JAGATOO");
                 if (USE_JAGATOO!=null)
                     ColladaUtil.loadAnimations(animFileIS, animBuilder, animId, animationIds);
-                else
-                    ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), animBuilder, animId, animationIds);
+                else {
+                    ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), bones, animBuilder, animId, animationIds);
+                }
 
             } catch (XMLStreamException e) {
                 throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
@@ -122,11 +130,13 @@ public class AnimationSetBuilder extends Builder<Void>  {
             }
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
-            if(animBuilder.getBoneListList().size() > boneList.size()) {
-                boneList = animBuilder.getBoneListList();
-            }
+
+            // TODO: Verify that the animations in the animBuilder is part of the bones!
+
+            // if(animBuilder.getBoneListList().size() > boneList.size()) {
+            //     boneList = animBuilder.getBoneListList();
+            // }
         }
-        animationSetBuilder.addAllBoneList(boneList);
     }
 
     @Override
@@ -137,11 +147,18 @@ public class AnimationSetBuilder extends Builder<Void>  {
         AnimationSetDesc.Builder animSetDescBuilder = AnimationSetDesc.newBuilder();
         TextFormat.merge(animSetDescISR, animSetDescBuilder);
 
+        IResource skeletonFile = BuilderUtil.checkResource(this.project, task.input(0), "skeleton", animSetDescBuilder.getSkeleton());
+        ArrayList<ModelUtil.Bone> bones = ModelUtil.loadSkeleton(skeletonFile.getContent(), BuilderUtil.getSuffix(skeletonFile.getPath()));
+
         // evaluate hierarchy
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
         animFiles = new ArrayList<String>();
         animFiles.add(task.input(0).getAbsPath());
-        buildAnimations(task, animSetDescBuilder, animationSetBuilder, "");
+        buildAnimations(task, animSetDescBuilder, animationSetBuilder, "", bones);
+
+        for (ModelUtil.Bone bone : bones) {
+            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
+        }
 
         // write merged animationset
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

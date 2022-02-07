@@ -48,10 +48,8 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-
-// TODO: Rename to model builder
-@BuilderParams(name="ColladaModel", inExts=".dae", outExt=".meshsetc")
-public class ColladaModelBuilder extends Builder<Void>  {
+@BuilderParams(name="Meshset", inExts={".dae",".fbx"}, outExt=".meshsetc")
+public class MeshsetBuilder extends Builder<Void>  {
 
     private static final String USE_JAGATOO=System.getenv("USE_JAGATOO");
 
@@ -60,6 +58,9 @@ public class ColladaModelBuilder extends Builder<Void>  {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
             .addInput(input);
+
+System.out.printf("MESHSET: %s\n", input.getAbsPath());
+
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.addOutput(input.changeExt(".skeletonc"));
         taskBuilder.addOutput(input.changeExt("_generated_0.animationsetc"));
@@ -127,7 +128,8 @@ public class ColladaModelBuilder extends Builder<Void>  {
             return;
         }
 
-        AIScene aiScene = ModelUtil.loadScene(task.input(0).getContent(), BuilderUtil.getSuffix(task.input(0).getPath()));
+        String suffix = BuilderUtil.getSuffix(task.input(0).getPath());
+        AIScene aiScene = ModelUtil.loadScene(task.input(0).getContent(), suffix);
         if (aiScene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
         }
@@ -160,8 +162,9 @@ public class ColladaModelBuilder extends Builder<Void>  {
 
         // Animationset
         {
+            ArrayList<ModelUtil.Bone> skeleton = ModelUtil.loadSkeleton(aiScene);
             AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-            ModelUtil.loadAnimations(aiScene, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+            ModelUtil.loadAnimations(aiScene, skeleton, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             animationSetBuilder.build().writeTo(out);
