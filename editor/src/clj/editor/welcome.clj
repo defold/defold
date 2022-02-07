@@ -91,8 +91,8 @@
 (def ^:private WelcomeSettings
   {:new-project NewProjectSettings})
 
-(defn- load-edn [edn]
-  (with-open [reader (PushbackReader. (io/reader edn))]
+(defn- load-edn [edn-resource]
+  (with-open [reader (PushbackReader. (io/reader edn-resource))]
     (edn/read reader)))
 
 (defn- load-welcome-settings-resource [resource]
