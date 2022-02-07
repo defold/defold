@@ -13,6 +13,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <ddf/ddf.h>
 #include <script/lua_source_ddf.h>
@@ -26,6 +27,8 @@ extern "C"
 #include "lua/lua.h"
 #include "lua/lauxlib.h"
 }
+
+using namespace dmVMath;
 
 static const float EPSILON = 0.000001f;
 
@@ -521,11 +524,11 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
 }
 
 
-void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
-    Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
-    memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
+    dmVMath::Matrix4* out_transforms = (dmVMath::Matrix4*)context;
+    memcpy(out_transforms, node_transforms, sizeof(dmVMath::Matrix4) * node_count);
 }
 
 TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
@@ -555,7 +558,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
     result = dmGui::InitScene(scene);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    Vectormath::Aos::Matrix4 transform;
+    dmVMath::Matrix4 transform;
     dmGui::RenderScene(scene, RenderNodesStoreTransform, &transform);
 
     ASSERT_NEAR(2.0f, transform.getElem(3, 0), EPSILON);
@@ -672,7 +675,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     result = dmGui::InitScene(scene);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    Vectormath::Aos::Matrix4 transform;
+    dmVMath::Matrix4 transform;
     dmGui::RenderScene(scene, RenderNodesStoreTransform, &transform);
 
     ASSERT_NEAR(0.0f, transform.getElem(3, 0), EPSILON);
@@ -729,7 +732,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnimWithCallback)
     result = dmGui::InitScene(scene);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    Vectormath::Aos::Matrix4 transforms[2];
+    dmVMath::Matrix4 transforms[2];
     dmGui::RenderScene(scene, RenderNodesStoreTransform, transforms);
 
     ASSERT_NEAR(0.0f, transforms[0].getElem(3, 0), EPSILON);
@@ -785,7 +788,7 @@ TEST_F(dmGuiScriptTest, TestCustomEasingAnimation)
 	result = dmGui::InitScene(scene);
 	ASSERT_EQ(dmGui::RESULT_OK, result);
 
-	Vectormath::Aos::Matrix4 transform;
+	dmVMath::Matrix4 transform;
 	dmGui::RenderScene(scene, RenderNodesStoreTransform, &transform);
 
 	ASSERT_NEAR(0.0f, transform.getElem(3, 0), EPSILON);
@@ -841,20 +844,20 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         int ticks = 0;
-        Vectormath::Aos::Matrix4 t1;
+        dmVMath::Matrix4 t1;
         while (ticks < 4) {
             dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
             dmGui::UpdateScene(scene, 0.125f);
             ++ticks;
         }
-        Vectormath::Aos::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+        dmVMath::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
 
-        Vectormath::Aos::Matrix4 t2;
+        dmVMath::Matrix4 t2;
         const float tinyDifference = 10e-10f;
         while (ticks < 8) {
             dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
             dmGui::UpdateScene(scene, 0.125f);
-            Vectormath::Aos::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+            dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
             if (tinyDifference < Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal)) {
                 char animatedScale[64];
                 char currentScale[64];
@@ -908,21 +911,21 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         int ticks = 0;
-        Vectormath::Aos::Matrix4 t1;
+        dmVMath::Matrix4 t1;
         while (ticks < 4) {
             dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
             dmGui::UpdateScene(scene, 0.125f);
             ++ticks;
         }
-        Vectormath::Aos::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+        dmVMath::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
 
-        Vectormath::Aos::Matrix4 t2;
+        dmVMath::Matrix4 t2;
         const float tinyDifference = 10e-10f;
         while (ticks < 8) {
             dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
             dmGui::UpdateScene(scene, 0.125f);
-            Vectormath::Aos::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
-            Vectormath::Aos::Vector3 difference = Vectormath::Aos::absPerElem(currentDiagonal - postScaleDiagonal);
+            dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+            dmVMath::Vector3 difference = Vectormath::Aos::absPerElem(currentDiagonal - postScaleDiagonal);
             if ( (tinyDifference >= difference[0]) || (tinyDifference < difference[1]) || (tinyDifference >= difference[2])) {
                 char animatedScale[64];
                 char currentScale[64];
@@ -981,9 +984,9 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
     dmRigDDF::Bone& bone0 = skeleton->m_Bones.m_Data[0];
     bone0.m_Parent       = 0xffff;
     bone0.m_Id           = dmHashString64("b0");
-    bone0.m_Position     = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
-    bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone0.m_Position     = dmVMath::Point3(0.0f, 0.0f, 0.0f);
+    bone0.m_Rotation     = dmVMath::Quat::identity();
+    bone0.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
     bone0.m_InheritScale = false;
     bone0.m_Length       = 0.0f;
 
@@ -991,9 +994,9 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
     dmRigDDF::Bone& bone1 = skeleton->m_Bones.m_Data[1];
     bone1.m_Parent       = 0;
     bone1.m_Id           = dmHashString64("b1");
-    bone1.m_Position     = Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f);
-    bone1.m_Rotation     = Vectormath::Aos::Quat::identity();
-    bone1.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone1.m_Position     = dmVMath::Point3(1.0f, 0.0f, 0.0f);
+    bone1.m_Rotation     = dmVMath::Quat::identity();
+    bone1.m_Scale        = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
     bone1.m_InheritScale = false;
     bone1.m_Length       = 1.0f;
 

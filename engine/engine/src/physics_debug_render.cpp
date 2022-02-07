@@ -14,16 +14,17 @@
 
 #include <ddf/ddf.h>
 #include <render/render.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace PhysicsDebugRender
 {
-    void DrawLines(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data)
+    void DrawLines(dmVMath::Point3* points, uint32_t point_count, dmVMath::Vector4 color, void* user_data)
     {
         for (uint32_t i = 0; i < point_count/2; ++i)
             dmRender::Line3D((dmRender::HRenderContext)user_data, points[2*i], points[2*i+1], color, color);
     }
 
-    void DrawTriangles(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data)
+    void DrawTriangles(dmVMath::Point3* points, uint32_t point_count, dmVMath::Vector4 color, void* user_data)
     {
         for (uint32_t i = 0; i < point_count/3; ++i)
             dmRender::Triangle3d((dmRender::HRenderContext)user_data, &points[3*i], color);

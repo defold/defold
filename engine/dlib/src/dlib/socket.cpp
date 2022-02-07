@@ -15,6 +15,7 @@
 #include "dstrings.h"
 #include "log.h"
 #include <assert.h>
+#include <dlib/file_descriptor.h>
 
 #include <fcntl.h>
 #include <string.h>
@@ -1100,42 +1101,51 @@ namespace dmSocket
         SelectorZero(this);
     }
 
+    dmFileDescriptor::PollEvent SelectorKindToPollEvent(SelectorKind selector_kind)
+    {
+        switch (selector_kind)
+        {
+            case SELECTOR_KIND_READ:
+                return dmFileDescriptor::EVENT_READ;
+            case SELECTOR_KIND_WRITE:
+                return dmFileDescriptor::EVENT_WRITE;
+            case SELECTOR_KIND_EXCEPT:
+                return dmFileDescriptor::EVENT_ERROR;
+            default:
+                assert(false);
+        }
+    }
+
     void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        FD_CLR(socket, &selector->m_FdSets[selector_kind]);
+        dmFileDescriptor::PollEvent event = SelectorKindToPollEvent(selector_kind);
+        dmFileDescriptor::PollerClearEvent(&selector->m_Poller, event, socket);
     }
 
     void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
-        FD_SET(socket, &selector->m_FdSets[selector_kind]);
+        dmFileDescriptor::PollEvent event = SelectorKindToPollEvent(selector_kind);
+        dmFileDescriptor::PollerSetEvent(&selector->m_Poller, event, socket);
     }
 
     bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        return FD_ISSET(socket, &selector->m_FdSets[selector_kind]) != 0;
+        dmFileDescriptor::PollEvent event = SelectorKindToPollEvent(selector_kind);
+        return dmFileDescriptor::PollerHasEvent(&selector->m_Poller, event, socket);
     }
 
     void SelectorZero(Selector* selector)
     {
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
-        selector->m_Nfds = 0;
+        dmFileDescriptor::PollerReset(&selector->m_Poller);
     }
 
     Result Select(Selector* selector, int32_t timeout)
     {
-        timeval timeout_val;
-        timeout_val.tv_sec = timeout / 1000000;
-        timeout_val.tv_usec = timeout % 1000000;
-
-        int r;
-        if (timeout < 0)
-            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
-        else
-            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
-
+        if (timeout > 0)
+        {
+            timeout = timeout / 1000;
+        }
+        int r = dmFileDescriptor::Wait(&selector->m_Poller, (timeout < 0) ? 0 : timeout);
         if (r < 0)
         {
             return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO);

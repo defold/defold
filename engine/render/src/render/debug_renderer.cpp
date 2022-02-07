@@ -17,16 +17,17 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <graphics/graphics.h>
 
 #include "render.h"
 #include "render_private.h"
 
-using namespace Vectormath::Aos;
-
 namespace dmRender
 {
+    using namespace dmVMath;
+
     struct DebugVertex
     {
         Vector4 m_Position;

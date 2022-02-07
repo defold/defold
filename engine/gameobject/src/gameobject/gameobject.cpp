@@ -24,6 +24,7 @@
 #include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dlib/mutex.h>
+#include <dmsdk/dlib/vmath.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
@@ -119,7 +120,7 @@ namespace dmGameObject
         *u = v;
     }
 
-    PropertyVar::PropertyVar(Vectormath::Aos::Vector3 v)
+    PropertyVar::PropertyVar(dmVMath::Vector3 v)
     {
         m_Type = PROPERTY_TYPE_VECTOR3;
         m_V4[0] = v.getX();
@@ -127,7 +128,7 @@ namespace dmGameObject
         m_V4[2] = v.getZ();
     }
 
-    PropertyVar::PropertyVar(Vectormath::Aos::Vector4 v)
+    PropertyVar::PropertyVar(dmVMath::Vector4 v)
     {
         m_Type = PROPERTY_TYPE_VECTOR4;
         m_V4[0] = v.getX();
@@ -136,7 +137,7 @@ namespace dmGameObject
         m_V4[3] = v.getW();
     }
 
-    PropertyVar::PropertyVar(Vectormath::Aos::Quat v)
+    PropertyVar::PropertyVar(dmVMath::Quat v)
     {
         m_Type = PROPERTY_TYPE_QUAT;
         m_V4[0] = v.getX();

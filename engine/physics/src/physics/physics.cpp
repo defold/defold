@@ -22,8 +22,6 @@
 
 namespace dmPhysics
 {
-    using namespace Vectormath::Aos;
-
     /**
      * Adds the overlap of an object to a specific entry.
      * Returns whether the overlap was added (might be out of space).
@@ -106,7 +104,7 @@ namespace dmPhysics
 
     void OverlapCacheInit(OverlapCache* cache)
     {
-    	cache->m_OverlapCache.SetCapacity(3 * CACHE_INITIAL_CAPACITY / 4, CACHE_INITIAL_CAPACITY);
+        cache->m_OverlapCache.SetCapacity(3 * CACHE_INITIAL_CAPACITY / 4, CACHE_INITIAL_CAPACITY);
     }
 
     /**
@@ -123,7 +121,7 @@ namespace dmPhysics
 
     void OverlapCacheReset(OverlapCache* cache)
     {
-    	cache->m_OverlapCache.Iterate(ResetOverlap, (void*)0x0);
+        cache->m_OverlapCache.Iterate(ResetOverlap, (void*)0x0);
     }
 
     void OverlapCacheAdd(OverlapCache* cache, const OverlapCacheAddData& data)

@@ -54,7 +54,7 @@ namespace dmGameSystem
 
     // these aren't used yet??
     bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
-    bool CompModelSetIKTargetPosition(ModelComponent* component, dmhash_t constraint_id, float mix, Vectormath::Aos::Point3 position);
+    bool CompModelSetIKTargetPosition(ModelComponent* component, dmhash_t constraint_id, float mix, dmVMath::Point3 position);
 }
 
 #endif // DM_GAMESYS_COMP_MODEL_H

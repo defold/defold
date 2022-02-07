@@ -32,6 +32,8 @@
 
 #include <dmsdk/gamesys/render_constants.h>
 
+using namespace dmVMath;
+
 namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);

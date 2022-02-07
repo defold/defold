@@ -14,7 +14,7 @@
 
 #include "engine_private.h"
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <sys/stat.h>
 
 #include <stdio.h>
@@ -91,8 +91,6 @@ extern uint32_t DEBUG_FPC_SIZE;
     extern uint32_t GAME_PROJECT_SIZE;
 #endif
 
-using namespace Vectormath::Aos;
-
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
@@ -106,6 +104,9 @@ extern "C" {
 
 namespace dmEngine
 {
+
+    using namespace dmVMath;
+
 #define SYSTEM_SOCKET_NAME "@system"
 
     dmEngineService::HEngineService g_EngineService = 0;
@@ -648,7 +649,7 @@ namespace dmEngine
             else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
                      strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
             {
-                dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
+                dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
             }
         }
 
@@ -696,7 +697,7 @@ namespace dmEngine
                 const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
                 dmPath::Concat(path, "log.txt", full, sizeof(full));
-                dmSetLogFile(full);
+                dmLog::SetLogFile(full);
             } else {
                 dmLogFatal("Unable to get log-file path");
             }
@@ -928,6 +929,7 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
+        engine->m_ParticleFXContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
 
@@ -1927,8 +1929,8 @@ void dmEngineInitialize()
     dmSSLSocket::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
-    dmLogParams params;
-    dmLogInitialize(&params);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
 
     if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
     {
@@ -1944,7 +1946,7 @@ void dmEngineFinalize()
         dmEngineService::Delete(dmEngine::g_EngineService);
     }
     dmGraphics::Finalize();
-    dmLogFinalize();
+    dmLog::LogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();

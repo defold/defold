@@ -16,7 +16,7 @@
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmSound
 {
@@ -126,8 +126,8 @@ namespace dmSound
 
     Result SetLooping(HSoundInstance sound_instance, bool looping, int8_t loopcount);
 
-    Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vectormath::Aos::Vector4& value);
-    Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vectormath::Aos::Vector4& value);
+    Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const dmVMath::Vector4& value);
+    Result GetParameter(HSoundInstance sound_instance, Parameter parameter, dmVMath::Vector4& value);
 
     // Platform dependent
     bool IsMusicPlaying();

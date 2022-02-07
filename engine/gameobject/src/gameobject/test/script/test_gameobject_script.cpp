@@ -28,7 +28,7 @@
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../proto/gameobject/lua_ddf.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"
@@ -176,10 +176,10 @@ TEST_F(ScriptTest, TestFailingScript02)
     // Test init failure
 
     // Avoid logging expected errors. Better solution?
-    dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
     dmGameObject::New(m_Collection, "/go2.goc");
     bool result = dmGameObject::Init(m_Collection);
-    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
     EXPECT_FALSE(result);
     result = dmGameObject::Final(m_Collection);
     EXPECT_FALSE(result);
@@ -194,9 +194,9 @@ TEST_F(ScriptTest, TestFailingScript03)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Avoid logging expected errors. Better solution?
-    dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
     dmGameObject::Delete(m_Collection, go, false);
 }
 

@@ -20,6 +20,7 @@
 #include <dlib/vmath.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "particle.h"
 #include "particle_private.h"
@@ -27,7 +28,7 @@
 namespace dmParticle
 {
     using namespace dmParticleDDF;
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const static float EPSILON = 0.0001f;
     const static Vector3 PARTICLE_LOCAL_BASE_DIR = Vector3::yAxis();
@@ -39,6 +40,8 @@ namespace dmParticle
 
     /// Config key to use for tweaking maximum number of instances in a context.
     const char* MAX_INSTANCE_COUNT_KEY          = "particle_fx.max_count";
+    /// Config key to use for tweaking maximum number of emitters in a context.
+    const char* MAX_EMITTER_COUNT_KEY          = "particle_fx.max_emitter_count";
     /// Config key to use for tweaking the total maximum number of particles in a context.
     const char* MAX_PARTICLE_COUNT_KEY          = "particle_fx.max_particle_count";
 
@@ -1571,7 +1574,7 @@ namespace dmParticle
                 Emitter* e = &instance->m_Emitters[j];
 
                 dmParticleDDF::Emitter* ddf = &prototype->m_DDF->m_Emitters[j];
-                Vectormath::Aos::Vector4 color(0.0f, 1.0f, 0.0f, 1.0f);
+                dmVMath::Vector4 color(0.0f, 1.0f, 0.0f, 1.0f);
                 if (IsSleeping(e))
                 {
                     color.setY(0.0f);
@@ -1838,7 +1841,7 @@ namespace dmParticle
             transform = dmTransform::Mul(instance->m_WorldTransform, transform);
         else
             transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, transform);
-        Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
+        dmVMath::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[emitter_index];
 
         render_emitter_callback(user_context, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, world, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
@@ -1854,7 +1857,7 @@ namespace dmParticle
             transform = dmTransform::Mul(inst->m_WorldTransform, transform);
         else
             transform = dmTransform::MulNoScaleZ(inst->m_WorldTransform, transform);
-        Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
+        dmVMath::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &inst->m_Prototype->m_Emitters[emitter_index];
 
         render_data.m_Transform = world;

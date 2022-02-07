@@ -164,10 +164,10 @@ namespace dmScript
             DM_STATIC_ASSERT(SUB_TYPE_MAX==6, Must_Add_SubType_Size);
             DM_STATIC_ASSERT(sizeof(dmMessage::URL) == 32, Invalid_Struct_Size);
             DM_STATIC_ASSERT(sizeof(dmhash_t) == 8, Invalid_Struct_Size);
-            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Vector3) == 16, Invalid_Struct_Size);
-            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Vector4) == 16, Invalid_Struct_Size);
-            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Quat)    == 16, Invalid_Struct_Size);
-            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Matrix4) == 64, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(dmVMath::Vector3) == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(dmVMath::Vector4) == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(dmVMath::Quat)    == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(dmVMath::Matrix4) == 64, Invalid_Struct_Size);
         }
 
     } g_ScriptTableInit;
@@ -415,10 +415,10 @@ namespace dmScript
                     buffer += align_size;
 
                     float* f = (float*) (buffer);
-                    Vectormath::Aos::Vector3* v3;
-                    Vectormath::Aos::Vector4* v4;
-                    Vectormath::Aos::Quat* q;
-                    Vectormath::Aos::Matrix4* m;
+                    dmVMath::Vector3* v3;
+                    dmVMath::Vector4* v4;
+                    dmVMath::Quat* q;
+                    dmVMath::Matrix4* m;
                     if ((v3 = ToVector3(L, -1)))
                     {
                         if (buffer_end - buffer < int32_t(sizeof(float) * 3))
@@ -790,7 +790,7 @@ namespace dmScript
                         PushTableLogString(logger, "V3");
 
                         float* f = (float*) buffer;
-                        dmScript::PushVector3(L, Vectormath::Aos::Vector3(f[0], f[1], f[2]));
+                        dmScript::PushVector3(L, dmVMath::Vector3(f[0], f[1], f[2]));
                         buffer += sizeof(float) * 3;
                         CHECK_PUSHTABLE_OOB("udata vec3", logger, buffer, buffer_end, count, depth);
                     }
@@ -799,7 +799,7 @@ namespace dmScript
                         PushTableLogString(logger, "V4");
 
                         float* f = (float*) buffer;
-                        dmScript::PushVector4(L, Vectormath::Aos::Vector4(f[0], f[1], f[2], f[3]));
+                        dmScript::PushVector4(L, dmVMath::Vector4(f[0], f[1], f[2], f[3]));
                         buffer += sizeof(float) * 4;
                         CHECK_PUSHTABLE_OOB("udata vec4", logger, buffer, buffer_end, count, depth);
                     }
@@ -808,7 +808,7 @@ namespace dmScript
                         PushTableLogString(logger, "Q4");
 
                         float* f = (float*) buffer;
-                        dmScript::PushQuat(L, Vectormath::Aos::Quat(f[0], f[1], f[2], f[3]));
+                        dmScript::PushQuat(L, dmVMath::Quat(f[0], f[1], f[2], f[3]));
                         buffer += sizeof(float) * 4;
                         CHECK_PUSHTABLE_OOB("udata quat", logger, buffer, buffer_end, count, depth);
                     }
@@ -817,7 +817,7 @@ namespace dmScript
                         PushTableLogString(logger, "M4");
 
                         float* f = (float*) buffer;
-                        Vectormath::Aos::Matrix4 m;
+                        dmVMath::Matrix4 m;
                         for (uint32_t i = 0; i < 4; ++i)
                             for (uint32_t j = 0; j < 4; ++j)
                                 m.setElem(i, j, f[i * 4 + j]);

@@ -532,11 +532,11 @@ namespace dmGraphics
     {
         return g_functions.m_GetUniformLocation(prog, name);
     }
-    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register)
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
         g_functions.m_SetConstantV4(context, data, count, base_register);
     }
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
     {
         g_functions.m_SetConstantM4(context, data, base_register);
     }

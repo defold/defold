@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include <dmsdk/dlib/vmath.h>
 #include <dlib/index_pool.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -34,6 +35,8 @@
 
 namespace dmGameSystem
 {
+    using namespace dmVMath;
+
     struct ParticleFXWorld;
 
     struct ParticleFXComponentPrototype
@@ -82,16 +85,18 @@ namespace dmGameSystem
         ParticleFXWorld* world = new ParticleFXWorld();
         world->m_Context = ctx;
         uint32_t particle_fx_count = dmMath::Min(params.m_MaxComponentInstances, ctx->m_MaxParticleFXCount);
-        world->m_ParticleContext = dmParticle::CreateContext(particle_fx_count, ctx->m_MaxParticleCount);
+        world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxParticleFXCount, ctx->m_MaxParticleCount);
         world->m_Components.SetCapacity(particle_fx_count);
-        world->m_RenderObjects.SetCapacity(particle_fx_count);
-        world->m_ConstantBuffers.SetCapacity(particle_fx_count);
-        world->m_ConstantBuffers.SetSize(particle_fx_count);
-        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*particle_fx_count);
-
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
         world->m_PrototypeIndices.SetCapacity(particle_fx_count);
+
+        uint16_t max_emitter_count = ctx->m_MaxEmitterCount;
+        world->m_RenderObjects.SetCapacity(max_emitter_count);
+        world->m_ConstantBuffers.SetCapacity(max_emitter_count);
+        world->m_ConstantBuffers.SetSize(max_emitter_count);
+        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
+
         uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount, dmParticle::PARTICLE_GO);
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6);
@@ -171,7 +176,7 @@ namespace dmGameSystem
 
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode);
     static void SetRenderConstants(dmRender::HNamedConstantBuffer constant_buffer, dmParticle::RenderConstant* constants, uint32_t constant_count);
-    void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
+    void RenderLineCallback(void* usercontext, const dmVMath::Point3& start, const dmVMath::Point3& end, const dmVMath::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
     dmGameObject::CreateResult CompParticleFXAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
@@ -321,6 +326,12 @@ namespace dmGameSystem
         uint32_t count = components.Size();
         uint32_t world_emitter_count = pfx_world->m_EmitterCount;
 
+        if (pfx_world->m_RenderObjects.Capacity() < world_emitter_count)
+        {
+            dmLogWarning("Max number of emitters reached (%u), some objects will not be rendered. Increase the capacity with particle_fx.max_emitter_count", pfx_world->m_RenderObjects.Capacity());
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
         if (ctx->m_Debug)
         {
             dmParticle::DebugRender(particle_context, ctx->m_RenderContext, RenderLineCallback);
@@ -360,29 +371,26 @@ namespace dmGameSystem
 
     static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
-        if (!world->m_Components.Full())
+        if (world->m_Components.Full())
         {
-            uint32_t count = world->m_Components.Size();
-            world->m_Components.SetSize(count + 1);
-            ParticleFXComponent* component = &world->m_Components[count];
-            component->m_Instance = go_instance;
-            component->m_ComponentId = component_id;
-            component->m_PrototypeIndex = prototype - world->m_Prototypes.Begin();
-            // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
-            dmResource::HFactory factory = world->m_Context->m_Factory;
-            dmResource::IncRef(factory, prototype->m_ParticlePrototype);
-            component->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
-            component->m_ParticlePrototype = prototype->m_ParticlePrototype;
-            component->m_World = world;
-            component->m_AddedToUpdate = prototype->m_AddedToUpdate;
-            world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
-            return component->m_ParticleInstance;
+            world->m_Components.OffsetCapacity(4);
         }
-        else
-        {
-            dmLogError("Particle FX component buffer is full (%d), component disregarded.", world->m_Components.Capacity());
-            return dmParticle::INVALID_INSTANCE;
-        }
+
+        uint32_t count = world->m_Components.Size();
+        world->m_Components.SetSize(count + 1);
+        ParticleFXComponent* component = &world->m_Components[count];
+        component->m_Instance = go_instance;
+        component->m_ComponentId = component_id;
+        component->m_PrototypeIndex = prototype - world->m_Prototypes.Begin();
+        // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
+        dmResource::HFactory factory = world->m_Context->m_Factory;
+        dmResource::IncRef(factory, prototype->m_ParticlePrototype);
+        component->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
+        component->m_ParticlePrototype = prototype->m_ParticlePrototype;
+        component->m_World = world;
+        component->m_AddedToUpdate = prototype->m_AddedToUpdate;
+        world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
+        return component->m_ParticleInstance;
     }
 
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -531,7 +539,7 @@ namespace dmGameSystem
         }
     }
 
-    void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color)
+    void RenderLineCallback(void* usercontext, const dmVMath::Point3& start, const dmVMath::Point3& end, const dmVMath::Vector4& color)
     {
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
     }

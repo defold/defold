@@ -13,6 +13,8 @@
 #ifndef GRAPHICS_DEVICE_NULL
 #define GRAPHICS_DEVICE_NULL
 
+#include <dmsdk/dlib/vmath.h>
+
 namespace dmGraphics
 {
     struct Texture
@@ -81,7 +83,7 @@ namespace dmGraphics
         Context(const ContextParams& params);
 
         VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
-        Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
+        dmVMath::Vector4            m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];
         FrameBuffer                 m_MainFrameBuffer;
         FrameBuffer*                m_CurrentFrameBuffer;

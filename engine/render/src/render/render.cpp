@@ -19,6 +19,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <ddf/ddf.h>
 
@@ -29,7 +30,7 @@
 
 namespace dmRender
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* RENDER_SOCKET_NAME = "@render";
 

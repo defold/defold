@@ -16,10 +16,11 @@
 #include "res_animationset.h"
 
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename, bool reload)
     {

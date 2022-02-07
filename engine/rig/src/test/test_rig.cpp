@@ -16,8 +16,11 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <../rig.h>
+
+using namespace dmVMath;
 
 #define RIG_EPSILON_FLOAT 0.0001f
 #define RIG_EPSILON_BYTE (1.0f / 255.0f)

@@ -23,7 +23,7 @@
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../gameobject_props.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 dmResource::Result ResCreate(const dmResource::ResourceCreateParams& params)
 {

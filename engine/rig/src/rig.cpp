@@ -20,6 +20,7 @@
 
 namespace dmRig
 {
+    using namespace dmVMath;
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
@@ -459,7 +460,7 @@ namespace dmRig
 
     static inline float ToEulerZ(const dmTransform::Transform& t)
     {
-        Vectormath::Aos::Quat q(t.GetRotation());
+        Quat q(t.GetRotation());
         return dmVMath::QuatToEuler(q.getZ(), q.getY(), q.getX(), q.getW()).getZ() * (M_PI/180.0f);
     }
 

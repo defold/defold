@@ -26,8 +26,7 @@
 
 #include <script/script.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
-using namespace Vectormath::Aos;
+#include <dmsdk/dlib/vmath.h>
 
 /**
  * Defold GUI system
@@ -488,7 +487,7 @@ namespace dmGui
      */
     typedef void (*RenderNodes)(HScene scene,
                                const RenderEntry* node_entries,
-                               const Vectormath::Aos::Matrix4* node_transforms,
+                               const dmVMath::Matrix4* node_transforms,
                                const float* node_opacities,
                                const StencilScope** node_stencils,
                                uint32_t node_count,
@@ -908,7 +907,7 @@ namespace dmGui
 
     HScript GetSceneScript(HScene scene);
 
-    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type);
+    HNode NewNode(HScene scene, const dmVMath::Point3& position, const dmVMath::Vector3& size, NodeType node_type);
 
     void SetNodeId(HScene scene, HNode node, dmhash_t id);
     void SetNodeId(HScene scene, HNode node, const char* id);
@@ -939,13 +938,13 @@ namespace dmGui
 
     NodeType GetNodeType(HScene scene, HNode node);
 
-    Point3 GetNodePosition(HScene scene, HNode node);
-    Matrix4 GetNodeWorldTransform(HScene scene, HNode node);
+    dmVMath::Point3 GetNodePosition(HScene scene, HNode node);
+    dmVMath::Matrix4 GetNodeWorldTransform(HScene scene, HNode node);
 
-    Vector4 GetNodeSlice9(HScene scene, HNode node);
-    Point3 GetNodeSize(HScene scene, HNode node);
+    dmVMath::Vector4 GetNodeSlice9(HScene scene, HNode node);
+    dmVMath::Point3 GetNodeSize(HScene scene, HNode node);
 
-    void SetNodePosition(HScene scene, HNode node, const Point3& position);
+    void SetNodePosition(HScene scene, HNode node, const dmVMath::Point3& position);
 
     /**
      * Check if a property exists (by hash)
@@ -963,7 +962,7 @@ namespace dmGui
      * @param property property enum
      * @return property value
      */
-    Vector4 GetNodeProperty(HScene scene, HNode node, Property property);
+    dmVMath::Vector4 GetNodeProperty(HScene scene, HNode node, Property property);
 
     /**
      * Get property from hash. As opposed to GetNodeProperty() this function
@@ -974,9 +973,9 @@ namespace dmGui
      * @param property property hash
      * @return property value
      */
-    Vector4 GetNodePropertyHash(HScene scene, HNode node, dmhash_t property);
+    dmVMath::Vector4 GetNodePropertyHash(HScene scene, HNode node, dmhash_t property);
 
-    void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value);
+    void SetNodeProperty(HScene scene, HNode node, Property property, const dmVMath::Vector4& value);
 
     /**
      * Save state to reset to. See ResetNodes
@@ -1049,7 +1048,7 @@ namespace dmGui
 
     Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* data);
     Result StopNodeParticlefx(HScene scene, HNode node);
-    Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, Vector4& value);
+    Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, dmVMath::Vector4& value);
     Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id);
 
     /**
@@ -1159,7 +1158,7 @@ namespace dmGui
      */
     void AnimateNodeHash(HScene scene, HNode node,
                          dmhash_t property,
-                         const Vector4& to,
+                         const dmVMath::Vector4& to,
                          dmEasing::Curve easing,
                          Playback playback,
                          float duration,
