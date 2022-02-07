@@ -237,7 +237,7 @@ namespace dmGameSystem
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
-        dmLogWarning("CompModelPoseCallback: %u", pose.Size());
+        //dmLogWarning("CompModelPoseCallback: %u", pose.Size());
 
         if (!pose.Empty()) {
             dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, pose.Begin(), pose.Size());
@@ -422,7 +422,7 @@ namespace dmGameSystem
         create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
 
         dmRigDDF::MeshEntry* entry       = rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count > 0 ? &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[0] : 0;
-        create_params.m_MeshId           = entry->m_Id; // not implemented for models
+        create_params.m_MeshId           = entry ? entry->m_Id : 0; // not implemented for models
         create_params.m_DefaultAnimation = dmHashString64(resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);

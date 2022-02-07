@@ -169,7 +169,9 @@
   (let [proj-path->resource (partial workspace/resolve-resource resource)
         animation-proj-paths (map :animation (:animations pb))
         animation-resources (mapv proj-path->resource animation-proj-paths)]
-    (g/set-property self :animations animation-resources)))
+    (g/set-property self
+                    :skeleton (workspace/resolve-resource resource (:skeleton pb))
+                    :animations animation-resources)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
