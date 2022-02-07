@@ -1,13 +1,15 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 import time
 import re
 import subprocess
 
-RE_LICENSE = r"(.*?\n?\r?)[/#;-]?[/#;-]\sCopyright (\d\d\d\d) The Defold Foundation.*specific language governing permissions and limitations under the License.(.*)"
+RE_LICENSE = r"(.*?\n?\r?)[/#;-]?[/#;-]\sCopyright .* The Defold Foundation.*specific language governing permissions and limitations under the License.(.*)"
 
 YEAR = str(time.localtime().tm_year)
-LICENSE = ('''Copyright %s The Defold Foundation
+LICENSE = ('''Copyright 2020-%s The Defold Foundation
+Copyright 2014-2020 King
+Copyright 2009-2014 Ragnar Svensson, Christian Murray
 Licensed under the Defold License version 1.0 (the "License"); you may not use
 this file except in compliance with the License.
 
@@ -24,17 +26,20 @@ def license(comment):
 
 # map extensions to strings with the commented license
 ext_to_license = {
-    ".h":    license("// "),
-    ".c":    license("// "),
-    ".cpp":  license("// "),
-    ".inl":  license("// "),
-    ".m":    license("// "),
-    ".mm":   license("// "),
-    ".java": license("// "),
-    ".sh":   license("# "),
-    ".py":   license("# "),
-    ".clj":  license(";; "),
-    ".lua":  license("-- "),
+    ".h":             license("// "),
+    ".c":             license("// "),
+    ".cpp":           license("// "),
+    ".inl":           license("// "),
+    ".m":             license("// "),
+    ".mm":            license("// "),
+    ".java":          license("// "),
+    ".sh":            license("# "),
+    ".py":            license("# "),
+    ".clj":           license(";; "),
+    ".lua":           license("-- "),
+    ".script":        license("-- "),
+    ".gui_script":    license("-- "),
+    ".render_script": license("-- "),
 }
 
 excluded_files = [
@@ -57,17 +62,25 @@ excluded_paths = [
     "./.git",
     "./.github",
     "./external",
+    "./engine/dlib/src/basis/encoder",
+    "./engine/dlib/src/basis/transcoder",
+    "./engine/dlib/src/dlib/jsmn",
+    "./engine/dlib/src/lz4",
+    "./engine/dlib/src/mbedtls",
+    "./engine/dlib/src/stb",
+    "./engine/dlib/src/zlib",
     "./engine/glfw/tests",
     "./engine/glfw/examples",
-    "./engine/sound/src/openal",
-    "./engine/dlib/src/zlib",
     "./engine/lua",
-    "./engine/script/src/luasocket",
-    "./engine/script/src/bitop",
-    "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",
     "./engine/physics/src/box2d",
-    "./engine/dlib/src/dlib/jsmn",
+    "./engine/sound/src/openal",
+    "./engine/script/src/bitop",
+    "./engine/script/src/luasocket",
+    "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",
 ]
+
+dryrun = False
+
 
 def match_patterns(s, patterns):
     for pattern in patterns:
@@ -82,10 +95,10 @@ def skip_filename(fullpath):
     return match_patterns(fullpath, excluded_files)
 
 def has_defold_license(s):
-    return re.search(RE_LICENSE, s, flags=re.DOTALL) is not None
+    return re.search(RE_LICENSE, s[0:2000], flags=re.DOTALL) is not None
 
 def has_other_license(s):
-    return ("Copyright" in s or "License" in s) and not has_defold_license(s)
+    return ("Copyright" in s or "License" in s) and not ("The Defold Foundation" in s)
 
 def get_license_for_file(filepath):
     ext = os.path.splitext(filepath)[1]
@@ -106,48 +119,42 @@ def check_ignored(path):
 
 
 
-dryrun = True
+def process_file(filepath):
+    # skip ignored files
+    if skip_filename(os.path.basename(file)) or check_ignored(filepath):
+        return
+
+    license = get_license_for_file(filepath)
+    if not license:
+        return
+
+    with open(filepath, "rb+") as f:
+        contents = f.read().decode('utf-8')
+
+        # Some other license in the file
+        if has_other_license(contents):
+            return;
+
+        # Already applied the Defold License?
+        # Remove it and reapply if file has been modified after license year
+        if has_defold_license(contents):
+            contents = re.sub(RE_LICENSE, r"\1" + license + r"\2", contents, flags=re.DOTALL)
+            print("Updated: " + filepath)
+        else:
+            contents = apply_license(license, contents)
+            print("Applied: " + filepath)
+
+        if not dryrun:
+            f.seek(0)
+            f.write(contents.encode('utf-8'))
+            f.truncate()
+
 
 for root, dirs, files in os.walk(".", topdown=True):
     # exclude dirs to avoid traversing them at all
     # with topdown set to True we can make in place modifications of dirs to
     # have os.walk() skip directories
-    dirs[:] = [ d for d in dirs if not skip_path(root + os.sep + d) and not check_ignored(root + os.sep + d) ]
+    dirs[:] = [ d for d in dirs if not skip_path(os.path.join(root, d)) and not check_ignored(os.path.join(root, d)) ]
 
     for file in files:
-        filepath = root + os.sep + file
-
-        # skip ignored files
-        if skip_filename(filepath) or check_ignored(filepath):
-            continue
-
-        license = get_license_for_file(filepath)
-        if not license:
-            continue
-
-        with open(filepath, "rb+") as f:
-            contents = f.read()
-
-            # Some other license in the file
-            if has_other_license(contents):
-                continue;
-
-            # Already applied the Defold License?
-            # Remove it and reapply if file has been modified after license year
-            if has_defold_license(contents):
-                modified_year = int(subprocess.check_output(['git', 'log', '-1', '--pretty="%ci"', filepath])[1:5])
-                # modified_year = time.localtime(os.path.getmtime(filepath)).tm_year
-                license_year = int(re.search(RE_LICENSE, contents, flags=re.DOTALL).group(2))
-                if modified_year <= license_year:
-                    continue
-                license = license.replace(YEAR, str(modified_year))
-                contents = re.sub(RE_LICENSE, r"\1" + license + r"\3", contents, flags=re.DOTALL)
-                print("Updated: " + filepath)
-            else:
-                contents = apply_license(license, contents)
-                print("Applied: " + filepath)
-
-            if not dryrun:
-                f.seek(0)
-                f.write(contents)
-                f.truncate()
+        process_file(os.path.join(root, file))
