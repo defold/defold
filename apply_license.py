@@ -43,6 +43,7 @@ ext_to_license = {
 }
 
 excluded_files = [
+    "ddfc.py",
     "edn.lua",
     "mobdebug.lua",
     "start.lua",
@@ -158,3 +159,5 @@ for root, dirs, files in os.walk(".", topdown=True):
 
     for file in files:
         process_file(os.path.join(root, file))
+
+print("NOTE! Manually update ddfc.py!")
