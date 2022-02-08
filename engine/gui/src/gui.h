@@ -759,18 +759,6 @@ namespace dmGui
      */
     Result UpdateScene(HScene scene, float dt);
 
-    /** Get first child node
-     * @param node Gets the first child node. If 0, gets the first top level node.
-     * @return child The first child node
-     */
-    HNode GetFirstChildNode(HScene scene, HNode node);
-
-    /** Get next sibling
-     * @param node The current sibling
-     * @return sibling The next sibling
-     */
-    HNode GetNextNode(HScene scene, HNode node);
-
     /**
      * Dispatch DDF or lua-table message to gui script. If the descriptor is NULL
      * message should be a serialized lua-table, see dmScript::CheckTable()
