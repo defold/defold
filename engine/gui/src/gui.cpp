@@ -1406,7 +1406,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             c->m_SceneTraversalCache.m_Version = 0;
         }
 
-        Matrix4 node_transform;
         CollectNodes(scene, c->m_StencilClippingNodes, c->m_RenderNodes);
         uint32_t node_count = c->m_RenderNodes.Size();
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));

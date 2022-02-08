@@ -3657,10 +3657,9 @@ namespace dmGui
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         Scene* scene = GuiScriptInstance_Check(L);
         Matrix4 node_transform;
-        Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
-        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), node_transform);
-        Vector4 p = node_transform * center;
-        dmScript::PushVector3(L, Vector3(p.getX(), p.getY(), p.getZ()));
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_transform);
+        Vector3 node_screen_pos = node_transform.getCol3().getXYZ();
+        dmScript::PushVector3(L, node_screen_pos);
         return 1;
     }
 
