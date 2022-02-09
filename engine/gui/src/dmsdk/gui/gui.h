@@ -208,6 +208,33 @@ namespace dmGui
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
 
     /*#
+     * Get the parent of a gui node
+     * @name GetNodeParent
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the gui node
+     * @return parent [type:dmGui::HNode] the parent, or INVALID_HANDLE is unsuccessful
+     */
+    HNode GetNodeParent(HScene scene, HNode node);
+
+    /*#
+     * Get first child node
+     * @name GetFirstChildNode
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] Gets the first child node. If 0, gets the first top level node.
+     * @return child [type:dmGui::HNode] The first child node
+     */
+    HNode GetFirstChildNode(HScene scene, HNode node);
+
+    /*#
+     * Get next sibling
+     * @name GetNextNode
+     * @param scene [type:dmGui::HScene] the gui scene
+     * @param node [type:dmGui::HNode] the current sibling
+     * @return sibling [type:dmGui::HNode] the next sibling, or INVALID_HANDLE if no more siblings
+     */
+    HNode GetNextNode(HScene scene, HNode node);
+
+    /*#
      * Query if the node is a bone
      * @name GetNodeIsBone
      * @param scene [type:dmGui::HScene] the gui scene
