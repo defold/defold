@@ -312,6 +312,54 @@ def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
 
+def remove_platform_files_from_archive(platform, jar):
+    zin = zipfile.ZipFile(jar, 'r')
+    files = zin.namelist()
+    files_to_remove = []
+
+    # find files to remove from libexec/*
+    libexec_platform = "libexec/" + platform
+    for file in files:
+        if file.startswith("libexec"):
+            # don't remove any folders
+            if file.endswith("/"):
+                continue
+            # don't touch anything for the current platform
+            if file.startswith(libexec_platform):
+                continue
+            # don't touch any of the dmengine files
+            if "dmengine" in file:
+                continue
+            # don't remove the cross-platform bundletool-all.jar
+            if "bundletool-all.jar" in file:
+                continue
+            # anything else should be removed
+            files_to_remove.append(file)
+
+    # find libs to remove in the root folder
+    for file in files:
+        if "/" not in file:
+            if platform == "x86_64-darwin" and (file.endswith(".so") or file.endswith(".dll")):
+                files_to_remove.append(file)
+            elif platform == "x86_64-win32" and (file.endswith(".so") or file.endswith(".dylib")):
+                files_to_remove.append(file)
+            elif platform == "x86_64-linux" and (file.endswith(".dll") or file.endswith(".dylib")):
+                files_to_remove.append(file)
+
+    # write new jar without the files that should be removed
+    newjar = jar + "_new"
+    zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
+    for file in zin.infolist():
+        if file.filename not in files_to_remove:
+            zout.writestr(file, zin.read(file))
+    zout.close()
+    zin.close()
+
+    # switch to jar without removed files
+    os.remove(jar)
+    os.rename(newjar, jar)
+
+
 def create_bundle(options):
     jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
     build_jdk = download_build_jdk()
@@ -329,20 +377,19 @@ def create_bundle(options):
 
         tmp_dir = "tmp"
 
-        if 'darwin' in platform:
+        is_mac = 'darwin' in platform
+        if is_mac:
             resources_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources')
             packages_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources/packages')
             bundle_dir = os.path.join(tmp_dir, 'Defold.app')
             exe_dir = os.path.join(tmp_dir, 'Defold.app/Contents/MacOS')
             icon = 'logo.icns'
-            is_mac = True
         else:
             resources_dir = os.path.join(tmp_dir, 'Defold')
             packages_dir = os.path.join(tmp_dir, 'Defold/packages')
             bundle_dir = os.path.join(tmp_dir, 'Defold')
             exe_dir = os.path.join(tmp_dir, 'Defold')
             icon = None
-            is_mac = False
 
         mkdirs(tmp_dir)
         mkdirs(bundle_dir)
@@ -372,7 +419,11 @@ def create_bundle(options):
         with open('%s/config' % resources_dir, 'wb') as f:
             config.write(f)
 
-        shutil.copy(jar_file, '%s/defold-%s.jar' % (packages_dir, options.editor_sha1))
+        defold_jar = '%s/defold-%s.jar' % (packages_dir, options.editor_sha1)
+        shutil.copy(jar_file, defold_jar)
+
+        # strip tools and libs for the platforms we're not currently bundling
+        remove_platform_files_from_archive(platform, defold_jar)
 
         # copy editor executable (the launcher)
         launcher = launcher_path(options, platform, get_exe_suffix(platform))

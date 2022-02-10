@@ -12,11 +12,11 @@
 
 #include "res_skeleton.h"
 
-#include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     static void ReleaseResources(dmResource::HFactory factory, SkeletonResource* resource)
     {

@@ -24,7 +24,6 @@ mkdir -p libexec/x86_64-linux
 mkdir -p libexec/x86_64-darwin
 mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
-mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
 mkdir -p libexec/x86_64-ios
 mkdir -p libexec/armv7-android
@@ -94,8 +93,6 @@ copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
-copy armv7-darwin/stripped/dmengine armv7-darwin/dmengine
-copy armv7-darwin/stripped/dmengine_release armv7-darwin/dmengine_release
 copy arm64-darwin/stripped/dmengine arm64-darwin/dmengine
 copy arm64-darwin/stripped/dmengine_release arm64-darwin/dmengine_release
 copy x86_64-ios/stripped/dmengine x86_64-ios/dmengine

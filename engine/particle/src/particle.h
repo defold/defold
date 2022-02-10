@@ -13,7 +13,7 @@
 #ifndef DM_PARTICLE_H
 #define DM_PARTICLE_H
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <ddf/ddf.h>
@@ -30,8 +30,6 @@
  */
 namespace dmParticle
 {
-    using namespace Vectormath::Aos;
-
     /**
      * Context handle
      */
@@ -60,6 +58,8 @@ namespace dmParticle
 
     /// Config key to use for tweaking maximum number of instances in a context.
     extern const char* MAX_INSTANCE_COUNT_KEY;
+    /// Config key to use for tweaking maximum number of emitters in a context.
+    extern const char* MAX_EMITTER_COUNT_KEY;
     /// Config key to use for tweaking the total maximum number of particles in a context.
     extern const char* MAX_PARTICLE_COUNT_KEY;
 
@@ -69,17 +69,17 @@ namespace dmParticle
     struct RenderConstant
     {
         dmhash_t m_NameHash;
-        Vector4 m_Value;
+        dmVMath::Vector4 m_Value;
     };
 
     /**
      * Callback to handle rendering of emitters
      */
-    typedef void (*RenderEmitterCallback)(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, RenderConstant* constants, uint32_t constant_count);
+    typedef void (*RenderEmitterCallback)(void* usercontext, void* material, void* texture, const dmVMath::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, RenderConstant* constants, uint32_t constant_count);
     /**
      * Callback to handle rendering of lines for debug purposes
      */
-    typedef void (*RenderLineCallback)(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
+    typedef void (*RenderLineCallback)(void* usercontext, const dmVMath::Point3& start, const dmVMath::Point3& end, const dmVMath::Vector4& color);
 
     enum AnimPlayback
     {
@@ -134,12 +134,12 @@ namespace dmParticle
 
     struct EmitterRenderData
     {
-    	EmitterRenderData()
-    	{
-    		memset(this, 0x0, sizeof(EmitterRenderData));
-    	}
+        EmitterRenderData()
+        {
+            memset(this, 0x0, sizeof(EmitterRenderData));
+        }
 
-        Matrix4                     m_Transform;
+        dmVMath::Matrix4            m_Transform;
         void*                       m_Material; // dmRender::HMaterial
         dmParticleDDF::BlendMode    m_BlendMode;
         void*                       m_Texture; // dmGraphics::HTexture
@@ -233,7 +233,7 @@ namespace dmParticle
     };
 
     // For tests
-    Vector3 GetPosition(HParticleContext context, HInstance instance);
+    dmVMath::Vector3 GetPosition(HParticleContext context, HInstance instance);
 
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
@@ -323,14 +323,14 @@ namespace dmParticle
      * @param instance Instance to set position for.
      * @param position Position in world space.
      */
-    DM_PARTICLE_PROTO(void, SetPosition, HParticleContext context, HInstance instance, const Point3& position);
+    DM_PARTICLE_PROTO(void, SetPosition, HParticleContext context, HInstance instance, const dmVMath::Point3& position);
     /**
      * Set the rotation of the specified instance.
      * @param context Context in which the instance exists.
      * @param instance Instance to set rotation for.
      * @param rotation Rotation in world space.
      */
-    DM_PARTICLE_PROTO(void, SetRotation, HParticleContext context, HInstance instance, const Quat& rotation);
+    DM_PARTICLE_PROTO(void, SetRotation, HParticleContext context, HInstance instance, const dmVMath::Quat& rotation);
     /**
      * Set the scale of the specified instance.
      * @param context Context in which the instance exists.
@@ -378,7 +378,7 @@ namespace dmParticle
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      * @param vertex_format Which vertex format to use
      */
-    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
+    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
 
     /**
      * Debug render the status of the instances within the specified context.
@@ -499,7 +499,7 @@ namespace dmParticle
      * @param name_hash Hashed name of the constant to set
      * @param value Value to set the constant to
      */
-    DM_PARTICLE_PROTO(void, SetRenderConstant, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value);
+    DM_PARTICLE_PROTO(void, SetRenderConstant, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, dmVMath::Vector4 value);
     /**
      * Reset a render constant for the emitter with the specified id
      * @param context Particle context

@@ -14,6 +14,7 @@
 
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "gamesys.h"
 #include <gamesys/gamesys_ddf.h>
@@ -87,7 +88,7 @@ namespace dmGameSystem
         if (hull_set != 0x0)
         {
             // Calculate AABB for offset
-            Point3 offset(0.0f, 0.0f, 0.0f);
+            dmVMath::Point3 offset(0.0f, 0.0f, 0.0f);
             uint32_t layer_count = tile_grid_ddf->m_Layers.m_Count;
             tile_grid->m_GridShapes.SetCapacity(layer_count);
             tile_grid->m_GridShapes.SetSize(layer_count);

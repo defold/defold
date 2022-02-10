@@ -22,14 +22,14 @@
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* COLLECTION_FACTORY_MAX_COUNT_KEY = "collectionfactory.max_count";
 

@@ -15,7 +15,7 @@
 #include "dlib/transform.h"
 #include "dlib/math.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 using namespace dmTransform;
 
 #define EPSILON 0.001f

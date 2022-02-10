@@ -53,10 +53,6 @@ def transform_properties(properties, out_properties):
         entry.key = property.id
         entry.id = dlib.dmHashBuffer64(property.id)
 
-def transform_spine_scene_name(task, name):
-    name = name.replace('.spinescene', '.rigscenec')
-    return name
-
 def transform_texture_name(task, name):
     name = name.replace('.png', '.texturec')
     name = name.replace('.jpg', '.texturec')
@@ -146,7 +142,6 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.tilesource', '.texturesetc')
         c.component = c.component.replace('.tilemap', '.tilemapc')
         c.component = c.component.replace('.tilegrid', '.tilemapc')
-        c.component = c.component.replace('.spinemodel', '.spinemodelc')
         transform_properties(c.properties, c.property_decls)
     return msg
 
@@ -265,7 +260,6 @@ def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
     font_names = set()
     texture_names = set()
-    spine_scenes = set()
     msg.material = msg.material.replace(".material", ".materialc")
     for f in msg.fonts:
         font_names.add(f.name)
@@ -273,9 +267,6 @@ def transform_gui(task, msg):
     for t in msg.textures:
         texture_names.add(t.name)
         t.texture = transform_tilesource_name(transform_texture_name(task, t.texture))
-    for s in msg.spine_scenes:
-        spine_scenes.add(s.name)
-        s.spine_scene = transform_spine_scene_name(task, s.spine_scene)
     for n in msg.nodes:
         if n.texture:
             if not n.texture in texture_names:
@@ -314,11 +305,6 @@ def transform_tilegrid(task, msg):
 def transform_sound(task, msg):
     msg.sound = msg.sound.replace('.wav', '.wavc')
     msg.sound = msg.sound.replace('.ogg', '.oggc')
-    return msg
-
-def transform_spine_model(task, msg):
-    msg.spine_scene = msg.spine_scene.replace('.spinescene', '.rigscenec')
-    msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
 def transform_rig_scene(task, msg):
@@ -464,7 +450,6 @@ proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.sprite
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilemapc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
-proto_compile_task('spinemodel', 'spine_ddf_pb2', 'SpineModelDesc', '.spinemodel', '.spinemodelc', transform_spine_model)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
@@ -642,53 +627,3 @@ def tileset_file(self, node):
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)
 
-def compile_spinescene(task):
-    try:
-        import google.protobuf.text_format
-        import spine_ddf_pb2
-        import rig.rig_ddf_pb2
-        # NOTE: We can't use getattr. msg_type could of form "foo.bar"
-        msg = spine_ddf_pb2.SpineSceneDesc() # Call constructor on message type
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), msg)
-
-        msg_out = rig.rig_ddf_pb2.RigScene()
-
-        msg_out.skeleton = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
-        msg_out.mesh_set = "/" + os.path.relpath(task.outputs[2].abspath(), task.generator.content_root)
-        msg_out.animation_set = "/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)
-        msg_out.texture_set = transform_textureset_filename(task, msg.atlas)
-
-        # write scene desc
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
-            out_f.write(msg_out.SerializeToString())
-
-        # write skeleton, mesh set and animation set files
-        with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
-            out_f.write(rig.rig_ddf_pb2.Skeleton().SerializeToString())
-        with open(task.outputs[2].bldpath(task.env), 'wb') as out_f:
-            out_f.write(rig.rig_ddf_pb2.MeshSet().SerializeToString())
-        with open(task.outputs[3].bldpath(task.env), 'wb') as out_f:
-            out_f.write(rig.rig_ddf_pb2.AnimationSet().SerializeToString())
-
-        return 0
-    except google.protobuf.text_format.ParseError,e:
-        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
-        return 1
-
-task = Task.task_type_from_func('spinescene',
-                                func    = compile_spinescene,
-                                color   = 'PINK')
-@extension(['.spinescene'])
-def spinescene_file(self, node):
-    spinescene = self.create_task('spinescene')
-    spinescene.set_inputs(node)
-    ext_rigscene      = '.rigscenec'
-    ext_skeleton      = '.skeletonc'
-    ext_mesh_set      = '.meshsetc'
-    ext_animation_set = '.animationsetc'
-    out_rigscene      = node.change_ext(ext_rigscene)
-    out_skeleton      = node.change_ext(ext_skeleton)
-    out_mesh_set      = node.change_ext(ext_mesh_set)
-    out_animation_set = node.change_ext(ext_animation_set)
-    spinescene.set_outputs([out_rigscene, out_skeleton, out_mesh_set, out_animation_set])

@@ -17,12 +17,13 @@
 #include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 #include "render.h"
 #include "render_private.h"
 
 namespace dmRender
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {

@@ -70,6 +70,7 @@ nodes {
   alpha: 1.0
   template_node_child: false
   size_mode: SIZE_MODE_AUTO
+  custom_type: 0
 }
 nodes {
   position {
@@ -133,6 +134,7 @@ nodes {
   template_node_child: false
   text_leading: 2.0
   text_tracking: 1.0
+  custom_type: 0
 }
 nodes {
   position {
@@ -173,6 +175,7 @@ nodes {
   alpha: 1.0
   template: "/editor1/template_test.gui"
   template_node_child: false
+  custom_type: 0
 }
 nodes {
   position {
@@ -239,6 +242,7 @@ nodes {
   overridden_fields: 38
   template_node_child: true
   size_mode: SIZE_MODE_MANUAL
+  custom_type: 0
 }
 nodes {
   position {
@@ -307,6 +311,7 @@ nodes {
   template_node_child: true
   text_leading: 2.0
   text_tracking: 1.0
+  custom_type: 0
 }
 nodes {
   position {
@@ -360,6 +365,7 @@ nodes {
   alpha: 0.8
   template_node_child: true
   size_mode: SIZE_MODE_MANUAL
+  custom_type: 0
 }
 nodes {
   position {
@@ -412,6 +418,7 @@ nodes {
   alpha: 1.0
   template_node_child: false
   size_mode: SIZE_MODE_MANUAL
+  custom_type: 0
 }
 layers {
   name: "test"

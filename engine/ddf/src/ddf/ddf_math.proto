@@ -5,11 +5,11 @@ import "ddf/ddf_extensions.proto";
 option java_package = "com.dynamo.proto";
 option java_outer_classname = "DdfMath";
 
-option (ddf_includes) = "dmsdk/vectormath/cpp/vectormath_aos.h";
+option (ddf_includes) = "dmsdk/dlib/vmath.h";
 
 message Point3
 {
-    option (alias) = "Vectormath::Aos::Point3";
+    option (alias) = "dmVMath::Point3";
 
     optional float x = 1 [default = 0.0];
     optional float y = 2 [default = 0.0];
@@ -19,7 +19,7 @@ message Point3
 
 message Vector3
 {
-    option (alias) = "Vectormath::Aos::Vector3";
+    option (alias) = "dmVMath::Vector3";
 
     optional float x = 1 [default = 0.0];
     optional float y = 2 [default = 0.0];
@@ -30,7 +30,7 @@ message Vector3
 
 message Vector4
 {
-    option (alias) = "Vectormath::Aos::Vector4";
+    option (alias) = "dmVMath::Vector4";
 
     optional float x = 1 [default = 0.0];
     optional float y = 2 [default = 0.0];
@@ -40,7 +40,7 @@ message Vector4
 
 message Quat
 {
-    option (alias) = "Vectormath::Aos::Quat";
+    option (alias) = "dmVMath::Quat";
 
     optional float x = 1 [default = 0.0];
     optional float y = 2 [default = 0.0];
@@ -50,7 +50,7 @@ message Quat
 
 message Matrix4
 {
-    option (alias) = "Vectormath::Aos::Matrix4";
+    option (alias) = "dmVMath::Matrix4";
 
     optional float m00 = 1 [default = 1.0];
     optional float m01 = 2 [default = 0.0];

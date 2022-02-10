@@ -23,9 +23,12 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/dstrings.h>
+#include <dmsdk/dlib/vmath.h>
 #include <script/script.h>
 #include "../gui.h"
 #include "../gui_private.h"
+
+using namespace dmVMath;
 
 typedef std::map<dmGui::HNode, dmGui::StencilScope> StateMap;
 typedef std::map<dmGui::HNode, uint64_t> RenderOrderMap;
@@ -165,7 +168,7 @@ public:
         dmScript::DeleteContext(m_ScriptContext);
     }
 
-    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* entries, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
+    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* entries, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
             const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
     {
         dmGuiClippingTest* self = (dmGuiClippingTest*) context;
@@ -195,7 +198,7 @@ public:
     }
 
     dmGui::HNode AddBox(const char* id, dmGui::HNode parent = dmGui::INVALID_HANDLE) {
-        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(), Vector3(), dmGui::NODE_TYPE_BOX);
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(), Vector3(), dmGui::NODE_TYPE_BOX, 0);
         dmGui::SetNodeId(m_Scene, node, id);
         if (parent != dmGui::INVALID_HANDLE) {
             dmGui::SetNodeParent(m_Scene, node, parent, false);

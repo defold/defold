@@ -25,6 +25,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/utf8.h>
 #include <dlib/zlib.h>
+#include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics_util.h>
 
 #include "font_renderer.h"
@@ -34,10 +35,10 @@
 #include "render/font_ddf.h"
 #include "render.h"
 
-using namespace Vectormath::Aos;
-
 namespace dmRender
 {
+    using namespace dmVMath;
+
     // https://en.wikipedia.org/wiki/Delta_encoding
     static void delta_decode(uint8_t* buffer, int length)
     {
@@ -694,15 +695,15 @@ namespace dmRender
         float x_offset = OffsetX(te.m_Align, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
-        const Vectormath::Aos::Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
-        const Vectormath::Aos::Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
-        const Vectormath::Aos::Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
+        const Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
+        const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
+        const Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
 
         // No support for non-uniform scale with SDF so just peek at the first
         // row to extract scale factor. The purpose of this scaling is to have
         // world space distances in the computation, for good 'anti aliasing' no matter
         // what scale is being rendered in.
-        const Vectormath::Aos::Vector4 r0 = te.m_Transform.getRow(0);
+        const Vector4 r0 = te.m_Transform.getRow(0);
         const float sdf_edge_value = 0.75f;
         float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
         float sdf_outline = font_map->m_SdfOutline;

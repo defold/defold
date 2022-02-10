@@ -123,7 +123,7 @@ namespace dmSys
     Result RenameFile(const char* dst_filename, const char* src_filename)
     {
 #if defined(_WIN32)
-        bool rename_result = MoveFileEx(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+        bool rename_result = MoveFileExA(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
 #else
         bool rename_result = rename(src_filename, dst_filename) != -1;
 #endif
@@ -203,7 +203,7 @@ namespace dmSys
     {
         char tmp_path[MAX_PATH];
 
-        if(SUCCEEDED(SHGetFolderPath(NULL,
+        if(SUCCEEDED(SHGetFolderPathA(NULL,
                                      CSIDL_APPDATA | CSIDL_FLAG_CREATE,
                                      NULL,
                                      0,
@@ -258,7 +258,7 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        int ret = (int) ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+        int ret = (int) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
         if (ret == 32)
         {
             return RESULT_OK;
@@ -560,7 +560,7 @@ namespace dmSys
         }
 #elif defined(_WIN32)
         char module_file_name[DMPATH_MAX_PATH];
-        DWORD copied = GetModuleFileName(NULL, module_file_name, DMPATH_MAX_PATH);
+        DWORD copied = GetModuleFileNameA(NULL, module_file_name, DMPATH_MAX_PATH);
 
         if (copied < DMPATH_MAX_PATH)
         {
@@ -654,7 +654,7 @@ namespace dmSys
 #if defined(__EMSCRIPTEN__)
         dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
 #else
-        dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemName, "Linux", sizeof(info->m_SystemName));
 #endif
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';
@@ -766,12 +766,12 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
-        PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandle("kernel32.dll"), "GetUserDefaultLocaleName");
+        PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetUserDefaultLocaleName");
         dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
         OSVERSIONINFOA version_info;
         version_info.dwOSVersionInfoSize = sizeof(version_info);
-        GetVersionEx(&version_info);
+        GetVersionExA(&version_info);
 
         const int max_len = 256;
         char lang[max_len];

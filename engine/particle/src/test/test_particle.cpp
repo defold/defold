@@ -26,7 +26,7 @@
 #include "../particle.h"
 #include "../particle_private.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"
@@ -697,7 +697,7 @@ TEST_F(ParticleTest, EmissionSpace)
     ASSERT_TRUE(LoadPrototype("world_space.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
 
-    dmParticle::SetPosition(m_Context, instance, Vectormath::Aos::Point3(10.0f, 0.0f, 0.0f));
+    dmParticle::SetPosition(m_Context, instance, Point3(10.0f, 0.0f, 0.0f));
     dmParticle::StartInstance(m_Context, instance);
 
     dmParticle::Update(m_Context, dt, 0x0);
@@ -714,7 +714,7 @@ TEST_F(ParticleTest, EmissionSpace)
     ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
     instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
 
-    dmParticle::SetPosition(m_Context, instance, Vectormath::Aos::Point3(10.0f, 0.0f, 0.0f));
+    dmParticle::SetPosition(m_Context, instance, Point3(10.0f, 0.0f, 0.0f));
     dmParticle::StartInstance(m_Context, instance);
 
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1992,7 +1992,7 @@ TEST_F(ParticleTest, case1544)
     ASSERT_TRUE(LoadPrototype("modifier_crash.particlefxc", &m_Prototype));
 }
 
-void RenderConstantRenderInstanceCallback(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
+void RenderConstantRenderInstanceCallback(void* usercontext, void* material, void* texture, const Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
 {
     std::map<dmhash_t, Vector4>* render_constants = (std::map<dmhash_t, Vector4>*)usercontext;
     for (uint32_t i = 0; i < constant_count; ++i)

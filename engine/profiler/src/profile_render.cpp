@@ -22,6 +22,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/vmath.h>
 #include <render/font_renderer.h>
 #include <render/font_ddf.h>
 #include "profile_render.h"
@@ -103,7 +104,7 @@ namespace dmProfileRender
         DISPLAYMODE_PORTRAIT
     };
 
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     static const Vector4 PROFILER_BG_COLOR  = Vector4(0.1f, 0.1f, 0.1f, 0.6f);
     static const Vector4 TITLE_FACE_COLOR   = Vector4(1.0f, 1.0f, 1.0f, 1.0f);

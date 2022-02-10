@@ -13,7 +13,6 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -29,7 +28,6 @@
 #include "render_private.h"
 #include "render.h"
 
-using namespace Vectormath::Aos;
 
 namespace dmRender
 {

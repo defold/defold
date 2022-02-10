@@ -31,9 +31,6 @@
                     "lib" ["particle_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.so"]}
-   ;; The iOS version is needed for the "Sign iOS app" in the macOS editor
-   "armv7-darwin"  {"bin" ["dmengine"]
-                    "lib" []}
    "arm64-darwin"  {"bin" ["dmengine"]
                     "lib" []}})
 
@@ -67,9 +64,6 @@
    "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
-
-   "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
-   "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"
 
    "bundle-resources/_defold"                          "_defold"})
 

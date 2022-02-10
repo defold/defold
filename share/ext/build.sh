@@ -20,7 +20,6 @@ function usage() {
     echo " * x86_64-darwin"
     echo " * linux"
     echo " * x86_64-linux"
-    echo " * armv7-darwin"
     echo " * arm64-darwin"
     echo " * x86_64-ios"
     echo " * armv7-android"

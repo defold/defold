@@ -53,7 +53,7 @@
 #ifdef _WIN32
 static int setenv(const char *name, const char *value, int overwrite)
 {
-  int result = SetEnvironmentVariable(name, value);
+  int result = SetEnvironmentVariableA(name, value);
   if(result != 0) {
     return 0;
   }
@@ -199,7 +199,7 @@ int Launch(int argc, char **argv) {
     context.m_ResourcesPath = dmConfigFile::GetString(config, RESOURCES_PATH_KEY, default_resources_path);
 #if defined(_WIN32)
     char argv_0[DMPATH_MAX_PATH];
-    GetModuleFileName(NULL, argv_0, DMPATH_MAX_PATH);
+    GetModuleFileNameA(NULL, argv_0, DMPATH_MAX_PATH);
     context.m_LauncherPath = argv_0;
 #else
     context.m_LauncherPath = argv[0];
@@ -296,11 +296,11 @@ int Launch(int argc, char **argv) {
     si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
     si.dwFlags |= STARTF_USESTDHANDLES;
 
-    BOOL ret = CreateProcess(0, buffer, 0, 0, TRUE, CREATE_NO_WINDOW, 0, 0, &si, &pi);
+    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, CREATE_NO_WINDOW, 0, 0, (LPSTARTUPINFOA)&si, &pi);
     if (!ret) {
         char* msg;
         DWORD err = GetLastError();
-        FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
         dmLogFatal("Failed to launch application: %s (%d)", msg, err);
         LocalFree((HLOCAL) msg);
         exit(5);

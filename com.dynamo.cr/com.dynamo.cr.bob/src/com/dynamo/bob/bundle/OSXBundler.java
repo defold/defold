@@ -103,7 +103,7 @@ public class OSXBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy archive and game.projectc
-        for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 

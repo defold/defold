@@ -15,6 +15,8 @@
 
 #include <stdint.h>
 
+#include <dmsdk/dlib/vmath.h>
+
 #include <ddf/ddf.h>
 
 #include <graphics/graphics.h>
@@ -180,13 +182,13 @@ namespace dmRender
         DrawTextParams();
 
         /// Transform from font space to world (origo in font space is the base line of the first glyph)
-        Vectormath::Aos::Matrix4 m_WorldTransform;
+        dmVMath::Matrix4 m_WorldTransform;
         /// Color of the font face
-        Vectormath::Aos::Vector4 m_FaceColor;
+        dmVMath::Vector4 m_FaceColor;
         /// Color of the outline
-        Vectormath::Aos::Vector4 m_OutlineColor;
+        dmVMath::Vector4 m_OutlineColor;
         /// Color of the shadow
-        Vectormath::Aos::Vector4 m_ShadowColor;
+        dmVMath::Vector4 m_ShadowColor;
         /// Text to draw in utf8-format
         const char* m_Text;
         /// Render constants

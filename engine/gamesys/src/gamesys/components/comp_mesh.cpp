@@ -25,7 +25,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
-#include <dlib/vmath.h>
+#include <dmsdk/dlib/vmath.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -36,12 +36,13 @@
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/mesh_ddf.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 #include "../resources/res_mesh.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
     struct MeshComponent
@@ -1003,6 +1004,38 @@ namespace dmGameSystem
                 }
             }
         }
+    }
+
+    static bool CompMeshIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        MeshWorld* world = (MeshWorld*)pit->m_Node->m_ComponentWorld;
+        MeshComponent* component = world->m_Components.Get(pit->m_Node->m_Component);
+
+        uint64_t index = pit->m_Next++;
+
+        uint32_t num_bool_properties = 1;
+        if (index < num_bool_properties)
+        {
+            if (index == 0)
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+                pit->m_Property.m_Value.m_Bool = component->m_Enabled;
+                pit->m_Property.m_NameHash = dmHashString64("enabled");
+            }
+            return true;
+        }
+        index -= num_bool_properties;
+
+        return false;
+    }
+
+    void CompMeshIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompMeshIterPropertiesGetNext;
     }
 
 }

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -84,11 +84,11 @@ int PlatformInit(char* path, PlatformInfo& info)
         info.si.dwFlags |= STARTF_USESTDHANDLES;
 
         //if( !CreateProcess(0, path, 0, 0, TRUE, CREATE_NO_WINDOW | CREATE_SUSPENDED, 0, 0, &info.si, &info.pi) )
-        if( !CreateProcess(0, path, 0, 0, TRUE, PROCESS_VM_READ, 0, 0, &info.si, &info.pi) )
+        if( !CreateProcessA(0, path, 0, 0, TRUE, PROCESS_VM_READ, 0, 0, (LPSTARTUPINFOA)&info.si, &info.pi) )
         {
             char* msg;
             DWORD err = GetLastError();
-            FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
+            FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR)&msg, 0, 0);
             fprintf(stderr, "Failed to launch application %s: %s (%d)", path, msg, err);
             LocalFree((HLOCAL) msg);
 
@@ -181,7 +181,7 @@ uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
             {
             	fprintf(stderr, "Failed to get module filename");
             }
-            
+
             fprintf(stderr, "module: %s\n", path);
 
             MODULEINFO info;
@@ -197,7 +197,7 @@ uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
 
         char* msg;
         DWORD err = GetLastError();
-        FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
         fprintf(stderr, "Error: %s (%d)\n", msg, err);
         LocalFree((HLOCAL) msg);
     }
@@ -487,7 +487,3 @@ int main(int argc, char** argv)
     PlatformExit(info);
 	return ret;
 }
-
-
-
-

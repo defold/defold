@@ -14,6 +14,7 @@
 #define DM_GAMESYS_COMP_COLLISION_OBJECT_H
 
 #include <gameobject/component.h>
+#include <dmsdk/dlib/vmath.h>
 
 // for scripting
 #include <stdint.h>
@@ -47,6 +48,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
+    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
 
     // For script_physics.cpp
@@ -54,16 +57,16 @@ namespace dmGameSystem
     uint64_t GetLSBGroupHash(void* world, uint16_t mask);
     dmhash_t CompCollisionObjectGetIdentifier(void* component);
 
-    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
+    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const dmVMath::Point3& apos, void* _component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
     dmPhysics::JointResult DestroyJoint(void* _world, void* _component, dmhash_t id);
     dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params);
     dmPhysics::JointResult GetJointType(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type);
     dmPhysics::JointResult SetJointParams(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, Vectormath::Aos::Vector3& force);
+    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, dmVMath::Vector3& force);
     dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque);
 
-    void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
-    Vectormath::Aos::Vector3 GetGravity(void* _world);
+    void SetGravity(void* world, const dmVMath::Vector3& gravity);
+    dmVMath::Vector3 GetGravity(void* _world);
 
     bool IsCollision2D(void* _world);
     void SetCollisionFlipH(void* _component, bool flip);

@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 #include <dmsdk/physics/physics.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h> // TODO: Use dmsdk/dlib/vmath.h
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -124,7 +124,7 @@ namespace dmPhysics
      * @param position Position that the external object will obtain
      * @param rotation Rotation that the external object will obtain
      */
-    typedef void (*SetWorldTransformCallback)(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
+    typedef void (*SetWorldTransformCallback)(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
 
     /**
      * Callback used to signal collisions.
@@ -144,13 +144,13 @@ namespace dmPhysics
     struct ContactPoint
     {
         /// Position of the first object
-        Vectormath::Aos::Point3 m_PositionA;
+        dmVMath::Point3 m_PositionA;
         /// Position of the second object
-        Vectormath::Aos::Point3 m_PositionB;
+        dmVMath::Point3 m_PositionB;
         /// Normal of the contact, pointing from A->B
-        Vectormath::Aos::Vector3 m_Normal;
+        dmVMath::Vector3 m_Normal;
         /// Relative velocity between the objects
-        Vectormath::Aos::Vector3 m_RelativeVelocity;
+        dmVMath::Vector3 m_RelativeVelocity;
         /// User data of the first object
         void* m_UserDataA;
         /// User data of the second object
@@ -224,7 +224,7 @@ namespace dmPhysics
         NewContextParams();
 
         /// Gravity of the worlds created in this context
-        Vectormath::Aos::Vector3 m_Gravity;
+        dmVMath::Vector3 m_Gravity;
         /// Number of 3D worlds the context supports
         uint32_t m_WorldCount;
         /// How the physics worlds are scaled in relation to the game world
@@ -296,9 +296,9 @@ namespace dmPhysics
         NewWorldParams();
 
         /// world_min World min (AABB)
-        Vectormath::Aos::Point3 m_WorldMin;
+        dmVMath::Point3 m_WorldMin;
         /// world_max World max (AABB)
-        Vectormath::Aos::Point3 m_WorldMax;
+        dmVMath::Point3 m_WorldMax;
         /// param get_world_transform Callback for copying the transform from the corresponding user data to the collision object
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
@@ -423,7 +423,7 @@ namespace dmPhysics
      * @param half_extents Box half extents
      * @return Shape
      */
-    HCollisionShape3D NewBoxShape3D(HContext3D context, const Vectormath::Aos::Vector3& half_extents);
+    HCollisionShape3D NewBoxShape3D(HContext3D context, const dmVMath::Vector3& half_extents);
 
     /**
      * Create a new 2D box shape
@@ -432,7 +432,7 @@ namespace dmPhysics
      * @param half_extents Box half extents
      * @return Shape
      */
-    HCollisionShape2D NewBoxShape2D(HContext2D context, const Vectormath::Aos::Vector3& half_extents);
+    HCollisionShape2D NewBoxShape2D(HContext2D context, const dmVMath::Vector3& half_extents);
 
     /**
      * Create a new 3D capsule shape
@@ -496,7 +496,7 @@ namespace dmPhysics
      * @return new grid-snape
      */
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
-                                     const Vectormath::Aos::Point3& position,
+                                     const dmVMath::Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count);
 
@@ -610,8 +610,8 @@ namespace dmPhysics
 
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data,
                                             HCollisionShape3D* shapes,
-                                            Vectormath::Aos::Vector3* translations,
-                                            Vectormath::Aos::Quat* rotations,
+                                            dmVMath::Vector3* translations,
+                                            dmVMath::Quat* rotations,
                                             uint32_t shape_count);
 
     /**
@@ -642,8 +642,8 @@ namespace dmPhysics
      */
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data,
                                             HCollisionShape2D* shapes,
-                                            Vectormath::Aos::Vector3* translations,
-                                            Vectormath::Aos::Quat* rotations,
+                                            dmVMath::Vector3* translations,
+                                            dmVMath::Quat* rotations,
                                             uint32_t shape_count);
 
     /**
@@ -722,7 +722,7 @@ namespace dmPhysics
      * @param force Force to be applied (world space)
      * @param position Position of where the force will be applied (world space)
      */
-    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
+    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& force, const dmVMath::Point3& position);
 
     /**
      * Apply a force to the specified 2D collision object at the specified position
@@ -732,7 +732,7 @@ namespace dmPhysics
      * @param force Force to be applied (world space)
      * @param position Position of where the force will be applied (world space)
      */
-    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
+    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const dmVMath::Vector3& force, const dmVMath::Point3& position);
 
     /**
      * Return the total force currently applied to the specified 3D collision object.
@@ -741,7 +741,7 @@ namespace dmPhysics
      * @param collision_object Which collision object to inspect. For objects with another type than COLLISION_OBJECT_TYPE_DYNAMIC, the force will always be of zero size.
      * @return The total force (world space).
      */
-    Vectormath::Aos::Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object);
+    dmVMath::Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the total force currently applied to the specified 2D collision object.
@@ -750,7 +750,7 @@ namespace dmPhysics
      * @param collision_object Which collision object to inspect. For objects with another type than COLLISION_OBJECT_TYPE_DYNAMIC, the force will always be of zero size.
      * @return The total force (world space).
      */
-    Vectormath::Aos::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object);
+    dmVMath::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return the world position of the specified 3D collision object.
@@ -759,7 +759,7 @@ namespace dmPhysics
      * @param collision_object Collision object handle
      * @return The world space position
      */
-    Vectormath::Aos::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object);
+    dmVMath::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the world position of the specified 2D collision object.
@@ -768,7 +768,7 @@ namespace dmPhysics
      * @param collision_object Collision object handle
      * @return The world space position
      */
-    Vectormath::Aos::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object);
+    dmVMath::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return the world rotation of the specified 3D collision object.
@@ -777,7 +777,7 @@ namespace dmPhysics
      * @param collision_object Collision object handle
      * @return The world space rotation
      */
-    Vectormath::Aos::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object);
+    dmVMath::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the world rotation of the specified 2D collision object.
@@ -786,7 +786,7 @@ namespace dmPhysics
      * @param collision_object Collision object handle
      * @return The world space rotation
      */
-    Vectormath::Aos::Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object);
+    dmVMath::Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return the linear velocity of the 3D collision object.
@@ -795,7 +795,7 @@ namespace dmPhysics
      * @param collision_object
      * @return The linear velocity.
      */
-    Vectormath::Aos::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object);
+    dmVMath::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the linear velocity of the 2D collision object.
@@ -804,7 +804,7 @@ namespace dmPhysics
      * @param collision_object
      * @return The linear velocity.
      */
-    Vectormath::Aos::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object);
+    dmVMath::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Set the linear velocity of the 3D collision object.
@@ -813,7 +813,7 @@ namespace dmPhysics
      * @param collision_object
      * @param linear_velocity the linear velocity
      */
-    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& linear_velocity);
+    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& linear_velocity);
 
     /**
      * Set the linear velocity of the 2D collision object.
@@ -822,7 +822,7 @@ namespace dmPhysics
      * @param collision_object
      * @param linear_velocity the linear velocity
      */
-    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& linear_velocity);
+    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const dmVMath::Vector3& linear_velocity);
 
     /**
      * Return the linear velocity of the 3D collision object.
@@ -831,7 +831,7 @@ namespace dmPhysics
      * @param collision_object
      * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
      */
-    Vectormath::Aos::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object);
+    dmVMath::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the linear velocity of the 2D collision object.
@@ -840,7 +840,7 @@ namespace dmPhysics
      * @param collision_object
      * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
      */
-    Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object);
+    dmVMath::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Set the angular velocity of the 3D collision object.
@@ -849,7 +849,7 @@ namespace dmPhysics
      * @param collision_object
      * @param angular_velocity the angular velocity
      */
-    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& angular_velocity);
+    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& angular_velocity);
 
     /**
      * Set the angular velocity of the 2D collision object.
@@ -858,7 +858,7 @@ namespace dmPhysics
      * @param collision_object
      * @param velocity the angular velocity (uses the Z component.)
      */
-    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& angular_velocity);
+    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const dmVMath::Vector3& angular_velocity);
 
     /**
      * Return whether the 3D collision object is enabled or not.
@@ -1087,9 +1087,9 @@ namespace dmPhysics
         RayCastRequest();
 
         /// Start of ray
-        Vectormath::Aos::Point3 m_From;
+        dmVMath::Point3 m_From;
         /// End of ray, exclusive since the ray is valid in [m_From, m_To)
-        Vectormath::Aos::Point3 m_To;
+        dmVMath::Point3 m_To;
         /// All collision objects with this user data will be ignored in the ray cast
         void* m_IgnoredUserData;
         /// User supplied data that will be passed to the response callback
@@ -1114,9 +1114,9 @@ namespace dmPhysics
         /// Fraction between ray start and end at which the hit occured. The valid interval is [start, end), so 1.0f is considered outside the range
         float m_Fraction;
         /// Position at which the ray hit the surface
-        Vectormath::Aos::Point3 m_Position;
+        dmVMath::Point3 m_Position;
         /// Normal of the surface at the position the ray hit the surface
-        Vectormath::Aos::Vector3 m_Normal;
+        dmVMath::Vector3 m_Normal;
         /// User specified data for the object that the ray hit
         void* m_CollisionObjectUserData;
         /// Group of the object the ray hit
@@ -1167,7 +1167,7 @@ namespace dmPhysics
      * @param world Physics world for which to set the gravity
      * @param gravity Gravity vector (z component will be ignored).
      */
-    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity);
+    void SetGravity2D(HWorld2D world, const dmVMath::Vector3& gravity);
 
     /**
      * Set the gravity for a 3D physics world.
@@ -1175,21 +1175,21 @@ namespace dmPhysics
      * @param world Physics world for which to set the gravity
      * @param gravity Gravity vector.
      */
-    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity);
+    void SetGravity3D(HWorld3D world, const dmVMath::Vector3& gravity);
 
     /**
      * Get the gravity for 2D physics world.
      *
      * @param world Physics world for which to get the gravity
      */
-    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world);
+    dmVMath::Vector3 GetGravity2D(HWorld2D world);
 
     /**
      * Get the gravity for 3D physics world.
      *
      * @param world Physics world for which to get the gravity
      */
-    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world);
+    dmVMath::Vector3 GetGravity3D(HWorld3D world);
 
 
     /**
@@ -1207,7 +1207,7 @@ namespace dmPhysics
          * @param color Color of the lines
          * @param user_data User data as supplied when registering the drawing callbacks
          */
-        void (*m_DrawLines)(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data);
+        void (*m_DrawLines)(dmVMath::Point3* points, uint32_t point_count, dmVMath::Vector4 color, void* user_data);
         /**
          * Callback to draw multiple triangles.
          *
@@ -1216,7 +1216,7 @@ namespace dmPhysics
          * @param color Color of the lines
          * @param user_data User data as supplied when registering the drawing callbacks
          */
-        void (*m_DrawTriangles)(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data);
+        void (*m_DrawTriangles)(dmVMath::Point3* points, uint32_t point_count, dmVMath::Vector4 color, void* user_data);
         /// User data to be supplied to the callbacks
         void* m_UserData;
         /// Alpha to use for everything rendered
@@ -1365,11 +1365,11 @@ namespace dmPhysics
         }
     };
 
-    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params);
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const dmVMath::Point3& pos_a, HCollisionObject2D obj_b, const dmVMath::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params);
     bool GetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, ConnectJointParams& params);
     bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params);
     void DeleteJoint2D(HWorld2D world, HJoint joint);
-    bool GetJointReactionForce2D(HWorld2D world, HJoint joint, Vectormath::Aos::Vector3& force, float inv_dt);
+    bool GetJointReactionForce2D(HWorld2D world, HJoint joint, dmVMath::Vector3& force, float inv_dt);
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);

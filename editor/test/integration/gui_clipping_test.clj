@@ -31,7 +31,7 @@
     (id->node id)))
 
 (defn- add-box! [project scene parent]
-  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) :type-box nil))
+  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) :type-box 0 nil))
 
 (defn- add-clipper!
   ([project scene parent]

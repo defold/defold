@@ -190,16 +190,20 @@
 
   (output custom-build-targets g/Any :cached
           (g/fnk [_node-id resource-map settings-map]
-                 (let [custom-paths (parse-custom-resource-paths (get settings-map ["project" "custom_resources"]))]
+                 (let [custom-resources (parse-custom-resource-paths (get settings-map ["project" "custom_resources"]))
+                       ssl-certificates (get settings-map ["network" "ssl_certificates"])
+                       custom-paths (if (some? ssl-certificates)
+                                      (conj custom-resources (resource/proj-path ssl-certificates))
+                                      custom-resources)]
                    (try
                      (map (partial make-custom-build-target _node-id)
                           (find-custom-resources resource-map custom-paths))
                      (catch Throwable error
                        (g/map->error
-                         {:_node-id _node-id
-                          :_label :custom-build-targets
-                          :message (ex-message error)
-                          :severity :fatal}))))))
+                        {:_node-id _node-id
+                         :_label :custom-build-targets
+                         :message (ex-message error)
+                         :severity :fatal}))))))
 
   (output outline g/Any :cached
           (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))

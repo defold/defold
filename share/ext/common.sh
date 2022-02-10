@@ -17,17 +17,18 @@ set -e
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # config
-IOS_SDK_VERSION=14.0
-IOS_SIMULATOR_SDK_VERSION=14.0
+IOS_SDK_VERSION=15.2
+IOS_SIMULATOR_SDK_VERSION=15.2
 IOS_MIN_SDK_VERSION=8.0
 
 OSX_MIN_SDK_VERSION=10.7
-OSX_SDK_VERSION=10.15
+OSX_SDK_VERSION=12.1
+XCODE_VERSION=13.2.1
 
 OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
-DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault12.1.xctoolchain
+DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${XCODE_VERSION}.xctoolchain
 
 ANDROID_NDK_VERSION=20
 ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
@@ -240,27 +241,7 @@ function cmi() {
     export PLATFORM=$1
 
     case $1 in
-        armv7-darwin)
-            [ ! -e "${IOS_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SDK_ROOT}" && exit 1
-            # NOTE: We set this PATH in order to use libtool from iOS SDK
-            # Otherwise we get the following error "malformed object (unknown load command 1)"
-            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch armv7 -isysroot ${IOS_SDK_ROOT}"
-            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch armv7 -isysroot ${IOS_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++"
-            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
-            # Wrong include-directories and defines are selected.
-            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
-            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 arm-darwin
-            ;;
-
         arm64-darwin)
-            # Essentially the same environment vars as armv7-darwin but with "-arch arm64".
-
             [ ! -e "${IOS_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SDK_ROOT}" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
@@ -285,10 +266,10 @@ function cmi() {
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin12 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
+            export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
             export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -297,7 +278,7 @@ function cmi() {
             export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 x86_64-darwin
+            cmi_cross $1 x86_64-ios
             ;;
 
          armv7-android)
@@ -356,11 +337,21 @@ function cmi() {
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
+            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
             export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
+
+            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
+            # Wrong include-directories and defines are selected.
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
+
             cmi_buildplatform $1
             ;;
 

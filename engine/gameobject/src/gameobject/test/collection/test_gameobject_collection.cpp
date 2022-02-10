@@ -22,7 +22,7 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class CollectionTest : public jc_test_base_class
 {
@@ -232,9 +232,9 @@ TEST_F(CollectionTest, CollectionSpawning)
 
     dmGameObject::Init(coll);
 
-    Vectormath::Aos::Point3 pos(0,0,0);
-    Vectormath::Aos::Quat rot(0,0,0,1);
-    Vectormath::Aos::Vector3 scale(1,1,1);
+    dmVMath::Point3 pos(0,0,0);
+    dmVMath::Quat rot(0,0,0,1);
+    dmVMath::Vector3 scale(1,1,1);
 
     bool ret;
     ret = dmGameObject::Update(coll, &m_UpdateContext);
@@ -268,9 +268,9 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max, 0x0);
     dmGameObject::Init(coll);
 
-    Vectormath::Aos::Point3 pos(0,0,0);
-    Vectormath::Aos::Quat rot(0,0,0,1);
-    Vectormath::Aos::Vector3 scale(1,1,1);
+    dmVMath::Point3 pos(0,0,0);
+    dmVMath::Quat rot(0,0,0,1);
+    dmVMath::Vector3 scale(1,1,1);
 
     // Spawn until failure
     bool filled = false;
@@ -463,11 +463,11 @@ TEST_F(CollectionTest, DefaultValues)
     {
         dmGameObject::HInstance instance = hcollection->m_Collection->m_Instances[hcollection->m_Collection->m_LevelIndices[0][i]];
         ASSERT_NE((void*)0, instance);
-        Vectormath::Aos::Point3 p = dmGameObject::GetPosition(instance);
+        dmVMath::Point3 p = dmGameObject::GetPosition(instance);
         ASSERT_EQ(0.0f, p.getX());
         ASSERT_EQ(0.0f, p.getY());
         ASSERT_EQ(0.0f, p.getZ());
-        Vectormath::Aos::Quat r = dmGameObject::GetRotation(instance);
+        dmVMath::Quat r = dmGameObject::GetRotation(instance);
         ASSERT_EQ(0.0f, r.getX());
         ASSERT_EQ(0.0f, r.getY());
         ASSERT_EQ(0.0f, r.getZ());

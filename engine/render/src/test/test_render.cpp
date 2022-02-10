@@ -28,7 +28,7 @@
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class dmRenderTest : public jc_test_base_class
 {
@@ -145,14 +145,14 @@ TEST_F(dmRenderTest, TestGraphicsContext)
 
 TEST_F(dmRenderTest, TestViewProj)
 {
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::rotationX(M_PI);
-    view.setTranslation(Vectormath::Aos::Vector3(1.0f, 2.0f, 3.0f));
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 1.0f, -1.0f);
-    Vectormath::Aos::Matrix4 viewproj = proj * view;
+    dmVMath::Matrix4 view = dmVMath::Matrix4::rotationX(M_PI);
+    view.setTranslation(dmVMath::Vector3(1.0f, 2.0f, 3.0f));
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 1.0f, -1.0f);
+    dmVMath::Matrix4 viewproj = proj * view;
 
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
-    const Vectormath::Aos::Matrix4& test = dmRender::GetViewProjectionMatrix(m_Context);
+    const dmVMath::Matrix4& test = dmRender::GetViewProjectionMatrix(m_Context);
 
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
@@ -267,8 +267,8 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     TestDrawDispatchCtx ctx;
     memset(&ctx, 0x00, sizeof(TestDrawDispatchCtx));
 
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
 
@@ -371,8 +371,8 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     TestRenderListOrderDispatchCtx ctx;
     memset(&ctx, 0x00, sizeof(TestRenderListOrderDispatchCtx));
 
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
 
@@ -447,8 +447,8 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     //   Reason: Render system failed to set Capacity properly to account for debug
     //           render objects being flushed in during render.
 
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
 

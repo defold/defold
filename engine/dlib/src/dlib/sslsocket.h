@@ -35,6 +35,15 @@ namespace dmSSLSocket
      * @return RESULT_OK on success
      */
     Result Finalize();
+
+    /**
+     * Set keys from buffer and use it for verification.
+     * @param key key
+     * @param keylen key length
+     * @name dmSSLSocket::SetSslPublicKeys
+     * @return RESULT_OK on success
+     */
+    Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen);
 }
 
 #endif // DM_SSLSOCKET_H
