@@ -2763,6 +2763,7 @@ namespace dmGameSystem
         }
 
         comp_gui_context->m_CustomNodeTypes.Clear();
+        g_CompGuiNodeTypesInitialized = false;
         return dmGameObject::RESULT_OK;
     }
 
