@@ -150,9 +150,9 @@
                                             [:mesh-set-build-target :mesh-set-build-target]
                                             [:scene :scene])))
             (dynamic error (g/fnk [_node-id mesh]
-                                  (prop-resource-error :fatal _node-id :mesh mesh "Mesh")))
+                                  (prop-resource-error :fatal _node-id :mesh mesh "Scene")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext "dae"})))
+                                              :ext #{"dae"}})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]

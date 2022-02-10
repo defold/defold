@@ -33,6 +33,7 @@ import java.util.Vector;
 import java.util.Map.Entry;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 
 import javax.vecmath.Matrix4d;
@@ -226,6 +227,11 @@ public class ModelUtil {
         // aiProcess_GenBoundingBoxes - undocumented?
 
         return aiImportFileFromMemory(buffer, aiProcess_Triangulate | aiProcess_LimitBoneWeights, suffix);
+    }
+
+    public static AIScene loadScene(InputStream stream, String suffix) throws IOException {
+        byte[] bytes = IOUtils.toByteArray(stream);
+        return loadScene(bytes, suffix);
     }
 
     private static AnimationKey createKey(float t, boolean stepped, int componentSize) {
@@ -611,11 +617,6 @@ public class ModelUtil {
         sampleScaleTrack(animBuilder, scaleTrack, boneIndex, duration, sceneStartTime, sampleRate, spf, true);
     }
 
-    public static void loadAnimations(byte[] animContent, String suffix, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        AIScene animScene = loadScene(animContent, suffix);
-        loadAnimations(animScene, bones, animationSetBuilder, parentAnimationId, animationIds);
-    }
-
     private static double getAnimationStartTime(AIAnimation anim) {
         double startTime = 10000.0;
 
@@ -662,6 +663,11 @@ public class ModelUtil {
             startTime = 0.0;
         }
         return startTime;
+    }
+
+    public static void loadAnimations(byte[] animContent, String suffix, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+        AIScene animScene = loadScene(animContent, suffix);
+        loadAnimations(animScene, bones, animationSetBuilder, parentAnimationId, animationIds);
     }
 
     public static void loadAnimations(AIScene scene, ArrayList<ModelUtil.Bone> skeleton, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
@@ -1184,13 +1190,6 @@ public class ModelUtil {
         }
     }
 
-
-    public static void loadSkeleton(byte[] content, String suffix, Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
-        AIScene aiScene = loadScene(content, suffix);
-        loadSkeleton(aiScene, skeletonBuilder);
-    }
-
-
     // // Creates a list of bone ids ordered by their index.
     // // Their index is first taken from the order they appear in the skin entry of the collada file,
     // // which correspond to the index where their inv bind pose transform is located in the INV_BIND_MATRIX entry.
@@ -1547,6 +1546,11 @@ public class ModelUtil {
             boneToDDF(bone, ddfBones);
         }
         skeletonBuilder.addAllBones(ddfBones);
+    }
+
+    public static void loadSkeleton(byte[] content, String suffix, Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
+        AIScene aiScene = loadScene(content, suffix);
+        loadSkeleton(aiScene, skeletonBuilder);
     }
 
 
