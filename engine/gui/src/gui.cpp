@@ -3862,7 +3862,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
-    void SetScreenPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_pos)
+    Vector3 ScreenToLocalPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
     {
         Matrix4 parent_m;
 
@@ -3891,7 +3891,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         // We calculate a new position that will be the relative position once
         // the node has been childed to the new parent.
-        Vector3 position = screen_pos - parent_m.getCol3().getXYZ();
+        Vector3 position = screen_position - parent_m.getCol3().getXYZ();
 
         // We need to perform the inverse of what AdjustPosScale will do to counteract when
         // it will be applied during next call to CalculateNodeTransform.
@@ -3913,12 +3913,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         if (node->m_Node.m_YAnchor == dmGui::YANCHOR_BOTTOM || node->m_Node.m_YAnchor == dmGui::YANCHOR_TOP) {
             position.setY(scaled_position.getY() / reference_scale.getY());
         }
-
-        node->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(position, 1.0f);
-        node->m_Node.m_DirtyLocal = 1;
+        return position;
     }
 
-    void SetScreenPosition(HScene scene, HNode node, dmVMath::Vector3 screen_pos)
+    Point3 ScreenToLocalPosition(HScene scene, HNode node, const Point3& screen_position)
     {
         InternalNode* n = GetNode(scene, node);
         InternalNode* parent_node = 0x0;
@@ -3926,7 +3924,26 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             parent_node = &scene->m_Nodes[n->m_ParentIndex];
         }
-        SetScreenPosition(scene, n, parent_node, screen_pos);
+        Vector3 local_position = ScreenToLocalPosition(scene, n, parent_node, Vector3(screen_position));
+        return Point3(local_position);
+    }
+
+    void SetScreenPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
+    {
+        Vector3 local_position = ScreenToLocalPosition(scene, node, parent_node, screen_position);
+        node->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(local_position, 1.0f);
+        node->m_Node.m_DirtyLocal = 1;
+    }
+
+    void SetScreenPosition(HScene scene, HNode node, const Point3& screen_position)
+    {
+        InternalNode* n = GetNode(scene, node);
+        InternalNode* parent_node = 0x0;
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            parent_node = &scene->m_Nodes[n->m_ParentIndex];
+        }
+        SetScreenPosition(scene, n, parent_node, Vector3(screen_position));
     }
 
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)

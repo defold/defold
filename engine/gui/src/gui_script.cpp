@@ -3654,6 +3654,7 @@ namespace dmGui
      */
     int LuaGetScreenPosition(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 1);
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         Scene* scene = GuiScriptInstance_Check(L);
         Matrix4 node_transform;
@@ -3669,15 +3670,36 @@ namespace dmGui
      *
      * @name gui.set_screen_position
      * @param node [type:node] node to set the screen position to
-     * @param position [type:vector3] screen position
+     * @param screen_position [type:vector3] screen position
      */
     int LuaSetScreenPosition(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         Scene* scene = GuiScriptInstance_Check(L);
         InternalNode* node = LuaCheckNodeInternal(L, 1, 0);
-        dmVMath::Vector3* screen_pos = dmScript::ToVector3(L, 2);
-        SetScreenPosition(scene, GetNodeHandle(node), *screen_pos);
+        Point3 screen_position = GetPositionFromArgumentIndex(L, 2);
+        SetScreenPosition(scene, GetNodeHandle(node), screen_position);
         return 0;
+    }
+
+    /*# convert screen position to the local node position
+     * 
+     * Convert the screen position to the local position of supplied node
+     *
+     * @name gui.screen_to_local
+     * @param node [type:node] node used for getting local transformation matrix
+     * @param screen_position [type:vector3] screen position
+     * @return local_position [type:vector3] local position
+     */
+    int LuaScreenToLocal(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+        InternalNode* node = LuaCheckNodeInternal(L, 1, 0);
+        Point3 screen_position = GetPositionFromArgumentIndex(L, 2);
+        Point3 local_position = ScreenToLocalPosition(scene, GetNodeHandle(node), screen_position);
+        dmScript::PushVector3(L, Vector3(local_position));
+        return 1;
     }
 
     /*# gets the normalized cursor of the animation on a node with flipbook animation
@@ -4183,6 +4205,7 @@ namespace dmGui
         {"reset_keyboard",  LuaResetKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
         {"set_screen_position", LuaSetScreenPosition},
+        {"screen_to_local", LuaScreenToLocal},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
         {"set_fill_angle", LuaSetPieFillAngle},

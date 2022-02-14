@@ -1099,7 +1099,9 @@ namespace dmGui
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
     
-    void SetScreenPosition(HScene scene, HNode node, dmVMath::Vector3 screen_pos);
+    void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
+
+    dmVMath::Point3 ScreenToLocalPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
 
