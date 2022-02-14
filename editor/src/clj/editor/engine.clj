@@ -156,7 +156,6 @@
                                   [Platform/Arm64Darwin
                                    Platform/Arm64Android
                                    Platform/Armv7Android
-                                   Platform/Armv7Darwin
                                    Platform/JsWeb
                                    Platform/X86Win32
                                    Platform/X86_64Darwin

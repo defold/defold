@@ -112,7 +112,7 @@ public class BundleHelper {
         this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
-        if (platform == Platform.X86_64Darwin || platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.X86_64Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             appDirSuffix = ".app";
         }
 
@@ -250,7 +250,7 @@ public class BundleHelper {
     }
 
     private String getManifestName(Platform platform) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return BundleHelper.MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             return BundleHelper.MANIFEST_NAME_OSX;
@@ -280,7 +280,7 @@ public class BundleHelper {
 
         IResource mainManifest;
         Map<String, Object> properties = new HashMap<>();
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
         } else if (platform == Platform.X86_64Darwin) {
@@ -324,7 +324,7 @@ public class BundleHelper {
     }
 
     public File getAppManifestFile(Platform platform, File appDir) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios  ) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
             return new File(appDir, "Contents/Info.plist");
@@ -337,7 +337,7 @@ public class BundleHelper {
     }
 
     public static String getMainManifestName(Platform platform) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             return MANIFEST_NAME_OSX;

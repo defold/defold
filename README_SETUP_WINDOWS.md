@@ -159,9 +159,9 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 
 ### Optional Software
 
-* [ripgrep](https://github.com/BurntSushi/ripgrep) - A very fast text search program
+* [ripgrep](https://github.com/BurntSushi/ripgrep) - A very fast text search program (command line)
 
-Open a Command (cmd.exe) as administator and run:
+Open a Command (cmd.exe) as administrator and run:
 
 `choco install ripgrep`
 

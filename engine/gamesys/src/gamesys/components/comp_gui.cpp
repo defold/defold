@@ -1810,7 +1810,7 @@ namespace dmGameSystem
                         RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                         break;
                     case dmGui::NODE_TYPE_CUSTOM:
-                        RenderCustomNodes(scene, custom_type, GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type), entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
+                        RenderCustomNodes(scene, prev_custom_type, GetCompGuiCustomType(gui_world->m_CompGuiContext, prev_custom_type), entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, gui_context);
                         break;
                     default:
                         break;
@@ -2763,6 +2763,7 @@ namespace dmGameSystem
         }
 
         comp_gui_context->m_CustomNodeTypes.Clear();
+        g_CompGuiNodeTypesInitialized = false;
         return dmGameObject::RESULT_OK;
     }
 

@@ -2142,7 +2142,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     return GetNodeHandle(node);
                 }
             }
-            return 0;
+            return INVALID_HANDLE;
         }
 
         InternalNode* n = GetNode(scene, node);
@@ -2154,7 +2154,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (!child->m_Deleted && child->m_Index != INVALID_INDEX)
                 return GetNodeHandle(child);
         }
-        return 0;
+        return INVALID_HANDLE;
     }
 
     HNode GetNextNode(HScene scene, HNode node)
@@ -2169,7 +2169,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (!next->m_Deleted && next->m_Index != INVALID_INDEX)
                 return GetNodeHandle(next);
         }
-        return 0;
+        return INVALID_HANDLE;
     }
 
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
@@ -2544,6 +2544,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
 
         ResetInternalNode(scene, n);
+    }
+
+
+    void DeleteNode(HScene scene, HNode node)
+    {
+        DeleteNode(scene, node, false);
     }
 
     void ClearNodes(HScene scene)
@@ -3860,6 +3866,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
             AddToNodeList(scene, n, parent, prev);
         }
+    }
+
+    HNode GetNodeParent(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_ParentIndex == INVALID_INDEX)
+        {
+            return dmGui::INVALID_HANDLE;
+        }
+        InternalNode* parent_n = &scene->m_Nodes[n->m_ParentIndex];
+        return GetNodeHandle(parent_n);
     }
 
     Vector3 ScreenToLocalPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)

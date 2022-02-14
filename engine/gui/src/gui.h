@@ -256,21 +256,6 @@ namespace dmGui
         }
     };
 
-    enum Property
-    {
-        PROPERTY_POSITION   = 0,
-        PROPERTY_ROTATION   = 1,
-        PROPERTY_SCALE      = 2,
-        PROPERTY_COLOR      = 3,
-        PROPERTY_SIZE       = 4,
-        PROPERTY_OUTLINE    = 5,
-        PROPERTY_SHADOW     = 6,
-        PROPERTY_SLICE9     = 7,
-        PROPERTY_PIE_PARAMS = 8,
-        PROPERTY_TEXT_PARAMS= 9,
-
-        PROPERTY_COUNT      = 10,
-    };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
@@ -322,15 +307,6 @@ namespace dmGui
         PIVOT_SW     = 6,
         PIVOT_W      = 7,
         PIVOT_NW     = 8,
-    };
-
-    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
-    // Don't forget to change gui_ddf.proto if you change here
-    enum AdjustMode
-    {
-        ADJUST_MODE_FIT     = 0,
-        ADJUST_MODE_ZOOM    = 1,
-        ADJUST_MODE_STRETCH = 2,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -783,18 +759,6 @@ namespace dmGui
      */
     Result UpdateScene(HScene scene, float dt);
 
-    /** Get first child node
-     * @param node Gets the first child node. If 0, gets the first top level node.
-     * @return child The first child node
-     */
-    HNode GetFirstChildNode(HScene scene, HNode node);
-
-    /** Get next sibling
-     * @param node The current sibling
-     * @return sibling The next sibling
-     */
-    HNode GetNextNode(HScene scene, HNode node);
-
     /**
      * Dispatch DDF or lua-table message to gui script. If the descriptor is NULL
      * message should be a serialized lua-table, see dmScript::CheckTable()
@@ -875,15 +839,6 @@ namespace dmGui
     bool HasPropertyHash(HScene scene, HNode node, dmhash_t property);
 
     /**
-     * Get property value. (vector)
-     * @param scene scene
-     * @param node node
-     * @param property property enum
-     * @return property value
-     */
-    dmVMath::Vector4 GetNodeProperty(HScene scene, HNode node, Property property);
-
-    /**
      * Get property from hash. As opposed to GetNodeProperty() this function
      * can access individual components, e.g. hash("position.x"). For scalar
      * properties the result is returned in the first element
@@ -893,8 +848,6 @@ namespace dmGui
      * @return property value
      */
     dmVMath::Vector4 GetNodePropertyHash(HScene scene, HNode node, dmhash_t property);
-
-    void SetNodeProperty(HScene scene, HNode node, Property property, const dmVMath::Vector4& value);
 
     /**
      * Save state to reset to. See ResetNodes
@@ -1011,10 +964,6 @@ namespace dmGui
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
     Pivot GetNodePivot(HScene scene, HNode node);
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
-    bool GetNodeIsBone(HScene scene, HNode node);
-    void SetNodeIsBone(HScene scene, HNode node, bool is_bone);
-
-    void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
 
     void SetNodeSizeMode(HScene scene, HNode node, SizeMode size_mode);
     SizeMode GetNodeSizeMode(HScene scene, HNode node);
@@ -1102,8 +1051,6 @@ namespace dmGui
     void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
     dmVMath::Point3 ScreenToLocalPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
-
-    Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node);
 

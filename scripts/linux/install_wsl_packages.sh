@@ -17,6 +17,7 @@ sudo apt-get install -y --no-install-recommends \
 	freeglut3-dev \
 	libtinfo5 \
 	unzip \
+	zip \
 	# for use when debugging
 	tree
 

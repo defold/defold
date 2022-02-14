@@ -3055,20 +3055,17 @@ namespace dmGui
      */
     int LuaGetParent(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void) top;
+        DM_LUA_STACK_CHECK(L, 1);
 
-        Scene* scene = GuiScriptInstance_Check(L);
+        dmGui::HScene scene = dmGui::LuaCheckScene(L);
+        dmGui::HNode node = dmGui::LuaCheckNode(L, 1);
+        dmGui::HNode parent = dmGui::GetNodeParent(scene, node);
 
-        HNode hnode;
-        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
-
-        if (n->m_ParentIndex != INVALID_INDEX)
+        if (parent != dmGui::INVALID_HANDLE)
         {
-            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
             NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
             node_proxy->m_Scene = scene;
-            node_proxy->m_Node = GetNodeHandle(parent);
+            node_proxy->m_Node = parent;
             luaL_getmetatable(L, NODE_PROXY_TYPE_NAME);
             lua_setmetatable(L, -2);
         }
@@ -3076,8 +3073,6 @@ namespace dmGui
         {
             lua_pushnil(L);
         }
-
-        assert(top + 1 == lua_gettop(L));
 
         return 1;
     }
@@ -3177,7 +3172,7 @@ namespace dmGui
     static dmGui::Result CloneNodeToTable(lua_State* L, dmGui::HScene scene, InternalNode* n, dmGui::HNode* out_node)
     {
         dmGui::HNode node = GetNodeHandle(n);
-        dmGui::Result result = CloneNode(scene, node, out_node);
+        dmGui::Result result = dmGui::CloneNode(scene, node, out_node);
         if (result == dmGui::RESULT_OK)
         {
             dmScript::PushHash(L, n->m_NameHash);
