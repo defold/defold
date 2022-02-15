@@ -11,11 +11,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.animation-set
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.model-loader :as model-loader]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -24,7 +25,8 @@
             [util.murmur :as murmur])
   (:import [clojure.lang ExceptionInfo]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$AnimationSetDesc]
-           [org.apache.commons.io FilenameUtils]))
+           [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException]
+           [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,54 +41,92 @@
   {:skeleton (resource/resource->proj-path skeleton)
    :animations (mapv animation-instance-desc-pb-msg animations)})
 
-(defn- prefix-animation-id [animation-resource animation]
-  (update animation :id (fn [^String id]
-                          (cond
-                            (and (= "animationset" (resource/type-ext animation-resource))
-                                 (neg? (.indexOf id "/")))
-                            (str (resource/base-name animation-resource) "/" id)
+(defn- to-animation-id [^String parent-id ^String id]
+  (cond
+      (neg? (.indexOf id "/"))
+      (str parent-id "/" id)
+      :else
+      id))
 
-                            :else
-                            id))))
+(defn- get-animation-resource [path animation-resources]
+  (let [matches (filter (fn [resource] (= path (resource/proj-path resource))) animation-resources)]
+    (first matches)))
 
-(defn- merge-animations [merged-animations animations resource]
-  (let [prefix-animation-id (partial prefix-animation-id resource)]
-    (into merged-animations (map prefix-animation-id) animations)))
+(g/defnk produce-animation-info [resource bones animation-resources]
+  (prn "MAWE animation-set produce-animation-info" resource animation-resources bones)
+  (let [desc (AnimationSetBuilder/getAnimationSetDesc (io/input-stream resource))
+        animation-paths (AnimationSetBuilder/getAnimationsPaths desc)
+        _ (prn "MAWE animation-set produce-animation-info  animation-paths" animation-paths)
+        animation-infos (map (fn [path] {:path path :parent-id "" :resource (get-animation-resource path animation-resources)}) animation-paths)]
 
-(defn- merge-bone-list [merged-bone-list bone-list]
-  (when-not (every? true? (map = merged-bone-list bone-list))
-    (throw (ex-info "The bone lists are incompatible."
-                    {:cause :incompatible-bone-list
-                     :bone-list bone-list
-                     :merged-bone-list merged-bone-list})))
-  (if (> (count bone-list) (count merged-bone-list))
-    bone-list
-    merged-bone-list))
+    (prn "MAWE animation-set produce-animation-info" animation-infos)
+    animation-infos))
 
-(g/defnk produce-animation-set [_node-id animation-resources animation-sets]
-  (assert (= (count animation-resources) (count animation-sets)))
+(defn- is-animation-set? [resource]
+  (= (:ext resource) "animationset"))
+
+(defn- resolve-animation-infos [parent-id animation-info animation-resources]
+  (let [animation-sets (filter is-animation-set? animation-resources)
+        animations-infos (map (fn [resource] (assoc (:animation-info resource) :parent-id parent-id)) animation-sets)
+        child-animations-infos (map (fn [resource]
+                                      (let [anim-id (resource/base-name resource)
+                                            next-parent-id (to-animation-id parent-id anim-id)]
+                                        (resolve-animation-infos next-parent-id (:animation-info resource) (:animation-resources resource)))) animation-sets)
+
+        _ (prn "MAWE resolve-animation-infos animation-sets" animation-sets)
+        _ (prn "MAWE resolve-animation-infos animation-info" animation-info)
+        _ (prn "MAWE resolve-animation-infos animations-infos" animations-infos)
+        _ (prn "MAWE resolve-animation-infos child-animations-infos" child-animations-infos)
+
+        ; [[a] [b c] [d]] -> [a b c d]
+        flattened (reduce into (concat [animation-info] [animations-infos] child-animations-infos))]
+    
+    (prn "MAWE resolve-animation-infos" flattened)
+    flattened))
+
+; Also used by model.clj
+(g/defnk produce-animation-infos [animation-info animation-resources]
+  (let [out (resolve-animation-infos "" animation-info animation-resources)]
+    out))
+
+(defn- load-and-validate-animation-set [bones animation-infos]
+  (prn "MAWE load-and-validate-animation-set" animation-infos bones)
+  (let [paths (map (fn [x] (:path x)) animation-infos)
+        streams (map (fn [x] (io/input-stream (:resource x))) animation-infos)
+        parent-ids (map (fn [x] (:parent-id x)) animation-infos)
+        animation-set-builder (Rig$AnimationSet/newBuilder)
+        animation-ids (ArrayList.)]
+    (AnimationSetBuilder/buildAnimations paths bones streams parent-ids animation-set-builder animation-ids)
+
+    (let [animation-set (protobuf/pb->map (.build animation-set-builder))]
+      {:animation-set animation-set
+       :animation-ids animation-ids})))
+
+; Also used by model.clj
+(g/defnk produce-animation-set-info [_node-id bones resource skeleton-resource animation-infos]
   (try
-    (reduce (fn [merged-animation-set [resource animation-set]]
-              (-> merged-animation-set
-                  (update :animations merge-animations (:animations animation-set) resource)
-                  (update :bone-list merge-bone-list (:bone-list animation-set))))
-            {:animations []
-             :bone-list []}
-            (map vector animation-resources animation-sets))
-    (catch ExceptionInfo e
-      (if (= :incompatible-bone-list (:cause (ex-data e)))
-        (g/->error _node-id :animations :fatal animation-resources "The bone hierarchies of the animations are incompatible.")
-        (throw e)))))
+    (prn "MAWE animation-set produce-animation-set-info" bones)
+    (load-and-validate-animation-set bones animation-infos)
+    (catch LoaderException e
+      (g/->error _node-id :animations :fatal resource
+                 (str "Failed to build " (resource/resource->proj-path resource)
+                      ": " (.getMessage e))))))
 
+(g/defnk produce-animation-set [animation-set-info]
+  (:animation-set animation-set-info))
+
+(g/defnk produce-animation-ids [animation-set-info]
+  (:animation-ids animation-set-info))
+
+;; used by the model.clj
 (defn hash-animation-set-ids [animation-set]
   (update animation-set :animations (partial mapv #(update % :id murmur/hash64))))
 
 (defn- build-animation-set [resource _dep-resources user-data]
-  (let [animation-set-with-hash-ids (hash-animation-set-ids (:animation-set user-data))]
-    {:resource resource
-     :content (protobuf/map->bytes Rig$AnimationSet animation-set-with-hash-ids)}))
+  {:resource resource
+   :content (protobuf/map->bytes Rig$AnimationSet (:animation-set user-data))})
 
-(g/defnk produce-animation-set-build-target [_node-id resource animation-set]
+(g/defnk produce-animation-set-build-target [_node-id resource bones animation-set]
   (bt/with-content-hash
     {:node-id _node-id
      :resource (workspace/make-build-resource resource)
@@ -124,18 +164,28 @@
                           :clear clear-form-op})
         (assoc :values values))))
 
+(g/defnk produce-bones [skeleton-resource]
+  (let [bones (model-loader/load-bones skeleton-resource)]
+  ;(let [bones (:bones skeleton-resource)]
+    (prn "MAWE animation-set produce-bones" skeleton-resource bones)
+    bones))
+
 (g/defnode AnimationSetNode
   (inherits resource-node/ResourceNode)
 
   (input skeleton-resource resource/Resource)
   (input animation-resources resource/Resource :array)
   (input animation-sets g/Any :array)
+           
+  (input bones g/Any)
+  ;(output bones g/Any (gu/passthrough bones))
 
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :skeleton-resource])))
+                                            [:resource :skeleton-resource
+                                             :bones :bones])))
             (dynamic error (g/fnk [_node-id skeleton]
                                   (or (validation/prop-error :info _node-id :skeleton validation/prop-nil? skeleton "Skeleton")
                                       (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton"))))
@@ -158,11 +208,16 @@
                            (g/connect project :nil-resource self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
 
+  ;(output bones g/Any :cached produce-bones)
+  (output animation-info g/Any :cached produce-animation-info)
+  (output animation-infos g/Any :cached produce-animation-infos)
   (output form-data g/Any :cached produce-form-data)
 
   (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
   (output save-value g/Any (gu/passthrough desc-pb-msg))
+  (output animation-set-info g/Any :cached produce-animation-set-info)
   (output animation-set g/Any :cached produce-animation-set)
+  (output animation-ids g/Any :cached produce-animation-ids)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target))
 
 (defn- load-animation-set [_project self resource pb]

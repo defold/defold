@@ -13,6 +13,7 @@
 (ns editor.model
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.animation-set :as animation-set]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.geom :as geom]
@@ -35,6 +36,17 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
+
+(g/defnk produce-animation-info [resource animations-resource]
+  (prn "MAWE model produce-animation-info" animations-resource)
+  (if (= (:ext animations-resource) "animationset")
+    (:animation-info animations-resource)
+    [{:path (resource/proj-path animations-resource) :parent-id "" :resource animations-resource}]))
+
+(g/defnk produce-animation-set-build-target [_node-id resource animations-resource animation-set]
+  (prn "MAWE model produce-animation-set-build-target" animations-resource)
+  (when-not (= (:ext animations-resource) "animationset")
+    (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set)))
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
   (cond-> {:mesh (resource/resource->proj-path mesh)
@@ -71,7 +83,7 @@
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
                            (format "Animation '%s' does not exist" default-animation))))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target mesh-set-build-target skeleton-build-target animations material mesh skeleton]
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target skeleton-build-target animations material mesh skeleton]
   (or (some->> [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
                 (prop-resource-error :fatal _node-id :material material "Material")
                 (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
@@ -81,6 +93,7 @@
                not-empty
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
+            animation-set-build-target (if (nil? animation-set-build-target-single) animation-set-build-target animation-set-build-target-single)
             rig-scene-type (workspace/get-resource-type workspace "rigscene")
             rig-scene-pseudo-data (digest/string->sha1-hex (str/join (map #(-> % :resource :resource :data) [animation-set-build-target mesh-set-build-target skeleton-build-target])))
             rig-scene-resource (resource/make-memory-resource workspace rig-scene-type rig-scene-pseudo-data)
@@ -174,20 +187,21 @@
                                       [:build-targets :dep-build-targets]
                                       [:gpu-texture-generator :gpu-texture-generators]]]
                      (concat
-                       (for [r old-value]
-                         (if r
-                           (project/disconnect-resource-node evaluation-context project r self connections)
-                           (g/disconnect project :nil-resource self :texture-resources)))
-                       (for [r new-value]
-                         (if r
-                           (:tx-data (project/connect-resource-node evaluation-context project r self connections))
-                           (g/connect project :nil-resource self :texture-resources)))))))
+                      (for [r old-value]
+                        (if r
+                          (project/disconnect-resource-node evaluation-context project r self connections)
+                          (g/disconnect project :nil-resource self :texture-resources)))
+                      (for [r new-value]
+                        (if r
+                          (:tx-data (project/connect-resource-node evaluation-context project r self connections))
+                          (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :skeleton-resource]
+                                            [:bones :bones]
                                             [:skeleton-build-target :skeleton-build-target])))
             (dynamic error (g/fnk [_node-id skeleton]
                                   (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
@@ -198,17 +212,19 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :animations-resource]
-                                            [:animation-set :animation-set]
-                                            [:animation-set-build-target :animation-set-build-target])))
+                                            ;[:animation-set :animation-set]
+                                            [:animation-ids :animation-ids-input]
+                                            [:animation-set-build-target :animation-set-build-target]
+                                            )))
             (dynamic error (g/fnk [_node-id animations]
                                   (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext ["dae" "animationset"]})))
   (property default-animation g/Str
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
-                             (validate-default-animation _node-id default-animation animation-ids)))
+                                  (validate-default-animation _node-id default-animation animation-ids)))
             (dynamic edit-type (g/fnk [animation-ids]
-                                 (properties/->choicebox (into [""] animation-ids)))))
+                                      (properties/->choicebox (into [""] animation-ids)))))
 
   (input mesh-resource resource/Resource)
   (input mesh-set-build-target g/Any)
@@ -217,7 +233,7 @@
   (input skeleton-resource resource/Resource)
   (input skeleton-build-target g/Any)
   (input animations-resource resource/Resource)
-  (input animation-set g/Any)
+  ;(input animation-set g/Any)
   (input animation-set-build-target g/Any)
   (input texture-resources resource/Resource :array)
   (input gpu-texture-generators g/Any :array)
@@ -226,7 +242,19 @@
   (input shader ShaderLifecycle)
   (input vertex-space g/Keyword)
 
-  (output animation-ids g/Any :cached (g/fnk [animation-set] (mapv :id (:animations animation-set))))
+  (input bones g/Any)
+
+  (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
+  (output animation-info g/Any :cached produce-animation-info)
+  (output animation-infos g/Any :cached animation-set/produce-animation-infos)
+  (output animation-set-info g/Any :cached animation-set/produce-animation-set-info)
+  (output animation-set g/Any :cached animation-set/produce-animation-set)
+  (output animation-ids g/Any :cached animation-set/produce-animation-ids)
+  ; if referencing a single animation file
+  (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target)
+
+  (input animation-ids-input g/Any)
+  (output animation-ids g/Any (gu/passthrough animation-ids-input))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
