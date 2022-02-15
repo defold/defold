@@ -53,9 +53,9 @@ import org.lwjgl.assimp.*;
 import static org.lwjgl.assimp.Assimp.*;
 
 import com.dynamo.bob.util.MathUtil;
-import com.dynamo.bob.util.RigUtil;
 
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.Weight;
 import com.dynamo.proto.DdfMath.Point3;
@@ -69,7 +69,6 @@ import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSlot;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.TextFormat;
 
 public class ModelUtil {
 
@@ -94,6 +93,8 @@ public class ModelUtil {
         int         parentIndex;
         Matrix4d    offsetTransform; // the assimp transform
         Matrix4d    transform;       // the local transform
+
+        public String getName() { return name; }
     }
 
     private static void printMatrix4x4(String name, AIMatrix4x4 mat) {
@@ -148,7 +149,7 @@ public class ModelUtil {
                 // assetSpace.rotation.setRow(1, new double[] {0.0, 0.0, 1.0, 0.0});
                 // assetSpace.rotation.setRow(2, new double[] {0.0, -1.0, 0.0, 0.0});
 
-                printMatrix4d(scene_root.mName().dataString(), assetSpace.rotation);
+                //printMatrix4d(scene_root.mName().dataString(), assetSpace.rotation);
             }
 
 
@@ -270,9 +271,9 @@ public class ModelUtil {
         MathUtil.decompose(assetSpace.rotation, assetSpaceP, assetSpaceR, assetSpaceS);
         assetSpaceR.inverse();
 
-        System.out.printf("  bindR %f, %f, %f, %f\n", bindR.x, bindR.y, bindR.z, bindR.w);
+        //System.out.printf("  bindR %f, %f, %f, %f\n", bindR.x, bindR.y, bindR.z, bindR.w);
 
-        System.out.printf("  assetSpaceR %f, %f, %f, %f\n", assetSpaceR.x, assetSpaceR.y, assetSpaceR.z, assetSpaceR.w);
+        //System.out.printf("  assetSpaceR %f, %f, %f, %f\n", assetSpaceR.x, assetSpaceR.y, assetSpaceR.z, assetSpaceR.w);
 
         // https://github.com/LWJGL/lwjgl3/blob/02e5523774b104866e502e706141ae1a468183e6/modules/lwjgl/assimp/src/generated/java/org/lwjgl/assimp/AINodeAnim.java
         // Highlights:
@@ -282,7 +283,7 @@ public class ModelUtil {
         int num_rotation_keys = anim.mNumRotationKeys();
         int num_scale_keys = anim.mNumScalingKeys();
 
-        System.out.printf("  BONE: %s nKeys: t %d, r %d, s %d\n", anim.mNodeName().dataString(), num_position_keys, num_rotation_keys, num_scale_keys);
+        //System.out.printf("  BONE: %s nKeys: t %d, r %d, s %d\n", anim.mNodeName().dataString(), num_position_keys, num_rotation_keys, num_scale_keys);
 
         {
             int keyIndex = 0;
@@ -389,75 +390,7 @@ public class ModelUtil {
                 keyIndex++;
             }
         }
-
-        /*
-        int keyCount = animation.getInput().length;
-        float[] time = animation.getInput();
-        float[] values = animation.getOutput();
-        for (int key = 0; key < keyCount; ++key) {
-            int index = key * 16;
-            Matrix4d m = new Matrix4d(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
-            if (assetSpace != null) {
-                m.m03 *= assetSpace.unit;
-                m.m13 *= assetSpace.unit;
-                m.m23 *= assetSpace.unit;
-                m.mul(assetSpace.rotation, m);
-            }
-
-            Vector3d p = new Vector3d();
-            Quat4d r = new Quat4d();
-            Vector3d s = new Vector3d();
-            MathUtil.decompose(m, p, r, s);
-
-            // Check if dot product of decomposed rotation and previous frame is < 0,
-            // if that is the case; flip rotation.
-            // This is to avoid a problem that can occur when we decompose the matrix and
-            // we get a quaternion representing the same rotation but in the opposite direction.
-            // See this answer on SO: http://stackoverflow.com/a/2887128
-            Vector4d rv = new Vector4d(r.x, r.y, r.z, r.w);
-            if (lastR.dot(rv) < 0.0) {
-                r.scale(-1.0);
-                rv.scale(-1.0);
-            }
-            lastR = rv;
-
-            // Get pose relative transform
-            p.set(p.getX() - bindP.getX(), p.getY() - bindP.getY(), p.getZ() - bindP.getZ());
-            r.mul(bindR, r);
-            s.set(s.getX() / bindS.getX(), s.getY() / bindS.getY(), s.getZ() / bindS.getZ());
-
-            float t = time[key];
-            AnimationKey posKey = createKey(t, false, 3);
-            toFloats(p, posKey.value);
-            posTrack.keys.add(posKey);
-            AnimationKey rotKey = createKey(t, false, 4);
-            toFloats(r, rotKey.value);
-            rotTrack.keys.add(rotKey);
-            AnimationKey scaleKey = createKey(t, false, 3);
-            toFloats(s, scaleKey.value);
-            scaleTrack.keys.add(scaleKey);
-        }
-        */
     }
-
-    // private static void ExtractKeys(Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
-    //     switch (animation.getType()) {
-    //     case TRANSLATE:
-    //     case SCALE:
-    //     case ROTATE:
-    //         throw new LoaderException("Currently only collada files with matrix animations are supported.");
-    //     case TRANSFORM:
-    //     case MATRIX:
-    //         ExtractMatrixKeys(localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
-    //         break;
-    //     default:
-    //         throw new LoaderException(String.format("Animations of type %s are not supported.", animation.getType().name()));
-    //     }
-    // }
-
-    // private static Matrix4d getBoneLocalToParent(Bone bone) {
-    //     return new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
-    // }
 
     private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
         if (!track.keys.isEmpty()) {
@@ -475,19 +408,18 @@ public class ModelUtil {
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
 
-            System.out.printf("sampleTrack rotations:  startTime %f\n", (float)startTime);
+            //System.out.printf("sampleTrack rotations:  startTime %f\n", (float)startTime);
             RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
 
-            Rig.AnimationTrack track2 = animTrackBuilder.build();
-            int num_rotations = track2.getRotationsCount() / 4;
-            System.out.printf("rotations count: %d\n", num_rotations);
-            for (int i = 0; i < num_rotations; ++i) {
+            // Rig.AnimationTrack track2 = animTrackBuilder.build();
+            // int num_rotations = track2.getRotationsCount() / 4;
+            // System.out.printf("rotations count: %d\n", num_rotations);
+            // for (int i = 0; i < num_rotations; ++i) {
 
-                System.out.printf(" track rot: %d  %f, %f, %f, %f\n", i, track2.getRotations(i*4+0), track2.getRotations(i*4+1), track2.getRotations(i*4+2), track2.getRotations(i*4+3));
-            }
+            //     System.out.printf(" track rot: %d  %f, %f, %f, %f\n", i, track2.getRotations(i*4+0), track2.getRotations(i*4+1), track2.getRotations(i*4+2), track2.getRotations(i*4+3));
+            // }
 
-            animBuilder.addTracks(track2);
-            //animBuilder.addTracks(animTrackBuilder.build());
+            animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
@@ -500,105 +432,6 @@ public class ModelUtil {
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
-
-/*
-    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, double duration) throws LoaderException {
-
-        // Get scene framerate, start and end times if available
-        double sceneStartTime = 0.0;
-        double sceneEndTime = duration;
-        double sceneFrameRate = 30.0f;
-        if (collada.libraryVisualScenes.size() == 1) {
-            Collection<XMLVisualScene> scenes = collada.libraryVisualScenes.get(0).scenes.values();
-            XMLVisualScene scene = scenes.toArray(new XMLVisualScene[0])[0];
-            if (scene != null) {
-                XMLVisualSceneExtra sceneExtras = scene.extra;
-                if (sceneExtras != null) {
-                    if (sceneExtras.startTime != null) {
-                        sceneStartTime = sceneExtras.startTime;
-                    }
-                    if (sceneExtras.endTime != null) {
-                        sceneEndTime = sceneExtras.endTime;
-                    }
-                    if (sceneExtras.framerate != null) {
-                        sceneFrameRate = sceneExtras.framerate;
-                    }
-                }
-            }
-        }
-        if (sceneStartTime > sceneEndTime) {
-            sceneEndTime = sceneStartTime;
-        }
-
-        duration = sceneEndTime - sceneStartTime;
-        animBuilder.setDuration((float)duration);
-
-        // We use the supplied framerate (if available) as samplerate to get correct timings when
-        // sampling the animation data. We used to have a static sample rate of 30, which would mean
-        // if the scene was saved with a different framerate the animation would either be too fast or too slow.
-        animBuilder.setSampleRate((float)sceneFrameRate);
-
-        if (boneList == null) {
-            return;
-        }
-
-        // loop through each bone
-        double spf = 1.0 / sceneFrameRate;
-        for (int bi = 0; bi < boneList.size(); ++bi)
-        {
-            Bone bone = boneList.get(bi);
-            String boneId = bone.node.id;
-
-            // Lookup the index for the bone in the reference map.
-            // This is the bone index to use since we can't guarantee that that
-            // the bone hierarchy is stored as depth first, we need to depend on the
-            // supplied "JOINT" reference list from the skin entry.
-            Long boneHash = MurmurHash.hash64(bone.getSourceId());
-            Integer refIndex = boneRefMap.get(boneHash);
-
-            if (boneToAnimations.containsKey(boneId) && refIndex != null)
-            {
-                Matrix4d localToParent = getBoneLocalToParent(bone);
-
-                // System.out.printf("Bone: %s\n", bone.getName());
-                // System.out.printf("  localToParent:\n");
-                // System.out.printf("    %f, %f, %f, %f\n", localToParent.m00,localToParent.m01,localToParent.m02,localToParent.m03);
-                // System.out.printf("    %f, %f, %f, %f\n", localToParent.m10,localToParent.m11,localToParent.m12,localToParent.m13);
-                // System.out.printf("    %f, %f, %f, %f\n", localToParent.m20,localToParent.m21,localToParent.m22,localToParent.m23);
-                // System.out.printf("    %f, %f, %f, %f\n", localToParent.m30,localToParent.m31,localToParent.m32,localToParent.m33);
-                // System.out.printf("\n");
-
-                AssetSpace assetSpace = getAssetSpace(collada.asset);
-                if (bi != 0) {
-                    // Only apply up axis rotation for first bone.
-                    assetSpace.rotation.setIdentity();
-                }
-
-                // search the animations for each bone
-                ArrayList<XMLAnimation> anims = boneToAnimations.get(boneId);
-                for (XMLAnimation animation : anims) {
-                    if (animation.getType() == null) {
-                        continue;
-                    }
-
-                    RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
-                    posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
-                    RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
-                    rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-                    RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
-                    scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
-
-                    ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
-
-                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
-                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
-                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
-                }
-            }
-        }
-    }
-
-*/
 
     public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, AssetSpace assetSpace, AINodeAnim anim, Matrix4d localToParent, int boneIndex, double duration, double sceneStartTime, double sampleRate, double ticksPerSecond) {
         RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
@@ -665,41 +498,34 @@ public class ModelUtil {
         return startTime;
     }
 
+    private static ModelUtil.Bone findBone(ArrayList<ModelUtil.Bone> bones, String name) {
+        for (ModelUtil.Bone bone : bones) {
+            if (bone.name.equals(name)) {
+                return bone;
+            }
+        }
+        return null;
+    }
+
+    public static void setBoneList(Rig.AnimationSet.Builder animationSetBuilder, ArrayList<ModelUtil.Bone> bones) {
+        for (ModelUtil.Bone bone : bones) {
+            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
+        }
+    }
+
     public static void loadAnimations(byte[] animContent, String suffix, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
         AIScene animScene = loadScene(animContent, suffix);
         loadAnimations(animScene, bones, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    public static void loadAnimations(AIScene scene, ArrayList<ModelUtil.Bone> skeleton, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        // if (collada.libraryAnimations.size() != 1) {
-        //     return;
-        // }
-
-        // List<String> boneRefArray = createBoneReferenceList(collada);
-        // if (boneRefArray == null || boneRefArray.isEmpty()) {
-        //     return;
-        // }
-        // HashMap<Long, Integer> boneRefMap = new HashMap<Long, Integer>();
-        // for (int i = 0; i < boneRefArray.size(); i++) {
-        //     Long boneRef = MurmurHash.hash64(boneRefArray.get(i));
-
-        //     //System.out.printf("LoadAnimations: bone_ref: %d %s  %016X\n", i, boneRefArray.get(i), boneRef);
-
-        //     boneRefMap.put(boneRef, i);
-        //     animationSetBuilder.addBoneList(boneRef);
-        // }
-
-        // for (ModelUtil.Bone bone : skeleton) {
-        //     animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
-        // }
-
+    public static void loadAnimations(AIScene scene, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
         AssetSpace assetSpace = getAssetSpace(scene);
 
-        System.out.printf("loadAnimations skeleton: size: %d\n", skeleton.size());
+        //System.out.printf("loadAnimations skeleton: size: %d\n", bones.size());
 
         int num_animations = scene.mNumAnimations();
 
-        System.out.printf("ModelUtil: loadAnimations: %d\n", num_animations);
+        //System.out.printf("ModelUtil: loadAnimations: %d\n", num_animations);
 
         PointerBuffer aianimations = scene.mAnimations();
         for (int i = 0; i < num_animations; ++i) {
@@ -723,38 +549,23 @@ public class ModelUtil {
 
             double startTime = 0.0;//getAnimationStartTime(aianimation);
 
-            System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f  mNumChannels: %d\n", animation_name, (float)durationTime, (float)sampleRate, (float)startTime, num_channels);
+            //System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f  mNumChannels: %d\n", animation_name, (float)durationTime, (float)sampleRate, (float)startTime, num_channels);
 
             PointerBuffer aiChannels = aianimation.mChannels();
             for (int c = 0; c < num_channels; ++c) {
                 AINodeAnim aiNodeAnim = AINodeAnim.create(aiChannels.get(c));
                 String node_name = aiNodeAnim.mNodeName().dataString();
 
-                int bone_index = 0;
-                ModelUtil.Bone current_bone = null;
-                for (ModelUtil.Bone bone : skeleton) {
-                    if (bone.name.equals(node_name)) {
-                        current_bone = bone;
-                        break;
-                    }
-                    ++bone_index;
-                }
-
-                if (current_bone == null) {
-                    // If we have an empty skeleton, we have to rely on the # of animation tracks
-                    bone_index = c;
-                }
-
-                Matrix4d localToParent = current_bone.transform;
-
+                ModelUtil.Bone bone = findBone(bones, node_name);
                 AssetSpace curAssetSpace = assetSpace;
-                if (bone_index != 0)
+                if (bone.index != 0)
                 {
                     // Only apply up axis rotation for first bone.
                     curAssetSpace.rotation.setIdentity();
                 }
 
-                loadAnimationTracks(animBuilder, curAssetSpace, aiNodeAnim, localToParent, bone_index, durationTime, startTime, sampleRate, ticksPerSecond);
+                Matrix4d localToParent = bone.transform;
+                loadAnimationTracks(animBuilder, curAssetSpace, aiNodeAnim, localToParent, bone.index, durationTime, startTime, sampleRate, ticksPerSecond);
             }
 
             // The file name is usually based on the file name itself
@@ -762,43 +573,6 @@ public class ModelUtil {
             animationIds.add(parentAnimationId);
             animationSetBuilder.addAnimations(animBuilder.build());
         }
-
-        // // Animation clips
-        // ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
-        // XMLLibraryAnimations libraryAnimation = collada.libraryAnimations.get(0);
-
-        // if(!animClips.isEmpty()) {
-
-        //     throw new LoaderException("Anmation clips are currently not supported.");
-
-        // } else {
-        //     float totalAnimationLength = 0.0f;
-        //     HashMap<String, ArrayList<XMLAnimation>> boneToAnimations = new HashMap<String, ArrayList<XMLAnimation>>();
-
-        //     // Loop through all animations and build a bone-to-animations LUT
-        //     Iterator<Entry<String, XMLAnimation>> it = libraryAnimation.animations.entrySet().iterator();
-        //     while (it.hasNext()) {
-        //         XMLAnimation animation = (XMLAnimation)it.next().getValue();
-        //         String boneTarget = animation.getTargetBone();
-        //         if (!boneToAnimations.containsKey(animation.getTargetBone())) {
-        //             boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
-        //         }
-        //         boneToAnimations.get(boneTarget).add(animation);
-
-        //         // Figure out the total duration of the animation.
-        //         HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
-        //         XMLSource inputSampler = samplersLUT.get("INPUT");
-        //         float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
-        //         totalAnimationLength = Math.max(totalAnimationLength, animLength);
-        //     }
-
-        //     // If no clips are provided, add a "Default" clip that is the whole animation as one clip
-        //     Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
-        //     boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength);
-        //     animBuilder.setId(MurmurHash.hash64(parentAnimationId));
-        //     animationIds.add(parentAnimationId);
-        //     animationSetBuilder.addAnimations(animBuilder.build());
-        // }
     }
 
     private static ArrayList<Float> getVertexData(AIVector3D.Buffer buffer) {
@@ -984,8 +758,8 @@ public class ModelUtil {
         meshBuilder.setIndicesFormat(indices_format);
 
 
-        System.out.printf("opt: mesh_vertex_indices: %d\n", mesh_vertex_indices.size());
-        System.out.printf("opt: num_indices:         %d\n", mesh_index_list.size());
+        //System.out.printf("opt: mesh_vertex_indices: %d\n", mesh_vertex_indices.size());
+        //System.out.printf("opt: num_indices:         %d\n", mesh_index_list.size());
     }
 
     public static Rig.Mesh loadMesh(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton) {
@@ -1069,9 +843,9 @@ public class ModelUtil {
         meshBuilder.addAllPositionIndices(position_indices_list);
         meshBuilder.addAllTexcoord0Indices(texcoord0_indices_list);
 
-        System.out.printf("position_indices_list: %d\n", position_indices_list.size());
-        System.out.printf("normal_indices_list: %d\n", normal_indices_list.size());
-        System.out.printf("texcoord0_indices_list: %d\n", texcoord0_indices_list.size());
+        //System.out.printf("position_indices_list: %d\n", position_indices_list.size());
+        //System.out.printf("normal_indices_list: %d\n", normal_indices_list.size());
+        //System.out.printf("texcoord0_indices_list: %d\n", texcoord0_indices_list.size());
 
         createMeshIndices(meshBuilder, triangle_count, true, position_indices_list, normal_indices_list, texcoord0_indices_list);
 
@@ -1117,7 +891,7 @@ public class ModelUtil {
                 Rig.MeshSlot.Builder meshSlotBuilder = Rig.MeshSlot.newBuilder();
 
                 String mesh_name = mesh_names.get(meshref);
-                System.out.printf("MESH SLOT: %s  %d \n", mesh_name, MurmurHash.hash64(mesh_name));
+                //System.out.printf("MESH SLOT: %s  %d \n", mesh_name, MurmurHash.hash64(mesh_name));
                 meshSlotBuilder.setId(MurmurHash.hash64(mesh_name));
                 meshSlotBuilder.setActiveIndex(0); // Default to the first mesh in the mesh attachments
                 meshSlotBuilder.addMeshAttachments(meshref);
@@ -1130,10 +904,10 @@ public class ModelUtil {
 
                 meshEntryBuilder.addMeshSlots(meshSlotBuilder);
 
-                printMatrix4d(node.mName().dataString(), transformd);
+                //printMatrix4d(node.mName().dataString(), transformd);
             }
 
-            System.out.printf("MESH ENTRY: %s %d\n", node_name, MurmurHash.hash64(node_name));
+            //System.out.printf("MESH ENTRY: %s %d\n", node_name, MurmurHash.hash64(node_name));
 
             mesh_entries.add(meshEntryBuilder.build());
         }
@@ -1165,7 +939,7 @@ public class ModelUtil {
 
             String mesh_name = aiMesh.mName().dataString();
             mesh_names.add(mesh_name);
-            System.out.printf("MESH: %s\n", mesh_name);
+            //System.out.printf("MESH: %s\n", mesh_name);
 
             Rig.Mesh mesh = loadMesh(aiMesh, skeleton);
             meshes.add(mesh);
@@ -1190,148 +964,16 @@ public class ModelUtil {
         }
     }
 
-    // // Creates a list of bone ids ordered by their index.
-    // // Their index is first taken from the order they appear in the skin entry of the collada file,
-    // // which correspond to the index where their inv bind pose transform is located in the INV_BIND_MATRIX entry.
-    // private static ArrayList<String> createBoneReferenceList(XMLCOLLADA collada) throws LoaderException {
-
-    //     HashSet<String> boneIdLut = new HashSet<String>();
-    //     ArrayList<String> boneRefArray = new ArrayList<String>();
-
-    //     // First get the bone index from the skin entry
-    //     XMLSkin skin = null;
-    //     if (!collada.libraryControllers.isEmpty()) {
-    //         skin = findFirstSkin(collada.libraryControllers.get(0));
-
-    //         if (skin != null)
-    //         {
-    //             List<XMLSource> sources = skin.sources;
-    //             HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
-
-    //             XMLInput jointInput = findInput(skin.jointsInputs, "JOINT", true);
-    //             XMLSource jointSource = sourcesMap.get(jointInput.source);
-
-    //             if(jointSource.nameArray != null) {
-    //                 boneRefArray = new ArrayList<String>(Arrays.asList(jointSource.nameArray.names));
-    //             } else if(jointSource.idrefArray != null) {
-    //                 boneRefArray = new ArrayList<String>(Arrays.asList(jointSource.idrefArray.idrefs));
-    //             }
-
-    //             for (String boneId : boneRefArray) {
-    //                 boneIdLut.add(boneId);
-    //             }
-    //         }
-    //     }
-
-    //     // Next, add the remaining bones from the visual scene. These are bones that don't have animation,
-    //     // their order/indices are not relevant why they are added last.
-    //     if (!collada.libraryVisualScenes.isEmpty()) {
-    //         Matrix4d t = new Matrix4d();
-    //         XMLNode rootNode = findSkeletonNode(collada, t);
-    //         if (rootNode != null) {
-    //             getBoneReferenceFromSceneNode(rootNode, boneRefArray, boneIdLut);
-    //         }
-    //     }
-
-    //     return boneRefArray;
-    // }
-
-    // // Recurses through JOINT nodes and fills the boneTransform map with their local transforms.
-    // // If a joint/bone has an entry in the invBoneTransforms map it will first convert the stored
-    // // entry from asset space into local space and then store the result in boneTransform.
-    // private static void fillBoneTransformsFromVisualScene(XMLNode node, Matrix4d parentTransform, HashMap<String, Matrix4d> boneTransforms, HashMap<String, Matrix4d> invBoneTransforms) {
-    //     Matrix4d sceneNodeTransform = new Matrix4d(MathUtil.vecmath2ToVecmath1(node.matrix.matrix4f));
-
-    //     if (invBoneTransforms.containsKey(node.id)) {
-    //         // If this bone exist in the invBoneTransform map
-    //         Matrix4d boneTransform = new Matrix4d(invBoneTransforms.get(node.id));
-    //         boneTransform.invert();
-    //         Matrix4d invParentTransform = new Matrix4d(parentTransform);
-    //         invParentTransform.invert();
-    //         boneTransform.mul(invParentTransform, boneTransform);
-    //         sceneNodeTransform = boneTransform;
-    //     }
-
-    //     // Calculate next parentTransform
-    //     Matrix4d newParentTransform = new Matrix4d(parentTransform);
-    //     newParentTransform.mul(parentTransform, sceneNodeTransform);
-
-    //     boneTransforms.put(node.id, sceneNodeTransform);
-
-
-    //     for(XMLNode childNode : node.childrenList) {
-    //         if(childNode.type == XMLNode.Type.JOINT) {
-    //             fillBoneTransformsFromVisualScene(childNode, newParentTransform, boneTransforms, invBoneTransforms);
-    //         }
-    //     }
-    // }
-
-    // // Create a map of bone id to bone transform (local space).
-    // // Needed to have correct local bone transforms before creating bone hierarchy in loadSkeleton.
-    // // This function reads from both the skin and visual scene entries in the collada file
-    // // to get correct transforms for both animated and non-animated bones.
-    // private static HashMap<String, Matrix4d> createBoneTransformsMap(XMLCOLLADA collada) throws LoaderException
-    // {
-    //     // Final map with bone-name -> bone-transform (in local space, relative to its parent)
-    //     HashMap<String, Matrix4d> boneTransforms = new HashMap<String, Matrix4d>();
-
-    //     // Map used to keep track of asset space inv pose transforms for bones with animation.
-    //     HashMap<String, Matrix4d> invBoneTransforms = new HashMap<String, Matrix4d>();
-
-    //     // First we try to extract the inverse bone bind poses from the skin entry
-    //     if (!collada.libraryControllers.isEmpty()) {
-    //         XMLSkin skin = findFirstSkin(collada.libraryControllers.get(0));
-
-    //         if (skin != null) {
-
-    //             List<XMLSource> sources = skin.sources;
-    //             HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
-
-    //             XMLInput invBindMatInput = findInput(skin.jointsInputs, "INV_BIND_MATRIX", true);
-    //             XMLSource invBindMatSource = sourcesMap.get(invBindMatInput.source);
-    //             if (invBindMatSource != null) {
-    //                 float[] invBindMatFloats = invBindMatSource.floatArray.floats;
-
-    //                 // Get the list of bone names and their corresponding index from the order they are stored in the INV_BIND_MATRIX.
-    //                 // We need this inside the loop below so we can map them from bone name to bone inv pose matrix.
-    //                 List<String> boneIdList = createBoneReferenceList(collada);
-
-    //                 int matricesCount = invBindMatFloats.length / 16;
-    //                 for (int i = 0; i < matricesCount; i++)
-    //                 {
-    //                     int j = i*16;
-    //                     String boneId = boneIdList.get(i);
-    //                     Matrix4d invBoneTransform = new Matrix4d(new Matrix4f(ArrayUtils.subarray(invBindMatFloats, j, j + 16)));
-    //                     invBoneTransforms.put(boneId, invBoneTransform);
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     XMLNode rootNode = findSkeletonNode(collada, new Matrix4d());
-
-    //     // Now we need to extract any missing bone transforms that wasn't available in the skin entry, such as non-animated bones.
-    //     // Bones with animations have their bind pose stored as inverse matrices in asset space (see above loop),
-    //     // but Defold stores bone transforms in local space relative to each parent so we need to "undo" this for these bones.
-    //     if (rootNode != null) {
-    //         Matrix4d parentTransform = new Matrix4d();
-    //         parentTransform.setIdentity();
-    //         fillBoneTransformsFromVisualScene(rootNode, parentTransform, boneTransforms, invBoneTransforms);
-    //     }
-
-    //     return boneTransforms;
-    // }
-
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     private static void createNodeMap(AINode node, Map<String, AINode> map, int indent) {
         map.put(node.mName().dataString(), node);
 
-        for (int i = 0; i < indent; ++i)
-        {
-            System.out.printf("  ");
-        }
-        System.out.printf("Node: %s  numMeshes: %d\n", node.mName().dataString(), node.mNumMeshes());
+        // for (int i = 0; i < indent; ++i)
+        // {
+        //     System.out.printf("  ");
+        // }
+        // System.out.printf("Node: %s  numMeshes: %d\n", node.mName().dataString(), node.mNumMeshes());
 
         PointerBuffer children = node.mChildren();
         for (int i = 0; i < node.mNumChildren(); ++i) {
@@ -1416,10 +1058,10 @@ public class ModelUtil {
         HashMap<String, AINode> meshOwners = new HashMap<>();
         gatherMeshOwners(aiScene, root, meshOwners);
 
-        for (String key : meshOwners.keySet()) {
-            AINode node = meshOwners.get(key);
-            String name = node.mName().dataString();
-        }
+        // for (String key : meshOwners.keySet()) {
+        //     AINode node = meshOwners.get(key);
+        //     String name = node.mName().dataString();
+        // }
 
         int numMeshes = aiScene.mNumMeshes();
         PointerBuffer meshes = aiScene.mMeshes();
@@ -1427,14 +1069,14 @@ public class ModelUtil {
             AIMesh mesh = AIMesh.create(meshes.get(i));
             String mesh_name = mesh.mName().dataString();
 
-            System.out.printf("MESH: %s\n", mesh_name);
+            //System.out.printf("MESH: %s\n", mesh_name);
 
             int numBones = mesh.mNumBones();
             PointerBuffer bones = mesh.mBones();
             for (int b = 0; b < numBones; ++b) {
                 AIBone bone = AIBone.create(bones.get(b));
                 String bone_name = bone.mName().dataString();
-                System.out.printf("  bone: %s 0x%016X\n", bone_name, MurmurHash.hash64(bone_name));
+                //System.out.printf("  bone: %s 0x%016X\n", bone_name, MurmurHash.hash64(bone_name));
 
                 boneMap.put(bone_name, bone);
 
@@ -1459,7 +1101,7 @@ public class ModelUtil {
             parent_name = parent.mName().dataString();
         }
 
-        System.out.printf("root bone: %s\n", root_bone.mName().dataString());
+        //System.out.printf("root bone: %s\n", root_bone.mName().dataString());
 
         ArrayList<ModelUtil.Bone> skeleton = new ArrayList<>();
         gatherSkeleton(root_bone, BONE_NO_PARENT, boneSet, skeleton);
@@ -1469,7 +1111,7 @@ public class ModelUtil {
             // Note that some bones might not actually influence any vertices, and won't have an AIBone
             bone.bone = boneMap.getOrDefault(bone.name, null);
 
-            System.out.printf("Skeleton %2d: %s       0x%016X\n", index++, bone.name, MurmurHash.hash64(bone.name));
+            //System.out.printf("Skeleton %2d: %s       0x%016X\n", index++, bone.name, MurmurHash.hash64(bone.name));
 
             // TODO: check that the bone.bone.mNumWeights() is <= 4, otherwise output a warning
         }
@@ -1495,10 +1137,10 @@ public class ModelUtil {
 
             // "The offset matrix is a 4x4 matrix that transforms from mesh space to bone space in bind pose." - https://github.com/assimp/assimp/blob/master/port/jassimp/jassimp/src/jassimp/AiBone.java
             bone.offsetTransform = convertMatrix4x4(offset_matrix);
-            printMatrix4d("offsetTransform", bone.offsetTransform);
+            //printMatrix4d("offsetTransform", bone.offsetTransform);
 
             bone.transform = convertMatrix4x4(bone.node.mTransformation());
-            printMatrix4d("transform", bone.transform);
+            //printMatrix4d("transform", bone.transform);
         }
         return skeleton;
     }
@@ -1515,6 +1157,7 @@ public class ModelUtil {
 
         b.setParent(bone.parentIndex);
         b.setId(MurmurHash.hash64(bone.name));
+        b.setName(bone.name);
 
         // Decompose pos, rot and scale from bone matrix.
         Vector3d position = new Vector3d();
@@ -1552,77 +1195,5 @@ public class ModelUtil {
         AIScene aiScene = loadScene(content, suffix);
         loadSkeleton(aiScene, skeletonBuilder);
     }
-
-
-/*
-
-    // Finds first skin in the controllers entry.
-    private static XMLSkin findFirstSkin(XMLLibraryControllers controllers) {
-        for(XMLController controller : controllers.controllers.values()) {
-            if(controller.skin != null) {
-                return controller.skin;
-            }
-        }
-        return null;
-    }
-
-    private static int loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList) throws IOException, LoaderException {
-
-        XMLSkin skin = null;
-        if (!collada.libraryControllers.isEmpty()) {
-            skin = findFirstSkin(collada.libraryControllers.get(0));
-        }
-        if(skin == null) {
-            return 0;
-        }
-
-        List<XMLSource> sources = skin.sources;
-        HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
-
-        XMLInput weights_input = findInput(skin.vertexWeights.inputs, "WEIGHT", true);
-        XMLSource weightsSource = sourcesMap.get(weights_input.source);
-        Vector<Weight> weights = new Vector<Weight>(10);
-        int maxBoneCount = 0;
-
-        int vIndex = 0;
-        for ( int i = 0; i < skin.vertexWeights.vcount.ints.length; i++ )
-        {
-            int influenceCount = skin.vertexWeights.vcount.ints[ i ];
-            int j = 0;
-            weights.setSize(0);
-            for (; j < influenceCount; j++ ) {
-                float bw = 0f;
-                int bi = 0;
-                bi = skin.vertexWeights.v.ints[ vIndex + j * 2 + 0 ];
-                if (bi != -1) {
-                    final int weightIndex = skin.vertexWeights.v.ints[ vIndex + j * 2 + 1 ];
-                    bw = weightsSource.floatArray.floats[ weightIndex ];
-                    weights.add(new Weight(bi, bw));
-                } else {
-                    throw new LoaderException("Invalid bone index when loading vertex weights.");
-                }
-            }
-
-            vIndex += influenceCount * 2;
-
-            // Skinning in engine expect each vertex to have exactly 4 bone influences.
-            for (; j < 4; j++ ) {
-                weights.add(new Weight(0, 0.0f));
-            }
-
-            // Sort and take only the 4 influences with highest weight.
-            Collections.sort(weights);
-            weights.setSize(Math.min(4, weights.size()));
-            influenceCount = weights.size();
-
-            for (Weight w : weights) {
-                boneIndicesList.add(w.boneIndex);
-                maxBoneCount = Math.max(maxBoneCount, w.boneIndex + 1);
-                boneWeightsList.add(w.weight);
-            }
-        }
-        return maxBoneCount;
-    }
-*/
 
 }

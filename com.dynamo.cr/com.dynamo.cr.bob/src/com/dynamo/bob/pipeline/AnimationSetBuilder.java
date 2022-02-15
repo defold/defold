@@ -15,11 +15,12 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-
-import javax.xml.stream.XMLStreamException;
+import java.util.HashSet;
+import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -34,6 +35,8 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.google.protobuf.TextFormat;
+
+import org.lwjgl.assimp.AIScene;
 
 
 @BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc")
@@ -90,7 +93,6 @@ public class AnimationSetBuilder extends Builder<Void>  {
 
     private void buildAnimations(Task<Void> task, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder, String parentId, ArrayList<ModelUtil.Bone> bones) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
-        //List<Long> boneList = new ArrayList<Long>();
 
         for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
             if(instance.getAnimation().endsWith(".animationset")) {
@@ -115,29 +117,69 @@ public class AnimationSetBuilder extends Builder<Void>  {
             ByteArrayInputStream animFileIS = new ByteArrayInputStream(animFile.getContent());
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
             ArrayList<String> animationIds = new ArrayList<String>();
-            try {
-                String USE_JAGATOO=System.getenv("USE_JAGATOO");
-                if (USE_JAGATOO!=null)
-                    ColladaUtil.loadAnimations(animFileIS, animBuilder, animId, animationIds);
-                else {
-                    ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), bones, animBuilder, animId, animationIds);
-                }
-
-            } catch (XMLStreamException e) {
-                throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(animFile, -1, "Failed to load animation: " + e.getLocalizedMessage(), e);
-            }
+            ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), bones, animBuilder, animId, animationIds);
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
-
-            // TODO: Verify that the animations in the animBuilder is part of the bones!
-
-            // if(animBuilder.getBoneListList().size() > boneList.size()) {
-            //     boneList = animBuilder.getBoneListList();
-            // }
         }
     }
+
+// For the Editor
+
+    static public AnimationSetDesc getAnimationSetDesc(InputStream animationSetStream) throws IOException {
+        InputStreamReader animSetDescISR = new InputStreamReader(animationSetStream);
+        AnimationSetDesc.Builder animSetDescBuilder = AnimationSetDesc.newBuilder();
+        TextFormat.merge(animSetDescISR, animSetDescBuilder);
+        return animSetDescBuilder.build();
+    }
+
+    private static ArrayList<String> makeUnique(List<String> items) {
+        ArrayList<String> unique = new ArrayList<>();
+        for (String item : items) {
+            if (!unique.contains(item)) {
+                unique.add(item);
+            }
+        }
+        return unique;
+    }
+
+    static public ArrayList<String> getAnimationsPaths(AnimationSetDesc desc) {
+        ArrayList<String> animations = new ArrayList<String>();
+        for(AnimationInstanceDesc instance : desc.getAnimationsList()) {
+            animations.add(instance.getAnimation());
+        }
+        return makeUnique(animations);
+    }
+
+    static public void buildAnimations(List<String> paths, ArrayList<ModelUtil.Bone> bones, List<InputStream> streams, List<String> parentIds, AnimationSet.Builder animationSetBuilder, ArrayList<String> animationIds) throws IOException, LoaderException {
+
+        int count = paths.size();
+        for (int i = 0; i < count; ++i) {
+            String path = paths.get(i);
+            InputStream stream = streams.get(i);
+            String parentId = parentIds.get(i);
+
+            String baseName = FilenameUtils.getBaseName(path);
+            String suffix = FilenameUtils.getExtension(path);
+            AIScene scene = ModelUtil.loadScene(stream, suffix);
+
+            ArrayList<String> localAnimationIds = new ArrayList<String>();
+            AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
+
+            String animId = (parentId.isEmpty() ? "" : parentId + "/" ) + baseName;
+            if(animationIds.contains(animId)) {
+                throw new LoaderException(String.format("Animation set contains duplicate entries for animation id '%s'", animId));
+            }
+            animationIds.add(animId);
+
+            // Currently, by design choice, each file must only contain one animation.
+            // TODO: We should either fix that somehow, or make it a build error if it contains more than one animation
+            ModelUtil.loadAnimations(scene, bones, animBuilder, animId, localAnimationIds);
+
+            animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
+        }
+        ModelUtil.setBoneList(animationSetBuilder, bones);
+    }
+// END EDITOR SPECIFIC FUNCTIONS
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
@@ -155,10 +197,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         animFiles = new ArrayList<String>();
         animFiles.add(task.input(0).getAbsPath());
         buildAnimations(task, animSetDescBuilder, animationSetBuilder, "", bones);
-
-        for (ModelUtil.Bone bone : bones) {
-            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
-        }
+        ModelUtil.setBoneList(animationSetBuilder, bones);
 
         // write merged animationset
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
