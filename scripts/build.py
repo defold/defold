@@ -12,7 +12,7 @@
 # specific language governing permissions and limitations under the License.
 
 # add build_tools folder to the import search path
-import sys, os
+import sys, os, platform
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
@@ -1436,7 +1436,12 @@ class Configuration(object):
         else:
             preexec_fn = self.check_ems
 
-        process = subprocess.Popen([SHELL, '-l'], env = self._form_env(), preexec_fn=preexec_fn)
+        if "darwin" in self.host and "arm" in platform.processor():
+            print 'Detected Apple M1 CPU - running shell with x86 architecture'
+            args = ['arch', '-arch', 'x86_64', SHELL, '-l']
+        else:
+            args = [SHELL, '-l']
+        process = subprocess.Popen(args, env = self._form_env(), preexec_fn=preexec_fn)
         output = process.communicate()[0]
 
         if process.returncode != 0:
