@@ -12,6 +12,7 @@
 
 (ns editor.animation-set
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
@@ -41,59 +42,31 @@
   {:skeleton (resource/resource->proj-path skeleton)
    :animations (mapv animation-instance-desc-pb-msg animations)})
 
-(defn- to-animation-id [^String parent-id ^String id]
-  (cond
-      (neg? (.indexOf id "/"))
-      (str parent-id "/" id)
-      :else
-      id))
-
-(defn- get-animation-resource [path animation-resources]
-  (let [matches (filter (fn [resource] (= path (resource/proj-path resource))) animation-resources)]
-    (first matches)))
-
-(g/defnk produce-animation-info [resource bones animation-resources]
-  (prn "MAWE animation-set produce-animation-info" resource animation-resources bones)
-  (let [desc (AnimationSetBuilder/getAnimationSetDesc (io/input-stream resource))
-        animation-paths (AnimationSetBuilder/getAnimationsPaths desc)
-        _ (prn "MAWE animation-set produce-animation-info  animation-paths" animation-paths)
-        animation-infos (map (fn [path] {:path path :parent-id "" :resource (get-animation-resource path animation-resources)}) animation-paths)]
-
-    (prn "MAWE animation-set produce-animation-info" animation-infos)
-    animation-infos))
-
-(defn- is-animation-set? [resource]
-  (= (:ext resource) "animationset"))
-
-(defn- resolve-animation-infos [parent-id animation-info animation-resources]
-  (let [animation-sets (filter is-animation-set? animation-resources)
-        animations-infos (map (fn [resource] (assoc (:animation-info resource) :parent-id parent-id)) animation-sets)
-        child-animations-infos (map (fn [resource]
-                                      (let [anim-id (resource/base-name resource)
-                                            next-parent-id (to-animation-id parent-id anim-id)]
-                                        (resolve-animation-infos next-parent-id (:animation-info resource) (:animation-resources resource)))) animation-sets)
-
-        _ (prn "MAWE resolve-animation-infos animation-sets" animation-sets)
-        _ (prn "MAWE resolve-animation-infos animation-info" animation-info)
-        _ (prn "MAWE resolve-animation-infos animations-infos" animations-infos)
-        _ (prn "MAWE resolve-animation-infos child-animations-infos" child-animations-infos)
-
-        ; [[a] [b c] [d]] -> [a b c d]
-        flattened (reduce into (concat [animation-info] [animations-infos] child-animations-infos))]
-    
-    (prn "MAWE resolve-animation-infos" flattened)
-    flattened))
-
+(defn- update-animation-info [resource info]
+  (if (nil? (:parent-resource info))
+    (-> info
+        (assoc :parent-id (resource/base-name resource))
+        (assoc :parent-resource resource))
+    info))
+  
 ; Also used by model.clj
-(g/defnk produce-animation-infos [animation-info animation-resources]
-  (let [out (resolve-animation-infos "" animation-info animation-resources)]
-    out))
+(g/defnk produce-animation-info [resource animation-infos]
+  (let [parent-id (resource/base-name resource)
+        infos (reduce into [] animation-infos)
+        resolved-infos (mapv (partial update-animation-info resource) infos)]
+    resolved-infos))
 
-(defn- load-and-validate-animation-set [bones animation-infos]
-  (prn "MAWE load-and-validate-animation-set" animation-infos bones)
-  (let [paths (map (fn [x] (:path x)) animation-infos)
-        streams (map (fn [x] (io/input-stream (:resource x))) animation-infos)
-        parent-ids (map (fn [x] (:parent-id x)) animation-infos)
+(defn- load-and-validate-animation-set [resource bones animation-info]
+  (let [paths (map (fn [x] (:path x)) animation-info)
+        streams (map (fn [x] (io/input-stream (:resource x))) animation-info)
+        parent-ids (map (fn [x] (:parent-id x)) animation-info)
+
+        ; clean up the parent-id if it's the current resource
+        parent-id (resource/base-name resource)
+        parent-ids (map (fn [id] (if (= id parent-id)
+                                   ""
+                                   id)) parent-ids)
+
         animation-set-builder (Rig$AnimationSet/newBuilder)
         animation-ids (ArrayList.)]
     (AnimationSetBuilder/buildAnimations paths bones streams parent-ids animation-set-builder animation-ids)
@@ -103,10 +76,9 @@
        :animation-ids animation-ids})))
 
 ; Also used by model.clj
-(g/defnk produce-animation-set-info [_node-id bones resource skeleton-resource animation-infos]
+(g/defnk produce-animation-set-info [_node-id bones resource skeleton-resource animation-info]
   (try
-    (prn "MAWE animation-set produce-animation-set-info" bones)
-    (load-and-validate-animation-set bones animation-infos)
+    (load-and-validate-animation-set resource bones animation-info)
     (catch LoaderException e
       (g/->error _node-id :animations :fatal resource
                  (str "Failed to build " (resource/resource->proj-path resource)
@@ -115,7 +87,7 @@
 (g/defnk produce-animation-set [animation-set-info]
   (:animation-set animation-set-info))
 
-(g/defnk produce-animation-ids [animation-set-info]
+(g/defnk produce-animation-ids [resource animation-set-info]
   (:animation-ids animation-set-info))
 
 ;; used by the model.clj
@@ -164,28 +136,23 @@
                           :clear clear-form-op})
         (assoc :values values))))
 
-(g/defnk produce-bones [skeleton-resource]
-  (let [bones (model-loader/load-bones skeleton-resource)]
-  ;(let [bones (:bones skeleton-resource)]
-    (prn "MAWE animation-set produce-bones" skeleton-resource bones)
-    bones))
-
 (g/defnode AnimationSetNode
   (inherits resource-node/ResourceNode)
 
   (input skeleton-resource resource/Resource)
   (input animation-resources resource/Resource :array)
   (input animation-sets g/Any :array)
+  (input animation-infos g/Any :array)
+  (output animation-info g/Any :cached produce-animation-info)
            
   (input bones g/Any)
-  ;(output bones g/Any (gu/passthrough bones))
 
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :skeleton-resource
-                                             :bones :bones])))
+                                            [:resource :skeleton-resource]
+                                            [:bones :bones])))
             (dynamic error (g/fnk [_node-id skeleton]
                                   (or (validation/prop-error :info _node-id :skeleton validation/prop-nil? skeleton "Skeleton")
                                       (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton"))))
@@ -196,7 +163,8 @@
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :animation-resources]
-                                      [:animation-set :animation-sets]]]
+                                      [:animation-set :animation-sets]
+                                      [:animation-info :animation-infos]]]
                      (concat
                        (for [old-resource old-value]
                          (if old-resource
@@ -208,9 +176,6 @@
                            (g/connect project :nil-resource self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
 
-  ;(output bones g/Any :cached produce-bones)
-  (output animation-info g/Any :cached produce-animation-info)
-  (output animation-infos g/Any :cached produce-animation-infos)
   (output form-data g/Any :cached produce-form-data)
 
   (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
@@ -223,9 +188,10 @@
 (defn- load-animation-set [_project self resource pb]
   (let [proj-path->resource (partial workspace/resolve-resource resource)
         animation-proj-paths (map :animation (:animations pb))
-        animation-resources (mapv proj-path->resource animation-proj-paths)]
+        animation-resources (mapv proj-path->resource animation-proj-paths)
+        skeleton (workspace/resolve-resource resource (:skeleton pb))]
     (g/set-property self
-                    :skeleton (workspace/resolve-resource resource (:skeleton pb))
+                    :skeleton skeleton
                     :animations animation-resources)))
 
 (defn register-resource-types [workspace]

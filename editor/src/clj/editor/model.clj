@@ -37,14 +37,7 @@
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
-(g/defnk produce-animation-info [resource animations-resource]
-  (prn "MAWE model produce-animation-info" animations-resource)
-  (if (= (:ext animations-resource) "animationset")
-    (:animation-info animations-resource)
-    [{:path (resource/proj-path animations-resource) :parent-id "" :resource animations-resource}]))
-
 (g/defnk produce-animation-set-build-target [_node-id resource animations-resource animation-set]
-  (prn "MAWE model produce-animation-set-build-target" animations-resource)
   (when-not (= (:ext animations-resource) "animationset")
     (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set)))
 
@@ -212,8 +205,8 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :animations-resource]
-                                            ;[:animation-set :animation-set]
                                             [:animation-ids :animation-ids-input]
+                                            [:animation-info :animation-infos]
                                             [:animation-set-build-target :animation-set-build-target]
                                             )))
             (dynamic error (g/fnk [_node-id animations]
@@ -243,14 +236,15 @@
   (input vertex-space g/Keyword)
 
   (input bones g/Any)
-
+  
   (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
-  (output animation-info g/Any :cached produce-animation-info)
-  (output animation-infos g/Any :cached animation-set/produce-animation-infos)
+
+  (input animation-infos g/Any :array)
+  (output animation-info g/Any :cached animation-set/produce-animation-info)
   (output animation-set-info g/Any :cached animation-set/produce-animation-set-info)
   (output animation-set g/Any :cached animation-set/produce-animation-set)
   (output animation-ids g/Any :cached animation-set/produce-animation-ids)
-  ; if referencing a single animation file
+  ; if we're referencing a single animation file
   (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target)
 
   (input animation-ids-input g/Any)

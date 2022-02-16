@@ -51,15 +51,11 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 @BuilderParams(name="Meshset", inExts={".dae",".fbx"}, outExt=".meshsetc")
 public class MeshsetBuilder extends Builder<Void>  {
 
-    private static final String USE_JAGATOO=System.getenv("USE_JAGATOO");
-
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
             .addInput(input);
-
-System.out.printf("MESHSET: %s\n", input.getAbsPath());
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.addOutput(input.changeExt(".skeletonc"));
@@ -67,66 +63,8 @@ System.out.printf("MESHSET: %s\n", input.getAbsPath());
         return taskBuilder.build();
     }
 
-    private void buildJagatooCollada(Task<Void> task) throws CompileExceptionError, IOException {
-
-        System.out.printf("jagatoo: Collada file: %s", task.input(0).getAbsPath());
-
-        ByteArrayInputStream collada_is = new ByteArrayInputStream(task.input(0).getContent());
-
-        // MeshSet
-        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-        MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-        try {
-            ColladaUtil.loadMesh(collada_is, meshSetBuilder, true);
-        } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh: " + e.getLocalizedMessage(), e);
-        } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh: " + e.getLocalizedMessage(), e);
-        }
-        meshSetBuilder.build().writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
-
-        // Skeleton
-        out = new ByteArrayOutputStream(64 * 1024);
-        collada_is.reset();
-        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-        try {
-            ColladaUtil.loadSkeleton(collada_is, skeletonBuilder, new ArrayList<String>());
-        } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
-        } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
-        }
-        skeletonBuilder.build().writeTo(out);
-        out.close();
-        task.output(1).setContent(out.toByteArray());
-
-        // Animationset
-        out = new ByteArrayOutputStream(64 * 1024);
-        collada_is.reset();
-        AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-        try {
-            ColladaUtil.loadAnimations(collada_is, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
-        } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile animation: " + e.getLocalizedMessage(), e);
-        } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile animation: " + e.getLocalizedMessage(), e);
-        }
-        animationSetBuilder.build().writeTo(out);
-        out.close();
-        task.output(2).setContent(out.toByteArray());
-
-    }
-
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-
-        if (USE_JAGATOO != null)
-        {
-            buildJagatooCollada(task);
-            return;
-        }
 
         String suffix = BuilderUtil.getSuffix(task.input(0).getPath());
         AIScene aiScene = ModelUtil.loadScene(task.input(0).getContent(), suffix);

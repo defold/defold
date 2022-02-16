@@ -258,22 +258,6 @@
             node-id (:node-id renderable)]
         (render/render-aabb-outline gl render-args [node-id ::outline] renderables rcount)))))
 
-;; (g/defnk produce-animation-set [resource content]
-;;   (prn "MAWE model_scene produce-animation-set" content)
-;;   (let [animation-set (:animation-set content)
-;;         id (resource/base-name resource)]
-;;     (update animation-set :animations
-;;             (fn [animations]
-;;               (into [] (map #(assoc % :id id)) animations)))))
-
-;; (g/defnk produce-animation-set-build-target [_node-id resource animation-set bones]
-;;   (let [; update the animation set with the correct indices for the bones list
-;;         animation-set-with-bone-indices (model-loader/set-bone-indices animation-set bones)
-;;         (prn "MAWE model_scene animation-set-with-bone-indices" animation-set-with-bone-indices)
-;;         ; convert back to a proper protobuf format with id's of type uint64 (as opposed to type string)
-;;         animation-set-with-hash-ids (animation-set/hash-animation-set-ids animation-set-with-bone-indices)]
-;;     (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set-with-hash-ids)))
-
 (g/defnk produce-mesh-set [content]
   (:mesh-set content))
 
@@ -304,8 +288,7 @@
 (g/defnk produce-skeleton-build-target [_node-id resource skeleton]
   (rig/make-skeleton-build-target (resource/workspace resource) _node-id skeleton))
 
-(g/defnk produce-bones [resource content]
-  (prn "MAWE model_scene produce-bones" (resource/resource->proj-path resource) (:bones content))
+(g/defnk produce-bones [content]
   (:bones content))
 
 (g/defnk produce-content [_node-id resource]
@@ -314,6 +297,12 @@
       (model-loader/load-scene resource)
       (catch NumberFormatException _
         (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content})))))
+
+(g/defnk produce-animation-info [resource]
+  [{:path (resource/proj-path resource) :parent-id "" :resource resource}])
+
+(g/defnk produce-animation-ids [content]
+  (:animation-ids content))
 
 (defn- vbuf-size [meshes]
   (reduce (fn [sz m] (max sz (alength ^ints (:position-indices m)))) 0 meshes))
@@ -384,7 +373,9 @@
                                           (recur (+ i 3) (geom/aabb-incorporate aabb x y z)))
                                         aabb)))
                                   aabb))))
-  (output bones g/Any :cached produce-bones)
+  (output bones g/Any produce-bones)
+  (output animation-info g/Any produce-animation-info)
+  (output animation-ids g/Any produce-animation-ids)
   (output mesh-set g/Any produce-mesh-set)
   (output meshes g/Any :cached produce-meshes)
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)
