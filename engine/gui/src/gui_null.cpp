@@ -866,6 +866,10 @@ namespace dmGui
     {
     }
 
+    void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position)
+    {
+    }
+
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)
     {
     }

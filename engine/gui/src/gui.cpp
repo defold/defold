@@ -3879,7 +3879,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return GetNodeHandle(parent_n);
     }
 
-    Vector3 ScreenToLocalPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
+    static Vector3 ScreenToLocalPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
     {
         Matrix4 parent_m;
 
@@ -3945,7 +3945,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return Point3(local_position);
     }
 
-    void SetScreenPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
+    static void SetScreenPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
     {
         Vector3 local_position = ScreenToLocalPosition(scene, node, parent_node, screen_position);
         node->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(local_position, 1.0f);
