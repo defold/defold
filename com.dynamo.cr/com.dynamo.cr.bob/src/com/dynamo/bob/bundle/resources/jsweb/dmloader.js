@@ -113,9 +113,9 @@ var EngineLoader = {
     asmjs_from: 0,
     asmjs_to: 50,
 
-    // load .wasm and set Module.instantiateWasm to use the loaded .wasm file
-    // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
-    loadWasmAsync: function(src, fromProgress, toProgress, callback) {
+    stream_wasm: true,
+
+    loadAndInstantiateWasmAsync: function(src, fromProgress, toProgress, callback) {
         FileLoader.load(src, "arraybuffer", EngineLoader.wasm_size,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
@@ -131,6 +131,31 @@ var EngineLoader = {
                 }
                 callback();
             });
+    },
+
+    streamAndInstantiateWasmAsync: function(src, fromProgress, toProgress, callback) {
+        Module.instantiateWasm = function(imports, successCallback) {
+            WebAssembly.instantiateStreaming(fetch(src), imports).then(function(output) {
+                Progress.calculateProgress(fromProgress, toProgress, 1, 1);
+                successCallback(output.instance);
+            }).catch(function(e) {
+                console.log('wasm streaming instantiation failed! ' + e);
+                throw e;
+            });
+            return {}; // Compiling asynchronously, no exports.
+        }
+        callback();
+    },
+
+    // instantiate the .wasm file either by streaming it or first loading and then instantiate it
+    // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
+    loadWasmAsync: function(src, fromProgress, toProgress, callback) {
+        if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
+            EngineLoader.streamAndInstantiateWasmAsync(src, fromProgress, toProgress, callback);
+        }
+        else {
+            EngineLoader.loadAndInstantiateWasmAsync(src, fromProgress, toProgress, callback);
+        }
     },
 
     // load and start engine script (asm.js or wasm.js)
