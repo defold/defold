@@ -550,7 +550,7 @@ namespace dmGameSystem
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
 
         const ModelRenderItem* render_item = (ModelRenderItem*) buf[*begin].m_UserData;
-        const ModelResourceMesh* render_mesh = render_item->m_MeshBuffers;
+        //const ModelResourceMesh* render_mesh = render_item->m_MeshBuffers;
         const ModelComponent* component = render_item->m_Component;
 
         // const ModelComponent* component = (ModelComponent*) buf[*begin].m_UserData;
@@ -931,9 +931,8 @@ namespace dmGameSystem
         create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
         create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
 
-// TODO: Fix for models without skins (i.e. we don't want a single "skin")
         dmRigDDF::MeshEntry* entry       = rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count > 0 ? &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[0] : 0;
-        create_params.m_MeshId           = entry->m_Id;
+        create_params.m_MeshId           = entry ? entry->m_Id : 0; // not implemented for models
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
