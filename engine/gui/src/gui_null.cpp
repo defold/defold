@@ -870,6 +870,11 @@ namespace dmGui
     {
     }
 
+    dmVMath::Point3 ScreenToLocalPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position)
+    {
+        return Point3(0,0,0);
+    }
+
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)
     {
     }

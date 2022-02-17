@@ -5320,13 +5320,13 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
 TEST_F(dmGuiTest, SetGetScreenPosition)
 {
     const char* s = "function init(self)\n"
-                    "    self.box_node = gui.new_box_node(vmath.vector3(90, 90 ,0), vmath.vector3(180, 60, 0))\n"
+                    "    self.box_node = gui.new_box_node(vmath.vector3(90, 80 ,0), vmath.vector3(180, 60, 0))\n"
                     "    gui.set_id(self.box_node, \"box\")\n"
 
                     "    self.internal_node = gui.new_box_node(vmath.vector3(20, 30, 0), vmath.vector3(109, 120, 0))\n"
                     "    gui.set_id(self.internal_node, \"internal_node\")\n"
                     "    gui.set_pivot(self.internal_node, gui.PIVOT_NE)\n"
-                    "    gui.set_parent(self.internal_node, self_box_node, true)\n"
+                    "    gui.set_parent(self.internal_node, self.box_node, true)\n"
                     "end\n"
                     "function final(self)\n"
                     "    gui.delete_node(self.box_node)\n"
@@ -5342,6 +5342,12 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
 
     dmGui::HNode internal_node = dmGui::GetNodeById(m_Scene, "internal_node");
     Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, internal_node);
+    ASSERT_EQ(before_set, Vector4(20, 30, 0, 0));
+
+    Point3 local_pos = dmGui::ScreenToLocalPosition(m_Scene, internal_node, Point3(10, 10, 0));
+    ASSERT_EQ(local_pos.getX(), -80);
+    ASSERT_EQ(local_pos.getY(), -70);
+
     dmGui::SetScreenPosition(m_Scene, internal_node, Point3(before_set.getXYZ()));
     Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, internal_node);
     ASSERT_EQ( before_set, after_set);
