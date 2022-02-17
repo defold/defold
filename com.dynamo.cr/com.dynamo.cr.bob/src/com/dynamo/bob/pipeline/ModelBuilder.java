@@ -84,7 +84,10 @@ public class ModelBuilder extends Builder<Void> {
             rigBuilder.setSkeleton(BuilderUtil.replaceExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
 
-        if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
+        if (modelDescBuilder.getAnimations().equals("")) {
+            // No animations
+        }
+        else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
             // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
             rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".animationsetc"));
         }
