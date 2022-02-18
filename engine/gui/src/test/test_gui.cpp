@@ -2955,9 +2955,9 @@ static Vector4 _GET_NODE_SCENE_POSITION(dmGui::HScene scene, dmGui::HNode node)
 {
     dmGui::InternalNode* n = dmGui::GetNode(scene, node);
     Matrix4 node_transform;
-    Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
-    CalculateNodeTransform(scene, n, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), node_transform);
-    return node_transform * center;
+    CalculateNodeTransform(scene, n, dmGui::CalculateNodeTransformFlags(), node_transform);
+    Vector4 node_screen_pos = Vector4(node_transform.getCol3().getXYZ(), 0.0f);
+    return node_screen_pos;
 }
 
 // Assert that the scene position for a node stays the same during;
@@ -5314,6 +5314,46 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
 
     // cleanup
     dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
+}
+
+// Check consistancy of get_screen_position/set_screen_position functions 
+TEST_F(dmGuiTest, SetGetScreenPosition)
+{
+    const char* s = "function init(self)\n"
+                    "    self.box_node = gui.new_box_node(vmath.vector3(90, 80 ,0), vmath.vector3(180, 60, 0))\n"
+                    "    gui.set_id(self.box_node, \"box\")\n"
+
+                    "    self.internal_node = gui.new_box_node(vmath.vector3(20, 30, 0), vmath.vector3(109, 120, 0))\n"
+                    "    gui.set_id(self.internal_node, \"internal_node\")\n"
+                    "    gui.set_pivot(self.internal_node, gui.PIVOT_NE)\n"
+                    "    gui.set_parent(self.internal_node, self.box_node, true)\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete_node(self.box_node)\n"
+                    "    gui.delete_node(self.internal_node)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::HNode internal_node = dmGui::GetNodeById(m_Scene, "internal_node");
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, internal_node);
+    ASSERT_EQ(before_set, Vector4(20, 30, 0, 0));
+
+    Point3 local_pos = dmGui::ScreenToLocalPosition(m_Scene, internal_node, Point3(10, 10, 0));
+    ASSERT_EQ(local_pos.getX(), -80);
+    ASSERT_EQ(local_pos.getY(), -70);
+
+    dmGui::SetScreenPosition(m_Scene, internal_node, Point3(before_set.getXYZ()));
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, internal_node);
+    ASSERT_EQ( before_set, after_set);
+
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
 

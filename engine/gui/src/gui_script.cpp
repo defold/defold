@@ -3649,13 +3649,51 @@ namespace dmGui
      */
     int LuaGetScreenPosition(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 1);
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         Scene* scene = GuiScriptInstance_Check(L);
         Matrix4 node_transform;
-        Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
-        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), node_transform);
-        Vector4 p = node_transform * center;
-        dmScript::PushVector3(L, Vector3(p.getX(), p.getY(), p.getZ()));
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_transform);
+        Vector3 node_screen_pos = node_transform.getCol3().getXYZ();
+        dmScript::PushVector3(L, node_screen_pos);
+        return 1;
+    }
+
+    /*# sets screen position to the node
+     * 
+     * Set the screen position to the supplied node
+     *
+     * @name gui.set_screen_position
+     * @param node [type:node] node to set the screen position to
+     * @param screen_position [type:vector3] screen position
+     */
+    int LuaSetScreenPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        Scene* scene = GuiScriptInstance_Check(L);
+        InternalNode* node = LuaCheckNodeInternal(L, 1, 0);
+        Point3 screen_position = GetPositionFromArgumentIndex(L, 2);
+        SetScreenPosition(scene, GetNodeHandle(node), screen_position);
+        return 0;
+    }
+
+    /*# convert screen position to the local node position
+     * 
+     * Convert the screen position to the local position of supplied node
+     *
+     * @name gui.screen_to_local
+     * @param node [type:node] node used for getting local transformation matrix
+     * @param screen_position [type:vector3] screen position
+     * @return local_position [type:vector3] local position
+     */
+    int LuaScreenToLocal(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+        InternalNode* node = LuaCheckNodeInternal(L, 1, 0);
+        Point3 screen_position = GetPositionFromArgumentIndex(L, 2);
+        Point3 local_position = ScreenToLocalPosition(scene, GetNodeHandle(node), screen_position);
+        dmScript::PushVector3(L, Vector3(local_position));
         return 1;
     }
 
@@ -4161,6 +4199,8 @@ namespace dmGui
         {"hide_keyboard",   LuaHideKeyboard},
         {"reset_keyboard",  LuaResetKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
+        {"set_screen_position", LuaSetScreenPosition},
+        {"screen_to_local", LuaScreenToLocal},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
         {"set_fill_angle", LuaSetPieFillAngle},

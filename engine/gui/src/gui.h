@@ -1047,6 +1047,10 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+    
+    void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
+
+    dmVMath::Point3 ScreenToLocalPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node);
 
