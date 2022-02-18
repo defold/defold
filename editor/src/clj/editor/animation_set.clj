@@ -38,48 +38,64 @@
 (defn- animation-instance-desc-pb-msg [resource]
   {:animation (resource/resource->proj-path resource)})
 
-(g/defnk produce-desc-pb-msg [skeleton animations]
-  {:skeleton (resource/resource->proj-path skeleton)
-   :animations (mapv animation-instance-desc-pb-msg animations)})
+(g/defnk produce-desc-pb-msg [skeleton animation-resources]
+  (let [pb {:skeleton (resource/resource->proj-path skeleton)
+            :animations (mapv animation-instance-desc-pb-msg animation-resources)}]
+    pb))
 
-(defn- update-animation-info [resource info]
-  (if (nil? (:parent-resource info))
+; animations-resource is nil when resource is an animation set
+(defn- get-animation-set-resource [resource animations-resource]
+  (cond
+    (nil? animations-resource)
+    resource
+
+    :else
+    animations-resource))
+
+(defn- update-animation-info [resource animations-resource info]
+  (let [parent-resource (:parent-resource info)
+        animation-set-resource (get-animation-set-resource resource animations-resource)
+        ; If we're at the top level, the parent id should be ""
+        parent-id (if (or (nil? parent-resource)
+                          (= parent-resource animation-set-resource)) "" (resource/base-name parent-resource))
+        ]
     (-> info
-        (assoc :parent-id (resource/base-name resource))
-        (assoc :parent-resource resource))
-    info))
+        (assoc :parent-id parent-id)
+        (assoc :parent-resource (if (nil? parent-resource) resource parent-resource)))))
   
 ; Also used by model.clj
-(g/defnk produce-animation-info [resource animation-infos]
-  (let [parent-id (resource/base-name resource)
-        infos (reduce into [] animation-infos)
-        resolved-infos (mapv (partial update-animation-info resource) infos)]
+(g/defnk produce-animation-info [resource animations-resource animation-infos]
+  (let [infos (reduce into [] animation-infos)
+        resolved-infos (mapv (partial update-animation-info resource animations-resource) infos)]
     resolved-infos))
 
-(defn- load-and-validate-animation-set [resource bones animation-info]
-  (let [paths (map (fn [x] (:path x)) animation-info)
+(defn- load-and-validate-animation-set [resource animations-resource bones animation-info]
+  (let [animations-resource (if (nil? animations-resource) resource animations-resource)
+        paths (map (fn [x] (:path x)) animation-info)
         streams (map (fn [x] (io/input-stream (:resource x))) animation-info)
-        parent-ids (map (fn [x] (:parent-id x)) animation-info)
-
         ; clean up the parent-id if it's the current resource
-        parent-id (resource/base-name resource)
-        parent-ids (map (fn [id] (if (= id parent-id)
-                                   ""
-                                   id)) parent-ids)
+        parent-ids (map (fn [x] (:parent-id x)) animation-info)
+        parent-resources (map (fn [x] (:parent-resource x)) animation-info)
 
         animation-set-builder (Rig$AnimationSet/newBuilder)
         animation-ids (ArrayList.)]
+    
     (AnimationSetBuilder/buildAnimations paths bones streams parent-ids animation-set-builder animation-ids)
-
     (let [animation-set (protobuf/pb->map (.build animation-set-builder))]
       {:animation-set animation-set
        :animation-ids animation-ids})))
 
 ; Also used by model.clj
-(g/defnk produce-animation-set-info [_node-id bones resource skeleton-resource animation-info]
+(g/defnk produce-animation-set-info [_node-id bones resource animations-resource skeleton-resource animation-info]
   (try
-    (load-and-validate-animation-set resource bones animation-info)
+    (if (or (= 0 (count animation-info))
+            (nil? bones))
+      {:animation-set []
+       :animation-ids []}
+      (load-and-validate-animation-set resource animations-resource bones animation-info))
     (catch LoaderException e
+      (prn "Error loading :" (resource/resource->proj-path resource))
+      (prn (.getMessage e)) ; need to print since the error value doesn't propagate property up in unit tests
       (g/->error _node-id :animations :fatal resource
                  (str "Failed to build " (resource/resource->proj-path resource)
                       ": " (.getMessage e))))))
@@ -99,11 +115,13 @@
    :content (protobuf/map->bytes Rig$AnimationSet (:animation-set user-data))})
 
 (g/defnk produce-animation-set-build-target [_node-id resource bones animation-set]
-  (bt/with-content-hash
-    {:node-id _node-id
-     :resource (workspace/make-build-resource resource)
-     :build-fn build-animation-set
-     :user-data {:animation-set animation-set}}))
+  (when (not (or (nil? bones)
+                (= 0 (count animation-set))))
+    (bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-animation-set
+        :user-data {:animation-set animation-set}})))
 
 (def ^:private form-sections
   {:navigation false
@@ -127,9 +145,9 @@
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
-(g/defnk produce-form-data [_node-id skeleton animations]
+(g/defnk produce-form-data [_node-id skeleton animation-resources]
   (let [values {[:skeleton] skeleton
-                [:animations] animations}]
+                [:animations] animation-resources}]
     (-> form-sections
         (assoc :form-ops {:user-data {:node-id _node-id}
                           :set set-form-op
@@ -140,12 +158,14 @@
   (inherits resource-node/ResourceNode)
 
   (input skeleton-resource resource/Resource)
+  (input animations-resource resource/Resource)
   (input animation-resources resource/Resource :array)
   (input animation-sets g/Any :array)
   (input animation-infos g/Any :array)
   (output animation-info g/Any :cached produce-animation-info)
            
   (input bones g/Any)
+  (output bones g/Any (gu/passthrough bones))
 
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
@@ -159,7 +179,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-skeleton-formats})))
 
   (property animations resource/ResourceVec
-            (value (gu/passthrough animation-resources))
+            (value (gu/passthrough animations-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :animation-resources]

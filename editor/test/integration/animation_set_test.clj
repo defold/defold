@@ -12,6 +12,7 @@
 
 (ns integration.animation-set-test
   (:require [clojure.test :refer :all]
+            [util.murmur :as murmur]
             [dynamo.graph :as g]
             [integration.test-util :as test-util]))
 
@@ -19,9 +20,9 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/treasure_chest.animationset")
           {:keys [animations bone-list]} (g/node-value node-id :animation-set)]
-      (is (= 3 (count bone-list)))
+      (is (= 4 (count bone-list)))
       (is (= 3 (count animations)))
-      (is (= #{"treasure_chest"
-               "treasure_chest_sub_animation/treasure_chest_anim_out"
-               "treasure_chest_sub_sub_animation/treasure_chest_anim_out"}
+      (is (= #{(murmur/hash64 "treasure_chest")
+               (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")
+               (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
              (set (map :id animations)))))))

@@ -520,6 +520,7 @@ public class ModelUtil {
 
     public static void loadAnimations(AIScene scene, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
         AssetSpace assetSpace = getAssetSpace(scene);
+        assert(bones != null);
 
         //System.out.printf("loadAnimations skeleton: size: %d\n", bones.size());
 
@@ -1009,7 +1010,8 @@ public class ModelUtil {
     private static void markNecessary(AINode node, AINode mesh_owner, HashSet<String> boneSet) {
         // The iteration step from https://assimp-docs.readthedocs.io/en/latest/usage/use_the_lib.html#bones
         AINode mesh_owner_parent = mesh_owner.mParent();
-        if (node.mName().equals(mesh_owner.mName()) ||
+        if (node == null ||
+            node.mName().equals(mesh_owner.mName()) ||
             node.mName().equals(mesh_owner_parent.mName()))
             return;
 
@@ -1086,7 +1088,7 @@ public class ModelUtil {
             }
         }
 
-        if (boneMap.isEmpty()) {
+        if (boneSet.isEmpty()) {
             return new ArrayList<ModelUtil.Bone>();
         }
 
@@ -1186,6 +1188,15 @@ public class ModelUtil {
         // Generate DDF representation of bones.
         ArrayList<Rig.Bone> ddfBones = new ArrayList<Rig.Bone>();
         for (ModelUtil.Bone bone : boneList) {
+            boneToDDF(bone, ddfBones);
+        }
+        skeletonBuilder.addAllBones(ddfBones);
+    }
+
+    public static void skeletonToDDF(ArrayList<ModelUtil.Bone> bones, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
+        // Generate DDF representation of bones.
+        ArrayList<Rig.Bone> ddfBones = new ArrayList<>();
+        for (ModelUtil.Bone bone : bones) {
             boneToDDF(bone, ddfBones);
         }
         skeletonBuilder.addAllBones(ddfBones);

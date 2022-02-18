@@ -31,14 +31,13 @@
     bones))
 
 (defn load-scene [resource]
-  (let [animation-set-builder (Rig$AnimationSet/newBuilder)
-        mesh-set-builder (Rig$MeshSet/newBuilder)
+  (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         scene (create-scene resource)
         bones (ModelUtil/loadSkeleton scene)
         animation-ids (ArrayList.)]
-    (ModelUtil/loadSkeleton scene skeleton-builder)
-    (ModelUtil/loadAnimations scene bones animation-set-builder (resource/base-name resource) animation-ids)
+    (when-not (empty? bones)
+      (ModelUtil/skeletonToDDF bones skeleton-builder))
     (ModelUtil/loadMeshes scene mesh-set-builder)
     (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
           skeleton (protobuf/pb->map (.build skeleton-builder))]

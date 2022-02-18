@@ -38,7 +38,8 @@
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
 (g/defnk produce-animation-set-build-target [_node-id resource animations-resource animation-set]
-  (when-not (= (:ext animations-resource) "animationset")
+  (when-not (or (= 0 (count animation-set))
+                (= (:ext animations-resource) "animationset"))
     (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set)))
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
@@ -100,7 +101,7 @@
             dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:rig-scene :material])
-                            (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
+                                (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -142,6 +143,9 @@
   (let [c (count v)
         v (if (<= c i) (into v (repeat (- i c) nil)) v)]
     (assoc v i value)))
+
+(g/defnk produce-bones [skeleton-bones animations-bones]
+  (or animations-bones skeleton-bones))
 
 (g/defnode ModelNode
   (inherits resource-node/ResourceNode)
@@ -194,7 +198,7 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :skeleton-resource]
-                                            [:bones :bones]
+                                            [:bones :skeleton-bones]
                                             [:skeleton-build-target :skeleton-build-target])))
             (dynamic error (g/fnk [_node-id skeleton]
                                   (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
@@ -205,7 +209,8 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :animations-resource]
-                                            [:animation-ids :animation-ids-input]
+                                            [:bones :animations-bones]
+                                            [:animation-ids :animation-ids]
                                             [:animation-info :animation-infos]
                                             [:animation-set-build-target :animation-set-build-target]
                                             )))
@@ -226,7 +231,6 @@
   (input skeleton-resource resource/Resource)
   (input skeleton-build-target g/Any)
   (input animations-resource resource/Resource)
-  ;(input animation-set g/Any)
   (input animation-set-build-target g/Any)
   (input texture-resources resource/Resource :array)
   (input gpu-texture-generators g/Any :array)
@@ -235,7 +239,9 @@
   (input shader ShaderLifecycle)
   (input vertex-space g/Keyword)
 
-  (input bones g/Any)
+  (input skeleton-bones g/Any)
+  (input animations-bones g/Any)
+  (output bones g/Any produce-bones)
   
   (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
 
@@ -247,8 +253,8 @@
   ; if we're referencing a single animation file
   (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target)
 
-  (input animation-ids-input g/Any)
-  (output animation-ids g/Any (gu/passthrough animation-ids-input))
+  (input animation-ids g/Any)
+  (output animation-ids g/Any (gu/passthrough animation-ids))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)

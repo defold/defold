@@ -295,8 +295,8 @@
   (resource-io/with-error-translation resource _node-id :content
     (try
       (model-loader/load-scene resource)
-      (catch NumberFormatException _
-        (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content})))))
+      (catch Exception _
+        (error-values/error-fatal "The scene contains invalid data, likely produced by a buggy exporter." {:type :invalid-content})))))
 
 (g/defnk produce-animation-info [resource]
   [{:path (resource/proj-path resource) :parent-id "" :resource resource}])

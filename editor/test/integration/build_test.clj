@@ -144,14 +144,12 @@
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           (let [rig-scene (target (:rig-scene pb) targets)]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)]
                              (is (= "" (:animation-set rig-scene)))
                              (is (= "" (:skeleton rig-scene)))
                              (is (= "" (:texture-set rig-scene)))
-
-                             ;; TODO - id must be 0 currently because of the runtime
-                             ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
-                             (is (= 0 (-> rig-scene :mesh-set (target targets) :mesh-entries first :id)))))}
+                             (is (= (murmur/hash64 "Book") (-> mesh-set :mesh-entries first :id)))))}
                {:label "Model with animations"
                 :path "/model/treasure_chest.model"
                 :pb-class ModelProto$Model
@@ -172,11 +170,9 @@
                              (let [mesh (-> mesh-set :mesh-attachments first)]
                                (is (< 2 (-> mesh :position-indices count))))
 
-                             ;; TODO - id must be 0 currently because of the runtime
-                             ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
-                             (is (= 0 (-> mesh-set :mesh-entries first :id)))
+                             (is (= (murmur/hash64 "chest") (-> mesh-set :mesh-entries first :id)))
 
-                             (is (= 3 (count (:bones skeleton))))
+                             (is (= 4 (count (:bones skeleton))))
                              (is (= (:bone-list mesh-set) (:bone-list animation-set)))
                              (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
                "/collection_proxy/with_collection.collectionproxy"

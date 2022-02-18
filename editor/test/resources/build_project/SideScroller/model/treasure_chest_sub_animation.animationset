@@ -1,3 +1,4 @@
 animations {
   animation: "/model/treasure_chest_anim_out.dae"
 }
+skeleton: "/model/treasure_chest_anim_out.dae"
