@@ -14,13 +14,15 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.FileInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -127,8 +129,6 @@ public class ModelUtil {
         AssetSpace assetSpace = new AssetSpace();
         if (scene != null) {
 
-            // Since LWJGL doesn't seem to support retrieving the values of a scene's metadata
-            // We instead have to determine the orientation using the root transform
             //UpAxis guessedUpAxis = null;
             {
                 AINode scene_root = scene.mRootNode();
@@ -576,15 +576,17 @@ public class ModelUtil {
         }
     }
 
-    private static ArrayList<Float> getVertexData(AIVector3D.Buffer buffer) {
+    private static ArrayList<Float> getBufferData(AIVector3D.Buffer buffer, int numComponents) {
         if (buffer == null)
             return null;
         ArrayList<Float> out = new ArrayList<>();
         while (buffer.remaining() > 0) {
             AIVector3D v = buffer.get();
             out.add(v.x());
-            out.add(v.y());
-            out.add(v.z());
+            if (numComponents >= 2)
+                out.add(v.y());
+            if (numComponents >= 3)
+                out.add(v.z());
         }
         return out;
     }
@@ -764,7 +766,7 @@ public class ModelUtil {
     }
 
     public static Rig.Mesh loadMesh(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton) {
-        ArrayList<Float> positions = getVertexData(mesh.mVertices());
+        ArrayList<Float> positions = getBufferData(mesh.mVertices(), 3);
 
         String name = mesh.mName().dataString();
 // if (name.equals("Cube-mesh"))
@@ -776,12 +778,12 @@ public class ModelUtil {
 //             }
 // }
 
-        ArrayList<Float> normals = getVertexData(mesh.mNormals());
-        ArrayList<Float> tangents = getVertexData(mesh.mTangents());
-        //ArrayList<Float> bitangents = getVertexData(mesh.mBitangents());
+        ArrayList<Float> normals = getBufferData(mesh.mNormals(), 3);
+        ArrayList<Float> tangents = getBufferData(mesh.mTangents(), 3);
+        //ArrayList<Float> bitangents = getBufferData(mesh.mBitangents());
 
-        ArrayList<Float> texcoord0 = getVertexData(mesh.mTextureCoords(0));
-        ArrayList<Float> texcoord1 = getVertexData(mesh.mTextureCoords(1));
+        ArrayList<Float> texcoord0 = getBufferData(mesh.mTextureCoords(0), mesh.mNumUVComponents(0));
+        ArrayList<Float> texcoord1 = getBufferData(mesh.mTextureCoords(1), mesh.mNumUVComponents(1));
 
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
 
@@ -843,10 +845,6 @@ public class ModelUtil {
         }
         meshBuilder.addAllPositionIndices(position_indices_list);
         meshBuilder.addAllTexcoord0Indices(texcoord0_indices_list);
-
-        //System.out.printf("position_indices_list: %d\n", position_indices_list.size());
-        //System.out.printf("normal_indices_list: %d\n", normal_indices_list.size());
-        //System.out.printf("texcoord0_indices_list: %d\n", texcoord0_indices_list.size());
 
         createMeshIndices(meshBuilder, triangle_count, true, position_indices_list, normal_indices_list, texcoord0_indices_list);
 
@@ -1205,6 +1203,112 @@ public class ModelUtil {
     public static void loadSkeleton(byte[] content, String suffix, Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
         AIScene aiScene = loadScene(content, suffix);
         loadSkeleton(aiScene, skeletonBuilder);
+    }
+
+    // private float getFloatProperty(aiScene scene, String name, float default_value) {
+
+    // }
+
+
+// $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            System.err.println("No model specified!");
+            return;
+        }
+
+        File file = new File(args[0]);
+        System.out.printf("Loading '%s'\n", file);
+        if (!file.exists()) {
+            System.out.printf("File '%s' does not exist!\n", file);
+            return;
+        }
+
+        AIScene scene;
+        try {
+            String suffix = FilenameUtils.getExtension(file.getName());
+            InputStream is = new FileInputStream(file);
+            scene = loadScene(is, suffix);
+        } catch (Exception e) {
+            System.out.printf("Failed reading'%s':\n%s\n", file, e.getMessage());
+            return;
+        }
+
+        System.out.printf("Meta Data:\n");
+        {
+            AIMetaData meta_data = scene.mMetaData();
+            AIString.Buffer meta_data_keys = meta_data.mKeys();
+            AIMetaDataEntry.Buffer meta_data_values = meta_data.mValues();
+            int num_properties = meta_data.mNumProperties();
+            for (int i = 0; i < num_properties; ++i) {
+                AIString name = meta_data_keys.get(i);
+                AIMetaDataEntry entry = meta_data_values.get(i);
+                int type = entry.mType(); // Assimp.java
+                ByteBuffer data = entry.mData(2048);
+
+                // https://github.com/LWJGL/lwjgl3/blob/02e5523774b104866e502e706141ae1a468183e6/modules/lwjgl/assimp/src/generated/java/org/lwjgl/assimp/Assimp.java#L1767-L1776
+
+                String str_value = "<...>";
+                String str_type = "?";
+
+                switch (type)
+                {
+                case AI_BOOL: str_type = "AI_BOOL"; break;
+                case AI_INT32:
+                    str_type = "AI_INT32";
+                    str_value = Integer.toString(data.getInt());
+                    break;
+                case AI_UINT64:
+                    str_type = "AI_UINT64";
+                    str_value = Long.toString(data.getLong());
+                    break;
+                case AI_FLOAT:
+                    str_type = "AI_FLOAT";
+                    str_value = Float.toString(data.getFloat());
+                    break;
+                case AI_DOUBLE:
+                    str_type = "AI_DOUBLE";
+                    str_value = Double.toString(data.getDouble());
+                    break;
+                case AI_AISTRING:
+                    str_type = "AI_AISTRING";
+                    int len = data.getInt();
+                    data.limit(data.position() + len);
+                    str_value = StandardCharsets.UTF_8.decode(data).toString();
+                    break;
+                case AI_AIVECTOR3D:
+                    str_type = "AI_AIVECTOR3D";
+                    str_value = String.format("%f, %f, %f", data.getFloat(), data.getFloat(), data.getFloat());
+                    break;
+                case AI_AIMETADATA: str_type = "AI_AIMETADATA"; break;
+                default: break;
+                }
+
+                System.out.printf("  Property: %s: %s (%s)\n", name.dataString(), str_value, str_type);
+            }
+        }
+        System.out.printf("\n");
+
+        System.out.printf("Scene Root Transform:\n");
+        printMatrix4x4(scene.mRootNode().mName().dataString(), scene.mRootNode().mTransformation());
+        System.out.printf("\n");
+
+        System.out.printf("Bones:\n");
+
+        ArrayList<ModelUtil.Bone> bones = loadSkeleton(scene);
+        for (Bone bone : bones) {
+            System.out.printf("  Bone: %s  index: %d\n", bone.name, bone.index);
+        }
+
+        System.out.printf("Materials:\n");
+        ArrayList<String> materials = loadMaterials(scene);
+        for (String material : materials) {
+            System.out.printf("  Material: %s\n", material);
+        }
+        System.out.printf("\n");
+
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        loadMeshes(scene, meshSetBuilder);
     }
 
 }
