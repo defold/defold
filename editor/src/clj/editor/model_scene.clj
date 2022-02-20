@@ -11,19 +11,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.model-scene
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
-            [editor.animation-set :as animation-set]
+  (:require [dynamo.graph :as g]
             [editor.model-loader :as model-loader]
-            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx1]
             [editor.gl.vertex2 :as vtx]
-            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.render :as render]
             [editor.resource :as resource]
@@ -43,6 +38,8 @@
 (set! *warn-on-reflection* true)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
+(def model-file-types ["dae" "fbx"])
+(def animation-file-types ["animationset" "dae" "fbx"])
 
 (vtx/defvertex vtx-pos-nrm-tex
   (vec3 position)
@@ -385,7 +382,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
-                                    :ext #{"dae"}
+                                    :ext model-file-types
                                     :label "Model Scene"
                                     :node-type ModelSceneNode
                                     :icon mesh-icon

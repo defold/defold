@@ -21,6 +21,7 @@
             [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.material :as material]
+            [editor.model-scene :as model-scene]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -39,7 +40,7 @@
 
 (g/defnk produce-animation-set-build-target [_node-id resource animations-resource animation-set]
   (when-not (or (= 0 (count animation-set))
-                (= (:ext animations-resource) "animationset"))
+                (animation-set/is-animation-set? animations-resource))
     (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set)))
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
@@ -162,7 +163,8 @@
             (dynamic error (g/fnk [_node-id mesh]
                                   (prop-resource-error :fatal _node-id :mesh mesh "Scene")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext #{"dae"}})))
+                                              :ext model-scene/model-file-types
+                                              })))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -203,7 +205,8 @@
             (dynamic error (g/fnk [_node-id skeleton]
                                   (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext "dae"})))
+                                              :ext model-scene/model-file-types
+                                              })))
   (property animations resource/Resource
             (value (gu/passthrough animations-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -217,7 +220,8 @@
             (dynamic error (g/fnk [_node-id animations]
                                   (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext ["dae" "animationset"]})))
+                                              :ext model-scene/animation-file-types
+                                              })))
   (property default-animation g/Str
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
                                   (validate-default-animation _node-id default-animation animation-ids)))

@@ -18,6 +18,7 @@
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.model-loader :as model-loader]
+            [editor.model-scene :as model-scene]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -33,7 +34,8 @@
 
 (def ^:private animation-set-icon "icons/32/Icons_24-AT-Animation.png")
 
-(def supported-skeleton-formats #{"dae"})
+(defn is-animation-set? [resource]
+  (= (:ext resource) "animationset")) 
 
 (defn- animation-instance-desc-pb-msg [resource]
   {:animation (resource/resource->proj-path resource)})
@@ -129,14 +131,14 @@
    [{:title "Animation Set"
      :fields [{:path [:skeleton]
                :type :resource
-               :filter #{"dae"}
+               :filter model-scene/model-file-types
                :label "Skeleton"
                :default nil}
               {:path [:animations]
                :type :list
                :label "Animations"
                :element {:type :resource
-                         :filter #{"animationset" "dae"}
+                         :filter model-scene/animation-file-types
                          :default nil}}]}]})
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
@@ -176,7 +178,7 @@
             (dynamic error (g/fnk [_node-id skeleton]
                                   (or (validation/prop-error :info _node-id :skeleton validation/prop-nil? skeleton "Skeleton")
                                       (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton"))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-skeleton-formats})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext model-scene/model-file-types})))
 
   (property animations resource/ResourceVec
             (value (gu/passthrough animations-resource))
