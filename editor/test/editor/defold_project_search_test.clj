@@ -174,9 +174,6 @@
             (is (= [] (perform-search! nil nil)))
             (is (= [] (perform-search! "" nil)))
             (is (= [] (perform-search! nil "")))
-            (is (set/subset? #{["/modules/colors.lua" ["-- Unless required by applicable law or agreed to in writing, software distributed" "red = {255, 0, 0},"]]
-                               ["/scripts/apples.script" ["\"Red Delicious\","]]}
-                             (set (perform-search! "red" nil))))
             (is (set/subset? #{["/modules/colors.lua" ["red = {255, 0, 0},"
                                                        "green = {0, 255, 0},"
                                                        "blue = {0, 0, 255}"]]}
