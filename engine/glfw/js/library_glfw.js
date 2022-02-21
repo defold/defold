@@ -158,11 +158,11 @@ var LibraryGLFW = {
           }
       },
 
-      removeEventListenerCanvas:function (type, listener, useCapture) {
-          if (typeof Module['canvas'] !== 'undefined') {
-              Module['canvas'].removeEventListener(type, listener, useCapture);
-          }
-      },
+    removeEventListenerCanvas:function (type, listener, useCapture) {
+        if (typeof Module['canvas'] !== 'undefined') {
+            Module['canvas'].removeEventListener(type, listener, useCapture);
+        }
+    },
 
     isCanvasActive: function(event) {
       var res = (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
@@ -420,6 +420,15 @@ var LibraryGLFW = {
     },
 
     onFocusChanged: function(focus) {
+      // If a key is pressed while the game lost focus and that key is released while
+      // not in focus the event will not be received for the key release. This will
+      // result in the key remaining in the pressed state when the game regains focus.
+      // To fix this we set all pressed keys to released before regaining focus.
+      if (focus == 1) {
+        for (var i = 0; i < GLFW.keys.length; i++) {
+          GLFW.keys[i] = 0;
+        }
+      }
       if (GLFW.focusFunc) {
         {{{ makeDynCall('vi', 'GLFW.focusFunc') }}}(focus);
       }
