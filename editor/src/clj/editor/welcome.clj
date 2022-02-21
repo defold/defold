@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -93,12 +93,25 @@
 (def ^:private WelcomeSettings
   {:new-project NewProjectSettings})
 
-(defn- load-edn [path]
-  (with-open [reader (PushbackReader. (io/reader (io/resource path)))]
+(defn- load-edn [edn-resource]
+  (with-open [reader (PushbackReader. (io/reader edn-resource))]
     (edn/read reader)))
 
-(defn- load-welcome-settings [path]
-  (s/validate WelcomeSettings (load-edn path)))
+(defn- load-welcome-settings-resource [resource]
+  (try
+    [(s/validate WelcomeSettings (load-edn resource)) nil]
+    (catch Exception error
+      [nil error])))
+
+(defn- load-welcome-settings-file [^File file]
+  (if (.exists file)
+    (try
+      [(s/validate WelcomeSettings (load-edn file)) nil]
+      (catch Exception error
+        [nil error]))
+    [{} nil]))
+
+
 
 ;; -----------------------------------------------------------------------------
 ;; Game project settings
@@ -571,11 +584,15 @@
   ([prefs updater open-project-fn]
    (show-welcome-dialog! prefs updater open-project-fn nil))
   ([prefs updater open-project-fn opts]
-   (let [[welcome-settings
-          welcome-settings-load-error] (try
-                                         [(load-welcome-settings "welcome/welcome.edn") nil]
-                                         (catch Exception error
-                                           [nil error]))
+   (let [[default-welcome-settings
+          default-welcome-settings-load-error] (load-welcome-settings-resource (io/resource "welcome/welcome.edn"))
+         [custom-welcome-settings
+          custom-welcome-settings-load-error] (load-welcome-settings-file (io/file (System/getProperty "user.home") ".defold" "welcome.edn"))
+
+         default-categories (get-in default-welcome-settings [:new-project :categories])
+         custom-categories (get-in custom-welcome-settings [:new-project :categories] [])
+         welcome-settings {:new-project {:categories (concat default-categories custom-categories)}}
+         welcome-settings-load-error (or default-welcome-settings-load-error custom-welcome-settings-load-error)
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
          stage (ui/make-dialog-stage)
          scene (Scene. root)
