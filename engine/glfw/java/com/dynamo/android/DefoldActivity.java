@@ -294,6 +294,12 @@ public class DefoldActivity extends NativeActivity {
         return super.dispatchKeyEvent(event);
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+
     /** show virtual keyboard
      * Implemented here to ensure that calls from native code are delayed and run on the UI thread.
      */
