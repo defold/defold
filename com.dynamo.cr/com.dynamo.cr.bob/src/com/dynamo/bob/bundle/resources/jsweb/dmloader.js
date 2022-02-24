@@ -483,35 +483,6 @@ var Progress = {
 };
 
 /* ********************************************************************* */
-/* Default input override                                                */
-/* ********************************************************************* */
-
-var CanvasInput = {
-    arrowKeysHandler : function(e) {
-        switch(e.keyCode) {
-            case 37: case 38: case 39:  case 40: // Arrow keys
-            case 32: e.preventDefault(); e.stopPropagation(); // Space
-            default: break; // do not block other keys
-        }
-    },
-
-    onFocusIn : function(e) {
-        window.addEventListener("keydown", CanvasInput.arrowKeysHandler, false);
-    },
-
-    onFocusOut: function(e) {
-        window.removeEventListener("keydown", CanvasInput.arrowKeysHandler, false);
-    },
-
-    addToCanvas : function(canvas) {
-        canvas.addEventListener("focus", CanvasInput.onFocusIn, false);
-        canvas.addEventListener("blur", CanvasInput.onFocusOut, false);
-        canvas.focus();
-        CanvasInput.onFocusIn();
-    }
-};
-
-/* ********************************************************************* */
 /* Module is Emscripten namespace                                        */
 /* ********************************************************************* */
 
@@ -697,10 +668,7 @@ var Module = {
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
         if (Module.hasWebGLSupport()) {
-            // Override game keys
-            CanvasInput.addToCanvas(Module.canvas);
-
-            Module.setupVisibilityChangeListener();
+            Module.canvas.focus();
 
             // Add context menu hide-handler if requested
             if (params["disable_context_menu"])

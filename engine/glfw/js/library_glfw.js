@@ -210,6 +210,13 @@ var LibraryGLFW = {
     onKeydown: function(event) {
       if (!GLFW.isCanvasActive(event)) { return; }
 
+      switch(event.keyCode) {
+        case 37: case 38: case 39:  case 40: // Arrow keys
+        case 32: event.preventDefault(); event.stopPropagation(); // Space
+        default: break; // do not block other keys
+      }
+
+
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       if (event.keyCode === 32) {
         if (GLFW.charFunc) {
