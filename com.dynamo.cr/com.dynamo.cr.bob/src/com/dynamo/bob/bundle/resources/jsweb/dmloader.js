@@ -574,30 +574,6 @@ var Module = {
         return webgl_support;
     },
 
-    handleVisibilityChange: function () {
-        GLFW.onFocusChanged(document[Module.hiddenProperty] ? 0 : 1);
-    },
-
-    getHiddenProperty: function () {
-        if ('hidden' in document) return 'hidden';
-        var prefixes = ['webkit','moz','ms','o'];
-        for (var i = 0; i < prefixes.length; i++) {
-            if ((prefixes[i] + 'Hidden') in document)
-                return prefixes[i] + 'Hidden';
-        }
-        return null;
-    },
-
-    setupVisibilityChangeListener: function() {
-        Module.hiddenProperty = Module.getHiddenProperty();
-        if( Module.hiddenProperty ) {
-            var eventName = Module.hiddenProperty.replace(/[H|h]idden/,'') + 'visibilitychange';
-            document.addEventListener(eventName, Module.handleVisibilityChange, false);
-        } else {
-            console.log("No document.hidden property found. The focus events won't be enabled.")
-        }
-    },
-
     setupCanvas: function(appCanvasId) {
         appCanvasId = (typeof appCanvasId === 'undefined') ? 'canvas' : appCanvasId;
         Module.canvas = document.getElementById(appCanvasId);
