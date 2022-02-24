@@ -434,6 +434,14 @@ var LibraryGLFW = {
       }
     },
 
+    onFocus: function(event) {
+      GLFW.onFocusChanged(1);
+    },
+
+    onBlur: function(event) {
+      GLFW.onFocusChanged(0);
+    },
+
     onFullScreenEventChange: function(event) {
       GLFW.isFullscreen = document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"];
       if (!GLFW.isFullscreen) {
@@ -557,6 +565,8 @@ var LibraryGLFW = {
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
     GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+    GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
+    GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
 
     __ATEXIT__.push({ func: function() {
         GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
@@ -573,6 +583,8 @@ var LibraryGLFW = {
         GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+        GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
+        GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
 
         var canvas = Module["canvas"];
         if (typeof canvas !== 'undefined') {
