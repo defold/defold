@@ -380,6 +380,7 @@ def create_bundle(options):
         tmp_dir = "tmp"
 
         is_mac = 'darwin' in platform
+        is_linux = 'linux' in platform
         if is_mac:
             resources_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources')
             packages_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources/packages')
@@ -403,6 +404,8 @@ def create_bundle(options):
             shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
             shutil.copy('bundle-resources/Assets.car', resources_dir)
             shutil.copy('bundle-resources/document_legacy.icns', resources_dir)
+        if is_linux:
+            shutil.copy('bundle-resources/defold.sh', bundle_dir)
         if icon:
             shutil.copy('bundle-resources/%s' % icon, resources_dir)
 
