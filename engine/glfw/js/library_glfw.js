@@ -423,8 +423,8 @@ var LibraryGLFW = {
       // If a key is pressed while the game lost focus and that key is released while
       // not in focus the event will not be received for the key release. This will
       // result in the key remaining in the pressed state when the game regains focus.
-      // To fix this we set all pressed keys to released before regaining focus.
-      if (focus == 1) {
+      // To fix this we set all pressed keys to released when focus is lost.
+      if (focus == 0) {
         for (var i = 0; i < GLFW.keys.length; i++) {
           GLFW.keys[i] = 0;
         }
