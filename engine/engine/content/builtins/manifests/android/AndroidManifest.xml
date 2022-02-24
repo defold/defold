@@ -22,7 +22,7 @@
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="{{project.title}}"
-                android:configChanges="orientation|screenSize|keyboardHidden"
+                android:configChanges="fontScale|keyboard|keyboardHidden|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                 android:screenOrientation="{{orientation-support}}"
                 android:launchMode="singleTask">
