@@ -210,6 +210,14 @@ var LibraryGLFW = {
     onKeydown: function(event) {
       if (!GLFW.isCanvasActive(event)) { return; }
 
+      // prevent navigation within the page using arrow keys and space
+      switch(event.keyCode) {
+        case 37: case 38: case 39:  case 40: // Arrow keys
+        case 32: event.preventDefault(); event.stopPropagation(); // Space
+        default: break; // do not block other keys
+      }
+
+
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       if (event.keyCode === 32) {
         if (GLFW.charFunc) {
@@ -423,8 +431,8 @@ var LibraryGLFW = {
       // If a key is pressed while the game lost focus and that key is released while
       // not in focus the event will not be received for the key release. This will
       // result in the key remaining in the pressed state when the game regains focus.
-      // To fix this we set all pressed keys to released before regaining focus.
-      if (focus == 1) {
+      // To fix this we set all pressed keys to released when focus is lost.
+      if (focus == 0) {
         for (var i = 0; i < GLFW.keys.length; i++) {
           GLFW.keys[i] = 0;
         }
@@ -432,6 +440,14 @@ var LibraryGLFW = {
       if (GLFW.focusFunc) {
         {{{ makeDynCall('vi', 'GLFW.focusFunc') }}}(focus);
       }
+    },
+
+    onFocus: function(event) {
+      GLFW.onFocusChanged(1);
+    },
+
+    onBlur: function(event) {
+      GLFW.onFocusChanged(0);
     },
 
     onFullScreenEventChange: function(event) {
@@ -557,6 +573,8 @@ var LibraryGLFW = {
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
     GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+    GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
+    GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
 
     __ATEXIT__.push({ func: function() {
         GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
@@ -573,6 +591,8 @@ var LibraryGLFW = {
         GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+        GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
+        GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
 
         var canvas = Module["canvas"];
         if (typeof canvas !== 'undefined') {
