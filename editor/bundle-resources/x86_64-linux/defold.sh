@@ -19,9 +19,28 @@
 # EOF
 # }
 
-# detect GL version and set override
-export MESA_GL_VERSION_OVERRIDE=$(glxinfo | grep "Max core profile version" | sed 's/Max core profile version: //')
-echo "MESA_GL_VERSION_OVERRIDE is ${MESA_GL_VERSION_OVERRIDE}"
+
+if ! command -v glxinfo &> /dev/null
+then
+    echo "glxinfo could not be found"
+    echo "Install using 'sudo apt-get install mesa-utils'"
+    exit
+fi
+
+# detect MESA and GL version and set override
+export GL_VERSION=$(glxinfo | grep "OpenGL version string" | sed 's/OpenGL version string: \([0-9]*.[0-9]*\).*/\1/')
+
+# export MESA_VERSION=$(glxinfo | grep "OpenGL version string" | sed 's/OpenGL version string: .* Mesa \(.*\)/\1/')
+# export MESA_LOADER_DRIVER_OVERRIDE=i965
+
+if (( $(echo "$GL_VERSION >= 3.0" |bc -l) )); then
+    export MESA_GL_VERSION_OVERRIDE=${GL_VERSION}
+    echo "MESA_GL_VERSION_OVERRIDE is ${MESA_GL_VERSION_OVERRIDE}"
+elif
+    export LIBGL_ALWAYS_SOFTWARE=1
+    echo "Using software rendering since GL version is lower than 3.0"
+fi
+
 
 
 # detect libffi and add to LD_PRELOAD
@@ -36,8 +55,8 @@ elif [ -f "${LIBFFI7}" ]; then
     export LD_PRELOAD=$LD_PRELOAD:${LIBFFI7}
 else
     echo "Defold requires libffi.so.6 or libffi.so.7"
-    echo "Install using wget http://ftp.br.debian.org/debian/pool/main/libf/libffi/libffi7_3.3-5_amd64.deb && sudo dpkg -i libffi7_3.3-5_amd64.deb"
-    exit 1
+    echo "Install using 'wget http://ftp.br.debian.org/debian/pool/main/libf/libffi/libffi7_3.3-5_amd64.deb && sudo dpkg -i libffi7_3.3-5_amd64.deb'"
+    exit
 fi
 
 # launch!
