@@ -136,6 +136,7 @@ def build(bld):
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
+    create_test(bld, 'test_intersection', extra_libs = ['THREAD'])
     create_test(bld, 'test_easing', extra_libs = ['THREAD'])
     create_test(bld, 'test_json', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/flickr.json'], extra_includes = ['.'])

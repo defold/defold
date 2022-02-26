@@ -1364,7 +1364,8 @@ namespace dmRender
             constant_buffer = *tmp;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer)))
+        dmVMath::Matrix4* frustum_matrix = 0;
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer, (uintptr_t) frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1386,7 +1387,8 @@ namespace dmRender
     int RenderScript_DrawDebug3d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D)))
+        dmVMath::Matrix4* frustum_matrix = 0;
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uintptr_t)frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());

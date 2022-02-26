@@ -27,6 +27,7 @@
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <gameobject/gameobject_ddf.h>
@@ -852,6 +853,28 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        DM_PROFILE(Sprite, "FrustumCulling");
+
+        uint32_t num_visible = 0;
+
+        const dmIntersection::Frustum frustum = *params.m_Frustum;
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+
+// TODO: Get correct radius
+            bool intersect = dmIntersection::TestFrustumSphere(frustum, entry->m_WorldPosition, 20.0f, true);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+            num_visible += (int)intersect;
+        }
+
+        DM_COUNTER("SpriteNumVisible", num_visible);
+        DM_COUNTER("SpriteNumCulled", params.m_NumEntries - num_visible);
+    }
+
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         SpriteWorld* world = (SpriteWorld*) params.m_UserData;
@@ -917,7 +940,7 @@ namespace dmGameSystem
 
         // Submit all sprites as entries in the render list for sorting.
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, sprite_count);
-        dmRender::HRenderListDispatch sprite_dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, sprite_world);
+        dmRender::HRenderListDispatch sprite_dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, sprite_world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < sprite_count; ++i)
