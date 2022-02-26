@@ -44,22 +44,26 @@ ext_to_license = {
 
 excluded_files = [
     "apply_license.py"
-    "ddfc.py",
-    "edn.lua",
-    "mobdebug.lua",
-    "start.lua",
-    "test_props.lua",
-    "test_props_url.lua",
-    "test_props_number.lua",
-    "test_props_hash.lua",
-    "test_props_vec3.lua",
-    "test_props_vec4.lua",
-    "test_props_quat.lua",
-    "test_props_bool.lua",
-    "test_props_material.lua",
+    "engine/ddf/src/ddfc.py",
+    "engine/engine/contents/builtins/edn.lua",
+    "engine/engine/contents/builtins/mobdebug.lua",
+    "editor/bundle_resources/_defold/debugger/start.lua",
+    "engine/gameobject/src/test/factory/test_props.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_url.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_number.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_hash.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_vec3.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_vec4.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_quat.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_bool.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_material.lua",
+    "editor/resources/templates/template.script",
+    "editor/resources/templates/template.gui_script",
+    "editor/resources/templates/template.render_script",
+    "editor/resources/templates/template.lua",
     # resource test files:
-    "file5.script",
-    "liveupdate.file6.script",
+    "engine/resource/src/test/archive_data/file5.script",
+    "engine/resource/src/test/archive_data/liveupdate.file6.script",
 ]
 
 excluded_paths = [
@@ -92,11 +96,11 @@ def match_patterns(s, patterns):
             return True
     return False
 
-def skip_path(fullpath):
-    return match_patterns(fullpath, excluded_paths)
+def skip_path(path):
+    return match_patterns(path, excluded_paths)
 
-def skip_filename(fullpath):
-    return match_patterns(fullpath, excluded_files)
+def skip_filename(filepath):
+    return match_patterns(filepath, excluded_files)
 
 def has_defold_license(s):
     return re.search(RE_LICENSE, s[0:2000], flags=re.DOTALL) is not None
@@ -125,7 +129,7 @@ def check_ignored(path):
 
 def process_file(filepath):
     # skip ignored files
-    if skip_filename(os.path.basename(file)) or check_ignored(filepath):
+    if skip_filename(filepath) or check_ignored(filepath):
         return
 
     license = get_license_for_file(filepath)
