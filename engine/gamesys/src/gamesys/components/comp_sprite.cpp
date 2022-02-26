@@ -871,8 +871,6 @@ namespace dmGameSystem
             num_visible += (int)intersect;
         }
 
-        DM_COUNTER("SpriteNumVisible", num_visible);
-        DM_COUNTER("SpriteNumCulled", params.m_NumEntries - num_visible);
     }
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
