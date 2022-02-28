@@ -161,6 +161,7 @@ namespace dmRender
         render_context->m_RenderListSortIndices.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
+        render_context->m_FrustumHash = 0xFFFFFFFF; // trigger a first recalculation each frame
     }
 
     HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
@@ -580,18 +581,24 @@ namespace dmRender
             SortRenderList(context);
         }
 
-
-        if (frustum_matrix)
+        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*)frustum_matrix, 16*sizeof(float)) : 0;
+        if (context->m_FrustumHash != frustum_hash)
         {
-            dmIntersection::Frustum frustum;
-            dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
+            // We use this to avoid calling the culling functions more than once in a row
+            context->m_FrustumHash = frustum_hash;
 
-            FrustumCulling(context, frustum);
-        }
-        else
-        {
-            // Reset the visibility
-            SetVisibility(context->m_RenderList.Size(), context->m_RenderList.Begin(), dmRender::VISIBILITY_FULL);
+            if (frustum_matrix)
+            {
+                dmIntersection::Frustum frustum;
+                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
+
+                FrustumCulling(context, frustum);
+            }
+            else
+            {
+                // Reset the visibility
+                SetVisibility(context->m_RenderList.Size(), context->m_RenderList.Begin(), dmRender::VISIBILITY_FULL);
+            }
         }
 
         MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0);

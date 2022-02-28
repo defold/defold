@@ -99,6 +99,7 @@ namespace dmGameSystem
     {
         dmObjectPool<SpriteComponent>   m_Components;
         dmArray<dmRender::RenderObject*> m_RenderObjects;
+        dmArray<float>                  m_Radiuses;
         uint32_t                        m_RenderObjectsInUse;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -187,6 +188,8 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
+        sprite_world->m_Radiuses.SetCapacity(comp_count);
+        sprite_world->m_Radiuses.SetSize(comp_count);
         memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
 
@@ -423,6 +426,8 @@ namespace dmGameSystem
 
         uint32_t index_type_size = sprite_world->m_Is16BitIndex ? sizeof(uint16_t) : sizeof(uint32_t);
 
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+
         if (sprite_world->m_UseGeometries)
         {
             const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
@@ -432,7 +437,8 @@ namespace dmGameSystem
 
             for (uint32_t* i = begin; i != end; ++i)
             {
-                const SpriteComponent* component = (SpriteComponent*) buf[*i].m_UserData;
+                uint32_t component_index = (uint32_t)buf[*i].m_UserData;
+                const SpriteComponent* component = (const SpriteComponent*) &components[component_index];
 
                 const dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
 
@@ -508,7 +514,8 @@ namespace dmGameSystem
 
             for (uint32_t *i = begin;i != end; ++i)
             {
-                const SpriteComponent* component = (SpriteComponent*) buf[*i].m_UserData;
+                uint32_t component_index = (uint32_t)buf[*i].m_UserData;
+                const SpriteComponent* component = (const SpriteComponent*) &components[component_index];
 
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
 
@@ -575,7 +582,8 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "RenderBatch");
 
-        const SpriteComponent* first = (SpriteComponent*) buf[*begin].m_UserData;
+        uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
+        const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.m_Objects[component_index];
         assert(first->m_Enabled);
 
         SpriteResource* resource = first->m_Resource;
@@ -830,6 +838,25 @@ namespace dmGameSystem
         }
     }
 
+    static void CalcBoundingVolumes(SpriteWorld* sprite_world)
+    {
+        DM_PROFILE(Sprite, "CalcBoundingVolumes");
+
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        uint32_t n = components.Size();
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const SpriteComponent* component = &components[i];
+
+            float sx = Vectormath::Aos::length(component->m_World.getCol(0).getXYZ());
+            float sy = Vectormath::Aos::length(component->m_World.getCol(1).getXYZ());
+            float radius = dmMath::Max(sx, sy) * 0.5f;
+
+            sprite_world->m_Radiuses[i] = radius;
+        }
+    }
+
     dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         uint32_t index = (uint32_t)*params.m_UserData;
@@ -857,7 +884,10 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "FrustumCulling");
 
-        uint32_t num_visible = 0;
+        //uint32_t num_visible = 0;
+
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
+        float* radiuses = sprite_world->m_Radiuses.Begin();
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
@@ -865,11 +895,26 @@ namespace dmGameSystem
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
 
-// TODO: Get correct radius
-            bool intersect = dmIntersection::TestFrustumSphere(frustum, entry->m_WorldPosition, 20.0f, true);
+            uint32_t component_index = (uint32_t)entry->m_UserData;
+
+            bool intersect = false;
+            float radius = radiuses[component_index];
+            dmVMath::Point3 pos = entry->m_WorldPosition;
+            {
+                DM_PROFILE(Intersection, "TestFrustumSphere");
+                intersect = dmIntersection::TestFrustumSphere(frustum, pos, radius, true);
+            }
+            //bool intersect = dmIntersection::TestFrustumSphere(frustum, entry->m_WorldPosition, radiuses[component_index], true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-            num_visible += (int)intersect;
+            //num_visible += (int)intersect;
+
+            // if (intersect)
+            // {
+            //     printf("%u: %f, %f, %f\n", i, entry->m_WorldPosition.getX(), entry->m_WorldPosition.getY(), entry->m_WorldPosition.getZ());
+            // }
         }
+
+        //printf("num_visible: %u\n", num_visible);
 
     }
 
@@ -917,7 +962,9 @@ namespace dmGameSystem
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
 
-        UpdateTransforms(sprite_world, sprite_context->m_Subpixels);
+        UpdateTransforms(sprite_world, sprite_context->m_Subpixels); // TODO: Why is this not in the update function?
+
+        CalcBoundingVolumes(sprite_world); // uses the m_World to calculate the actual radius of the object
 
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
 
@@ -954,7 +1001,7 @@ namespace dmGameSystem
 
             const Vector4 trans = component.m_World.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
-            write_ptr->m_UserData = (uintptr_t) &component;
+            write_ptr->m_UserData = i;
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
             write_ptr->m_Dispatch = sprite_dispatch;

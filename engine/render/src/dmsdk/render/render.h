@@ -220,15 +220,15 @@ namespace dmRender
     struct RenderListEntry
     {
         dmVMath::Point3 m_WorldPosition;
-        uint64_t m_UserData;
+        uint64_t m_UserData; // E.g. component type instance pointer
         uint32_t m_Order;
         uint32_t m_BatchKey;
         uint32_t m_TagListKey;
-        uint32_t m_MinorOrder:4;
-        uint32_t m_MajorOrder:2;
-        uint32_t m_Dispatch:8;
+        uint32_t m_MinorOrder : 4;
+        uint32_t m_MajorOrder : 2;
+        uint32_t m_Dispatch   : 8;
         uint32_t m_Visibility : 1; // See enum Visibility
-        uint32_t : 17;
+        uint32_t              : 17;
     };
 
     /*#
