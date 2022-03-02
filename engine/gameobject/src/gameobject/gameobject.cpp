@@ -1273,7 +1273,6 @@ namespace dmGameObject
             if (!GetParent(new_instances[i]))
             {
                 new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
-                dmLogInfo("CollectionSpawnFromDescInternal new_instances scale x: %f y: %f z: %f", new_instances[i]->m_Transform.GetScale().getX(), new_instances[i]->m_Transform.GetScale().getY(), new_instances[i]->m_Transform.GetScale().getZ());
             }
 
             // world transforms need to be up to date in time for the script init calls
