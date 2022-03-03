@@ -1413,6 +1413,11 @@ namespace dmRender
     /*# draws all 3d debug graphics
      * Draws all 3d debug graphics such as lines drawn with "draw_line" messages and physics visualization.
      * @name render.draw_debug3d
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `frustum`
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
      * @replaces render.draw_debug2d
      * @examples
      *
@@ -1427,6 +1432,27 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmVMath::Matrix4* frustum_matrix = 0;
+
+        if (lua_istable(L, 1))
+        {
+            luaL_checktype(L, 1, LUA_TTABLE);
+            lua_pushvalue(L, 1);
+
+            lua_getfield(L, -1, "frustum");
+            frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (frustum_matrix)
+        {
+            // we need to pass ownership to the command queue
+            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
+            *copy = *frustum_matrix;
+            frustum_matrix = copy;
+        }
+
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uintptr_t)frustum_matrix)))
             return 0;
         else

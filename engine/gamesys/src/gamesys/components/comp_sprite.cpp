@@ -99,7 +99,7 @@ namespace dmGameSystem
     {
         dmObjectPool<SpriteComponent>   m_Components;
         dmArray<dmRender::RenderObject*> m_RenderObjects;
-        dmArray<float>                  m_Radiuses;
+        dmArray<float>                  m_BoundingVolumes;
         uint32_t                        m_RenderObjectsInUse;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -188,8 +188,8 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
-        sprite_world->m_Radiuses.SetCapacity(comp_count);
-        sprite_world->m_Radiuses.SetSize(comp_count);
+        sprite_world->m_BoundingVolumes.SetCapacity(comp_count);
+        sprite_world->m_BoundingVolumes.SetSize(comp_count);
         memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
 
@@ -842,18 +842,18 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "CalcBoundingVolumes");
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
 
         for (uint32_t i = 0; i < n; ++i)
         {
-            const SpriteComponent* component = &components[i];
+            SpriteComponent* component = &components[i];
 
             float sx = Vectormath::Aos::length(component->m_World.getCol(0).getXYZ());
             float sy = Vectormath::Aos::length(component->m_World.getCol(1).getXYZ());
             float radius = dmMath::Max(sx, sy) * 0.5f;
 
-            sprite_world->m_Radiuses[i] = radius;
+            sprite_world->m_BoundingVolumes[i] = radius;
         }
     }
 
@@ -884,10 +884,8 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "FrustumCulling");
 
-        //uint32_t num_visible = 0;
-
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
-        float* radiuses = sprite_world->m_Radiuses.Begin();
+        const SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
+        const float* radiuses = sprite_world->m_BoundingVolumes.Begin();
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
@@ -895,28 +893,13 @@ namespace dmGameSystem
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
 
-            uint32_t component_index = (uint32_t)entry->m_UserData;
+            float radius = radiuses[entry->m_UserData];
 
-            bool intersect = false;
-            float radius = radiuses[component_index];
-            dmVMath::Point3 pos = entry->m_WorldPosition;
-            {
-                DM_PROFILE(Intersection, "TestFrustumSphere");
-                intersect = dmIntersection::TestFrustumSphere(frustum, pos, radius, true);
-            }
-            //bool intersect = dmIntersection::TestFrustumSphere(frustum, entry->m_WorldPosition, radiuses[component_index], true);
+            bool intersect = dmIntersection::TestFrustumSphere(frustum, entry->m_WorldPosition, radius, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-            //num_visible += (int)intersect;
-
-            // if (intersect)
-            // {
-            //     printf("%u: %f, %f, %f\n", i, entry->m_WorldPosition.getX(), entry->m_WorldPosition.getY(), entry->m_WorldPosition.getZ());
-            // }
         }
-
-        //printf("num_visible: %u\n", num_visible);
-
     }
+
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {

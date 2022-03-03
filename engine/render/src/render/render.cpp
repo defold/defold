@@ -204,6 +204,10 @@ namespace dmRender
 
         uint32_t size = render_list.Size();
         render_list.SetSize(size + entries);
+
+        // If we push new items after the last frustum culling, we need to reevaluate it
+        render_context->m_FrustumHash = 0xFFFFFFFF;
+
         return (render_list.Begin() + size);
     }
 
@@ -216,6 +220,13 @@ namespace dmRender
         // Insert the used up indices into the sort buffer.
         assert(end - begin <= (intptr_t)render_context->m_RenderListSortIndices.Remaining());
         assert(end <= render_context->m_RenderList.End());
+
+        // If we didn't use all entries, let's put them back into the list
+        if (end < render_context->m_RenderList.End())
+        {
+            uint32_t list_size = end - render_context->m_RenderList.Begin();
+            render_context->m_RenderList.SetSize(list_size);
+        }
 
         // Transform pointers back to indices.
         RenderListEntry *base = render_context->m_RenderList.Begin();
@@ -380,9 +391,9 @@ namespace dmRender
 
         RenderListRange* ranges = context->m_RenderListRanges.Begin();
         uint32_t num_ranges = context->m_RenderListRanges.Size();
-        for( uint32_t i = 0; i < num_ranges; ++i)
+        for( uint32_t r = 0; r < num_ranges; ++r)
         {
-            RenderListRange& range = ranges[i];
+            RenderListRange& range = ranges[r];
 
             MaterialTagList taglist;
             dmRender::GetMaterialTagList(context, range.m_TagListKey, &taglist);
@@ -538,7 +549,7 @@ namespace dmRender
 
     static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum)
     {
-        DM_PROFILE(Sprite, "FrustumCulling");
+        DM_PROFILE(Render, "FrustumCulling");
 
         uint32_t num_entries = context->m_RenderList.Size();
         if (num_entries == 0)
@@ -563,7 +574,6 @@ namespace dmRender
                 d->m_VisibilityFn(params);
             }
         }
-
     }
 
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
@@ -591,7 +601,6 @@ namespace dmRender
             {
                 dmIntersection::Frustum frustum;
                 dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
-
                 FrustumCulling(context, frustum);
             }
             else

@@ -13,11 +13,12 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/intersection.h>
+#include <stdint.h>
 
 namespace dmIntersection
 {
 // Keeping this private for now. Making sure that the W component is always 1
-static float DistanceToPlane(Plane plane, dmVMath::Vector4 pos)
+static inline float DistanceToPlane(Plane plane, dmVMath::Vector4 pos)
 {
     dmVMath::Vector4 r = Vectormath::Aos::mulPerElem(plane, pos); // nx * px + ny * py + nz * pz + d
     return Vectormath::Aos::sum(r);
@@ -33,18 +34,6 @@ static Plane NormalizePlane(Plane plane)
     float length = Vectormath::Aos::length(plane.getXYZ());
     return plane / length;
 }
-
-//#include <stdio.h>
-// static void printFrustum(const Frustum& frustum)
-// {
-//     printf("frustum\n");
-//     printf("  left:   %f, %f, %f, %f\n", frustum.m_Planes[0].getX(), frustum.m_Planes[0].getY(), frustum.m_Planes[0].getZ(), frustum.m_Planes[0].getW());
-//     printf("  right:  %f, %f, %f, %f\n", frustum.m_Planes[1].getX(), frustum.m_Planes[1].getY(), frustum.m_Planes[1].getZ(), frustum.m_Planes[1].getW());
-//     printf("  bottom: %f, %f, %f, %f\n", frustum.m_Planes[2].getX(), frustum.m_Planes[2].getY(), frustum.m_Planes[2].getZ(), frustum.m_Planes[2].getW());
-//     printf("  top:    %f, %f, %f, %f\n", frustum.m_Planes[3].getX(), frustum.m_Planes[3].getY(), frustum.m_Planes[3].getZ(), frustum.m_Planes[3].getW());
-//     printf("  near:   %f, %f, %f, %f\n", frustum.m_Planes[4].getX(), frustum.m_Planes[4].getY(), frustum.m_Planes[4].getZ(), frustum.m_Planes[4].getW());
-//     printf("  far:    %f, %f, %f, %f\n", frustum.m_Planes[5].getX(), frustum.m_Planes[5].getY(), frustum.m_Planes[5].getZ(), frustum.m_Planes[5].getW());
-// }
 
 // Gribb-Hartmann
 // https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
@@ -73,7 +62,7 @@ void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, Frustum&
 }
 
 
-bool TestFrustumPoint(const Frustum& frustum, dmVMath::Point3 pos, bool skip_near_far)
+bool TestFrustumPoint(const Frustum& frustum, const dmVMath::Point3& pos, bool skip_near_far)
 {
     dmVMath::Vector4 vpos(pos);
 
@@ -89,14 +78,18 @@ bool TestFrustumPoint(const Frustum& frustum, dmVMath::Point3 pos, bool skip_nea
     return true;
 }
 
-bool TestFrustumSphere(const Frustum& frustum, dmVMath::Point3 pos, float radius, bool skip_near_far)
+bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far)
 {
     dmVMath::Vector4 vpos(pos);
+    return TestFrustumSphere(frustum, vpos, radius, skip_near_far);
+}
 
+bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far)
+{
     uint32_t num_planes = skip_near_far ? 4 : 6;
     for (uint32_t i = 0; i < num_planes; ++i)
     {
-        float d = DistanceToPlane(frustum.m_Planes[i], vpos);
+        float d = DistanceToPlane(frustum.m_Planes[i], pos);
         if (d < -radius)
         {
             return false;
@@ -104,6 +97,5 @@ bool TestFrustumSphere(const Frustum& frustum, dmVMath::Point3 pos, float radius
     }
     return true;
 }
-
 
 } // dmIntersection

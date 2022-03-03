@@ -40,8 +40,9 @@ namespace dmIntersection
 
     void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, Frustum& frustum);
 
-    bool TestFrustumPoint(const Frustum& frustum, dmVMath::Point3 pos, bool skip_near_far);
-    bool TestFrustumSphere(const Frustum& frustum, dmVMath::Point3 pos, float radius, bool skip_near_far);
+    bool TestFrustumPoint(const Frustum& frustum, const dmVMath::Point3& pos, bool skip_near_far);
+    bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far);
+    bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far);
 
 } // dmIntersection
 
