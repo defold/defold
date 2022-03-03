@@ -17,52 +17,28 @@
 #include "dlib/vmath.h"
 #include <dmsdk/dlib/intersection.h>
 
-const float WIDTH = 100.0f;
-const float HEIGHT = 80.0f;
-const float NEAR = 10.0f;
-const float FAR = 100.0f;
+const float FRUSTUM_WIDTH = 100.0f;
+const float FRUSTUM_HEIGHT = 80.0f;
+const float FRUSTUM_NEAR = 10.0f;
+const float FRUSTUM_FAR = 100.0f;
 
 using namespace dmVMath;
-
-// static void printMatrix(const char* str, dmVMath::Matrix4& m)
-// {
-//     printf("matrix: %s\n", str);
-//     printf("  %.4f, %.4f, %.4f, %.4f\n", m.getCol(0).getX(), m.getCol(1).getX(), m.getCol(2).getX(), m.getCol(3).getX());
-//     printf("  %.4f, %.4f, %.4f, %.4f\n", m.getCol(0).getY(), m.getCol(1).getY(), m.getCol(2).getY(), m.getCol(3).getY());
-//     printf("  %.4f, %.4f, %.4f, %.4f\n", m.getCol(0).getZ(), m.getCol(1).getZ(), m.getCol(2).getZ(), m.getCol(3).getZ());
-//     printf("  %.4f, %.4f, %.4f, %.4f\n", m.getCol(0).getW(), m.getCol(1).getW(), m.getCol(2).getW(), m.getCol(3).getW());
-//     printf("\n");
-// }
 
 TEST(dmVMath, CreateFrustum)
 {
     dmVMath::Point3 cam_pos = dmVMath::Point3(0.0f, 0.0f, 0);
     dmVMath::Matrix4 view = Matrix4::lookAt(cam_pos, dmVMath::Point3(cam_pos.getX(), cam_pos.getY(), cam_pos.getZ()-1), dmVMath::Vector3(0,1,0)); // eye, lookat, up
 
-    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 10.0f, 100.0f);
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, FRUSTUM_WIDTH, 0.0f, FRUSTUM_HEIGHT, 10.0f, 100.0f);
 
     dmVMath::Matrix4 view_proj = proj * view;
 
     dmIntersection::Frustum frustum;
     dmIntersection::CreateFrustumFromMatrix(view_proj, true, frustum);
 
-
-    // float f = -60.0f;
-    // for (int i = 0; i < 20; ++i)
-    // {
-    //     //float d = dmIntersection::DistanceToPlane(frustum.m_Planes[0], dmVMath::Point3(f, 0.0f, 0.0f));
-    //     //float d = dmIntersection::DistanceToPlane(frustum.m_Planes[1], dmVMath::Point3(f, 0.0f, 0.0f));
-    //     //float d = dmIntersection::DistanceToPlane(frustum.m_Planes[2], dmVMath::Point3(0.0f, f, 0.0f));
-    //     //float d = dmIntersection::DistanceToPlane(frustum.m_Planes[3], dmVMath::Point3(0.0f, f, 0.0f));
-    //     float d = dmIntersection::DistanceToPlane(frustum.m_Planes[4], dmVMath::Point3(0.0f, 0, f));
-
-    //     printf("dim = %f   d: %f\n", f, d);
-    //     f += 10.0f;
-    // }
-
-    float px = WIDTH / 2.0f;
-    float py = HEIGHT / 2.0f;
-    float pz = -NEAR -(FAR - NEAR) / 2.0f;
+    float px = FRUSTUM_WIDTH / 2.0f;
+    float py = FRUSTUM_HEIGHT / 2.0f;
+    float pz = -FRUSTUM_NEAR -(FRUSTUM_FAR - FRUSTUM_NEAR) / 2.0f;
 
     // Making sure all planes point inwards, and are located at the correct distances
 
@@ -87,15 +63,15 @@ TEST(dmVMath, CreateFrustum)
 
 TEST(dmVMath, TestFrustumSphere)
 {
-    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, NEAR, FAR);
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, FRUSTUM_WIDTH, 0.0f, FRUSTUM_HEIGHT, FRUSTUM_NEAR, FRUSTUM_FAR);
 
     dmIntersection::Frustum frustum;
     dmIntersection::CreateFrustumFromMatrix(proj, true, frustum);
 
     const float RADIUS = 10.0f;
-    float px = WIDTH / 2.0f;
-    float py = HEIGHT / 2.0f;
-    float pz = -NEAR -(FAR - NEAR) / 2.0f;
+    float px = FRUSTUM_WIDTH / 2.0f;
+    float py = FRUSTUM_HEIGHT / 2.0f;
+    float pz = -FRUSTUM_NEAR -(FRUSTUM_FAR - FRUSTUM_NEAR) / 2.0f;
 
     ASSERT_TRUE( dmIntersection::TestFrustumSphere(frustum, dmVMath::Point3(px, py, pz), RADIUS, false) );
 
