@@ -1120,7 +1120,12 @@ namespace dmGameSystem
             flags.m_FlipHorizontal = ddf->m_FlipHorizontal;
             flags.m_FlipVertical = ddf->m_FlipVertical;
             flags.m_Rotate90 = ddf->m_Rotate90;
-            dmPhysics::SetGridShapeHull(component->m_Object2D, ddf->m_Shape, row, column, hull, flags);
+            bool success = dmPhysics::SetGridShapeHull(component->m_Object2D, ddf->m_Shape, row, column, hull, flags);
+            if (!success)
+            {
+                dmLogError("SetGridShapeHull: unable to set hull %d for shape %d", hull, ddf->m_Shape);
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
             uint16_t child = column + tile_grid_resource->m_ColumnCount * row;
             uint16_t group = 0;
             uint16_t mask = 0;
