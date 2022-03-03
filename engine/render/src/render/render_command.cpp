@@ -165,17 +165,23 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0], (dmRender::HNamedConstantBuffer)c->m_Operands[1]);
+                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[2];
+                    dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
+                                                             (dmRender::HNamedConstantBuffer)c->m_Operands[1],
+                                                             matrix);
+                    delete matrix;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG3D:
                 {
-                    dmRender::DrawDebug3d(render_context);
+                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
+                    dmRender::DrawDebug3d(render_context, matrix);
+                    delete matrix;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG2D:
                 {
-                    dmRender::DrawDebug2d(render_context);
+                    dmRender::DrawDebug2d(render_context); // Deprecated
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_MATERIAL:

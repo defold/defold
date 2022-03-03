@@ -20,6 +20,7 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 
 #include <ddf/ddf.h>
 
@@ -158,9 +159,10 @@ namespace dmRender
         render_context->m_RenderListSortIndices.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
+        render_context->m_FrustumHash = 0xFFFFFFFF;
     }
 
-    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn fn, void *user_data)
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
     {
         if (render_context->m_RenderListDispatch.Size() == render_context->m_RenderListDispatch.Capacity())
         {
@@ -170,11 +172,17 @@ namespace dmRender
 
         // store & return index
         RenderListDispatch d;
-        d.m_Fn = fn;
+        d.m_DispatchFn = dispatch_fn;
+        d.m_VisibilityFn = visibility_fn;
         d.m_UserData = user_data;
         render_context->m_RenderListDispatch.Push(d);
 
         return render_context->m_RenderListDispatch.Size() - 1;
+    }
+
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, void* user_data)
+    {
+        return RenderListMakeDispatch(render_context, dispatch_fn, 0, user_data);
     }
 
     // Allocate a buffer (from the array) with room for 'entries' entries.
@@ -194,6 +202,10 @@ namespace dmRender
 
         uint32_t size = render_list.Size();
         render_list.SetSize(size + entries);
+
+        // If we push new items after the last frustum culling, we need to reevaluate it
+        render_context->m_FrustumHash = 0xFFFFFFFF;
+
         return (render_list.Begin() + size);
     }
 
@@ -206,6 +218,13 @@ namespace dmRender
         // Insert the used up indices into the sort buffer.
         assert(end - begin <= (intptr_t)render_context->m_RenderListSortIndices.Remaining());
         assert(end <= render_context->m_RenderList.End());
+
+        // If we didn't use all entries, let's put them back into the list
+        if (end < render_context->m_RenderList.End())
+        {
+            uint32_t list_size = end - render_context->m_RenderList.Begin();
+            render_context->m_RenderList.SetSize(list_size);
+        }
 
         // Transform pointers back to indices.
         RenderListEntry *base = render_context->m_RenderList.Begin();
@@ -370,9 +389,9 @@ namespace dmRender
 
         RenderListRange* ranges = context->m_RenderListRanges.Begin();
         uint32_t num_ranges = context->m_RenderListRanges.Size();
-        for( uint32_t i = 0; i < num_ranges; ++i)
+        for( uint32_t r = 0; r < num_ranges; ++r)
         {
-            RenderListRange& range = ranges[i];
+            RenderListRange& range = ranges[r];
 
             MaterialTagList taglist;
             dmRender::GetMaterialTagList(context, range.m_TagListKey, &taglist);
@@ -385,18 +404,32 @@ namespace dmRender
             }
 
             // Write z values...
+            int num_visibility_skipped = 0;
             for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
             {
                 uint32_t idx = context->m_RenderListSortIndices[i];
                 RenderListEntry* entry = &entries[idx];
+                if (entry->m_Visibility == dmRender::VISIBILITY_NONE)
+                {
+                    num_visibility_skipped++;
+                    continue;
+                }
+
                 if (entry->m_MajorOrder != RENDER_ORDER_WORLD)
-                    continue; // Could perhaps break here, if we also sorted on the major order (cost more when I tested it /MAWE)
+                {
+                     continue; // Could perhaps break here, if we also sorted on the major order (cost more when I tested it /MAWE)
+                }
 
                 const Vector4 res = transform * entry->m_WorldPosition;
                 const float zw = res.getZ() / res.getW();
                 sort_values[idx].m_ZW = zw;
                 if (zw < minZW) minZW = zw;
                 if (zw > maxZW) maxZW = zw;
+            }
+
+            if (num_visibility_skipped == range.m_Count)
+            {
+                range.m_Skip = 1;
             }
         }
 
@@ -415,6 +448,11 @@ namespace dmRender
             {
                 uint32_t idx = context->m_RenderListSortIndices[i];
                 RenderListEntry* entry = &entries[idx];
+
+                if (entry->m_Visibility == dmRender::VISIBILITY_NONE)
+                {
+                    continue;
+                }
 
                 sort_values[idx].m_MajorOrder = entry->m_MajorOrder;
                 if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
@@ -492,7 +530,52 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+    static bool RenderListEntryEqFn(RenderListEntry* a, RenderListEntry* b)
+    {
+        return a->m_Dispatch == b->m_Dispatch;
+    }
+
+    static void SetVisibility(uint32_t count, RenderListEntry* entries, Visibility visibility)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            entries[i].m_Visibility = visibility;
+        }
+    }
+
+    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum)
+    {
+        DM_PROFILE(Render, "FrustumCulling");
+
+        uint32_t num_entries = context->m_RenderList.Size();
+        if (num_entries == 0)
+            return;
+
+        BatchIterator<RenderListEntry*> iter(num_entries, context->m_RenderList.Begin(), RenderListEntryEqFn);
+        while(iter.Next())
+        {
+            RenderListEntry* batch_start = iter.Begin();
+
+            const RenderListDispatch* d = &context->m_RenderListDispatch[batch_start->m_Dispatch];
+            if (!d->m_VisibilityFn)
+            {
+                SetVisibility(iter.Length(), iter.Begin(), dmRender::VISIBILITY_FULL);
+            }
+            else {
+                RenderListVisibilityParams params;
+                params.m_Frustum = &frustum;
+                params.m_UserData = d->m_UserData;
+                params.m_Entries = batch_start;
+                params.m_NumEntries = iter.Length();
+                d->m_VisibilityFn(params);
+            }
+        }
+
+    }
+
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
     {
         DM_PROFILE(Render, "DrawRenderList");
 
@@ -505,6 +588,25 @@ namespace dmRender
         if (context->m_RenderListRanges.Empty())
         {
             SortRenderList(context);
+        }
+
+        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*)frustum_matrix, 16*sizeof(float)) : 0;
+        if (context->m_FrustumHash != frustum_hash)
+        {
+            // We use this to avoid calling the culling functions more than once in a row
+            context->m_FrustumHash = frustum_hash;
+
+            if (frustum_matrix)
+            {
+                dmIntersection::Frustum frustum;
+                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
+                FrustumCulling(context, frustum);
+            }
+            else
+            {
+                // Reset the visibility
+                SetVisibility(context->m_RenderList.Size(), context->m_RenderList.Begin(), dmRender::VISIBILITY_FULL);
+            }
         }
 
         MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0);
@@ -532,7 +634,7 @@ namespace dmRender
         {
             const RenderListDispatch& d = context->m_RenderListDispatch[i];
             params.m_UserData = d.m_UserData;
-            d.m_Fn(params);
+            d.m_DispatchFn(params);
         }
 
         params.m_Operation = RENDER_LIST_OPERATION_BATCH;
@@ -560,7 +662,7 @@ namespace dmRender
                 params.m_UserData = d->m_UserData;
                 params.m_Begin = last;
                 params.m_End = idx;
-                d->m_Fn(params);
+                d->m_DispatchFn(params);
             }
 
             last = idx;
@@ -575,7 +677,7 @@ namespace dmRender
         {
             const RenderListDispatch& d = context->m_RenderListDispatch[i];
             params.m_UserData = d.m_UserData;
-            d.m_Fn(params);
+            d.m_DispatchFn(params);
         }
 
         return Draw(context, predicate, constant_buffer);
@@ -673,20 +775,20 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result DrawDebug3d(HRenderContext context)
+    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix)
     {
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_matrix);
     }
 
-    Result DrawDebug2d(HRenderContext context)
+    Result DrawDebug2d(HRenderContext context) // Deprecated
     {
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0);
     }
 
     HPredicate NewPredicate()
