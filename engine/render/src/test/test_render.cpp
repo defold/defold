@@ -308,7 +308,7 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
 
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_GT(ctx.m_BatchCalls, 1);
@@ -403,7 +403,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 1);
     ASSERT_EQ(ctx.m_EntriesRendered, 1);
@@ -429,7 +429,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 2);
     ASSERT_EQ(ctx.m_EntriesRendered, 2);
@@ -456,9 +456,9 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(0,0,0,0));
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
     dmRender::DrawDebug2d(m_Context);
-    dmRender::DrawDebug3d(m_Context);
+    dmRender::DrawDebug3d(m_Context, 0);
 }
 
 static float Metric(const char* text, int n, bool measure_trailing_space)

@@ -1316,7 +1316,7 @@ TEST_P(DrawCountTest, DrawCount)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
 
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1359,7 +1359,7 @@ TEST_P(BoxRenderTest, BoxRender)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
 
     ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (uint32_t)p.m_ExpectedVerticesCount);
 
