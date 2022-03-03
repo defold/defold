@@ -1315,7 +1315,14 @@ namespace dmRender
      *
      * @name render.draw
      * @param predicate [type:predicate] predicate to draw for
-     * @param [constants] [type:constant_buffer] optional constants to use while rendering
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `frustum`
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
+     * `constants`
+     * : [type:constant_buffer] optional constants to use while rendering
+     *
      * @examples
      *
      * ```lua
@@ -1330,12 +1337,19 @@ namespace dmRender
      * end
      * ```
      *
-     * Draw predicate with constant:
+     * Draw predicate with constants:
      *
      * ```lua
      * local constants = render.constant_buffer()
      * constants.tint = vmath.vector4(1, 1, 1, 1)
-     * render.draw(self.my_pred, constants)
+     * render.draw(self.my_pred, {constants = constants})
+     * ```
+
+     * Draw with predicate and frustum culling:
+     *
+     * ```lua
+     * local frustum = self.proj * self.view
+     * render.draw(self.my_pred, {frustum = frustum, constants = constants})
      * ```
 
      */
@@ -1353,14 +1367,40 @@ namespace dmRender
             return luaL_error(L, "No render predicate specified.");
         }
 
+        dmVMath::Matrix4* frustum_matrix = 0;
         HNamedConstantBuffer constant_buffer = 0;
-        if (lua_isuserdata(L, 2))
+
+        if (lua_istable(L, 2))
         {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
+
+            lua_getfield(L, -1, "frustum");
+            frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "constants");
+            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+        else if (lua_isuserdata(L, 2)) // Deprecated
+        {
+            dmLogOnceWarning("This interface for render.draw() is deprecated. Please see documentation at https://defold.com/ref/stable/render/#render.draw:predicate-[constants]")
             HNamedConstantBuffer* tmp = RenderScriptConstantBuffer_Check(L, 2);
             constant_buffer = *tmp;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer)))
+        if (frustum_matrix)
+        {
+            // we need to pass ownership to the command queue
+            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
+            *copy = *frustum_matrix;
+            frustum_matrix = copy;
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer, (uintptr_t) frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1375,14 +1415,36 @@ namespace dmRender
      * ```lua
      * function update(self, dt)
      *     -- draw debug visualization
-     *     render.draw_debug3d()
+     *     render.draw_debug3d({frustum = frustum})
      * end
      * ```
      */
     int RenderScript_DrawDebug3d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D)))
+        dmVMath::Matrix4* frustum_matrix = 0;
+
+        if (lua_istable(L, 1))
+        {
+            luaL_checktype(L, 1, LUA_TTABLE);
+            lua_pushvalue(L, 1);
+
+            lua_getfield(L, -1, "frustum");
+            frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (frustum_matrix)
+        {
+            // we need to pass ownership to the command queue
+            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
+            *copy = *frustum_matrix;
+            frustum_matrix = copy;
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uintptr_t)frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
