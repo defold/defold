@@ -657,15 +657,24 @@ namespace dmPhysics
         return fixture;
     }
 
+    static inline b2GridShape* GetGridShape(b2Body* body, uint32_t index)
+    {
+        b2Fixture* fixture = GetFixture(body, index);
+        if (fixture == 0 || fixture->GetShape()->GetType() != b2Shape::e_grid)
+        {
+            return 0;
+        }
+        return (b2GridShape*) fixture->GetShape();
+    }
+
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;
-        b2Fixture* fixture = GetFixture(body, shape_index);
-        if (fixture == 0)
+        b2GridShape* grid_shape = GetGridShape(body, shape_index);
+        if (grid_shape == 0)
         {
             return false;
         }
-        b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
         b2GridShape::CellFlags f;
         f.m_FlipHorizontal = flags.m_FlipHorizontal;
         f.m_FlipVertical = flags.m_FlipVertical;
