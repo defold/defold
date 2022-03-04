@@ -706,6 +706,18 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHandle(texture, out_handle);
     }
+    bool IsExtensionSupported(HContext context, const char* extension)
+    {
+        return g_functions.m_IsExtensionSupported(context, extension);
+    }
+    uint32_t GetNumSupportedExtensions(HContext context)
+    {
+        return g_functions.m_GetNumSupportedExtensions(context);
+    }
+    const char* GetSupportedExtension(HContext context, uint32_t index)
+    {
+        return g_functions.m_GetSupportedExtension(context, index);
+    }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

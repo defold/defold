@@ -441,6 +441,28 @@ namespace dmGraphics
      */
     uint32_t GetMaxElementsIndices(HContext context);
 
+    /*# check if an extension is supported
+     * @name IsExtensionSupported
+     * @param context [type:dmGraphics::HContext] the context
+     * @param extension [type:const char*] the extension. Comparison is
+     * @return result [type:bool] true if the extension was supported
+     */
+    bool IsExtensionSupported(HContext context, const char* extension);
+
+    /*#
+     * @name GetNumSupportedExtensions
+     * @param context [type:dmGraphics::HContext] the context
+     * @return count [type:uint32_t] the number of supported extensions
+     */
+    uint32_t GetNumSupportedExtensions(HContext context);
+
+    /*# get the supported extension
+     * @name GetSupportedExtension
+     * @param context [type:dmGraphics::HContext] the context
+     * @param index [type:uint32_t] the index of the extension
+     * @return extension [type:const char*] the extension. 0 if index was out of bounds
+     */
+    const char* GetSupportedExtension(HContext context, uint32_t index);
 }
 
 #endif // DMSDK_GRAPHICS_H

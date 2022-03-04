@@ -27,6 +27,8 @@ namespace dmGraphics
 
         // Async queue data and synchronization objects
         dmMutex::HMutex         m_AsyncMutex;
+        dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
+        char*                   m_ExtensionsString;
 
         WindowResizeCallback    m_WindowResizeCallback;
         void*                   m_WindowResizeCallbackUserData;

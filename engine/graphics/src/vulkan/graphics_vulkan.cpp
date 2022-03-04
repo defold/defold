@@ -770,7 +770,7 @@ namespace dmGraphics
         vkCmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
     }
 
-    static bool IsExtensionSupported(PhysicalDevice* device, const char* ext_name)
+    static bool IsDeviceExtensionSupported(PhysicalDevice* device, const char* ext_name)
     {
         for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
         {
@@ -781,6 +781,21 @@ namespace dmGraphics
         }
 
         return false;
+    }
+
+    static bool VulkanIsExtensionSupported(HContext context, const char* ext_name)
+    {
+        return IsDeviceExtensionSupported(&context->m_PhysicalDevice, ext_name);
+    }
+
+    static uint32_t VulkanGetNumSupportedExtensions(HContext context)
+    {
+        return context->m_PhysicalDevice.m_DeviceExtensionCount;
+    }
+
+    static const char* VulkanGetSupportedExtension(HContext context, uint32_t index)
+    {
+        return context->m_PhysicalDevice.m_DeviceExtensions[index].extensionName;
     }
 
     bool InitializeVulkan(HContext context, const WindowParams* params)
@@ -837,7 +852,7 @@ namespace dmGraphics
             bool all_extensions_found = true;
             for (uint32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
             {
-                if (!IsExtensionSupported(device, device_extensions[ext_i]))
+                if (!IsDeviceExtensionSupported(device, device_extensions[ext_i]))
                 {
                     all_extensions_found = false;
                     break;
@@ -885,9 +900,11 @@ namespace dmGraphics
             goto bail;
         }
 
+        context->m_PhysicalDevice   = *selected_device;
+
     #if defined(__MACH__)
         // Check for optional extensions so that we can enable them if they exist
-        if (IsExtensionSupported(selected_device, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
+        if (VulkanIsExtensionSupported(context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
@@ -927,7 +944,6 @@ namespace dmGraphics
             goto bail;
         }
 
-        context->m_PhysicalDevice   = *selected_device;
         context->m_LogicalDevice    = logical_device;
         vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
@@ -3461,6 +3477,9 @@ bail:
         fn_table.m_GetTextureStatusFlags = VulkanGetTextureStatusFlags;
         fn_table.m_ReadPixels = VulkanReadPixels;
         fn_table.m_RunApplicationLoop = VulkanRunApplicationLoop;
+        fn_table.m_IsExtensionSupported = VulkanIsExtensionSupported;
+        fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
+        fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
         return fn_table;
     }
 }
