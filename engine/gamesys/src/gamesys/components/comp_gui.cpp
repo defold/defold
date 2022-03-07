@@ -301,6 +301,10 @@ namespace dmGameSystem
                         dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
                         result = false;
                     }
+                    if (dmGui::GetNodeAnimationFrameCount(scene, n) == 1)
+                    {
+                        dmGui::CancelNodeFlipbookAnim(scene, n);
+                    }
                 }
             }
         }
