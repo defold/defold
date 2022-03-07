@@ -20,11 +20,11 @@
 #include <dlib/profile.h>
 #include <dlib/hash.h>
 #include <dlib/align.h>
-#include <dmsdk/dlib/vmath.h>
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
-#include <dlib/dstrings.h>
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/dstrings.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -549,40 +549,50 @@ static void LogFrameBufferError(GLenum status)
             g_Context->m_WindowIconifyCallback(g_Context->m_WindowIconifyCallbackUserData, iconify);
     }
 
-    static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
+    static void StoreExtensions(HContext context, const GLubyte* _extensions)
     {
-        assert(extension);
-        assert(extensions);
+        context->m_ExtensionsString = strdup((const char*)_extensions);
 
-        // Copied from http://www.opengl.org/archives/resources/features/OGLextensions/
-        const GLubyte *start;
+        char* iter = 0;
+        const char* next = dmStrTok(context->m_ExtensionsString, " ", &iter);
+        while (next)
+        {
+            if (context->m_Extensions.Full())
+                context->m_Extensions.OffsetCapacity(4);
+            context->m_Extensions.Push(next);
 
+            next = dmStrTok(0, " ", &iter);
+        }
+    }
+
+    static bool OpenGLIsExtensionSupported(HContext context, const char* extension)
+    {
         /* Extension names should not have spaces. */
-        GLubyte* where = (GLubyte *) strchr(extension, ' ');
+        const char* where = strchr(extension, ' ');
         if (where || *extension == '\0')
             return false;
 
-        /* It takes a bit of care to be fool-proof about parsing the
-           OpenGL extensions string. Don't be fooled by sub-strings,
-           etc. */
-
-        start = extensions;
-        GLubyte* terminator;
-        for (;;) {
-            where = (GLubyte *) strstr((const char *) start, extension);
-            if (!where)
-                break;
-            terminator = where + strlen(extension);
-            if (where == start || *(where - 1) == ' ')
-                if (*terminator == ' ' || *terminator == '\0')
-                    return true;
-            start = terminator;
+        uint32_t count = context->m_Extensions.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (strcmp(extension, context->m_Extensions[i]) == 0)
+                return true;
         }
-
         return false;
     }
 
-static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, const GLubyte* extensions)
+    static uint32_t OpenGLGetNumSupportedExtensions(HContext context)
+    {
+        return context->m_Extensions.Size();
+    }
+
+    static const char* OpenGLGetSupportedExtension(HContext context, uint32_t index)
+    {
+        return context->m_Extensions[index];
+    }
+
+
+static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
 {
     /*
         Check in order
@@ -600,7 +610,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
         size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
         dmStrlCpy(proc_str + l, extension_name, 256-l);
-        if(!IsExtensionSupported(proc_str,  extensions))
+        if(!OpenGLIsExtensionSupported(context, proc_str))
             continue;
         l = dmStrlCpy(proc_str, name, 255);
         dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
@@ -620,9 +630,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     return func;
 }
 
-#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, extensions)\
+#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
     if (function == 0x0)\
-        function = (type) GetExtProcAddress(name, extension_name, core_name, extensions);
+        function = (type) GetExtProcAddress(name, extension_name, core_name, context);
 
     static bool ValidateAsyncJobProcessing(HContext context)
     {
@@ -910,7 +920,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             (void) SetFrontProcess( &psn );
 #endif
 
-        char* extensions_ptr = 0;
+
 #if !(defined(__EMSCRIPTEN__) || defined(GL_ES_VERSION_2_0))
         GLint n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
@@ -925,7 +935,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 max_len += (int) strlen((const char*)ext) + 1; // name + space
             }
 
-            extensions_ptr = (char*) malloc(max_len);
+            char* extensions_ptr = (char*) malloc(max_len);
 
             for (GLint i = 0; i < n; i++)
             {
@@ -941,22 +951,31 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             }
 
             extensions_ptr[max_len-1] = 0;
+
+            const GLubyte* extensions = (const GLubyte*) extensions_ptr;
+            StoreExtensions(context, extensions);
+            free(extensions_ptr);
         }
-        const GLubyte* extensions = (const GLubyte*) extensions_ptr;
 #else
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
         assert(extensions);
+        StoreExtensions(context, extensions);
 #endif
 
-        if (params->m_PrintDeviceInfo && extensions != 0)
+        if (params->m_PrintDeviceInfo)
         {
-            dmLogInfo("Extensions: %s", extensions);
+            dmLogInfo("Extensions:");
+            uint32_t num_extensions = OpenGLGetNumSupportedExtensions(context);
+            for (uint32_t i = 0; i < num_extensions; ++i)
+            {
+                dmLogInfo("  %s", OpenGLGetSupportedExtension(context, i));
+            }
         }
 
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
 
-        if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions) ||
-            IsExtensionSupported("WEBGL_compressed_texture_pvrtc", extensions))
+        if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
+            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
@@ -964,16 +983,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
 
-        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions) ||
-            IsExtensionSupported("WEBGL_compressed_texture_etc", extensions) ||
-            IsExtensionSupported("WEBGL_compressed_texture_etc1", extensions))
+        if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture") ||
+            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc") ||
+            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc1"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
-        if (IsExtensionSupported("GL_EXT_texture_compression_s3tc", extensions) ||
-            IsExtensionSupported("WEBGL_compressed_texture_s3tc", extensions))
+        if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_s3tc") ||
+            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_s3tc"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
             // We'll use BC3 for this
@@ -982,33 +1001,33 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
-        if (IsExtensionSupported("GL_ARB_texture_compression_rgtc", extensions) ||
-            IsExtensionSupported("GL_EXT_texture_compression_rgtc", extensions) ||
-            IsExtensionSupported("EXT_texture_compression_rgtc", extensions))
+        if (OpenGLIsExtensionSupported(context, "GL_ARB_texture_compression_rgtc") ||
+            OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_rgtc") ||
+            OpenGLIsExtensionSupported(context, "EXT_texture_compression_rgtc"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
-        if (IsExtensionSupported("GL_ARB_texture_compression_bptc", extensions) ||
-            IsExtensionSupported("GL_EXT_texture_compression_bptc", extensions) ||
-            IsExtensionSupported("EXT_texture_compression_bptc", extensions) )
+        if (OpenGLIsExtensionSupported(context, "GL_ARB_texture_compression_bptc") ||
+            OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_bptc") ||
+            OpenGLIsExtensionSupported(context, "EXT_texture_compression_bptc") )
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (IsExtensionSupported("GL_ARB_ES3_compatibility", extensions))
+        if (OpenGLIsExtensionSupported(context, "GL_ARB_ES3_compatibility"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (IsExtensionSupported("GL_KHR_texture_compression_astc_ldr", extensions) ||
-            IsExtensionSupported("GL_OES_texture_compression_astc", extensions) ||
-            IsExtensionSupported("OES_texture_compression_astc", extensions) ||
-            IsExtensionSupported("WEBGL_compressed_texture_astc", extensions))
+        if (OpenGLIsExtensionSupported(context, "GL_KHR_texture_compression_astc_ldr") ||
+            OpenGLIsExtensionSupported(context, "GL_OES_texture_compression_astc") ||
+            OpenGLIsExtensionSupported(context, "OES_texture_compression_astc") ||
+            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_astc"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
         }
@@ -1047,7 +1066,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_PackedDepthStencil = 1;
 #endif
 
-        if ((IsExtensionSupported("GL_OES_packed_depth_stencil", extensions)) || (IsExtensionSupported("GL_EXT_packed_depth_stencil", extensions)))
+        if ((OpenGLIsExtensionSupported(context, "GL_OES_packed_depth_stencil")) || (OpenGLIsExtensionSupported(context, "GL_EXT_packed_depth_stencil")))
         {
             context->m_PackedDepthStencil = 1;
         }
@@ -1089,13 +1108,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CLEAR_GL_ERROR;
 #endif
 
-        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
-        if ((IsExtensionSupported("GL_OES_element_index_uint", extensions)))
+        if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
         {
             context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
         }
@@ -1111,11 +1130,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
                 JobQueueFinalize();
             }
-        }
-
-        if (extensions_ptr)
-        {
-            free(extensions_ptr);
         }
 
 #if !defined(GL_ES_VERSION_2_0)
@@ -1143,6 +1157,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_WindowWidth = 0;
             context->m_WindowHeight = 0;
             context->m_WindowOpened = 0;
+            context->m_Extensions.SetSize(0);
+            free(context->m_ExtensionsString);
+            context->m_ExtensionsString = 0;
         }
     }
 
@@ -3074,6 +3091,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_RunApplicationLoop = OpenGLRunApplicationLoop;
         fn_table.m_GetTextureHandle = OpenGLGetTextureHandle;
         fn_table.m_GetMaxElementsIndices = OpenGLGetMaxElementIndices;
+        fn_table.m_IsExtensionSupported = OpenGLIsExtensionSupported;
+        fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
+        fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
         return fn_table;
     }
 }
