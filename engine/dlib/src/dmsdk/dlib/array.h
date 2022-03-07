@@ -117,6 +117,15 @@ public:
      */
     T* Begin();
 
+    /*# array begin
+     *
+     * Pointer to the start of the backing storage
+     *
+     * @name Begin
+     * @return pointer [type: const T*] pointer to start of memory
+     */
+    const T* Begin() const;
+
     /*# array end
      *
      * Pointer to the end of the backing storage
@@ -126,6 +135,16 @@ public:
      * @return pointer [type:T*] pointer to end of memory
      */
     T* End();
+
+    /*# array end
+     *
+     * Pointer to the end of the backing storage
+     * The end is essentially outside of the used storage.
+     *
+     * @name End
+     * @return pointer [type:const T*] pointer to end of memory
+     */
+    const T* End() const;
 
     /*# array front
      *
@@ -378,7 +397,19 @@ T* dmArray<T>::Begin()
 }
 
 template <typename T>
+const T* dmArray<T>::Begin() const
+{
+    return m_Front;
+}
+
+template <typename T>
 T* dmArray<T>::End()
+{
+    return m_End;
+}
+
+template <typename T>
+const T* dmArray<T>::End() const
 {
     return m_End;
 }

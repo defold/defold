@@ -173,8 +173,9 @@ namespace dmRender
 
     struct RenderListDispatch
     {
-        RenderListDispatchFn m_Fn;
-        void *m_UserData;
+        RenderListDispatchFn        m_DispatchFn;
+        RenderListVisibilityFn      m_VisibilityFn;
+        void*                       m_UserData;
     };
 
     struct RenderListSortValue
@@ -226,6 +227,7 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortBuffer;
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
+        dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
@@ -287,6 +289,65 @@ namespace dmRender
     void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
 
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
+
+
+    // ******************************************************************************************************
+
+    template <typename T>
+    class BatchIterator
+    {
+    public:
+        BatchIterator(uint32_t num_entries, T entries, bool (*test_eq_fn)(T prev, T current));
+        bool     Next();
+        T        Begin();
+        uint32_t Length();
+
+    protected:
+        T         m_EntriesEnd;
+        T         m_Iterator;
+        T         m_BatchStart;
+        bool      (*m_TestEqFn)(T prev, T current);
+    };
+
+    template<typename T>
+    BatchIterator<T>::BatchIterator(uint32_t num_entries, T entries, bool (*test_eq_fn)(T prev, T current))
+    : m_EntriesEnd(entries + num_entries)
+    , m_Iterator(entries)
+    , m_BatchStart(0)
+    , m_TestEqFn(test_eq_fn)
+    {}
+
+    template<typename T>
+    bool BatchIterator<T>::Next()
+    {
+        m_BatchStart = m_Iterator;
+
+        T prev = m_Iterator;
+        while (m_Iterator < m_EntriesEnd)
+        {
+            if (!m_TestEqFn(prev, ++m_Iterator))
+            {
+                break;
+            }
+            prev = m_Iterator;
+        }
+
+        return m_BatchStart < m_EntriesEnd;
+    }
+
+    template<typename T>
+    T BatchIterator<T>::Begin()
+    {
+        return m_BatchStart;
+    }
+
+    template<typename T>
+    uint32_t BatchIterator<T>::Length()
+    {
+        return (uint32_t)(uintptr_t)(m_Iterator - m_BatchStart);
+    }
+
+    // ******************************************************************************************************
 }
 
 #endif

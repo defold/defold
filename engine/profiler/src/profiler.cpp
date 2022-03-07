@@ -72,7 +72,7 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::RenderListEnd(render_context);
         dmRender::SetViewMatrix(render_context, dmVMath::Matrix4::identity());
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
-        dmRender::DrawRenderList(render_context, 0, 0);
+        dmRender::DrawRenderList(render_context, 0, 0, 0);
         dmRender::ClearRenderObjects(render_context);
 
         dmProfile::Pause(false);
