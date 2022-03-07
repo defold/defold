@@ -164,6 +164,12 @@ def build(bld):
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
+    # really only used for the unit tests
+    model = bld.new_task_gen(features = 'cc cxx cstaticlib',
+                             includes = '. ./model',
+                             target = 'model')
+    model.find_sources_in_dirs('model')
+
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:
         dlib_shared = bld.new_task_gen( features = 'cc cxx cshlib skip_asan',
@@ -184,6 +190,14 @@ def build(bld):
 
             if 'linux' in bld.env['PLATFORM']:
                 dlib_memprofile.env.append_value('LINKFLAGS', [ '-ldl' ])
+
+        model_shared = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
+                                        includes = model.includes,
+                                        #uselib_local = model.uselib_local,
+                                        target = 'model_shared')
+
+        model_shared.source = [x for x in model.source]
+
 
     # Basis libraries
 
