@@ -2533,7 +2533,6 @@ namespace dmRender
         lua_setfield(L, -2, "FORMAT_"#name);
 
         REGISTER_FORMAT_CONSTANT(LUMINANCE);
-        REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGBA);
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
@@ -2547,6 +2546,7 @@ namespace dmRender
         }
 
         // These depend on driver support
+        REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGB16F);
         REGISTER_FORMAT_CONSTANT(RGB32F);
         REGISTER_FORMAT_CONSTANT(RGBA16F);
