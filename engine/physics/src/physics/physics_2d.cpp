@@ -386,7 +386,7 @@ namespace dmPhysics
             else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
                 b2PolygonShape* pshape = (b2PolygonShape*)shape;
                 float s = object_scale / shape->m_creationScale;
-                for( int i = 0; i < 4; ++i)
+                for( int i = 0; i < b2_maxPolygonVertices; ++i)
                 {
                     b2Vec2 p = pshape->m_verticesOriginal[i];
                     pshape->m_vertices[i].Set(p.x * s, p.y * s);

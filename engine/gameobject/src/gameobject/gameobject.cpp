@@ -1255,21 +1255,6 @@ namespace dmGameObject
             }
         }
 
-        if (success)
-        {
-            // Update the transform for all parent-less objects
-            for (uint32_t i=0;i!=new_instances.Size();i++)
-            {
-                if (!GetParent(new_instances[i]))
-                {
-                    new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
-                }
-
-                // world transforms need to be up to date in time for the script init calls
-                collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
-            }
-        }
-
         // Exit point 1: Before components are created.
         if (!success)
         {
@@ -1280,6 +1265,18 @@ namespace dmGameObject
             }
             id_mapping->Clear();
             return false;
+        }
+
+        // Update the transform for all parent-less objects
+        for (uint32_t i=0;i!=new_instances.Size();i++)
+        {
+            if (!GetParent(new_instances[i]))
+            {
+                new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
+            }
+
+            // world transforms need to be up to date in time for the script init calls
+            collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
         }
 
         // Create components and set properties
