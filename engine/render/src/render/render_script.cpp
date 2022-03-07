@@ -36,9 +36,9 @@ namespace dmRender
      * Rendering functions, messages and constants. The "render" namespace is
      * accessible only from render scripts.
      *
-     * The rendering API is built on top of OpenGL ES 2.0, is a subset of the
+     * The rendering API was originally built on top of OpenGL ES 2.0, and it uses a subset of the
      * OpenGL computer graphics rendering API for rendering 2D and 3D computer
-     * graphics. OpenGL ES 2.0 is supported on all our target platforms.
+     * graphics. Our current target is OpenGLES 3.0 with fallbacks to 2.0 on some platforms.
      *
      * [icon:attention] It is possible to create materials and write shaders that
      * require features not in OpenGL ES 2.0, but those will not work cross platform.
@@ -535,22 +535,50 @@ namespace dmRender
      */
 
     /*#
-     * @name render.FORMAT_RGB_DXT1
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGB16F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT1
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGB32F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT3
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGBA16F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT5
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGBA32F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_R16F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RG16F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_R32F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RG32F
      * @variable
      */
 
