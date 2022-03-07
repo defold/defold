@@ -604,7 +604,7 @@ namespace dmRender
      *
      * Key          | Values
      * ------------ | ----------------------------
-     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/> `render.FORMAT_RGB_DXT1`<br/>`render.FORMAT_RGBA_DXT1`<br/>`render.FORMAT_RGBA_DXT3`<br/> `render.FORMAT_RGBA_DXT5`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>
+     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
      * `width`      | number
      * `height`     | number
      * `min_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
@@ -2467,7 +2467,7 @@ namespace dmRender
         {0, 0}
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
+    void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size)
     {
         context.m_CommandBufferSize = command_buffer_size;
 
@@ -2510,20 +2510,23 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 
-        /*
-         * We don't expose floating point texture for now,
-         * until we have taken an official stand how to expose
-         * rendering capabilities. See DEF-2886
-         *
+#undef REGISTER_FORMAT_CONSTANT
 
+#define REGISTER_FORMAT_CONSTANT(name)\
+        if (dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::TEXTURE_FORMAT_##name)) { \
+            lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FORMAT_##name); \
+            lua_setfield(L, -2, "FORMAT_"#name); \
+        }
+
+        // These depend on driver support
         REGISTER_FORMAT_CONSTANT(RGB16F);
         REGISTER_FORMAT_CONSTANT(RGB32F);
         REGISTER_FORMAT_CONSTANT(RGBA16F);
         REGISTER_FORMAT_CONSTANT(RGBA32F);
-        REGISTER_FORMAT_CONSTANT(LUMINANCE16F);
-        REGISTER_FORMAT_CONSTANT(LUMINANCE32F);
-
-        */
+        REGISTER_FORMAT_CONSTANT(R16F);
+        REGISTER_FORMAT_CONSTANT(RG16F);
+        REGISTER_FORMAT_CONSTANT(R32F);
+        REGISTER_FORMAT_CONSTANT(RG32F);
 
 #undef REGISTER_FORMAT_CONSTANT
 

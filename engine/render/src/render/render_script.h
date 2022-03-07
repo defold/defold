@@ -19,6 +19,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
+#include <graphics/graphics.h>
 #include <script/script.h>
 
 #include "render.h"
@@ -59,7 +60,7 @@ namespace dmRender
         int                         m_ContextTableReference;
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size);
+    void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size);
     void FinalizeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context);
 }
 

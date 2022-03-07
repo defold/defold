@@ -148,6 +148,15 @@ namespace dmGraphics
         m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
 
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB16F;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB32F;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA16F;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA32F;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_R16F;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RG16F;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_R32F;
+        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RG32F;
+
 #if defined(__MACH__) && !(defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
         // Apparently these aren't supported on macOS/Metal
 #else
@@ -2833,7 +2842,7 @@ bail:
 
             VkFormat vk_color_format;
 
-            // Promote format to RGBA if RBG, since it's not supported
+            // Promote format to RGBA if RGB, since it's not supported
             if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
             {
                 vk_color_format              = VK_FORMAT_R8G8B8A8_UNORM;

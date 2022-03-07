@@ -1032,6 +1032,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
         }
 
+        // Check if we're using a recent enough OpenGL version
+        if (context->m_IsGles3Version)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R16F;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+        }
+
         // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
         GLint iNumCompressedFormats = 0;
         glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &iNumCompressedFormats);
