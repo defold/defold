@@ -691,7 +691,11 @@ namespace dmPhysics
         {
             return false;
         }
-        b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+        b2GridShape* grid_shape = GetGridShape(body, shape_index);
+        if (grid_shape == 0)
+        {
+            return false;
+        }
         grid_shape->m_enabled = enable;
 
         if (!enable)
