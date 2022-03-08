@@ -194,7 +194,7 @@ void computeIconifiedState()
     // Iconified unless opened, resumed (not paused)
 
     // A good detailed overview over the recommended app flow is found here:
-    //   https://developer.nvidia.com/fixing-common-android-lifecycle-issues-games
+    // https://developer.download.nvidia.com/assets/mobile/docs/android_lifecycle_app_note.pdf
     _glfwWin.iconified = !(g_AppResumed && g_AppFocused && _glfwWinAndroid.surface != EGL_NO_SURFACE);
 
     LOGV("iconified: %s    (resume: %s, focus: %s, surface: %s)",
