@@ -226,6 +226,11 @@ namespace dmGraphics
         return VK_FORMAT_UNDEFINED;
     }
 
+    void GetFormatProperties(VkPhysicalDevice vk_physical_device, VkFormat vk_format, VkFormatProperties* properties)
+    {
+        vkGetPhysicalDeviceFormatProperties(vk_physical_device, vk_format, properties);
+    }
+
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount)
     {
         VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;

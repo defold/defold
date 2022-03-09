@@ -36,9 +36,9 @@ namespace dmRender
      * Rendering functions, messages and constants. The "render" namespace is
      * accessible only from render scripts.
      *
-     * The rendering API is built on top of OpenGL ES 2.0, is a subset of the
+     * The rendering API was originally built on top of OpenGL ES 2.0, and it uses a subset of the
      * OpenGL computer graphics rendering API for rendering 2D and 3D computer
-     * graphics. OpenGL ES 2.0 is supported on all our target platforms.
+     * graphics. Our current target is OpenGLES 3.0 with fallbacks to 2.0 on some platforms.
      *
      * [icon:attention] It is possible to create materials and write shaders that
      * require features not in OpenGL ES 2.0, but those will not work cross platform.
@@ -535,22 +535,50 @@ namespace dmRender
      */
 
     /*#
-     * @name render.FORMAT_RGB_DXT1
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGB16F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT1
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGB32F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT3
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGBA16F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT5
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGBA32F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_R16F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RG16F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_R32F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RG32F
      * @variable
      */
 
@@ -604,7 +632,7 @@ namespace dmRender
      *
      * Key          | Values
      * ------------ | ----------------------------
-     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/> `render.FORMAT_RGB_DXT1`<br/>`render.FORMAT_RGBA_DXT1`<br/>`render.FORMAT_RGBA_DXT3`<br/> `render.FORMAT_RGBA_DXT5`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>
+     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
      * `width`      | number
      * `height`     | number
      * `min_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
@@ -2467,7 +2495,7 @@ namespace dmRender
         {0, 0}
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
+    void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size)
     {
         context.m_CommandBufferSize = command_buffer_size;
 
@@ -2505,25 +2533,28 @@ namespace dmRender
         lua_setfield(L, -2, "FORMAT_"#name);
 
         REGISTER_FORMAT_CONSTANT(LUMINANCE);
-        REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGBA);
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 
-        /*
-         * We don't expose floating point texture for now,
-         * until we have taken an official stand how to expose
-         * rendering capabilities. See DEF-2886
-         *
+#undef REGISTER_FORMAT_CONSTANT
 
+#define REGISTER_FORMAT_CONSTANT(name)\
+        if (dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::TEXTURE_FORMAT_##name)) { \
+            lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FORMAT_##name); \
+            lua_setfield(L, -2, "FORMAT_"#name); \
+        }
+
+        // These depend on driver support
+        REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGB16F);
         REGISTER_FORMAT_CONSTANT(RGB32F);
         REGISTER_FORMAT_CONSTANT(RGBA16F);
         REGISTER_FORMAT_CONSTANT(RGBA32F);
-        REGISTER_FORMAT_CONSTANT(LUMINANCE16F);
-        REGISTER_FORMAT_CONSTANT(LUMINANCE32F);
-
-        */
+        REGISTER_FORMAT_CONSTANT(R16F);
+        REGISTER_FORMAT_CONSTANT(RG16F);
+        REGISTER_FORMAT_CONSTANT(R32F);
+        REGISTER_FORMAT_CONSTANT(RG32F);
 
 #undef REGISTER_FORMAT_CONSTANT
 
