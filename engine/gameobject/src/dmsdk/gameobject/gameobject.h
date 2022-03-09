@@ -358,11 +358,13 @@ namespace dmGameObject
      * Update context
      * @struct
      * @name UpdateContext
+     * @member m_TimeScale [type: float] the scaling factor what was applied on the dt (i.e. the collection update time scale)
      * @member m_DT [type: float] the delta time elapsed since last frame (seconds)
      */
     struct UpdateContext
     {
-        float m_DT;
+        float    m_TimeScale;
+        float    m_DT;
     };
 
     /*#
