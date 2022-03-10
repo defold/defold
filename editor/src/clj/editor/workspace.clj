@@ -273,10 +273,12 @@ ordinary paths."
 
 (defn- load-plugin! [workspace resource]
   ; TODO Handle Exceptions!
-  (log/info :msg (str "Loading plugin" (resource/path resource)))
-  (let [plugin-fn (load-string (slurp resource))]
-    (plugin-fn workspace))
-  (log/info :msg (str "Loaded plugin" (resource/path resource))))
+  (log/info :msg (str "Loading plugin " (resource/path resource)))
+  (if-let [plugin-fn (load-string (slurp resource))]
+    (do
+      (plugin-fn workspace)
+      (log/info :msg (str "Loaded plugin " (resource/path resource))))
+    (log/info :msg (str "Unable to load plugin " (resource/path resource)))))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))
