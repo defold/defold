@@ -92,12 +92,14 @@ namespace dmPhysics
     {
     }
 
-    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
+    bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
+        return false;
     }
 
-    void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
+    bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
+        return false;
     }
 
     void SetCollisionObjectFilter(HCollisionObject2D collision_object,
