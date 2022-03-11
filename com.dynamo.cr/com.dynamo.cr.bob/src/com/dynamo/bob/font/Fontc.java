@@ -417,10 +417,10 @@ public class Fontc {
             fontMapBuilder.setSdfSpread(sdf_spread);
             fontMapBuilder.setSdfOutline(outline_edge);
             fontMapBuilder.setSdfShadow(shadow_edge);
-            fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
-            fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
-            fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
         }
+        fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
+        fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
+        fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
 
         // Load external image resource for BMFont files
         BufferedImage imageBMFont = null;
