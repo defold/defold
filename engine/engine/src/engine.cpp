@@ -1612,7 +1612,7 @@ bail:
 
             // Call post render functions for extensions, if available.
             // We do it here at the end of the frame (before swap buffers/flip)
-            // if any extension wants to render on top of the game.
+            // in case any extension wants to render just before the Flip().
             // Don't do this while iconified
             if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
