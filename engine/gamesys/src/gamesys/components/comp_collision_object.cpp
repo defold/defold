@@ -1014,9 +1014,6 @@ namespace dmGameSystem
         float physics_dt = params.m_UpdateContext->m_DT;
         uint32_t num_steps_i = 1;
 
-        static int frame = 0;
-        ++frame;
-
         if (physics_context->m_UpdateFrequency != 0) // 0 means old behavior
         {
             physics_dt = params.m_UpdateContext->m_TimeScale / (float)physics_context->m_UpdateFrequency;
