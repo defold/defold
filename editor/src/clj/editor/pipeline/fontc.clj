@@ -493,7 +493,10 @@
      :cache-cell-height (:height cache-cell-wh)
      :cache-cell-max-ascent (+ cache-cell-max-ascent padding)
      :glyph-channels channel-count
-     :glyph-data (ByteString/copyFrom glyph-data-bank)}))
+     :glyph-data (ByteString/copyFrom glyph-data-bank)
+     :alpha (:alpha font-desc)
+     :outline-alpha (:outline-alpha font-desc)
+     :shadow-alpha (:shadow-alpha font-desc)}))
 
 (defn- calculate-ttf-distance-field-edge-limit [^double width ^double spread ^double edge]
   (let [sdf-limit-value (- (/ width spread))]

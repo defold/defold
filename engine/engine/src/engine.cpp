@@ -249,7 +249,7 @@ namespace dmEngine
         m_InputBuffer.SetCapacity(64);
         m_ResourceTypeContexts.SetCapacity(31, 64);
 
-        m_PhysicsContext.m_Context3D = 0x0;
+        m_PhysicsContext.m_Context3D = 0x0; // it'a union
         m_PhysicsContext.m_Debug = false;
         m_PhysicsContext.m_3D = false;
         m_GuiContext = 0x0;
@@ -1062,6 +1062,7 @@ namespace dmEngine
         }
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
+        engine->m_PhysicsContext.m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_UPDATE_FREQUENCY_KEY, 60);
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 

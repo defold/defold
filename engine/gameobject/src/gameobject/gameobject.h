@@ -400,6 +400,16 @@ namespace dmGameObject
     {
         dmArray<dmScript::HContext> m_ScriptContexts;
     };
+
+    /*
+     * Allows for flushing any pending messages
+    */
+    bool DispatchMessages(HCollection hcollection, dmMessage::HSocket* sockets, uint32_t socket_count);
+
+    /*
+     * Allows for updating transforms an extra time
+     */
+    void UpdateTransforms(HCollection hcollection);
 }
 
 #endif // GAMEOBJECT_H

@@ -2352,6 +2352,11 @@ namespace dmGameObject
         return ctx.m_Success;
     }
 
+    bool DispatchMessages(HCollection hcollection, dmMessage::HSocket* sockets, uint32_t socket_count)
+    {
+        return DispatchMessages(hcollection->m_Collection, sockets, socket_count);
+    }
+
     static void UpdateEulerToRotation(HInstance instance);
 
     static inline bool Vec3Equals(const uint32_t* a, const uint32_t* b)

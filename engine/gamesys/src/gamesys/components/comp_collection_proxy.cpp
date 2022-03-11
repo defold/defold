@@ -256,6 +256,8 @@ namespace dmGameSystem
                 if (proxy->m_Enabled)
                 {
                     dmGameObject::UpdateContext uc;
+                    // We might be inside a parent proxy, so the scale will propagate
+                    uc.m_TimeScale = params.m_UpdateContext->m_TimeScale * proxy->m_TimeStepFactor;
 
                     float warped_dt = params.m_UpdateContext->m_DT * proxy->m_TimeStepFactor;
                     switch (proxy->m_TimeStepMode)

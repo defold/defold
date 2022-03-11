@@ -654,39 +654,55 @@ namespace dmPhysics
         {
             fixture = fixture->GetNext();
         }
-        assert(fixture != 0x0);
         return fixture;
     }
 
     static inline b2GridShape* GetGridShape(b2Body* body, uint32_t index)
     {
         b2Fixture* fixture = GetFixture(body, index);
-        assert(fixture->GetShape()->GetType() == b2Shape::e_grid);
+        if (fixture == 0 || fixture->GetShape()->GetType() != b2Shape::e_grid)
+        {
+            return 0;
+        }
         return (b2GridShape*) fixture->GetShape();
     }
 
-    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
+    bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;
         b2GridShape* grid_shape = GetGridShape(body, shape_index);
+        if (grid_shape == 0)
+        {
+            return false;
+        }
         b2GridShape::CellFlags f;
         f.m_FlipHorizontal = flags.m_FlipHorizontal;
         f.m_FlipVertical = flags.m_FlipVertical;
         f.m_Rotate90 = flags.m_Rotate90;
         grid_shape->SetCellHull(body, row, column, hull, f);
+        return true;
     }
 
-    void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
+    bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = GetFixture(body, shape_index);
-        b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+        if (fixture == 0)
+        {
+            return false;
+        }
+        b2GridShape* grid_shape = GetGridShape(body, shape_index);
+        if (grid_shape == 0)
+        {
+            return false;
+        }
         grid_shape->m_enabled = enable;
 
         if (!enable)
         {
             body->PurgeContacts(fixture);
         }
+        return true;
     }
 
     void SetCollisionObjectFilter(HCollisionObject2D collision_shape,
