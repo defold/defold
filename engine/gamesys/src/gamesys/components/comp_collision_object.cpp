@@ -38,9 +38,11 @@ namespace dmGameSystem
     using namespace dmVMath;
 
     /// Config key to use for tweaking maximum number of collisions reported
-    const char* PHYSICS_MAX_COLLISIONS_KEY  = "physics.max_collisions";
+    const char* PHYSICS_MAX_COLLISIONS_KEY      = "physics.max_collisions";
     /// Config key to use for tweaking maximum number of contacts reported
-    const char* PHYSICS_MAX_CONTACTS_KEY    = "physics.max_contacts";
+    const char* PHYSICS_MAX_CONTACTS_KEY        = "physics.max_contacts";
+    /// Config key for setting the frame rate of the physics worlds
+    const char* PHYSICS_UPDATE_FREQUENCY_KEY    = "physics.update_frequency";
 
     static const dmhash_t PROP_LINEAR_DAMPING = dmHashString64("linear_damping");
     static const dmhash_t PROP_ANGULAR_DAMPING = dmHashString64("angular_damping");
@@ -119,9 +121,10 @@ namespace dmGameSystem
             dmPhysics::HWorld2D m_World2D;
             dmPhysics::HWorld3D m_World3D;
         };
-        float m_LastDT; // Used to calculate joint reaction force and torque.
-        uint8_t m_ComponentIndex;
-        uint8_t m_3D : 1;
+        float       m_CurrentDT;    // Used to calculate joint reaction force and torque.
+        float       m_AccumTime;    // Time saved from last component type update
+        uint8_t     m_ComponentTypeIndex;
+        uint8_t     m_3D : 1;
         dmArray<CollisionComponent*> m_Components;
     };
 
@@ -206,7 +209,7 @@ namespace dmGameSystem
         {
             world->m_World2D = world2D;
         }
-        world->m_ComponentIndex = params.m_ComponentIndex;
+        world->m_ComponentTypeIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
         uint32_t comp_count = params.m_MaxComponentInstances;
         if (comp_count == 0xFFFFFFFF)
@@ -822,10 +825,10 @@ namespace dmGameSystem
 
                     // NOTE! The collision world for the target collection is looked up using this worlds component index
                     //       which is assumed to be the same as in the target collection.
-                    CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_World->m_ComponentIndex);
+                    CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_World->m_ComponentTypeIndex);
 
                     // Give that the assumption above holds, this assert will hold too.
-                    assert(world->m_ComponentIndex == context->m_World->m_ComponentIndex);
+                    assert(world->m_ComponentTypeIndex == context->m_World->m_ComponentTypeIndex);
 
                     dmPhysics::RayCastRequest request;
                     request.m_From = ddf->m_From;
@@ -895,17 +898,70 @@ namespace dmGameSystem
         return dispatch_context.m_Success;
     }
 
+    static void Step(CollisionWorld* world, PhysicsContext* physics_context, dmGameObject::HCollection collection, const dmPhysics::StepWorldContext* step_ctx)
+    {
+        CollisionUserData* collision_user_data = (CollisionUserData*)step_ctx->m_CollisionUserData;
+        CollisionUserData* contact_user_data = (CollisionUserData*)step_ctx->m_ContactPointUserData;
+
+        g_NumPhysicsTransformsUpdated = 0;
+
+        world->m_CurrentDT = step_ctx->m_DT;
+
+        if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, collection))
+        {
+            dmLogWarning("Failed to dispatch physics messages");
+        }
+
+        if (physics_context->m_3D)
+        {
+            dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
+        }
+        else
+        {
+            dmPhysics::StepWorld2D(world->m_World2D, *step_ctx);
+        }
+
+        if (collision_user_data->m_Count >= physics_context->m_MaxCollisionCount)
+        {
+            if (!g_CollisionOverflowWarning)
+            {
+                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost. Tweak \"%s\" in the game.project file.", physics_context->m_MaxCollisionCount, PHYSICS_MAX_COLLISIONS_KEY);
+                g_CollisionOverflowWarning = true;
+            }
+        }
+        else
+        {
+            g_CollisionOverflowWarning = false;
+        }
+        if (contact_user_data->m_Count >= physics_context->m_MaxContactPointCount)
+        {
+            if (!g_ContactOverflowWarning)
+            {
+                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost. Tweak \"%s\" in the game.project file.", physics_context->m_MaxContactPointCount, PHYSICS_MAX_CONTACTS_KEY);
+                g_ContactOverflowWarning = true;
+            }
+        }
+        else
+        {
+            g_ContactOverflowWarning = false;
+        }
+
+        dmMessage::HSocket socket = dmGameObject::GetMessageSocket(collection);
+        dmGameObject::DispatchMessages(collection, &socket, 1);
+
+        if (g_NumPhysicsTransformsUpdated > 0)
+        {
+            dmGameObject::UpdateTransforms(collection);
+        }
+    }
+
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         if (params.m_World == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
+
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-
-        dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
-
-        if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, params.m_Collection))
-            result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
 
         // Hot-reload is not available in release, so lets not iterate collision components in that case.
         if (dLib::IsDebugMode())
@@ -944,7 +1000,6 @@ namespace dmGameSystem
         contact_user_data.m_Count = 0;
 
         dmPhysics::StepWorldContext step_world_context;
-        step_world_context.m_DT = params.m_UpdateContext->m_DT;
         step_world_context.m_CollisionCallback = CollisionCallback;
         step_world_context.m_CollisionUserData = &collision_user_data;
         step_world_context.m_ContactPointCallback = ContactPointCallback;
@@ -956,50 +1011,37 @@ namespace dmGameSystem
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 
-        world->m_LastDT = params.m_UpdateContext->m_DT;
+        float physics_dt = params.m_UpdateContext->m_DT;
+        uint32_t num_steps_i = 1;
 
-        g_NumPhysicsTransformsUpdated = 0;
+        if (physics_context->m_UpdateFrequency != 0) // 0 means old behavior
+        {
+            physics_dt = params.m_UpdateContext->m_TimeScale / (float)physics_context->m_UpdateFrequency;
 
-        if (physics_context->m_3D)
-        {
-            dmPhysics::StepWorld3D(world->m_World3D, step_world_context);
-        }
-        else
-        {
-            dmPhysics::StepWorld2D(world->m_World2D, step_world_context);
+            float prev_accum = world->m_AccumTime;
+            float time = world->m_AccumTime + params.m_UpdateContext->m_DT;
+
+            float num_steps_f = time / physics_dt;
+            num_steps_i = (uint32_t)num_steps_f;
+
+            // Store the remainder for the next frame
+            world->m_AccumTime = time - (num_steps_i * physics_dt);
         }
 
-        update_result.m_TransformsUpdated = g_NumPhysicsTransformsUpdated > 0;
+        step_world_context.m_DT = physics_dt;
 
-        if (collision_user_data.m_Count >= physics_context->m_MaxCollisionCount)
+        for (uint32_t i = 0; i < num_steps_i; ++i)
         {
-            if (!g_CollisionOverflowWarning)
-            {
-                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost. Tweak \"%s\" in the config file.", physics_context->m_MaxCollisionCount, PHYSICS_MAX_COLLISIONS_KEY);
-                g_CollisionOverflowWarning = true;
-            }
+            Step(world, physics_context, params.m_Collection, &step_world_context);
         }
-        else
-        {
-            g_CollisionOverflowWarning = false;
-        }
-        if (contact_user_data.m_Count >= physics_context->m_MaxContactPointCount)
-        {
-            if (!g_ContactOverflowWarning)
-            {
-                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost. Tweak \"%s\" in the config file.", physics_context->m_MaxContactPointCount, PHYSICS_MAX_CONTACTS_KEY);
-                g_ContactOverflowWarning = true;
-            }
-        }
-        else
-        {
-            g_ContactOverflowWarning = false;
-        }
+
+        // We only want to call this once per frame
         if (physics_context->m_3D)
             dmPhysics::SetDrawDebug3D(world->m_World3D, physics_context->m_Debug);
         else
             dmPhysics::SetDrawDebug2D(world->m_World2D, physics_context->m_Debug);
-        return result;
+
+        return dmGameObject::UPDATE_RESULT_OK;
     }
 
     dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
@@ -1525,8 +1567,8 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force, 1.0f / world->m_LastDT);
-        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+        bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force, 1.0f / world->m_CurrentDT);
+     return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
     dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque)
@@ -1547,8 +1589,8 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = GetJointReactionTorque2D(world->m_World2D, joint_entry->m_Joint, torque, 1.0f / world->m_LastDT);
-        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+        bool r = GetJointReactionTorque2D(world->m_World2D, joint_entry->m_Joint, torque, 1.0f / world->m_CurrentDT);
+     return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
     void SetGravity(void* _world, const dmVMath::Vector3& gravity)
@@ -1738,5 +1780,4 @@ namespace dmGameSystem
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
     }
-    
 }
