@@ -1533,6 +1533,7 @@ bail:
 
 
                 dmGameObject::UpdateContext update_context;
+                update_context.m_TimeScale = 1.0f;
                 update_context.m_DT = dt;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
