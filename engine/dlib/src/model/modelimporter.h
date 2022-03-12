@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <dmsdk/dlib/transform.h>
 #include <stdint.h>
 
 namespace dmModelImporter
@@ -47,22 +48,29 @@ namespace dmModelImporter
         uint32_t    m_MeshesCount;
     };
 
-    // struct Skin
-    // {
-    // };
-
     struct Bone
     {
+        dmTransform::Transform  m_InvBindPose; // inverse(world_transform)
+        const char*             m_Name;
+        struct Node*            m_Node;
+    };
+
+    struct Skin
+    {
+        const char*             m_Name;
+        Bone*                   m_Bones;
+        uint32_t                m_BonesCount;
     };
 
     struct Node
     {
-        const char* m_Name;
-        Node*       m_Parent;
-        Node**      m_Children;
-        uint32_t    m_ChildrenCount;
-        Model*      m_Model; // not all nodes have a mesh
-        //Skin*   m_Skin; // not all nodes have a skin
+        dmTransform::Transform  m_Transform;    // The local transform
+        const char*             m_Name;
+        Model*                  m_Model;        // not all nodes have a mesh
+        Skin*                   m_Skin;         // not all nodes have a skin
+        Node*                   m_Parent;
+        Node**                  m_Children;
+        uint32_t                m_ChildrenCount;
     };
 
     struct Scene
@@ -76,6 +84,9 @@ namespace dmModelImporter
 
         Model*      m_Models;
         uint32_t    m_ModelsCount;
+
+        Skin*       m_Skins;
+        uint32_t    m_SkinsCount;
 
         Node*       m_Skeleton; // The skeleton top node
 

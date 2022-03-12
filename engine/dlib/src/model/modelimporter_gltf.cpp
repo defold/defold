@@ -20,9 +20,130 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/transform.h>
 
 namespace dmModelImporter
 {
+
+static const char* getPrimitiveTypeStr(cgltf_primitive_type type)
+{
+    switch(type)
+    {
+    case cgltf_primitive_type_points: return "cgltf_primitive_type_points";
+    case cgltf_primitive_type_lines: return "cgltf_primitive_type_lines";
+    case cgltf_primitive_type_line_loop: return "cgltf_primitive_type_line_loop";
+    case cgltf_primitive_type_line_strip: return "cgltf_primitive_type_line_strip";
+    case cgltf_primitive_type_triangles: return "cgltf_primitive_type_triangles";
+    case cgltf_primitive_type_triangle_strip: return "cgltf_primitive_type_triangle_strip";
+    case cgltf_primitive_type_triangle_fan: return "cgltf_primitive_type_triangle_fan";
+    default: return "unknown";
+    }
+}
+
+static const char* GetAttributeTypeStr(cgltf_attribute_type type)
+{
+    switch(type)
+    {
+    case cgltf_attribute_type_invalid: return "cgltf_attribute_type_invalid";
+    case cgltf_attribute_type_position: return "cgltf_attribute_type_position";
+    case cgltf_attribute_type_normal: return "cgltf_attribute_type_normal";
+    case cgltf_attribute_type_tangent: return "cgltf_attribute_type_tangent";
+    case cgltf_attribute_type_texcoord: return "cgltf_attribute_type_texcoord";
+    case cgltf_attribute_type_color: return "cgltf_attribute_type_color";
+    case cgltf_attribute_type_joints: return "cgltf_attribute_type_joints";
+    case cgltf_attribute_type_weights: return "cgltf_attribute_type_weights";
+    default: return "unknown";
+    }
+}
+
+static const char* GetTypeStr(cgltf_type type)
+{
+    switch(type)
+    {
+    case cgltf_type_invalid: return "cgltf_type_invalid";
+    case cgltf_type_scalar: return "cgltf_type_scalar";
+    case cgltf_type_vec2: return "cgltf_type_vec2";
+    case cgltf_type_vec3: return "cgltf_type_vec3";
+    case cgltf_type_vec4: return "cgltf_type_vec4";
+    case cgltf_type_mat2: return "cgltf_type_mat2";
+    case cgltf_type_mat3: return "cgltf_type_mat3";
+    case cgltf_type_mat4: return "cgltf_type_mat4";
+    default: return "unknown";
+    }
+}
+
+static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components)
+{
+    uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
+
+    if (desired_num_components == 0)
+        desired_num_components = num_components;
+
+    float* out = new float[accessor->count * num_components];
+    float* writeptr = out;
+
+    for (uint32_t i = 0; i < accessor->count; ++i)
+    {
+        bool result = cgltf_accessor_read_float(accessor, i, writeptr, num_components);
+
+        if (!result)
+        {
+            printf("Couldn't read floats!\n");
+            delete[] out;
+            return 0;
+        }
+
+        writeptr += desired_num_components;
+    }
+
+    return out;
+}
+
+static uint32_t* ReadAccessorUint32(cgltf_accessor* accessor, uint32_t desired_num_components)
+{
+    uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
+
+    if (desired_num_components == 0)
+        desired_num_components = num_components;
+
+    uint32_t* out = new uint32_t[accessor->count * desired_num_components];
+    uint32_t* writeptr = out;
+
+    for (uint32_t i = 0; i < accessor->count; ++i)
+    {
+        bool result = cgltf_accessor_read_uint(accessor, i, writeptr, num_components);
+
+        if (!result)
+        {
+            printf("couldnt read floats!\n");
+            delete[] out;
+            return 0;;
+        }
+
+        writeptr += desired_num_components;
+    }
+
+    return out;
+}
+
+static float* ReadAccessorMatrix4(cgltf_accessor* accessor, uint32_t index, float* out)
+{
+    uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
+    assert(num_components == 16);
+
+    bool result = cgltf_accessor_read_float(accessor, index, out, 16);
+
+    if (!result)
+    {
+        printf("Couldn't read floats!\n");
+        return 0;
+    }
+
+    return out;
+}
+
+
 
 static void DestroyGltf(void* opaque_scene_data);
 
@@ -44,6 +165,26 @@ static Node* TranslateNode(cgltf_node* node, cgltf_data* gltf_data, Scene* scene
     return &scene->m_Nodes[index];
 }
 
+static dmTransform::Transform ToTransform(const float* m)
+{
+    dmVMath::Matrix4 mat = dmVMath::Matrix4(dmVMath::Vector4(m[0], m[1], m[2], m[3]),
+                                            dmVMath::Vector4(m[4], m[5], m[6], m[7]),
+                                            dmVMath::Vector4(m[8], m[9], m[10], m[11]),
+                                            dmVMath::Vector4(m[12], m[13], m[14], m[15]));
+    return dmTransform::ToTransform(mat);
+}
+
+static Skin* FindSkin(Scene* scene, const char* name)
+{
+    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    {
+        Skin* skin = &scene->m_Skins[i];
+        if (strcmp(name, skin->m_Name) == 0)
+            return skin;
+    }
+    return 0;
+}
+
 static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 {
     scene->m_NodesCount = gltf_data->nodes_count;
@@ -55,6 +196,40 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
         Node* node = &scene->m_Nodes[i];
         node->m_Name = strdup(gltf_node->name);
+
+        //printf("node %s:  ", gltf_node->name);
+
+        dmVMath::Vector3 scale = dmVMath::Vector3(1,1,1);
+        dmVMath::Vector3 translation;
+        dmVMath::Quat rotation;
+
+        node->m_Skin = 0;
+        if (gltf_node->skin)
+        {
+            node->m_Skin = FindSkin(scene, gltf_node->skin->name);
+        }
+
+        // if (gltf_node->weights)
+        //     printf("  Weights!");
+
+        //Transform(dmVMath::Vector3 translation, dmVMath::Quat rotation, dmVMath::Vector3 scale)
+
+        if (gltf_node->has_translation)
+            translation = dmVMath::Vector3(gltf_node->translation[0], gltf_node->translation[1], gltf_node->translation[2]);
+        if (gltf_node->has_scale)
+            scale = dmVMath::Vector3(gltf_node->scale[0], gltf_node->scale[1], gltf_node->scale[2]);
+        if (gltf_node->has_rotation)
+            rotation = dmVMath::Quat(gltf_node->rotation[0], gltf_node->rotation[1], gltf_node->rotation[2], gltf_node->rotation[3]);
+
+        if (gltf_node->has_matrix)
+        {
+            node->m_Transform = ToTransform(gltf_node->matrix);
+        }
+        else {
+            node->m_Transform = dmTransform::Transform(translation, rotation, scale);
+        }
+
+        printf("\n");
 
         //printf("    Node: %20s  mesh: %s  skin: %s\n", gltf_node->name, gltf_node->mesh?gltf_node->mesh->name:"-", gltf_node->skin?gltf_node->skin->name:"-");
     }
@@ -93,38 +268,6 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         {
             scene->m_RootNodes[scene->m_RootNodesCount++] = &scene->m_Nodes[i];
         }
-    }
-}
-
-
-static const char* getPrimitiveTypeStr(cgltf_primitive_type type)
-{
-    switch(type)
-    {
-    case cgltf_primitive_type_points: return "cgltf_primitive_type_points";
-    case cgltf_primitive_type_lines: return "cgltf_primitive_type_lines";
-    case cgltf_primitive_type_line_loop: return "cgltf_primitive_type_line_loop";
-    case cgltf_primitive_type_line_strip: return "cgltf_primitive_type_line_strip";
-    case cgltf_primitive_type_triangles: return "cgltf_primitive_type_triangles";
-    case cgltf_primitive_type_triangle_strip: return "cgltf_primitive_type_triangle_strip";
-    case cgltf_primitive_type_triangle_fan: return "cgltf_primitive_type_triangle_fan";
-    default: return "unknown";
-    }
-}
-
-static const char* GetAttributeTypeStr(cgltf_attribute_type type)
-{
-    switch(type)
-    {
-    case cgltf_attribute_type_invalid: return "cgltf_attribute_type_invalid";
-    case cgltf_attribute_type_position: return "cgltf_attribute_type_position";
-    case cgltf_attribute_type_normal: return "cgltf_attribute_type_normal";
-    case cgltf_attribute_type_tangent: return "cgltf_attribute_type_tangent";
-    case cgltf_attribute_type_texcoord: return "cgltf_attribute_type_texcoord";
-    case cgltf_attribute_type_color: return "cgltf_attribute_type_color";
-    case cgltf_attribute_type_joints: return "cgltf_attribute_type_joints";
-    case cgltf_attribute_type_weights: return "cgltf_attribute_type_weights";
-    default: return "unknown";
     }
 }
 
@@ -177,60 +320,6 @@ static const char* GetAttributeTypeStr(cgltf_attribute_type type)
 //     cgltf_int index;
 //     cgltf_accessor* data;
 // } cgltf_attribute;
-
-static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components)
-{
-    uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
-
-    if (desired_num_components == 0)
-        desired_num_components = num_components;
-
-    float* out = new float[accessor->count * desired_num_components];
-    float* writeptr = out;
-
-    for (uint32_t i = 0; i < accessor->count; ++i)
-    {
-        bool result = cgltf_accessor_read_float(accessor, i, writeptr, num_components);
-
-        if (!result)
-        {
-            printf("couldnt read floats!\n");
-            delete[] out;
-            return 0;;
-        }
-
-        writeptr += desired_num_components;
-    }
-
-    return out;
-}
-
-static uint32_t* ReadAccessorUint32(cgltf_accessor* accessor, uint32_t desired_num_components)
-{
-    uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
-
-    if (desired_num_components == 0)
-        desired_num_components = num_components;
-
-    uint32_t* out = new uint32_t[accessor->count * desired_num_components];
-    uint32_t* writeptr = out;
-
-    for (uint32_t i = 0; i < accessor->count; ++i)
-    {
-        bool result = cgltf_accessor_read_uint(accessor, i, writeptr, num_components);
-
-        if (!result)
-        {
-            printf("couldnt read floats!\n");
-            delete[] out;
-            return 0;;
-        }
-
-        writeptr += desired_num_components;
-    }
-
-    return out;
-}
 
 
 static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
@@ -351,6 +440,40 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
+{
+    scene->m_SkinsCount = gltf_data->skins_count;
+    scene->m_Skins = new Skin[scene->m_SkinsCount];
+
+    for (uint32_t i = 0; i < gltf_data->skins_count; ++i)
+    {
+        cgltf_skin* gltf_skin = &gltf_data->skins[i];
+
+        Skin* skin = &scene->m_Skins[i];
+        skin->m_Name = strdup(gltf_skin->name);
+
+        skin->m_BonesCount = gltf_skin->joints_count;
+        skin->m_Bones = new Bone[skin->m_BonesCount];
+
+        cgltf_accessor* accessor = gltf_skin->inverse_bind_matrices;
+        for (uint32_t j = 0; j < gltf_skin->joints_count; ++j)
+        {
+            cgltf_node* gltf_joint = gltf_skin->joints[j];
+            Bone* bone = &skin->m_Bones[j];
+            bone->m_Name = strdup(gltf_joint->name);
+
+            float matrix[16];
+            if (ReadAccessorMatrix4(accessor, j, matrix))
+            {
+                bone->m_InvBindPose = ToTransform(matrix);
+            } else
+            {
+                assert(false);
+            }
+        }
+    }
+}
+
 static const char* GetResultStr(cgltf_result result)
 {
     switch(result)
@@ -393,6 +516,7 @@ Scene* LoadGltf(Options* importeroptions, void* mem, uint32_t file_size)
     scene->m_OpaqueSceneData = (void*)data;
     scene->m_DestroyFn = DestroyGltf;
 
+    LoadSkins(scene, data);
     LoadNodes(scene, data);
     LoadMeshes(scene, data);
 

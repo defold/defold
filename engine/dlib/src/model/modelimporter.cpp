@@ -50,6 +50,19 @@ static void DestroyNode(Node* node)
     free((void*)node->m_Name);
 }
 
+static void DestroyBone(Bone* bone)
+{
+    free((void*)bone->m_Name);
+}
+
+static void DestroySkin(Skin* skin)
+{
+    free((void*)skin->m_Name);
+    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+        DestroyBone(&skin->m_Bones[i]);
+    delete[] skin->m_Bones;
+}
+
 void DestroyScene(Scene* scene)
 {
     scene->m_DestroyFn(scene->m_OpaqueSceneData);
@@ -63,6 +76,10 @@ void DestroyScene(Scene* scene)
     for (uint32_t i = 0; i < scene->m_ModelsCount; ++i)
         DestroyModel(&scene->m_Models[i]);
     delete[] scene->m_Models;
+
+    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+        DestroySkin(&scene->m_Skins[i]);
+    delete[] scene->m_Skins;
 }
 
 
@@ -104,10 +121,41 @@ static void OutputIndent(int indent)
     }
 }
 
+static void OutputTransform(dmTransform::Transform& transform)
+{
+    printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+    printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+    printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+}
+
+static void OutputBone(Bone* bone, int indent)
+{
+    OutputIndent(indent);
+    printf("%s  ", bone->m_Name);
+    OutputTransform(bone->m_InvBindPose);
+    printf("\n");
+}
+
+static void OutputSkin(Skin* skin, int indent)
+{
+    OutputIndent(indent);
+    printf("Skin name: %s\n", skin->m_Name);
+
+    printf("  Bones: count: %u\n", skin->m_BonesCount);
+    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    {
+        OutputBone(&skin->m_Bones[i], indent+1);
+    }
+}
+
 static void OutputNodeTree(Node* node, int indent)
 {
     OutputIndent(indent);
-    printf("%s\n", node->m_Name);
+    printf("%s: ", node->m_Name);
+    if (node->m_Skin)
+        printf("skin: %s", node->m_Skin->m_Name);
+    printf("\n");
+
     for (uint32_t i = 0; i < node->m_ChildrenCount; ++i)
     {
         OutputNodeTree(node->m_Children[i], indent+1);
@@ -117,7 +165,16 @@ static void OutputNodeTree(Node* node, int indent)
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    printf("mesh  vertices: %u  mat: %s\n", mesh->m_VertexCount, mesh->m_Material);
+    printf("mesh  vertices: %u  mat: %s  weights: %s\n", mesh->m_VertexCount, mesh->m_Material, mesh->m_Weights?"yes":"no");
+
+    // if (mesh->m_Weights)
+    // {
+    //     for (uint32_t i = 0; i < mesh->m_VertexCount; ++i)
+    //     {
+    //         printf("  %4u  B: %2u, %2u, %2u, %2u\t", i, mesh->m_Bones[i*4+0], mesh->m_Bones[i*4+1], mesh->m_Bones[i*4+2], mesh->m_Bones[i*4+3]);
+    //         printf("  W: %f, %f, %f, %f\n", mesh->m_Weights[i*4+0], mesh->m_Weights[i*4+1], mesh->m_Weights[i*4+2], mesh->m_Weights[i*4+3]);
+    //     }
+    // }
     //printf("tris: %u  material: %s", mesh->)
 }
 
@@ -136,10 +193,20 @@ void DebugScene(Scene* scene)
 {
     printf("Output model importer scene:\n");
 
+    printf("------------------------------\n");
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
     {
         const Node& node = scene->m_Nodes[i];
         printf("Node: %s\n", node.m_Name);
+    }
+    printf("------------------------------\n");
+
+    printf("Skins: count: %u\n", scene->m_SkinsCount);
+    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    {
+        printf("------------------------------\n");
+        OutputSkin(&scene->m_Skins[i], 1);
+        printf("------------------------------\n");
     }
 
     printf("Subscenes: count: %u\n", scene->m_RootNodesCount);
