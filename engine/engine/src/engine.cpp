@@ -260,6 +260,7 @@ namespace dmEngine
         m_MeshContext.m_RenderContext = 0x0;
         m_MeshContext.m_MaxMeshCount = 0;
         m_AccumFrameTime = 0;
+        m_PreviousFrameTime = dmTime::GetTime();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
