@@ -1480,7 +1480,7 @@ bail:
                         return;
                     }
                 }
-                /* Script context updates */
+                // Script context updates
                 if (engine->m_SharedScriptContext) {
                     dmScript::Update(engine->m_SharedScriptContext);
                 } else {

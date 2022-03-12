@@ -1018,7 +1018,6 @@ namespace dmGameSystem
         {
             physics_dt = params.m_UpdateContext->m_TimeScale / (float)physics_context->m_UpdateFrequency;
 
-            float prev_accum = world->m_AccumTime;
             float time = world->m_AccumTime + params.m_UpdateContext->m_DT;
 
             float num_steps_f = time / physics_dt;
