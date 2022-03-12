@@ -19,8 +19,11 @@
 #include <cgltf/cgltf.h>
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/transform.h>
 
 namespace dmModelImporter
@@ -72,6 +75,49 @@ static const char* GetTypeStr(cgltf_type type)
     default: return "unknown";
     }
 }
+
+static const char* GetResultStr(cgltf_result result)
+{
+    switch(result)
+    {
+    case cgltf_result_success: return "cgltf_result_success";
+    case cgltf_result_data_too_short: return "cgltf_result_data_too_short";
+    case cgltf_result_unknown_format: return "cgltf_result_unknown_format";
+    case cgltf_result_invalid_json: return "cgltf_result_invalid_json";
+    case cgltf_result_invalid_gltf: return "cgltf_result_invalid_gltf";
+    case cgltf_result_invalid_options: return "cgltf_result_invalid_options";
+    case cgltf_result_file_not_found: return "cgltf_result_file_not_found";
+    case cgltf_result_io_error: return "cgltf_result_io_error";
+    case cgltf_result_out_of_memory: return "cgltf_result_out_of_memory";
+    case cgltf_result_legacy_gltf: return "cgltf_result_legacy_gltf";
+    default: return "unknown";
+    }
+}
+
+static const char* GetAnimationPathTypeStr(cgltf_animation_path_type type)
+{
+    switch(type)
+    {
+    case cgltf_animation_path_type_invalid: return "cgltf_animation_path_type_invalid";
+    case cgltf_animation_path_type_translation: return "cgltf_animation_path_type_translation";
+    case cgltf_animation_path_type_rotation: return "cgltf_animation_path_type_rotation";
+    case cgltf_animation_path_type_scale: return "cgltf_animation_path_type_scale";
+    case cgltf_animation_path_type_weights: return "cgltf_animation_path_type_weights";
+    default: return "unknown";
+    }
+}
+
+static const char* GetInterpolationTypeStr(cgltf_interpolation_type type)
+{
+ switch(type)
+ {
+ case cgltf_interpolation_type_linear: return "cgltf_interpolation_type_linear";
+ case cgltf_interpolation_type_step: return "cgltf_interpolation_type_step";
+ case cgltf_interpolation_type_cubic_spline: return "cgltf_interpolation_type_cubic_spline";
+ default: return "unknown";
+ }
+}
+
 
 static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components)
 {
@@ -229,7 +275,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
             node->m_Transform = dmTransform::Transform(translation, rotation, scale);
         }
 
-        printf("\n");
+        //printf("\n");
 
         //printf("    Node: %20s  mesh: %s  skin: %s\n", gltf_node->name, gltf_node->mesh?gltf_node->mesh->name:"-", gltf_node->skin?gltf_node->skin->name:"-");
     }
@@ -270,57 +316,6 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         }
     }
 }
-
-
-
-// static void outputPrimitive(cgltf_primitive* prim)
-// {
-//     const char* type_str = getPrimitiveTypeStr(prim->type);
-//     printf("      %s ", type_str);
-
-//     printf("mat: %s", prim->material?prim->material->name:"-");
-//     for (size_t i = 0; i < prim->mappings_count; ++i)
-//     {
-//         printf("'%s'", prim->mappings[i].material->name);
-//     }
-//     printf("\n");
-// }
-
-// static void outputMesh(cgltf_mesh* mesh)
-// {
-//     printf("  %s\n", mesh->name);
-
-//     for (size_t i = 0; i < mesh->primitives_count; ++i)
-//     {
-//         outputPrimitive(&mesh->primitives[i]);
-//     }
-
-//     for (size_t i = 0; i < mesh->target_names_count; ++i)
-//     {
-//         printf("      %s\n", mesh->target_names[i]);
-//     }
-// }
-
-// typedef enum cgltf_attribute_type
-// {
-//     cgltf_attribute_type_invalid,
-//     cgltf_attribute_type_position,
-//     cgltf_attribute_type_normal,
-//     cgltf_attribute_type_tangent,
-//     cgltf_attribute_type_texcoord,
-//     cgltf_attribute_type_color,
-//     cgltf_attribute_type_joints,
-//     cgltf_attribute_type_weights,
-// } cgltf_attribute_type;
-
-// typedef struct cgltf_attribute
-// {
-//     char* name;
-//     cgltf_attribute_type type;
-//     cgltf_int index;
-//     cgltf_accessor* data;
-// } cgltf_attribute;
-
 
 static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
 {
@@ -400,27 +395,6 @@ static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
                 else if (attribute->type == cgltf_attribute_type_weights)
                     mesh->m_Weights = fdata;
             }
-
-            // int maxcount = 10;
-            // // if (attribute->type == cgltf_attribute_type_joints)
-            // //     maxcount = accessor->count;
-
-            // for (uint32_t c = 0; c < maxcount; ++c)
-            // {
-            //     printf("    %u:  ", c);
-
-            //     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
-            //     for (uint32_t ac = 0; ac < num_components; ++ac)
-            //     {
-            //         if (fdata)
-            //         {
-            //             printf("%f,", fdata[c * num_components + ac]);
-            //         } else {
-            //             printf("%u,", udata[c * num_components + ac]);
-            //         }
-            //     }
-            //     printf("\n");
-            // }
         }
     }
 }
@@ -474,23 +448,126 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-static const char* GetResultStr(cgltf_result result)
+static bool AreEqual(const float* a, const float* b, uint32_t num_components, float epsilon)
 {
-    switch(result)
+    for (uint32_t i = 0; i < num_components; ++i)
     {
-    case cgltf_result_success: return "cgltf_result_success";
-    case cgltf_result_data_too_short: return "cgltf_result_data_too_short";
-    case cgltf_result_unknown_format: return "cgltf_result_unknown_format";
-    case cgltf_result_invalid_json: return "cgltf_result_invalid_json";
-    case cgltf_result_invalid_gltf: return "cgltf_result_invalid_gltf";
-    case cgltf_result_invalid_options: return "cgltf_result_invalid_options";
-    case cgltf_result_file_not_found: return "cgltf_result_file_not_found";
-    case cgltf_result_io_error: return "cgltf_result_io_error";
-    case cgltf_result_out_of_memory: return "cgltf_result_out_of_memory";
-    case cgltf_result_legacy_gltf: return "cgltf_result_legacy_gltf";
-    default: return "unknown";
+        if (fabsf(a[i] - b[i]) > epsilon)
+            return false;
+    }
+    return true;
+}
+
+static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* channel)
+{
+    cgltf_accessor* accessor_times = channel->sampler->input;
+    cgltf_accessor* accessor = channel->sampler->output;
+
+    uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
+
+    bool all_identical = true;
+
+    KeyFrame* key_frames = new KeyFrame[accessor_times->count];
+    for (uint32_t i = 0; i < accessor->count; ++i)
+    {
+        cgltf_accessor_read_float(accessor_times, i, &key_frames[i].m_Time, 1);
+        cgltf_accessor_read_float(accessor, i, key_frames[i].m_Value, num_components);
+
+        if (i > 0 && !AreEqual(key_frames[0].m_Value, key_frames[i].m_Value, num_components, 0.0001f))
+        {
+            all_identical = false;
+        }
+    }
+
+    uint32_t key_count = accessor->count;
+    if (all_identical)
+    {
+        key_count = 1;
+    }
+
+    if (channel->target_path == cgltf_animation_path_type_translation)
+    {
+        node_animation->m_TranslationKeys = key_frames;
+        node_animation->m_TranslationKeysCount = key_count;
+    }
+    else if(channel->target_path == cgltf_animation_path_type_rotation)
+    {
+        node_animation->m_RotationKeys = key_frames;
+        node_animation->m_RotationKeysCount = key_count;
+    }
+    else if(channel->target_path == cgltf_animation_path_type_scale)
+    {
+        node_animation->m_ScaleKeys = key_frames;
+        node_animation->m_ScaleKeysCount = key_count;
+    } else
+    {
+        // Unsupported type
+        delete[] key_frames;
     }
 }
+
+static uint32_t CountAnimatedNodes(cgltf_animation* animation, dmHashTable64<uint32_t>& node_to_index)
+{
+    node_to_index.SetCapacity((32*2)/3, 32);
+
+    for (size_t i = 0; i < animation->channels_count; ++i)
+    {
+        if (node_to_index.Full())
+        {
+            uint32_t new_capacity = node_to_index.Capacity() + 32;
+            node_to_index.SetCapacity((new_capacity*2)/3, new_capacity);
+        }
+
+        const char* node_name = animation->channels[i].target_node->name;
+        dmhash_t node_name_hash = dmHashString64(node_name);
+
+        uint32_t* prev_index = node_to_index.Get(node_name_hash);
+        if (prev_index == 0)
+        {
+            node_to_index.Put(node_name_hash, node_to_index.Size());
+        }
+    }
+
+    return node_to_index.Size();
+}
+
+static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
+{
+    scene->m_AnimationsCount = gltf_data->animations_count;
+    scene->m_Animations = new Animation[scene->m_AnimationsCount];
+
+    // first, count number of animated nodes we have
+    for (uint32_t i = 0; i < gltf_data->animations_count; ++i)
+    {
+        cgltf_animation* gltf_animation = &gltf_data->animations[i];
+        Animation* animation = &scene->m_Animations[i];
+
+        animation->m_Name = strdup(gltf_animation->name);
+
+        dmHashTable64<uint32_t> node_name_to_index;
+        animation->m_NodeAnimationsCount = CountAnimatedNodes(gltf_animation, node_name_to_index);
+        animation->m_NodeAnimations = new NodeAnimation[animation->m_NodeAnimationsCount];
+        memset(animation->m_NodeAnimations, 0, sizeof(NodeAnimation) * animation->m_NodeAnimationsCount);
+
+        for (size_t i = 0; i < gltf_animation->channels_count; ++i)
+        {
+            cgltf_animation_channel* channel = &gltf_animation->channels[i];
+
+            const char* node_name = channel->target_node->name;
+            dmhash_t node_name_hash = dmHashString64(node_name);
+
+            uint32_t* node_index = node_name_to_index.Get(node_name_hash);
+            assert(node_index != 0);
+
+            NodeAnimation* node_animation = &animation->m_NodeAnimations[*node_index];
+            if (node_animation->m_Node == 0)
+                node_animation->m_Node = TranslateNode(channel->target_node, gltf_data, scene);
+
+            LoadChannel(node_animation, channel);
+        }
+    }
+}
+
 
 Scene* LoadGltf(Options* importeroptions, void* mem, uint32_t file_size)
 {
@@ -519,6 +596,7 @@ Scene* LoadGltf(Options* importeroptions, void* mem, uint32_t file_size)
     LoadSkins(scene, data);
     LoadNodes(scene, data);
     LoadMeshes(scene, data);
+    LoadAnimations(scene, data);
 
     return scene;
 }

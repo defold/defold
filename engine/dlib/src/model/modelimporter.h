@@ -73,6 +73,32 @@ namespace dmModelImporter
         uint32_t                m_ChildrenCount;
     };
 
+    struct KeyFrame
+    {
+        float m_Value[4];   // 3 for translation/scale, 4 for rotation
+        float m_Time;
+    };
+
+    struct NodeAnimation
+    {
+        Node*     m_Node;
+
+        KeyFrame* m_TranslationKeys;
+        KeyFrame* m_RotationKeys;
+        KeyFrame* m_ScaleKeys;
+
+        uint32_t  m_TranslationKeysCount;
+        uint32_t  m_RotationKeysCount;
+        uint32_t  m_ScaleKeysCount;
+    };
+
+    struct Animation
+    {
+        const char*     m_Name;
+        NodeAnimation*  m_NodeAnimations;
+        uint32_t        m_NodeAnimationsCount;
+    };
+
     struct Scene
     {
         void*       m_OpaqueSceneData;
@@ -92,6 +118,9 @@ namespace dmModelImporter
 
         Node**      m_RootNodes;
         uint32_t    m_RootNodesCount;
+
+        Animation*  m_Animations;
+        uint32_t    m_AnimationsCount;
     };
 
     struct Options

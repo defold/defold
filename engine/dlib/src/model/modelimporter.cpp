@@ -63,6 +63,21 @@ static void DestroySkin(Skin* skin)
     delete[] skin->m_Bones;
 }
 
+static void DestroyNodeAnimation(NodeAnimation* node_animation)
+{
+    delete[] node_animation->m_TranslationKeys;
+    delete[] node_animation->m_RotationKeys;
+    delete[] node_animation->m_ScaleKeys;
+}
+
+static void DestroyAnimation(Animation* animation)
+{
+    free((void*)animation->m_Name);
+    for (uint32_t i = 0; i < animation->m_NodeAnimationsCount; ++i)
+        DestroyNodeAnimation(&animation->m_NodeAnimations[i]);
+    delete[] animation->m_NodeAnimations;
+}
+
 void DestroyScene(Scene* scene)
 {
     scene->m_DestroyFn(scene->m_OpaqueSceneData);
@@ -80,6 +95,10 @@ void DestroyScene(Scene* scene)
     for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
         DestroySkin(&scene->m_Skins[i]);
     delete[] scene->m_Skins;
+
+    for (uint32_t i = 0; i < scene->m_AnimationsCount; ++i)
+        DestroyAnimation(&scene->m_Animations[i]);
+    delete[] scene->m_Animations;
 }
 
 
@@ -189,6 +208,52 @@ static void OutputModel(Model* model, int indent)
     }
 }
 
+static void OutputNodeAnimation(NodeAnimation* node_animation, int indent)
+{
+    OutputIndent(indent);
+    printf("node: %s\n", node_animation->m_Node->m_Name);
+
+    // indent++;
+    // OutputIndent(indent);
+    // printf("# translation keys: %u\n", node_animation->m_TranslationKeysCount);
+    // for (uint32_t i = 0; i < node_animation->m_TranslationKeysCount; ++i)
+    // {
+    //     OutputIndent(indent+1);
+    //     KeyFrame* key = &node_animation->m_TranslationKeys[i];
+    //     printf("%.3f:  %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2]);
+    // }
+
+    // OutputIndent(indent);
+    // printf("# rotation keys: %u\n", node_animation->m_RotationKeysCount);
+    // for (uint32_t i = 0; i < node_animation->m_RotationKeysCount; ++i)
+    // {
+    //     OutputIndent(indent+1);
+    //     KeyFrame* key = &node_animation->m_RotationKeys[i];
+    //     printf("%.3f:  %.3f, %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2], key->m_Value[3]);
+    // }
+
+    // OutputIndent(indent);
+    // printf("# scale keys: %u\n", node_animation->m_ScaleKeysCount);
+    // for (uint32_t i = 0; i < node_animation->m_ScaleKeysCount; ++i)
+    // {
+    //     OutputIndent(indent+1);
+    //     KeyFrame* key = &node_animation->m_ScaleKeys[i];
+    //     printf("%.3f:  %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2]);
+    // }
+}
+
+static void OutputAnimation(Animation* animation, int indent)
+{
+    OutputIndent(indent);
+    printf("%s\n", animation->m_Name);
+
+    for (uint32_t i = 0; i < animation->m_NodeAnimationsCount; ++i)
+    {
+        NodeAnimation* node_animation = &animation->m_NodeAnimations[i];
+        OutputNodeAnimation(node_animation, indent+1);
+    }
+}
+
 void DebugScene(Scene* scene)
 {
     printf("Output model importer scene:\n");
@@ -222,6 +287,14 @@ void DebugScene(Scene* scene)
     {
         printf("------------------------------\n");
         OutputModel(&scene->m_Models[i], 1);
+        printf("------------------------------\n");
+    }
+
+    printf("Animations: count: %u\n", scene->m_AnimationsCount);
+    for (uint32_t i = 0; i < scene->m_AnimationsCount; ++i)
+    {
+        printf("------------------------------\n");
+        OutputAnimation(&scene->m_Animations[i], 1);
         printf("------------------------------\n");
     }
 }

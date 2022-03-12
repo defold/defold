@@ -193,6 +193,7 @@ def build(bld):
 
         model_shared = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
                                         includes = model.includes,
+                                        uselib_local = 'dlib_noasan',
                                         #uselib_local = model.uselib_local,
                                         target = 'model_shared')
 
