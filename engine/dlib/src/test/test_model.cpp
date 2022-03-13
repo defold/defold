@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "model/modelimporter.h"
+#include <string.h>
 
 
 #define JC_TEST_IMPLEMENTATION
@@ -25,8 +26,10 @@ TEST(ModelGLTF, Load)
     uint32_t file_size = 0;
     void* mem = dmModelImporter::ReadFile(path, &file_size);
 
+    const char* suffix = strrchr(path, '.') + 1;
+
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadGltf(&options, mem, file_size);
+    dmModelImporter::Scene* scene = dmModelImporter::Load(&options, suffix, mem, file_size);
 
     ASSERT_NE((void*)0, scene);
 

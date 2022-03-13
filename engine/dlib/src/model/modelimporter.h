@@ -16,6 +16,7 @@
 #pragma once
 
 #include <dmsdk/dlib/transform.h>
+#include <dmsdk/dlib/shared_library.h>
 #include <stdint.h>
 
 namespace dmModelImporter
@@ -128,11 +129,13 @@ namespace dmModelImporter
         Options();
     };
 
-    Scene* LoadGltf(Options* options, void* data, uint32_t file_size);
+    extern "C" DM_DLLEXPORT Scene* LoadGltf(Options* options, void* data, uint32_t file_size);
 
-    void DestroyScene(Scene* scene);
+    extern "C" DM_DLLEXPORT Scene* Load(Options* options, const char* suffix, void* data, uint32_t file_size);
 
-    void DebugScene(Scene* scene);
+    extern "C" DM_DLLEXPORT void DestroyScene(Scene* scene);
+
+    extern "C" DM_DLLEXPORT void DebugScene(Scene* scene);
 
     // For tests. User needs to call free() on the returned memory
     void* ReadFile(const char* path, uint32_t* file_size);
