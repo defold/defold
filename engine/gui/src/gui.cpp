@@ -927,6 +927,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return GetNodeAnimationFrameInternal(GetNode(scene, node));
     }
 
+    int32_t GetNodeAnimationFrameCount(HScene scene, HNode node)
+    {
+        TextureSetAnimDesc* anim_desc = GetNodeTextureSet(scene, node);
+        if (anim_desc == 0)
+        {
+            return -1;
+        }
+        return anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
+    }
+
+
     static inline const float* GetNodeFlipbookAnimUVInternal(InternalNode* in)
     {
         int32_t anim_frame = GetNodeAnimationFrameInternal(in);
