@@ -259,6 +259,8 @@ namespace dmEngine
         m_ModelContext.m_MaxModelCount = 0;
         m_MeshContext.m_RenderContext = 0x0;
         m_MeshContext.m_MaxMeshCount = 0;
+        m_AccumFrameTime = 0;
+        m_PreviousFrameTime = dmTime::GetTime();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -480,22 +482,13 @@ namespace dmEngine
 
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
-        if (!engine->m_UseVariableDt)
-        {
-            swap_interval = dmMath::Max(0, swap_interval);
-            // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
-            engine->m_UseSwVsync = (engine->m_VsyncMode == VSYNC_SOFTWARE || (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval == 0));
-            if (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
-                engine->m_UpdateFrequency /= swap_interval;
-            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
-        }
+        swap_interval = dmMath::Max(0, swap_interval);
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
-        engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
     struct LuaCallstackCtx
@@ -852,48 +845,24 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_UseSwVsync = false;
-
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
 #endif
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
-        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
-        uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
-        uint32_t update_frequency = setting_update_frequency;
-        uint32_t swap_interval = 1;
+        engine->m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
 
+        SetUpdateFrequency(engine, engine->m_UpdateFrequency);
+
+        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
+
+        uint32_t opengl_swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
         if (!setting_vsync)
         {
-            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
-            engine->m_VsyncMode = VSYNC_SOFTWARE;
-            swap_interval = 0;
+            opengl_swap_interval = 0;
         }
-        else
-        {
-            engine->m_UseVariableDt = 0;
-            uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
-            if (refresh_rate == 0) // default to 60 if read failed
-            {
-                refresh_rate = 60;
-            }
-            else // Only bother setting a custom swap interval if we succeeded in getting a window refresh rate
-            {
-                if (setting_update_frequency > 0)
-                {
-                    // Calculate closest integer swap-interval from refresh rate and setting_update_frequency
-                    float fswap_interval = refresh_rate / setting_update_frequency;
-                    swap_interval = dmMath::Max(1U, (uint32_t) fswap_interval);
-                }
-            }
-            update_frequency = refresh_rate;
-            engine->m_VsyncMode = VSYNC_HARDWARE;
-        }
-
-        SetUpdateFrequency(engine, update_frequency);
-        SetSwapInterval(engine, swap_interval);
+        SetSwapInterval(engine, opengl_swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1360,15 +1329,6 @@ namespace dmEngine
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
 
-        // Since these belong to the Step() mechanics, we need them to capure
-        // the time as close to the next frame as possible. Otherwise we'll get an unnecessarily
-        // large time step. Better err on a smaller one.
-
-        // since it will be close to zero, we guess at a framerate (60 is probably a good guess)
-        engine->m_PreviousFrameTime = dmTime::GetTime() - 1000000/60;
-        engine->m_FlipTime = dmTime::GetTime();
-        engine->m_PreviousRenderTime = 0;
-
         return true;
 
 bail:
@@ -1466,237 +1426,124 @@ bail:
         return memcount;
     }
 
-    void Step(HEngine engine)
+    static void StepFrame(HEngine engine, float dt)
     {
-        engine->m_Alive = true;
-        engine->m_RunResult.m_ExitCode = 0;
-        engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
+        dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
-        uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
-        uint64_t prev_flip_time = engine->m_FlipTime;
-        uint64_t time = dmTime::GetTime();
-
-        float fps = engine->m_UpdateFrequency;
-        float fixed_dt = 1.0f / fps;
-
-        float dt = fixed_dt;
-        bool variable_dt = engine->m_UseVariableDt;
-        if (variable_dt && time > engine->m_PreviousFrameTime) {
-            dt = (float)((time - engine->m_PreviousFrameTime) * 0.000001);
-            // safety mechanism for crazy; GetTime() is not guaranteed to always
-            // produce small deltas between calls, cap to 25 frames in one.
-            const float max = fixed_dt * 25.0f;
-            if (dt > max) {
-                dt = max;
-            }
-        }
-
-        if (engine->m_WasIconified && !engine->m_RunWhileIconified && dt > 0.5f) {
-            dt = fixed_dt;
-        }
-        engine->m_PreviousFrameTime = time;
-
-        if (engine->m_Alive)
+        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
         {
-
-            if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+            if (!engine->m_WasIconified)
             {
-                if (!engine->m_WasIconified)
+                engine->m_WasIconified = true;
+
+                if (!engine->m_RunWhileIconified)
                 {
-                    engine->m_WasIconified = true;
-
-                    if (!engine->m_RunWhileIconified)
-                    {
-                        dmSound::Pause(true);
-                    }
+                    dmSound::Pause(true);
                 }
+            }
 
+            if (!engine->m_RunWhileIconified) {
+                // NOTE: Polling the event queue is crucial on iOS for life-cycle management
+                // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
+                dmHID::Update(engine->m_HidContext);
+                dmTime::Sleep(1000 * 100);
+                return;
+            }
+        }
+        else
+        {
+            if (engine->m_WasIconified)
+            {
+                engine->m_WasIconified = false;
+
+                dmSound::Pause(false);
+            }
+        }
+
+        dmProfile::HProfile profile = dmProfile::Begin();
+        {
+            DM_PROFILE(Engine, "Frame");
+
+            {
+                DM_PROFILE(Engine, "Sim");
+
+                dmLiveUpdate::Update();
+                dmResource::UpdateFactory(engine->m_Factory);
+
+                dmHID::Update(engine->m_HidContext);
                 if (!engine->m_RunWhileIconified) {
-                    // NOTE: Polling the event queue is crucial on iOS for life-cycle management
-                    // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
-                    dmHID::Update(engine->m_HidContext);
-                    dmTime::Sleep(1000 * 100);
-                    // Update time again after the sleep to avoid big leaps after iconified.
-                    // In practice, it makes the delta time 1/freq even though we slept for long
-
-                    time = dmTime::GetTime();
-                    uint64_t i_dt = fixed_dt * 1000000;
-                    if (i_dt > time) {
-                        engine->m_PreviousFrameTime = 0;
-                    } else {
-                        engine->m_PreviousFrameTime = time - i_dt;
-                    }
-                    return;
-                }
-            }
-            else
-            {
-                if (engine->m_WasIconified)
-                {
-                    engine->m_WasIconified = false;
-
-                    dmSound::Pause(false);
-                }
-            }
-
-            dmProfile::HProfile profile = dmProfile::Begin();
-            {
-                DM_PROFILE(Engine, "Frame");
-
-                {
-                    DM_PROFILE(Engine, "Sim");
-
-                    dmLiveUpdate::Update();
-                    dmResource::UpdateFactory(engine->m_Factory);
-
-                    dmHID::Update(engine->m_HidContext);
-                    if (!engine->m_RunWhileIconified) {
-                        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                        {
-                            // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
-                            // might have entered background at this point and OpenGL calls are not permitted and will
-                            // crash the application
-                            dmProfile::Release(profile);
-                            return;
-                        }
-                    }
-                    /* Script context updates */
-                    if (engine->m_SharedScriptContext) {
-                        dmScript::Update(engine->m_SharedScriptContext);
-                    } else {
-                        if (engine->m_GOScriptContext) {
-                            dmScript::Update(engine->m_GOScriptContext);
-                        }
-                        if (engine->m_RenderScriptContext) {
-                            dmScript::Update(engine->m_RenderScriptContext);
-                        }
-                        if (engine->m_GuiScriptContext) {
-                            dmScript::Update(engine->m_GuiScriptContext);
-                        }
-                    }
-
-                    dmSound::Update();
-
-                    bool esc_pressed = false;
-                    if (engine->m_QuitOnEsc)
+                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                     {
-                        dmHID::KeyboardPacket keybdata;
-                        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
-                        dmHID::GetKeyboardPacket(keyboard, &keybdata);
-                        esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
-                    }
-
-                    if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
-                    {
-                        engine->m_Alive = false;
+                        // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
+                        // might have entered background at this point and OpenGL calls are not permitted and will
+                        // crash the application
+                        dmProfile::Release(profile);
                         return;
                     }
-
-                    dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
-
-                    engine->m_InputBuffer.SetSize(0);
-                    dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
-
-                    // Sort input so that text and marked text is triggered last
-                    // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
-                    //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
-                    //       If the backspace arrive after the text, it will instead remove the new character that
-                    //       actually should replace the old one.
-                    qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
-
-                    dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
-                    uint32_t input_buffer_size = input_buffer.Size();
-                    if (input_buffer_size > 0)
-                    {
-                        dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                }
+                // Script context updates
+                if (engine->m_SharedScriptContext) {
+                    dmScript::Update(engine->m_SharedScriptContext);
+                } else {
+                    if (engine->m_GOScriptContext) {
+                        dmScript::Update(engine->m_GOScriptContext);
                     }
-
-
-                    dmGameObject::UpdateContext update_context;
-                    update_context.m_TimeScale = 1.0f;
-                    update_context.m_DT = dt;
-                    dmGameObject::Update(engine->m_MainCollection, &update_context);
-
-                    // Don't render while iconified
-                    if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                    {
-                        // Call pre render functions for extensions, if available.
-                        // We do it here before we render rest of the frame
-                        // if any extension wants to render on under of the game.
-                        dmExtension::Params ext_params;
-                        ext_params.m_ConfigFile = engine->m_Config;
-                        if (engine->m_SharedScriptContext) {
-                            ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                        } else {
-                            ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                        }
-                        dmExtension::PreRender(&ext_params);
-
-                        // Make the render list that will be used later.
-                        dmRender::RenderListBegin(engine->m_RenderContext);
-                        dmGameObject::Render(engine->m_MainCollection);
-
-                        // Make sure we dispatch messages to the render script
-                        // since it could have some "draw_text" messages waiting.
-                        if (engine->m_RenderScriptPrototype)
-                        {
-                            dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
-                        }
-
-                        dmRender::RenderListEnd(engine->m_RenderContext);
-
-                        dmGraphics::BeginFrame(engine->m_GraphicsContext);
-
-                        if (engine->m_RenderScriptPrototype)
-                        {
-                            dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                        }
-                        else
-                        {
-                            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                                (float)((engine->m_ClearColor>> 0)&0xFF),
-                                                (float)((engine->m_ClearColor>> 8)&0xFF),
-                                                (float)((engine->m_ClearColor>>16)&0xFF),
-                                                (float)((engine->m_ClearColor>>24)&0xFF),
-                                                1.0f, 0);
-                            dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
-                        }
+                    if (engine->m_RenderScriptContext) {
+                        dmScript::Update(engine->m_RenderScriptContext);
                     }
-
-                    dmGameObject::PostUpdate(engine->m_MainCollection);
-                    dmGameObject::PostUpdate(engine->m_Register);
-
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-
-
-                    dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+                    if (engine->m_GuiScriptContext) {
+                        dmScript::Update(engine->m_GuiScriptContext);
+                    }
                 }
 
-                DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-                DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
+                dmSound::Update();
 
-                if (dLib::IsDebugMode())
+                bool esc_pressed = false;
+                if (engine->m_QuitOnEsc)
                 {
-                    // We had buffering problems with the output when running the engine inside the editor
-                    // Flushing stdout/stderr solves this problem.
-                    fflush(stdout);
-                    fflush(stderr);
+                    dmHID::KeyboardPacket keybdata;
+                    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+                    dmHID::GetKeyboardPacket(keyboard, &keybdata);
+                    esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
                 }
 
-                if (engine->m_EngineService)
+                if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                 {
-                    dmEngineService::Update(engine->m_EngineService, profile);
+                    engine->m_Alive = false;
+                    return;
                 }
 
-                dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
+                dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
 
-                // Call post render functions for extensions, if available.
-                // We do it here at the end of the frame (before swap buffers/flip)
-                // if any extension wants to render on top of the game.
-                // Don't do this while iconified
+                engine->m_InputBuffer.SetSize(0);
+                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+
+                // Sort input so that text and marked text is triggered last
+                // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
+                //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
+                //       If the backspace arrive after the text, it will instead remove the new character that
+                //       actually should replace the old one.
+                qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
+
+                dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
+                uint32_t input_buffer_size = input_buffer.Size();
+                if (input_buffer_size > 0)
+                {
+                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                }
+
+
+                dmGameObject::UpdateContext update_context;
+                update_context.m_TimeScale = 1.0f;
+                update_context.m_DT = dt;
+                dmGameObject::Update(engine->m_MainCollection, &update_context);
+
+                // Don't render while iconified
                 if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                 {
+                    // Call pre render functions for extensions, if available.
+                    // We do it here before we render rest of the frame
+                    // if any extension wants to render on under of the game.
                     dmExtension::Params ext_params;
                     ext_params.m_ConfigFile = engine->m_Config;
                     if (engine->m_SharedScriptContext) {
@@ -1704,56 +1551,173 @@ bail:
                     } else {
                         ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
                     }
-                    dmExtension::PostRender(&ext_params);
-                }
+                    dmExtension::PreRender(&ext_params);
 
-                if (engine->m_UseSwVsync)
-                {
-                    uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
-                    int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
-                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
+                    // Make the render list that will be used later.
+                    dmRender::RenderListBegin(engine->m_RenderContext);
+                    dmGameObject::Render(engine->m_MainCollection);
+
+                    // Make sure we dispatch messages to the render script
+                    // since it could have some "draw_text" messages waiting.
+                    if (engine->m_RenderScriptPrototype)
                     {
-                        DM_PROFILE(Engine, "SoftwareVsync");
-                        while (remainder > 500) // dont bother with less than 0.5ms
-                        {
-                            uint64_t t1 = dmTime::GetTime();
-                            dmTime::Sleep(100); // sleep in chunks of 0.1ms
-                            uint64_t t2 = dmTime::GetTime();
-                            remainder -= (t2-t1);
-                        }
+                        dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                    }
+
+                    dmRender::RenderListEnd(engine->m_RenderContext);
+
+                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+                    if (engine->m_RenderScriptPrototype)
+                    {
+                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
+                    }
+                    else
+                    {
+                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                            (float)((engine->m_ClearColor>> 0)&0xFF),
+                                            (float)((engine->m_ClearColor>> 8)&0xFF),
+                                            (float)((engine->m_ClearColor>>16)&0xFF),
+                                            (float)((engine->m_ClearColor>>24)&0xFF),
+                                            1.0f, 0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
                     }
                 }
-                uint64_t flip_time_start = dmTime::GetTime();
 
-                dmGraphics::Flip(engine->m_GraphicsContext);
+                dmGameObject::PostUpdate(engine->m_MainCollection);
+                dmGameObject::PostUpdate(engine->m_Register);
 
-                engine->m_FlipTime = dmTime::GetTime();
-                engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
+                dmRender::ClearRenderObjects(engine->m_RenderContext);
 
-                RecordData* record_data = &engine->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
-                    {
-                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
-                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
-                        uint32_t buffer_size = width * height * 4;
 
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+            } // Sim
 
-                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                        if (r != dmRecord::RESULT_OK)
-                        {
-                            dmLogError("Error while recoding frame (%d)", r);
-                        }
-                    }
-                    record_data->m_FrameCount++;
-                }
+            DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
+            DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
+
+            if (dLib::IsDebugMode())
+            {
+                // We had buffering problems with the output when running the engine inside the editor
+                // Flushing stdout/stderr solves this problem.
+                fflush(stdout);
+                fflush(stderr);
             }
-            dmProfile::Release(profile);
 
+            if (engine->m_EngineService)
+            {
+                dmEngineService::Update(engine->m_EngineService, profile);
+            }
 
-            ++engine->m_Stats.m_FrameCount;
+            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
+
+            // Call post render functions for extensions, if available.
+            // We do it here at the end of the frame (before swap buffers/flip)
+            // in case any extension wants to render just before the Flip().
+            // Don't do this while iconified
+            if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+            {
+                dmExtension::Params ext_params;
+                ext_params.m_ConfigFile = engine->m_Config;
+                if (engine->m_SharedScriptContext) {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                } else {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                }
+                dmExtension::PostRender(&ext_params);
+            }
+
+            dmGraphics::Flip(engine->m_GraphicsContext);
+
+            RecordData* record_data = &engine->m_RecordData;
+            if (record_data->m_Recorder)
+            {
+                if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                {
+                    uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
+                    uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
+                    uint32_t buffer_size = width * height * 4;
+
+                    dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+
+                    dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
+                    if (r != dmRecord::RESULT_OK)
+                    {
+                        dmLogError("Error while recoding frame (%d)", r);
+                    }
+                }
+                record_data->m_FrameCount++;
+            }
+        }
+        dmProfile::Release(profile);
+
+        ++engine->m_Stats.m_FrameCount;
+    }
+
+    static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
+    {
+        uint64_t time = dmTime::GetTime();
+        uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
+        engine->m_PreviousFrameTime = time;
+
+        float frame_dt = (float)(frame_time / 1000000.0);
+
+        // Never allow for large hitches
+        if (frame_dt > 0.5f) {
+            frame_dt = 0.5f;
+        }
+
+        // Variable frame rate
+        if (engine->m_UpdateFrequency == 0)
+        {
+            step_dt = frame_dt;
+            num_steps = 1;
+            return;
+        }
+
+        // Fixed frame rate
+        float fixed_dt = 1.0f / (float)engine->m_UpdateFrequency;
+
+        // We don't allow having a higher framerate than the actual variable frame rate
+        // since the update+render is currently coupled together and also Flip() would be called more than once.
+        if (fixed_dt < frame_dt)
+        {
+            step_dt = frame_dt;
+            num_steps = 1;
+            engine->m_AccumFrameTime = 0; // we consumed it all
+            return;
+        }
+
+        engine->m_AccumFrameTime += frame_dt;
+
+        float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
+
+        num_steps = (uint32_t)num_steps_f;
+        step_dt = fixed_dt;
+
+        engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+    }
+
+    void Step(HEngine engine)
+    {
+        engine->m_Alive = true;
+        engine->m_RunResult.m_ExitCode = 0;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
+
+        float step_dt;      // The dt for each step (the game frame)
+        uint32_t num_steps; // Number of times to loop over the StepFrame function
+
+        CalcTimeStep(engine, step_dt, num_steps);
+
+        for (uint32_t i = 0; i < num_steps; ++i)
+        {
+            // We currently cannot separate the update from the render,
+            // since some of the update is done in the render updates (e.g. sprite transforms)
+            StepFrame(engine, step_dt);
+
+            if (!engine->m_Alive)
+                break;
         }
     }
 

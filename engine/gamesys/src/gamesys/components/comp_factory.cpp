@@ -88,7 +88,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Can not create more factory components since the buffer is full (%d).", fw->m_Components.Size());
+            dmLogError("Can not create more factory components since the buffer is full (%d). See '%s' in game.project", fw->m_Components.Size(), FACTORY_MAX_COUNT_KEY);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;

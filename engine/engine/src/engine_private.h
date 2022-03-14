@@ -100,13 +100,6 @@ namespace dmEngine
         uint32_t            m_Fps;
     };
 
-    enum Vsync
-    {
-        VSYNC_SOFTWARE = 0,
-        VSYNC_HARDWARE = 1,
-
-    };
-
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -158,22 +151,18 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
-        bool                                        m_UseSwVsync;
-        bool                                        m_UseVariableDt;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
-        uint64_t                                    m_PreviousFrameTime;
-        uint64_t                                    m_PreviousRenderTime;
-        uint64_t                                    m_FlipTime;
+        uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
+        float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
-        Vsync                                       m_VsyncMode;
 
         RecordData                                  m_RecordData;
     };
