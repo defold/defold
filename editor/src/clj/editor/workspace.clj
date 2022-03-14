@@ -358,7 +358,10 @@ ordinary paths."
         changed-shared-library-resources (filter is-shared-library? changed-plugin-resources)
         changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
     (doseq [x changed-plugin-resources]
-      (unpack-resource! workspace x))
+      (try
+        (unpack-resource! workspace x)
+        (catch java.io.FileNotFoundException error
+          (throw (java.io.IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!")))))
     (doseq [x changed-jar-resources]
       (register-jar-file! workspace x))
     (doseq [x changed-shared-library-resources]
