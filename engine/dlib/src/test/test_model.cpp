@@ -29,7 +29,7 @@ TEST(ModelGLTF, Load)
     const char* suffix = strrchr(path, '.') + 1;
 
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::Load(&options, suffix, mem, file_size);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
 
     ASSERT_NE((void*)0, scene);
 

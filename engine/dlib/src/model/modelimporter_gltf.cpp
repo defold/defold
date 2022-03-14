@@ -569,7 +569,7 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
 }
 
 
-Scene* LoadGltf(Options* importeroptions, void* mem, uint32_t file_size)
+Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size)
 {
     cgltf_options options;
     memset(&options, 0, sizeof(cgltf_options));
