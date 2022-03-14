@@ -753,7 +753,11 @@
    :help "comma separated list of engine arguments",
    :default "",
    :path ["html5" "engine_arguments"]}
-   {:type :boolean,
+  {:type :boolean,
+   :help "set to true to enable streaming of the wasm file (faster and uses less memory, but requires MIME type 'application/wasm')",
+   :default false
+   :path ["html5" "wasm_streaming"]}
+  {:type :boolean,
    :help "set to true if you want to have the fullscreen button",
    :default true
    :path ["html5" "show_fullscreen_button"]}
