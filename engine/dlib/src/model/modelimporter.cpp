@@ -17,6 +17,7 @@
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 namespace dmModelImporter
 {
@@ -102,13 +103,33 @@ void DestroyScene(Scene* scene)
     delete[] scene->m_Animations;
 }
 
-Scene* Load(Options* options, const char* suffix, void* data, uint32_t file_size)
+Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size)
 {
     if (dmStrCaseCmp(suffix, "gltf") == 0 || dmStrCaseCmp(suffix, "glb") == 0)
-        return LoadGltf(options, data, file_size);
+        return LoadGltfFromBuffer(options, data, file_size);
 
     printf("ModelImpoerter: File type not supported: %s\n", suffix);
     return 0;
+}
+
+Scene* LoadFromPath(Options* options, const char* path)
+{
+    const char* suffix = strrchr(path, '.') + 1;
+
+
+    uint32_t file_size = 0;
+    void* data = ReadFile(path, &file_size);
+    if (!data)
+    {
+        printf("Failed to load '%s'\n", path);
+        return 0;
+    }
+
+    Scene* scene = LoadFromBuffer(options, suffix, data, file_size);
+
+    free(data);
+
+    return scene;
 }
 
 }

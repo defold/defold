@@ -100,6 +100,11 @@ namespace dmModelImporter
         uint32_t        m_NodeAnimationsCount;
     };
 
+    struct TestInfo
+    {
+        const char* m_Name;
+    };
+
     struct Scene
     {
         void*       m_OpaqueSceneData;
@@ -115,7 +120,7 @@ namespace dmModelImporter
         Skin*       m_Skins;
         uint32_t    m_SkinsCount;
 
-        Node*       m_Skeleton; // The skeleton top node
+        //Node*       m_Skeleton; // The skeleton top node
 
         Node**      m_RootNodes;
         uint32_t    m_RootNodesCount;
@@ -127,35 +132,21 @@ namespace dmModelImporter
     struct Options
     {
         Options();
+
+        int dummy; // for the java binding to not be zero size
     };
 
-    extern "C" DM_DLLEXPORT Scene* LoadGltf(Options* options, void* data, uint32_t file_size);
+    extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t file_size);
 
-    extern "C" DM_DLLEXPORT Scene* Load(Options* options, const char* suffix, void* data, uint32_t file_size);
+    extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size);
+
+    extern "C" DM_DLLEXPORT Scene* LoadFromPath(Options* options, const char* path);
 
     extern "C" DM_DLLEXPORT void DestroyScene(Scene* scene);
 
-    extern "C" DM_DLLEXPORT void DebugScene(Scene* scene);
+    void DebugScene(Scene* scene);
 
     // For tests. User needs to call free() on the returned memory
     void* ReadFile(const char* path, uint32_t* file_size);
-
-    // // Scene
-
-    // struct Scene;
-    // struct Node;
-
-    // typedef Scene* HScene;
-    // typedef Node*   HNode;
-
-    // HScene LoadScene(uint8_t* data, uint32_t file_size);
-
-    // uint32_t GetNumNodes(HScene scene);
-    // HNode    GetNode(HScene scene, uint32_t index);
-
-    // // Nodes
-    // const char* GetNodeName(HNode node);
-    // uint32_t    GetNumChildren(HNode node);
-
-
 }
+
