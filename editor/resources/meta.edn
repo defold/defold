@@ -107,8 +107,7 @@
    :default false,
    :path ["display" "dynamic_orientation"]}
   {:type :integer,
-   :help "if Vsync checked, snaps to the closest matching swap interval for the set frame cap. Otherwise uses timers to respect the set value, 0 means no cap. For deprecated 'variable_dt' behavior, set to 0 and uncheck 'Vsync'",
-   :label "Frame cap"
+   :help "Number of game loop updates per seconds. Set to 0 for variable frame rate. Set to e.g. 30 to throttle the update frequency.",
    :default 0,
    :path ["display" "update_frequency"]}
   {:type :boolean,
