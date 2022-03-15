@@ -91,6 +91,7 @@
         (cljfx-form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
 
+    (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
