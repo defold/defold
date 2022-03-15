@@ -113,7 +113,7 @@ var EngineLoader = {
     asmjs_from: 0,
     asmjs_to: 50,
 
-    stream_wasm: true,
+    stream_wasm: false,
 
     loadAndInstantiateWasmAsync: function(src, fromProgress, toProgress, callback) {
         FileLoader.load(src, "arraybuffer", EngineLoader.wasm_size,
