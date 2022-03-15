@@ -348,7 +348,26 @@ ordinary paths."
 ; TODO: Only add files for the current platform (e.g. dylib on macOS)
     (add-to-path-property "jna.library.path" parent-dir)
     (add-to-path-property "java.library.path" parent-dir)))
-  
+
+(defn- delete-directory-recursive [^java.io.File file]
+  ;; Recursively delete a directory. // https://gist.github.com/olieidel/c551a911a4798312e4ef42a584677397
+  ;; when `file` is a directory, list its entries and call this
+  ;; function with each entry. can't `recur` here as it's not a tail
+  ;; position, sadly. could cause a stack overflow for many entries?
+  ;; thanks to @nikolavojicic for the idea to use `run!` instead of
+  ;; `doseq` :)
+  (when (.isDirectory file)
+    (run! delete-directory-recursive (.listFiles file)))
+  ;; delete the file or directory. if it it's a file, it's easily
+  ;; deletable. if it's a directory, we already have deleted all its
+  ;; contents with the code above (remember?)
+  (io/delete-file file))
+
+(defn clean-editor-plugins! [workspace]
+  ; At startup, we want to remove the plugins in order to avoid having issues copying the .dll on Windows
+  (let [dir (plugin-path workspace)]
+    (delete-directory-recursive dir)))
+
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
@@ -358,7 +377,10 @@ ordinary paths."
         changed-shared-library-resources (filter is-shared-library? changed-plugin-resources)
         changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
     (doseq [x changed-plugin-resources]
-      (unpack-resource! workspace x))
+      (try
+        (unpack-resource! workspace x)
+        (catch java.io.FileNotFoundException error
+          (throw (java.io.IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!")))))
     (doseq [x changed-jar-resources]
       (register-jar-file! workspace x))
     (doseq [x changed-shared-library-resources]
