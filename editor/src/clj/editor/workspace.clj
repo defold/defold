@@ -366,7 +366,8 @@ ordinary paths."
 (defn clean-editor-plugins! [workspace]
   ; At startup, we want to remove the plugins in order to avoid having issues copying the .dll on Windows
   (let [dir (plugin-path workspace)]
-    (delete-directory-recursive dir)))
+    (if (.exists dir)
+      (delete-directory-recursive dir))))
 
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
