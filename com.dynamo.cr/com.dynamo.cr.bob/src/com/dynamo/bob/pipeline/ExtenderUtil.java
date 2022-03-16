@@ -730,7 +730,7 @@ public class ExtenderUtil {
         return digest.digest();
     }
 
-    private static boolean AreFilesIdentical(IResource src, File tgt) {
+    private static boolean areFilesIdentical(IResource src, File tgt) {
         try {
             byte[] sha1_src = src.sha1();
             byte[] sha1_tgt = createSha1(tgt);
@@ -749,7 +749,7 @@ public class ExtenderUtil {
                 outputFile.getParentFile().mkdirs();
             }
 
-            if (outputFile.exists() && AreFilesIdentical(r, outputFile)) {
+            if (outputFile.exists() && areFilesIdentical(r, outputFile)) {
                 continue;
             }
 
@@ -772,7 +772,7 @@ public class ExtenderUtil {
 
             // We do this because we might be called from within the editor, which ight have the .dll's locked.
             // and so we don't want to fail copying those if we can avoid it.
-            if (outputFile.exists() && AreFilesIdentical(resource, outputFile)) {
+            if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
                 continue;
             }
 
