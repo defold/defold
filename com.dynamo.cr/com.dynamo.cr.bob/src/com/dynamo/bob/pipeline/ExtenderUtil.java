@@ -716,6 +716,30 @@ public class ExtenderUtil {
         return false;
     }
 
+    public static byte[] createSha1(File file) throws Exception  {
+        MessageDigest digest = MessageDigest.getInstance("SHA1");
+        InputStream fis = new FileInputStream(file);
+        int n = 0;
+        byte[] buffer = new byte[8192];
+        while (n != -1) {
+            n = fis.read(buffer);
+            if (n > 0) {
+                digest.update(buffer, 0, n);
+            }
+        }
+        return digest.digest();
+    }
+
+    private static boolean areFilesIdentical(IResource src, File tgt) {
+        try {
+            byte[] sha1_src = src.sha1();
+            byte[] sha1_tgt = createSha1(tgt);
+            return Arrays.equals(sha1_src, sha1_tgt);
+        } catch(Exception e) {
+            return false;
+        }
+    }
+
     // Collects all resources (even those inside the zip packages) and stores them into one single folder
     public static void storeResources(File targetDirectory, Map<String, IResource> resources) throws CompileExceptionError {
         for (String relativePath : resources.keySet()) {
@@ -724,6 +748,11 @@ public class ExtenderUtil {
             if (!outputFile.getParentFile().exists()) {
                 outputFile.getParentFile().mkdirs();
             }
+
+            if (outputFile.exists() && areFilesIdentical(r, outputFile)) {
+                continue;
+            }
+
             try {
                 byte[] data = r.getContent();
                 FileUtils.writeByteArrayToFile(outputFile, data);
@@ -740,6 +769,13 @@ public class ExtenderUtil {
             if (!outputFile.getParentFile().exists()) {
                 outputFile.getParentFile().mkdirs();
             }
+
+            // We do this because we might be called from within the editor, which ight have the .dll's locked.
+            // and so we don't want to fail copying those if we can avoid it.
+            if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
+                continue;
+            }
+
             try {
                 byte[] data = resource.getContent();
                 FileUtils.writeByteArrayToFile(outputFile, data);
