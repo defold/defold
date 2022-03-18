@@ -64,6 +64,7 @@ public class Bob {
 
     private static boolean verbose = false;
     private static File rootFolder = null;
+    private static boolean luaInitialized = false;
 
     public Bob() {
     }
@@ -124,9 +125,13 @@ public class Bob {
     }
 
     public static void initLua() {
+        if (luaInitialized) {
+            return;
+        }
         init();
         try {
             extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
+            luaInitialized = true;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
