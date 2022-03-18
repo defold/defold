@@ -58,10 +58,10 @@ namespace dmGui
      * How to set material using a script property (see [ref:resource.material])
      *
      * ```lua
-     * go.property("my_material", resource.material("/material.material"))
+     * go.property("desaturate_material", resource.material("/desaturate.material"))
      *
      * function init(self)
-     *   go.set("#gui", "material", self.my_material)
+     *   go.set("#gui", "material", self.desaturate_material)
      * end
      * ```
      */
@@ -79,10 +79,11 @@ namespace dmGui
      * How to set texture using a script property (see [ref:resource.atlas])
      *
      * ```lua
-     * go.property("my_atlas", resource.atlas("/atlas.atlas"))
+     * go.property("cards_red", resource.atlas("/cards_red.atlas"))
+     * go.property("cards_blue", resource.atlas("/cards_blue.atlas"))
      *
      * function init(self)
-     *   go.set("#gui", "textures", self.my_atlas, {key = "my_atlas"})
+     *   go.set("#gui", "textures", self.my_atlas, {key = "cards"})
      * end
      * ```
      */
@@ -100,10 +101,11 @@ namespace dmGui
      * How to set font using a script property (see [ref:resource.font])
      *
      * ```lua
-     * go.property("my_font", resource.atlas("/font.font"))
+     * go.property("title_latin", resource.font("/open_sans.font"))
+     * go.property("title_cyrillic", resource.font("/open_sans_cyrillic.font"))
      *
      * function init(self)
-     *   go.set("#gui", "fonts", self.my_font, {key = "my_font"})
+     *   go.set("#gui", "fonts", self.title_cyrillic, {key = "title"})
      * end
      * ```
      */
