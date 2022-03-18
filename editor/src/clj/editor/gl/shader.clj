@@ -105,7 +105,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.types :as types]
           [editor.resource :as resource]
           [editor.scene-cache :as scene-cache])
-(:import [java.nio IntBuffer ByteBuffer]
+(:import [java.nio IntBuffer ByteBuffer FloatBuffer]
          [com.jogamp.opengl GL GL2]
          [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
@@ -293,9 +293,11 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defprotocol ShaderVariables
   (get-attrib-location [this gl name])
-  (set-uniform [this gl name val]))
+  (set-uniform [this gl name val])
+  (set-uniform-array [this gl name count val]))
 
 (defmulti set-uniform-at-index (fn [_ _ _ val] (class val)))
+(defmulti set-uniforms-at-index (fn [_ _ _ _ val] (class val)))
 
 (defmethod set-uniform-at-index Matrix4d
   [^GL2 gl progn loc val]
@@ -332,6 +334,11 @@ This must be submitted to the driver for compilation before you can use it. See
   ;; No-Op. This is for sampler uniforms. They are just a name. Contains no
   ;; value to set.
   )
+
+(defmethod set-uniforms-at-index (class (float-array []))
+  [^GL2 gl progn loc count vals]
+  (let [fb (FloatBuffer/wrap vals)]
+    (.glUniform4fv gl loc count fb)))
 
 (defn program-link-errors
   [^GL2 gl progn]
@@ -437,6 +444,16 @@ This must be submitted to the driver for compilation before you can use it. See
         (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
           (try
             (set-uniform-at-index gl program loc val)
+            (catch IllegalArgumentException e
+              (throw (IllegalArgumentException. (format "Failed setting uniform '%s'" name) e))))))))
+
+  (set-uniform-array [this gl name count vals]
+    (assert (string? (not-empty name)))
+    (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags (into #{} (map first) uniforms)])]
+      (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
+        (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
+          (try
+            (set-uniforms-at-index gl program loc count vals)
             (catch IllegalArgumentException e
               (throw (IllegalArgumentException. (format "Failed setting uniform '%s'" name) e)))))))))
 
