@@ -94,6 +94,9 @@ public class Bob {
                     // For now we just issue a warning that we don't fully clean up.
                     System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
+                finally {
+                    luaInitialized = false;
+                }
             }
         }));
       }
