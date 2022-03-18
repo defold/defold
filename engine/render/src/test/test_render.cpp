@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,6 +16,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/intersection.h>
 
 #include <dlib/hash.h>
 #include <dlib/math.h>
@@ -28,7 +31,7 @@
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class dmRenderTest : public jc_test_base_class
 {
@@ -145,14 +148,14 @@ TEST_F(dmRenderTest, TestGraphicsContext)
 
 TEST_F(dmRenderTest, TestViewProj)
 {
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::rotationX(M_PI);
-    view.setTranslation(Vectormath::Aos::Vector3(1.0f, 2.0f, 3.0f));
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 1.0f, -1.0f);
-    Vectormath::Aos::Matrix4 viewproj = proj * view;
+    dmVMath::Matrix4 view = dmVMath::Matrix4::rotationX(M_PI);
+    view.setTranslation(dmVMath::Vector3(1.0f, 2.0f, 3.0f));
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 1.0f, -1.0f);
+    dmVMath::Matrix4 viewproj = proj * view;
 
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
-    const Vectormath::Aos::Matrix4& test = dmRender::GetViewProjectionMatrix(m_Context);
+    const dmVMath::Matrix4& test = dmRender::GetViewProjectionMatrix(m_Context);
 
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
@@ -267,14 +270,14 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     TestDrawDispatchCtx ctx;
     memset(&ctx, 0x00, sizeof(TestDrawDispatchCtx));
 
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
 
     dmRender::RenderListBegin(m_Context);
 
-    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDrawDispatch, &ctx);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDrawDispatch, 0, &ctx);
 
     const uint32_t n = 32;
 
@@ -308,7 +311,7 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
 
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_GT(ctx.m_BatchCalls, 1);
@@ -316,6 +319,152 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     ASSERT_EQ(ctx.m_EndCalls, 1);
     ASSERT_EQ(ctx.m_Order, orders[2]); // highest after world entry
     ASSERT_EQ(ctx.m_Z, orders[1]);
+}
+
+
+static void TestDrawVisibilityDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    TestDrawDispatchCtx *ctx = (TestDrawDispatchCtx*) params.m_UserData;
+    uint32_t* i;
+
+    switch (params.m_Operation)
+    {
+        case dmRender::RENDER_LIST_OPERATION_BEGIN:
+            ctx->m_BeginCalls++;
+            break;
+        case dmRender::RENDER_LIST_OPERATION_BATCH:
+            ctx->m_BatchCalls++;
+            for (i=params.m_Begin;i!=params.m_End;i++)
+            {
+                if (params.m_Buf[*i].m_MajorOrder != dmRender::RENDER_ORDER_WORLD)
+                {
+                    // verify strictly increasing order
+                    ASSERT_GT(params.m_Buf[*i].m_Order, ctx->m_Order);
+                    ctx->m_Order = params.m_Buf[*i].m_Order;
+                }
+                else
+                {
+                    // verify strictly increasing z for world entries.
+                    ASSERT_GT(params.m_Buf[*i].m_WorldPosition.getZ(), ctx->m_Z);
+                    ctx->m_Z = params.m_Buf[*i].m_WorldPosition.getZ();
+                    // reset order for the _AFTER_WORLD batch
+                    ctx->m_Order = 0;
+                }
+
+                ctx->m_EntriesRendered++;
+
+                // verify sequence of things.
+                switch (params.m_Buf[*i].m_MajorOrder)
+                {
+                    case dmRender::RENDER_ORDER_BEFORE_WORLD:
+                        ctx->m_DrawnBefore = 1;
+                        ASSERT_EQ(ctx->m_DrawnWorld, 0);
+                        ASSERT_EQ(ctx->m_DrawnAfter, 0);
+                        break;
+                    case dmRender::RENDER_ORDER_WORLD:
+                        ctx->m_DrawnWorld = 1;
+                        ASSERT_EQ(ctx->m_DrawnBefore, 1);
+                        ASSERT_EQ(ctx->m_DrawnAfter, 0);
+                        break;
+                    case dmRender::RENDER_ORDER_AFTER_WORLD:
+                        ctx->m_DrawnAfter = 1;
+                        ASSERT_EQ(ctx->m_DrawnBefore, 1);
+                        ASSERT_EQ(ctx->m_DrawnWorld, 1);
+                        break;
+                }
+            }
+            break;
+        default:
+            ASSERT_EQ(params.m_Operation, dmRender::RENDER_LIST_OPERATION_END);
+            ctx->m_EndCalls++;
+            break;
+    }
+}
+
+static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &params)
+{
+    // Special test to only enable every other render item
+    for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+    {
+        dmRender::RenderListEntry* entry = &params.m_Entries[i];
+        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition, true);
+        entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+    }
+}
+
+TEST_F(dmRenderTest, TestRenderListCulling)
+{
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, -1.0f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    const uint32_t num_x = 8;
+    const uint32_t num_y = 8;
+    const uint32_t n = num_y * num_y;
+
+    const dmRender::RenderOrder majors[3] = {
+        dmRender::RENDER_ORDER_BEFORE_WORLD,
+        dmRender::RENDER_ORDER_WORLD,
+        dmRender::RENDER_ORDER_AFTER_WORLD
+    };
+
+    uint32_t            num_rendered[2] = {};
+    dmVMath::Matrix4*   frustum_matrices[2] = {};
+    uint32_t num_cases = DM_ARRAY_SIZE(frustum_matrices);
+
+    frustum_matrices[0]     = 0;            // testing no frustum culling
+    num_rendered[0]         = n;            // expecting all items to be rendered
+
+    dmVMath::Matrix4 view_proj = proj * view;
+    frustum_matrices[1]     = &view_proj;
+    num_rendered[1]         = 5*5;          // Testing the function by setting every other entry as visible
+
+    float step_x = WIDTH / num_x * 2;
+    float step_y = HEIGHT / num_y * 2;
+
+    for (uint32_t c = 0; c < num_cases; ++c)
+    {
+        TestDrawDispatchCtx ctx;
+        memset(&ctx, 0x00, sizeof(TestDrawDispatchCtx));
+
+        dmRender::RenderListBegin(m_Context);
+
+        uint8_t dispatch1 = dmRender::RenderListMakeDispatch(m_Context, TestDrawVisibilityDispatch, TestDrawVisibility, &ctx);
+        uint8_t dispatch2 = dmRender::RenderListMakeDispatch(m_Context, TestDrawVisibilityDispatch, TestDrawVisibility, &ctx);
+
+        dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, n);
+
+        for (uint32_t y = 0; y < num_y; ++y)
+        {
+            for (uint32_t x = 0; x < num_x; ++x)
+            {
+                uint32_t i = y * num_x + x;
+
+                dmRender::RenderListEntry & entry = out[i];
+                bool group1 = i < (n/2);
+                entry.m_WorldPosition = Point3(x * step_x, y * step_y, group1 ? i : (i*100 + i));
+                entry.m_MajorOrder = majors[i % 3];
+                entry.m_MinorOrder = 0;
+                entry.m_TagListKey = 0;
+                entry.m_Order = i+1;
+                entry.m_BatchKey = group1 ? 1 : 2;
+                entry.m_Dispatch = group1 ? dispatch1 : dispatch2;
+                entry.m_UserData = 0;
+                entry.m_Visibility = dmRender::VISIBILITY_NONE;
+            }
+        }
+
+        dmRender::RenderListSubmit(m_Context, out, out + n);
+        dmRender::RenderListEnd(m_Context);
+
+        dmRender::DrawRenderList(m_Context, 0, 0, frustum_matrices[c]);
+
+        ASSERT_EQ(ctx.m_BeginCalls, 2);
+        ASSERT_GT(ctx.m_BatchCalls, 2);
+        ASSERT_EQ(ctx.m_EntriesRendered, num_rendered[c]);
+        ASSERT_EQ(ctx.m_EndCalls, 2);
+    }
 }
 
 struct TestRenderListOrderDispatchCtx
@@ -371,13 +520,13 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     TestRenderListOrderDispatchCtx ctx;
     memset(&ctx, 0x00, sizeof(TestRenderListOrderDispatchCtx));
 
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
 
     dmRender::RenderListBegin(m_Context);
-    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestRenderListOrderDispatch, &ctx);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestRenderListOrderDispatch, 0, &ctx);
 
     const uint32_t n = 3;
     const uint32_t orders[n] = {  99997,99998,99999 };
@@ -403,7 +552,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 1);
     ASSERT_EQ(ctx.m_EntriesRendered, 1);
@@ -413,7 +562,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
 
     dmRender::RenderListBegin(m_Context);
     memset(&ctx, 0x00, sizeof(TestRenderListOrderDispatchCtx));
-    dispatch = dmRender::RenderListMakeDispatch(m_Context, TestRenderListOrderDispatch, &ctx);
+    dispatch = dmRender::RenderListMakeDispatch(m_Context, TestRenderListOrderDispatch, 0, &ctx);
     out = dmRender::RenderListAlloc(m_Context, n);
     for (uint32_t i=0;i!=n;i++)
     {
@@ -429,7 +578,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 2);
     ASSERT_EQ(ctx.m_EntriesRendered, 2);
@@ -447,8 +596,8 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     //   Reason: Render system failed to set Capacity properly to account for debug
     //           render objects being flushed in during render.
 
-    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
-    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
 
@@ -456,9 +605,9 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(0,0,0,0));
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
     dmRender::DrawDebug2d(m_Context);
-    dmRender::DrawDebug3d(m_Context);
+    dmRender::DrawDebug3d(m_Context, 0);
 }
 
 static float Metric(const char* text, int n, bool measure_trailing_space)
@@ -474,7 +623,6 @@ static float Metric(const char* text, int n, bool measure_trailing_space)
 TEST(dmFontRenderer, Layout)
 {
     const uint32_t lines_count = 256;
-    const bool skip_whitespace = true;
     dmRender::TextLine lines[lines_count];
     int total_lines;
     const float char_width = 4;
@@ -779,6 +927,103 @@ TEST_F(dmRenderTest, FindRanges)
     ASSERT_EQ(4, range.m_TagListKey);
     ASSERT_EQ(26, range.m_Start);
     ASSERT_EQ(6, range.m_Count);
+}
+
+TEST(Constants, Constant)
+{
+    dmhash_t original_name_hash = dmHashString64("test_constant");
+    dmRender::HConstant constant = dmRender::NewConstant(original_name_hash);
+    ASSERT_TRUE(constant != 0);
+    ASSERT_EQ(original_name_hash, dmRender::GetConstantName(constant));
+
+    dmhash_t original_name_hash_new = dmHashString64("test_constant_new");
+    dmRender::SetConstantName(constant, original_name_hash_new);
+    ASSERT_EQ(original_name_hash_new, dmRender::GetConstantName(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantLocation(constant, 17);
+    ASSERT_EQ(17, dmRender::GetConstantLocation(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmVMath::Vector4 original_values[] = {dmVMath::Vector4(1,2,3,4), dmVMath::Vector4(5,6,7,8)};
+
+    dmRender::SetConstantValues(constant, original_values, DM_ARRAY_SIZE(original_values));
+    uint32_t num_values = 0;
+    dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values, values, num_values);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::DeleteConstant(constant);
+}
+
+TEST(Constants, NamedConstants)
+{
+dmHashEnableReverseHash(true);
+
+    dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
+    ASSERT_TRUE(buffer != 0);
+
+    dmVMath::Vector4* values = 0;
+    uint32_t num_values;
+    bool result;
+
+    ////////////////////////////////////////////////////////////
+    dmVMath::Vector4 original_values[] = {dmVMath::Vector4(2,4,8,10), dmVMath::Vector4(1,3,5,7)};
+    dmhash_t name_hash = dmHashString64("test_constant");
+
+    dmRender::HConstant constant = dmRender::NewConstant(name_hash);
+    dmRender::SetConstantValues(constant, original_values, DM_ARRAY_SIZE(original_values));
+
+    values = dmRender::GetConstantValues(constant, &num_values);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values, values, num_values);
+
+    dmRender::SetNamedConstants(buffer, &constant, 1);
+
+    ////////////////////////////////////////////////////////////
+    result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values, values, num_values);
+
+    ////////////////////////////////////////////////////////////
+    dmVMath::Vector4 original_values2[] = {dmVMath::Vector4(2,4,8,10), dmVMath::Vector4(1,3,5,7)};
+
+    dmhash_t name_hash_2 = dmHashString64("test_constant_2");
+    dmRender::SetNamedConstant(buffer, name_hash_2, original_values2, DM_ARRAY_SIZE(original_values2));
+
+    result = dmRender::GetNamedConstant(buffer, name_hash_2, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(values != 0);
+    ASSERT_EQ(DM_ARRAY_SIZE(original_values2), num_values);
+    ASSERT_ARRAY_EQ_LEN(original_values2, values, num_values);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::RemoveNamedConstant(buffer, name_hash_2);
+
+    result = dmRender::GetNamedConstant(buffer, name_hash_2, &values, &num_values);
+    ASSERT_FALSE(result);
+
+    result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
+    ASSERT_TRUE(result);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::ClearNamedConstantBuffer(buffer);
+
+    result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
+    ASSERT_FALSE(result);
+
+    ////////////////////////////////////////////////////////////
+    dmRender::DeleteConstant(constant);
+    dmRender::DeleteNamedConstantBuffer(buffer);
 }
 
 int main(int argc, char **argv)

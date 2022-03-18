@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -14,11 +16,11 @@
 #define DM_GRAPHICS_UTIL_H
 
 #include <dlib/endian.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGraphics
 {
-    inline uint32_t PackRGBA(const Vectormath::Aos::Vector4& in_color)
+    inline uint32_t PackRGBA(const dmVMath::Vector4& in_color)
     {
         uint8_t r = (uint8_t)(in_color.getX() * 255.0f);
         uint8_t g = (uint8_t)(in_color.getY() * 255.0f);
@@ -33,7 +35,7 @@ namespace dmGraphics
         return c;
     }
 
-    inline const Vectormath::Aos::Vector4 UnpackRGBA(uint32_t in_color)
+    inline const dmVMath::Vector4 UnpackRGBA(uint32_t in_color)
     {
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
         float r = (float)((in_color & 0x000000FF)      ) / 255.0f;
@@ -46,7 +48,7 @@ namespace dmGraphics
         float b = (float)((in_color & 0x0000FF00) >>  8) / 255.0f;
         float a = (float)((in_color & 0x000000FF)      ) / 255.0f;
 #endif
-        return Vectormath::Aos::Vector4(r,g,b,a);
+        return dmVMath::Vector4(r,g,b,a);
     }
 }
 

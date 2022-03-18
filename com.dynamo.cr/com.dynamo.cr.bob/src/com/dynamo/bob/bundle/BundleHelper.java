@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -87,6 +89,15 @@ public class BundleHelper {
     public static final String MANIFEST_NAME_OSX        = "Info.plist";
     public static final String MANIFEST_NAME_HTML5      = "engine_template.html";
 
+    public static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
+    private static final String[] ARCHIVE_FILE_NAMES = {
+        "game.projectc",
+        "game.arci",
+        "game.arcd",
+        "game.dmanifest",
+        "game.public.der"
+    };
+
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public static void throwIfCanceled(ICanceled canceled) {
@@ -103,7 +114,7 @@ public class BundleHelper {
         this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
-        if (platform == Platform.X86_64Darwin || platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.X86_64Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             appDirSuffix = ".app";
         }
 
@@ -117,6 +128,16 @@ public class BundleHelper {
         }
 
         this.variant = variant;
+    }
+
+    public static String[] getArchiveFilenames(File buildDir) {
+        File sslCerts = new File(buildDir, SSL_CERTIFICATES_NAME);
+        if (sslCerts.exists()) {
+            String[] files = Arrays.copyOf(ARCHIVE_FILE_NAMES, ARCHIVE_FILE_NAMES.length + 1);
+            files[ARCHIVE_FILE_NAMES.length] = SSL_CERTIFICATES_NAME;
+            return files;
+        }
+        return ARCHIVE_FILE_NAMES;
     }
 
     public static String projectNameToBinaryName(String projectName) {
@@ -231,7 +252,7 @@ public class BundleHelper {
     }
 
     private String getManifestName(Platform platform) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return BundleHelper.MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             return BundleHelper.MANIFEST_NAME_OSX;
@@ -261,7 +282,7 @@ public class BundleHelper {
 
         IResource mainManifest;
         Map<String, Object> properties = new HashMap<>();
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
         } else if (platform == Platform.X86_64Darwin) {
@@ -305,7 +326,7 @@ public class BundleHelper {
     }
 
     public File getAppManifestFile(Platform platform, File appDir) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios  ) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
             return new File(appDir, "Contents/Info.plist");
@@ -318,7 +339,7 @@ public class BundleHelper {
     }
 
     public static String getMainManifestName(Platform platform) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             return MANIFEST_NAME_OSX;

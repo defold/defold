@@ -15,4 +15,9 @@ instances {
   id: "uniform_property"
   prototype: "/script_props/uniform_property.go"
 }
+instances {
+  id: "properties_for_gui"
+  prototype: "/script_props/gui/prop_gui.go"
+}
+
 

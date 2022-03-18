@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +20,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/easing.h>
 #include <dlib/image.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "gui.h"
 
@@ -57,8 +60,8 @@ namespace dmGui
         SceneTraversalCache() : m_NodeIndex(0), m_Version(0) {}
         struct Data
         {
-            Matrix4     m_Transform;
-            float     	m_Opacity;
+            dmVMath::Matrix4 m_Transform;
+            float     	     m_Opacity;
         };
         dmArray<Data>   m_Data;
         uint16_t        m_NodeIndex;
@@ -89,7 +92,7 @@ namespace dmGui
         uint32_t                        m_Dpi;
         dmArray<HScene>                 m_Scenes;
         dmArray<RenderEntry>            m_RenderNodes;
-        dmArray<Matrix4>                m_RenderTransforms;
+        dmArray<dmVMath::Matrix4>       m_RenderTransforms;
         dmArray<float>                	m_RenderOpacities;
         dmArray<InternalClippingNode>   m_StencilClippingNodes;
         dmArray<StencilScope*>          m_StencilScopes;
@@ -103,14 +106,15 @@ namespace dmGui
 
     struct Node
     {
-        Vector4     m_Properties[PROPERTY_COUNT];
-        Vector4     m_ResetPointProperties[PROPERTY_COUNT];
-        Matrix4     m_LocalTransform;
-        Vector4     m_LocalAdjustScale;
-        uint32_t    m_ResetPointState;
+        dmVMath::Vector4    m_Properties[PROPERTY_COUNT];
+        dmVMath::Vector4    m_ResetPointProperties[PROPERTY_COUNT];
+        dmVMath::Matrix4    m_LocalTransform;
+        dmVMath::Vector4    m_LocalAdjustScale;
+        uint32_t            m_ResetPointState;
 
-        uint32_t m_PerimeterVertices;
-        PieBounds m_OuterBounds;
+        uint32_t    m_HasResetPoint         : 1; // If true, we have stored a copy of the m_State, into m_ResetPointState
+        uint32_t    m_PerimeterVertices     :31;
+        PieBounds   m_OuterBounds;
 
         union
         {
@@ -138,7 +142,8 @@ namespace dmGui
             uint32_t m_State;
         };
 
-        bool        m_HasResetPoint;
+        uint32_t    m_CustomType; // Valid if m_State.m_NodeType == NODE_TYPE_CUSTOM
+
         const char* m_Text;
 
         uint64_t    m_TextureHash;
@@ -156,9 +161,7 @@ namespace dmGui
 
         void**      m_NodeDescTable;
 
-        uint64_t            m_SpineSceneHash;
-        void*               m_SpineScene;
-        dmRig::HRigInstance m_RigInstance;
+        void*       m_CustomData;
 
         uint64_t                m_ParticlefxHash;
         void*                   m_ParticlefxPrototype;
@@ -208,15 +211,6 @@ namespace dmGui
         uint16_t m_AnimationCompleteCalled : 1;
         uint16_t m_Cancelled : 1;
         uint16_t m_Backwards : 1;
-    };
-
-    struct SpineAnimation
-    {
-        HNode    m_Node;
-        AnimationComplete m_AnimationComplete;
-        RigEventDataCallback m_EventDataCallback;
-        void*    m_Userdata1;
-        void*    m_Userdata2;
     };
 
     struct Script
@@ -279,13 +273,10 @@ namespace dmGui
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
-        dmArray<SpineAnimation> m_SpineAnimations;
         dmHashTable<uintptr_t, dmhash_t> m_ResourceToPath;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
-        dmRig::HRigContext      m_RigContext;
-        dmHashTable64<void*>    m_SpineScenes;
         dmParticle::HParticleContext m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
         dmArray<ParticlefxComponent> m_AliveParticlefxs;
@@ -306,9 +297,14 @@ namespace dmGui
         uint32_t                m_Width;
         uint32_t                m_Height;
         dmScript::ScriptWorld*  m_ScriptWorld;
+        CreateCustomNodeCallback    m_CreateCustomNodeCallback;
+        DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
+        CloneCustomNodeCallback     m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
+        void*                       m_CreateCustomNodeCallbackContext;
+        GetResourceCallback         m_GetResourceCallback;
+        void*                       m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
-        RigEventDataCallback    m_RigEventDataCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
     };
 
@@ -329,7 +325,7 @@ namespace dmGui
      * @param flags CalculateNodeTransformFlags enumerated behaviour flags
      * @param out_transform out-parameter to write the calculated transform to
      */
-    void CalculateNodeTransform(HScene scene, InternalNode* node, const CalculateNodeTransformFlags flags, Matrix4& out_transform);
+    void CalculateNodeTransform(HScene scene, InternalNode* node, const CalculateNodeTransformFlags flags, dmVMath::Matrix4& out_transform);
 
     /** Updates the local transform of the node. Requires the parent node(s) to have been updated beforehand.
      * @param scene scene of the node
@@ -339,12 +335,12 @@ namespace dmGui
 
     /**
      */
-    inline Vector4 CalcPivotDelta(uint32_t pivot, Vector4 size)
+    inline dmVMath::Vector4 CalcPivotDelta(uint32_t pivot, dmVMath::Vector4 size)
     {
         float width = size.getX();
         float height = size.getY();
 
-        Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+        dmVMath::Vector4 delta_pivot = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         switch (pivot)
         {
@@ -393,9 +389,9 @@ namespace dmGui
      * @param flags CalculateNodeTransformFlags enumerated behaviour flags
      * @param transform [out] out-parameter to write the calculated transform to
      */
-    inline void CalculateNodeExtents(const Node& node, const CalculateNodeTransformFlags flags, Matrix4& transform)
+    inline void CalculateNodeExtents(const Node& node, const CalculateNodeTransformFlags flags, dmVMath::Matrix4& transform)
     {
-        Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
+        dmVMath::Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
         if (flags & CALCULATE_NODE_INCLUDE_SIZE)
         {
             size = node.m_Properties[dmGui::PROPERTY_SIZE];
@@ -403,14 +399,14 @@ namespace dmGui
         // Reset the pivot of the node, so that the resulting transform has the origin in the lower left, which is used for quad rendering etc.
         if (flags & CALCULATE_NODE_RESET_PIVOT)
         {
-            Vector4 pivot_delta = transform * CalcPivotDelta(node.m_Pivot, size);
+            dmVMath::Vector4 pivot_delta = transform * CalcPivotDelta(node.m_Pivot, size);
             transform.setCol3(pivot_delta);
         }
 
         bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !(flags & CALCULATE_NODE_BOUNDARY);
         if ((flags & CALCULATE_NODE_INCLUDE_SIZE) && !render_text)
         {
-            transform.setUpper3x3(transform.getUpper3x3() * Matrix3::scale(Vector3(size.getX(), size.getY(), 1)));
+            transform.setUpper3x3(transform.getUpper3x3() * dmVMath::Matrix3::scale(dmVMath::Vector3(size.getX(), size.getY(), 1)));
         }
     }
 
@@ -423,7 +419,7 @@ namespace dmGui
      * @param out_opacity [out] out-parameter to write the calculated opacity
      * @param traversal_cache [in, out] a helper cache to store/retrieve properties during traversal
      */
-    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, Matrix4& out_transform, float& out_opacity, SceneTraversalCache& traversal_cache)
+    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, dmVMath::Matrix4& out_transform, float& out_opacity, SceneTraversalCache& traversal_cache)
     {
         const Node& node = n->m_Node;
         uint16_t cache_index;
@@ -442,7 +438,7 @@ namespace dmGui
         }
         SceneTraversalCache::Data& cache_data = traversal_cache.m_Data[cache_index];
 
-        Matrix4 parent_trans;
+        dmVMath::Matrix4 parent_trans;
         float parent_opacity;
         if (n->m_ParentIndex != INVALID_INDEX)
         {
@@ -490,9 +486,9 @@ namespace dmGui
      * @param out_transform [out] out-parameter to write the calculated transform to
      * @param out_opacity [out] out-parameter to write the calculated opacity
      */
-    inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, float& out_opacity)
+    inline void CalculateNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, dmVMath::Matrix4& out_transform, float& out_opacity)
     {
-        Matrix4 parent_trans;
+        dmVMath::Matrix4 parent_trans;
         float parent_opacity;
         if (n->m_ParentIndex != INVALID_INDEX)
         {
@@ -527,7 +523,7 @@ namespace dmGui
      * @param node node for which the reference scale should be calculated
      * @return a scaling vector (ref_scale, ref_scale, 1, 1)
      */
-    Vector4 CalculateReferenceScale(HScene scene, InternalNode* node);
+    dmVMath::Vector4 CalculateReferenceScale(HScene scene, InternalNode* node);
 
     HNode GetNodeHandle(InternalNode* node);
 }

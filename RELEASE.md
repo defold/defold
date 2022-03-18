@@ -11,7 +11,6 @@ The alpha channel is automatically released for every successful push to dev.
 ## Beta
 
 * If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender/blob/dev/README.md#releasing-stage-server), which updates https://build-stage.defold.com.
-* Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
 
 1. Merge `editor-dev` into `dev`
 
@@ -34,6 +33,19 @@ The alpha channel is automatically released for every successful push to dev.
 1. Collect release notes using `python scripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
 and add the "BETA" tag to the headline
 
+1. Also update the beta for the console platforms
+
+        $ cd defold-platform
+        $ git checkout dev
+        $ git pull
+
+        $ git checkout beta
+        $ git pull
+        $ git merge dev
+        $ git fetch upstream
+        $ git merge upstream/beta
+        $ git push
+
 ## Stable
 
  1. Switch to master branch, merge from beta:
@@ -48,6 +60,20 @@ and add the "BETA" tag to the headline
 
     This will trigger a build of the engines and editors for stable.
     Make a note of the release sha1 (the latest commit to the master branch on GitHub)
+
+1. Also update the master for the console platforms
+
+        $ cd defold-platform
+        $ git checkout beta
+        $ git pull
+        $ git checkout master
+        $ git pull
+        $ git merge beta
+
+        $ git fetch upstream
+        $ git merge upstream/master
+        $ git push
+
 
  1. Fetch editor via:
 
@@ -116,6 +142,16 @@ This will trigger a build of the engines and editors for editor-alpha.
         $ git add VERSION
         $ git commit -m "Bumped version to X.Y.Z"
         $ git push
+
+1. Update the dev branch for the console platforms
+
+        $ cd defold-platform
+        $ git checkout dev
+        $ git pull
+        $ git fetch upstream
+        $ git merge upstream/dev
+        $ git push
+
 
 1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline
 

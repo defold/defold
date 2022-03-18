@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,13 +22,14 @@ namespace dmGameObject
 
 static ComponentTypeDescriptor g_ComponentTypeSentinel = {0};
 
-Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn)
+Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn, ComponentTypeDestroyFunction destroy_fn)
 {
     DM_STATIC_ASSERT(dmGameObject::s_ComponentTypeDescBufferSize >= sizeof(ComponentTypeDescriptor), Invalid_Struct_Size);
 
     dmLogDebug("Registered component type descriptor %s", name);
     desc->m_Name = name;
     desc->m_CreateFn = create_fn;
+    desc->m_DestroyFn = destroy_fn;
     desc->m_Next = g_ComponentTypeSentinel.m_Next;
     g_ComponentTypeSentinel.m_Next = desc;
 
@@ -54,6 +57,7 @@ Result CreateRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
             dmLogWarning("Component type '%s' already added!", type_desc->m_Name);
         }
 
+        component_type.m_TypeIndex = dmGameObject::GetNumComponentTypes(ctx->m_Register);
         component_type.m_ResourceType = resource_type;
         component_type.m_Name = type_desc->m_Name;
         component_type.m_NameHash = dmHashString64(type_desc->m_Name);
@@ -68,11 +72,36 @@ Result CreateRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
         if (go_result != dmGameObject::RESULT_OK)
             return go_result;
 
+        type_desc->m_TypeIndex = component_type.m_TypeIndex;
+
         type_desc = type_desc->m_Next;
     }
     return dmGameObject::RESULT_OK;
 }
 
+Result DestroyRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
+{
+    // There is no UnregisterComponent type, but we want the opportunity to destroy any custom contexts that were created
+    // during the registering process
+
+    ComponentTypeDescriptor* type_desc = g_ComponentTypeSentinel.m_Next;
+    while (type_desc != 0)
+    {
+        ComponentType* component_type = dmGameObject::GetComponentType(ctx->m_Register, (uint32_t)type_desc->m_TypeIndex);
+
+        if (type_desc->m_DestroyFn)
+        {
+            Result go_result = type_desc->m_DestroyFn(ctx, component_type);
+            if (go_result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Failed to destroy component type %s", type_desc->m_Name);
+            }
+        }
+
+        type_desc = type_desc->m_Next;
+    }
+    return dmGameObject::RESULT_OK;
+}
 
 void ComponentTypeSetNewWorldFn(ComponentType* type, ComponentNewWorld fn)                  { type->m_NewWorldFunction = fn; }
 void ComponentTypeSetDeleteWorldFn(ComponentType* type, ComponentDeleteWorld fn)            { type->m_DeleteWorldFunction = fn; }
@@ -95,8 +124,11 @@ void ComponentTypeSetContext(ComponentType* type, void* context)                
 void ComponentTypeSetReadsTransforms(ComponentType* type, bool reads_transforms)            { type->m_ReadsTransforms = reads_transforms?1:0; }
 void ComponentTypeSetPrio(ComponentType* type, uint16_t prio)                               { type->m_UpdateOrderPrio = prio; }
 void ComponentTypeSetHasUserData(ComponentType* type, bool has_user_data)                   { type->m_InstanceHasUserData = has_user_data; }
-void ComponentTypeSetChilldIteratorFn(ComponentType* type, FIteratorChildren fn)            { type->m_IterChildren = fn; }
+void ComponentTypeSetChildIteratorFn(ComponentType* type, FIteratorChildren fn)             { type->m_IterChildren = fn; }
 void ComponentTypeSetPropertyIteratorFn(ComponentType* type, FIteratorProperties fn)        { type->m_IterProperties = fn; }
+// Getters
+uint32_t    ComponentTypeGetTypeIndex(const ComponentType* type)                            { return type->m_TypeIndex; }
+void*       ComponentTypeGetContext(const ComponentType* type)                              { return type->m_Context; }
 
 
 } // namespace

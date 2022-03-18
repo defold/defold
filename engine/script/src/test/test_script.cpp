@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -41,7 +43,7 @@ class ScriptTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        dmSetCustomLogCallback(LogCallback, this);
+        dmLog::SetCustomLogCallback(LogCallback, this);
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
@@ -51,7 +53,7 @@ protected:
     {
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        dmSetCustomLogCallback(0x0, 0x0);
+        dmLog::SetCustomLogCallback(0x0, 0x0);
     }
 
     const char* RemoveTableAddresses(char* str)
@@ -215,9 +217,21 @@ TEST_F(ScriptTest, TestRandom)
 {
     int top = lua_gettop(L);
     ASSERT_TRUE(RunString(L, "math.randomseed(123)"));
-    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 1)"));
     ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 58)"));
-    ASSERT_TRUE(RunString(L, "assert(math.abs(math.random() - 0.70419311523438) < 0.0000001)"));
+    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 71)"));
+    ASSERT_TRUE(RunString(L, "assert(math.abs(math.random() - 0.39990234375) < 0.0000001)"));
+
+    // https://github.com/defold/defold/issues/3753
+    const char *sum_random_numbers =
+        "local sum = 0\n"
+        "local count = 1000\n"
+        "for i=1,count do\n"
+        "    math.randomseed(i)\n"
+        "    sum = sum + math.random(1, 10)\n"
+        "end\n"
+        "assert(math.floor(sum/count) == 5)\n";
+    ASSERT_TRUE(RunString(L, sum_random_numbers));
+
     ASSERT_EQ(top, lua_gettop(L));
 }
 

@@ -123,7 +123,7 @@ def build(bld):
 
     # If we have optimizations on, let's minimize this library
     opt_level = getattr(Options.options, 'opt_level', '')
-    FLAG_ST = '/O%s' if 'win' == bld.env.BUILD_PLATFORM else '-O%s'
+    FLAG_ST = '/O%s' if ('win32' in bld.env.BUILD_PLATFORM) else '-O%s'
     remove_flags = {}
     if opt_level in ['3','2']:
         remove_flags['CCFLAGS'] = []
@@ -188,7 +188,7 @@ def build(bld):
     # Basis libraries
 
     opt_level = getattr(Options.options, 'opt_level', '')
-    FLAG_ST = '/O%s' if 'win' == bld.env.BUILD_PLATFORM else '-O%s'
+    FLAG_ST = '/O%s' if ('win32' in bld.env.BUILD_PLATFORM) else '-O%s'
     remove_flags = {}
     remove_flags['CXXFLAGS'] = []
     new_opt_level = False
@@ -291,7 +291,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sslsocket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
-    bld.install_as('${PREFIX}/include/dlib/spinlocktypes.h', _get_native_file(build_util.get_target_os(), 'spinlocktypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')

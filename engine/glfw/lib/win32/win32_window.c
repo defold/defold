@@ -32,7 +32,7 @@
 
 #include <windows.h>
 #include <assert.h>
-
+#include <Stringapiset.h>
 
 
 //************************************************************************
@@ -41,7 +41,7 @@
 
 // We use versioned window class names in order not to cause conflicts
 // between applications using different versions of GLFW
-#define _GLFW_WNDCLASSNAME "GLFW27"
+#define _GLFW_WNDCLASSNAME L"GLFW27"
 
 // Resource ID that holds the application icon.
 #define _GLFW_ICON_RES_ID 100
@@ -1221,7 +1221,7 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
 
     _glfwWin.window = CreateWindowEx( _glfwWin.dwExStyle,    // Extended style
                                       _GLFW_WNDCLASSNAME,    // Class name
-                                      "",                    // Window title
+                                      L"",                    // Window title
                                       _glfwWin.dwStyle,      // Defined window style
                                       wa.left, wa.top,       // Window position
                                       fullWidth,             // Decorated window width
@@ -1527,10 +1527,17 @@ int _glfwPlatformGetDefaultFramebuffer( )
 //========================================================================
 // Set the window title
 //========================================================================
+#define MAX_WINDOW_TITLE_LENGTH 255
 
 void _glfwPlatformSetWindowTitle( const char *title )
 {
-    (void) SetWindowText( _glfwWin.window, title );
+    wchar_t unicode_title[MAX_WINDOW_TITLE_LENGTH];
+    int res = MultiByteToWideChar(CP_UTF8, 0, title, -1, &unicode_title, MAX_WINDOW_TITLE_LENGTH);
+    if (res <= 0)
+    {
+        unicode_title[0] = 0;
+    }
+    (void) SetWindowTextW( _glfwWin.window, unicode_title );
 }
 
 
@@ -2028,4 +2035,13 @@ void _glfwPlatformSetViewType(int view_type)
 
 GLFWAPI void glfwAccelerometerEnable()
 {
+}
+
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
+{
+    int r = color & 0xff;
+    int g = (color >> 8) & 0xff;
+    int b = (color >> 16) & 0xff;
+    HBRUSH brush = CreateSolidBrush(RGB(r, g, b));
+    SetClassLongPtr(_glfwWin.classAtom, GCLP_HBRBACKGROUND, (LONG_PTR)brush);
 }

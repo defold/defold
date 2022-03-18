@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,6 +54,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.cache.ResourceCacheKey;
 
 public class Bob {
 
@@ -368,70 +371,85 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    private static CommandLine parse(String[] args) {
+    private static void addOption(Options options, String shortOpt, String longOpt, boolean hasArg, String description, boolean usedByResourceCacheKey) {
+        options.addOption(shortOpt, longOpt, hasArg, description);
+        if (usedByResourceCacheKey) {
+            ResourceCacheKey.includeOption(longOpt);
+        }
+    }
+
+    private static Options getCommandLineOptions() {
         Options options = new Options();
-        options.addOption("r", "root", true, "Build root directory. Default is current directory");
-        options.addOption("o", "output", true, "Output directory. Default is \"build/default\"");
-        options.addOption("i", "input", true, "Source directory. Default is current directory");
-        options.addOption("v", "verbose", false, "Verbose output");
-        options.addOption("h", "help", false, "This help message");
-        options.addOption("a", "archive", false, "Build archive");
-        options.addOption("e", "email", true, "User email");
-        options.addOption("u", "auth", true, "User auth token");
+        addOption(options, "r", "root", true, "Build root directory. Default is current directory", true);
+        addOption(options, "o", "output", true, "Output directory. Default is \"build/default\"", false);
+        addOption(options, "i", "input", true, "Source directory. Default is current directory", true);
+        addOption(options, "v", "verbose", false, "Verbose output", false);
+        addOption(options, "h", "help", false, "This help message", false);
+        addOption(options, "a", "archive", false, "Build archive", false);
+        addOption(options, "e", "email", true, "User email", false);
+        addOption(options, "u", "auth", true, "User auth token", false);
 
-        options.addOption("p", "platform", true, "Platform (when bundling)");
-        options.addOption("bo", "bundle-output", true, "Bundle output directory");
-        options.addOption("bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')");
+        addOption(options, "p", "platform", true, "Platform (when bundling)", true);
+        addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
+        addOption(options, "bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')", false);
 
-        options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
-        options.addOption(null, "identity", true, "Sign identity (iOS)");
+        addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
+        addOption(options, null, "identity", true, "Sign identity (iOS)", false);
 
-        options.addOption("ce", "certificate", true, "DEPRECATED! Certificate (Android)");
-        options.addOption("pk", "private-key", true, "DEPRECATED! Private key (Android)");
+        addOption(options, "ce", "certificate", true, "DEPRECATED! Certificate (Android)", false);
+        addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", false);
 
-        options.addOption("ks", "keystore", true, "Deployment keystore used to sign APKs (Android)");
-        options.addOption("ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)");
-        options.addOption("ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)");
+        addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
+        addOption(options, "ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)", false);
+        addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
 
-        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
-        options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
-        options.addOption(null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)");
-        options.addOption(null, "with-symbols", false, "Generate the symbol file (if applicable)");
+        addOption(options, "d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead", false);
+        addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
+        addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false);
+        addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", false);
 
-        options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
-        options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
-        options.addOption("k", "keep-unused", false, "Keep unused resources in archived output");
+        addOption(options, "tp", "texture-profiles", true, "Use texture profiles (deprecated)", true);
+        addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
+        addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
-        options.addOption(null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build");
+        addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
 
-        options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
-        options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
+        addOption(options, "br", "build-report", true, "Filepath where to save a build report as JSON", false);
+        addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
 
-        options.addOption(null, "build-server", true, "The build server (when using native extensions)");
-        options.addOption(null, "defoldsdk", true, "What version of the defold sdk (sha1) to use");
-        options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
+        addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
+        addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
+        addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
-        options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
-        options.addOption(null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4");
+        addOption(options, null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)", true);
+        addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 
-        options.addOption("l", "liveupdate", true, "Yes if liveupdate content should be published");
+        addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
 
-        options.addOption("ar", "architectures", true, "Comma separated list of architectures to include for the platform");
+        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", false);
 
-        options.addOption(null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.");
+        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", false);
 
-        options.addOption(null, "version", false, "Prints the version number to the output");
+        addOption(options, null, "version", false, "Prints the version number to the output", false);
 
-        options.addOption(null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.");
+        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.", false);
 
-        options.addOption(null, "resource-cache-local", true, "Path to local resource cache.");
-        options.addOption(null, "resource-cache-remote", true, "URL to remote resource cache.");
-        options.addOption(null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.");
-        options.addOption(null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.");
+        addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", false);
+        addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", false);
+        addOption(options, null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.", false);
+        addOption(options, null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.", false);
+
+        addOption(options, null, "manifest-private-key", true, "Private key to use when signing manifest and archive.", false);
+        addOption(options, null, "manifest-public-key", true, "Public key to use when signing manifest and archive.", false);
 
         // debug options
-        options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
+        addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
 
+        return options;
+    }
+
+    private static CommandLine parse(String[] args) {
+        Options options = getCommandLineOptions();
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
@@ -650,10 +668,6 @@ public class Bob {
             project.setOption("texture-compression", texCompression);
         }
 
-        if (cmd.hasOption("use-vanilla-lua")) {
-            project.setOption("use-vanilla-lua", "true");
-        }
-
         if (cmd.hasOption("archive-resource-padding")) {
             String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
             int resourcePadding = 0;
@@ -674,17 +688,9 @@ public class Bob {
             project.setOption("archive-resource-padding", resourcePaddingStr);
         }
 
-        if (cmd.hasOption("bundle-format")) {
-            project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
-        }
-
         if (project.hasOption("build-artifacts")) {
             String[] validArtifacts = {"engine", "plugins"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
-        }
-
-        if (cmd.hasOption("resource-cache-local")) {
-            project.setOption("resource-cache-local", cmd.getOptionValue("resource-cache-local"));
         }
 
         boolean ret = true;

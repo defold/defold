@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,7 +51,7 @@ namespace dmGameSystem
             {
                 goto range_error;
             }
-            ret = dmPhysics::NewBoxShape2D(context, Vectormath::Aos::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
+            ret = dmPhysics::NewBoxShape2D(context, dmVMath::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
@@ -110,7 +112,7 @@ range_error:
             if (shape->m_Index + 3 > data_count) {
                 goto range_error;
             }
-            ret = dmPhysics::NewBoxShape3D(context, Vectormath::Aos::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
+            ret = dmPhysics::NewBoxShape3D(context, dmVMath::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
@@ -187,13 +189,13 @@ range_error:
                         uint32_t shape_count = shapes.Size();
                         uint32_t total_shapes_count = embedded_shape_count + shape_count;
                         resource->m_Shapes2D = (dmPhysics::HCollisionShape2D*)malloc(sizeof(dmPhysics::HCollisionShape2D) * total_shapes_count);
-                        resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * total_shapes_count);
-                        resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * total_shapes_count);
+                        resource->m_ShapeTranslation = (dmVMath::Vector3*)malloc(sizeof(dmVMath::Vector3) * total_shapes_count);
+                        resource->m_ShapeRotation = (dmVMath::Quat*)malloc(sizeof(dmVMath::Quat) * total_shapes_count);
                         for (uint32_t i = 0; i < shape_count; ++i)
                         {
                             resource->m_Shapes2D[i] = resource->m_TileGridResource->m_GridShapes[i];
-                            resource->m_ShapeTranslation[i] = Vectormath::Aos::Vector3(0.0, 0.0, 0.0);
-                            resource->m_ShapeRotation[i] = Vectormath::Aos::Quat(0.0, 0.0, 0.0, 0.0);
+                            resource->m_ShapeTranslation[i] = dmVMath::Vector3(0.0, 0.0, 0.0);
+                            resource->m_ShapeRotation[i] = dmVMath::Quat(0.0, 0.0, 0.0, 0.0);
                         }
                         resource->m_TileGridShapeCount = shape_count;
                         resource->m_ShapeCount = shape_count;
@@ -207,14 +209,14 @@ range_error:
             if (physics_context->m_3D)
             {
                 resource->m_Shapes3D = (dmPhysics::HCollisionShape3D*)malloc(sizeof(dmPhysics::HCollisionShape3D) * embedded_shape_count);
-                resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * embedded_shape_count);
-                resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * embedded_shape_count);
+                resource->m_ShapeTranslation = (dmVMath::Vector3*)malloc(sizeof(dmVMath::Vector3) * embedded_shape_count);
+                resource->m_ShapeRotation = (dmVMath::Quat*)malloc(sizeof(dmVMath::Quat) * embedded_shape_count);
             }
             else if (!resource->m_TileGrid)
             {
                 resource->m_Shapes2D = (dmPhysics::HCollisionShape2D*)malloc(sizeof(dmPhysics::HCollisionShape2D) * embedded_shape_count);
-                resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * embedded_shape_count);
-                resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * embedded_shape_count);
+                resource->m_ShapeTranslation = (dmVMath::Vector3*)malloc(sizeof(dmVMath::Vector3) * embedded_shape_count);
+                resource->m_ShapeRotation = (dmVMath::Quat*)malloc(sizeof(dmVMath::Quat) * embedded_shape_count);
             }
 
             // Create embedded convex shapes
@@ -227,7 +229,7 @@ range_error:
                     if (shape)
                     {
                         resource->m_Shapes3D[current_shape_count] = shape;
-                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(embedded_shapes[i].m_Position);
+                        resource->m_ShapeTranslation[current_shape_count] = dmVMath::Vector3(embedded_shapes[i].m_Position);
                         resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
                         current_shape_count++;
                     }
@@ -243,7 +245,7 @@ range_error:
                     if (shape)
                     {
                         resource->m_Shapes2D[current_shape_count] = shape;
-                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(embedded_shapes[i].m_Position);
+                        resource->m_ShapeTranslation[current_shape_count] = dmVMath::Vector3(embedded_shapes[i].m_Position);
                         resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
                         current_shape_count++;
                     }

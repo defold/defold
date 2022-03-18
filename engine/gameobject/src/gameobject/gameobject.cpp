@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,6 +26,7 @@
 #include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dlib/mutex.h>
+#include <dmsdk/dlib/vmath.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
@@ -119,7 +122,7 @@ namespace dmGameObject
         *u = v;
     }
 
-    PropertyVar::PropertyVar(Vectormath::Aos::Vector3 v)
+    PropertyVar::PropertyVar(dmVMath::Vector3 v)
     {
         m_Type = PROPERTY_TYPE_VECTOR3;
         m_V4[0] = v.getX();
@@ -127,7 +130,7 @@ namespace dmGameObject
         m_V4[2] = v.getZ();
     }
 
-    PropertyVar::PropertyVar(Vectormath::Aos::Vector4 v)
+    PropertyVar::PropertyVar(dmVMath::Vector4 v)
     {
         m_Type = PROPERTY_TYPE_VECTOR4;
         m_V4[0] = v.getX();
@@ -136,7 +139,7 @@ namespace dmGameObject
         m_V4[3] = v.getW();
     }
 
-    PropertyVar::PropertyVar(Vectormath::Aos::Quat v)
+    PropertyVar::PropertyVar(dmVMath::Quat v)
     {
         m_Type = PROPERTY_TYPE_QUAT;
         m_V4[0] = v.getX();
@@ -471,15 +474,44 @@ namespace dmGameObject
         hcollection->m_Collection->m_ToBeDeleted = 1;
     }
 
-    void* GetWorld(HCollection hcollection, uint32_t component_index)
+    uint32_t GetComponentTypeIndex(HCollection hcollection, dmhash_t type_hash)
     {
-        if (component_index < MAX_COMPONENT_TYPES)
+        Register* regist = GetRegister(hcollection);
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            return hcollection->m_Collection->m_ComponentWorlds[component_index];
+            ComponentType* ct = &regist->m_ComponentTypes[i];
+            if (ct->m_NameHash == type_hash)
+            {
+                return i;
+            }
+        }
+        return 0xFFFFFFFF;
+    }
+
+    void* GetWorld(HCollection hcollection, uint32_t component_type_index)
+    {
+        Register* regist = GetRegister(hcollection);
+        if (component_type_index < regist->m_ComponentTypeCount)
+        {
+            return hcollection->m_Collection->m_ComponentWorlds[component_type_index];
         }
         else
         {
             return 0x0;
+        }
+    }
+
+    void* GetContext(HCollection hcollection, uint32_t component_type_index)
+    {
+        Register* regist = GetRegister(hcollection);
+        if (component_type_index < regist->m_ComponentTypeCount)
+        {
+            ComponentType* ct = &regist->m_ComponentTypes[component_type_index];
+            return ct->m_Context;
+        }
+        else
+        {
+            return 0;
         }
     }
 
@@ -496,6 +528,16 @@ namespace dmGameObject
             }
         }
         return 0;
+    }
+
+    uint32_t GetNumComponentTypes(HRegister regist)
+    {
+        return regist->m_ComponentTypeCount;
+    }
+
+    ComponentType* GetComponentType(HRegister regist, uint32_t index)
+    {
+        return &regist->m_ComponentTypes[index];
     }
 
     struct ComponentTypeSortPred
@@ -1213,21 +1255,6 @@ namespace dmGameObject
             }
         }
 
-        if (success)
-        {
-            // Update the transform for all parent-less objects
-            for (uint32_t i=0;i!=new_instances.Size();i++)
-            {
-                if (!GetParent(new_instances[i]))
-                {
-                    new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
-                }
-
-                // world transforms need to be up to date in time for the script init calls
-                collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
-            }
-        }
-
         // Exit point 1: Before components are created.
         if (!success)
         {
@@ -1238,6 +1265,18 @@ namespace dmGameObject
             }
             id_mapping->Clear();
             return false;
+        }
+
+        // Update the transform for all parent-less objects
+        for (uint32_t i=0;i!=new_instances.Size();i++)
+        {
+            if (!GetParent(new_instances[i]))
+            {
+                new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
+            }
+
+            // world transforms need to be up to date in time for the script init calls
+            collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
         }
 
         // Create components and set properties
@@ -2313,6 +2352,11 @@ namespace dmGameObject
         return ctx.m_Success;
     }
 
+    bool DispatchMessages(HCollection hcollection, dmMessage::HSocket* sockets, uint32_t socket_count)
+    {
+        return DispatchMessages(hcollection->m_Collection, sockets, socket_count);
+    }
+
     static void UpdateEulerToRotation(HInstance instance);
 
     static inline bool Vec3Equals(const uint32_t* a, const uint32_t* b)
@@ -3020,9 +3064,7 @@ namespace dmGameObject
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
 
-        // Default array size to 0, it should not be used as an array by default
-        out_value.m_ArraySize = 0;
-        out_value.m_IsArray = 0;
+        out_value.m_ValueType = dmGameObject::PROP_VALUE_ARRAY;
 
         if (component_id == 0)
         {

@@ -12,7 +12,7 @@ Usually, the folders can be packaged as-is, but it's generally preferable to rem
 This step is automated given the proper archives (sdk's) are available either locally or on a file server.
 You can configure the path via a command line option:
 
-	 ./scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>
+	 ./scripts/build.py --package-path=<local_folder_or_url> install_sdk --platform=<platform>
 
 or by specifying the `DM_PACKAGES_URL` environment variable.
 
@@ -111,4 +111,9 @@ The installation of the HTML5 compiler is done by calling the build function `in
 
 ## Linux
 
-Since it's difficult to package the C++ build pipeline for Linux, we simply rely on installing the correct compiler versions on each Linux system
+We use packages from [Clang](https://github.com/llvm/llvm-project/releases) for the Ubuntu16.04 target.
+Current version: https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0/clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+
+Download this file and put it into your `./local_sdks` folder.
+The package will then be extracted when you run the `./scripts/build.py install_sdk` command.
+

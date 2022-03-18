@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,7 +39,7 @@
            [com.dynamo.gamesys.proto ModelProto$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontDesc]
-           [com.dynamo.gamesys.proto Tile$TileSet]
+           [com.dynamo.gamesys.proto Tile$TileGrid Tile$TileSet]
            [java.io StringReader File]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
@@ -50,10 +52,20 @@
                            "label" Label$LabelDesc
                            "model" ModelProto$ModelDesc
                            "particlefx" Particle$ParticleFX
+                           "tilegrid" Tile$TileGrid
+                           "tilemap" Tile$TileGrid
                            "tileset" Tile$TileSet
                            "tilesource" Tile$TileSet})
 
 (deftest save-all
+  ;; These tests bypass the dirty check in order to verify that the information
+  ;; saved is equivalent to the data loaded. Failures might signal that we've
+  ;; forgotten to read data from the file, or somehow we're not writing all
+  ;; properties to disk. If you get failures after modifying a .proto file,
+  ;; first make sure your protobuf file extension maps to the corresponding
+  ;; class in the ext->proto map above. This ensures added fields will use
+  ;; defaults from the .proto file and not be reported as missing data in the
+  ;; on-disk reference files.
   (let [queries ["**/env.cubemap"
                  "**/switcher.atlas"
                  "**/atlas_sprite.collection"
@@ -239,6 +251,19 @@
                    (map resource/resource->proj-path)
                    (filter (complement black-list)))
               clean? (fn [] (empty? (into [] xf (g/node-value project :dirty-save-data))))]
+          ;; This first check is intended to verify that changes to the file
+          ;; formats do not cause undue changes to existing content in game
+          ;; projects. For example, adding fields to component protobuf
+          ;; definitions may cause the default values to be written to every
+          ;; instance of those components embedded in collection or game object
+          ;; files, because the embedded components are written as a string
+          ;; literal. If you get errors here, you need to ensure the loaded data
+          ;; is migrated to the new format by adding a :sanitize-fn when
+          ;; registering your resource type (Example: `collision_object.clj`).
+          ;; Non-embedded components do not have this issue as long as your
+          ;; added protobuf field has a default value. But more drastic file
+          ;; format changes have happened in the past, and you can find other
+          ;; examples of :sanitize-fn usage in non-component resource types.
           (is (clean?))
           (doseq [[path f] paths]
             (testing (format "Verifying %s" path)

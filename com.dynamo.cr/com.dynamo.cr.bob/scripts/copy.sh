@@ -1,10 +1,12 @@
-# Copyright 2020 The Defold Foundation
+# Copyright 2020-2022 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,7 +26,6 @@ mkdir -p libexec/x86_64-linux
 mkdir -p libexec/x86_64-darwin
 mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
-mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
 mkdir -p libexec/x86_64-ios
 mkdir -p libexec/armv7-android
@@ -34,11 +35,6 @@ mkdir -p libexec/wasm-web
 mkdir -p libexec/arm64-nx64
 
 SHA1=`git log --pretty=%H -n1`
-
-# APKC
-cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/apkc libexec/x86_64-darwin/apkc
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
-cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/apkc.exe libexec/x86_64-win32/apkc.exe
 
 # SPIRV toolchain
 cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/glslc libexec/x86_64-darwin/glslc
@@ -99,8 +95,6 @@ copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
-copy armv7-darwin/stripped/dmengine armv7-darwin/dmengine
-copy armv7-darwin/stripped/dmengine_release armv7-darwin/dmengine_release
 copy arm64-darwin/stripped/dmengine arm64-darwin/dmengine
 copy arm64-darwin/stripped/dmengine_release arm64-darwin/dmengine_release
 copy x86_64-ios/stripped/dmengine x86_64-ios/dmengine

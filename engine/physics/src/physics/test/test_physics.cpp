@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,7 +19,7 @@
 #include <dlib/math.h>
 
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 VisualObject::VisualObject()
 : m_Position(0.0f, 0.0f, 0.0f)
@@ -44,7 +46,7 @@ void GetWorldTransform(void* visual_object, dmTransform::Transform& world_transf
     }
 }
 
-void SetWorldTransform(void* visual_object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+void SetWorldTransform(void* visual_object, const Point3& position, const Quat& rotation)
 {
     if (!visual_object) return;
     VisualObject* o = (VisualObject*) visual_object;
@@ -338,9 +340,9 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 
     // Dynamic RB
 
-    Vectormath::Aos::Point3 start_pos(1.0f, 2.0f, 0.0f);
+    Point3 start_pos(1.0f, 2.0f, 0.0f);
     float pi_4 = (float) (M_PI * 0.25);
-    Vectormath::Aos::Quat start_rot(0.0f, 0.0f, sin(pi_4), cos(pi_4));
+    Quat start_rot(0.0f, 0.0f, sin(pi_4), cos(pi_4));
     vo.m_Position = start_pos;
     vo.m_Rotation = start_rot;
     dmPhysics::CollisionObjectData data;
@@ -348,13 +350,13 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     data.m_UserData = &vo;
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
-    Vectormath::Aos::Point3 body_pos = (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, dynamic_co);
+    Point3 body_pos = (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, dynamic_co);
     for (int i = 0; i < 3; ++i)
     {
         ASSERT_EQ(start_pos.getElem(i), vo.m_Position.getElem(i));
         ASSERT_EQ(start_pos.getElem(i), body_pos.getElem(i));
     }
-    Vectormath::Aos::Quat body_rot = (*TestFixture::m_Test.m_GetWorldRotationFunc)(TestFixture::m_Context, dynamic_co);
+    Quat body_rot = (*TestFixture::m_Test.m_GetWorldRotationFunc)(TestFixture::m_Context, dynamic_co);
     for (int i = 0; i < 4; ++i)
     {
         ASSERT_EQ(start_rot.getElem(i), vo.m_Rotation.getElem(i));
@@ -370,8 +372,8 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 
     // Kinematic RB
 
-    vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     data.m_Mass = 0.0f;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     typename TypeParam::CollisionObjectType kinematic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
@@ -390,8 +392,8 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 
     // Static RB
 
-    vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
     typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
@@ -409,8 +411,8 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 
     // Trigger RB
 
-    vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
     typename TypeParam::CollisionObjectType trigger_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
@@ -486,8 +488,8 @@ TYPED_TEST(PhysicsTest, ShapeTransform)
     box_data.m_Restitution = 0.0f;
     typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     box_data.m_UserData = &box_visual_object;
-    Vectormath::Aos::Vector3 trans(0, 0, 0);
-    Vectormath::Aos::Quat rot = Vectormath::Aos::Quat::rotationZ((float) (0.25 * M_PI));
+    Vector3 trans(0, 0, 0);
+    Quat rot = Quat::rotationZ((float) (0.25 * M_PI));
     typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc2)(TestFixture::m_World, box_data, &box_shape, &trans, &rot, 1u);
 
     for (int i = 0; i < 200; ++i)
@@ -619,8 +621,8 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     // Test the test
 
     VisualObject static_vo;
-    static_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    static_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    static_vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    static_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     dmPhysics::CollisionObjectData static_data;
     typename TypeParam::CollisionShapeType static_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     static_data.m_Mass = 0.0f;
@@ -629,8 +631,8 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, static_data, &static_shape, 1u);
 
     VisualObject dynamic_vo;
-    dynamic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-    dynamic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    dynamic_vo.m_Position = Point3(0.0f, 1.0f, 0.0f);
+    dynamic_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     dmPhysics::CollisionObjectData dynamic_data;
     typename TypeParam::CollisionShapeType dynamic_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     dynamic_data.m_UserData = &dynamic_vo;
@@ -656,13 +658,13 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
 
     // Test trigger collision: dynamic body moving into trigger
 
-    dynamic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
-    dynamic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    dynamic_vo.m_Position = Point3(0.0f, 1.1f, 0.0f);
+    dynamic_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, dynamic_data, &dynamic_shape, 1u);
 
     VisualObject trigger_vo;
-    trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    trigger_vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    trigger_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     dmPhysics::CollisionObjectData trigger_data;
     typename TypeParam::CollisionShapeType trigger_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     trigger_data.m_Mass = 0.0f;
@@ -697,8 +699,8 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     static_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, static_data, &static_shape, 1u);
 
-    trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
-    trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    trigger_vo.m_Position = Point3(0.0f, 1.1f, 0.0f);
+    trigger_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     trigger_vo.m_CollisionCount = 0;
     trigger_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, trigger_data, &trigger_shape, 1u);
 
@@ -728,8 +730,8 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     // Test trigger collision: kinematic body moved into trigger
 
     VisualObject kinematic_vo;
-    kinematic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    kinematic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    kinematic_vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    kinematic_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     kinematic_vo.m_CollisionCount = 0;
     dmPhysics::CollisionObjectData kinematic_data;
     typename TypeParam::CollisionShapeType kinematic_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
@@ -738,8 +740,8 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     kinematic_data.m_UserData = &kinematic_vo;
     typename TypeParam::CollisionObjectType kinematic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, kinematic_data, &kinematic_shape, 1u);
 
-    trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
-    trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    trigger_vo.m_Position = Point3(0.0f, 1.1f, 0.0f);
+    trigger_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
     trigger_vo.m_CollisionCount = 0;
     trigger_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, trigger_data, &trigger_shape, 1u);
 
@@ -983,8 +985,8 @@ TYPED_TEST(PhysicsTest, EmptyRayCasting)
     result.m_Response.m_Hit = true;
 
     dmPhysics::RayCastRequest request;
-    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+    request.m_From = Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Point3(0.0f, 1.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
 
@@ -1012,14 +1014,14 @@ TYPED_TEST(PhysicsTest, RayCasting)
     memset(result, 0, sizeof(RayCastResult) * 2);
 
     dmPhysics::RayCastRequest request;
-    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f + TestFixture::m_Test.m_PolygonRadius, 0.0f);
+    request.m_From = Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Point3(0.0f, 0.51f + TestFixture::m_Test.m_PolygonRadius, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = result;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
+    request.m_To = Point3(0.0f, 0.49f, 0.0f);
     request.m_UserId = 1;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
@@ -1059,14 +1061,14 @@ TYPED_TEST(PhysicsTest, InsideRayCasting)
     memset(result, 0, sizeof(result));
 
     dmPhysics::RayCastRequest request;
-    request.m_From = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+    request.m_From = Point3(0.0f, 0.0f, 0.0f);
+    request.m_To = Point3(0.0f, 1.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = result;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
+    request.m_To = Point3(0.0f, 0.49f, 0.0f);
     request.m_UserId = 1;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
@@ -1096,8 +1098,8 @@ TYPED_TEST(PhysicsTest, IgnoreRayCasting)
     memset(&result, 0, sizeof(RayCastResult));
 
     dmPhysics::RayCastRequest request;
-    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    request.m_From = Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Point3(0.0f, 0.0f, 0.0f);
     request.m_UserId = 0;
     request.m_IgnoredUserData = &vo;
     request.m_UserData = &result;
@@ -1128,8 +1130,8 @@ TYPED_TEST(PhysicsTest, TriggerRayCasting)
     memset(&result, 0, sizeof(RayCastResult));
 
     dmPhysics::RayCastRequest request;
-    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    request.m_From = Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Point3(0.0f, 0.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
 
@@ -1150,7 +1152,7 @@ TYPED_TEST(PhysicsTest, SynchronousRayCasting)
     float box_half_ext = 0.5f;
 
     VisualObject vo_a;
-    //vo_a.m_Position = EngineToPhysicsWorld<T>(Vectormath::Aos::Point3(0.5f, 0.0, 0.0));
+    //vo_a.m_Position = EngineToPhysicsWorld<T>(Point3(0.5f, 0.0, 0.0));
     vo_a.m_Position.setX(1.0f);
 
     VisualObject vo_b;
@@ -1191,8 +1193,8 @@ TYPED_TEST(PhysicsTest, SynchronousRayCasting)
 
     // A miss
     hits.SetSize(0);
-    request.m_From = Vectormath::Aos::Point3(-1.0f, 0.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    request.m_From = Point3(-1.0f, 0.0f, 0.0f);
+    request.m_To = Point3(0.0f, 0.0f, 0.0f);
     request.m_ReturnAllResults = 0;
     (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
 
@@ -1200,8 +1202,8 @@ TYPED_TEST(PhysicsTest, SynchronousRayCasting)
 
     // A hit
     hits.SetSize(0);
-    request.m_From = Vectormath::Aos::Point3(-1.0f, 0.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(5.0f, 0.0f, 0.0f);
+    request.m_From = Point3(-1.0f, 0.0f, 0.0f);
+    request.m_To = Point3(5.0f, 0.0f, 0.0f);
     request.m_ReturnAllResults = 0;
     (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
 
@@ -1210,8 +1212,8 @@ TYPED_TEST(PhysicsTest, SynchronousRayCasting)
 
     // Two hits (the middle object has the wrong group)
     hits.SetSize(0);
-    request.m_From = Vectormath::Aos::Point3(-1.0f, 0.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(5.0f, 0.0f, 0.0f);
+    request.m_From = Point3(-1.0f, 0.0f, 0.0f);
+    request.m_To = Point3(5.0f, 0.0f, 0.0f);
     request.m_ReturnAllResults = 1;
     (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
 
@@ -1263,8 +1265,8 @@ TYPED_TEST(PhysicsTest, FilteredRayCasting)
     memset(&result, 0, sizeof(RayCastResult));
 
     dmPhysics::RayCastRequest request;
-    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, -1.0f, 0.0f);
+    request.m_From = Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Point3(0.0f, -1.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
     request.m_Mask = GROUP_B;
@@ -1289,7 +1291,7 @@ TYPED_TEST(PhysicsTest, GravityChange)
     float box_half_ext = 0.5f;
 
     // Verify that we get the defualt gravity.
-    Vectormath::Aos::Vector3 gravity = (*TestFixture::m_Test.m_GetGravityFunc)(TestFixture::m_World);
+    Vector3 gravity = (*TestFixture::m_Test.m_GetGravityFunc)(TestFixture::m_World);
     ASSERT_NEAR(0.0f, gravity.getX(), FLT_EPSILON);
     ASSERT_NEAR(-10.0f, gravity.getY(), FLT_EPSILON);
     ASSERT_NEAR(0.0f, gravity.getZ(), FLT_EPSILON);
@@ -1500,13 +1502,13 @@ TYPED_TEST(PhysicsTest, UserData)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
-void DrawLines(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data)
+void DrawLines(Point3* points, uint32_t point_count, Vector4 color, void* user_data)
 {
     bool* drew = (bool*)user_data;
     *drew = true;
 }
 
-void DrawTriangles(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data)
+void DrawTriangles(Point3* points, uint32_t point_count, Vector4 color, void* user_data)
 {
     bool* drew = (bool*)user_data;
     *drew = true;
@@ -1682,7 +1684,7 @@ TYPED_TEST(PhysicsTest, KinematicSleep)
     ASSERT_TRUE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
 
     // 1 degree rotation
-    box0_vo.m_Rotation = Vectormath::Aos::Quat::rotationZ(1.0f * M_PI / 180.0f);
+    box0_vo.m_Rotation = Quat::rotationZ(1.0f * M_PI / 180.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
@@ -2167,8 +2169,8 @@ TYPED_TEST(PhysicsTest, DisabledFromStart)
 
     // Dynamic RB
 
-    Vectormath::Aos::Point3 start_pos(1.0f, 2.0f, 0.0f);
-    Vectormath::Aos::Quat start_rot(0.0f, 0.0f, 0.0f, 1.0f);
+    Point3 start_pos(1.0f, 2.0f, 0.0f);
+    Quat start_rot(0.0f, 0.0f, 0.0f, 1.0f);
     vo.m_Position = start_pos;
     vo.m_Rotation = start_rot;
     dmPhysics::CollisionObjectData data;

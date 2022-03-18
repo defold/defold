@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,18 +14,12 @@
 
 package com.defold.libs;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.*;
 import java.util.Date;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.stream.Stream;
@@ -88,9 +84,8 @@ public class ResourceUnpacker {
 
             try {
                 Path unpackPath  = getUnpackPath();
-
                 deleteOldUnpackDirs(unpackPath);
-
+                unpackResourceFile("builtins.zip", unpackPath.resolve("builtins"));
                 unpackResourceDir("/_unpack", unpackPath);
 
                 Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
@@ -117,6 +112,38 @@ public class ResourceUnpacker {
     public static Path getUnpackedLibraryPath(String libName) {
         String mappedName = System.mapLibraryName(libName);
         return unpackedLibDir.resolve(mappedName);
+    }
+
+    private static void unpackResourceFile(String resourceFileName, Path target) throws URISyntaxException, IOException {
+        ClassLoader classLoader = ResourceUnpacker.class.getClassLoader();
+
+        try (InputStream inputStream = classLoader.getResourceAsStream(resourceFileName)) {
+            if (inputStream == null) {
+                logger.warn("attempted to unpack non-existent resource file: {}", resourceFileName);
+                return;
+            }
+
+            Path outputPath = target.resolve(resourceFileName);
+            File outputFile = outputPath.toFile();
+
+            try {
+                if (outputFile.exists() && outputFile.isDirectory()) {
+                    FileUtils.deleteQuietly(outputFile);
+                }
+
+                logger.debug("unpacking file '{}' to '{}'", resourceFileName, outputPath);
+                File outputDirectory = outputFile.getParentFile();
+
+                if (outputDirectory != null) {
+                    outputDirectory.mkdirs();
+                }
+
+                Files.copy(inputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+            catch (IOException exception) {
+                logger.warn("unpacking file '{}' to '{}' failed", resourceFileName, outputPath, exception);
+            }
+        }
     }
 
     private static void unpackResourceDir(String resourceDir, Path target) throws IOException, URISyntaxException {
@@ -151,7 +178,7 @@ public class ResourceUnpacker {
                         Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                     }
                     catch (IOException e) {
-                        logger.warn("unpack '{}' to '{}' failed", source, dest, e);
+                        logger.warn("unpacking '{}' to '{}' failed", source, dest, e);
                     }
                 }
             }

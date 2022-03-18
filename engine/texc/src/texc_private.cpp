@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -177,6 +179,22 @@ namespace dmTexc
         }
     }
 
+    void ABGR8888ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    {
+        for(uint32_t i = 0; i < width*height; ++i)
+        {
+            uint8_t a = *(data++);
+            uint8_t b = *(data++);
+            uint8_t g = *(data++);
+            uint8_t r = *(data++);
+
+            *(color_rgba++) = r;
+            *(color_rgba++) = g;
+            *(color_rgba++) = b;
+            *(color_rgba++) = a;
+        }
+    }
+
     void RGBA8888ToRGB888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
@@ -236,6 +254,7 @@ namespace dmTexc
         switch(pf)
         {
         case PF_R8G8B8A8:
+        case PF_A8B8G8R8:
         case PF_RGBA_PVRTC_2BPPV1:
         case PF_RGBA_PVRTC_4BPPV1:
         case PF_R4G4B4A4:
@@ -265,6 +284,7 @@ namespace dmTexc
         switch(pf)
         {
         case PF_R8G8B8A8:   return 4;
+        case PF_A8B8G8R8:   return 4;
         case PF_R8G8B8:     return 3;
         case PF_R4G4B4A4:   return 2;
         case PF_L8A8:       return 2;
@@ -292,6 +312,7 @@ namespace dmTexc
         case PF_R8G8B8:     RGB888ToRGBA8888(input, width, height, out); break;
         case PF_R5G6B5:     RGB565ToRGBA8888((uint16_t*)input, width, height, out); break;
         case PF_R4G4B4A4:   RGBA4444ToRGBA8888((uint16_t*)input, width, height, out); break;
+        case PF_A8B8G8R8:   ABGR8888ToRGBA8888(input, width, height, out); break;
         case PF_R8G8B8A8:   memcpy(out, input, width*height*4); break;
         default:
             dmLogError("Format not yet supported: %d", pf);

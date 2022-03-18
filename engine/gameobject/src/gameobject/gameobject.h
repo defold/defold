@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -105,13 +107,31 @@ namespace dmGameObject
      */
     void DeleteCollection(HCollection collection);
 
+
+    /**
+     * Get the component type index
+     * @name GetComponentTypeIndex
+     * @param collection Collection handle
+     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
+     * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
+     */
+    uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
+
     /**
      * Retrieve the world in the collection connected to the supplied component
      * @param collection Collection handle
-     * @param component_index index of the component for which the world is to be retrieved
-     * @return a pointer to the world, 0x0 if not found
+     * @param component_type_index index of the component type
+     * @return world [type:void*] The pointer to the world, 0x0 if not found
      */
-    void* GetWorld(HCollection collection, uint32_t component_index);
+    void* GetWorld(HCollection collection, uint32_t component_type_index);
+
+    /**
+     * Retrieve the context for a component type
+     * @param collection Collection handle
+     * @param component_type_index index of the component type
+     * @return context [type:void*] The pointer to the context, 0x0 if not found
+     */
+    void* GetContext(HCollection collection, uint32_t component_type_index);
 
     /**
      * Return an instance index to the index pool for the collection.
@@ -209,18 +229,6 @@ namespace dmGameObject
      * @return if the scale should be applied along Z
      */
     bool ScaleAlongZ(HInstance instance);
-
-    /**
-     * Set whether the instance should inherit the scale from its parent or not.
-     * @param instance Instance
-     * @param inherit_scale true if the instance should inherit scale
-     */
-    void SetInheritScale(HInstance instance, bool inherit_scale);
-
-    /**
-     * Tells the collection that a transform was updated
-     */
-    void SetDirtyTransforms(HCollection collection);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -392,6 +400,16 @@ namespace dmGameObject
     {
         dmArray<dmScript::HContext> m_ScriptContexts;
     };
+
+    /*
+     * Allows for flushing any pending messages
+    */
+    bool DispatchMessages(HCollection hcollection, dmMessage::HSocket* sockets, uint32_t socket_count);
+
+    /*
+     * Allows for updating transforms an extra time
+     */
+    void UpdateTransforms(HCollection hcollection);
 }
 
 #endif // GAMEOBJECT_H

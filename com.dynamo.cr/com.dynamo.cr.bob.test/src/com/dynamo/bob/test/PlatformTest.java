@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -30,7 +32,6 @@ public class PlatformTest {
         assertTrue(Platform.matchPlatformAgainstOS("x86_64-win32",   PlatformProfile.OS.OS_ID_WINDOWS));
         assertTrue(Platform.matchPlatformAgainstOS("x86_64-darwin",  PlatformProfile.OS.OS_ID_OSX));
         assertTrue(Platform.matchPlatformAgainstOS("x86_64-linux",   PlatformProfile.OS.OS_ID_LINUX));
-        assertTrue(Platform.matchPlatformAgainstOS("armv7-darwin",   PlatformProfile.OS.OS_ID_IOS));
         assertTrue(Platform.matchPlatformAgainstOS("arm64-darwin",   PlatformProfile.OS.OS_ID_IOS));
         assertTrue(Platform.matchPlatformAgainstOS("armv7-android",  PlatformProfile.OS.OS_ID_ANDROID));
         assertTrue(Platform.matchPlatformAgainstOS("js-web",         PlatformProfile.OS.OS_ID_WEB));
@@ -38,7 +39,6 @@ public class PlatformTest {
 
         assertTrue(Platform.matchPlatformAgainstOS("x86_64-linux",   PlatformProfile.OS.OS_ID_GENERIC));
 
-        assertFalse(Platform.matchPlatformAgainstOS("armv7-darwin",  PlatformProfile.OS.OS_ID_WINDOWS));
         assertFalse(Platform.matchPlatformAgainstOS("arm64-darwin",  PlatformProfile.OS.OS_ID_OSX));
         assertFalse(Platform.matchPlatformAgainstOS("armv7-android", PlatformProfile.OS.OS_ID_IOS));
         assertFalse(Platform.matchPlatformAgainstOS("js-web",        PlatformProfile.OS.OS_ID_ANDROID));

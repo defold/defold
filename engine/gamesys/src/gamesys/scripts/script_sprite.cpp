@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -179,6 +181,24 @@ namespace dmGameSystem
     * ```
     */
 
+    /*# [type:hash] sprite animation
+    *
+    * [mark:READ ONLY] The current animation id. An animation that plays currently for the sprite. The type of the property is [type:hash].
+    *
+    * @name animation
+    * @property
+    *
+    * @examples
+    *
+    * How to get the `animation` on component "sprite":
+    *
+    * ```lua
+    * function init(self)
+    *   local animation = go.get("#sprite", "animation")
+    * end
+    * ```
+    */
+
     /*# set horizontal flipping on a sprite's animations
      * Sets horizontal flipping of the provided sprite's animations.
      * The sprite is identified by its URL.
@@ -287,11 +307,12 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
+        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
 
         dmGameSystemDDF::SetConstant msg;
         msg.m_NameHash = name_hash;
         msg.m_Value = *value;
+        msg.m_Index = 0;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -350,7 +371,7 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        Vectormath::Aos::Vector3* scale = dmScript::CheckVector3(L, 2);
+        dmVMath::Vector3* scale = dmScript::CheckVector3(L, 2);
 
         dmGameSystemDDF::SetScale msg;
         msg.m_Scale = *scale;

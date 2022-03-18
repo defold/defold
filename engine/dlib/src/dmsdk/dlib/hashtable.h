@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -125,7 +127,7 @@ public:
      * @name Size
      * @return Number of entries.
      */
-    uint32_t Size()
+    uint32_t Size() const
     {
         return m_Count;
     }
@@ -135,7 +137,7 @@ public:
      * @name Capacity
      * @return [type: uint32_t] the capacity of the table
      */
-    uint32_t Capacity()
+    uint32_t Capacity() const
     {
         return (uint32_t)(uintptr_t)(m_InitialEntriesEnd - m_InitialEntries);
     }
@@ -368,7 +370,7 @@ public:
      * @param context Context
      */
     template <typename CONTEXT>
-    void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context)
+    void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context) const
     {
         for (uint32_t i = 0; i < m_HashTableSize; ++i)
         {

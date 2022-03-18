@@ -113,9 +113,9 @@ var EngineLoader = {
     asmjs_from: 0,
     asmjs_to: 50,
 
-    // load .wasm and set Module.instantiateWasm to use the loaded .wasm file
-    // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
-    loadWasmAsync: function(src, fromProgress, toProgress, callback) {
+    stream_wasm: false,
+
+    loadAndInstantiateWasmAsync: function(src, fromProgress, toProgress, callback) {
         FileLoader.load(src, "arraybuffer", EngineLoader.wasm_size,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
@@ -131,6 +131,31 @@ var EngineLoader = {
                 }
                 callback();
             });
+    },
+
+    streamAndInstantiateWasmAsync: function(src, fromProgress, toProgress, callback) {
+        Module.instantiateWasm = function(imports, successCallback) {
+            WebAssembly.instantiateStreaming(fetch(src), imports).then(function(output) {
+                Progress.calculateProgress(fromProgress, toProgress, 1, 1);
+                successCallback(output.instance);
+            }).catch(function(e) {
+                console.log('wasm streaming instantiation failed! ' + e);
+                throw e;
+            });
+            return {}; // Compiling asynchronously, no exports.
+        }
+        callback();
+    },
+
+    // instantiate the .wasm file either by streaming it or first loading and then instantiate it
+    // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
+    loadWasmAsync: function(src, fromProgress, toProgress, callback) {
+        if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
+            EngineLoader.streamAndInstantiateWasmAsync(src, fromProgress, toProgress, callback);
+        }
+        else {
+            EngineLoader.loadAndInstantiateWasmAsync(src, fromProgress, toProgress, callback);
+        }
     },
 
     // load and start engine script (asm.js or wasm.js)
@@ -458,35 +483,6 @@ var Progress = {
 };
 
 /* ********************************************************************* */
-/* Default input override                                                */
-/* ********************************************************************* */
-
-var CanvasInput = {
-    arrowKeysHandler : function(e) {
-        switch(e.keyCode) {
-            case 37: case 38: case 39:  case 40: // Arrow keys
-            case 32: e.preventDefault(); e.stopPropagation(); // Space
-            default: break; // do not block other keys
-        }
-    },
-
-    onFocusIn : function(e) {
-        window.addEventListener("keydown", CanvasInput.arrowKeysHandler, false);
-    },
-
-    onFocusOut: function(e) {
-        window.removeEventListener("keydown", CanvasInput.arrowKeysHandler, false);
-    },
-
-    addToCanvas : function(canvas) {
-        canvas.addEventListener("focus", CanvasInput.onFocusIn, false);
-        canvas.addEventListener("blur", CanvasInput.onFocusOut, false);
-        canvas.focus();
-        CanvasInput.onFocusIn();
-    }
-};
-
-/* ********************************************************************* */
 /* Module is Emscripten namespace                                        */
 /* ********************************************************************* */
 
@@ -578,30 +574,6 @@ var Module = {
         return webgl_support;
     },
 
-    handleVisibilityChange: function () {
-        GLFW.onFocusChanged(document[Module.hiddenProperty] ? 0 : 1);
-    },
-
-    getHiddenProperty: function () {
-        if ('hidden' in document) return 'hidden';
-        var prefixes = ['webkit','moz','ms','o'];
-        for (var i = 0; i < prefixes.length; i++) {
-            if ((prefixes[i] + 'Hidden') in document)
-                return prefixes[i] + 'Hidden';
-        }
-        return null;
-    },
-
-    setupVisibilityChangeListener: function() {
-        Module.hiddenProperty = Module.getHiddenProperty();
-        if( Module.hiddenProperty ) {
-            var eventName = Module.hiddenProperty.replace(/[H|h]idden/,'') + 'visibilitychange';
-            document.addEventListener(eventName, Module.handleVisibilityChange, false);
-        } else {
-            console.log("No document.hidden property found. The focus events won't be enabled.")
-        }
-    },
-
     setupCanvas: function(appCanvasId) {
         appCanvasId = (typeof appCanvasId === 'undefined') ? 'canvas' : appCanvasId;
         Module.canvas = document.getElementById(appCanvasId);
@@ -672,10 +644,7 @@ var Module = {
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
         if (Module.hasWebGLSupport()) {
-            // Override game keys
-            CanvasInput.addToCanvas(Module.canvas);
-
-            Module.setupVisibilityChangeListener();
+            Module.canvas.focus();
 
             // Add context menu hide-handler if requested
             if (params["disable_context_menu"])

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -415,10 +417,10 @@ public class Fontc {
             fontMapBuilder.setSdfSpread(sdf_spread);
             fontMapBuilder.setSdfOutline(outline_edge);
             fontMapBuilder.setSdfShadow(shadow_edge);
-            fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
-            fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
-            fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
         }
+        fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
+        fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
+        fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
 
         // Load external image resource for BMFont files
         BufferedImage imageBMFont = null;
@@ -453,9 +455,9 @@ public class Fontc {
             channelCount = 4;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                    inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-            // If font has shadow, we'll need 3 channels. Not all platforms universally support
+            // If font has shadow and blur, we'll need 3 channels. Not all platforms universally support
             // texture formats with only 2 channels (such as LUMINANCE_ALPHA)
-            if (fontDesc.getShadowAlpha() > 0.0f) {
+            if (fontDesc.getShadowBlur() > 0.0f && fontDesc.getShadowAlpha() > 0.0f) {
                 channelCount = 3;
             }
             else {

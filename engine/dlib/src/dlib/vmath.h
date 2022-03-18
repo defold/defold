@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -13,7 +15,7 @@
 #ifndef DM_VMATH_H
 #define DM_VMATH_H
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include "math.h"
 #include "trig_lookup.h"
 
@@ -55,9 +57,9 @@ namespace dmVMath
      * @param radians Angle of rotation
      * @return Quaternion describing the rotation
      */
-    inline Vectormath::Aos::Quat QuatFromAngle(uint32_t axis_index, float radians)
+    inline dmVMath::Quat QuatFromAngle(uint32_t axis_index, float radians)
     {
-        Vectormath::Aos::Quat q(0, 0, 0, 1);
+        dmVMath::Quat q(0, 0, 0, 1);
         float half_angle = 0.5f * radians;
         q.setElem(axis_index, dmTrigLookup::Sin(half_angle));
         q.setW(dmTrigLookup::Cos(half_angle));
@@ -77,19 +79,19 @@ namespace dmVMath
      * @param q3 real part
      * @result Euler angles in degrees and the same order as the specified rotation order
      */
-    inline Vectormath::Aos::Vector3 QuatToEuler(float q0, float q1, float q2, float q3)
+    inline dmVMath::Vector3 QuatToEuler(float q0, float q1, float q2, float q3)
     {
         // Early-out when the rotation axis is either X, Y or Z.
         // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
         uint8_t mask = (q2 != 0.f) << 2 | (q1 != 0.f) << 1 | (q0 != 0.f);
         switch (mask) {
         case 0b000:
-            return Vectormath::Aos::Vector3(0.0f, 0.0f, 0.0f);
+            return dmVMath::Vector3(0.0f, 0.0f, 0.0f);
         case 0b001:
         case 0b010:
         case 0b100:
             {
-                Vectormath::Aos::Vector3 r(0.0f, 0.0f, 0.0f);
+                dmVMath::Vector3 r(0.0f, 0.0f, 0.0f);
                 // the sum of the values yields one value, as the others are 0
                 r.setElem(mask >> 1, atan2f(q0+q1+q2, q3) * 2.0f * DEG_FACTOR);
                 return r;
@@ -123,7 +125,7 @@ namespace dmVMath
             r2 = asinf(2.0f * test);
             r0 = atan2f(2.0f * q0 * q3 - 2.0f * q1 * q2, 1.0f - 2.0f * sq0 - 2.0f * sq2);
         }
-        return Vectormath::Aos::Vector3(r0, r1, r2) * DEG_FACTOR;
+        return dmVMath::Vector3(r0, r1, r2) * DEG_FACTOR;
     }
 
 #undef DEG_FACTOR
@@ -137,21 +139,21 @@ namespace dmVMath
      * @param z rotation around z-axis (deg)
      * @result Quat describing an equivalent rotation (231 (YZX) rotation sequence).
      */
-    inline Vectormath::Aos::Quat EulerToQuat(Vectormath::Aos::Vector3 xyz)
+    inline dmVMath::Quat EulerToQuat(dmVMath::Vector3 xyz)
     {
         // Early-out when the rotation axis is either X, Y or Z.
         // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
         uint8_t mask = (xyz.getZ() != 0.f) << 2 | (xyz.getY() != 0.f) << 1 | (xyz.getX() != 0.f);
         switch (mask) {
         case 0b000:
-            return Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+            return dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f);
         case 0b001:
         case 0b010:
         case 0b100:
             {
                 // the sum of the angles yields one angle, as the others are 0
                 float ha = (xyz.getX()+xyz.getY()+xyz.getZ()) * HALF_RAD_FACTOR;
-                Vectormath::Aos::Quat q(0.0f, 0.0f, 0.0f, dmTrigLookup::Cos(ha));
+                dmVMath::Quat q(0.0f, 0.0f, 0.0f, dmTrigLookup::Cos(ha));
                 q.setElem(mask >> 1, dmTrigLookup::Sin(ha));
                 return q;
             }
@@ -172,7 +174,7 @@ namespace dmVMath
         float c1_c2 = c1*c2;
         float s2_s3 = s2*s3;
 
-        Vectormath::Aos::Quat quat;
+        dmVMath::Quat quat;
         quat.setW(-s1*s2_s3 + c1_c2*c3 );
         quat.setX( s1*s2*c3 + s3*c1_c2 );
         quat.setY( s1*c2*c3 + s2_s3*c1 );

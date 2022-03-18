@@ -1,3 +1,17 @@
+-- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+-- 
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+-- 
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
 -- This is the test script for collision object properties. Starting with 'bullet' property. More to come...
 
 function test_bullet_property()
@@ -7,10 +21,34 @@ function test_bullet_property()
 	assert(go.get("go#properties-co", "bullet"))
 end
 
+function test_collision_group()
+    assert( physics.get_group("go#properties-co") == hash("user"))
+    physics.set_group("go#properties-co","default")
+    assert( physics.get_group("go#properties-co") == hash("default"))
+    
+    -- check error is thrown if group does not exist
+    local ok, msg = pcall(function () physics.set_group("go#properties-co","nosuchgroup") end)
+    assert(not ok)
+end
+
+function test_collision_mask()
+    assert( physics.get_maskbit("go#properties-co", "default") )
+    physics.set_maskbit("go#properties-co","default", false)
+    assert( not physics.get_maskbit("go#properties-co","default") )
+    
+    physics.set_maskbit("go#properties-co","enemy", true)
+    assert( physics.get_maskbit("go#properties-co","enemy") )
+    
+    local ok, msg = pcall(function () physics.set_maskbit("go#properties-co","nosuchgroup",true) end)
+    assert(not ok)  
+end
+
 function init(self)
   physics.set_gravity(vmath.vector3(0, -10, 0))
 
   test_bullet_property()
+  test_collision_group()
+  test_collision_mask()
 end
 
 tests_done = false -- flag end of test to C level

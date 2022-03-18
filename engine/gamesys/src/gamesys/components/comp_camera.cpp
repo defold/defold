@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,16 +18,18 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <render/render.h>
 
 #include "../resources/res_camera.h"
 #include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
+#include "comp_private.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const uint32_t MAX_COUNT = 64;
     const uint8_t MAX_STACK_COUNT = 8;
@@ -50,6 +54,10 @@ namespace dmGameSystem
         dmArray<CameraComponent> m_Cameras;
         dmArray<CameraComponent*> m_FocusStack;
     };
+
+    static const dmhash_t CAMERA_PROP_FOV = dmHashString64("fov");
+    static const dmhash_t CAMERA_PROP_NEAR_Z = dmHashString64("near_z");
+    static const dmhash_t CAMERA_PROP_FAR_Z = dmHashString64("far_z");
 
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -152,13 +160,13 @@ namespace dmGameSystem
                 float height = (float)dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
                 aspect_ratio = width / height;
             }
-            Vectormath::Aos::Matrix4 projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
+            dmVMath::Matrix4 projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
 
-            Vectormath::Aos::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
-            Vectormath::Aos::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
-            Point3 look_at = pos + Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 0.0f, -1.0f));
-            Vector3 up = Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 1.0f, 0.0f));
-            Vectormath::Aos::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
+            dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
+            dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
+            Point3 look_at = pos + Vectormath::Aos::rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+            Vector3 up = Vectormath::Aos::rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
+            dmVMath::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
 
             // Send the matrices to the render script
 
@@ -264,5 +272,51 @@ namespace dmGameSystem
         camera->m_NearZ = cam_resource->m_DDF->m_NearZ;
         camera->m_FarZ = cam_resource->m_DDF->m_FarZ;
         camera->m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
+    }
+
+    dmGameObject::PropertyResult CompCameraGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        CameraComponent* component = (CameraComponent*)*params.m_UserData;
+        dmhash_t get_property = params.m_PropertyId;
+
+        if (CAMERA_PROP_FOV == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Fov);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_NEAR_Z == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_NearZ);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_FAR_Z == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_FarZ);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult CompCameraSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        CameraComponent* component = (CameraComponent*)*params.m_UserData;
+        dmhash_t set_property = params.m_PropertyId;
+        
+        if (CAMERA_PROP_FOV == set_property)
+        {
+            component->m_Fov = params.m_Value.m_Number;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_NEAR_Z == set_property)
+        {
+            component->m_NearZ = params.m_Value.m_Number;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_FAR_Z == set_property)
+        {
+            component->m_FarZ = params.m_Value.m_Number;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 }

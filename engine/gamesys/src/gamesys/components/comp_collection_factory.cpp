@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -22,14 +24,14 @@
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* COLLECTION_FACTORY_MAX_COUNT_KEY = "collectionfactory.max_count";
 

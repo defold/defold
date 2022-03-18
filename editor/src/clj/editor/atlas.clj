@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -419,6 +421,12 @@
                                             (assoc pb-msg :texture (-> texture-target :resource :resource))
                                             [:texture])])))
 
+(g/defnk produce-atlas-texture-set-pb [texture-set]
+  (let [pb-msg            texture-set
+        texture-path      "" ; We don't have it at this point, as it's generated.
+        content-pb        (protobuf/map->bytes TextureSetProto$TextureSet (assoc pb-msg :texture texture-path))]
+    content-pb))
+
 (defn gen-renderable-vertex-buffer
   [width height]
   (let [x0 0
@@ -633,6 +641,8 @@
 
   (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
                                                  (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  
+  (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
   (output aabb             AABB                (g/fnk [layout-size]
                                                  (if (= [0 0] layout-size)

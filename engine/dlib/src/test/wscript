@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 import os, re
+import sdk
+import waf_dynamo
 from waf_dynamo import is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
@@ -31,8 +33,10 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if os.path.exists('src/test/' + platform_source_path):
         platform_source = ' ' + platform_source_path
 
-    if not skip_run:
-        req_features.append('test')
+    req_features.append('test')
+    if skip_run:
+        req_features.append('skip_test')
+        
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:
@@ -74,7 +78,7 @@ def build(bld):
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
     extra_defines = []
-    if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     skip_run = False
@@ -84,6 +88,10 @@ def build(bld):
     skip_http_run = False
     if 'win32' in bld.env['PLATFORM']:
         skip_http_run = True
+
+    skip_ssdp = False
+    if 'win32' in bld.env['PLATFORM'] or sdk.is_wsl():
+        skip_ssdp = True
 
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
@@ -122,12 +130,13 @@ def build(bld):
     create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run)
+    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
+    create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
     create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
+    create_test(bld, 'test_intersection', extra_libs = ['THREAD'])
     create_test(bld, 'test_easing', extra_libs = ['THREAD'])
     create_test(bld, 'test_json', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/flickr.json'], extra_includes = ['.'])

@@ -1,3 +1,17 @@
+# Copyright 2020-2022 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+# 
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+# 
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 import os, sys, subprocess, shutil, re, stat, glob, zipfile
 import Build, Options, Utils, Task, Logs
 import Configure
@@ -7,6 +21,7 @@ from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+import sdk
 
 if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
@@ -51,7 +66,7 @@ if 'waf_dynamo_private' not in sys.modules:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'armv7-darwin', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -64,33 +79,22 @@ def transform_runnable_path(platform, path):
     return waf_dynamo_private.transform_runnable_path(platform, path)
 
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
-SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+# The goal is to put the sdk versions in sdk.py
+SDK_ROOT=sdk.SDK_ROOT
+
 ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '30.0.3'
-ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
-ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
+ANDROID_NDK_ROOT=os.path.join(SDK_ROOT,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
 ANDROID_TARGET_API_LEVEL='30' # Android 11.0
 ANDROID_MIN_API_LEVEL='14'
 ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="14.5"
-IOS_SIMULATOR_SDK_VERSION="14.5"
-# NOTE: Minimum iOS-version is also specified in Info.plist-files
-# (MinimumOSVersion and perhaps DTPlatformVersion)
-MIN_IOS_SDK_VERSION="8.0"
+CLANG_VERSION='clang-13.0.0'
 
-OSX_SDK_VERSION="11.3"
-MIN_OSX_SDK_VERSION="10.7"
-
-XCODE_VERSION="12.5"
-XCODE_CLANG_VERSION="12.0.5"
-SWIFT_VERSION="5.0"
-
-SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
-DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
+SDK_ROOT=sdk.SDK_ROOT
 LINUX_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT, 'linux')
 
 # Workaround for a strange bug with the combination of ccache and clang
@@ -294,7 +298,6 @@ after('apply_lib_vars')(apply_framework)
 # I don't know if this is entirely correct
 @before('apply_core')
 def default_flags(self):
-    global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
 
     opt_level = Options.options.opt_level
@@ -342,6 +345,9 @@ def default_flags(self):
         else:
             self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
 
+    if not hasattr(self, 'sdkinfo'):
+        self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
+
     libpath = build_util.get_library_path()
 
     # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
@@ -374,8 +380,8 @@ def default_flags(self):
 
     elif "osx" == build_util.get_target_os():
 
-        sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)
-        swift_dir = "%s/usr/lib/swift-%s/macosx" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
+        sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_MACOSX)
+        swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
@@ -384,14 +390,14 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti'])
 
             self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
-            self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
+            self.env.append_value(f, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN)
 
             self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
-            if 'linux' in self.env['BUILD_PLATFORM']:
+            if self.env['BUILD_PLATFORM'] in ('x86_64-linux', 'x86_64-darwin'):
                 self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
 
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
-        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '%s' % swift_dir])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
             self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin19'])
@@ -403,21 +409,21 @@ def default_flags(self):
         if 'linux' in self.env['BUILD_PLATFORM']:
             target_triplet='arm-apple-darwin19'
             extra_ccflags += ['-target', target_triplet]
-            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/%s/lib/darwin' % XCODE_CLANG_VERSION),
-                                '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a')]
+            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']),'usr/lib/clang/%s/lib/darwin' % self.sdkinfo['xcode-clang']['version']),
+                                '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
             extra_linkflags += ['-fobjc-link-runtime']
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
-        sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)
-        swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
+        sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONEOS)
+        swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
-            sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)
-            swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (DARWIN_TOOLCHAIN_ROOT, SWIFT_VERSION)
+            sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONESIMULATOR)
+            swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
-                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
 
             self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
 
@@ -425,13 +431,14 @@ def default_flags(self):
             if 'x86_64' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION] + extra_linkflags)
-        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % DARWIN_TOOLCHAIN_ROOT, '%s' % swift_dir])
+        self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN] + extra_linkflags)
+        self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
 
-        sysroot='%s/toolchains/llvm/prebuilt/%s-x86_64/sysroot' % (ANDROID_NDK_ROOT, self.env['BUILD_PLATFORM'])
+        bp_arch, bp_os = self.env['BUILD_PLATFORM'].split('-')
+        sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
@@ -484,9 +491,9 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
-            self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX' '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
+            self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX' '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
     platform_setup_vars(self, build_util)
@@ -760,7 +767,10 @@ def codesign(task):
     entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=%s/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (DARWIN_TOOLCHAIN_ROOT, identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
+    if not hasattr(task.generator, 'sdkinfo'):
+        task.generator.sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env['PLATFORM'])
+
+    ret = bld.exec_command('CODESIGN_ALLOCATE=%s/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (sdk.get_toolchain_root(task.generator.sdkinfo, bld.env['PLATFORM']), identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
     if ret != 0:
         error('Error running codesign')
         return 1
@@ -832,7 +842,7 @@ Task.task_type_from_func('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','x86_64-darwin','arm64-darwin','armv7-android','arm64-android']:
         return 0 # return ok, path is still unstripped
 
     strip = "strip"
@@ -926,47 +936,6 @@ def create_app_bundle(self):
         codesign.exe = self.link_task.outputs[0]
         codesign.signed_exe = signed_exe
 
-# TODO: We should support a custom AndroidManifest.xml-file in waf
-# Or at least a decent templating system, e.g. mustache
-ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
-<!-- BEGIN_INCLUDE(manifest) -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-        package="%(package)s"
-        android:versionCode="1"
-        android:versionName="1.0"
-        android:installLocation="auto">
-
-    <uses-feature android:required="true" android:glEsVersion="0x00020000" />
-    <uses-sdk android:minSdkVersion="%(min_api_level)s" android:targetSdkVersion="%(target_api_level)s" />
-    <application
-        android:label="%(app_name)s"
-        android:hasCode="true"
-        android:name="android.support.multidex.MultiDexApplication">
-
-        <meta-data android:name="android.max_aspect" android:value="2.1" />
-        <meta-data android:name="android.notch_support" android:value="true"/>
-
-        <activity android:name="com.dynamo.android.DefoldActivity"
-                android:label="%(app_name)s"
-                android:configChanges="orientation|screenSize|keyboardHidden"
-                android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-                android:launchMode="singleTask">
-            <meta-data android:name="android.app.lib_name"
-                    android:value="%(lib_name)s" />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-    </application>
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-</manifest>
-<!-- END_INCLUDE(manifest) -->
-"""
 
 ANDROID_STUB = """
 struct android_app;
@@ -995,24 +964,18 @@ def android_package(task):
         build_util = create_build_utility(task.env)
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
-    manifest_file = open(task.manifest.bldpath(task.env), 'wb')
-    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
-    manifest_file.close()
 
-    aapt = '%s/android-sdk/build-tools/%s/aapt' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-    manifest = task.manifest.abspath(task.env)
-    dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
 
-    libs = os.path.join(dme_and, 'libs')
-    bin = os.path.join(dme_and, 'bin')
+    root = os.path.normpath(os.path.join(os.path.dirname(task.classes_dex.abspath(task.env)), '..', '..'))
+    libs = os.path.join(root, 'libs')
+    bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
     dx_libs = os.path.join(bin, 'dexedLibs')
-    gen = os.path.join(dme_and, 'gen')
-    ap_ = task.ap_.abspath(task.env)
+    gen = os.path.join(root, 'gen')
     native_lib = task.native_lib.abspath(task.env)
 
     bld.exec_command('mkdir -p %s' % (libs))
@@ -1021,16 +984,6 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-
-    if task.extra_packages:
-        extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
-    else:
-        extra_packages_cmd = ''
-
-    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, ap_))
-    if ret != 0:
-        error('Error running aapt')
-        return 1
 
     dx_jars = []
     for jar in task.jars:
@@ -1054,50 +1007,11 @@ def android_package(task):
             error('Error running dx')
             return 1
 
-    if os.path.exists(task.classes_dex.abspath(task.env)):
-        with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
-            zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
-
-    apk_unaligned = task.apk_unaligned.abspath(task.env)
-    libs_dir = task.native_lib.parent.parent.abspath(task.env)
-
     # strip the executable
     path = task.native_lib.abspath(task.env)
     ret = _strip_executable(bld, task.env.PLATFORM, build_util.get_target_architecture(), path)
     if ret != 0:
         error('Error stripping file %s' % path)
-        return 1
-
-    # add library files
-    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
-        for root, dirs, files in os.walk(libs_dir):
-            for f in files:
-                full_path = os.path.join(root, f)
-                relative_path = os.path.relpath(full_path, libs_dir)
-                if relative_path.startswith('armeabi-v7a'):
-                    relative_path = os.path.join('lib', relative_path)
-                if relative_path.startswith('arm64-v8a'):
-                    relative_path = os.path.join('lib', relative_path)
-                zip.write(full_path, relative_path)
-
-    shutil.copy(ap_, apk_unaligned)
-
-    apk = task.apk.abspath(task.env)
-
-    zipalign = '%s/android-sdk/build-tools/%s/zipalign' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
-    ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, ap_))
-    if ret != 0:
-        error('Error running zipalign')
-        return 1
-
-    apkc = '%s/ext/bin/x86_64-%s/apkc' % (os.environ['DYNAMO_HOME'], task.env.BUILD_PLATFORM)
-    if not os.path.exists(apkc):
-        error("file doesn't exist: %s" % apkc)
-        return 1
-
-    ret = bld.exec_command('%s --in="%s" --out="%s"' % (apkc, ap_, apk))
-    if ret != 0:
-        error('Error running apkc')
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
@@ -1142,9 +1056,6 @@ def create_android_package(self):
 
     android_package_task.exe_name = exe_name
 
-    manifest = self.path.exclusive_build_node("%s.android/AndroidManifest.xml" % exe_name)
-    android_package_task.manifest = manifest
-
     try:
         build_util = create_build_utility(android_package_task.env)
     except BuildUtilityException as ex:
@@ -1156,16 +1067,6 @@ def create_android_package(self):
         native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
-
-    ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
-    android_package_task.ap_ = ap_
-
-    apk_unaligned = self.path.exclusive_build_node("%s.android/%s-unaligned.apk" % (exe_name, exe_name))
-    android_package_task.apk_unaligned = apk_unaligned
-
-    apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
-    android_package_task.apk = apk
-
     android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
@@ -1176,7 +1077,7 @@ def create_android_package(self):
     else:
         android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
-    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk,
+    android_package_task.set_outputs([native_lib,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
 
     self.android_package_task = android_package_task
@@ -1432,66 +1333,6 @@ def extract_symbols(self):
     ziptask.set_outputs(archive)
     ziptask.install_path = self.install_path
 
-def create_clang_wrapper(conf, exe):
-    clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
-
-    s = '#!/bin/sh\n'
-    # NOTE:  -Qunused-arguments to make clang happy (clang: warning: argument unused during compilation)
-    s += "%s -Qunused-arguments $@\n" % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
-    if os.path.exists(clang_wrapper_path):
-        # Keep existing script if equal
-        # The cache in ccache consistency control relies on the timestamp
-        with open(clang_wrapper_path, 'rb') as f:
-            if f.read() == s:
-                return clang_wrapper_path
-
-    with open(clang_wrapper_path, 'wb') as f:
-        f.write(s)
-    os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-    return clang_wrapper_path
-
-def get_msvc_version(conf, platform):
-    # We return these mappings in a format that the waf tools would have returned (if they worked, and weren't very very slow)
-    dynamo_home = conf.env['DYNAMO_HOME']
-    msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
-    windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
-
-    arch = 'x64'
-    if platform == 'win32':
-        arch = 'x86'
-
-    # Since the programs(Windows!) can update, we do this dynamically to find the correct version
-    ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
-    ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
-    ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
-    ucrt_version = ucrt_dirs[-1]
-    if not ucrt_version.startswith('10.0'):
-        conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
-
-    msvc_version = [x for x in os.listdir(os.path.join(msvcdir,'VC','Tools','MSVC'))]
-    msvc_version = [x for x in msvc_version if x.startswith('14.')]
-    msvc_version.sort(key=lambda x: map(int, x.split('.')))
-    msvc_version = msvc_version[-1]
-    if not msvc_version.startswith('14.'):
-        conf.fatal("Unable to determine msvc version: '%s'" % msvc_version)
-
-    msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
-                os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
-
-    includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
-
-    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
-
-    return msvc_path, includes, libdirs
-
 def remove_flag_at_index(arr, index, count):
     for i in range(count):
         del arr[index]
@@ -1508,18 +1349,11 @@ def detect(conf):
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
 
+    build_platform = sdk.get_host_platform()
+
     platform = None
     if getattr(Options.options, 'platform', None):
         platform=getattr(Options.options, 'platform')
-
-    if sys.platform == "darwin":
-        build_platform = "darwin"
-    elif sys.platform == "linux2":
-        build_platform = "linux"
-    elif sys.platform == "win32":
-        build_platform = "win32"
-    else:
-        conf.fatal("Unable to determine host platform")
 
     if not platform:
         platform = build_platform
@@ -1533,7 +1367,7 @@ def detect(conf):
     else:
         bob_build_platform = platform
 
-    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
+    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform # used in waf_gamesys.py TODO: Remove the need for BOB_BUILD_PLATFORM (weird names)
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
@@ -1548,7 +1382,10 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
-    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
+    sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, build_platform)
+
+    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env['TESTS_UNSUPPORTED'] = True
         print "Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform)
 
@@ -1556,26 +1393,28 @@ def detect(conf):
         print "Codesign disabled", Options.options.skip_codesign
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('x86_64-ios','js-web','wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
-        msvc_path, includes, libdirs = get_msvc_version(conf, platform)
+        includes = sdkinfo['includes']['path']
+        libdirs = sdkinfo['lib_paths']['path']
+        bindirs = sdkinfo['bin_paths']['path']
 
         if platform == 'x86_64-win32':
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (msvc_path, includes, libdirs)))])]
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (bindirs, includes, libdirs)))])]
         else:
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (msvc_path, includes, libdirs)))])]
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
 
         if not Options.options.skip_codesign:
-            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
-            path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')]
+            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')]
         else:
-            path_list=[os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr','bin')]
+            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
         conf.find_program('zip', var='ZIP', mandatory = True)
 
@@ -1586,10 +1425,10 @@ def detect(conf):
         os.environ['CXX'] = 'clang++'
 
         llvm_prefix = ''
-        bin_dir = '%s/usr/bin' % (DARWIN_TOOLCHAIN_ROOT)
+        bin_dir = '%s/usr/bin' % (sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()))
         if 'linux' in build_platform:
             llvm_prefix = 'llvm-'
-            bin_dir = os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+            bin_dir = os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1603,7 +1442,7 @@ def detect(conf):
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in build_platform:
-            bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+            bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1614,13 +1453,7 @@ def detect(conf):
             conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
 
         else:
-            # # Wrap clang in a bash-script due to a bug in clang related to cwd
-            # # waf change directory from ROOT to ROOT/build when building.
-            # # clang "thinks" however that cwd is ROOT instead of ROOT/build
-            # # This bug is at least prevalent in "Apple clang version 3.0 (tags/Apple/clang-211.12) (based on LLVM 3.0svn)"
-            # clang_wrapper = create_clang_wrapper(conf, 'clang')
-            # clangxx_wrapper = create_clang_wrapper(conf, 'clang++')
-            bin_dir = '%s/usr/bin' % (DARWIN_TOOLCHAIN_ROOT)
+            bin_dir = '%s/usr/bin' % (sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()))
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1637,12 +1470,12 @@ def detect(conf):
 
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        arch        = 'x86_64'
+        bp_arch, bp_os = build_platform.split('-')
         target_arch = build_util.get_target_architecture()
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
-        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
+        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
         conf.env['CC']       = '%s/%s' % (bintools, clang_name)
         conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
@@ -1654,10 +1487,11 @@ def detect(conf):
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
     elif 'linux' == build_util.get_target_os():
-        bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
-        conf.find_program('clang-9', var='CLANG9', mandatory = False, path_list=[bin_dir])
+        bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')
 
-        if conf.env.CLANG9 and "clang-9" in conf.env.CLANG9:
+        conf.find_program('clang', var='CLANG', mandatory = False, path_list=[bin_dir])
+
+        if conf.env.CLANG:
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
             conf.env['CPP']     = '%s/clang -E' % bin_dir
@@ -1669,7 +1503,7 @@ def detect(conf):
         else:
             # Fallback to default compiler
             conf.env.CXX = "clang++"
-            conf.env.CC = "clang++"
+            conf.env.CC = "clang"
             conf.env.CPP = "clang -E"
 
     platform_setup_tools(conf, build_util)
@@ -1728,7 +1562,7 @@ def detect(conf):
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
-    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.check_tool('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
@@ -1774,7 +1608,7 @@ def detect(conf):
 
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
-    elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    elif platform in ('arm64-darwin', 'x86_64-ios'):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
@@ -1811,7 +1645,7 @@ def detect(conf):
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
-    elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
+    elif platform in ('arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
@@ -1849,7 +1683,7 @@ def set_options(opt):
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
 
-    opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')

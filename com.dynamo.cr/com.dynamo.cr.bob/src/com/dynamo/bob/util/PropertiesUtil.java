@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -17,10 +19,15 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import com.dynamo.bob.Builder;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.pipeline.CubemapBuilder;
 import com.dynamo.bob.pipeline.ProtoBuilders;
+import com.dynamo.bob.pipeline.TextureBuilder;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
@@ -136,6 +143,19 @@ public class PropertiesUtil {
             }
         }
         return resources;
+    }
+
+    public static void createResourcePropertyTasks(Project project, IResource resource, IResource input) throws CompileExceptionError {
+        // Textures and cubemaps
+        Class<? extends Builder<?>> klass = project.getBuilderFromExtension(resource);
+        if ( klass == TextureBuilder.class || klass == CubemapBuilder.class) {
+            Task<?> embedTask = project.createTask(resource);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", resource.getPath()));
+            }
+        }
     }
 
 }

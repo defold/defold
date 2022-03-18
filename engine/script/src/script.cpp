@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -139,6 +141,8 @@ namespace dmScript
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         *seed = luaL_checkint(L, 1);
+        // discard first value to avoid repeated values
+        dmMath::Rand(seed);
         lua_pop(L, 1);
         return 0;
     }
@@ -177,6 +181,8 @@ namespace dmScript
             *seed = 0;
             lua_pushlightuserdata(L, seed);
             lua_setglobal(L, RANDOM_SEED);
+            // discard first value to avoid repeated values
+            dmMath::Rand(seed);
 
             lua_pushcfunction(L, Lua_Math_Random);
             lua_setfield(L, -2, "random");
@@ -364,7 +370,7 @@ namespace dmScript
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[DM_LOG_MAX_STRING_SIZE];
+        char buffer[dmLog::MAX_STRING_SIZE];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -549,7 +555,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
         int n = lua_gettop(L);
 
-        char buf[DM_LOG_MAX_STRING_SIZE];
+        char buf[dmLog::MAX_STRING_SIZE];
         dmPPrint::Printer printer(buf, sizeof(buf));
         dmHashTable<uintptr_t, bool> printed_tables;
         for (int s = 1; s <= n; ++s)
@@ -1483,6 +1489,27 @@ namespace dmScript
         int        m_Callback;
         int        m_Self;
     };
+
+    // static void printStack(lua_State* L)
+    // {
+    //     int top = lua_gettop(L);
+    //     int bottom = 1;
+    //     lua_getglobal(L, "tostring");
+    //     for(int i = top; i >= bottom; i--)
+    //     {
+    //         lua_pushvalue(L, -1);
+    //         lua_pushvalue(L, i);
+    //         lua_pcall(L, 1, 1, 0);
+    //         const char *str = lua_tostring(L, -1);
+    //         if (str) {
+    //             printf("%2d: %s\n", i, str);
+    //         }else{
+    //             printf("%2d: %s\n", i, luaL_typename(L, i));
+    //         }
+    //         lua_pop(L, 1);
+    //     }
+    //     lua_pop(L, 1);
+    // }
 
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {

@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -19,16 +21,15 @@ public class Messages extends BobNLS {
 
     public static String BuilderUtil_EMPTY_RESOURCE;
     public static String BuilderUtil_MISSING_RESOURCE;
+    public static String BuilderUtil_DUPLICATE_RESOURCE;
 
     public static String GuiBuilder_MISSING_TEXTURE;
     public static String GuiBuilder_MISSING_FONT;
-    public static String GuiBuilder_MISSING_SPINESCENE;
     public static String GuiBuilder_MISSING_PARTICLEFX;
     public static String GuiBuilder_MISSING_LAYER;
 
     public static String GuiBuilder_DUPLICATED_TEXTURE;
     public static String GuiBuilder_DUPLICATED_FONT;
-    public static String GuiBuilder_DUPLICATED_SPINESCENE;
     public static String GuiBuilder_DUPLICATED_PARTICLEFX;
     public static String GuiBuilder_DUPLICATED_LAYER;
 

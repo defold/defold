@@ -1,3 +1,16 @@
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #include "sslsocket.h"
 #include "log.h"
@@ -7,6 +20,8 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include <dlib/file_descriptor.h>
+
 #include <mbedtls/certs.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/debug.h>
@@ -14,6 +29,8 @@
 #include <mbedtls/error.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/ssl.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/x509_crt.h>
 
 // For the select stuff. We could possibly use our own select from socket.h
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
@@ -64,6 +81,8 @@ struct SSLSocketContext
     mbedtls_entropy_context     m_MbedEntropy;
     mbedtls_ctr_drbg_context    m_MbedCtrDrbg;
     mbedtls_ssl_config          m_MbedConf;
+    mbedtls_x509_crt            m_x509CertChain;
+    bool                        m_SslKeysSet;
 } g_SSLSocketContext;
 
 #define MBEDTLS_RESULT_TO_STRING_CASE(x) case x: return #x;
@@ -144,13 +163,7 @@ static dmSocket::Result SSLToSocket(int r) {
 
 Result Initialize()
 {
-    // We should manually and optionally verify certificates
-    // but it require that root-certs
-    // are bundled in the engine and some kind of lazy loading
-    // mechanism as we can't load every possible certificate for
-    // every connections. It's possible to introspect the SSL object
-    // to find out which certificates to load.
-
+    g_SSLSocketContext.m_SslKeysSet = false;
     mbedtls_ssl_config_init( &g_SSLSocketContext.m_MbedConf );
     mbedtls_ctr_drbg_init( &g_SSLSocketContext.m_MbedCtrDrbg );
     mbedtls_entropy_init( &g_SSLSocketContext.m_MbedEntropy );
@@ -187,9 +200,29 @@ Result Initialize()
 
 Result Finalize()
 {
+    if (g_SSLSocketContext.m_SslKeysSet)
+    {
+        mbedtls_x509_crt_free( &g_SSLSocketContext.m_x509CertChain );
+    }
     mbedtls_ssl_config_free( &g_SSLSocketContext.m_MbedConf );
     mbedtls_ctr_drbg_free( &g_SSLSocketContext.m_MbedCtrDrbg );
     mbedtls_entropy_free( &g_SSLSocketContext.m_MbedEntropy );
+    return RESULT_OK;
+}
+
+Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
+{
+    // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
+    int ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen + 1);
+    if (ret != 0)
+    {
+        char buffer[512] = "";
+        mbedtls_strerror(ret, buffer, sizeof(buffer));
+        dmLogError("SSLSocket mbedtls_x509_crt_parse: %s0x%04x - %s", ret < 0 ? "-":"", ret < 0 ? -ret:ret, buffer);
+        return RESULT_SSL_INIT_FAILED;
+    }
+    g_SSLSocketContext.m_SslKeysSet = true;
+    mbedtls_ssl_conf_authmode( &g_SSLSocketContext.m_MbedConf, MBEDTLS_SSL_VERIFY_REQUIRED );
     return RESULT_OK;
 }
 
@@ -222,8 +255,6 @@ static int TimingGetDelay(void* data)
 static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t timeout )
 {
     int ret;
-    struct timeval tv;
-    fd_set read_fds;
 
     CustomNetContext* ctx = (CustomNetContext*)_ctx;
     int fd = ctx->m_Context.fd;
@@ -231,17 +262,13 @@ static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t tim
     if( fd < 0 )
         return( MBEDTLS_ERR_NET_INVALID_CONTEXT );
 
-    FD_ZERO( &read_fds );
-    FD_SET( fd, &read_fds );
-
     if (timeout == 0 && ctx->m_Timeout != 0) {
         timeout = ctx->m_Timeout / 1000;
     }
 
-    tv.tv_sec  = timeout / 1000;
-    tv.tv_usec = ( timeout % 1000 ) * 1000;
-
-    ret = select( fd + 1, &read_fds, NULL, NULL, timeout == 0 ? NULL : &tv );
+    dmFileDescriptor::Poller poller;
+    dmFileDescriptor::PollerSetEvent(&poller, dmFileDescriptor::EVENT_READ, fd);
+    ret = dmFileDescriptor::Wait(&poller, timeout == 0 ? -1 : timeout);
 
     // Zero fds ready means we timed out
     if( ret == 0 )
@@ -291,6 +318,11 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
 
     mbedtls_ssl_init( c->m_SSLContext );
 
+    if (g_SSLSocketContext.m_SslKeysSet)
+    {
+        mbedtls_ssl_conf_ca_chain( &g_SSLSocketContext.m_MbedConf, &g_SSLSocketContext.m_x509CertChain, NULL);
+    }
+
     int ret = 0;
     if( ( ret = mbedtls_ssl_setup( c->m_SSLContext, &g_SSLSocketContext.m_MbedConf ) ) != 0 )
     {
@@ -326,7 +358,9 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
 
     if (ret != 0)
     {
-        SSL_LOGE("mbedtls_ssl_handshake failed", ret);
+        char buffer[512] = "";
+        mbedtls_strerror(ret, buffer, sizeof(buffer));
+        dmLogError("SSLSocket mbedtls_ssl_handshake: %d - %s",ret, buffer);
         if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
         {
             dmLogError("Unable to verify the server's certificate.");

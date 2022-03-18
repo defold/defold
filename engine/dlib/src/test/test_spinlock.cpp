@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -20,7 +22,7 @@
 
 // NOTE: volatile. Otherwise gcc will consider the addition loop invariant
 volatile int32_t g_Value = 0;
-dmSpinlock::lock_t g_Lock;
+dmSpinlock::Spinlock g_Lock;
 
 const int32_t ITER = 400000;
 

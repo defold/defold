@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,6 +16,7 @@
 #define DMSDK_GAMESYS_SCRIPT_H
 
 #include <dmsdk/dlib/buffer.h>
+#include <dmsdk/dlib/log.h>
 #include <dmsdk/script/script.h>
 #include <dmsdk/gameobject/gameobject.h>
 
@@ -24,12 +27,22 @@ extern "C"
 }
 
 
+/*# SDK Script API documentation
+ *
+ * Built-in scripting functions.
+ *
+ * @document
+ * @name Script
+ * @namespace dmScript
+ * @path engine/gamesys/src/dmsdk/gamesys/script.h
+ */
 namespace dmScript
 {
     /*#
      * Get current game object instance
      * Works in both gameobjects and gui scripts
      *
+     * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
      * @return instance [type: dmGameObject::HInstance]
      */
@@ -41,6 +54,7 @@ namespace dmScript
      * The instance reference (url) at stack index "index" will be resolved to an instance.
      * @note The function only accepts instances in "this" collection. Otherwise a lua-error will be raised.
      *
+     * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
      * @param index [type: int] lua-arg
      * @return instance [type: lua_State*] gameobject instance
@@ -90,8 +104,16 @@ namespace dmScript
      *
      * @struct
      * @name dmScript::LuaHBuffer
+     * @member Union of
+     *     - m_BufferRes [type:void*]                       A buffer resource
+     *     - m_Buffer    [type:dmBuffer::HBuffer]           A buffer
      * @member m_Buffer [type:dmBuffer::HBuffer]            The buffer (or resource)
      * @member m_Owner  [type:dmScript::LuaBufferOwnership] What ownership the pointer has
+     *
+     * @examples
+     *
+     * See examples for dmScript::PushBuffer()
+     *
      */
     struct LuaHBuffer
     {
@@ -99,10 +121,37 @@ namespace dmScript
             dmBuffer::HBuffer   m_Buffer;
             void*               m_BufferRes;
         };
-        union {
+        union
+        {
             bool                m_UseLuaGC; // Deprecated
             LuaBufferOwnership  m_Owner;
         };
+
+        LuaHBuffer() {}
+
+        LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership)
+        : m_Buffer(buffer)
+        , m_Owner(ownership)
+        {
+        }
+
+        LuaHBuffer(void* buffer_resource)
+        : m_BufferRes(buffer_resource)
+        , m_Owner(OWNER_RES)
+        {
+        }
+
+        LuaHBuffer(dmBuffer::HBuffer buffer, bool use_lua_gc)
+        : m_Buffer(buffer)
+        , m_UseLuaGC(use_lua_gc)
+        {
+            static int first = 1;
+            if (first)
+            {
+                first = 0;
+                dmLogWarning("The constructor is deprecated: dmScript::LuaHBuffer wrapper = { HBuffer, bool };");
+            }
+        }
     };
 
     /*# check if the value is a dmScript::LuaHBuffer
@@ -128,14 +177,14 @@ namespace dmScript
      * How to push a buffer and give Lua ownership of the buffer (GC)
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_LUA };
+     * dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
      * PushBuffer(L, luabuf);
      * ```
      *
      * How to push a buffer and keep ownership in C++
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_C };
+     * dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_C);
      * PushBuffer(L, luabuf);
      * ```
      */

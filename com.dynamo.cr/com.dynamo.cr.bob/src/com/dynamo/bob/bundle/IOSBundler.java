@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -146,13 +148,12 @@ public class IOSBundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
-            throws IOException, CompileExceptionError {
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
 
         BundleHelper.throwIfCanceled(canceled);
 
-        final Platform platform = Platform.Armv7Darwin;
+        final Platform platform = Platform.Arm64Darwin;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
@@ -219,7 +220,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy archive and game.projectc
-        for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
             FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
 
@@ -293,7 +294,7 @@ public class IOSBundler implements IBundler {
             logger.log(Level.WARNING, "ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, Platform.Arm64Darwin, bundleDir, variant);
 
         helper.copyOrWriteManifestFile(architectures.get(0), appDir);
         helper.copyIosIcons();

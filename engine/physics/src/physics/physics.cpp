@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,8 +24,6 @@
 
 namespace dmPhysics
 {
-    using namespace Vectormath::Aos;
-
     /**
      * Adds the overlap of an object to a specific entry.
      * Returns whether the overlap was added (might be out of space).
@@ -106,7 +106,7 @@ namespace dmPhysics
 
     void OverlapCacheInit(OverlapCache* cache)
     {
-    	cache->m_OverlapCache.SetCapacity(3 * CACHE_INITIAL_CAPACITY / 4, CACHE_INITIAL_CAPACITY);
+        cache->m_OverlapCache.SetCapacity(3 * CACHE_INITIAL_CAPACITY / 4, CACHE_INITIAL_CAPACITY);
     }
 
     /**
@@ -123,7 +123,7 @@ namespace dmPhysics
 
     void OverlapCacheReset(OverlapCache* cache)
     {
-    	cache->m_OverlapCache.Iterate(ResetOverlap, (void*)0x0);
+        cache->m_OverlapCache.Iterate(ResetOverlap, (void*)0x0);
     }
 
     void OverlapCacheAdd(OverlapCache* cache, const OverlapCacheAddData& data)

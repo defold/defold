@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +17,7 @@
 
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "physics.h"
 #include "physics_private.h"
@@ -65,30 +68,31 @@ namespace dmPhysics
         float                       m_InvScale;
         float                       m_ContactImpulseLimit;
         float                       m_TriggerEnterLimit;
+        float                       m_VelocityThreshold;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;
     };
 
-    inline void ToB2(const Vectormath::Aos::Point3& p0, b2Vec2& p1, float scale)
+    inline void ToB2(const dmVMath::Point3& p0, b2Vec2& p1, float scale)
     {
         p1.Set(p0.getX() * scale, p0.getY() * scale);
     }
 
-    inline void ToB2(const Vectormath::Aos::Vector3& p0, b2Vec2& p1, float scale)
+    inline void ToB2(const dmVMath::Vector3& p0, b2Vec2& p1, float scale)
     {
         p1.Set(p0.getX() * scale, p0.getY() * scale);
     }
 
-    inline void FromB2(const b2Vec2& p0, Vectormath::Aos::Vector3& p1, float inv_scale)
+    inline void FromB2(const b2Vec2& p0, dmVMath::Vector3& p1, float inv_scale)
     {
         p1.setX(p0.x * inv_scale);
         p1.setY(p0.y * inv_scale);
         p1.setZ(0.0f);
     }
 
-    inline void FromB2(const b2Vec2& p0, Vectormath::Aos::Point3& p1, float inv_scale)
+    inline void FromB2(const b2Vec2& p0, dmVMath::Point3& p1, float inv_scale)
     {
         p1.setX(p0.x * inv_scale);
         p1.setY(p0.y * inv_scale);

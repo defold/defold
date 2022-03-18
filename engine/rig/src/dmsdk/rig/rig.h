@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,8 +33,6 @@
 
 #include <ddf/ddf.h>
 #include <rig/rig_ddf.h>
-
-using namespace Vectormath::Aos;
 
 namespace dmRig
 {
@@ -103,7 +103,7 @@ namespace dmRig
         /// Model space transform
         dmTransform::Transform m_LocalToModel;
         /// Inv model space transform
-        Matrix4 m_ModelToLocal;
+        dmVMath::Matrix4 m_ModelToLocal;
         /// Index of parent bone, NOTE root bone has itself as parent
         uint32_t m_ParentIndex;
         /// Length of the bone
@@ -124,7 +124,7 @@ namespace dmRig
     };
 
     typedef struct IKTarget IKTarget;
-    typedef Vector3 (*RigIKTargetCallback)(IKTarget*);
+    typedef dmVMath::Vector3 (*RigIKTargetCallback)(IKTarget*);
 
     // IK targets can either use a static position or a callback (that is
     // called during the context update). A pointer to the IKTarget struct
@@ -135,7 +135,7 @@ namespace dmRig
     struct IKTarget {
         float               m_Mix;
         /// Static IK target position
-        Vector3             m_Position;
+        dmVMath::Vector3    m_Position;
         /// Callback to dynamically set the IK target position. If NULL then the target isn't active.
         RigIKTargetCallback m_Callback;
         void*               m_UserPtr;
@@ -214,12 +214,12 @@ namespace dmRig
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
-        dmArray<Matrix4>                m_ScratchInfluenceMatrixBuffer;
-        dmArray<Matrix4>                m_ScratchPoseMatrixBuffer;
+        dmArray<dmVMath::Matrix4>       m_ScratchInfluenceMatrixBuffer;
+        dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
         // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
-        dmArray<Vector3>                m_ScratchPositionBuffer;
-        dmArray<Vector3>                m_ScratchNormalBuffer;
+        dmArray<dmVMath::Vector3>       m_ScratchPositionBuffer;
+        dmArray<dmVMath::Vector3>       m_ScratchNormalBuffer;
         // Temporary scratch buffers to handle draw order changes.
         dmArray<int32_t>                m_ScratchDrawOrderDeltas;
         dmArray<int32_t>                m_ScratchDrawOrderUnchanged;
@@ -321,7 +321,7 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
-    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
+    void* GenerateVertexData(HRigContext context, HRigInstance instance, const dmVMath::Matrix4& model_matrix, const dmVMath::Matrix4& normal_matrix, const dmVMath::Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
     uint32_t GetVertexCount(HRigInstance instance);
 
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);

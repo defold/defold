@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,7 +28,7 @@
 #include <render/render.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <gamesys/tile_ddf.h>
 #include "../gamesys.h"
@@ -34,12 +36,13 @@
 #include <gamesys/tile_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include "../resources/res_tilegrid.h"
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
     const uint32_t TILEGRID_REGION_SIZE = 32;
 
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     // A "region" spans all layers (in Z) for a bounding box [(x1,y1), (x2,y2)]
     // where the the box spans TILEGRID_REGION_SIZE tiles in each direction
@@ -60,9 +63,8 @@ namespace dmGameSystem
     {
         struct Flags
         {
-            uint16_t    m_FlipHorizontal : 1;
-            uint16_t    m_FlipVertical : 1;
-            uint16_t    : 14;
+            uint8_t    m_TransformMask : 3;
+            uint8_t    : 5;
         };
 
         TileGridComponent()
@@ -76,9 +78,9 @@ namespace dmGameSystem
         {
         }
 
-        Vectormath::Aos::Vector3    m_Translation;
-        Vectormath::Aos::Quat       m_Rotation;
-        Vectormath::Aos::Matrix4    m_World;
+        dmVMath::Vector3            m_Translation;
+        dmVMath::Quat               m_Rotation;
+        dmVMath::Matrix4            m_World;
         dmGameObject::HInstance     m_Instance;
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;
@@ -223,15 +225,14 @@ namespace dmGameSystem
         region->m_Dirty = 1;
     }
 
-    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v)
+    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, uint8_t transform_mask)
     {
         TileGridResource* resource = component->m_Resource;
         uint32_t cell_index = CalculateCellIndex(layer, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
         component->m_Cells[cell_index] = tile;
 
         TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-        flags->m_FlipHorizontal = flip_h;
-        flags->m_FlipVertical = flip_v;
+        flags->m_TransformMask = transform_mask;
 
         SetRegionDirty(component, cell_x, cell_y);
     }
@@ -369,8 +370,19 @@ namespace dmGameSystem
                 component->m_Cells[cell_index] = (uint16_t)cell->m_Tile;
 
                 TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-                flags->m_FlipHorizontal = cell->m_HFlip;
-                flags->m_FlipVertical = cell->m_VFlip;
+                flags->m_TransformMask = 0;
+                if (cell->m_HFlip)
+                {
+                    flags->m_TransformMask = FLIP_HORIZONTAL;
+                }
+                if (cell->m_VFlip)
+                {
+                    flags->m_TransformMask |= FLIP_VERTICAL;
+                }
+                if (cell->m_Rotate90)
+                {
+                    flags->m_TransformMask |= ROTATE_90;
+                }
             }
         }
 
@@ -507,11 +519,22 @@ namespace dmGameSystem
     TileGridVertex* CreateVertexData(TileGridWorld* world, TileGridVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(TileGrid, "CreateVertexData");
+        /*
+         *   0----3
+         *   | \  |
+         *   |  \ |   
+         *   1____2
+        */
         static int tex_coord_order[] = {
             0,1,2,2,3,0,
             3,2,1,1,0,3,    //h
             1,0,3,3,2,1,    //v
-            2,3,0,0,1,2     //hv
+            2,3,0,0,1,2,    //hv
+            // rotate 90 degrees:
+            3,0,1,1,2,3,
+            0,3,2,2,1,0,    //h
+            2,1,0,0,3,2,    //v
+            1,2,3,3,0,1     //hv
         };
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
@@ -561,18 +584,9 @@ namespace dmGameSystem
                     float p[4];
                     CalculateCellBounds(x, y, 1, 1, p);
                     const float* puv = &tex_coords[tile * 8];
-                    uint32_t flip_flag = 0;
 
                     TileGridComponent::Flags flags = component->m_CellFlags[cell];
-                    if (flags.m_FlipHorizontal)
-                    {
-                        flip_flag = 1;
-                    }
-                    if (flags.m_FlipVertical)
-                    {
-                        flip_flag |= 2;
-                    }
-                    const int* tex_lookup = &tex_coord_order[flip_flag * 6];
+                    const int* tex_lookup = &tex_coord_order[flags.m_TransformMask * 6];
 
                     #define SET_VERTEX(_I, _X, _Y, _Z, _U, _V) \
                         { \
@@ -856,7 +870,7 @@ namespace dmGameSystem
              */
             uint32_t tile = st->m_Tile - 1;
 
-            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, false, false);
+            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, 0);
 
             // Broadcast to any collision object components
             // TODO Filter broadcast to only collision objects
@@ -882,7 +896,7 @@ namespace dmGameSystem
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
             if (!component->m_RenderConstants)
                 component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-            SetRenderConstant(component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, 0, ddf->m_Value);
+            dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, 0, ddf->m_Value);
             ReHash(component);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
@@ -926,7 +940,7 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component), name_hash, value_index, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component), name_hash, value_index, element_index, var);
         ReHash(component);
     }
 
@@ -957,4 +971,37 @@ namespace dmGameSystem
         }
         return SetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompTileGridSetConstantCallback, component);
     }
+
+    static bool CompTileGridIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        TileGridWorld* world = (TileGridWorld*)pit->m_Node->m_ComponentWorld;
+        TileGridComponent* component = (TileGridComponent*)pit->m_Node->m_Component;
+
+        uint64_t index = pit->m_Next++;
+
+        uint32_t num_bool_properties = 1;
+        if (index < num_bool_properties)
+        {
+            if (index == 0)
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+                pit->m_Property.m_Value.m_Bool = component->m_Enabled;
+                pit->m_Property.m_NameHash = dmHashString64("enabled");
+            }
+            return true;
+        }
+        index -= num_bool_properties;
+
+        return false;
+    }
+
+    void CompTileGridIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompTileGridIterPropertiesGetNext;
+    }
+
 }

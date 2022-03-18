@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +22,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include "../resources/res_factory.h"
 
 #include "../gamesys.h"
@@ -28,7 +30,7 @@
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* FACTORY_MAX_COUNT_KEY = "factory.max_count";
 
@@ -86,7 +88,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Can not create more factory components since the buffer is full (%d).", fw->m_Components.Size());
+            dmLogError("Can not create more factory components since the buffer is full (%d). See '%s' in game.project", fw->m_Components.Size(), FACTORY_MAX_COUNT_KEY);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;

@@ -66,7 +66,6 @@ struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
 int g_NumAppInputEvents = 0;
 pthread_t g_MainThread = 0;
 bool g_AppResumed = false;
-bool g_AppFocused = false;
 
 static void initThreads( void )
 {
@@ -194,13 +193,12 @@ void computeIconifiedState()
     // Iconified unless opened, resumed (not paused)
 
     // A good detailed overview over the recommended app flow is found here:
-    //   https://developer.nvidia.com/fixing-common-android-lifecycle-issues-games
-    _glfwWin.iconified = !(g_AppResumed && g_AppFocused && _glfwWinAndroid.surface != EGL_NO_SURFACE);
+    // https://developer.download.nvidia.com/assets/mobile/docs/android_lifecycle_app_note.pdf
+    _glfwWin.iconified = !(g_AppResumed && _glfwWinAndroid.surface != EGL_NO_SURFACE);
 
-    LOGV("iconified: %s    (resume: %s, focus: %s, surface: %s)",
+    LOGV("iconified: %s    (resume: %s, surface: %s)",
         _glfwWin.iconified?"YES":"no",
         g_AppResumed?"YES":"no",
-        g_AppFocused?"YES":"no",
         (_glfwWinAndroid.surface != EGL_NO_SURFACE )?"YES":"no");
 }
 
@@ -261,15 +259,11 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         computeIconifiedState();
         break;
     case APP_CMD_GAINED_FOCUS:
-        g_AppFocused = true;
-        computeIconifiedState();
         break;
     case APP_CMD_LOST_FOCUS:
         if (g_KeyboardActive) {
             _glfwShowKeyboard(0, 0, 0);
         }
-        g_AppFocused = false;
-        computeIconifiedState();
         break;
     case APP_CMD_START:
         break;
@@ -296,9 +290,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         computeIconifiedState();
         break;
     case APP_CMD_DESTROY:
-        _glfwWin.opened = 0;
-        final_gl(&_glfwWinAndroid);
-        computeIconifiedState();
+        androidDestroyWindow();
         break;
     }
 }

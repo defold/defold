@@ -815,7 +815,7 @@ int _glfwPlatformGetDefaultFramebuffer( )
 void _glfwPlatformSetWindowTitle( const char *title )
 {
     [_glfwWin.window setTitle:[NSString stringWithCString:title
-                     encoding:NSISOLatin1StringEncoding]];
+                     encoding:NSUTF8StringEncoding]];
 }
 
 //========================================================================
@@ -1177,4 +1177,12 @@ void _glfwPlatformSetViewType(int view_type)
 
 GLFWAPI void glfwAccelerometerEnable()
 {
+}
+
+void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
+{
+    float r = (color & 0xff) / 255.0f;
+    float g = ((color >> 8) & 0xff) / 255.0f;
+    float b = ((color >> 16) & 0xff) / 255.0f;
+    [_glfwWin.window setBackgroundColor: [NSColor colorWithDeviceRed:r green:g blue:b alpha:1.0f]];
 }

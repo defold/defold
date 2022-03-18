@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,6 +31,7 @@ namespace dmTexc
         PF_L8,
         PF_R8G8B8,
         PF_R8G8B8A8,
+        PF_A8B8G8R8,
         PF_RGB_PVRTC_2BPPV1,
         PF_RGB_PVRTC_4BPPV1,
         PF_RGBA_PVRTC_2BPPV1,
@@ -129,7 +132,7 @@ namespace dmTexc
     /**
      * Create a texture
      */
-    DM_TEXC_PROTO(HTexture, Create, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
+    DM_TEXC_PROTO(HTexture, Create, const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
     /**
      * Destroy a texture
      */
@@ -198,7 +201,7 @@ namespace dmTexc
     // Gets the data from a buffer
     DM_TEXC_PROTO(uint32_t, GetBufferData, HBuffer buffer, void* out_data, uint32_t out_data_size);
 
-    // Destroys a buffer created by CompressWebP
+    // Destroys a buffer created by CompressBuffer
     DM_TEXC_PROTO(void, DestroyBuffer, HBuffer buffer);
 #undef DM_TEXC_PROTO
 }

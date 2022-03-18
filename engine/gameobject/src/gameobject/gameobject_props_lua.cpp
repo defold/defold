@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -16,6 +18,7 @@
 #include <string.h>
 
 #include <dlib/log.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGameObject
 {
@@ -130,13 +133,13 @@ namespace dmGameObject
         }
             break;
         case PROPERTY_TYPE_VECTOR3:
-            dmScript::PushVector3(L, Vectormath::Aos::Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
+            dmScript::PushVector3(L, dmVMath::Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
             break;
         case PROPERTY_TYPE_VECTOR4:
-            dmScript::PushVector4(L, Vectormath::Aos::Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            dmScript::PushVector4(L, dmVMath::Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
             break;
         case PROPERTY_TYPE_QUAT:
-            dmScript::PushQuat(L, Vectormath::Aos::Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            dmScript::PushQuat(L, dmVMath::Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
             break;
         case PROPERTY_TYPE_BOOLEAN:
             lua_pushboolean(L, var.m_Bool);

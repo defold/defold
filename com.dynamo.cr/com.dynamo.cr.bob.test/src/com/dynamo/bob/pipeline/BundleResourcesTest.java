@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -302,7 +304,6 @@ public class BundleResourcesTest {
         expected.put(Platform.X86Win32, new String[] { "win32.txt", "x86-win32.txt" });
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
         expected.put(Platform.Armv7Android, new String[] { "android.txt" });
-        expected.put(Platform.Armv7Darwin, new String[] { "ios.txt", "armv7-ios.txt" });
         expected.put(Platform.Arm64Darwin, new String[] { "ios.txt", "arm64-ios.txt" });
         expected.put(Platform.JsWeb, new String[] { "web.txt" });
 
@@ -358,7 +359,7 @@ public class BundleResourcesTest {
 
         Map<String, String> appmanifestOptions = new HashMap<String,String>();
         appmanifestOptions.put("baseVariant", "release");
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, appmanifestOptions);
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Arm64Darwin, appmanifestOptions);
         assertEquals(6, resources.size());
 
         assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -252,6 +254,16 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
+    private void createResourcePropertyTasks(List<ComponentPropertyDesc> overrideProps, IResource input) throws CompileExceptionError {
+        for (ComponentPropertyDesc compProp : overrideProps) {
+            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
+            for(String r : resources) {
+                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
+                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
+            }
+        }
+    }
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -264,6 +276,12 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         collectSubCollections(builder, subCollections);
         for (IResource subCollection : subCollections) {
             taskBuilder.addInput(subCollection);
+        }
+
+        for (InstanceDesc inst : builder.getInstancesList()) {
+            InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
+            List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
+            createResourcePropertyTasks(sourceProperties, input);
         }
 
         createGeneratedResources(this.project, builder);

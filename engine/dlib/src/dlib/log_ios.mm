@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -14,7 +16,12 @@
 
 #import <Foundation/Foundation.h>
 
-void __ios_log_print(dmLogSeverity severity, const char* str_buf)
+namespace dmLog
+{
+
+void __ios_log_print(dmLog::Severity severity, const char* str_buf)
 {
     NSLog(@"%@", @(str_buf));
 }
+
+} //namespace dmLog

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -161,8 +163,7 @@ public class TileSetGenerator {
         int tileHeight = tileSet.getTileHeight();
         List<BufferedImage> result = new ArrayList<BufferedImage>(count);
         for (int i = 0; i < count; ++i) {
-            int type = TextureUtil.getImageType(image);
-            BufferedImage tgt = new BufferedImage(tileWidth, tileHeight, type);
+            BufferedImage tgt = new BufferedImage(tileWidth, tileHeight, BufferedImage.TYPE_4BYTE_ABGR);
             Graphics g = tgt.getGraphics();
             int tileX = i % metrics.tilesPerRow;
             int tileY = i / metrics.tilesPerRow;

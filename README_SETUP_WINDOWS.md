@@ -4,9 +4,32 @@
 
 ## Required Software
 
+
+### Package managers
+
+* [Chocolatey](https://chocolatey.org/docs/installation) - Chocolatey is a package installer that will help install various helper tools such as python, ripgrep etc.
+
+Open a Command (cmd.exe) as administator and run:
+
+`@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"`
+
+Once this is done, you can install new packages which are added to the PATH, by running:
+
+```sh
+choco install <package_name>
+```
+
 ### Required Software - Java JDK 11
 
-You need Java JDK 11 installed to build the tools. [Download and install release 11.0.1 from OpenJDK](https://jdk.java.net/archive/). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+You need Java JDK 11 installed to build the tools. [Download and install release 11.0.1 from OpenJDK](https://jdk.java.net/archive/). 
+
+Ìnstall using Chocolatey:
+
+```sh
+choco install openjdk11
+```
+
+When Java is installed you may also need to add java to your PATH and export JAVA_HOME:
 
 ```sh
 > nano ~/.bashrc
@@ -14,6 +37,8 @@ You need Java JDK 11 installed to build the tools. [Download and install release
 export JAVA_HOME=<JAVA_INSTALL_PATH>
 export PATH=$JAVA_HOME/bin:$PATH
 ```
+
+*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-11.0.13_8*
 
 Verify that Java is installed and working:
 
@@ -24,14 +49,30 @@ Verify that Java is installed and working:
 
 ### Required Software - Python 2
 
-You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.16. Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually. You also need to add `C:\Python27\Scripts` to the PATH to be able to use Easy Install.
+You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.18. Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
 
+Install using Chocolatey:
+
+```sh
+choco install python2
+```
+
+Since we need a python2 executable, you need to make a duplicate in `C:\Python27\python2.exe`
 
 ### Required Software
 
 #### Visual C++ 2019 Community
 
 [Download](https://visualstudio.microsoft.com/vs/older-downloads/) the Community version or use the Professional or Enterprise version if you have the proper licence. When installing, select the "Desktop Development with C++" workload. There is also an optional 3rd party git client.
+
+#### Terminal
+
+https://aka.ms/terminal
+
+The `git-bash` setup can also install a setup for the Windows Terminal app.
+
+This terminal has the tool `winget` to install some packages.
+
 
 #### MSYS/MinGW
 
@@ -53,7 +94,15 @@ You also need to install `wget`. From the mingw terminal run:
 
 #### Git
 
-You need to [download](https://git-scm.com/download/win) a command line version of Git. During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access GitHub then:
+You need to [download](https://git-scm.com/download/win) a command line version of Git.
+
+During install, select the option to not do any CR/LF conversion.
+
+You most likely want to set up working with ssh keys as well.
+
+### SSH Keys
+
+#### Using Git Gui
 
 - Run Git GUI
 - Help > Show SSH Key
@@ -61,13 +110,16 @@ You need to [download](https://git-scm.com/download/win) a command line version 
 - Add the public key to your Github profile
 - You might need to run `start-ssh-agent` (in `C:\Program Files\Git\cmd`)
 
+
+#### Command line
+
 Alternatively, you can easily create your own key from command line:
 
 ```sh
-$ ssh-keygen -t rsa -b 1024 -C "user@domain.com"
+$ ssh-keygen -t ed25519 -C "your_email@example.com"
 # Copy the contents of the public file
-$ cat ~/.ssh/id_rsa.pub
-# Add the public key to your Github profile
+$ cat ~/.ssh/id_ed25519.pub
+# Add the public key to your Github profile (under the Setting tab on your github user profile)
 # Test your new key:
 $ ssh -T git@github.com
 ```
@@ -107,9 +159,11 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 
 ### Optional Software
 
-* [Chocolatey](https://chocolatey.org/docs/installation) - Chocolatey is another package installer that will help install various helper tools such as [ripgrep](https://github.com/BurntSushi/ripgrep)
+* [ripgrep](https://github.com/BurntSushi/ripgrep) - A very fast text search program (command line)
 
-* [ripgrep](https://github.com/BurntSushi/ripgrep) - A very fast text search program
+Open a Command (cmd.exe) as administrator and run:
+
+`choco install ripgrep`
 
 ---
 
@@ -120,7 +174,7 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 It's useful to modify your command prompt to show the status of the repo you're in.
 E.g. it makes it easier to keep the git branches apart.
 
-You do this by editing the `PS1` variable. Put it in the recommended config for your system (e.g. `.profile` or `.bashrc`)
+You do this by editing the `PS1` variable. Put it in the recommended config for your shell (e.g. `.profile` or `.bashrc`)
 Here's a very small improvement on the default prompt, whic shows you the time of the last command, as well as the current git branch name and its status:
 
 ```sh

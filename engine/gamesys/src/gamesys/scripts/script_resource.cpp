@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -86,6 +88,15 @@ namespace dmGameSystem
  *   go.set("#label", "font", self.my_font)
  * end
  * ```
+ *
+ * Load a font and set it to a gui:
+ *
+ * ```lua
+ * go.property("my_font", resource.font("/font.font"))
+ * function init(self)
+ *   go.set("#gui", "fonts", self.my_font, {key = "my_font"})
+ * end
+ * ```
  */
 
 /*# reference to texture resource
@@ -132,6 +143,15 @@ namespace dmGameSystem
  * go.property("my_atlas", resource.atlas("/atlas.atlas"))
  * function init(self)
  *   go.set("#sprite", "image", self.my_atlas)
+ * end
+ * ```
+ *
+ * Load an atlas and set it to a gui:
+ *
+ * ```lua
+ * go.property("my_atlas", resource.atlas("/atlas.atlas"))
+ * function init(self)
+ *   go.set("#gui", "textures", self.my_atlas, {key = "my_atlas"})
  * end
  * ```
  */
@@ -296,7 +316,7 @@ static int Load(lua_State* L)
 
     memcpy(data, resource, resourcesize);
 
-    dmScript::LuaHBuffer luabuf = {buffer, dmScript::OWNER_LUA};
+    dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
     dmScript::PushBuffer(L, luabuf);
     assert(top + 1 == lua_gettop(L));
     return 1;
@@ -382,10 +402,10 @@ T CheckTableValue(lua_State* L, int index, const char* name, T default_value)
 
 ////////////////////////////////////
 
-static bool CheckTableBoolean(lua_State* L, int index, const char* name)
-{
-    return CheckTableValue<bool>(L, index, name);
-}
+// static bool CheckTableBoolean(lua_State* L, int index, const char* name)
+// {
+//     return CheckTableValue<bool>(L, index, name);
+// }
 static bool CheckTableBoolean(lua_State* L, int index, const char* name, bool default_value)
 {
     return CheckTableValue<bool>(L, index, name, default_value);
@@ -394,14 +414,14 @@ static int CheckTableInteger(lua_State* L, int index, const char* name)
 {
     return CheckTableValue<int>(L, index, name);
 }
-static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
-{
-    return CheckTableValue<int>(L, index, name, default_value);
-}
-static float CheckTableNumber(lua_State* L, int index, const char* name)
-{
-    return CheckTableValue<float>(L, index, name);
-}
+// static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
+// {
+//     return CheckTableValue<int>(L, index, name, default_value);
+// }
+// static float CheckTableNumber(lua_State* L, int index, const char* name)
+// {
+//     return CheckTableValue<float>(L, index, name);
+// }
 static float CheckTableNumber(lua_State* L, int index, const char* name, float default_value)
 {
     return CheckTableValue<float>(L, index, name, default_value);
@@ -659,9 +679,7 @@ static int GetBuffer(lua_State* L)
 
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
-    dmScript::LuaHBuffer luabuf;
-    luabuf.m_BufferRes = (void*)buffer_resource;
-    luabuf.m_Owner = dmScript::OWNER_RES;
+    dmScript::LuaHBuffer luabuf((void*)buffer_resource);
     PushBuffer(L, luabuf);
 
     assert(top + 1 == lua_gettop(L));
@@ -812,7 +830,8 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  *
  * @name resource.get_text_metrics
  * @param url [type:hash] the font to get the (unscaled) metrics from
- * @param options [type:table] A table containing parameters for the text. Supported entries:
+ * @param text [type:string] text to measure
+ * @param [options] [type:table] A table containing parameters for the text. Supported entries:
  *
  * `width`
  * : [type:integer] The width of the text field. Not used if `line_break` is false.
@@ -867,12 +886,10 @@ static int GetTextMetrics(lua_State* L)
         tracking = (float)CheckTableNumber(L, table_index, "tracking", tracking);
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
-    printf("options: %d, %f, %f, %f\n", line_break?1:0, leading, tracking, width);
 
     dmRender::TextMetrics metrics;
     dmRender::GetTextMetrics(font_map, text, width, line_break, leading, tracking, &metrics);
     PushTextMetricsTable(L, &metrics);
-
     return 1;
 }
 

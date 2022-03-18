@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -211,42 +213,6 @@ namespace dmExtension
             __pragma(section(".CRT$XCU",read)) \
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
-
-    /*# OnActivityResult callback typedef
-     *
-     * Activity result callback function type. Monitors events from the main activity.
-     * Used with RegisterOnActivityResultListener() and UnregisterOnActivityResultListener()
-     *
-     * @typedef
-     * @name OnActivityResult
-     * @param env [type:void*]
-     * @param activity [type:void*]
-     * @param request_code [type:int32_t]
-     * @param result_code [type:int32_t]
-     * @param result [type:void*]
-     */
-    typedef void (*OnActivityResult)(void* env, void* activity, int32_t request_code, int32_t result_code, void* result);
-
-    /*# register Android activity result callback
-     *
-     * Registers an activity result callback. Multiple listeners are allowed.
-     *
-     * @note [icon:android] Only available on Android
-     * @name RegisterAndroidOnActivityResultListener
-     * @param [type:dmExtension::OnActivityResult] listener
-     */
-    void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
-
-    /*# unregister Android activity result callback
-     *
-     * Unregisters an activity result callback
-     *
-     * @note [icon:android] Only available on Android
-     * @name UnregisterAndroidOnActivityResultListener
-     * @param [type:dmExtension::OnActivityResult] listener
-     */
-    void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
-
 
     /**
     * Extension desc bytesize declaration. Internal

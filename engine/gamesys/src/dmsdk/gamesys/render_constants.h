@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -69,7 +71,7 @@ namespace dmGameSystem
      * @param out_constant [type: dmRender::Constant**] the pointer where to store the constant
      * @return result [type: bool] returns true if the constant exists
      */
-    bool GetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmRender::Constant** out_constant);
+    bool GetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmRender::HConstant* out_constant);
 
     /*#
      * Get the number of render constants
@@ -84,21 +86,31 @@ namespace dmGameSystem
      * @name GetRenderConstant
      * @param constants [type: dmGameSystem::HComponentRenderConstants] the constants
      * @param index [type: uint32_t] the index
-     * @param constant [type: dmRender::Constant*] the pointer where to store the constant
+     * @return constant [type: dmRender::HConstant] the pointer where to store the constant
      */
-    void GetRenderConstant(HComponentRenderConstants constants, uint32_t index, dmRender::Constant* constant);
+    dmRender::HConstant GetRenderConstant(HComponentRenderConstants constants, uint32_t index);
 
     /*#
      * Set a render constant by name. The constant must exist in the material
      * @name SetRenderConstant
-     * @param constants [type: dmGameSystem::HComponentRenderConstants] the constants
-     * @param material [type: dmRender::HMaterial] the material
+     * @param constants [type: dmGameSystem::HComponentRenderConstants] the render constants buffer
+     * @param material [type: dmRender::HMaterial] the material to get default values from if constant didn't already exist in the render constants buffer
      * @param name_hash [type: dmhash_t] the hashed name of the constant
      * @param value_index [type: uint32_t] index of the constant value to set, if the constant is an array
      * @param element_index [type: uint32_t*] pointer to the index of the element (in range [0,3]). May be 0
      * @param var [type: const dmGameObject::PropertyVar&] the constant value
      */
     void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+
+    /*#
+     * Set a render constant by name. The constant must exist in the material
+     * @name SetRenderConstant
+     * @param constants [type: dmGameSystem::HComponentRenderConstants] the constants
+     * @param name_hash [type: dmhash_t] the hashed name of the constant
+     * @param values [type: dmVMath::Vector4*] the values
+     * @param num_values [type: uint32_t] number of values in the array
+     */
+    void SetRenderConstant(HComponentRenderConstants constants, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values);
 
     /*#
      * Removes a render constant from the container

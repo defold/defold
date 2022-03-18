@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -403,7 +405,7 @@ namespace dmGameSystem
             return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        dmScript::LuaHBuffer luabuf = { {buffer}, dmScript::OWNER_LUA };
+        dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
         PushBuffer(L, luabuf);
 
         assert(top + 1 == lua_gettop(L));
@@ -953,6 +955,10 @@ namespace dmGameSystem
 
 namespace dmScript
 {
+    static inline bool IsValidOwner(LuaBufferOwnership ownership)
+    {
+        return ownership == dmScript::OWNER_C || ownership == dmScript::OWNER_LUA || ownership == dmScript::OWNER_RES;
+    }
 
     bool IsBuffer(lua_State *L, int index)
     {
@@ -966,6 +972,7 @@ namespace dmScript
         luabuf->m_Buffer = v.m_Buffer;
         luabuf->m_BufferRes = v.m_BufferRes;
         luabuf->m_Owner = v.m_Owner;
+        assert(IsValidOwner(luabuf->m_Owner));
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
         lua_setmetatable(L, -2);
     }

@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -13,6 +15,7 @@
 #include "glsl_uniform_parser.h"
 
 #include <string.h>
+#include <stdio.h> // scanf
 
 namespace dmGraphics
 {
@@ -46,6 +49,17 @@ namespace dmGraphics
             ++cursor;
         }
         return cursor;
+    }
+
+    static const char* FindChar(const char* cursor, char c)
+    {
+        while (*cursor != c && *cursor != '\0')
+        {
+            ++cursor;
+        }
+        if (*cursor == c)
+            return cursor;
+        return 0;
     }
 
 #define STRNCMP(s1, s2, count)\
@@ -98,6 +112,23 @@ namespace dmGraphics
         *size = (uint32_t) (*word_end - *word_start);
     }
 
+    static bool CheckUniformSize(const char* start, uint32_t* array_size)
+    {
+        start = SkipWS(start);
+        const char* begin = FindChar(start, '[');
+        if (!begin)
+            return false;
+
+        uint32_t out = 1;
+        int num_scanned = sscanf(begin, "[%u]", &out);
+        if (num_scanned == 1)
+        {
+            *array_size = out;
+            return true;
+        }
+        return false;
+    }
+
     bool GLSLUniformParse(const char* buffer, UniformCallback cb, uintptr_t userdata)
     {
         if (buffer == 0x0)
@@ -129,7 +160,16 @@ namespace dmGraphics
                     {
                         // Check name
                         NextWord(&word_start, &word_end, &size);
-                        cb(word_start, size-1, type, userdata);
+
+                        // Check if it's an array
+                        uint32_t uniform_size = 1;
+                        if (CheckUniformSize(word_start, &uniform_size))
+                        {
+                            const char* array_begin = FindChar(word_start, '[');
+                            size = array_begin - word_start + 1;
+                        }
+
+                        cb(word_start, size-1, type, uniform_size, userdata);
                     }
                     else
                     {

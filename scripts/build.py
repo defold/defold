@@ -1,18 +1,20 @@
 #!/usr/bin/env python
-# Copyright 2020 The Defold Foundation
+# Copyright 2020-2022 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
 # add build_tools folder to the import search path
-import sys, os
+import sys, os, platform
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
@@ -22,6 +24,7 @@ import imp
 import github
 import run
 import s3
+import sdk
 import release_to_github
 import BuildUtility
 import http_cache
@@ -34,7 +37,7 @@ from ConfigParser import ConfigParser
 BASE_PLATFORMS = [  'x86_64-linux',
                     'x86_64-darwin',
                     'win32', 'x86_64-win32',
-                    'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
+                    'x86_64-ios', 'arm64-darwin',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web']
 
@@ -79,16 +82,15 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
-PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
+PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_DARWIN="protobuf-2.3.0 webp-0.5.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41".split()
-PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
+PACKAGES_DARWIN="protobuf-2.3.0 vpx-1.7.0".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41".split()
+PACKAGES_WIN32="luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
+PACKAGES_LINUX_64="luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
 PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex androidx-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex androidx-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
@@ -100,20 +102,10 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
 
-PACKAGES_IOS_SDK="iPhoneOS14.5.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator14.5.sdk"
-PACKAGES_MACOS_SDK="MacOSX11.3.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault12.5.xctoolchain"
 PACKAGES_TAPI_VERSION="tapi1.6"
-WINDOWS_SDK_10_VERSION="10.0.18362.0"
-WINDOWS_MSVC_2019_VERSION="14.25.28610"
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
-PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
-PACKAGES_LINUX_CLANG="clang-9.0.0"
-PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -448,23 +440,6 @@ class Configuration(object):
             self._log('Downloading %s failed' % (url))
         return path
 
-    def install_go(self):
-        urls = {
-            'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
-            'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
-            'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
-            'x86_64-win32' : 'https://storage.googleapis.com/golang/go1.7.1.windows-amd64.zip'
-        }
-
-        url = urls.get(self.target_platform)
-
-        if url:
-            path = self._download(url)
-            target_path = join(self.ext, 'go', self.target_platform)
-            self._extract(path, target_path)
-        else:
-            print("No go found for %s" % self.target_platform)
-
     def _check_package_path(self):
         if self.package_path is None:
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
@@ -495,7 +470,6 @@ class Configuration(object):
             'x86_64-linux':   PACKAGES_LINUX_64,
             'darwin':         PACKAGES_DARWIN, # ?? Still used by bob-light?
             'x86_64-darwin':  PACKAGES_DARWIN_64,
-            'armv7-darwin':   PACKAGES_IOS,
             'arm64-darwin':   PACKAGES_IOS_64,
             'x86_64-ios':     PACKAGES_IOS_X86_64,
             'armv7-android':  PACKAGES_ANDROID,
@@ -578,10 +552,6 @@ class Configuration(object):
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
 
-        # Note: This is a step we want to separate from install_ext
-        # since it should actually be before install_ext (e.g. to build the extensions)
-        self.install_sdk()
-
     def get_local_or_remote_file(self, path):
         if os.path.isdir(self.package_path): # is is a local path?
             if os.path.exists(path):
@@ -598,45 +568,37 @@ class Configuration(object):
 
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-        folders = []
 
-        if self.target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-            folders.append(join(sdkfolder, PACKAGES_MACOS_SDK))
-            folders.append(join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
-        if self.target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-            folders.append(join(sdkfolder, PACKAGES_IOS_SDK))
-            folders.append(join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
-        if self.target_platform in ('x86_64-win32', 'win32'):
-            folders.append(join(sdkfolder, 'Win32','WindowsKits','10'))
-            folders.append(join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
-        if self.target_platform in ('armv7-android', 'arm64-android'):
-            folders.append(join(sdkfolder, PACKAGES_ANDROID_NDK))
-            folders.append(join(sdkfolder, PACKAGES_ANDROID_SDK))
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform)
 
-        for f in folders:
-            if not os.path.exists(f):
-                print "Missing SDK in", f
-                print "Run './scripts/build.py install_ext --platform=%s'" % self.target_platform
+        # We currently only support a subset of platforms using this mechanic
+        if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+            if not self.sdk_info:
+                print("Couldn't find any sdks")
+                print("We recommend you follow the packaging steps found here: %s" % "https://github.com/defold/defold/blob/dev/scripts/package/README.md#packaging-the-sdks")
+                print("Then run './scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>=%s'" % self.target_platform)
                 sys.exit(1)
+
+            print("Using SDKS:", self.sdk_info)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
-        if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        if target_platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
+            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, sdk.PACKAGES_XCODE_TOOLCHAIN))
 
-        if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        if target_platform in ('arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
@@ -652,11 +614,11 @@ class Configuration(object):
             download_sdk(self, '%s/%s-%s-android-30-30.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
-            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
+            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, sdk.PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), format='J')
 
-        if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
-            if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
-                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
+        if target_platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
+            if not os.path.exists(join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'cctools')):
+                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), force_extract=True)
 
         build_private.install_sdk(self, target_platform)
 
@@ -927,7 +889,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios','armv7-android','arm64-android']:
+        if self.target_platform not in ['x86_64-linux','x86_64-darwin','arm64-darwin','x86_64-ios','armv7-android','arm64-android']:
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
@@ -945,8 +907,8 @@ class Configuration(object):
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
-        if self.target_platform in ('x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
+        if self.target_platform in ('x86_64-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
+            strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))
         return True
@@ -1013,7 +975,6 @@ class Configuration(object):
         if 'android' in self.target_platform:
             files = [
                 ('share/java', 'classes.dex'),
-                ('bin/%s' % (self.target_platform), 'dmengine.apk'),
                 ('ext/share/java', 'android.jar'),
             ]
             for f in files:
@@ -1159,30 +1120,6 @@ class Configuration(object):
         for lib in EXTERNAL_LIBS:
             self._build_engine_lib(args, lib, platform=self.target_platform, dir='external')
 
-    def build_go(self):
-        exe_ext = '.exe' if 'win32' in self.target_platform else ''
-        go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
-
-        if not os.path.exists(go):
-            self._log("Missing go for target platform, run install_ext with --platform set.")
-            exit(5)
-
-        run.env_command(self._form_env(), [go, 'clean', '-i', 'github.com/...'])
-        run.env_command(self._form_env(), [go, 'install', 'github.com/...'])
-        run.env_command(self._form_env(), [go, 'clean', '-i', 'defold/...'])
-        if not self.skip_tests:
-            run.env_command(self._form_env(), [go, 'test', 'defold/...'])
-        run.env_command(self._form_env(), [go, 'install', 'defold/...'])
-
-        for f in glob(join(self.defold, 'go', 'bin', '*')):
-            shutil.copy(f, join(self.dynamo_home, 'bin'))
-
-    def archive_go(self):
-        sha1 = self._git_sha1()
-        full_archive_path = join(sha1, 'go', self.target_platform)
-        for p in glob(join(self.defold, 'go', 'bin', '*')):
-            self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
-
     def archive_bob(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'bob').replace('\\', '/')
@@ -1190,7 +1127,6 @@ class Configuration(object):
             self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def copy_local_bob_artefacts(self):
-        apkc_name = format_exes('apkc', self.host2)[0]
         texc_name = format_lib('texc_shared', self.host2)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
@@ -1213,8 +1149,7 @@ class Configuration(object):
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
-        android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
-                         'share/java/classes.dex': 'lib/classes.dex',
+        android_files = {'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
         switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
@@ -1234,7 +1169,7 @@ class Configuration(object):
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
-                           'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
+                           'ios-bundling': [['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']],
                            'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.iteritems():
@@ -1503,7 +1438,12 @@ class Configuration(object):
         else:
             preexec_fn = self.check_ems
 
-        process = subprocess.Popen([SHELL, '-l'], env = self._form_env(), preexec_fn=preexec_fn)
+        if "darwin" in self.host and "arm" in platform.processor():
+            print 'Detected Apple M1 CPU - running shell with x86 architecture'
+            args = ['arch', '-arch', 'x86_64', SHELL, '-l']
+        else:
+            args = [SHELL, '-l']
+        process = subprocess.Popen(args, env = self._form_env(), preexec_fn=preexec_fn)
         output = process.communicate()[0]
 
         if process.returncode != 0:
@@ -1573,10 +1513,9 @@ class Configuration(object):
         release_sha1 = releases[0]['sha1']
 
         editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
-        model['release'] = {'editor': [ dict(name='macOS 10.11+', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
-                                        dict(name='macOS 10.7-10.10', url=editor_download_url + 'Defold-x86_64-darwin.zip'),
+        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
                                         dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
-                                        dict(name='Ubuntu 16.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
+                                        dict(name='Ubuntu 18.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
 
         page = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
@@ -2024,7 +1963,7 @@ class Configuration(object):
         ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                             '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
         if self.host == 'x86_64-linux':
-            ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
+            ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, sdk.PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
@@ -2051,6 +1990,12 @@ class Configuration(object):
                                       '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
+
+        # This trickery is needed for the bash to properly inherit the PATH that we've set here
+        # See /etc/profile for further details
+        is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
+        if is_mingw:
+            env['ORIGINAL_PATH'] = env['PATH']
 
         go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
                                          join(self.defold, 'go')])
@@ -2091,9 +2036,6 @@ sync_archive     - Sync engine artifacts from S3
 activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
-install_go       - Install go dev tools
-build_go         - Build go code
-archive_go       - Archive go binaries
 build_editor2    - Build editor
 sign_editor2     - Sign editor
 bundle_editor2   - Bundle editor (zip)

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -247,15 +249,6 @@ namespace dmScript
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
 
-    /**
-     * Push DDF message to Lua stack
-     * @param L Lua state
-     * @param descriptor Field descriptor
-     * @param pointers_are_offets if pointers are offsets
-     * @param data DDF data
-     */
-    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
-
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
     /**
@@ -473,13 +466,6 @@ namespace dmScript
      *  [-1] value
     */
     void GetScriptWorldContextValue(HScriptWorld script_world);
-
-    /**
-     * Retrieve lua state from the context
-     * @param context script context
-     * @return lua state
-     */
-    lua_State* GetLuaState(HContext context);
 
     /**
      * Retrieve the Lua traceback from the current context

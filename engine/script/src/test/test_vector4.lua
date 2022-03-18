@@ -1,4 +1,6 @@
--- Copyright 2020 The Defold Foundation
+-- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
 -- 
@@ -131,3 +133,10 @@ assert(v.x == 5, "v.x is not 5")
 assert(v.y ==12, "v.y is not 12")
 assert(v.z ==21, "v.z is not 21")
 assert(v.w ==32, "v.w is not 32")
+
+-- tostring and concat
+v = vmath.vector4(1, 2, 3, 4)
+assert(("foo " .. tostring(v)) == "foo vmath.vector4(1, 2, 3, 4)")
+assert(("foo " .. v) == "foo vmath.vector4(1, 2, 3, 4)")
+v = vmath.vector4(-10.01, -10.01, -10.01, -10.01)
+assert(tostring(v) == ("" .. v))

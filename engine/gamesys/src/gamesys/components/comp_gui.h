@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -13,40 +15,22 @@
 #ifndef DM_GAMESYS_COMP_GUI_H
 #define DM_GAMESYS_COMP_GUI_H
 
-#include <gameobject/component.h>
+#include <stdint.h>
+#include <gui/gui.h>
+#include <dmsdk/gamesys/gui.h>
+
+namespace dmMessage
+{
+    struct URL;
+}
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
-
-    dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
-
-    dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params);
-
-    dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params);
-
-    dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params);
-
-    dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params);
-
-    dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
-
-    dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
-
-    dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params);
-
-    dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params);
-
-    dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params);
-
-    void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params);
-
-    dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
-
-    dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
-
-    void CompGuiIterChildren(dmGameObject::SceneNodeIterator* it, dmGameObject::SceneNode* node);
-    void CompGuiIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+    // Used by the engine to setup the dmGui::HContext
+    void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
+    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
+    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 }
 
 #endif // DM_GAMESYS_COMP_GUI_H

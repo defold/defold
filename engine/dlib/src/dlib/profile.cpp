@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -77,7 +79,7 @@ namespace dmProfile
     bool g_OutOfCounters = false;
     bool g_IsInitialized = false;
     bool g_Paused = false;
-    dmSpinlock::lock_t g_ProfileLock;
+    dmSpinlock::Spinlock g_ProfileLock;
 
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
     int32_atomic_t g_ThreadCount = 0;
@@ -345,7 +347,6 @@ namespace dmProfile
     {
         if (!g_IsInitialized)
         {
-            dmLogError("dmProfile is not initialized");
             return g_ActiveProfile;
         }
 

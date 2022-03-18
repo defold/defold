@@ -107,8 +107,7 @@
    :default false,
    :path ["display" "dynamic_orientation"]}
   {:type :integer,
-   :help "if Vsync checked, snaps to the closest matching swap interval for the set frame cap. Otherwise uses timers to respect the set value, 0 means no cap. For deprecated 'variable_dt' behavior, set to 0 and uncheck 'Vsync'",
-   :label "Frame cap"
+   :help "Number of game loop updates per seconds. Set to 0 for variable frame rate. Set to e.g. 30 to throttle the update frequency.",
    :default 0,
    :path ["display" "update_frequency"]}
   {:type :boolean,
@@ -151,6 +150,10 @@
    :default "2D",
    :path ["physics" "type"]
    :options [["2D" "2D"] ["3D" "3D"]]}
+  {:type :number,
+   :help "number of physics updates per second. 0 means one update per game frame, using the dt passed in.",
+   :default "0",
+   :path ["physics" "update_frequency"]}
   {:type :boolean,
    :help
    "visualize physics for debugging",
@@ -224,6 +227,11 @@
    "maximum number of overlapping triggers that can be detected, 16 by default",
    :default 16,
    :path ["physics" "trigger_overlap_capacity"]},
+  {:type :number,
+   :help
+   "minimum velocity that will result in ellastic collisions",
+   :default 1.0,
+   :path ["physics" "velocity_threshold"]},   
   {:type :string,
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
@@ -312,6 +320,12 @@
    :help "http timeout in seconds. zero to disable timeout",
    :default 0.0,
    :path ["network" "http_timeout"]}
+  {:type :resource,
+   :filter "pem"
+   :default "",
+   :help "file reference of the ssl certificates pem file",
+   :preserve-extension true,
+   :path ["network" "ssl_certificates"]}
   {:type :integer,
    :help "max number of instances per collection, 1024 by default",
    :default 1024,
@@ -321,7 +335,7 @@
    :default 16,
    :path ["collection" "max_input_stack_entries"]}
   {:type :number,
-   :help "global gain (volume), 0 - 1, 1 by default",
+   :help "global gain (volume), 1 by default",
    :default 1.0,
    :path ["sound" "gain"]}
   {:type :integer,
@@ -358,10 +372,6 @@
    :default true,
    :path ["sprite" "subpixels"]}
   {:type :integer,
-   :help "max number of spine models, 128 by default",
-   :default 128,
-   :path ["spine" "max_count"]}
-  {:type :integer,
    :help "max number of models, 128 by default",
    :default 128,
    :path ["model" "max_count"]}
@@ -396,6 +406,10 @@
    :help "max number of particle fx components, 64 by default",
    :default 64,
    :path ["particle_fx" "max_count"]}
+  {:type :integer,
+   :help "max number of particle fx emitters, 64 by default",
+   :default 64,
+   :path ["particle_fx" "max_emitter_count"]}
   {:type :integer,
    :help "max total number of living particles, 1024 by default",
    :default 1024,
@@ -739,7 +753,11 @@
    :help "comma separated list of engine arguments",
    :default "",
    :path ["html5" "engine_arguments"]}
-   {:type :boolean,
+  {:type :boolean,
+   :help "set to true to enable streaming of the wasm file (faster and uses less memory, but requires MIME type 'application/wasm')",
+   :default false
+   :path ["html5" "wasm_streaming"]}
+  {:type :boolean,
    :help "set to true if you want to have the fullscreen button",
    :default true
    :path ["html5" "show_fullscreen_button"]}

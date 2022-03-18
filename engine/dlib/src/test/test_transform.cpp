@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -15,7 +17,7 @@
 #include "dlib/transform.h"
 #include "dlib/math.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 using namespace dmTransform;
 
 #define EPSILON 0.001f

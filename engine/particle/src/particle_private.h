@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -52,28 +54,28 @@ namespace dmParticle
         inline type Get##property() const { return m_##property; }\
         inline void Set##property(type v) { m_##property = v; }\
 
-        GET_SET(Position, Point3)
-        GET_SET(SourceRotation, Quat)
-        GET_SET(Rotation, Quat)
-        GET_SET(Velocity, Vector3)
+        GET_SET(Position, dmVMath::Point3)
+        GET_SET(SourceRotation, dmVMath::Quat)
+        GET_SET(Rotation, dmVMath::Quat)
+        GET_SET(Velocity, dmVMath::Vector3)
         GET_SET(TimeLeft, float)
         GET_SET(MaxLifeTime, float)
         GET_SET(ooMaxLifeTime, float)
         GET_SET(SpreadFactor, float)
         GET_SET(SourceSize, float)
-        GET_SET(Scale, Vector3)
-        GET_SET(SourceColor, Vector4)
-        GET_SET(Color, Vector4)
+        GET_SET(Scale, dmVMath::Vector3)
+        GET_SET(SourceColor, dmVMath::Vector4)
+        GET_SET(Color, dmVMath::Vector4)
         GET_SET(SortKey, SortKey)
 #undef GET_SET
 
         /// Position, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
-        Point3 m_Position;
+        dmVMath::Point3 m_Position;
         /// Rotation, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
-        Quat m_SourceRotation;
-        Quat m_Rotation;
+        dmVMath::Quat m_SourceRotation;
+        dmVMath::Quat m_Rotation;
         /// Velocity of the particle
-        Vector3 m_Velocity;
+        dmVMath::Vector3 m_Velocity;
         /// Time left before the particle dies.
         float       m_TimeLeft;
         /// The duration of this particle.
@@ -88,10 +90,10 @@ namespace dmParticle
         float       m_SourceStretchFactorX;
         float       m_SourceStretchFactorY;
         // Particle color
-        Vector4     m_SourceColor;
-        Vector4     m_Color;
+        dmVMath::Vector4     m_SourceColor;
+        dmVMath::Vector4     m_Color;
         /// Particle scale
-        Vector3     m_Scale;
+        dmVMath::Vector3     m_Scale;
         // Sorting
         SortKey     m_SortKey;
         /// Particle stretch factor
@@ -115,8 +117,8 @@ namespace dmParticle
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
         dmArray<RenderConstant> m_RenderConstants;
-        Vector3                 m_Velocity;
-        Point3                  m_LastPosition;
+        dmVMath::Vector3        m_Velocity;
+        dmVMath::Point3         m_LastPosition;
         dmhash_t                m_Id;
         EmitterRenderData       m_RenderData;
         /// Vertex index of the render data for the particles spawned by this emitter.

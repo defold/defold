@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -16,8 +18,6 @@
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
-            [editor.geom :as geom]
-            [editor.spine :as spine]
             [editor.types :as types]
             [editor.properties :as properties])
   (:import [javax.vecmath Point3d]))

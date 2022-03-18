@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,7 +16,7 @@
 
 #include "engine_private.h"
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <sys/stat.h>
 
 #include <stdio.h>
@@ -41,6 +43,7 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
+#include <gamesys/components/comp_gui.h> // For the URL callbacks etc
 #include <gameobject/gameobject.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
@@ -90,8 +93,6 @@ extern uint32_t DEBUG_FPC_SIZE;
     extern uint32_t GAME_PROJECT_SIZE;
 #endif
 
-using namespace Vectormath::Aos;
-
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
@@ -105,6 +106,9 @@ extern "C" {
 
 namespace dmEngine
 {
+
+    using namespace dmVMath;
+
 #define SYSTEM_SOCKET_NAME "@system"
 
     dmEngineService::HEngineService g_EngineService = 0;
@@ -139,9 +143,9 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / width;
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
-        if (engine->m_GuiContext.m_GuiContext)
+        if (engine->m_GuiContext)
         {
-            dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
+            dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
 
         dmGameSystem::OnWindowResized(width, height);
@@ -188,6 +192,22 @@ namespace dmEngine
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
 
+    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
+    {
+        component_create_ctx.m_Config = engine->m_Config;
+        component_create_ctx.m_Script = engine->m_GOScriptContext;
+        component_create_ctx.m_Register = engine->m_Register;
+        component_create_ctx.m_Factory = engine->m_Factory;
+        component_create_ctx.m_Contexts.SetCapacity(3, 8);
+        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
+        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+        if (engine->m_GuiContext)
+        {
+            component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
+            component_create_ctx.m_Contexts.Put(dmHashString64("guic"), engine->m_GuiContext);
+        }
+    }
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -229,17 +249,18 @@ namespace dmEngine
         m_InputBuffer.SetCapacity(64);
         m_ResourceTypeContexts.SetCapacity(31, 64);
 
-        m_PhysicsContext.m_Context3D = 0x0;
+        m_PhysicsContext.m_Context3D = 0x0; // it'a union
         m_PhysicsContext.m_Debug = false;
         m_PhysicsContext.m_3D = false;
-        m_GuiContext.m_GuiContext = 0x0;
-        m_GuiContext.m_RenderContext = 0x0;
+        m_GuiContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
         m_MeshContext.m_RenderContext = 0x0;
         m_MeshContext.m_MaxMeshCount = 0;
+        m_AccumFrameTime = 0;
+        m_PreviousFrameTime = dmTime::GetTime();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -262,6 +283,11 @@ namespace dmEngine
             dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         }
 
+        dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+        SetupComponentCreateContext(engine, component_create_ctx);
+
+        dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
+
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
@@ -271,11 +297,8 @@ namespace dmEngine
         } else {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            if (engine->m_GuiContext.m_GuiContext != 0x0)
-            {
-                script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
-                dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            }
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
+            dmGameSystem::FinalizeScriptLibs(script_lib_context);
         }
 
         dmHttpClient::ReopenConnectionPool();
@@ -296,8 +319,8 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        if (engine->m_GuiContext.m_GuiContext)
-            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
+        if (engine->m_GuiContext)
+            dmGui::DeleteContext(engine->m_GuiContext, engine->m_GuiScriptContext);
 
         if (engine->m_SharedScriptContext) {
             dmScript::Finalize(engine->m_SharedScriptContext);
@@ -379,7 +402,7 @@ namespace dmEngine
         }
     }
 
-    static bool GetProjectFile(int argc, char *argv[], char* project_file, uint32_t project_file_size)
+    static bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
     {
         if (argc > 1 && argv[argc-1][0] != '-')
         {
@@ -391,7 +414,6 @@ namespace dmEngine
             char p1[DMPATH_MAX_PATH];
             char p2[DMPATH_MAX_PATH];
             char p3[DMPATH_MAX_PATH];
-            char tmp[DMPATH_MAX_PATH];
             char* paths[3];
             uint32_t count = 0;
 
@@ -408,9 +430,9 @@ namespace dmEngine
             paths[count++] = p1;
             paths[count++] = p2;
 
-            if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
+            if (resources_path)
             {
-                dmPath::Concat(tmp, "game.projectc", p3, sizeof(p3));
+                dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
                 paths[count++] = p3;
             }
 
@@ -427,24 +449,46 @@ namespace dmEngine
         return false;
     }
 
+    static bool LoadAndSetSslKeys(const char* ssl_keys_path)
+    {
+        if (!dmSys::ResourceExists(ssl_keys_path))
+        {
+            return false;
+        }
+        uint32_t file_size;
+        if (dmSys::ResourceSize(ssl_keys_path, &file_size) != dmSys::RESULT_OK)
+        {
+            return false;
+        }
+        uint8_t* ssl_keys_buf = (uint8_t*)malloc(file_size);
+        uint32_t loaded_file_size = 0;
+        dmSys::Result load_result = dmSys::LoadResource(ssl_keys_path, ssl_keys_buf, file_size, &loaded_file_size);
+        if (load_result != dmSys::RESULT_OK)
+        {
+            dmLogError("Failed to read ssl_keys.pem at %s (%i)", ssl_keys_path, load_result);
+            free(ssl_keys_buf);
+            return false;
+        }
+        if (loaded_file_size != file_size)
+        {
+            dmLogError("Failed to load ssl_keys.pem: tried reading %d bytes, got %d bytes", file_size, loaded_file_size);
+            free(ssl_keys_buf);
+            return false;
+        }
+        dmSSLSocket::Result loadind_key_result = dmSSLSocket::SetSslPublicKeys(ssl_keys_buf, loaded_file_size);
+        free(ssl_keys_buf);
+        return loadind_key_result == dmSSLSocket::RESULT_OK;
+    }
+
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
-        if (!engine->m_UseVariableDt)
-        {
-            swap_interval = dmMath::Max(0, swap_interval);
-            // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
-            engine->m_UseSwVsync = (engine->m_VsyncMode == VSYNC_SOFTWARE || (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval == 0));
-            if (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
-                engine->m_UpdateFrequency /= swap_interval;
-            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
-        }
+        swap_interval = dmMath::Max(0, swap_interval);
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
-        engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
     struct LuaCallstackCtx
@@ -518,9 +562,14 @@ namespace dmEngine
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
         char project_file[DMPATH_MAX_PATH];
-        char content_root[DMPATH_MAX_PATH] = ".";
+        char project_file_uri[DMPATH_MAX_PATH];
+        char project_file_folder[DMPATH_MAX_PATH] = ".";
         bool loaded_ok = false;
-        if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
+
+        char resources_path[DMPATH_MAX_PATH];
+        dmSys::GetResourcesPath(argc, argv, resources_path, sizeof(resources_path));
+
+        if (GetProjectFile(argc, argv, resources_path, project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
@@ -535,11 +584,12 @@ namespace dmEngine
             else
             {
                 loaded_ok = true;
-                dmPath::Dirname(project_file, content_root, sizeof(content_root));
+                dmPath::Dirname(project_file, project_file_folder, sizeof(project_file_folder));
+                dmStrlCpy(project_file_uri, project_file_folder, sizeof(project_file_uri));
 
                 char tmp[DMPATH_MAX_PATH];
-                dmStrlCpy(tmp, content_root, sizeof(tmp));
-                if (content_root[0])
+                dmStrlCpy(tmp, project_file_folder, sizeof(tmp));
+                if (project_file_folder[0])
                 {
                     dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
                 }
@@ -549,8 +599,8 @@ namespace dmEngine
                 }
                 if (dmSys::ResourceExists(tmp))
                 {
-                    dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
-                    dmStrlCat(content_root, tmp, sizeof(content_root));
+                    dmStrlCpy(project_file_uri, "dmanif:", sizeof(project_file_uri));
+                    dmStrlCat(project_file_uri, tmp, sizeof(project_file_uri));
                 }
             }
         }
@@ -571,6 +621,22 @@ namespace dmEngine
 #endif
         }
 
+        // Try loading SSL keys
+        char engine_ssl_keys_path[DMPATH_MAX_PATH];
+        dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
+        char editor_ssl_keys_path[DMPATH_MAX_PATH];
+        dmPath::Concat(project_file_folder, dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", ""), editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
+        const char* paths[] = {engine_ssl_keys_path, editor_ssl_keys_path};
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+        {
+            if (paths[i] && LoadAndSetSslKeys(paths[i]))
+            {
+                dmLogInfo("SSL verification enabled");
+                break;
+            }
+        }
+
+        // Set HTML5 console banner "MadeWithDefold"
         #if defined(__EMSCRIPTEN__)
         if (1 == dmConfigFile::GetInt(engine->m_Config, "html5.show_console_banner", 1))
         {
@@ -630,7 +696,7 @@ namespace dmEngine
             else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
                      strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
             {
-                dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
+                dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
             }
         }
 
@@ -673,14 +739,44 @@ namespace dmEngine
 
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
+            uint32_t count = 0;
+            char* log_paths[3];
+
+            const char* LOG_FILE_NAME = "log.txt";
+
+            const char* log_dir = dmConfigFile::GetString(engine->m_Config, "project.log_dir", NULL);
+            char log_config_path[DMPATH_MAX_PATH];
+            if (log_dir != NULL)
+            {
+                dmPath::Concat(log_dir, LOG_FILE_NAME, log_config_path, sizeof(log_config_path));
+                log_paths[count] = log_config_path;
+                count++;
+            }
+
             char sys_path[DMPATH_MAX_PATH];
-            if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {
-                const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
-                char full[DMPATH_MAX_PATH];
-                dmPath::Concat(path, "log.txt", full, sizeof(full));
-                dmSetLogFile(full);
-            } else {
-                dmLogFatal("Unable to get log-file path");
+            char main_log_path[DMPATH_MAX_PATH];
+            if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK)
+            {
+                dmPath::Concat(sys_path, LOG_FILE_NAME, main_log_path, sizeof(main_log_path));
+                log_paths[count] = main_log_path;
+                count++;
+            }
+
+            char application_support_path[DMPATH_MAX_PATH];
+            char application_support_log_path[DMPATH_MAX_PATH];
+            const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
+            if (dmSys::GetApplicationSavePath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
+            {
+                dmPath::Concat(application_support_path, LOG_FILE_NAME, application_support_log_path, sizeof(application_support_log_path));
+                log_paths[count] = application_support_log_path;
+                count++;
+            }
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (dmLog::SetLogFile(log_paths[i]))
+                {
+                    break;
+                }
             }
         }
 
@@ -708,6 +804,16 @@ namespace dmEngine
         engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
         engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
 
+        float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
+        float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
+        float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
+        float clear_color_alpha = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_alpha", 0.0);
+        uint32_t clear_color = ((uint32_t)(clear_color_red * 255.0) & 0x000000ff)
+                             | (((uint32_t)(clear_color_green * 255.0) & 0x000000ff) << 8)
+                             | (((uint32_t)(clear_color_blue * 255.0) & 0x000000ff) << 16)
+                             | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
+        engine->m_ClearColor = clear_color;
+
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;
         window_params.m_ResizeCallbackUserData = engine;
@@ -724,6 +830,7 @@ namespace dmEngine
         window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_BackgroundColor = clear_color;
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
         if (window_result != dmGraphics::WINDOW_RESULT_OK)
@@ -738,58 +845,24 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_UseSwVsync = false;
-
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
 #endif
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
-        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
-        uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
-        uint32_t update_frequency = setting_update_frequency;
-        uint32_t swap_interval = 1;
+        engine->m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
 
-        float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
-        float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
-        float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
-        float clear_color_alpha = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_alpha", 0.0);
-        uint32_t clear_color = ((uint32_t)(clear_color_red * 255.0) & 0x000000ff)
-                             | (((uint32_t)(clear_color_green * 255.0) & 0x000000ff) << 8)
-                             | (((uint32_t)(clear_color_blue * 255.0) & 0x000000ff) << 16)
-                             | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
-        engine->m_ClearColor = clear_color;
+        SetUpdateFrequency(engine, engine->m_UpdateFrequency);
 
+        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
+
+        uint32_t opengl_swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
         if (!setting_vsync)
         {
-            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
-            engine->m_VsyncMode = VSYNC_SOFTWARE;
-            swap_interval = 0;
+            opengl_swap_interval = 0;
         }
-        else
-        {
-            engine->m_UseVariableDt = 0;
-            uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
-            if (refresh_rate == 0) // default to 60 if read failed
-            {
-                refresh_rate = 60;
-            }
-            else // Only bother setting a custom swap interval if we succeeded in getting a window refresh rate
-            {
-                if (setting_update_frequency > 0)
-                {
-                    // Calculate closest integer swap-interval from refresh rate and setting_update_frequency
-                    float fswap_interval = refresh_rate / setting_update_frequency;
-                    swap_interval = dmMath::Max(1U, (uint32_t) fswap_interval);
-                }
-            }
-            update_frequency = refresh_rate;
-            engine->m_VsyncMode = VSYNC_HARDWARE;
-        }
-
-        SetUpdateFrequency(engine, update_frequency);
-        SetSwapInterval(engine, swap_interval);
+        SetSwapInterval(engine, opengl_swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -832,7 +905,7 @@ namespace dmEngine
         params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
 #endif
 
-        const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
+        const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", project_file_uri);
         dmLogInfo("Loading data from: %s", resource_uri);
         engine->m_Factory = dmResource::NewFactory(&params, resource_uri);
         if (!engine->m_Factory)
@@ -909,6 +982,7 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
+        engine->m_ParticleFXContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
 
@@ -930,7 +1004,6 @@ namespace dmEngine
         // specific component max value.
         int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
         int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
-        int32_t max_spine_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128), max_rig_instance);
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
@@ -939,7 +1012,7 @@ namespace dmEngine
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
 
-      // If an extension changes window size at extensions initialization phase, engine should read that.  
+      // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
 
@@ -948,14 +1021,8 @@ namespace dmEngine
         gui_params.m_DefaultProjectWidth = engine->m_Width;
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
-        gui_params.m_HidContext = engine->m_HidContext;
-        engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
-        engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
-        engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
-        engine->m_GuiContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particlefx_count", 64);
-        engine->m_GuiContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particle_count", 1024);
-        engine->m_GuiContext.m_MaxSpineCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_spine_count", max_spine_count);
+
+        engine->m_GuiContext = dmGui::NewContext(&gui_params);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -967,6 +1034,7 @@ namespace dmEngine
         physics_params.m_RayCastLimit2D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_2d", 64);
         physics_params.m_RayCastLimit3D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_3d", 128);
         physics_params.m_TriggerOverlapCapacity = dmConfigFile::GetInt(engine->m_Config, "physics.trigger_overlap_capacity", 16);
+        physics_params.m_VelocityThreshold = dmConfigFile::GetFloat(engine->m_Config, "physics.velocity_threshold", 1.0f);
         if (physics_params.m_Scale < dmPhysics::MIN_SCALE || physics_params.m_Scale > dmPhysics::MAX_SCALE)
         {
             dmLogWarning("Physics scale must be in the range %.2f - %.2f and has been clamped.", dmPhysics::MIN_SCALE, dmPhysics::MAX_SCALE);
@@ -995,6 +1063,7 @@ namespace dmEngine
         }
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
+        engine->m_PhysicsContext.m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_UPDATE_FREQUENCY_KEY, 60);
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
@@ -1052,13 +1121,7 @@ namespace dmEngine
         }
 
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        component_create_ctx.m_Config = engine->m_Config;
-        component_create_ctx.m_Script = engine->m_GOScriptContext;
-        component_create_ctx.m_Register = engine->m_Register;
-        component_create_ctx.m_Factory = engine->m_Factory;
-        component_create_ctx.m_Contexts.SetCapacity(3, 8);
-        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
-        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+        SetupComponentCreateContext(engine, component_create_ctx);
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
@@ -1068,18 +1131,23 @@ namespace dmEngine
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
-        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
         engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
+        if (engine->m_GuiContext)
+        {
+            engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
+            engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
+        }
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, &engine->m_PhysicsContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
                                                                                                 &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
@@ -1087,6 +1155,7 @@ namespace dmEngine
             goto bail;
 
         // register the component extensions
+
         go_result = dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
@@ -1146,8 +1215,8 @@ namespace dmEngine
         }
 #endif
 
-        dmGui::SetDefaultFont(engine->m_GuiContext.m_GuiContext, engine->m_SystemFontMap);
-        dmGui::SetDisplayProfiles(engine->m_GuiContext.m_GuiContext, engine->m_DisplayProfiles);
+        dmGui::SetDefaultFont(engine->m_GuiContext, engine->m_SystemFontMap);
+        dmGui::SetDisplayProfiles(engine->m_GuiContext, engine->m_DisplayProfiles);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
         for (int i = 0; i < 3; ++i) {
@@ -1180,7 +1249,7 @@ namespace dmEngine
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
-            script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }
@@ -1259,15 +1328,6 @@ namespace dmEngine
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
-
-        // Since these belong to the Step() mechanics, we need them to capure
-        // the time as close to the next frame as possible. Otherwise we'll get an unnecessarily
-        // large time step. Better err on a smaller one.
-
-        // since it will be close to zero, we guess at a framerate (60 is probably a good guess)
-        engine->m_PreviousFrameTime = dmTime::GetTime() - 1000000/60;
-        engine->m_FlipTime = dmTime::GetTime();
-        engine->m_PreviousRenderTime = 0;
 
         return true;
 
@@ -1361,12 +1421,282 @@ bail:
             memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_SharedScriptContext));
         } else {
             memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GOScriptContext));
-            if (engine->m_GuiContext.m_GuiContext != 0x0)
-            {
-                memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
-            }
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GuiScriptContext));
         }
         return memcount;
+    }
+
+    static void StepFrame(HEngine engine, float dt)
+    {
+        dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
+
+        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+        {
+            if (!engine->m_WasIconified)
+            {
+                engine->m_WasIconified = true;
+
+                if (!engine->m_RunWhileIconified)
+                {
+                    dmSound::Pause(true);
+                }
+            }
+
+            if (!engine->m_RunWhileIconified) {
+                // NOTE: Polling the event queue is crucial on iOS for life-cycle management
+                // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
+                dmHID::Update(engine->m_HidContext);
+                dmTime::Sleep(1000 * 100);
+                return;
+            }
+        }
+        else
+        {
+            if (engine->m_WasIconified)
+            {
+                engine->m_WasIconified = false;
+
+                dmSound::Pause(false);
+            }
+        }
+
+        dmProfile::HProfile profile = dmProfile::Begin();
+        {
+            DM_PROFILE(Engine, "Frame");
+
+            {
+                DM_PROFILE(Engine, "Sim");
+
+                dmLiveUpdate::Update();
+                dmResource::UpdateFactory(engine->m_Factory);
+
+                dmHID::Update(engine->m_HidContext);
+                if (!engine->m_RunWhileIconified) {
+                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                    {
+                        // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
+                        // might have entered background at this point and OpenGL calls are not permitted and will
+                        // crash the application
+                        dmProfile::Release(profile);
+                        return;
+                    }
+                }
+                // Script context updates
+                if (engine->m_SharedScriptContext) {
+                    dmScript::Update(engine->m_SharedScriptContext);
+                } else {
+                    if (engine->m_GOScriptContext) {
+                        dmScript::Update(engine->m_GOScriptContext);
+                    }
+                    if (engine->m_RenderScriptContext) {
+                        dmScript::Update(engine->m_RenderScriptContext);
+                    }
+                    if (engine->m_GuiScriptContext) {
+                        dmScript::Update(engine->m_GuiScriptContext);
+                    }
+                }
+
+                dmSound::Update();
+
+                bool esc_pressed = false;
+                if (engine->m_QuitOnEsc)
+                {
+                    dmHID::KeyboardPacket keybdata;
+                    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+                    dmHID::GetKeyboardPacket(keyboard, &keybdata);
+                    esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
+                }
+
+                if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                {
+                    engine->m_Alive = false;
+                    return;
+                }
+
+                dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
+
+                engine->m_InputBuffer.SetSize(0);
+                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+
+                // Sort input so that text and marked text is triggered last
+                // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
+                //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
+                //       If the backspace arrive after the text, it will instead remove the new character that
+                //       actually should replace the old one.
+                qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
+
+                dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
+                uint32_t input_buffer_size = input_buffer.Size();
+                if (input_buffer_size > 0)
+                {
+                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                }
+
+
+                dmGameObject::UpdateContext update_context;
+                update_context.m_TimeScale = 1.0f;
+                update_context.m_DT = dt;
+                dmGameObject::Update(engine->m_MainCollection, &update_context);
+
+                // Don't render while iconified
+                if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                {
+                    // Call pre render functions for extensions, if available.
+                    // We do it here before we render rest of the frame
+                    // if any extension wants to render on under of the game.
+                    dmExtension::Params ext_params;
+                    ext_params.m_ConfigFile = engine->m_Config;
+                    if (engine->m_SharedScriptContext) {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                    } else {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                    }
+                    dmExtension::PreRender(&ext_params);
+
+                    // Make the render list that will be used later.
+                    dmRender::RenderListBegin(engine->m_RenderContext);
+                    dmGameObject::Render(engine->m_MainCollection);
+
+                    // Make sure we dispatch messages to the render script
+                    // since it could have some "draw_text" messages waiting.
+                    if (engine->m_RenderScriptPrototype)
+                    {
+                        dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                    }
+
+                    dmRender::RenderListEnd(engine->m_RenderContext);
+
+                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+                    if (engine->m_RenderScriptPrototype)
+                    {
+                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
+                    }
+                    else
+                    {
+                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                            (float)((engine->m_ClearColor>> 0)&0xFF),
+                                            (float)((engine->m_ClearColor>> 8)&0xFF),
+                                            (float)((engine->m_ClearColor>>16)&0xFF),
+                                            (float)((engine->m_ClearColor>>24)&0xFF),
+                                            1.0f, 0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
+                    }
+                }
+
+                dmGameObject::PostUpdate(engine->m_MainCollection);
+                dmGameObject::PostUpdate(engine->m_Register);
+
+                dmRender::ClearRenderObjects(engine->m_RenderContext);
+
+
+                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+            } // Sim
+
+            DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
+            DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
+
+            if (dLib::IsDebugMode())
+            {
+                // We had buffering problems with the output when running the engine inside the editor
+                // Flushing stdout/stderr solves this problem.
+                fflush(stdout);
+                fflush(stderr);
+            }
+
+            if (engine->m_EngineService)
+            {
+                dmEngineService::Update(engine->m_EngineService, profile);
+            }
+
+            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
+
+            // Call post render functions for extensions, if available.
+            // We do it here at the end of the frame (before swap buffers/flip)
+            // in case any extension wants to render just before the Flip().
+            // Don't do this while iconified
+            if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+            {
+                dmExtension::Params ext_params;
+                ext_params.m_ConfigFile = engine->m_Config;
+                if (engine->m_SharedScriptContext) {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                } else {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                }
+                dmExtension::PostRender(&ext_params);
+            }
+
+            dmGraphics::Flip(engine->m_GraphicsContext);
+
+            RecordData* record_data = &engine->m_RecordData;
+            if (record_data->m_Recorder)
+            {
+                if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                {
+                    uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
+                    uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
+                    uint32_t buffer_size = width * height * 4;
+
+                    dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+
+                    dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
+                    if (r != dmRecord::RESULT_OK)
+                    {
+                        dmLogError("Error while recoding frame (%d)", r);
+                    }
+                }
+                record_data->m_FrameCount++;
+            }
+        }
+        dmProfile::Release(profile);
+
+        ++engine->m_Stats.m_FrameCount;
+    }
+
+    static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
+    {
+        uint64_t time = dmTime::GetTime();
+        uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
+        engine->m_PreviousFrameTime = time;
+
+        float frame_dt = (float)(frame_time / 1000000.0);
+
+        // Never allow for large hitches
+        if (frame_dt > 0.5f) {
+            frame_dt = 0.5f;
+        }
+
+        // Variable frame rate
+        if (engine->m_UpdateFrequency == 0)
+        {
+            step_dt = frame_dt;
+            num_steps = 1;
+            return;
+        }
+
+        // Fixed frame rate
+        float fixed_dt = 1.0f / (float)engine->m_UpdateFrequency;
+
+        // We don't allow having a higher framerate than the actual variable frame rate
+        // since the update+render is currently coupled together and also Flip() would be called more than once.
+        if (fixed_dt < frame_dt)
+        {
+            step_dt = frame_dt;
+            num_steps = 1;
+            engine->m_AccumFrameTime = 0; // we consumed it all
+            return;
+        }
+
+        engine->m_AccumFrameTime += frame_dt;
+
+        float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
+
+        num_steps = (uint32_t)num_steps_f;
+        step_dt = fixed_dt;
+
+        engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
     }
 
     void Step(HEngine engine)
@@ -1375,287 +1705,19 @@ bail:
         engine->m_RunResult.m_ExitCode = 0;
         engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
 
-        uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
-        uint64_t prev_flip_time = engine->m_FlipTime;
-        uint64_t time = dmTime::GetTime();
+        float step_dt;      // The dt for each step (the game frame)
+        uint32_t num_steps; // Number of times to loop over the StepFrame function
 
-        float fps = engine->m_UpdateFrequency;
-        float fixed_dt = 1.0f / fps;
+        CalcTimeStep(engine, step_dt, num_steps);
 
-        float dt = fixed_dt;
-        bool variable_dt = engine->m_UseVariableDt;
-        if (variable_dt && time > engine->m_PreviousFrameTime) {
-            dt = (float)((time - engine->m_PreviousFrameTime) * 0.000001);
-            // safety mechanism for crazy; GetTime() is not guaranteed to always
-            // produce small deltas between calls, cap to 25 frames in one.
-            const float max = fixed_dt * 25.0f;
-            if (dt > max) {
-                dt = max;
-            }
-        }
-
-        if (engine->m_WasIconified && !engine->m_RunWhileIconified && dt > 0.5f) {
-            dt = fixed_dt;
-        }
-        engine->m_PreviousFrameTime = time;
-
-        if (engine->m_Alive)
+        for (uint32_t i = 0; i < num_steps; ++i)
         {
+            // We currently cannot separate the update from the render,
+            // since some of the update is done in the render updates (e.g. sprite transforms)
+            StepFrame(engine, step_dt);
 
-            if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-            {
-                if (!engine->m_WasIconified)
-                {
-                    engine->m_WasIconified = true;
-
-                    if (!engine->m_RunWhileIconified)
-                    {
-                        dmSound::Pause(true);
-                    }
-                }
-
-                if (!engine->m_RunWhileIconified) {
-                    // NOTE: Polling the event queue is crucial on iOS for life-cycle management
-                    // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
-                    dmHID::Update(engine->m_HidContext);
-                    dmTime::Sleep(1000 * 100);
-                    // Update time again after the sleep to avoid big leaps after iconified.
-                    // In practice, it makes the delta time 1/freq even though we slept for long
-
-                    time = dmTime::GetTime();
-                    uint64_t i_dt = fixed_dt * 1000000;
-                    if (i_dt > time) {
-                        engine->m_PreviousFrameTime = 0;
-                    } else {
-                        engine->m_PreviousFrameTime = time - i_dt;
-                    }
-                    return;
-                }
-            }
-            else
-            {
-                if (engine->m_WasIconified)
-                {
-                    engine->m_WasIconified = false;
-
-                    dmSound::Pause(false);
-                }
-            }
-
-            dmProfile::HProfile profile = dmProfile::Begin();
-            {
-                DM_PROFILE(Engine, "Frame");
-
-                {
-                    DM_PROFILE(Engine, "Sim");
-
-                    dmLiveUpdate::Update();
-                    dmResource::UpdateFactory(engine->m_Factory);
-
-                    dmHID::Update(engine->m_HidContext);
-                    if (!engine->m_RunWhileIconified) {
-                        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                        {
-                            // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
-                            // might have entered background at this point and OpenGL calls are not permitted and will
-                            // crash the application
-                            dmProfile::Release(profile);
-                            return;
-                        }
-                    }
-                    /* Script context updates */
-                    if (engine->m_SharedScriptContext) {
-                        dmScript::Update(engine->m_SharedScriptContext);
-                    } else {
-                        if (engine->m_GOScriptContext) {
-                            dmScript::Update(engine->m_GOScriptContext);
-                        }
-                        if (engine->m_RenderScriptContext) {
-                            dmScript::Update(engine->m_RenderScriptContext);
-                        }
-                        if (engine->m_GuiScriptContext) {
-                            dmScript::Update(engine->m_GuiScriptContext);
-                        }
-                    }
-
-                    dmSound::Update();
-
-                    bool esc_pressed = false;
-                    if (engine->m_QuitOnEsc)
-                    {
-                        dmHID::KeyboardPacket keybdata;
-                        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
-                        dmHID::GetKeyboardPacket(keyboard, &keybdata);
-                        esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
-                    }
-
-                    if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
-                    {
-                        engine->m_Alive = false;
-                        return;
-                    }
-
-                    dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
-
-                    engine->m_InputBuffer.SetSize(0);
-                    dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
-
-                    // Sort input so that text and marked text is triggered last
-                    // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
-                    //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
-                    //       If the backspace arrive after the text, it will instead remove the new character that
-                    //       actually should replace the old one.
-                    qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
-
-                    dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
-                    uint32_t input_buffer_size = input_buffer.Size();
-                    if (input_buffer_size > 0)
-                    {
-                        dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
-                    }
-
-
-                    dmGameObject::UpdateContext update_context;
-                    update_context.m_DT = dt;
-                    dmGameObject::Update(engine->m_MainCollection, &update_context);
-
-                    // Don't render while iconified
-                    if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                    {
-                        // Call pre render functions for extensions, if available.
-                        // We do it here before we render rest of the frame
-                        // if any extension wants to render on under of the game.
-                        dmExtension::Params ext_params;
-                        ext_params.m_ConfigFile = engine->m_Config;
-                        if (engine->m_SharedScriptContext) {
-                            ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                        } else {
-                            ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                        }
-                        dmExtension::PreRender(&ext_params);
-
-                        // Make the render list that will be used later.
-                        dmRender::RenderListBegin(engine->m_RenderContext);
-                        dmGameObject::Render(engine->m_MainCollection);
-
-                        // Make sure we dispatch messages to the render script
-                        // since it could have some "draw_text" messages waiting.
-                        if (engine->m_RenderScriptPrototype)
-                        {
-                            dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
-                        }
-
-                        dmRender::RenderListEnd(engine->m_RenderContext);
-
-                        dmGraphics::BeginFrame(engine->m_GraphicsContext);
-
-                        if (engine->m_RenderScriptPrototype)
-                        {
-                            dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                        }
-                        else
-                        {
-                            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                                (float)((engine->m_ClearColor>> 0)&0xFF),
-                                                (float)((engine->m_ClearColor>> 8)&0xFF),
-                                                (float)((engine->m_ClearColor>>16)&0xFF),
-                                                (float)((engine->m_ClearColor>>24)&0xFF),
-                                                1.0f, 0);
-                            dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                        }
-                    }
-
-                    dmGameObject::PostUpdate(engine->m_MainCollection);
-                    dmGameObject::PostUpdate(engine->m_Register);
-
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-
-
-                    dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
-                }
-
-                DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-                DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
-
-                if (dLib::IsDebugMode())
-                {
-                    // We had buffering problems with the output when running the engine inside the editor
-                    // Flushing stdout/stderr solves this problem.
-                    fflush(stdout);
-                    fflush(stderr);
-                }
-
-                if (engine->m_EngineService)
-                {
-                    dmEngineService::Update(engine->m_EngineService, profile);
-                }
-
-                dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
-
-                // Call post render functions for extensions, if available.
-                // We do it here at the end of the frame (before swap buffers/flip)
-                // if any extension wants to render on top of the game.
-                // Don't do this while iconified
-                if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                {
-                    dmExtension::Params ext_params;
-                    ext_params.m_ConfigFile = engine->m_Config;
-                    if (engine->m_SharedScriptContext) {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                    } else {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                    }
-                    dmExtension::PostRender(&ext_params);
-                }
-
-                if (engine->m_UseSwVsync)
-                {
-                    uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
-                    int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
-                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
-                    {
-                        DM_PROFILE(Engine, "SoftwareVsync");
-                        while (remainder > 500) // dont bother with less than 0.5ms
-                        {
-                            uint64_t t1 = dmTime::GetTime();
-                            dmTime::Sleep(100); // sleep in chunks of 0.1ms
-                            uint64_t t2 = dmTime::GetTime();
-                            remainder -= (t2-t1);
-                        }
-                    }
-                }
-                uint64_t flip_time_start = dmTime::GetTime();
-
-                dmGraphics::Flip(engine->m_GraphicsContext);
-
-                engine->m_FlipTime = dmTime::GetTime();
-                engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
-
-                RecordData* record_data = &engine->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
-                    {
-                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
-                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
-                        uint32_t buffer_size = width * height * 4;
-
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
-
-                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                        if (r != dmRecord::RESULT_OK)
-                        {
-                            dmLogError("Error while recoding frame (%d)", r);
-                        }
-                    }
-                    record_data->m_FrameCount++;
-                }
-            }
-            dmProfile::Release(profile);
-
-
-            ++engine->m_Stats.m_FrameCount;
+            if (!engine->m_Alive)
+                break;
         }
     }
 
@@ -1916,8 +1978,8 @@ void dmEngineInitialize()
     dmSSLSocket::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
-    dmLogParams params;
-    dmLogInitialize(&params);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
 
     if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
     {
@@ -1933,7 +1995,7 @@ void dmEngineFinalize()
         dmEngineService::Delete(dmEngine::g_EngineService);
     }
     dmGraphics::Finalize();
-    dmLogFinalize();
+    dmLog::LogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();

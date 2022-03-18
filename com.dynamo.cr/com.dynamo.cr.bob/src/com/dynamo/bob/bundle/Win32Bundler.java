@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -76,7 +78,7 @@ public class Win32Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy archive and game.projectc
-        for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
             FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
 

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -41,6 +43,7 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Platform;
@@ -51,6 +54,7 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -410,6 +414,11 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
+        // Editor debugger scripts
+        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
+            findResources(project, project.getResource("/builtins/scripts/debugger.luac"), resources);
+        }
+
         return resources;
     }
 
@@ -427,7 +436,7 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setProjectIdentifier(projectIdentifier);
         manifestBuilder.setExcludedResources(excludedResources);
 
-        // If manifest signing keys are specified, use them instead of generating them.
+        // Try manifest signing keys specified through the publisher
         if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
             if (!Files.exists(Paths.get(privateKeyFilepath))) {
                 String altPrivateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
@@ -443,30 +452,38 @@ public class GameProjectBuilder extends Builder<Void> {
                     throw new IOException(String.format("Couldn't find public key at either: '%s' or '%s'", publicKeyFilepath, altPublicKeyFilepath));
                 }
                 publicKeyFilepath = altPublicKeyFilepath;
-
+            }
+        }
+        // Try manifest signing keys specified in project options
+        else {
+            privateKeyFilepath = project.option("manifest-private-key", "");
+            if (!privateKeyFilepath.isEmpty() && !Files.exists(Paths.get(privateKeyFilepath))) {
+                throw new IOException(String.format("Couldn't find private key at: '%s'", privateKeyFilepath));
+            }
+            publicKeyFilepath = project.option("manifest-public-key", "");
+            if (!publicKeyFilepath.isEmpty() && !Files.exists(Paths.get(publicKeyFilepath))) {
+                throw new IOException(String.format("Couldn't find public key at: '%s'", publicKeyFilepath));
             }
         }
 
-        // If loading supplied keys failed or none were supplied, generate them instead.
+        // If no keys were provided, generate them instead.
         if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
-            if (project.option("liveupdate", "false").equals("true")) {
-                System.err.println("\nWarning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
-            }
-            File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
-            privateKeyFileHandle.deleteOnExit();
-
-            File publicKeyFileHandle = File.createTempFile("defold.public_", ".der");
-            publicKeyFileHandle.deleteOnExit();
+            File privateKeyFileHandle = Paths.get(project.getRootDirectory(), "manifest.private.der").toFile();
+            File publicKeyFileHandle = Paths.get(project.getRootDirectory(), "manifest.public.der").toFile();
 
             privateKeyFilepath = privateKeyFileHandle.getAbsolutePath();
             publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
-            try {
-                ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
-            } catch (NoSuchAlgorithmException exception) {
-                throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
-            }
 
+            if (!privateKeyFileHandle.exists() || !publicKeyFileHandle.exists()) {
+                Bob.verbose("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
+                try {
+                    ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
+                } catch (NoSuchAlgorithmException exception) {
+                    throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
+                }
+            }
         }
+
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
         manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
@@ -494,6 +511,11 @@ public class GameProjectBuilder extends Builder<Void> {
             properties.putBooleanValue("display", "vsync", false);
             properties.putIntValue("display", "update_frequency", 0);
         }
+
+        // Convert project title to a string which may be used as a folder name and save in project.title_as_file_name
+        String title = properties.getStringValue("project", "title", "Unnamed");
+        String fileNameTitle = BundleHelper.projectNameToBinaryName(title);
+        properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
     @Override
@@ -560,6 +582,16 @@ public class GameProjectBuilder extends Builder<Void> {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
                 project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
                 project.getPublisher().Publish();
+
+                // Copy SSL public keys if specified
+                String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
+                if (sslCertificatesPath != null && !sslCertificatesPath.isEmpty())
+                {
+                    File source = new File(project.getRootDirectory(), sslCertificatesPath);
+                    File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+                    File dist = new File(buildDir, BundleHelper.SSL_CERTIFICATES_NAME);
+                    FileUtils.copyFile(source, dist);
+                }
 
                 manifestTmpFileHandle.delete();
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());

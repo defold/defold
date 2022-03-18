@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -778,13 +780,14 @@ TEST_P(GetResourceTest, PreloadGetParallell)
             pr[j] = dmResource::NewPreloader(m_Factory, m_ResourceName);
         }
 
+        uint32_t timeout = 4000;
         bool done;
-        for (uint32_t j=0;j<30;j++)
+        for (uint32_t j=0;j<100;j++)
         {
             done = true;
             for (uint32_t k=0;k<n;k++)
             {
-                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 0, 0, 2000);
+                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 0, 0, timeout);
                 if (r == dmResource::RESULT_PENDING)
                 {
                     done = false;
@@ -827,12 +830,13 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     // this has more references than the preloader can fit into its tree
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/many_refs.cont");
 
+    uint32_t timeout = 100*1000;
     dmResource::Result r;
     for (uint32_t i=0;i<1000;i++)
     {
-        r = dmResource::UpdatePreloader(pr, 0, 0, 30*1000);
+        r = dmResource::UpdatePreloader(pr, 0, 0, timeout);
         if (r == dmResource::RESULT_PENDING)
-            dmTime::Sleep(30000);
+            dmTime::Sleep(timeout);
         else
             break;
     }

@@ -1,10 +1,12 @@
-// Copyright 2021 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.Collections;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -27,6 +30,21 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.archive.EngineVersion;
 
 public class ResourceCacheKey {
+
+	/*
+	 * A set of options which have an impact on the created resources
+	 * and must be included when calculating the resource key
+	 */
+	private static Set<String> options = new HashSet<String>();
+
+	/**
+	 * Add an option that should be included in the resource key
+	 * calculation
+	 */
+	public static void includeOption(String option) {
+		options.add(option);
+	}
+
 
 	/**
 	 * Calculate the key to use when caching a resource.
@@ -47,12 +65,14 @@ public class ResourceCacheKey {
 		List<String> keys = new ArrayList<String>(projectOptions.keySet());
 		Collections.sort(keys);
 		for (String key : keys) {
-			digest.update(key.getBytes());
-			String value = projectOptions.get(key);
-			if (value == null) {
-				value = "";
+			if (options.contains(key)) {
+				digest.update(key.getBytes());
+				String value = projectOptions.get(key);
+				if (value == null) {
+					value = "";
+				}
+				digest.update(value.getBytes());
 			}
-			digest.update(value.getBytes());
 		}
 
 		byte[] key = digest.digest();

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,7 +14,7 @@
 
 #include <string.h>
 #include <assert.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -25,8 +27,6 @@
 #include "graphics_null_private.h"
 #include "glsl_uniform_parser.h"
 
-using namespace Vectormath::Aos;
-
 uint64_t g_DrawCount = 0;
 uint64_t g_Flipped = 0;
 
@@ -36,6 +36,8 @@ bool g_ForceVertexReloadFail = false;
 
 namespace dmGraphics
 {
+    using namespace dmVMath;
+
     uint16_t TYPE_SIZE[] =
     {
         sizeof(char), // TYPE_BYTE
@@ -656,13 +658,14 @@ namespace dmGraphics
         char* m_Data;
     };
 
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata);
+    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
 
     struct Uniform
     {
         Uniform() : m_Name(0) {};
         char* m_Name;
         uint32_t m_Index;
+        uint32_t m_Size;
         Type m_Type;
     };
 
@@ -690,7 +693,7 @@ namespace dmGraphics
         dmArray<Uniform> m_Uniforms;
     };
 
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata)
+    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
     {
         Program* program = (Program*) userdata;
         if(program->m_Uniforms.Full())
@@ -701,6 +704,7 @@ namespace dmGraphics
         dmStrlCpy(uniform.m_Name, name, name_length);
         uniform.m_Index = program->m_Uniforms.Size();
         uniform.m_Type = type;
+        uniform.m_Size = size;
         program->m_Uniforms.Push(uniform);
     }
 
@@ -816,7 +820,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
-        *size = 1; // TODO
+        *size = uniform.m_Size;
         return (uint32_t)strlen(buffer);
     }
 

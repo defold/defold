@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,7 +26,7 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 class dmGraphicsTest : public jc_test_base_class
 {
@@ -122,9 +124,9 @@ TEST_F(dmGraphicsTest, CloseOpenWindow)
     params.m_Height = HEIGHT;
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = true;
-    dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_INFO);
     ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, dmGraphics::OpenWindow(m_Context, &params));
-    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
 }
 
 TEST_F(dmGraphicsTest, TestWindowState)

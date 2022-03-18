@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -103,6 +105,7 @@ TEST(dmMemProfile, TestRealloc)
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
     void* p = malloc(1024);
+    g_dont_optimize = p;
     memset(p, 0xcc, 1024);
     p = realloc(p, 1024);
     uint8_t *p8 = (uint8_t*) p;
@@ -143,6 +146,7 @@ TEST(dmMemProfile, TestMemAlign)
     dmMemProfile::GetStats(&stats1);
 
     void* p = memalign(16, 1024);
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)
@@ -179,6 +183,7 @@ TEST(dmMemProfile, TestPosixMemAlign)
 
     void* p;
     posix_memalign(&p, 16, 1024);
+    g_dont_optimize = p;
     dmMemProfile::GetStats(&stats2);
 
     if (g_MemprofileActive)

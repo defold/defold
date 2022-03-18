@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,7 +27,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
-#include <dlib/vmath.h>
+#include <dmsdk/dlib/vmath.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -36,12 +38,13 @@
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/mesh_ddf.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 #include "../resources/res_mesh.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
     struct MeshComponent
@@ -360,12 +363,11 @@ namespace dmGameSystem
 
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
-
-            if (component->m_BufferResource) {
-                dmResource::Release(factory, component->m_BufferResource);
-            }
         }
-        if (!component->m_RenderConstants)
+        if (component->m_BufferResource) {
+            dmResource::Release(factory, component->m_BufferResource);
+        }
+        if (component->m_RenderConstants)
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
 
         delete component;
@@ -813,7 +815,7 @@ namespace dmGameSystem
         MeshComponent* component = (MeshComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        dmGameSystem::SetRenderConstant(component->m_RenderConstants, component->m_Resource->m_Material, name_hash, value_index, element_index, var);
+        dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -898,6 +900,7 @@ namespace dmGameSystem
 
         if (params.m_PropertyId == PROP_VERTICES) {
             BufferResource* prev_buffer_resource = GetVerticesBuffer(component, component->m_Resource);
+            BufferResource* prev_custom_buffer_resource = component->m_BufferResource;
 
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, BUFFER_EXT_HASH, (void**)&component->m_BufferResource);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
@@ -907,7 +910,7 @@ namespace dmGameSystem
                 BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
 
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
-                if (HasCustomVerticesBuffer(component) && component->m_BufferResource != prev_buffer_resource) {
+                if (!prev_custom_buffer_resource || (component->m_BufferResource != prev_buffer_resource)) {
 
                     // Perhaps figure our a way to avoid recreating the same vertex declarations all the time? (If if it's worth it?)
                     dmGraphics::HVertexDeclaration new_vert_decl;
@@ -1003,6 +1006,38 @@ namespace dmGameSystem
                 }
             }
         }
+    }
+
+    static bool CompMeshIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        MeshWorld* world = (MeshWorld*)pit->m_Node->m_ComponentWorld;
+        MeshComponent* component = world->m_Components.Get(pit->m_Node->m_Component);
+
+        uint64_t index = pit->m_Next++;
+
+        uint32_t num_bool_properties = 1;
+        if (index < num_bool_properties)
+        {
+            if (index == 0)
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+                pit->m_Property.m_Value.m_Bool = component->m_Enabled;
+                pit->m_Property.m_NameHash = dmHashString64("enabled");
+            }
+            return true;
+        }
+        index -= num_bool_properties;
+
+        return false;
+    }
+
+    void CompMeshIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompMeshIterPropertiesGetNext;
     }
 
 }

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -44,6 +46,7 @@ namespace dmGameSystem
 #undef EXT_CONSTANTS
 
     static const dmhash_t PROP_FONT = dmHashString64("font");
+    static const dmhash_t PROP_FONTS = dmHashString64("fonts");
     static const dmhash_t PROP_IMAGE = dmHashString64("image");
     static const dmhash_t PROP_MATERIAL = dmHashString64("material");
     static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
@@ -56,6 +59,7 @@ namespace dmGameSystem
         dmHashString64("texture6"),
         dmHashString64("texture7")
     };
+    static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
     static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
 
     struct EmitterStateChangedScriptData

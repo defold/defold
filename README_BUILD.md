@@ -7,6 +7,15 @@ Defold uses the Python based build system [Waf](https://waf.io/). Most of the in
 Make sure you have followed the [setup guide](/README_SETUP.md) before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
 
 ## IMPORTANT PREREQUISITE - PACKAGE SDKs!
+
+### Local SDKs
+If you're a contributor, chances are that you have the necessary sdk's and tools already installed (E.g. Windows: Visual Studio+Windows SDK, macOS: Xcode or Linux: clang++)
+If this is the case, then you won't have to run the `install_sdk` build command, and thus would have no requirement for any prepackaged sdks.
+
+Since support for locally installed SDK's is in progress, some platforms still _do_ require the `--install_sdk` step, and thus requires you to have the prepackaged sdk's available.
+
+### Prepackaged SDKs
+
 Due to licensing restrictions **the SDKs are not distributed with Defold**. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
 
 ## Standard workflow
@@ -31,7 +40,6 @@ The following platforms are supported:
 * `win32`
 * `x86_64-win32`
 * `x86_64-ios`
-* `armv7-darwin`
 * `arm64-darwin`
 * `armv7-android`
 * `arm64-android`

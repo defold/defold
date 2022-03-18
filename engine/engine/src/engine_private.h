@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -98,13 +100,6 @@ namespace dmEngine
         uint32_t            m_Fps;
     };
 
-    enum Vsync
-    {
-        VSYNC_SOFTWARE = 0,
-        VSYNC_HARDWARE = 1,
-
-    };
-
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -133,7 +128,7 @@ namespace dmEngine
         dmScript::HContext                          m_RenderScriptContext;
         dmScript::HContext                          m_GuiScriptContext;
         dmResource::HFactory                        m_Factory;
-        dmGameSystem::GuiContext                    m_GuiContext;
+        dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
         dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
@@ -156,22 +151,18 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
-        bool                                        m_UseSwVsync;
-        bool                                        m_UseVariableDt;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
-        uint64_t                                    m_PreviousFrameTime;
-        uint64_t                                    m_PreviousRenderTime;
-        uint64_t                                    m_FlipTime;
+        uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
+        float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
-        Vsync                                       m_VsyncMode;
 
         RecordData                                  m_RecordData;
     };
@@ -189,13 +180,13 @@ namespace dmEngine
 
 
     // Creates and initializes the engine. Returns the engine instance
-    typedef void* (*EngineCreate)(int argc, char** argv);
+    typedef HEngine (*EngineCreate)(int argc, char** argv);
     // Destroys the engine instance after finalizing each system
-    typedef void (*EngineDestroy)(void* engine);
+    typedef void (*EngineDestroy)(HEngine engine);
     // Steps the engine 1 tick
-    typedef dmEngine::UpdateResult (*EngineUpdate)(void* engine);
+    typedef dmEngine::UpdateResult (*EngineUpdate)(HEngine engine);
     // Called before the destroy function
-    typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+    typedef void (*EngineGetResult)(HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
     struct RunLoopParams
     {

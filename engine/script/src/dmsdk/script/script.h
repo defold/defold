@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +20,8 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/message.h>
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/ddf/ddf.h>
 
 extern "C"
 {
@@ -25,14 +29,6 @@ extern "C"
 #include <dmsdk/lua/lauxlib.h>
 }
 
-namespace Vectormath {
-    namespace Aos {
-        class Vector3;
-        class Vector4;
-        class Quat;
-        class Matrix4;
-    }
-}
 namespace dmJson {
     struct Document;
 }
@@ -252,155 +248,162 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
-    /*# get the value at index as a Vectormath::Aos::Vector3*
-     * Get the value at index as a Vectormath::Aos::Vector3*
+    /*#
+     * Retrieve Lua state from the context
+     * @param context [type: HContext] the script context
+     * @return state [type: lua_State*] the lua state
+     */
+    lua_State* GetLuaState(HContext context);
+
+    /*# get the value at index as a dmVMath::Vector3*
+     * Get the value at index as a dmVMath::Vector3*
      * @name dmScript::ToVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return v [type:Vectormath::Aos::Vector3*] The pointer to the value, or 0 if not correct type
+     * @return v [type:dmVMath::Vector3*] The pointer to the value, or 0 if not correct type
      */
-    Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index);
+    dmVMath::Vector3* ToVector3(lua_State* L, int index);
 
     /*#
-     * Check if the value at #index is a Vectormath::Aos::Vector3*
+     * Check if the value at #index is a dmVMath::Vector3*
      * @name dmScript::IsVector3
      * @param L Lua state
      * @param index Index of the value
-     * @return true if value at #index is a Vectormath::Aos::Vector3*
+     * @return true if value at #index is a dmVMath::Vector3*
      */
     bool IsVector3(lua_State* L, int index);
 
-    /*# push a Vectormath::Aos::Vector3 onto the Lua stack
+    /*# push a dmVMath::Vector3 onto the Lua stack
      *
-     * Push a Vectormath::Aos::Vector3 value onto the supplied lua state, will increase the stack by 1.
+     * Push a dmVMath::Vector3 value onto the supplied lua state, will increase the stack by 1.
      * @name dmScript::PushVector3
      * @param L [type:lua_State*] Lua state
-     * @param v [type:Vectormath::Aos::Vector3] Vector3 value to push
+     * @param v [type:dmVMath::Vector3] Vector3 value to push
      */
-    void PushVector3(lua_State* L, const Vectormath::Aos::Vector3& v);
+    void PushVector3(lua_State* L, const dmVMath::Vector3& v);
 
-    /*# check if the value is a Vectormath::Aos::Vector3
+    /*# check if the value is a dmVMath::Vector3
      *
-     * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Vector3.
+     * Check if the value in the supplied index on the lua stack is a dmVMath::Vector3.
      * @note throws a luaL_error if it's not the correct type
      * @name dmScript::CheckVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return vector3 [type:Vectormath::Aos::Vector3*] The pointer to the value
+     * @return vector3 [type:dmVMath::Vector3*] The pointer to the value
      */
-    Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index);
+    dmVMath::Vector3* CheckVector3(lua_State* L, int index);
 
-    /*# get the value at index as a Vectormath::Aos::Vector4*
-     * Get the value at index as a Vectormath::Aos::Vector4*
+    /*# get the value at index as a dmVMath::Vector4*
+     * Get the value at index as a dmVMath::Vector4*
      * @name dmScript::ToVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return v [type:Vectormath::Aos::Vector4*] The pointer to the value, or 0 if not correct type
+     * @return v [type:dmVMath::Vector4*] The pointer to the value, or 0 if not correct type
      */
-    Vectormath::Aos::Vector4* ToVector4(lua_State* L, int index);
+    dmVMath::Vector4* ToVector4(lua_State* L, int index);
 
     /*#
-     * Check if the value at #index is a Vectormath::Aos::Vector4*
+     * Check if the value at #index is a dmVMath::Vector4*
      * @name dmScript::IsVector4
      * @param L Lua state
      * @param index Index of the value
-     * @return true if value at #index is a Vectormath::Aos::Vector4*
+     * @return true if value at #index is a dmVMath::Vector4*
      */
     bool IsVector4(lua_State* L, int index);
 
-    /*# push a Vectormath::Aos::Vector4 on the stack
-     * Push a Vectormath::Aos::Vector4 value onto the supplied lua state, will increase the stack by 1.
+    /*# push a dmVMath::Vector4 on the stack
+     * Push a dmVMath::Vector4 value onto the supplied lua state, will increase the stack by 1.
      * @name dmScript::PushVector4
      * @param L [type:lua_State*] Lua state
-     * @param v [type:Vectormath::Aos::Vector4] Vectormath::Aos::Vector4 value to push
+     * @param v [type:dmVMath::Vector4] dmVMath::Vector4 value to push
      */
-    void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v);
+    void PushVector4(lua_State* L, const dmVMath::Vector4& v);
 
-    /*# check if the value is a Vectormath::Aos::Vector3
+    /*# check if the value is a dmVMath::Vector3
      *
-     * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Vector3.
+     * Check if the value in the supplied index on the lua stack is a dmVMath::Vector3.
      * @note throws a luaL_error if it's not the correct type
      * @name dmScript::CheckVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return vector4 [type:Vectormath::Aos::Vector4*] The pointer to the value
+     * @return vector4 [type:dmVMath::Vector4*] The pointer to the value
      */
-    Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index);
+    dmVMath::Vector4* CheckVector4(lua_State* L, int index);
 
-    /*# get the value at index as a Vectormath::Aos::Quat*
-     * Get the value at index as a Vectormath::Aos::Quat*
+    /*# get the value at index as a dmVMath::Quat*
+     * Get the value at index as a dmVMath::Quat*
      * @name dmScript::ToQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return quat [type:Vectormath::Aos::Quat*] The pointer to the value, or 0 if not correct type
+     * @return quat [type:dmVMath::Quat*] The pointer to the value, or 0 if not correct type
      */
-    Vectormath::Aos::Quat* ToQuat(lua_State* L, int index);
+    dmVMath::Quat* ToQuat(lua_State* L, int index);
 
     /*#
-     * Check if the value at #index is a Vectormath::Aos::Quat*
+     * Check if the value at #index is a dmVMath::Quat*
      * @name dmScript::IsQuat
      * @param L Lua state
      * @param index Index of the value
-     * @return true if value at #index is a Vectormath::Aos::Quat*
+     * @return true if value at #index is a dmVMath::Quat*
      */
     bool IsQuat(lua_State* L, int index);
 
-    /*# push a Vectormath::Aos::Quat onto the Lua stack
+    /*# push a dmVMath::Quat onto the Lua stack
      * Push a quaternion value onto Lua stack. Will increase the stack by 1.
      * @name dmScript::PushQuat
      * @param L [type:lua_State*] Lua state
-     * @param quat [type:Vectormath::Aos::Quat] Vectormath::Aos::Quat value to push
+     * @param quat [type:dmVMath::Quat] dmVMath::Quat value to push
      */
-    void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q);
+    void PushQuat(lua_State* L, const dmVMath::Quat& q);
 
-    /*# check if the value is a Vectormath::Aos::Vector3
+    /*# check if the value is a dmVMath::Vector3
      *
-     * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Quat.
+     * Check if the value in the supplied index on the lua stack is a dmVMath::Quat.
      * @note throws a luaL_error if it's not the correct type
      * @name dmScript::CheckQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return quat [type:Vectormath::Aos::Quat*] The pointer to the value
+     * @return quat [type:dmVMath::Quat*] The pointer to the value
      */
-    Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
+    dmVMath::Quat* CheckQuat(lua_State* L, int index);
 
-    /*# get the value at index as a Vectormath::Aos::Matrix4*
-     * Get the value at index as a Vectormath::Aos::Matrix4*
+    /*# get the value at index as a dmVMath::Matrix4*
+     * Get the value at index as a dmVMath::Matrix4*
      * @name dmScript::ToMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return quat [type:Vectormath::Aos::Matrix4*] The pointer to the value, or 0 if not correct type
+     * @return quat [type:dmVMath::Matrix4*] The pointer to the value, or 0 if not correct type
      */
-    Vectormath::Aos::Matrix4* ToMatrix4(lua_State* L, int index);
+    dmVMath::Matrix4* ToMatrix4(lua_State* L, int index);
 
     /*#
-     * Check if the value at #index is a Vectormath::Aos::Matrix4*
+     * Check if the value at #index is a dmVMath::Matrix4*
      * @name dmScript::IsMatrix4
      * @param L Lua state
      * @param index Index of the value
-     * @return true if value at #index is a Vectormath::Aos::Matrix4*
+     * @return true if value at #index is a dmVMath::Matrix4*
      */
     bool IsMatrix4(lua_State* L, int index);
 
-    /*# push a Vectormath::Aos::Matrix4 onto the Lua stack
+    /*# push a dmVMath::Matrix4 onto the Lua stack
      * Push a matrix4 value onto the Lua stack. Will increase the stack by 1.
      * @name dmScript::PushMatrix4
      * @param L [type:lua_State*] Lua state
-     * @param matrix [type:Vectormath::Aos::Matrix4] Vectormath::Aos::Matrix4 value to push
+     * @param matrix [type:dmVMath::Matrix4] dmVMath::Matrix4 value to push
      */
-    void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m);
+    void PushMatrix4(lua_State* L, const dmVMath::Matrix4& m);
 
-    /*# check if the value is a Vectormath::Aos::Matrix4
+    /*# check if the value is a dmVMath::Matrix4
      *
-     * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Matrix4.
+     * Check if the value in the supplied index on the lua stack is a dmVMath::Matrix4.
      *
      * @note throws a luaL_error if it's not the correct type
      * @name dmScript::CheckMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return matrix [type:Vectormath::Aos::Matrix4*] The pointer to the value
+     * @return matrix [type:dmVMath::Matrix4*] The pointer to the value
      */
-    Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
+    dmVMath::Matrix4* CheckMatrix4(lua_State* L, int index);
 
     /*#
      * Check if the value at #index is a hash
@@ -462,6 +465,15 @@ namespace dmScript
      */
     int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
 
+
+    /*#
+     * Push DDF message to Lua stack
+     * @param L [type: lua_State*] the Lua state
+     * @param descriptor [type: const dmDDF::Descriptor*] field descriptor
+     * @param pointers_are_offets [type: bool] True if pointers are offsets
+     * @param data [type: const char*] the message data (i.e. the message struct)
+     */
+    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua

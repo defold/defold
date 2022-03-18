@@ -305,6 +305,7 @@ message SetParent
  * - Sprite
  * - Tile Grid
  * - Model
+ * - Mesh
  *
  * @message
  * @name enable
@@ -335,6 +336,7 @@ message Enable
  * - Sprite
  * - Tile Grid
  * - Model
+ * - Mesh
  *
  * @message
  * @name disable

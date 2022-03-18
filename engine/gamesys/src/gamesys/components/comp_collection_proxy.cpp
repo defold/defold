@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +17,7 @@
 
 #include <string.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include <dlib/log.h>
 #include <dlib/hash.h>
@@ -43,7 +45,7 @@ namespace dmGameSystem
      * @namespace collectionproxy
      */
 
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
 
@@ -254,6 +256,8 @@ namespace dmGameSystem
                 if (proxy->m_Enabled)
                 {
                     dmGameObject::UpdateContext uc;
+                    // We might be inside a parent proxy, so the scale will propagate
+                    uc.m_TimeScale = params.m_UpdateContext->m_TimeScale * proxy->m_TimeStepFactor;
 
                     float warped_dt = params.m_UpdateContext->m_DT * proxy->m_TimeStepFactor;
                     switch (proxy->m_TimeStepMode)

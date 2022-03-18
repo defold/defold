@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -18,7 +20,6 @@ public enum Platform {
     X86Win32("x86", "win32", ".exe", "", "", ".dll"),
     X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll"),
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
-    Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
     Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
     Arm64Android("arm64", "android", ".so", "lib", "lib", ".so"),

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,12 +17,10 @@
 
 #include <assert.h>
 #include <dmsdk/dlib/transform.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmTransform
 {
-    using namespace Vectormath::Aos;
-
     /**
      * Transform with uniform (1-component) scale.
      * Transform applied as:
@@ -29,13 +29,13 @@ namespace dmTransform
     class TransformS1
     {
         // tx, ty, tz, scale
-        Vector4 m_TranslationScale;
-        Quat    m_Rotation;
+        dmVMath::Vector4 m_TranslationScale;
+        dmVMath::Quat    m_Rotation;
     public:
 
         TransformS1() {}
 
-        TransformS1(Vector3 translation, Quat rotation, float scale)
+        TransformS1(dmVMath::Vector3 translation, dmVMath::Quat rotation, float scale)
         : m_TranslationScale(translation, scale)
         , m_Rotation(rotation)
         {
@@ -44,16 +44,16 @@ namespace dmTransform
 
         inline void SetIdentity()
         {
-            m_TranslationScale = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
-            m_Rotation = Quat::identity();
+            m_TranslationScale = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+            m_Rotation = dmVMath::Quat::identity();
         }
 
-        inline Vector3 GetTranslation() const
+        inline dmVMath::Vector3 GetTranslation() const
         {
             return m_TranslationScale.getXYZ();
         }
 
-        inline void SetTranslation(Vector3 translation)
+        inline void SetTranslation(dmVMath::Vector3 translation)
         {
             m_TranslationScale.setXYZ(translation);
         }
@@ -68,12 +68,12 @@ namespace dmTransform
             m_TranslationScale.setW(scale);
         }
 
-        inline Quat GetRotation() const
+        inline dmVMath::Quat GetRotation() const
         {
             return m_Rotation;
         }
 
-        inline void SetRotation(Quat rotation)
+        inline void SetRotation(dmVMath::Quat rotation)
         {
             m_Rotation = rotation;
         }
@@ -85,9 +85,9 @@ namespace dmTransform
      * @param p Point
      * @return Transformed point
      */
-    inline Point3 Apply(const TransformS1& t, const Point3 p)
+    inline dmVMath::Point3 Apply(const TransformS1& t, const dmVMath::Point3 p)
     {
-        return Point3(rotate(t.GetRotation(), Vector3(p) * t.GetScale()) + t.GetTranslation());
+        return dmVMath::Point3(rotate(t.GetRotation(), dmVMath::Vector3(p) * t.GetScale()) + t.GetTranslation());
     }
 
     /**
@@ -96,9 +96,9 @@ namespace dmTransform
      * @param p Point
      * @return Transformed point
      */
-    inline Point3 ApplyNoScaleZ(const TransformS1& t, const Point3 p)
+    inline dmVMath::Point3 ApplyNoScaleZ(const TransformS1& t, const dmVMath::Point3 p)
     {
-        return Point3(rotate(t.GetRotation(), mulPerElem(Vector3(t.GetScale(), t.GetScale(), 1.0f), Vector3(p))) + t.GetTranslation());
+        return dmVMath::Point3(rotate(t.GetRotation(), mulPerElem(dmVMath::Vector3(t.GetScale(), t.GetScale(), 1.0f), dmVMath::Vector3(p))) + t.GetTranslation());
     }
 
     /**
@@ -107,9 +107,9 @@ namespace dmTransform
      * @param v Vector
      * @return Transformed vector
      */
-    inline Vector3 Apply(const TransformS1& t, const Vector3 v)
+    inline dmVMath::Vector3 Apply(const TransformS1& t, const dmVMath::Vector3 v)
     {
-        return Vector3(rotate(t.GetRotation(), v * t.GetScale()));
+        return dmVMath::Vector3(rotate(t.GetRotation(), v * t.GetScale()));
     }
 
     /**
@@ -118,9 +118,9 @@ namespace dmTransform
      * @param v Vector
      * @return Transformed vector
      */
-    inline Vector3 ApplyNoScaleZ(const TransformS1& t, const Vector3 v)
+    inline dmVMath::Vector3 ApplyNoScaleZ(const TransformS1& t, const dmVMath::Vector3 v)
     {
-        return Vector3(rotate(t.GetRotation(), mulPerElem(Vector3(t.GetScale(), t.GetScale(), 1.0f), v)));
+        return dmVMath::Vector3(rotate(t.GetRotation(), mulPerElem(dmVMath::Vector3(t.GetScale(), t.GetScale(), 1.0f), v)));
     }
 
     /**
@@ -133,7 +133,7 @@ namespace dmTransform
     {
         TransformS1 res;
         res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
-        res.SetTranslation(Vector3(Apply(lhs, Point3(rhs.GetTranslation()))));
+        res.SetTranslation(dmVMath::Vector3(Apply(lhs, dmVMath::Point3(rhs.GetTranslation()))));
         res.SetScale(lhs.GetScale() * rhs.GetScale());
         return res;
     }
@@ -148,7 +148,7 @@ namespace dmTransform
     {
         TransformS1 res;
         res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
-        res.SetTranslation(Vector3(ApplyNoScaleZ(lhs, Point3(rhs.GetTranslation()))));
+        res.SetTranslation(dmVMath::Vector3(ApplyNoScaleZ(lhs, dmVMath::Point3(rhs.GetTranslation()))));
         res.SetScale(lhs.GetScale() * rhs.GetScale());
         return res;
     }
@@ -173,10 +173,10 @@ namespace dmTransform
      * @param t Transform to convert
      * @return Matrix representing the same transform
      */
-    inline Matrix4 ToMatrix4(const TransformS1& t)
+    inline dmVMath::Matrix4 ToMatrix4(const TransformS1& t)
     {
-        Matrix4 res(t.GetRotation(), t.GetTranslation());
-        res = appendScale(res, Vector3(t.GetScale()));
+        dmVMath::Matrix4 res(t.GetRotation(), t.GetTranslation());
+        res = appendScale(res, dmVMath::Vector3(t.GetScale()));
         return res;
     }
 }

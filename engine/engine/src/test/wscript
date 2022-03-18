@@ -7,7 +7,7 @@ import waf_gamesys
 
 def build(bld):
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-    if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     additional_libs = []
@@ -18,8 +18,9 @@ def build(bld):
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
 
-    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim', 'ResourceTypeAnimationSet']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript']
+    resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
+                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui']
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',

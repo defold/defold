@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,7 +30,7 @@
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../proto/gameobject/lua_ddf.h"
 
-using namespace Vectormath::Aos;
+using namespace dmVMath;
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"
@@ -176,10 +178,10 @@ TEST_F(ScriptTest, TestFailingScript02)
     // Test init failure
 
     // Avoid logging expected errors. Better solution?
-    dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
     dmGameObject::New(m_Collection, "/go2.goc");
     bool result = dmGameObject::Init(m_Collection);
-    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
     EXPECT_FALSE(result);
     result = dmGameObject::Final(m_Collection);
     EXPECT_FALSE(result);
@@ -194,9 +196,9 @@ TEST_F(ScriptTest, TestFailingScript03)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Avoid logging expected errors. Better solution?
-    dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
     dmGameObject::Delete(m_Collection, go, false);
 }
 

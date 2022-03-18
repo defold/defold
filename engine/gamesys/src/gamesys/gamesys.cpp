@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -74,21 +76,9 @@
 
 namespace dmGameSystem
 {
-    GuiContext::GuiContext()
-    : m_Worlds()
-    , m_RenderContext(0)
-    , m_GuiContext(0)
-    , m_ScriptContext(0)
-    , m_MaxGuiComponents(64)
-    {
-        m_Worlds.SetCapacity(128);
-    }
-
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
         dmResource::Result e;
-
-        DM_STATIC_ASSERT( dmGameSystem::MAX_COMP_RENDER_CONSTANTS == dmRender::RenderObject::MAX_CONSTANT_COUNT, Constant_Count_Must_Be_Equal );
 
 #define REGISTER_RESOURCE_TYPE(extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func)\
     e = dmResource::RegisterType(factory, extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func);\
@@ -113,8 +103,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
-        REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, 0, ResDestroySceneDesc, ResRecreateSceneDesc);
-        REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResPreloadGuiScript, ResCreateGuiScript, 0, ResDestroyGuiScript, ResRecreateGuiScript);
+        // guic: res_gui.cpp
+        // gui_scriptc: res_gui_script.cpp
         REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("oggc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundPreload, ResSoundCreate, 0, ResSoundDestroy, ResSoundRecreate);
@@ -145,7 +135,6 @@ namespace dmGameSystem
                                                 dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
                                                 ParticleFXContext* particlefx_context,
-                                                GuiContext* gui_context,
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
@@ -219,27 +208,21 @@ namespace dmGameSystem
         // Priority 200 is reserved for scriptc (read+write transforms)
         // Priority 250 is reserved for animc (read+write transforms)
 
-        REGISTER_COMPONENT_TYPE("guic", 300, gui_context,
-                CompGuiNewWorld, CompGuiDeleteWorld,
-                CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal, CompGuiAddToUpdate, 0,
-                CompGuiUpdate, CompGuiRender, 0, CompGuiOnMessage, CompGuiOnInput,
-                CompGuiOnReload, CompGuiGetProperty, CompGuiSetProperty,
-                CompGuiIterChildren, CompGuiIterProperties,
-                0);
+        // prio: 300  comp_gui.cpp
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, 0,
                 &CompCollisionObjectUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
                 &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
-                0, 0,
+                0, CompCollisionIterProperties,
                 1);
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
                 &CompCameraCreate, &CompCameraDestroy, 0, 0, &CompCameraAddToUpdate, 0,
                 &CompCameraUpdate, 0, 0, &CompCameraOnMessage, 0,
-                &CompCameraOnReload, 0, 0,
+                &CompCameraOnReload, CompCameraGetProperty, CompCameraSetProperty,
                 0, 0,
                 1);
 
@@ -256,7 +239,7 @@ namespace dmGameSystem
                 CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate, 0,
                 CompModelUpdate, CompModelRender, 0, CompModelOnMessage, 0,
                 0, CompModelGetProperty, CompModelSetProperty,
-                0, 0,
+                0, CompModelIterProperties,
                 0);
 
         REGISTER_COMPONENT_TYPE("meshc", 725, mesh_context,
@@ -264,7 +247,7 @@ namespace dmGameSystem
                 CompMeshCreate, CompMeshDestroy, 0, 0, CompMeshAddToUpdate, 0,
                 CompMeshUpdate, CompMeshRender, 0, CompMeshOnMessage, 0,
                 0, CompMeshGetProperty, CompMeshSetProperty,
-                0, 0,
+                0, CompMeshIterProperties,
                 0);
 
         REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,
@@ -320,7 +303,7 @@ namespace dmGameSystem
                 CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, 0,
                 CompTileGridUpdate, CompTileGridRender, 0, CompTileGridOnMessage, 0,
                 CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
-                0, 0,
+                0, CompTileGridIterProperties,
                 1);
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
@@ -328,7 +311,7 @@ namespace dmGameSystem
                 CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate, CompLabelGetComponent,
                 CompLabelUpdate, CompLabelRender, 0, CompLabelOnMessage, 0,
                 CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
-                0, 0,
+                0, CompLabelIterProperties,
                 1);
 
         #undef REGISTER_COMPONENT_TYPE

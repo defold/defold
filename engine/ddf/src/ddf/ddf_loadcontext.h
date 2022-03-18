@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -47,11 +49,11 @@ namespace dmDDF
     private:
         dmHashTable32<uint32_t> m_ArrayCount;
 
-        char* m_Start;
-        char* m_End;
-        char* m_Current;
-        bool  m_DryRun;
-        uint32_t m_Options;
+        uintptr_t   m_Start;
+        uintptr_t   m_End;
+        uintptr_t   m_Current;
+        bool        m_DryRun;
+        uint32_t    m_Options;
     };
 }
 

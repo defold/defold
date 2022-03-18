@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -60,23 +62,24 @@ public class TexcLibrary {
         public static int L8                = 0;
         public static int R8G8B8            = 1;
         public static int R8G8B8A8          = 2;
-        public static int RGB_PVRTC_2BPPV1  = 3;
-        public static int RGB_PVRTC_4BPPV1  = 4;
-        public static int RGBA_PVRTC_2BPPV1 = 5;
-        public static int RGBA_PVRTC_4BPPV1 = 6;
-        public static int RGB_ETC1          = 7;
-        public static int R5G6B5            = 8;
-        public static int R4G4B4A4          = 9;
-        public static int L8A8              = 10;
+        public static int A8B8G8R8          = 3;
+        public static int RGB_PVRTC_2BPPV1  = 4;
+        public static int RGB_PVRTC_4BPPV1  = 5;
+        public static int RGBA_PVRTC_2BPPV1 = 6;
+        public static int RGBA_PVRTC_4BPPV1 = 7;
+        public static int RGB_ETC1          = 8;
+        public static int R5G6B5            = 9;
+        public static int R4G4B4A4          = 10;
+        public static int L8A8              = 11;
 
-        public static int RGBA_ETC2         = 11;
-        public static int RGBA_ASTC_4x4     = 12;
+        public static int RGBA_ETC2         = 12;
+        public static int RGBA_ASTC_4x4     = 13;
 
-        public static int RGB_BC1           = 13;
-        public static int RGBA_BC3          = 14;
-        public static int R_BC4             = 15;
-        public static int RG_BC5            = 16;
-        public static int RGBA_BC7          = 17;
+        public static int RGB_BC1           = 14;
+        public static int RGBA_BC3          = 15;
+        public static int R_BC4             = 16;
+        public static int RG_BC5            = 17;
+        public static int RGBA_BC7          = 18;
     }
 
     public interface ColorSpace {
@@ -112,7 +115,8 @@ public class TexcLibrary {
         public static int DT_DEFAULT = 1;
     }
 
-    public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, int compressionType, Buffer data);
+    // Name is used when debugging (usually the path to the resource)
+    public static native Pointer TEXC_Create(String name, int width, int height, int pixelFormat, int colorSpace, int compressionType, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
     public static native int TEXC_GetDataSizeCompressed(Pointer texture, int minMap);

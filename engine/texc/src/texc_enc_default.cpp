@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -100,17 +102,30 @@ namespace dmTexc
         }
     }
 
-    static uint8_t* GenMipMapDefault(const basisu::image& origimage, uint32_t mip_width, uint32_t mip_height, ColorSpace color_space)
+    static uint8_t* GenMipMapDefault(Texture* texture, int miplevel, const basisu::image& origimage, uint32_t mip_width, uint32_t mip_height, ColorSpace color_space)
     {
+        (void)texture;
+        (void)miplevel;
         uint32_t num_channels = 4;
         uint32_t size = mip_width * mip_height * num_channels;
         uint8_t* mip_data = new uint8_t[mip_width * mip_height * num_channels];
 
         basisu::image mipimage(mip_width, mip_height);
-        basisu::image_resample(origimage, mipimage);
+
+        bool srgb = false;
+        const char* filter = "tent";
+        basisu::image_resample(origimage, mipimage, srgb, filter);
 
         basisu::color_rgba* basisimage = mipimage.get_ptr();
         memcpy(mip_data, basisimage, size);
+
+        // char name[256];
+        // stbi_flip_vertically_on_write(true);
+        // dmSnPrintf(name, sizeof(name), "/Users/mawe/work/projects/users/mawe/TextureCompression/mipmaps/%s_mip%02d_%s.png", texture->m_Name?texture->m_Name:"unknown", miplevel, filter);
+        // int result = stbi_write_png(name, mip_width, mip_height, 4, (void*)mip_data, mip_width*4);
+
+        // stbi_flip_vertically_on_write(false);
+        // printf("Wrote %s\n", name);
 
         return mip_data;
     }
@@ -126,6 +141,7 @@ namespace dmTexc
         basisu::image origimage;
         origimage.init(mip0, width, height, 4);
 
+        int level = 0;
         while (width * height != 1)
         {
             width /= 2;
@@ -133,7 +149,8 @@ namespace dmTexc
             width = dmMath::Max(1U, width);
             height = dmMath::Max(1U, height);
 
-            uint8_t* mipmap = GenMipMapDefault(origimage, width, height, texture->m_ColorSpace);
+            uint8_t* mipmap = GenMipMapDefault(texture, level, origimage, width, height, texture->m_ColorSpace);
+            level++;
 
             TextureData mip_level;
             mip_level.m_Width = width;

@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +18,7 @@
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
             [editor.lua :as lua]
-            [editor.luajit :refer [luajit-path-to-chunk]]
+            [editor.luajit :refer [luajit-path-to-chunk-name chunk-name-to-luajit-path]]
             [service.log :as log])
   (:import [clojure.lang Counted ILookup MapEntry Seqable]
            [java.io BufferedReader InputStreamReader IOException PrintWriter]
@@ -277,7 +279,7 @@
 
 (defn- remove-filename-prefix
   [^String s]
-  (if (.startsWith s "=")
+  (if (or (.startsWith s "=") (.startsWith s "@"))
     (subs s 1)
     s))
 
@@ -291,7 +293,7 @@
     (lua/lua-module->path s)
     s))
 
-(def sanitize-path (comp module->path remove-filename-prefix))
+(def sanitize-path (comp module->path chunk-name-to-luajit-path remove-filename-prefix))
 
 ;;------------------------------------------------------------------------------
 ;; session management
@@ -522,13 +524,19 @@
   ([debug-session code frame]
    (exec debug-session (str "return " code) frame)))
 
+
+;; A note on "SETB file line":
+;; * In LuaBuilder.java we add '@' in front of the filename to tell Lua to
+;; truncate the short_src name to the last 60 characters of the filename.
+;; * mobdebug.lua will remove the '@' in the debug hook which means that we
+;; must send SETB without the '@' in front of the filename
 (defn set-breakpoint!
   [^DebugSession debug-session file line]
   (with-session debug-session
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB =%s %d" (luajit-path-to-chunk file) line))
+      (send-command! out (format "SETB %s %d" (luajit-path-to-chunk-name file) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
@@ -540,7 +548,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "DELB =%s %d" (luajit-path-to-chunk file) line))
+      (send-command! out (format "DELB %s %d" (luajit-path-to-chunk-name file) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok

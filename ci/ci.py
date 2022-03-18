@@ -1,11 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020 The Defold Foundation
+# Copyright 2020-2022 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -121,6 +123,7 @@ def setup_windows_cert(args):
 
 
 def install(args):
+    # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
@@ -134,6 +137,15 @@ def install(args):
         call("sudo apt-get install -y apt-fast aria2")
 
         call("sudo apt-get install -y software-properties-common")
+
+        call("echo MAWE list clang executables")
+        call("ls /usr/bin/clang*")
+        call("echo MAWE after")
+
+        call("sudo update-alternatives --remove-all clang")
+        call("sudo update-alternatives --remove-all clang++")
+        call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
+
         packages = [
             "libssl-dev",
             "openssl",
@@ -155,12 +167,6 @@ def install(args):
         ]
         aptfast(" ".join(packages))
 
-        print("Removing gcc9,10,11:")
-        call("sudo apt-get autoremove -y libgcc-9-dev gcc-9 libgcc-10-dev gcc-10 libgcc-11-dev gcc-11")
-        call("sudo apt-get install --allow-downgrades --no-remove --reinstall -y libstdc++6=8.4.0-1ubuntu1~18.04")
-        print("libstdc++.so.6 versions:")
-        call("locate libstdc++.so.6")
-        call("strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX")
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
@@ -170,7 +176,8 @@ def install(args):
 
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
-    args = 'python scripts/build.py distclean install_ext'.split()
+    args = 'python scripts/build.py distclean install_sdk install_ext'.split()
+
     opts = []
     waf_opts = []
 
@@ -235,6 +242,7 @@ def build_editor2(channel, engine_artifacts = None, skip_tests = False):
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
 
 def download_editor2(channel, platform = None):
+    host_platform = platform_from_host()
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
@@ -243,8 +251,12 @@ def download_editor2(channel, platform = None):
     opts = []
     opts.append('--channel=%s' % channel)
 
+    install_sdk = ''
+    if 'win32' in host_platform: # until we can find the signtool in a faster way on CI
+        install_sdk ='install_sdk'
+
     for platform in platforms:
-        call('python scripts/build.py install_ext download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
+        call('python scripts/build.py %s install_ext download_editor2 --platform=%s %s' % (install_sdk, platform, ' '.join(opts)))
 
 
 def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
@@ -351,11 +363,20 @@ def smoke_test():
     call('python scripts/build.py distclean install_ext smoke_test')
 
 
-# https://stackoverflow.com/a/55276236/1266551
+
 def get_branch():
-    branch = call("git rev-parse --abbrev-ref HEAD").strip()
-    if branch == "HEAD":
-        branch = call("git rev-parse HEAD")
+    # The name of the head branch. Only set for pull request events.
+    branch = os.environ.get('GITHUB_HEAD_REF', '')
+    if branch is '':
+        # The branch or tag name that triggered the workflow run.
+        branch = os.environ.get('GITHUB_REF_NAME', '')
+
+    if branch is '':
+        # https://stackoverflow.com/a/55276236/1266551
+        branch = call("git rev-parse --abbrev-ref HEAD").strip()
+        if branch == "HEAD":
+            branch = call("git rev-parse HEAD")
+
     return branch
 
 def is_workflow_enabled_in_repo():

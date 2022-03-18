@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -12,6 +14,9 @@
 
 (ns util.murmur
   (:import [com.dynamo.bob.util MurmurHash]))
+
+(defn hash32 [v]
+  (MurmurHash/hash32 v))
 
 (defn hash64 [v]
   (MurmurHash/hash64 v))

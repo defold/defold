@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -18,7 +20,7 @@
 
 namespace dmGraphics
 {
-    typedef void (*UniformCallback)(const char* name, uint32_t name_length, Type type, uintptr_t userdata);
+    typedef void (*UniformCallback)(const char* name, uint32_t name_length, Type type, uint32_t size, uintptr_t userdata);
 
     bool GLSLUniformParse(const char* buffer, UniformCallback cb, uintptr_t userdata);
 }

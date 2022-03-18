@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +17,16 @@ package com.dynamo.bob.pipeline;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
+
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferShort;
+import java.awt.image.DataBufferUShort;
+import java.awt.image.DataBufferInt;
+
+import java.nio.ShortBuffer;
+import java.nio.IntBuffer;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
@@ -177,7 +189,38 @@ public class TextureGenerator {
         return targetFormat;
     }
 
-    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+    private static ByteBuffer getByteBuffer(BufferedImage bi)
+    {
+        ByteBuffer byteBuffer;
+        DataBuffer dataBuffer = bi.getRaster().getDataBuffer();
+
+        if (dataBuffer instanceof DataBufferByte) { // This is the usual case, where data is simply wrapped
+            byte[] pixelData = ((DataBufferByte) dataBuffer).getData();
+            byteBuffer = ByteBuffer.wrap(pixelData);
+        }
+        else if (dataBuffer instanceof DataBufferUShort) {
+            short[] pixelData = ((DataBufferUShort) dataBuffer).getData();
+            byteBuffer = ByteBuffer.allocate(pixelData.length * 2);
+            byteBuffer.asShortBuffer().put(ShortBuffer.wrap(pixelData));
+        }
+        else if (dataBuffer instanceof DataBufferShort) {
+            short[] pixelData = ((DataBufferShort) dataBuffer).getData();
+            byteBuffer = ByteBuffer.allocate(pixelData.length * 2);
+            byteBuffer.asShortBuffer().put(ShortBuffer.wrap(pixelData));
+        }
+        else if (dataBuffer instanceof DataBufferInt) {
+            int[] pixelData = ((DataBufferInt) dataBuffer).getData();
+            byteBuffer = ByteBuffer.allocate(pixelData.length * 4);
+            byteBuffer.asIntBuffer().put(IntBuffer.wrap(pixelData));
+        }
+        else {
+            throw new IllegalArgumentException("Not implemented for data buffer type: " + dataBuffer.getClass());
+        }
+
+        return byteBuffer;
+    }
+
+    private static TextureImage.Image generateFromColorAndFormat(String name, BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -187,22 +230,10 @@ public class TextureGenerator {
         int texcCompressionType;
 
         int dataSize = width * height * 4;
-        ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
 
-        // On Linux we run out of memory while trying to load a 4K texture.
-        // We split the pixel read out into blocks with 512 scan lines per block.
-        for (int y = 0; y < height; y+=512) {
 
-            int count = Math.min(height - y, 512);
+        ByteBuffer buffer_input = getByteBuffer(image);
 
-            int[] rasterData = new int[count*width*4];
-            image.getRaster().getPixels(0, y, width, count, rasterData);
-            for (int i = 0; i < rasterData.length; ++i) {
-                buffer.put((byte) (rasterData[i] & 0xff));
-            }
-        }
-
-        buffer.flip();
 
         // convert from protobuf specified compressionlevel to texc int
         texcCompressionLevel = compressionLevelLUT.get(compressionLevel);
@@ -247,7 +278,7 @@ public class TextureGenerator {
             throw new TextureGeneratorException("Invalid texture format.");
         }
 
-        Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, texcCompressionType, buffer);
+        Pointer texture = TexcLibrary.TEXC_Create(name, width, height, PixelFormat.A8B8G8R8, ColorSpace.SRGB, texcCompressionType, buffer_input);
         if (texture == null) {
             throw new TextureGeneratorException("Failed to create texture");
         }
@@ -317,9 +348,9 @@ public class TextureGenerator {
             }
 
             int bufferSize = TexcLibrary.TEXC_GetTotalDataSize(texture);
-            buffer = ByteBuffer.allocateDirect(bufferSize);
-            dataSize = TexcLibrary.TEXC_GetData(texture, buffer, bufferSize);
-            buffer.limit(dataSize);
+            ByteBuffer buffer_output = ByteBuffer.allocateDirect(bufferSize);
+            dataSize = TexcLibrary.TEXC_GetData(texture, buffer_output, bufferSize);
+            buffer_output.limit(dataSize);
 
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
@@ -356,7 +387,7 @@ public class TextureGenerator {
                     break;
             }
 
-            raw.setData(ByteString.copyFrom(buffer));
+            raw.setData(ByteString.copyFrom(buffer_output));
             raw.setFormat(textureFormat);
             raw.setCompressionType(compressionType);
             raw.setCompressionFlags(TexcLibrary.TEXC_GetCompressionFlags(texture));
@@ -366,7 +397,6 @@ public class TextureGenerator {
         } finally {
             TexcLibrary.TEXC_Destroy(texture);
         }
-
     }
 
     // For convenience, some methods without the flipAxis and/or compress argument.
@@ -435,7 +465,7 @@ public class TextureGenerator {
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
                     try {
-                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha(), flipAxis);
+                        TextureImage.Image raw = generateFromColorAndFormat(null, image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha(), flipAxis);
                         textureBuilder.addAlternatives(raw);
                     } catch (TextureGeneratorException e) {
                         throw e;
@@ -455,7 +485,7 @@ public class TextureGenerator {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0, false, true, flipAxis);
+            TextureImage.Image raw = generateFromColorAndFormat(null, image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0, false, true, flipAxis);
             textureBuilder.addAlternatives(raw);
             textureBuilder.setCount(1);
 

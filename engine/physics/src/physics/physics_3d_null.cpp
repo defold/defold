@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -57,7 +59,7 @@ namespace dmPhysics
         return 0;
     }
 
-    HCollisionShape3D NewBoxShape3D(HContext3D context, const Vectormath::Aos::Vector3& half_extents)
+    HCollisionShape3D NewBoxShape3D(HContext3D context, const dmVMath::Vector3& half_extents)
     {
         return 0;
     }
@@ -83,8 +85,8 @@ namespace dmPhysics
 
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data,
                                             HCollisionShape3D* shapes,
-                                            Vectormath::Aos::Vector3* translations,
-                                            Vectormath::Aos::Quat* rotations,
+                                            dmVMath::Vector3* translations,
+                                            dmVMath::Quat* rotations,
                                             uint32_t shape_count)
     {
         return 0;
@@ -108,40 +110,40 @@ namespace dmPhysics
         return 0;
     }
 
-    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
+    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& force, const dmVMath::Point3& position)
     {
     }
 
-    Vectormath::Aos::Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Point3();
+        return dmVMath::Point3();
     }
 
-    Vectormath::Aos::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Quat();
+        return dmVMath::Quat();
     }
 
-    Vectormath::Aos::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    Vectormath::Aos::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object)
+    dmVMath::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& velocity)
     {
     }
 
-    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const dmVMath::Vector3& velocity)
     {
     }
 
@@ -190,6 +192,24 @@ namespace dmPhysics
         return 0;
     }
 
+    uint16_t GetGroup3D(HCollisionObject3D collision_object) 
+    {
+        return 0;
+    }
+
+    void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit) 
+    {
+    }
+
+    bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit)
+    {
+        return false;
+    }
+	
+    void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue) 
+    {
+    }
+
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
     }
@@ -198,13 +218,13 @@ namespace dmPhysics
     {
     }
 
-    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity)
+    void SetGravity3D(HWorld3D world, const dmVMath::Vector3& gravity)
     {
     }
 
-    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world)
+    dmVMath::Vector3 GetGravity3D(HWorld3D world)
     {
-        return Vectormath::Aos::Vector3(0.0f);
+        return dmVMath::Vector3(0.0f);
     }
 
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)

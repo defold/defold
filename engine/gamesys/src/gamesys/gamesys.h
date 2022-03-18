@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,6 +39,8 @@ namespace dmGameSystem
     extern const char* PHYSICS_MAX_COLLISIONS_KEY;
     /// Config key to use for tweaking maximum number of contacts reported
     extern const char* PHYSICS_MAX_CONTACTS_KEY;
+    /// Config key to use for tweaking the physics frame rate
+    extern const char* PHYSICS_UPDATE_FREQUENCY_KEY;
     /// Config key to use for tweaking maximum number of collection proxies
     extern const char* COLLECTION_PROXY_MAX_COUNT_KEY;
     /// Config key to use for tweaking maximum number of factories
@@ -73,6 +77,7 @@ namespace dmGameSystem
             dmPhysics::HContext3D m_Context3D;
             dmPhysics::HContext2D m_Context2D;
         };
+        uint32_t m_UpdateFrequency;
         uint32_t m_MaxCollisionCount;
         uint32_t m_MaxContactPointCount;
         bool m_Debug;
@@ -89,6 +94,7 @@ namespace dmGameSystem
         dmRender::HRenderContext m_RenderContext;
         uint32_t m_MaxParticleFXCount;
         uint32_t m_MaxParticleCount;
+        uint32_t m_MaxEmitterCount;
         bool m_Debug;
     };
 
@@ -98,20 +104,6 @@ namespace dmGameSystem
         dmhash_t                        m_NameHash;
         dmRender::HRenderScriptInstance m_Instance;
         dmRender::HRenderScript         m_Script;
-    };
-
-    struct GuiContext
-    {
-        GuiContext();
-
-        dmArray<void*>              m_Worlds;
-        dmRender::HRenderContext    m_RenderContext;
-        dmGui::HContext             m_GuiContext;
-        dmScript::HContext          m_ScriptContext;
-        uint32_t                    m_MaxGuiComponents;
-        uint32_t                    m_MaxParticleFXCount;
-        uint32_t                    m_MaxParticleCount;
-        uint32_t                    m_MaxSpineCount;
     };
 
     struct SpriteContext
@@ -201,7 +193,6 @@ namespace dmGameSystem
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
-        GuiContext* gui_context,
         dmInput::HContext input_context,
         PhysicsContext* physics_context);
 
@@ -210,7 +201,6 @@ namespace dmGameSystem
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   ParticleFXContext* emitter_context,
-                                                  GuiContext* gui_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
@@ -220,11 +210,6 @@ namespace dmGameSystem
                                                   LabelContext* label_context,
                                                   TilemapContext* tilemap_context,
                                                   SoundContext* sound_context);
-
-    void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
-    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
-    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
-    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);

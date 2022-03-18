@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,9 +36,9 @@ namespace dmRender
      * Rendering functions, messages and constants. The "render" namespace is
      * accessible only from render scripts.
      *
-     * The rendering API is built on top of OpenGL ES 2.0, is a subset of the
+     * The rendering API was originally built on top of OpenGL ES 2.0, and it uses a subset of the
      * OpenGL computer graphics rendering API for rendering 2D and 3D computer
-     * graphics. OpenGL ES 2.0 is supported on all our target platforms.
+     * graphics. Our current target is OpenGLES 3.0 with fallbacks to 2.0 on some platforms.
      *
      * [icon:attention] It is possible to create materials and write shaders that
      * require features not in OpenGL ES 2.0, but those will not work cross platform.
@@ -100,17 +102,18 @@ namespace dmRender
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
-        Vectormath::Aos::Vector4 value;
-        if (GetNamedConstant(*cb, name, value))
+        dmhash_t name_hash = dmHashString64(name);
+        dmVMath::Vector4* values;
+        uint32_t num_values = 0;
+        if (GetNamedConstant(*cb, name_hash, &values, &num_values))
         {
-            dmScript::PushVector4(L, value);
+            dmScript::PushVector4(L, values[0]);
             return 1;
         }
         else
         {
-            luaL_error(L, "Constant %s not set.", name);
+            return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
         }
-        assert(0); // Never reached
         return 0;
     }
 
@@ -121,8 +124,9 @@ namespace dmRender
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
-        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
-        SetNamedConstant(*cb, name, *value);
+        dmhash_t name_hash = dmHashString64(name);
+        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
+        SetNamedConstant(*cb, name_hash, value, 1);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -531,22 +535,50 @@ namespace dmRender
      */
 
     /*#
-     * @name render.FORMAT_RGB_DXT1
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGB16F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT1
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGB32F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT3
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGBA16F
      * @variable
      */
 
     /*#
-     * @name render.FORMAT_RGBA_DXT5
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RGBA32F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_R16F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RG16F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_R32F
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_RG32F
      * @variable
      */
 
@@ -600,7 +632,7 @@ namespace dmRender
      *
      * Key          | Values
      * ------------ | ----------------------------
-     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/> `render.FORMAT_RGB_DXT1`<br/>`render.FORMAT_RGBA_DXT1`<br/>`render.FORMAT_RGBA_DXT3`<br/> `render.FORMAT_RGBA_DXT5`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>
+     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
      * `width`      | number
      * `height`     | number
      * `min_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
@@ -1260,7 +1292,7 @@ namespace dmRender
 
         uint32_t flags = 0;
 
-        Vectormath::Aos::Vector4 color(0.0f, 0.0f, 0.0f, 0.0f);
+        dmVMath::Vector4 color(0.0f, 0.0f, 0.0f, 0.0f);
         float depth = 0.0f;
         uint32_t stencil = 0;
 
@@ -1315,7 +1347,14 @@ namespace dmRender
      *
      * @name render.draw
      * @param predicate [type:predicate] predicate to draw for
-     * @param [constants] [type:constant_buffer] optional constants to use while rendering
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `frustum`
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
+     * `constants`
+     * : [type:constant_buffer] optional constants to use while rendering
+     *
      * @examples
      *
      * ```lua
@@ -1330,12 +1369,19 @@ namespace dmRender
      * end
      * ```
      *
-     * Draw predicate with constant:
+     * Draw predicate with constants:
      *
      * ```lua
      * local constants = render.constant_buffer()
      * constants.tint = vmath.vector4(1, 1, 1, 1)
-     * render.draw(self.my_pred, constants)
+     * render.draw(self.my_pred, {constants = constants})
+     * ```
+
+     * Draw with predicate and frustum culling:
+     *
+     * ```lua
+     * local frustum = self.proj * self.view
+     * render.draw(self.my_pred, {frustum = frustum, constants = constants})
      * ```
 
      */
@@ -1353,14 +1399,40 @@ namespace dmRender
             return luaL_error(L, "No render predicate specified.");
         }
 
+        dmVMath::Matrix4* frustum_matrix = 0;
         HNamedConstantBuffer constant_buffer = 0;
-        if (lua_isuserdata(L, 2))
+
+        if (lua_istable(L, 2))
         {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
+
+            lua_getfield(L, -1, "frustum");
+            frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "constants");
+            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+        else if (lua_isuserdata(L, 2)) // Deprecated
+        {
+            dmLogOnceWarning("This interface for render.draw() is deprecated. Please see documentation at https://defold.com/ref/stable/render/#render.draw:predicate-[constants]")
             HNamedConstantBuffer* tmp = RenderScriptConstantBuffer_Check(L, 2);
             constant_buffer = *tmp;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer)))
+        if (frustum_matrix)
+        {
+            // we need to pass ownership to the command queue
+            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
+            *copy = *frustum_matrix;
+            frustum_matrix = copy;
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer, (uintptr_t) frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1369,6 +1441,11 @@ namespace dmRender
     /*# draws all 3d debug graphics
      * Draws all 3d debug graphics such as lines drawn with "draw_line" messages and physics visualization.
      * @name render.draw_debug3d
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `frustum`
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
      * @replaces render.draw_debug2d
      * @examples
      *
@@ -1382,7 +1459,29 @@ namespace dmRender
     int RenderScript_DrawDebug3d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D)))
+        dmVMath::Matrix4* frustum_matrix = 0;
+
+        if (lua_istable(L, 1))
+        {
+            luaL_checktype(L, 1, LUA_TTABLE);
+            lua_pushvalue(L, 1);
+
+            lua_getfield(L, -1, "frustum");
+            frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (frustum_matrix)
+        {
+            // we need to pass ownership to the command queue
+            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
+            *copy = *frustum_matrix;
+            frustum_matrix = copy;
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uintptr_t)frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1436,9 +1535,9 @@ namespace dmRender
     int RenderScript_SetView(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        Vectormath::Aos::Matrix4 view = *dmScript::CheckMatrix4(L, 1);
+        dmVMath::Matrix4 view = *dmScript::CheckMatrix4(L, 1);
 
-        Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
+        dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = view;
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uintptr_t)matrix)))
             return 0;
@@ -1463,8 +1562,8 @@ namespace dmRender
     int RenderScript_SetProjection(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
-        Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
+        dmVMath::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
+        dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = projection;
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uintptr_t)matrix)))
             return 0;
@@ -2396,7 +2495,7 @@ namespace dmRender
         {0, 0}
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
+    void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size)
     {
         context.m_CommandBufferSize = command_buffer_size;
 
@@ -2434,25 +2533,28 @@ namespace dmRender
         lua_setfield(L, -2, "FORMAT_"#name);
 
         REGISTER_FORMAT_CONSTANT(LUMINANCE);
-        REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGBA);
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 
-        /*
-         * We don't expose floating point texture for now,
-         * until we have taken an official stand how to expose
-         * rendering capabilities. See DEF-2886
-         *
+#undef REGISTER_FORMAT_CONSTANT
 
+#define REGISTER_FORMAT_CONSTANT(name)\
+        if (dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::TEXTURE_FORMAT_##name)) { \
+            lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FORMAT_##name); \
+            lua_setfield(L, -2, "FORMAT_"#name); \
+        }
+
+        // These depend on driver support
+        REGISTER_FORMAT_CONSTANT(RGB);
         REGISTER_FORMAT_CONSTANT(RGB16F);
         REGISTER_FORMAT_CONSTANT(RGB32F);
         REGISTER_FORMAT_CONSTANT(RGBA16F);
         REGISTER_FORMAT_CONSTANT(RGBA32F);
-        REGISTER_FORMAT_CONSTANT(LUMINANCE16F);
-        REGISTER_FORMAT_CONSTANT(LUMINANCE32F);
-
-        */
+        REGISTER_FORMAT_CONSTANT(R16F);
+        REGISTER_FORMAT_CONSTANT(RG16F);
+        REGISTER_FORMAT_CONSTANT(R32F);
+        REGISTER_FORMAT_CONSTANT(RG32F);
 
 #undef REGISTER_FORMAT_CONSTANT
 
@@ -2877,15 +2979,15 @@ bail:
                     dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
                     const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
                     params.m_Text = text;
-                    params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
-                    params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+                    params.m_WorldTransform.setTranslation(dmVMath::Vector3(dt->m_Position));
+                    params.m_FaceColor = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
                 }
                 else
                 {
                     dmRenderDDF::DrawDebugText* dt = (dmRenderDDF::DrawDebugText*)message->m_Data;
                     const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
                     params.m_Text = text;
-                    params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
+                    params.m_WorldTransform.setTranslation(dmVMath::Vector3(dt->m_Position));
                     params.m_FaceColor = dt->m_Color;
                 }
                 DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, 0, 0, params);

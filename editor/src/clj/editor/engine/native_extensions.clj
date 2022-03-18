@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -102,8 +104,6 @@
 (def ^:private extender-platforms
   {(.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
-   (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"
-                                     :library-paths #{"ios" "armv7-ios"}}
    (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
@@ -286,6 +286,43 @@
                                                                           (project/get-resource-node project "/game.project" evaluation-context)))))))
                [[["native_extension" "app_manifest"] "_app/app.manifest"]]))))
 
+(defn- get-ne-platform [platform]
+  (case platform
+    "arm64-darwin"  "arm64-ios"
+    "x86_64-darwin" "x86_64-osx"
+    platform))
+
+(defn- get-main-manifest-section-and-key [platform]
+   (case platform
+     "armv7-android" ["android" "manifest"]
+     "arm64-android" ["android" "manifest"]
+     "arm64-ios"     ["ios" "infoplist"]
+     "armv7-ios"     ["ios" "infoplist"]
+     "x86_64-osx"    ["osx" "infoplist"]
+     "js-web"        ["html5" "htmlfile"]
+     "wasm-web"      ["html5" "htmlfile"]))
+
+(defn- get-main-manifest-name [ne-platform]
+  (case ne-platform
+    "armv7-android" "AndroidManifest.xml"
+    "arm64-android" "AndroidManifest.xml"
+    "arm64-ios"     "Info.plist"
+    "armv7-ios"     "Info.plist"
+    "x86_64-osx"    "Info.plist"
+    "js-web"        "engine_template.html"
+    "wasm-web"      "engine_template.html"
+    nil))
+
+(defn- get-main-manifest-file-upload-resource [project evaluation-context platform]
+  (let [ne-platform (get-ne-platform platform)
+        target-path  (get-main-manifest-name ne-platform)]
+  (when target-path
+    (let [project-settings (g/node-value project :settings evaluation-context)
+          [section key] (get-main-manifest-section-and-key ne-platform)
+          resource (get project-settings [section key])
+          resource-node (project/get-resource-node project resource evaluation-context)]
+      {target-path resource-node}))))
+
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))
 
@@ -305,7 +342,8 @@
           project-directory (workspace/project-path (project/workspace project evaluation-context) evaluation-context)
           cache-dir (cache-dir project-directory)
           resource-nodes-by-upload-path (merge (global-resource-nodes-by-upload-path project evaluation-context)
-                                               (extension-resource-nodes-by-upload-path project evaluation-context platform))
+                                               (extension-resource-nodes-by-upload-path project evaluation-context platform)
+                                               (get-main-manifest-file-upload-resource project evaluation-context platform))
           sdk-version (system/defold-engine-sha1)
           key (cache-key extender-platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
       (if-let [cached-archive (cached-engine-archive cache-dir extender-platform key)]

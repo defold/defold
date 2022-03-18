@@ -40,6 +40,17 @@ You need a 64 bit Python 2 version to build the engine and tools. The latest tes
 > sudo apt install python2-minimal python-setuptools
 ```
 
+Since our scripts use `python`, you'll need to set it up somehow.
+One way is using an alias:
+
+```sh
+# in ~/.bashrc
+alias python='python2.7'
+```
+
+Another way is to use [update-alternatives](https://www.google.com/search?client=firefox-b-d&q=linux+update-alternatives+python) to select version.
+
+
 ### Required Software - Additional tools
 
 You need additional files and tools to be able to build and work with Defold on Linux:
@@ -53,6 +64,7 @@ You need additional files and tools to be able to build and work with Defold on 
 * **libcurl4-openssl-dev** - Development files and documentation for libcurl
 * **uuid-dev** - Universally Unique ID library
 * **libopenal-dev** - Software implementation of the OpenAL audio API
+* **libncurses5** -  Needed by clang
 
 **Tools**
 * **build-essential** - Compilers
@@ -69,7 +81,7 @@ You need additional files and tools to be able to build and work with Defold on 
 Download and install using `apt-get`:
 
 ```sh
-> sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+> sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev libncurses5
 ```
 
 ---
@@ -131,3 +143,37 @@ acolor() {
 }
 export PS1='\t \[\033[32m\]\w\[\033[$(acolor)m\] $(git_branch)\[\033[00m\] $ '
 ```
+
+
+## WSL (Windows Subsystem for Linux)
+
+It is possible to build Linux targets using WSL 1.
+
+Install relevant packages (git, java, python, clang etc) using `./scripts/linux/install_wsl_packages.sh`.
+If also updates your `~/.bashrc` with updated paths.
+
+### Git clone into a mounted folder
+
+In order to get the proper username of your files, we need to setup WSL for this.
+Otherwise the git clone won't work in a mounted C: drive folder.
+
+Open (or create) the config file:
+```
+sudo nano /etc/wsl.conf
+```
+
+Add these lines:
+```
+[automount]
+options = "metadata"
+```
+
+And restart your WSL session
+
+
+### X11
+
+The script also sets the `DISPLAY=localhost:0.0` which allows you to connect to a local X server.
+
+A popular choice is [VCXSRV](https://sourceforge.net/projects/vcxsrv/)
+

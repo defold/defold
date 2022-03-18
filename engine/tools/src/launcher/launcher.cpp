@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -53,7 +55,7 @@
 #ifdef _WIN32
 static int setenv(const char *name, const char *value, int overwrite)
 {
-  int result = SetEnvironmentVariable(name, value);
+  int result = SetEnvironmentVariableA(name, value);
   if(result != 0) {
     return 0;
   }
@@ -191,7 +193,7 @@ int Launch(int argc, char **argv) {
     }
 
     if (dmConfigFile::GetInt(config, "launcher.debug", 0)) {
-        dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
+        dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
     }
 
     ReplaceContext context;
@@ -199,7 +201,7 @@ int Launch(int argc, char **argv) {
     context.m_ResourcesPath = dmConfigFile::GetString(config, RESOURCES_PATH_KEY, default_resources_path);
 #if defined(_WIN32)
     char argv_0[DMPATH_MAX_PATH];
-    GetModuleFileName(NULL, argv_0, DMPATH_MAX_PATH);
+    GetModuleFileNameA(NULL, argv_0, DMPATH_MAX_PATH);
     context.m_LauncherPath = argv_0;
 #else
     context.m_LauncherPath = argv[0];
@@ -296,11 +298,11 @@ int Launch(int argc, char **argv) {
     si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
     si.dwFlags |= STARTF_USESTDHANDLES;
 
-    BOOL ret = CreateProcess(0, buffer, 0, 0, TRUE, CREATE_NO_WINDOW, 0, 0, &si, &pi);
+    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, CREATE_NO_WINDOW, 0, 0, (LPSTARTUPINFOA)&si, &pi);
     if (!ret) {
         char* msg;
         DWORD err = GetLastError();
-        FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
         dmLogFatal("Failed to launch application: %s (%d)", msg, err);
         LocalFree((HLOCAL) msg);
         exit(5);

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -187,7 +189,7 @@ TEST_F(DeleteTest, DeleteSelf)
         for (int i = 0; i < 512; ++i)
         {
             dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go.goc");
-            dmGameObject::SetPosition(go, Vectormath::Aos::Point3((float) i,(float) i, (float) i));
+            dmGameObject::SetPosition(go, dmVMath::Point3((float) i,(float) i, (float) i));
             ASSERT_NE((void*) 0, (void*) go);
             m_DeleteSelfInstances.push_back(go);
             m_DeleteSelfIndexToInstance[i] = go;

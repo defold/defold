@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +17,7 @@
 
 #include <string.h>
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/render/render.h>
 
 #include <dlib/hash.h>
@@ -26,15 +28,12 @@
 
 namespace dmRender
 {
-    using namespace Vectormath::Aos;
-
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
-    typedef struct NamedConstantBuffer*     HNamedConstantBuffer;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -72,10 +71,22 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
+    struct Constant
+    {
+        dmVMath::Vector4*                       m_Values;
+        dmhash_t                                m_NameHash;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
+        int32_t                                 m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
+        uint16_t                                m_NumValues;
+
+        Constant();
+        Constant(dmhash_t name_hash, int32_t location);
+    };
+
     struct MaterialConstant
     {
-        Constant  m_Constant;
-        dmhash_t  m_ElementIds[4];
+        HConstant           m_Constant;
+        dmhash_t            m_ElementIds[4];
     };
 
     struct RenderContextParams
@@ -114,18 +125,18 @@ namespace dmRender
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
-    const Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
-    void SetViewMatrix(HRenderContext render_context, const Matrix4& view);
-    void SetProjectionMatrix(HRenderContext render_context, const Matrix4& projection);
+    const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
+    void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
+    void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
     Result ClearRenderObjects(HRenderContext context);
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix);
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
-    Result DrawDebug3d(HRenderContext context);
+    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix);
     Result DrawDebug2d(HRenderContext context);
 
     /**
@@ -137,7 +148,7 @@ namespace dmRender
      * @param y1 y coordinate of the bottom edge of the square
      * @param color Color
      */
-    void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color);
+    void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, dmVMath::Vector4 color);
 
     /**
      * Render debug triangle in world space.
@@ -145,7 +156,7 @@ namespace dmRender
      * @param vertices Vertices of the triangle, CW winding
      * @param color Color
      */
-    void Triangle3d(HRenderContext context, Point3 vertices[3], Vector4 color);
+    void Triangle3d(HRenderContext context, dmVMath::Point3 vertices[3], dmVMath::Vector4 color);
 
     /**
      * Render debug line. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
@@ -157,7 +168,7 @@ namespace dmRender
      * @param color0 Color of the start of the line
      * @param color1 Color of the end of the line
      */
-    void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1);
+    void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, dmVMath::Vector4 color0, dmVMath::Vector4 color1);
 
     /**
      * Line3D Render debug line
@@ -166,7 +177,7 @@ namespace dmRender
      * @param end End point
      * @param color Color
      */
-    void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color);
+    void Line3D(HRenderContext context, dmVMath::Point3 start, dmVMath::Point3 end, dmVMath::Vector4 start_color, dmVMath::Vector4 end_color);
 
     HRenderScript   NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source);
 
@@ -194,7 +205,7 @@ namespace dmRender
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
-    bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, Constant& out_value);
+    bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.
@@ -209,15 +220,7 @@ namespace dmRender
      */
     bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
 
-    /** Retrieve the value of a constant element
-     * @param material Material containing the constant
-     * @param name_hash Hash of the material name
-     * @param element_index Index of the element
-     * @param out_value Out var set to the value
-     * @return True if the value was retrieved
-     */
-    bool                            GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value);
-    void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4* constant, uint32_t count);
+    void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
@@ -228,10 +231,6 @@ namespace dmRender
     uint64_t                        GetMaterialUserData2(HMaterial material);
     void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
 
-    HNamedConstantBuffer            NewNamedConstantBuffer();
-    void                            DeleteNamedConstantBuffer(HNamedConstantBuffer buffer);
-    void                            SetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4 value);
-    bool                            GetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4& value);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
 
     void                            ClearMaterialTags(HMaterial material);

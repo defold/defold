@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020 The Defold Foundation
+# Copyright 2020-2022 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,7 +31,7 @@ function terminate() {
 
 function terminate_usage() {
     echo "Usage: ${SCRIPT_NAME} <platform> <identity> <profile> <source>"
-    echo "  platform - 'armv7-darwin' or 'arm64-darwin'"
+    echo "  platform - 'arm64-darwin'"
     echo "  identity - name of the iPhone developer identity"
     echo "  profile  - absolute filepath to the provisioning profile"
     echo "  source   - absolute filepath to the source ipa to repack"
@@ -55,7 +57,7 @@ PLATFORM="${1:-}" && [ ! -z "${PLATFORM}" ] || terminate_usage
 IDENTITY="${2:-}" && [ ! -z "${IDENTITY}" ] || terminate_usage
 PROFILE="${3:-}" && [ ! -z "${PROFILE}" ] || terminate_usage
 SOURCE="${4:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
-[[ "armv7-darwin arm64-darwin" =~ "${PLATFORM}" ]] || terminate_usage
+[[ "arm64-darwin" =~ "${PLATFORM}" ]] || terminate_usage
 
 SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
 PROFILE="$(cd "$(dirname "${PROFILE}")"; pwd)/$(basename "${PROFILE}")"

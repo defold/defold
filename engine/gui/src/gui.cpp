@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,6 +41,8 @@
 
 namespace dmGui
 {
+    using namespace dmVMath;
+
     /**
      * Default layer id
      */
@@ -75,22 +79,6 @@ namespace dmGui
         "on_input",
         "on_reload"
     };
-
-    // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
-    static struct PlaybackGuiToRig
-    {
-        dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
-        PlaybackGuiToRig()
-        {
-            m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
-            m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
-            m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
-            m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
-            m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
-            m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
-            m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
-        }
-    } ddf_playback_map;
 
 #define PROP(name, prop)\
     { dmHashString64(#name), prop, 0xff }, \
@@ -145,35 +133,6 @@ namespace dmGui
         return 0;
     }
 
-    static void RigEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
-    {
-        if (!user_data1 || !user_data2)
-        {
-            return;
-        }
-
-        HScene scene = (HScene)user_data1;
-        SpineAnimation* animation = (SpineAnimation*)user_data2;
-
-        switch (event_type)
-        {
-            case dmRig::RIG_EVENT_TYPE_COMPLETED:
-            {
-                if (animation->m_AnimationComplete)
-                    animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
-                break;
-            }
-            case dmRig::RIG_EVENT_TYPE_KEYFRAME:
-            {
-                scene->m_RigEventDataCallback(scene, animation->m_Userdata2, event_data);
-                break;
-            }
-            default:
-                dmLogError("Unknown rig event received (%d).", event_type);
-                break;
-        }
-    }
-
     TextMetrics::TextMetrics()
     {
         memset(this, 0, sizeof(TextMetrics));
@@ -217,7 +176,6 @@ namespace dmGui
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
-        context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
 
@@ -305,12 +263,6 @@ namespace dmGui
         return scene->m_AdjustReference;
     }
 
-    dmRig::HRigContext GetRigContext(HScene scene)
-    {
-        assert(scene != 0x0);
-        return scene->m_RigContext;
-    }
-
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
         context->m_DisplayProfiles = display_profiles;
@@ -334,7 +286,6 @@ namespace dmGui
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
-        params->m_MaxSpineScenes = 8;
         params->m_MaxParticlefxs = 128;
         // 16 is a hard cap for max layers since only 4 bits is available in the render key (see LAYER_RANGE above)
         params->m_MaxLayers = 16;
@@ -380,16 +331,13 @@ namespace dmGui
 
         scene->m_Context = context;
         scene->m_Script = 0x0;
-        scene->m_RigContext = params->m_RigContext;
         scene->m_ParticlefxContext = params->m_ParticlefxContext;
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
-        scene->m_SpineAnimations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
-        scene->m_SpineScenes.SetCapacity(params->m_MaxSpineScenes*2, params->m_MaxSpineScenes);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
         scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefx);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
@@ -404,8 +352,13 @@ namespace dmGui
         scene->m_Width = context->m_DefaultProjectWidth;
         scene->m_Height = context->m_DefaultProjectHeight;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
-        scene->m_FetchRigSceneDataCallback = params->m_FetchRigSceneDataCallback;
-        scene->m_RigEventDataCallback = params->m_RigEventDataCallback;
+        scene->m_CreateCustomNodeCallback = params->m_CreateCustomNodeCallback;
+        scene->m_DestroyCustomNodeCallback = params->m_DestroyCustomNodeCallback;
+        scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
+        scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
+        scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
+        scene->m_GetResourceCallback = params->m_GetResourceCallback;
+        scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
 
@@ -441,13 +394,12 @@ namespace dmGui
         for (uint32_t i = 0; i < n; ++i)
         {
             InternalNode* n = &nodes[i];
-            if (n->m_Node.m_RigInstance) {
-                dmRig::InstanceDestroyParams params = {0};
-                params.m_Context = scene->m_RigContext;
-                params.m_Instance = n->m_Node.m_RigInstance;
-                dmRig::InstanceDestroy(params);
-                n->m_Node.m_RigInstance = 0x0;
+
+            if (n->m_Node.m_CustomType != 0)
+            {
+                scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
             }
+
             if (n->m_Node.m_Text)
                 free((void*) n->m_Node.m_Text);
         }
@@ -482,18 +434,17 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
-        uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, TextureInfo(texture, texture_type, original_width, original_height));
+        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture, texture_type, original_width, original_height));
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_TextureHash == texture_hash)
+            if (nodes[i].m_Node.m_TextureHash == texture_name_hash)
             {
                 nodes[i].m_Node.m_Texture     = texture;
                 nodes[i].m_Node.m_TextureType = texture_type;
@@ -502,9 +453,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    void RemoveTexture(HScene scene, const char* texture_name)
+    void RemoveTexture(HScene scene, dmhash_t texture_name_hash)
     {
-        uint64_t texture_name_hash = dmHashString64(texture_name);
         scene->m_Textures.Erase(texture_name_hash);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
@@ -539,6 +489,16 @@ namespace dmGui
             node.m_Texture = 0;
             node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
         }
+    }
+
+    void* GetTexture(HScene scene, dmhash_t texture_name_hash)
+    {
+        TextureInfo* textureInfo = scene->m_Textures.Get(texture_name_hash);
+        if (!textureInfo)
+        {
+            return 0;
+        }
+        return textureInfo->m_TextureSource;
     }
 
     static bool CopyImageBufferFlipped(uint32_t width, uint32_t height, const uint8_t* buffer, uint32_t buffer_size, dmImage::Type type, uint8_t* out_buffer)
@@ -715,7 +675,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return 0;
     }
 
-    Result AddFont(HScene scene, const char* font_name, void* font, dmhash_t path_hash)
+    Result AddFont(HScene scene, dmhash_t font_name_hash, void* font, dmhash_t path_hash)
     {
         if (scene->m_Fonts.Full())
             return RESULT_OUT_OF_RESOURCES;
@@ -724,33 +684,30 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             scene->m_DefaultFont = font;
 
         AddResourcePath(scene, font, path_hash);
-
-        uint64_t font_hash = dmHashString64(font_name);
-        scene->m_Fonts.Put(font_hash, font);
+        scene->m_Fonts.Put(font_name_hash, font);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_FontHash == font_hash)
+            if (nodes[i].m_Node.m_FontHash == font_name_hash)
                 nodes[i].m_Node.m_Font = font;
         }
         return RESULT_OK;
     }
 
-    void RemoveFont(HScene scene, const char* font_name)
+    void RemoveFont(HScene scene, dmhash_t font_name_hash)
     {
-        uint64_t font_hash = dmHashString64(font_name);
-        void** font = scene->m_Fonts.Get(font_hash);
+        void** font = scene->m_Fonts.Get(font_name_hash);
         if (font)
         {
             RemoveResourcePath(scene, *font);
         }
-        scene->m_Fonts.Erase(font_hash);
+        scene->m_Fonts.Erase(font_name_hash);
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (nodes[i].m_Node.m_FontHash == font_hash)
+            if (nodes[i].m_Node.m_FontHash == font_name_hash)
                 nodes[i].m_Node.m_Font = 0;
         }
     }
@@ -759,8 +716,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         void** font = scene->m_Fonts.Get(font_hash);
         if (!font)
+        {
             return 0;
+        }
         return GetResourcePath(scene, *font);
+    }
+
+    void* GetFont(HScene scene, dmhash_t font_hash)
+    {
+        void** font = scene->m_Fonts.Get(font_hash);
+        if (!font)
+        {
+            return 0;
+        }
+        return *font;
     }
 
     Result AddParticlefx(HScene scene, const char* particlefx_name, void* particlefx_prototype)
@@ -793,37 +762,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             {
                 nodes[i].m_Node.m_ParticlefxPrototype = 0;
             }
-        }
-    }
-
-    Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene)
-    {
-        if (scene->m_SpineScenes.Full())
-            return RESULT_OUT_OF_RESOURCES;
-        uint64_t name_hash = dmHashString64(spine_scene_name);
-        scene->m_SpineScenes.Put(name_hash, spine_scene);
-        uint32_t n = scene->m_Nodes.Size();
-        InternalNode* nodes = scene->m_Nodes.Begin();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            if (nodes[i].m_Node.m_SpineSceneHash == name_hash)
-            {
-                nodes[i].m_Node.m_SpineScene = spine_scene;
-            }
-        }
-        return RESULT_OK;
-    }
-
-    void RemoveSpineScene(HScene scene, const char* spine_scene_name)
-    {
-        uint64_t name_hash = dmHashString64(spine_scene_name);
-        scene->m_SpineScenes.Erase(name_hash);
-        uint32_t n = scene->m_Nodes.Size();
-        InternalNode* nodes = scene->m_Nodes.Begin();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            if (nodes[i].m_Node.m_SpineSceneHash == name_hash)
-                nodes[i].m_Node.m_SpineScene = 0;
         }
     }
 
@@ -989,6 +927,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return GetNodeAnimationFrameInternal(GetNode(scene, node));
     }
 
+    int32_t GetNodeAnimationFrameCount(HScene scene, HNode node)
+    {
+        TextureSetAnimDesc* anim_desc = GetNodeTextureSet(scene, node);
+        if (anim_desc == 0)
+        {
+            return -1;
+        }
+        return anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
+    }
+
+
     static inline const float* GetNodeFlipbookAnimUVInternal(InternalNode* in)
     {
         int32_t anim_frame = GetNodeAnimationFrameInternal(in);
@@ -1025,7 +974,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     inline void CalculateNodeSize(InternalNode* in)
     {
         Node& n = in->m_Node;
-        if(n.m_SizeMode == SIZE_MODE_MANUAL || n.m_NodeType == NODE_TYPE_SPINE ||
+        //TODO: Custom/ParticleFX shouldn't be singled out. It's the others that should be included
+        if(n.m_SizeMode == SIZE_MODE_MANUAL || n.m_NodeType == NODE_TYPE_CUSTOM ||
            n.m_NodeType == NODE_TYPE_PARTICLEFX || n.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET ||
            n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
         {
@@ -1469,7 +1419,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             c->m_SceneTraversalCache.m_Version = 0;
         }
 
-        Matrix4 node_transform;
         CollectNodes(scene, c->m_StencilClippingNodes, c->m_RenderNodes);
         uint32_t node_count = c->m_RenderNodes.Size();
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));
@@ -1699,13 +1648,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
-
-            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if ((anim->m_Elapsed >= anim->m_Duration && anim->m_Delay == 0) || anim->m_Cancelled)
             {
                 // If we have cancelled an animation, its callback won't be called which means
                 // we potentially get dangling lua refs in the script system
-                // Another scenario where the callback won't get invoked is when the duration
-                // is 0.0 and the delay > 0.0
                 if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                 {
                     anim->m_AnimationCompleteCalled = 1;
@@ -2001,7 +1947,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             {
                 uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
+                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[script_function], message_name, &profiler_hash);
                 DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
@@ -2067,8 +2013,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             InternalNode* node = &nodes[i];
 
-            // We need to make sure we delete spine nodes since these include rig instances.
-            if (node->m_Deleted || node->m_Node.m_NodeType == NODE_TYPE_SPINE)
+            if (node->m_Deleted)
             {
                 HNode hnode = GetNodeHandle(node);
                 DeleteNode(scene, hnode, true);
@@ -2113,18 +2058,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         uint32_t total_nodes = 0;
         uint32_t active_nodes = 0;
-        // Deferred deletion of nodes
         node_count = scene->m_Nodes.Size();
         nodes      = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < node_count; ++i)
         {
             InternalNode* node = &nodes[i];
+
+            // Deferred deletion of nodes
             if (node->m_Deleted)
             {
-                uint16_t index = node->m_Index;
-                uint16_t version = node->m_Version;
-                HNode hnode = ((uint32_t) version) << 16 | index;
-                DeleteNode(scene, hnode, false);
+                DeleteNode(scene, GetNodeHandle(node), false);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
                 node_count = scene->m_Nodes.Size();
             }
@@ -2133,6 +2076,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 ++total_nodes;
                 if (node->m_Node.m_Enabled)
                     ++active_nodes;
+
+                if (node->m_Node.m_CustomType != 0)
+                {
+                    scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
+                                                        node->m_Node.m_CustomType, node->m_Node.m_CustomData, dt);
+                }
             }
         }
 
@@ -2206,7 +2155,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     return GetNodeHandle(node);
                 }
             }
-            return 0;
+            return INVALID_HANDLE;
         }
 
         InternalNode* n = GetNode(scene, node);
@@ -2218,7 +2167,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (!child->m_Deleted && child->m_Index != INVALID_INDEX)
                 return GetNodeHandle(child);
         }
-        return 0;
+        return INVALID_HANDLE;
     }
 
     HNode GetNextNode(HScene scene, HNode node)
@@ -2233,7 +2182,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (!next->m_Deleted && next->m_Index != INVALID_INDEX)
                 return GetNodeHandle(next);
         }
-        return 0;
+        return INVALID_HANDLE;
     }
 
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
@@ -2301,7 +2250,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return index;
     }
 
-    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type)
+    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type, uint32_t custom_type)
     {
         uint16_t index = AllocateNode(scene);
         if (index == scene->m_NodePool.Capacity())
@@ -2334,6 +2283,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_OuterBounds = PIEBOUNDS_ELLIPSE;
         node->m_Node.m_BlendMode = 0;
         node->m_Node.m_NodeType = (uint32_t) node_type;
+        node->m_Node.m_CustomType = custom_type;
         node->m_Node.m_XAnchor = 0;
         node->m_Node.m_YAnchor = 0;
         node->m_Node.m_Pivot = 0;
@@ -2347,7 +2297,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_ClippingVisible = true;
         node->m_Node.m_ClippingInverted = false;
 
-        node->m_Node.m_HasResetPoint = false;
+        node->m_Node.m_HasResetPoint = 0;
         node->m_Node.m_TextureHash = 0;
         node->m_Node.m_Texture = 0;
         node->m_Node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
@@ -2356,10 +2306,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_FlipbookAnimPosition = 0.0f;
         node->m_Node.m_FontHash = 0;
         node->m_Node.m_Font = 0;
-        node->m_Node.m_SpineSceneHash = 0;
-        node->m_Node.m_SpineScene = 0;
-        node->m_Node.m_RigInstance = 0;
-        node->m_Node.m_IsBone = 0;
         node->m_Node.m_HasHeadlessPfx = 0;
         node->m_Node.m_LayerHash = DEFAULT_LAYER;
         node->m_Node.m_LayerIndex = 0;
@@ -2376,6 +2322,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
 
         HNode hnode = GetNodeHandle(node);
+
+        if (custom_type != 0)
+        {
+            void* custom_node_data = scene->m_CreateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, hnode, custom_type);
+            node->m_Node.m_CustomData = custom_node_data;
+        }
+
         MoveNodeAbove(scene, hnode, INVALID_HANDLE);
         return hnode;
     }
@@ -2532,13 +2485,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
 
-        // Delete rig instance if node was a spine
-        if (n->m_Node.m_NodeType == NODE_TYPE_SPINE && n->m_Node.m_RigInstance) {
-            dmRig::InstanceDestroyParams params = {0};
-            params.m_Context = scene->m_RigContext;
-            params.m_Instance = n->m_Node.m_RigInstance;
-            dmRig::InstanceDestroy(params);
-            n->m_Node.m_RigInstance = 0x0;
+        if (n->m_Node.m_CustomType != 0)
+        {
+            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
         }
 
         // Stop (or destroy) any living particle instances started on this node
@@ -2608,6 +2557,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
 
         ResetInternalNode(scene, n);
+    }
+
+
+    void DeleteNode(HScene scene, HNode node)
+    {
+        DeleteNode(scene, node, false);
     }
 
     void ClearNodes(HScene scene)
@@ -2747,6 +2702,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return (NodeType)n->m_Node.m_NodeType;
     }
 
+    uint32_t GetNodeCustomType(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_CustomType;
+    }
+
+    void* GetNodeCustomData(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_CustomData;
+    }
+
     Point3 GetNodePosition(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2823,7 +2790,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* n = GetNode(scene, node);
         memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
         n->m_Node.m_ResetPointState = n->m_Node.m_State;
-        n->m_Node.m_HasResetPoint = true;
+        n->m_Node.m_HasResetPoint = 1;
     }
 
     const char* GetNodeText(HScene scene, HNode node)
@@ -2907,7 +2874,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_Texture = texture_info->m_TextureSource;
             n->m_Node.m_TextureType = texture_info->m_TextureSourceType;
 
-            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) && (texture_info->m_TextureSource))
+            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) &&
+                (n->m_Node.m_NodeType != NODE_TYPE_CUSTOM) &&
+                (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) && (texture_info->m_TextureSource))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
                 n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_OriginalHeight;
@@ -2917,7 +2886,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture->m_Handle;
             n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_DYNAMIC;
-            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
+            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) &&
+                (n->m_Node.m_NodeType != NODE_TYPE_CUSTOM) &&
+                (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
                 n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture->m_Height;
@@ -2934,250 +2905,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return SetNodeTexture(scene, node, dmHashString64(texture_id));
     }
 
-    static void SetBoneTransforms(HScene scene, InternalNode* n, uint32_t& bone_index, dmArray<dmTransform::Transform>& pose)
-    {
-        uint16_t child_index = n->m_ChildHead;
-        while (child_index != INVALID_INDEX)
-        {
-            InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
-            if (child->m_Node.m_IsBone) {
-                assert(bone_index < pose.Size());
-                dmTransform::Transform transform = pose[bone_index];
-                HNode b = GetNodeHandle(child);
-                SetNodePosition(scene, b, Point3(transform.GetTranslation()));
-                SetNodeProperty(scene, b, dmGui::PROPERTY_ROTATION, (Vector4)dmVMath::QuatToEuler(transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW()));
-                SetNodeProperty(scene, b, dmGui::PROPERTY_SCALE, (Vector4)transform.GetScale());
-                bone_index++;
-
-                SetBoneTransforms(scene, child, bone_index, pose);
-            }
-            child_index = child->m_NextIndex;
-        }
-    }
-
-    static void SpinePoseCallback(void* userdata1, void* userdata2)
-    {
-        HScene scene = (HScene)userdata1;
-        InternalNode* n = (InternalNode*)userdata2;
-
-        dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(n->m_Node.m_RigInstance);
-        uint32_t bone_index = 0;
-        SetBoneTransforms(scene, n, bone_index, pose);
-    }
-
-    dmhash_t GetNodeSpineSceneId(HScene scene, HNode node)
+    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture)
     {
         InternalNode* n = GetNode(scene, node);
-        return n->m_Node.m_SpineSceneHash;
-    }
-
-    Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
-            return RESULT_INVAL_ERROR;
-        }
-
-        n->m_Node.m_SpineSceneHash = spine_scene_id;
-
-        // Delete previous spine scene and bones
-        if (n->m_Node.m_RigInstance) {
-            // Delete previous children, need to generate new bone childs
-            generate_bones = true;
-            uint16_t child_index = n->m_ChildHead;
-            while (child_index != INVALID_INDEX)
-            {
-                InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
-                child_index = child->m_NextIndex;
-                DeleteNode(scene, GetNodeHandle(child), true);
-            }
-
-            dmRig::InstanceDestroyParams params = {0};
-            params.m_Context = scene->m_RigContext;
-            params.m_Instance = n->m_Node.m_RigInstance;
-            dmRig::InstanceDestroy(params);
-            n->m_Node.m_RigInstance = 0x0;
-        }
-
-        // Create rig instance
-        dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = scene->m_RigContext;
-        create_params.m_Instance = &n->m_Node.m_RigInstance;
-
-        create_params.m_PoseCallback = SpinePoseCallback;
-        create_params.m_PoseCBUserData1 = scene;
-        create_params.m_PoseCBUserData2 = n;
-        create_params.m_EventCallback = RigEventCallback;
-        create_params.m_EventCBUserData1 = scene;
-        create_params.m_EventCBUserData2 = 0;
-
-        void** spine_scene_ptr = scene->m_SpineScenes.Get(spine_scene_id);
-        if (!scene->m_FetchRigSceneDataCallback || !spine_scene_ptr) {
-            dmLogError("Could not create the node, no spine data available.");
-            return RESULT_DATA_ERROR;
-        }
-
-        RigSceneDataDesc rig_data = {0};
-        if (!scene->m_FetchRigSceneDataCallback(*spine_scene_ptr, spine_scene_id, &rig_data)) {
-            dmLogError("Could not create the node, failed to get spine data.");
-            return RESULT_DATA_ERROR;
-        }
-
-        create_params.m_BindPose         = rig_data.m_BindPose;
-        create_params.m_Skeleton         = rig_data.m_Skeleton;
-        create_params.m_MeshSet          = rig_data.m_MeshSet;
-        create_params.m_AnimationSet     = rig_data.m_AnimationSet;
-        create_params.m_PoseIdxToInfluence = rig_data.m_PoseIdxToInfluence;
-        create_params.m_TrackIdxToPose     = rig_data.m_TrackIdxToPose;
-        create_params.m_MeshId           = skin_id;
-        create_params.m_DefaultAnimation = default_animation_id;
-
-        // We need to make sure the new rig scene has run an animation step to setup the
-        // pose since we could have been called mid frame in during a clone node call.
-        create_params.m_ForceAnimatePose = true;
-
-        dmRig::Result res = dmRig::InstanceCreate(create_params);
-        if (res != dmRig::RESULT_OK) {
-            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
-                dmLogError("Try increasing the gui.max_spine_count value in game.project");
-            } else {
-                dmLogError("Could not create the node, failed to create rig instance: %d.", res);
-            }
-            return RESULT_DATA_ERROR;
-        }
-
-        // Set spine texture and textureset
-        if (rig_data.m_TextureSet)
-        {
-            n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE_SET;
-            n->m_Node.m_Texture = rig_data.m_TextureSet;
-        }
-        else
-        {
-            n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE;
-            n->m_Node.m_Texture = rig_data.m_Texture;
-        }
-
-        // Create bone child nodes
-        if (generate_bones) {
-            const dmArray<dmRig::RigBone>& bind_pose = *rig_data.m_BindPose;
-            const dmRigDDF::Skeleton* skeleton = rig_data.m_Skeleton;
-            uint32_t bone_count = skeleton->m_Bones.m_Count;
-            if (scene->m_Context->m_ScratchBoneNodes.Capacity() < bone_count) {
-                scene->m_Context->m_ScratchBoneNodes.OffsetCapacity(bone_count - scene->m_Context->m_ScratchBoneNodes.Capacity());
-            }
-            scene->m_Context->m_ScratchBoneNodes.SetSize(bone_count);
-
-            for (uint32_t i = 0; i < bone_count; ++i)
-            {
-                dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
-                HNode bone_node = NewNode(scene, Point3(transform.GetTranslation()), Vector3(0, 0, 0), NODE_TYPE_BOX);
-                scene->m_Context->m_ScratchBoneNodes[i] = bone_node;
-
-                HNode parent = node;
-                if (i > 0)
-                {
-                    parent = scene->m_Context->m_ScratchBoneNodes[skeleton->m_Bones[i].m_Parent];
-                }
-                SetNodeAdjustMode(scene, bone_node, (AdjustMode)n->m_Node.m_AdjustMode);
-                SetNodeParent(scene, bone_node, parent, false);
-                SetNodeIsBone(scene, bone_node, true);
-            }
-        }
-
+        n->m_Node.m_TextureHash = (uintptr_t)texture;
+        n->m_Node.m_TextureType = type;
+        n->m_Node.m_Texture = texture;
         return RESULT_OK;
-    }
-
-    Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones)
-    {
-        return SetNodeSpineScene(scene, node, dmHashString64(spine_scene_id), skin_id, default_animation_id, generate_bones);
-    }
-
-    dmhash_t GetNodeSpineScene(HScene scene, HNode node)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
-            return 0;
-        }
-
-        return n->m_Node.m_SpineSceneHash;
-    }
-
-    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id)
-    {
-        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
-        dmRig::Result result = dmRig::SetMesh(rig_instance, skin_id);
-        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
-    }
-
-    dmhash_t GetNodeSpineSkin(HScene scene, HNode node)
-    {
-        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
-        return dmRig::GetMesh(rig_instance);
-    }
-
-    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id)
-    {
-        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
-        dmRig::Result result = dmRig::SetMeshSlot(rig_instance, skin_id, slot_id);
-        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
-    }
-
-    dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
-    {
-        InternalNode* n = GetNode(scene, node);
-        return n->m_Node.m_RigInstance;
-    }
-
-    static HNode FindBoneChildNode(HScene scene, InternalNode* n, uint32_t& bone_index)
-    {
-        uint16_t child_index = n->m_ChildHead;
-        while (child_index != INVALID_INDEX)
-        {
-            InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
-            if (child->m_Node.m_IsBone) {
-                if (bone_index == 0) {
-                    return GetNodeHandle(child);
-                }
-                bone_index--;
-                HNode child_search = FindBoneChildNode(scene, child, bone_index);
-                if (child_search != 0) {
-                    return child_search;
-                }
-            }
-            child_index = child->m_NextIndex;
-        }
-
-        return 0;
-    }
-
-    HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id)
-    {
-        InternalNode* n = GetNode(scene, node);
-        dmhash_t spine_scene_id = GetNodeSpineScene(scene, node);
-        void** spine_scene_ptr = scene->m_SpineScenes.Get(spine_scene_id);
-        RigSceneDataDesc rig_data = {0};
-        if (!scene->m_FetchRigSceneDataCallback(*spine_scene_ptr, spine_scene_id, &rig_data)) {
-            return 0;
-        }
-
-        const dmRigDDF::Skeleton* skeleton = rig_data.m_Skeleton;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        uint32_t bone_index = ~0u;
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            if (skeleton->m_Bones[i].m_Id == bone_id)
-            {
-                bone_index = i;
-                break;
-            }
-        }
-        if (bone_index == ~0u)
-        {
-            return 0;
-        }
-        // return (*n->m_Node.m_SpineBoneNodes)[bone_index];
-        return FindBoneChildNode(scene, n, bone_index);
     }
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id)
@@ -3324,6 +3058,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
+    void SetNodeAlpha(HScene scene, HNode node, float alpha)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_COLOR].setW(alpha);
+    }
+
+    float GetNodeAlpha(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_COLOR].getW();
+    }
+
     float GetNodeFlipbookCursor(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -3378,150 +3124,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 anim->m_PlaybackRate = playback_rate;
             }
         }
-    }
-
-    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
-        {
-            return RESULT_WRONG_TYPE;
-        }
-
-        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        dmRig::Result result = dmRig::SetCursor(rig_instance, cursor, true);
-
-        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
-    }
-
-    float GetNodeSpineCursor(HScene scene, HNode node)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
-        {
-            dmLogError("Can only get cursor for spine node");
-            return 0.0f;
-        }
-
-        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        float cursor = dmRig::GetCursor(rig_instance, true);
-        return cursor;
-    }
-
-    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
-        {
-            return RESULT_WRONG_TYPE;
-        }
-
-        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        dmRig::Result result = dmRig::SetPlaybackRate(rig_instance, playback_rate);
-
-        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
-    }
-
-    float GetNodeSpinePlaybackRate(HScene scene, HNode node)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
-        {
-            dmLogError("Can only get playback_rate for spine node");
-            return 0.0f;
-        }
-
-        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        float playback_rate = dmRig::GetPlaybackRate(rig_instance);
-        return playback_rate;
-    }
-
-    dmhash_t GetNodeSpineAnimation(HScene scene, HNode node)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
-        {
-            dmLogError("Can only get animation for spine node");
-            return 0;
-        }
-
-        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        dmhash_t animation_id = dmRig::GetAnimation(rig_instance);
-        return animation_id;
-    }
-
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
-            return RESULT_WRONG_TYPE;
-        }
-
-        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend, offset, playback_rate)) {
-            return RESULT_INVAL_ERROR;
-        }
-
-        SpineAnimation animation;
-        uint32_t animation_index = 0xffffffff;
-
-        // Overwrite old animation for the same node
-        for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
-        {
-            const SpineAnimation* anim = &scene->m_SpineAnimations[i];
-            if (node == anim->m_Node)
-            {
-                animation_index = i;
-                break;
-            }
-        }
-
-        if (animation_index == 0xffffffff)
-        {
-            if (scene->m_SpineAnimations.Full())
-            {
-                dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
-                return RESULT_INVAL_ERROR;
-            }
-            animation_index = scene->m_SpineAnimations.Size();
-            scene->m_SpineAnimations.SetSize(animation_index+1);
-        }
-
-        if (animation_complete)
-        {
-            animation.m_Node = node;
-            animation.m_AnimationComplete = animation_complete;
-            animation.m_Userdata1 = userdata1;
-            animation.m_Userdata2 = userdata2;
-            scene->m_SpineAnimations[animation_index] = animation;
-        }
-        else
-        {
-            animation.m_Node = node;
-            animation.m_AnimationComplete = 0;
-            animation.m_Userdata1 = 0;
-            animation.m_Userdata2 = userdata2;
-            scene->m_SpineAnimations[animation_index] = animation;
-        }
-
-        SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
-
-        return RESULT_OK;
-    }
-
-    Result CancelNodeSpineAnim(HScene scene, HNode node)
-    {
-        InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
-            return RESULT_WRONG_TYPE;
-        }
-
-        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        if (dmRig::RESULT_OK != dmRig::CancelAnimation(rig_instance)) {
-            return RESULT_INVAL_ERROR;
-        }
-
-        return RESULT_OK;
     }
 
     Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* callbackdata)
@@ -3770,7 +3372,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_SizeMode = (uint32_t) size_mode;
-        if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
+        if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_CUSTOM) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
         {
             if (TextureInfo* texture_info = scene->m_Textures.Get(n->m_Node.m_TextureHash))
             {
@@ -3840,9 +3442,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Node = node;
         animation.m_Value = value;
         animation.m_To = to;
-        animation.m_Delay = delay;
+        animation.m_Delay = delay < 0.0f ? 0.0f : delay;
         animation.m_Elapsed = 0.0f;
-        animation.m_Duration = duration;
+        animation.m_Duration = duration < 0.0f ? 0.0f : duration;
         animation.m_PlaybackRate = playback_rate;
         animation.m_Easing = easing;
         animation.m_Playback = playback;
@@ -4279,6 +3881,101 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
+    HNode GetNodeParent(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_ParentIndex == INVALID_INDEX)
+        {
+            return dmGui::INVALID_HANDLE;
+        }
+        InternalNode* parent_n = &scene->m_Nodes[n->m_ParentIndex];
+        return GetNodeHandle(parent_n);
+    }
+
+    static Vector3 ScreenToLocalPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
+    {
+        Matrix4 parent_m;
+
+        Vector4 reference_scale;
+        Vector4 adjust_scale;
+        Vector4 offset(0.0f);
+
+        // Calculate the new parents scene transform
+        // We also need to calculate values relative to adjustments and offset
+        // corresponding to the values that would be used in AdjustPosScale (see reasoning below).
+        if (parent_node != 0x0)
+        {
+            CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
+            reference_scale = parent_node->m_Node.m_LocalAdjustScale;
+            adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
+        } else {
+            reference_scale = CalculateReferenceScale(scene, 0x0);
+            adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
+            parent_m = Matrix4::scale(adjust_scale.getXYZ());
+
+            Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
+            Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
+            Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
+            offset = (ref_size - adjusted_dims) * 0.5f;
+        }
+
+        // We calculate a new position that will be the relative position once
+        // the node has been childed to the new parent.
+        Vector3 position = screen_position - parent_m.getCol3().getXYZ();
+
+        // We need to perform the inverse of what AdjustPosScale will do to counteract when
+        // it will be applied during next call to CalculateNodeTransform.
+        // See AdjustPosScale for comparison on the steps being performed/inversed.
+        if (node->m_Node.m_XAnchor == XANCHOR_LEFT || node->m_Node.m_XAnchor == XANCHOR_RIGHT) {
+            offset.setX(0.0f);
+        }
+        if (node->m_Node.m_YAnchor == YANCHOR_TOP || node->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
+            offset.setY(0.0f);
+        }
+
+        Vector3 scaled_position = position - offset.getXYZ();
+        position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
+
+        if (node->m_Node.m_XAnchor == dmGui::XANCHOR_LEFT || node->m_Node.m_XAnchor == dmGui::XANCHOR_RIGHT) {
+            position.setX(scaled_position.getX() / reference_scale.getX());
+        }
+
+        if (node->m_Node.m_YAnchor == dmGui::YANCHOR_BOTTOM || node->m_Node.m_YAnchor == dmGui::YANCHOR_TOP) {
+            position.setY(scaled_position.getY() / reference_scale.getY());
+        }
+        return position;
+    }
+
+    Point3 ScreenToLocalPosition(HScene scene, HNode node, const Point3& screen_position)
+    {
+        InternalNode* n = GetNode(scene, node);
+        InternalNode* parent_node = 0x0;
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            parent_node = &scene->m_Nodes[n->m_ParentIndex];
+        }
+        Vector3 local_position = ScreenToLocalPosition(scene, n, parent_node, Vector3(screen_position));
+        return Point3(local_position);
+    }
+
+    static void SetScreenPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
+    {
+        Vector3 local_position = ScreenToLocalPosition(scene, node, parent_node, screen_position);
+        node->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(local_position, 1.0f);
+        node->m_Node.m_DirtyLocal = 1;
+    }
+
+    void SetScreenPosition(HScene scene, HNode node, const Point3& screen_position)
+    {
+        InternalNode* n = GetNode(scene, node);
+        InternalNode* parent_node = 0x0;
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            parent_node = &scene->m_Nodes[n->m_ParentIndex];
+        }
+        SetScreenPosition(scene, n, parent_node, Vector3(screen_position));
+    }
+
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)
     {
         if (node == parent)
@@ -4304,61 +4001,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (keep_scene_transform) {
 
                 Matrix4 node_m;
-                Matrix4 parent_m;
-
-                Vector4 reference_scale;
-                Vector4 adjust_scale;
-                Vector4 offset(0.0f);
-
                 // Calculate the nodes current scene transform
                 CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_m);
+                Vector3 node_pos = node_m.getCol3().getXYZ();
 
-                // Calculate the new parents scene transform
-                // We also need to calculate values relative to adjustments and offset
-                // corresponding to the values that would be used in AdjustPosScale (see reasoning below).
-                if (parent_node != 0x0)
-                {
-                    CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
-                    reference_scale = parent_node->m_Node.m_LocalAdjustScale;
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
-                } else {
-                    reference_scale = CalculateReferenceScale(scene, 0x0);
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
-                    parent_m = Matrix4::scale(adjust_scale.getXYZ());
-
-                    Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
-                    Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
-                    Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
-                    offset = (ref_size - adjusted_dims) * 0.5f;
-                }
-
-                // We calculate a new position that will be the relative position once
-                // the node has been childed to the new parent.
-                Vector3 position = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ();
-
-                // We need to perform the inverse of what AdjustPosScale will do to counteract when
-                // it will be applied during next call to CalculateNodeTransform.
-                // See AdjustPosScale for comparison on the steps being performed/inversed.
-                if (n->m_Node.m_XAnchor == XANCHOR_LEFT || n->m_Node.m_XAnchor == XANCHOR_RIGHT) {
-                    offset.setX(0.0f);
-                }
-                if (n->m_Node.m_YAnchor == YANCHOR_TOP || n->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
-                    offset.setY(0.0f);
-                }
-
-                Vector3 scaled_position = position - offset.getXYZ();
-                position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
-
-                if (n->m_Node.m_XAnchor == dmGui::XANCHOR_LEFT || n->m_Node.m_XAnchor == dmGui::XANCHOR_RIGHT) {
-                    position.setX(scaled_position.getX() / reference_scale.getX());
-                }
-
-                if (n->m_Node.m_YAnchor == dmGui::YANCHOR_BOTTOM || n->m_Node.m_YAnchor == dmGui::YANCHOR_TOP) {
-                    position.setY(scaled_position.getY() / reference_scale.getY());
-                }
-
-                n->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(position, 1.0f);
-                n->m_Node.m_DirtyLocal = 1;
+                SetScreenPosition(scene, n, parent_node, node_pos);
             }
 
             RemoveFromNodeList(scene, n);
@@ -4409,10 +4056,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         out_n->m_ChildTail = INVALID_INDEX;
         scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
 
-        if (n->m_Node.m_RigInstance != 0x0)
+        if (n->m_Node.m_CustomType != 0)
         {
-            out_n->m_Node.m_RigInstance = 0x0;
-            SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), GetNodeSpineSkin(scene, node), GetNodeSpineAnimation(scene, node), false);
+            void* src_custom_data = n->m_Node.m_CustomData;
+            out_n->m_Node.m_CustomData = scene->m_CloneCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, *out_node, n->m_Node.m_CustomType, src_custom_data);
+            out_n->m_Node.m_CustomType = n->m_Node.m_CustomType;
+        }
+
+        if (n->m_Node.m_FlipbookAnimHash != 0)
+        {
+            float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
+            float cursor = GetNodeFlipbookCursor(scene, node);
+            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, cursor, playback_rate, 0, 0, 0);
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)
@@ -4469,6 +4124,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             out_transform = parent_trans * out_transform;
         }
+    }
+
+    void* GetResource(dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot)
+    {
+        // First, ask the comp_gui.cpp for the resource (it might be overridden!)
+        if (scene->m_GetResourceCallback)
+            return scene->m_GetResourceCallback(scene->m_GetResourceCallbackContext, scene, resource_id, suffix_with_dot);
+
+        // Check the internal resources (if we ever need to)
+        return 0;
     }
 
     static void ResetScript(HScript script) {

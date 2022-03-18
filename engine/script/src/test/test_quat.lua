@@ -1,4 +1,6 @@
--- Copyright 2020 The Defold Foundation
+-- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
 -- 
@@ -106,3 +108,9 @@ assert(math.abs(vmath.length_sqr(q) - 1) < 0.0000001, "normalized not unit lengt
 local t = 1 / vmath.length(vmath.quat(1, 2, 3, 4))
 assert(math.abs(q.x - t) < 0.000001 and math.abs(q.y - 2*t) < 0.000001 and math.abs(q.z - 3*t) < 0.000001 and math.abs(q.w - 4*t) < 0.000001, "normalize")
 
+-- tostring and concat
+q = vmath.quat(1, 2, 3, 4)
+assert(("foo " .. tostring(q)) == "foo vmath.quat(1, 2, 3, 4)")
+assert(("foo " .. q) == "foo vmath.quat(1, 2, 3, 4)")
+q = vmath.quat(-10.01, -10.01, -10.01, -10.01)
+assert(tostring(q) == ("" .. q))

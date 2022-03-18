@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -177,6 +179,8 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE
      * @member dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
+     * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
+     * @member dmGameObject::PROPERTY_RESULT_INVALID_KEY
      */
     enum PropertyResult
     {
@@ -190,7 +194,9 @@ namespace dmGameObject
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
         PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
         PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9,
-        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10
+        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
+        PROPERTY_RESULT_INVALID_INDEX = -11,
+        PROPERTY_RESULT_INVALID_KEY = -12,
     };
 
     /*#
@@ -215,7 +221,7 @@ namespace dmGameObject
      * Create result enum.
      *
      * @enum
-     * @name Result
+     * @name CreateResult
      * @member dmGameObject::CREATE_RESULT_OK
      * @member dmGameObject::CREATE_RESULT_UNKNOWN_ERROR
      */
@@ -231,7 +237,7 @@ namespace dmGameObject
      * Update result enum.
      *
      * @enum
-     * @name Result
+     * @name UpdateResult
      * @member dmGameObject::UPDATE_RESULT_OK
      * @member dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR
      */
@@ -241,17 +247,40 @@ namespace dmGameObject
         UPDATE_RESULT_UNKNOWN_ERROR = -1000,
     };
 
+    /*# Type of property value
+     *
+     * Type of property value
+     *
+     * @enum
+     * @name PropertyValueType
+     * @member dmGameObject::PROP_VALUE_ARRAY
+     * @member dmGameObject::PROP_VALUE_HASHTABLE
+     */
+    enum PropertyValueType
+    {
+        PROP_VALUE_ARRAY = 0,
+        PROP_VALUE_HASHTABLE = 1,
+    };
+
     /*# Property Options
      *
-     * A table of options for getting and setting properties.
+     * Parameters variant that holds key or index for a propertys data structure.
      *
      * @struct
      * @name PropertyOptions
      * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
+     * @member m_Key [type:dmhash_t] The key of the property to set, only applicable if property is hashtable.
+     * @member m_HasKey [type:uint8_t] A flag if structure contain m_Key value (it can't contain both)
      */
     struct PropertyOptions
     {
-        int32_t m_Index;
+        union
+        {
+            dmhash_t m_Key;
+            int32_t m_Index;
+        };
+
+        uint8_t m_HasKey : 1;
     };
 
     /*# property variant
@@ -313,8 +342,7 @@ namespace dmGameObject
      * @member m_Variant [type: PropertyVar] Variant holding the value
      * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
      * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
-     * @member m_ArraySize [type: uint8_t] The number of elements the property holds (if array).
-     * @member m_IsArray [type: uint8_t] Indicates if this property is an array or not.
+     * @member m_ValueType [type: uint8_t] Indicates type of the property.
      */
     struct PropertyDesc
     {
@@ -323,19 +351,20 @@ namespace dmGameObject
         PropertyVar m_Variant;
         float* m_ValuePtr;
         bool m_ReadOnly;
-        uint8_t m_ArraySize : 7;
-        uint8_t m_IsArray   : 1;
+        uint8_t m_ValueType : 1;
     };
 
     /*#
      * Update context
      * @struct
      * @name UpdateContext
+     * @member m_TimeScale [type: float] the scaling factor what was applied on the dt (i.e. the collection update time scale)
      * @member m_DT [type: float] the delta time elapsed since last frame (seconds)
      */
     struct UpdateContext
     {
-        float m_DT;
+        float    m_TimeScale;
+        float    m_DT;
     };
 
     /*#

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +20,11 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
+
+namespace dmIntersection
+{
+    struct Frustum;
+}
 
 /*# Render API documentation
  * [file:<dmsdk/render/render.h>]
@@ -53,6 +60,20 @@ namespace dmRender
     typedef struct FontMap* HFontMap;
 
     /*#
+     * Shader constant handle
+     * @typedef
+     * @name HConstant
+     */
+    typedef struct Constant* HConstant;
+
+    /*#
+     * Shader constant buffer handle. Holds name and values for a constant.
+     * @typedef
+     * @name HNamedConstantBuffer
+     */
+    typedef struct NamedConstantBuffer* HNamedConstantBuffer;
+
+    /*#
      * @enum
      * @name Result
      * @member RESULT_OK
@@ -77,24 +98,6 @@ namespace dmRender
      * @return vertex_space [type: dmRenderDDF::MaterialDesc::VertexSpace] the vertex space
      */
     dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material);
-
-    /*#
-     * URL specifying a sender/receiver of messages
-     * @note Currently has a hard limit of 32 bytes
-     * @struct
-     * @name Constant
-     */
-    struct Constant
-    {
-        dmVMath::Vector4*                       m_ValuePtr;
-        dmhash_t                                m_NameHash;
-        dmRenderDDF::MaterialDesc::ConstantType m_Type;
-        int32_t                                 m_Location;
-        uint16_t                                m_ArraySize;
-
-        Constant();
-        Constant(dmhash_t name_hash, int32_t location);
-    };
 
     /*#
      * Struct holding stencil operation setup
@@ -148,17 +151,10 @@ namespace dmRender
      */
 
     /*#
-     * The maximum number of shader constants the render object can hold (currently 16)
-     * @constant
-     * @name dmRender::RenderObject::MAX_CONSTANT_COUNT
-     */
-
-    /*#
      * Render objects represent an actual draw call
      * @struct
      * @name RenderObject
-     * @member m_Constants [type: dmRender::Constant[]] the shader constants
-     * @member m_ConstantsData [type: dmVMath::Vector4[]] the data memory block for the constant values
+     * @member m_Constants [type: dmRender::HConstant[]] the shader constants
      * @member m_WorldTransform [type: dmVMath::Matrix4] the world transform (usually identity for batched objects)
      * @member m_TextureTransform [type: dmVMath::Matrix4] the texture transform
      * @member m_VertexBuffer [type: dmGraphics::HVertexBuffer] the vertex buffer
@@ -180,12 +176,10 @@ namespace dmRender
     {
         RenderObject();
         void Init();
-        void ClearConstants();
 
         static const uint32_t MAX_TEXTURE_COUNT = 8;
-        static const uint32_t MAX_CONSTANT_COUNT = 16;
-        Constant                        m_Constants[MAX_CONSTANT_COUNT];
-        dmVMath::Vector4                m_ConstantsData[MAX_CONSTANT_COUNT];
+        HNamedConstantBuffer            m_ConstantBuffer;
+
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -226,13 +220,15 @@ namespace dmRender
     struct RenderListEntry
     {
         dmVMath::Point3 m_WorldPosition;
+        uint64_t m_UserData; // E.g. component type instance pointer
         uint32_t m_Order;
         uint32_t m_BatchKey;
         uint32_t m_TagListKey;
-        uint64_t m_UserData;
-        uint32_t m_MinorOrder:4;
-        uint32_t m_MajorOrder:2;
-        uint32_t m_Dispatch:8;
+        uint32_t m_MinorOrder : 4;
+        uint32_t m_MajorOrder : 2;
+        uint32_t m_Dispatch   : 8;
+        uint32_t m_Visibility : 1; // See enum Visibility
+        uint32_t              : 17;
     };
 
     /*#
@@ -263,6 +259,43 @@ namespace dmRender
         RENDER_ORDER_WORLD        = 1,
         RENDER_ORDER_AFTER_WORLD  = 2,
     };
+
+    /*#
+     * Visibility status
+     * @enum
+     * @name Visibility
+     * @member VISIBILITY_NONE
+     * @member VISIBILITY_FULL
+     */
+    enum Visibility
+    {
+        VISIBILITY_NONE = 0,
+        VISIBILITY_FULL = 1, // Not sure if we ever need partial ?
+    };
+
+    /*#
+     * Visibility dispatch function callback.
+     * @struct
+     * @name RenderListVisibilityParams
+     * @member m_UserData [type: void*] the callback user data (registered with RenderListMakeDispatch())
+     * @member m_Entries [type: dmRender::RenderListEntry] the render entry array
+     * @member m_NumEntries [type: uint32_t] the number of render entries in the array
+     */
+    struct RenderListVisibilityParams
+    {
+        const dmIntersection::Frustum*  m_Frustum;
+        void*                           m_UserData;
+        RenderListEntry*                m_Entries;
+        uint32_t                        m_NumEntries;
+    };
+
+    /*#
+     * Render dispatch function callback.
+     * @typedef
+     * @name RenderListDispatchFn
+     * @param params [type: dmRender::RenderListDispatchParams] the params
+     */
+    typedef void (*RenderListVisibilityFn)(RenderListVisibilityParams const &params);
 
     /*#
      * Render dispatch function callback.
@@ -304,10 +337,14 @@ namespace dmRender
      * Register a render dispatch function
      * @name RenderListMakeDispatch
      * @param context [type: dmRender::HRenderContext] the context
-     * @param fn [type: dmRender::RenderListDispatchFn] the render batch callback function
+     * @param dispatch_fn [type: dmRender::RenderListDispatchFn] the render batch callback function
+     * @param visibility_fn [type: dmRender::RenderListVisibilityFn] the render list visibility callback function. May be 0
      * @param user_data [type: void*] userdata to the callback
      * @return dispatch [type: dmRender::HRenderListDispatch] the render dispatch function handle
      */
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data);
+
+    // Deprecated, left for backwards compatibility until extensions have been updated
     HRenderListDispatch RenderListMakeDispatch(HRenderContext context, RenderListDispatchFn fn, void* user_data);
 
     /*#
@@ -347,22 +384,155 @@ namespace dmRender
     uint32_t GetMaterialTagListKey(HMaterial material);
 
     /*#
-     * Sets a render constant on a render object
-     * @name EnableRenderObjectConstant
-     * @param ro [type: dmRender::RenderObject*] the render object
+     * Creates a shader program constant
+     * @name NewConstant
      * @param name_hash [type: dmhash_t] the name of the material constant
-     * @param values [type: dmVMath::Vector4*] the constant values
-     * @param num_values [type: uint32_t] length of value array
-     */
-    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vectormath::Aos::Vector4* values, uint32_t num_values);
+     * @return constant [type: dmRender::HConstant] the constant
+    */
+    HConstant NewConstant(dmhash_t name_hash);
 
     /*#
-     * Disables a previously set render constant on a render object
-     * @name DisableRenderObjectConstant
-     * @param ro [type: dmRender::RenderObject*] the render object
-     * @param name_hash [type: dmhash_t] the name of the material constant
+     * Deletes a shader program constant
+     * @name DeleteConstant
+     * @param constant [type: dmRender::HConstant] The shader constant
     */
-    void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash);
+    void DeleteConstant(HConstant constant);
+
+    /*#
+     * Gets the shader program constant values
+     * @name GetConstantValues
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @param num_values [type: uint32_t*] (out) the array num_values
+     * @return values [type: dmVMath::Vector4*] the uniform values
+    */
+    dmVMath::Vector4* GetConstantValues(HConstant constant, uint32_t* num_values);
+
+    /*#
+     * Sets the shader program constant values
+     * @name SetConstantValues
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @param values [type: dmVMath::Vector4*] the array values
+     * @param num_values [type: uint32_t] the array size (number of Vector4's)
+     * @return result [type: dmRender::Result] the result
+    */
+    Result SetConstantValues(HConstant constant, dmVMath::Vector4* values, uint32_t num_values);
+
+    /*#
+     * Gets the shader program constant name
+     * @name GetConstantName
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @return name [type: dmhash_t] the hash name
+    */
+    dmhash_t GetConstantName(HConstant constant);
+
+    /*#
+     * Gets the shader program constant name
+     * @name GetConstantName
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @param name [type: dmhash_t] the hash name
+    */
+    void SetConstantName(HConstant constant, dmhash_t name);
+
+    /*#
+     * Gets the shader program constant location
+     * @name GetConstantLocation
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @return location [type: int32_t] the location
+    */
+    int32_t GetConstantLocation(HConstant constant);
+
+    /*#
+     * Sets the shader program constant location
+     * @name SetConstantLocation
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @param location [type: int32_t] the location
+    */
+    void SetConstantLocation(HConstant constant, int32_t location);
+
+    /*#
+     * Gets the type of the constant
+     * @name GetConstantType
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @return type [type: dmRenderDDF::MaterialDesc::ConstantType] the type of the constant
+    */
+    dmRenderDDF::MaterialDesc::ConstantType GetConstantType(HConstant constant);
+
+    /*#
+     * Sets the type of the constant
+     * @name SetConstantType
+     * @param constant [type: dmRender::HConstant] The shader constant
+     * @param type [type: dmRenderDDF::MaterialDesc::ConstantType] the type of the constant
+    */
+    void SetConstantType(HConstant constant, dmRenderDDF::MaterialDesc::ConstantType type);
+
+    /*#
+     * Allocates a named constant buffer
+     * @name NewNamedConstantBuffer
+     * @return buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     */
+    HNamedConstantBuffer NewNamedConstantBuffer();
+
+    /*#
+     * Deletes a named constant buffer
+     * @name DeleteNamedConstantBuffer
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     */
+    void DeleteNamedConstantBuffer(HNamedConstantBuffer buffer);
+
+    /*#
+     * Clears a named constant buffer from any constants.
+     * @name ClearNamedConstantBuffer
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     */
+    void ClearNamedConstantBuffer(HNamedConstantBuffer buffer);
+
+    /*#
+     * Removes a named constant from the buffer
+     * @name RemoveNamedConstant
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     */
+    void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash);
+
+    /*#
+     * Sets a named constant to the buffer
+     * @name SetNamedConstant
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param values [type: dmVMath::Vector4*] the values
+     * @param num_values [type: uint32_t] the number of values
+     */
+    void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values);
+
+    /*#
+     * Sets a list of named constants to the buffer
+     * @name SetNamedConstants
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param constants [type: dmRender::HConstant*] the constants
+     * @param num_constants [type: uint32_t] the number of constants
+     */
+    void SetNamedConstants(HNamedConstantBuffer buffer, HConstant* constants, uint32_t num_constants);
+
+    /*#
+     * Gets a named constant from the buffer
+     * @name GetNamedConstant
+     * @note This give access to the internal memory of the constant
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param values [type: dmVMath::Vector4**] (out) the values. May not be null.
+     * @param num_values [type: uint32_t*] (out) the number of values. May not be null.
+     * @return ok [type: bool] true if constant existed.
+     */
+    bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values);
+
+    /*#
+     * Gets number of constants in the buffer
+     * @name GetNamedConstantCount
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @return ok [type: bool] true if constant existed.
+     */
+    uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer);
+
 }
 
 #endif /* DMSDK_RENDER_H */

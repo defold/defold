@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,6 +33,8 @@
 #include "../components/comp_label.h"
 
 #include <dmsdk/gamesys/render_constants.h>
+
+using namespace dmVMath;
 
 namespace dmGameSystem
 {
@@ -1322,7 +1326,7 @@ TEST_P(DrawCountTest, DrawCount)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
 
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1359,13 +1363,17 @@ TEST_P(BoxRenderTest, BoxRender)
     // Make the render list that will be used later.
     dmRender::RenderListBegin(m_RenderContext);
 
-    dmGameSystem::GuiWorld* world = (dmGameSystem::GuiWorld*)m_GuiContext.m_Worlds[0];
+    uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world = (dmGameSystem::GuiWorld*)dmGameObject::GetWorld(m_Collection, component_type_index);
+
+    // could use dmGameObject::GetWorld() if we had the component index
+    dmGameSystem::GuiWorld* world = gui_world;
     dmGui::SetSceneAdjustReference(world->m_Components[0]->m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
 
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
 
     ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (uint32_t)p.m_ExpectedVerticesCount);
 
@@ -1463,7 +1471,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     ASSERT_NE((void*)0, base_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
-    const char* path_body_go = "/collision_object/sleepy_body.goc";
+    const char* path_body_go = "/collision_object/body.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (10,10)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -1518,6 +1526,181 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
+{
+    const GroupAndMaskParams& params = GetParam();
+    
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+/*
+    An example actions set: 
+    
+    "group body1-go#co user\n"
+    "addmask body1-go#co enemy\n"
+    "removemask body1-go#co default\n"
+    "group body2-go#co enemy\n"
+    "addmask body2-go#co user\n"
+    "removemask body2-go#co default"
+    ;
+*/    
+
+    lua_pushstring(L, params.m_Actions); //actions);
+    lua_setglobal(L, "actions");
+    lua_pushboolean(L, params.m_CollisionExpected); //true);
+    lua_setglobal(L, "collision_expected");
+
+    // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
+    const char* path_body2_go = "/collision_object/groupmask_body2.goc";
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+    
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body1_go = "/collision_object/groupmask_body1.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+  
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
+{
+    const GroupAndMaskParams& params = GetParam();
+    
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+/*
+    An example actions set: 
+    
+    "group body1-go#co user\n"
+    "addmask body1-go#co enemy\n"
+    "removemask body1-go#co default\n"
+    "group body2-go#co enemy\n"
+    "addmask body2-go#co user\n"
+    "removemask body2-go#co default"
+    ;
+*/    
+
+    lua_pushstring(L, params.m_Actions); //actions);
+    lua_setglobal(L, "actions");
+    lua_pushboolean(L, params.m_CollisionExpected); //true);
+    lua_setglobal(L, "collision_expected");
+
+    // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
+    const char* path_body2_go = "/collision_object/groupmask_body2.goc";
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+    
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body1_go = "/collision_object/groupmask_body1.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+  
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+GroupAndMaskParams groupandmask_params[] = {
+    {"", true}, // group1: default, mask1: default,user,enemy group2: default, mask2: default,user,enemy
+    {"removemask body1-go#co default", false},
+    {"removemask body2-go#co default", false},
+    {"group body1-go#co user\nremovemask body1-go#co enemy\naddmask body1-go#co enemy\nremovemask body1-go#co default\nremovemask body1-go#co user\ngroup body2-go#co enemy\nremovemask body2-go#co user\naddmask body2-go#co user\nremovemask body2-go#co default", true},
+
+};
+INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask2DTest, jc_test_values_in(groupandmask_params));
+INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask3DTest, jc_test_values_in(groupandmask_params));
+
+
+
+
+TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // two dynamic 'body' objects will get spawned and placed apart
+    const char* path_body_go = "/collision_object/body.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+    dmhash_t hash_body2_go = dmHashString64("/body2-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body2_go);
+
+    // a 'base' gameobject works as the base for other dynamic objects to stand on
+    const char* path_sleepy_go = "/collision_object/velocity_threshold_base.goc";
+    dmhash_t hash_base_go = dmHashString64("/base-go");
+    // place the base object so that the upper level of base is at Y = 0
+    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, base_go);
+
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
         lua_getglobal(L, "tests_done");
         tests_done = lua_toboolean(L, -1);
@@ -2345,7 +2528,7 @@ static bool RunString(lua_State* L, const char* script)
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
@@ -2357,7 +2540,7 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
 TEST_F(ScriptBufferTest, IsBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_pushstring(L, "not_a_buffer");
     lua_pushnumber(L, 1337);
@@ -2371,7 +2554,7 @@ TEST_F(ScriptBufferTest, IsBuffer)
 TEST_F(ScriptBufferTest, PrintBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2385,7 +2568,7 @@ TEST_F(ScriptBufferTest, PrintBuffer)
 TEST_F(ScriptBufferTest, GetCount)
 {
     int top = lua_gettop(L);
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2455,7 +2638,7 @@ TEST_F(ScriptBufferTest, GetBytes)
         data[i] = i+1;
     }
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2508,7 +2691,7 @@ TEST_F(ScriptBufferTest, Indexing)
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2583,7 +2766,7 @@ TEST_F(ScriptBufferTest, CopyStream)
     ASSERT_EQ(m_Count, count_a);
 
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2778,7 +2961,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
     uint32_t stride = stride_rgb * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_UINT16);
     memset(data, 0, datasize);
 
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "dstbuffer");
 
@@ -2895,7 +3078,7 @@ TEST_F(ScriptBufferTest, RefCount)
     ASSERT_TRUE(run);
 
     // Create a buffer, store it globally, test that it works, remove buffer, test that the script usage throws an error
-    dmScript::LuaHBuffer luabuf = {{m_Buffer}, {dmScript::OWNER_C}};
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
@@ -2938,18 +3121,19 @@ TEST_F(RenderConstantsTest, SetGetConstant)
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
         ASSERT_NE((void*)0, material);
 
-        dmRender::Constant rconstant;
+        dmRender::HConstant rconstant;
         ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
         ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
     }
 
     dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
 
-    dmRender::Constant* constant = 0;
+    dmRender::HConstant constant = 0;
     bool result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_FALSE(result);
     ASSERT_EQ(0, constant);
 
+    // Setting property value
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
     dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
 
@@ -2969,9 +3153,98 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
     ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
 
+    // Setting raw value
+    dmVMath::Vector4 value(1,2,3,4);
+    dmGameSystem::SetRenderConstant(constants, name_hash1, &value, 1);
+
+    result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
+    ASSERT_TRUE(result);
+
+    uint32_t num_values;
+    dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    ASSERT_EQ(1U, num_values);
+    ASSERT_TRUE(values != 0);
+    ASSERT_ARRAY_EQ_LEN(&value, values, num_values);
+
     dmGameSystem::DestroyRenderConstants(constants);
 
     dmResource::Release(m_Factory, material);
+}
+
+
+TEST_F(RenderConstantsTest, SetGetManyConstants)
+{
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+
+    for (int i = 0; i < 64; ++i)
+    {
+        char name[64];
+        dmSnPrintf(name, sizeof(name), "var%03d", i);
+        dmhash_t name_hash = dmHashString64(name);
+
+        dmVMath::Vector4 v(i, i*3+1,0,0);
+        dmGameSystem::SetRenderConstant(constants, name_hash, &v, 1);
+
+    }
+
+    for (int i = 0; i < 64; ++i)
+    {
+        char name[64];
+        dmSnPrintf(name, sizeof(name), "var%03d", i);
+        dmhash_t name_hash = dmHashString64(name);
+
+        dmVMath::Vector4 v(i, i*3+1,0,0);
+
+        dmRender::HConstant constant = 0;
+        bool result = dmGameSystem::GetRenderConstant(constants, name_hash, &constant);
+        ASSERT_TRUE(result);
+        ASSERT_NE((dmRender::HConstant)0, constant);
+
+        uint32_t num_values;
+        dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+        ASSERT_EQ(1U, num_values);
+        ASSERT_TRUE(values != 0);
+        ASSERT_EQ((float)i, values[0].getX());
+        ASSERT_EQ((float)(i*3+1), values[0].getY());
+    }
+
+    dmGameSystem::DestroyRenderConstants(constants);
+}
+
+
+TEST_F(RenderConstantsTest, HashRenderConstants)
+{
+    dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
+    bool result;
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_FALSE(result);
+
+    dmhash_t name_hash1 = dmHashString64("user_var1");
+    dmVMath::Vector4 value(1,2,3,4);
+    dmGameSystem::SetRenderConstant(constants, name_hash1, &value, 1);
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_TRUE(result);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Update frame
+    HashState32 state;
+    dmHashInit32(&state, false);
+    dmGameSystem::HashRenderConstants(constants, &state);
+    // No need to finalize, since we're not actually looking at the outcome
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_FALSE(result);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Set the same value again, and the "updated" flag should still be set to false
+    dmGameSystem::SetRenderConstant(constants, name_hash1, &value, 1);
+
+    result = dmGameSystem::AreRenderConstantsUpdated(constants);
+    ASSERT_FALSE(result);
+
+    dmGameSystem::DestroyRenderConstants(constants);
 }
 
 

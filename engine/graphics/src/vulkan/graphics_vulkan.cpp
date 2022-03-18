@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -45,6 +47,7 @@ namespace dmGraphics
     Context* g_VulkanContext = 0;
 
     static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
+    static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -141,17 +144,6 @@ namespace dmGraphics
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_RenderDocSupport        = params.m_RenderDocSupport;
-        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
-        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
-        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
-
-#if defined(__MACH__) && !(defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
-        // Apparently these aren't supported on macOS/Metal
-#else
-        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-        m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
-#endif
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -768,7 +760,7 @@ namespace dmGraphics
         vkCmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
     }
 
-    static bool IsExtensionSupported(PhysicalDevice* device, const char* ext_name)
+    static bool IsDeviceExtensionSupported(PhysicalDevice* device, const char* ext_name)
     {
         for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
         {
@@ -779,6 +771,88 @@ namespace dmGraphics
         }
 
         return false;
+    }
+
+    static bool VulkanIsExtensionSupported(HContext context, const char* ext_name)
+    {
+        return IsDeviceExtensionSupported(&context->m_PhysicalDevice, ext_name);
+    }
+
+    static uint32_t VulkanGetNumSupportedExtensions(HContext context)
+    {
+        return context->m_PhysicalDevice.m_DeviceExtensionCount;
+    }
+
+    static const char* VulkanGetSupportedExtension(HContext context, uint32_t index)
+    {
+        return context->m_PhysicalDevice.m_DeviceExtensions[index].extensionName;
+    }
+
+    static void SetupSupportedTextureFormats(HContext context)
+    {
+    #if defined(__MACH__)
+        // Check for optional extensions so that we can enable them if they exist
+        if (VulkanIsExtensionSupported(context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+        }
+    #endif
+
+        if (context->m_PhysicalDevice.m_Features.textureCompressionETC2)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+        }
+
+        if (context->m_PhysicalDevice.m_Features.textureCompressionBC)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+        }
+
+        if (context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
+        }
+
+        TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
+                                            TEXTURE_FORMAT_LUMINANCE_ALPHA,
+                                            TEXTURE_FORMAT_RGB,
+                                            TEXTURE_FORMAT_RGBA,
+
+                                            TEXTURE_FORMAT_RGB16F,
+                                            TEXTURE_FORMAT_RGB32F,
+                                            TEXTURE_FORMAT_RGBA16F,
+                                            TEXTURE_FORMAT_RGBA32F,
+                                            TEXTURE_FORMAT_R16F,
+                                            TEXTURE_FORMAT_RG16F,
+                                            TEXTURE_FORMAT_R32F,
+                                            TEXTURE_FORMAT_RG32F,
+
+                                            // Apparently these aren't supported on macOS/Metal
+                                            TEXTURE_FORMAT_RGB_16BPP,
+                                            TEXTURE_FORMAT_RGBA_16BPP,
+                                        };
+
+        // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
+        {
+            TextureFormat texture_format = texture_formats[i];
+            VkFormatProperties vk_format_properties;
+            VkFormat vk_format = GetVulkanFormatFromTextureFormat(texture_format);
+            GetFormatProperties(context->m_PhysicalDevice.m_Device, vk_format, &vk_format_properties);
+            if (vk_format_properties.linearTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT ||
+                vk_format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT)
+            {
+                context->m_TextureFormatSupport |= 1 << texture_format;
+            }
+        }
     }
 
     bool InitializeVulkan(HContext context, const WindowParams* params)
@@ -835,7 +909,7 @@ namespace dmGraphics
             bool all_extensions_found = true;
             for (uint32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
             {
-                if (!IsExtensionSupported(device, device_extensions[ext_i]))
+                if (!IsDeviceExtensionSupported(device, device_extensions[ext_i]))
                 {
                     all_extensions_found = false;
                     break;
@@ -883,38 +957,18 @@ namespace dmGraphics
             goto bail;
         }
 
+        context->m_PhysicalDevice = *selected_device;
+
+        SetupSupportedTextureFormats(context);
+
     #if defined(__MACH__)
         // Check for optional extensions so that we can enable them if they exist
-        if (IsExtensionSupported(selected_device, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
+        if (VulkanIsExtensionSupported(context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
     #endif
-
-        if (selected_device->m_Features.textureCompressionETC2)
-        {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
-        }
-
-        if (selected_device->m_Features.textureCompressionBC)
-        {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
-        }
-
-        if (selected_device->m_Features.textureCompressionASTC_LDR)
-        {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
-        }
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), (uint8_t)device_extensions.Size(),
@@ -925,7 +979,6 @@ namespace dmGraphics
             goto bail;
         }
 
-        context->m_PhysicalDevice   = *selected_device;
         context->m_LogicalDevice    = logical_device;
         vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
@@ -2435,7 +2488,7 @@ bail:
         return -1;
     }
 
-    static void VulkanSetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register)
+    static void VulkanSetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
         assert(context->m_CurrentProgram);
         assert(base_register >= 0);
@@ -2452,7 +2505,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * count);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2463,11 +2516,11 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * count);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
         }
     }
 
-    static void VulkanSetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
+    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
     {
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
@@ -2482,7 +2535,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2493,7 +2546,7 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
         }
     }
 
@@ -2815,7 +2868,7 @@ bail:
 
             VkFormat vk_color_format;
 
-            // Promote format to RGBA if RBG, since it's not supported
+            // Promote format to RGBA if RGB, since it's not supported
             if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
             {
                 vk_color_format              = VK_FORMAT_R8G8B8A8_UNORM;
@@ -3459,6 +3512,9 @@ bail:
         fn_table.m_GetTextureStatusFlags = VulkanGetTextureStatusFlags;
         fn_table.m_ReadPixels = VulkanReadPixels;
         fn_table.m_RunApplicationLoop = VulkanRunApplicationLoop;
+        fn_table.m_IsExtensionSupported = VulkanIsExtensionSupported;
+        fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
+        fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
         return fn_table;
     }
 }

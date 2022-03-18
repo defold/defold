@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -31,7 +33,7 @@
     (id->node id)))
 
 (defn- add-box! [project scene parent]
-  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) :type-box nil))
+  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) :type-box 0 nil))
 
 (defn- add-clipper!
   ([project scene parent]

@@ -90,7 +90,7 @@
         <false/>
         <key>UIRequiredDeviceCapabilities</key>
         <array>
-                <string>armv7</string>
+                <string>arm64</string>
                 <string>opengles-3</string>
         </array>
         <key>CFBundleLocalizations</key>

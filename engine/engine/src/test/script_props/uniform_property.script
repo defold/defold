@@ -1,4 +1,20 @@
-go.property("vec4", vmath.vector4(4, 5, 6, 7))
+-- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+-- 
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+-- 
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local test_counter = require("script_props.test_counter")
+
+go.property("testvalue", vmath.vector4(4, 5, 6, 7))
 
 local function assert_exit(assert_that, error_string)
     if not assert_that then
@@ -19,12 +35,27 @@ local function assert_vec4(v_test,v_correct)
     assert_exit(v, e)
 end
 
+local function assert_number(v_test,v_correct)
+    local v = v_test == v_correct
+    local e = v and nil or tostring(v_test) .. " and " .. tostring(v_correct) .. " are not the same!"
+    assert_exit(v, e)
+end
+
 local function assert_error(func)
     local r, err = pcall(func)
     assert_exit(not r, err)
 end
 
+local function assert_not_error(func)
+    local r, err = pcall(func)
+    assert_exit(r, err)
+end
+
 function init(self, config)
+    test_counter.start()
+    -- Test that it works with an empty table
+    assert_vec4(go.get("#", "testvalue", {}), vmath.vector4(4,5,6,7))
+
     -- Get First Array value, specified in the material
     assert_vec4(go.get("#sprite", "uniform_array", { index = 1 }), vmath.vector4(1,0,0,1))
 
@@ -35,13 +66,25 @@ function init(self, config)
     assert_error(function() go.get("#sprite", "uniform_array", { index = 0 }) end)
     assert_error(function() go.get("#sprite", "uniform_array", { index = 17 }) end)
     assert_error(function() go.get("#sprite", "uniform_array", { index = -1 }) end)
+    assert_error(function() go.get("#sprite", "uniform_array.y", { index = 17 }) end)
 
     -- Test setting a value and then getting it
-    local v_to_set = vmath.vector4(0, 0, 1, 1)
-    go.set("#sprite", "uniform_array", v_to_set, { index = 16 })
+    local v_to_set = vmath.vector4(10, 5, 3, 1)
+    assert_not_error(function() go.set("#sprite", "uniform_array", v_to_set, { index = 16 }) end)
+
     local v_from_prop = go.get("#sprite", "uniform_array", { index = 16 })
     assert_vec4(v_from_prop, v_to_set)
 
-    msg.post("main:/main#script", "done")
+    -- Test getting a single element from a constant
+    assert_number(go.get("#sprite", "uniform_array.x", { index = 16 }), 10)
+    assert_number(go.get("#sprite", "uniform_array.y", { index = 16 }), 5)
+    assert_number(go.get("#sprite", "uniform_array.z", { index = 16 }), 3)
+    assert_number(go.get("#sprite", "uniform_array.w", { index = 16 }), 1)
+
+    --Test setting a single element to a constant
+    assert_not_error(function() go.set("#sprite", "uniform_array.y", 7, { index = 15}) end)
+    assert_number(go.get("#sprite", "uniform_array.y", { index = 15 }), 7)
+
+    test_counter.done()
 end
 

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +21,7 @@
 
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/dstrings.h>
 
 namespace dmTexc
 {
@@ -34,7 +37,7 @@ namespace dmTexc
         }
     }
 
-    HTexture Create(uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
+    HTexture Create(const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
     {
         Texture* t = new Texture;
         if (!GetEncoder(compression_type, &t->m_Encoder))
@@ -52,12 +55,23 @@ namespace dmTexc
             dmLogError("Create failed");
             return 0;
         }
+        t->m_Name = name != 0 ? strdup(name) : 0;
+
+        if (t->m_Name == 0)
+        {
+            static int counter = 0;
+            char buffer[65];
+            dmSnPrintf(buffer, sizeof(buffer), "image%d_%dx%d", counter++, width, height);
+            t->m_Name = strdup(buffer);
+        }
+
         return t;
     }
 
     void Destroy(HTexture texture)
     {
         Texture* t = (Texture *) texture;
+        free((void*)t->m_Name);
         t->m_Encoder.m_FnDestroy(t);
         delete t;
     }
@@ -200,7 +214,7 @@ namespace dmTexc
         return name(a1, a2, a3, a4, a5, a6, a7, a8);\
     }\
 
-    DM_TEXC_TRAMPOLINE6(HTexture, Create, uint32_t, uint32_t, PixelFormat, ColorSpace, CompressionType, void*);
+    DM_TEXC_TRAMPOLINE7(HTexture, Create, const char*, uint32_t, uint32_t, PixelFormat, ColorSpace, CompressionType, void*);
     DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeCompressed, HTexture, uint32_t);
     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeUncompressed, HTexture, uint32_t);

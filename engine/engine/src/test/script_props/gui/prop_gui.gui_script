@@ -1,0 +1,51 @@
+-- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+-- 
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+-- 
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local function assert_exit(assert_that, error_string)
+    if not assert_that then
+        if error_string then
+            print(error_string)
+        end
+        msg.post("@system:", "exit", { code = 1 })
+        assert(assert_that)
+    end
+end
+
+local function assert_not_error(func)
+    local r, err = pcall(func)
+    assert_exit(r, err)
+end
+
+function init(self)
+    self.text_node = gui.get_node("text")
+    self.font_resource = gui.get_font_resource(gui.get_font(self.text_node))
+end
+
+local function test(self)
+    assert_exit(self.font_resource ~= gui.get_font_resource(gui.get_font(self.text_node)), "Font resource property wasn't changed")
+
+    -- Make sure new font added
+    assert_not_error(function()
+            gui.set_font(self.text_node, "system_font_BIG")
+        end)
+
+    msg.post("#prop_guiscript", "test_done")
+end
+
+function on_message(self, message_id, message, sender)
+    if hash("test") == message_id then
+        test(self)
+    end
+end
+

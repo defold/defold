@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -76,36 +78,36 @@
 
                      [org.luaj/luaj-jse "3.0.1"]
 
-                     [cljfx "1.7.4"]
+                     [cljfx "1.7.16"]
 
-                     [org.openjfx/javafx-base "15-ea+8"]
-                     [org.openjfx/javafx-base "15-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-base "15-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-base "15-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-controls "15-ea+8"]
-                     [org.openjfx/javafx-controls "15-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-controls "15-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-controls "15-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-graphics "15-ea+8"]
-                     [org.openjfx/javafx-graphics "15-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-graphics "15-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-graphics "15-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-media "15-ea+8"]
-                     [org.openjfx/javafx-media "15-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-media "15-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-media "15-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-web "15-ea+8"]
-                     [org.openjfx/javafx-web "15-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-web "15-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-web "15-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-fxml "15-ea+8"]
-                     [org.openjfx/javafx-fxml "15-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-fxml "15-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-fxml "15-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-swing "15-ea+8"]
-                     [org.openjfx/javafx-swing "15-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-swing "15-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-swing "15-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-base "18-ea+6"]
+                     [org.openjfx/javafx-base "18-ea+6" :classifier "linux"]
+                     [org.openjfx/javafx-base "18-ea+6" :classifier "mac"]
+                     [org.openjfx/javafx-base "18-ea+6" :classifier "win"]
+                     [org.openjfx/javafx-controls "18-ea+6"]
+                     [org.openjfx/javafx-controls "18-ea+6" :classifier "linux"]
+                     [org.openjfx/javafx-controls "18-ea+6" :classifier "mac"]
+                     [org.openjfx/javafx-controls "18-ea+6" :classifier "win"]
+                     [org.openjfx/javafx-graphics "18-ea+6"]
+                     [org.openjfx/javafx-graphics "18-ea+6" :classifier "linux"]
+                     [org.openjfx/javafx-graphics "18-ea+6" :classifier "mac"]
+                     [org.openjfx/javafx-graphics "18-ea+6" :classifier "win"]
+                     [org.openjfx/javafx-media "18-ea+6"]
+                     [org.openjfx/javafx-media "18-ea+6" :classifier "linux"]
+                     [org.openjfx/javafx-media "18-ea+6" :classifier "mac"]
+                     [org.openjfx/javafx-media "18-ea+6" :classifier "win"]
+                     [org.openjfx/javafx-web "18-ea+6"]
+                     [org.openjfx/javafx-web "18-ea+6" :classifier "linux"]
+                     [org.openjfx/javafx-web "18-ea+6" :classifier "mac"]
+                     [org.openjfx/javafx-web "18-ea+6" :classifier "win"]
+                     [org.openjfx/javafx-fxml "18-ea+6"]
+                     [org.openjfx/javafx-fxml "18-ea+6" :classifier "linux"]
+                     [org.openjfx/javafx-fxml "18-ea+6" :classifier "mac"]
+                     [org.openjfx/javafx-fxml "18-ea+6" :classifier "win"]
+                     [org.openjfx/javafx-swing "18-ea+6"]
+                     [org.openjfx/javafx-swing "18-ea+6" :classifier "linux"]
+                     [org.openjfx/javafx-swing "18-ea+6" :classifier "mac"]
+                     [org.openjfx/javafx-swing "18-ea+6" :classifier "win"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -213,6 +215,7 @@
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
+                                                    "-XX:MaxRAMPercentage=75"
                                                     ;"-XX:+UnlockCommercialFeatures"
                                                     ;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"
@@ -222,4 +225,3 @@
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
                                                     "-XX:+DebugNonSafepoints"]}})     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
-

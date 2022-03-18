@@ -14,3 +14,16 @@ world_count = 18
 max_count = 17
 [particle_fx]
 max_count = 1
+
+[display]
+update_frequency = 30
+
+[physics]
+update_frequency = 0
+ray_cast_limit_2d = 1024
+
+[factory]
+max_count = 1024
+
+[sprite]
+max_count = 1024

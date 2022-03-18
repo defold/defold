@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -322,26 +324,26 @@ namespace dmScript
                         bool is_point3 = strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0;
                         if (is_vector3 || is_point3)
                         {
-                            Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, -1);
+                            dmVMath::Vector3* v = dmScript::CheckVector3(L, -1);
                             if (is_vector3)
-                                *((Vectormath::Aos::Vector3 *) where) = *v;
+                                *((dmVMath::Vector3 *) where) = *v;
                             else
-                                *((Vectormath::Aos::Point3 *) where) = Vectormath::Aos::Point3(*v);
+                                *((dmVMath::Point3 *) where) = dmVMath::Point3(*v);
                         }
                         else if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR4, sizeof(DDF_TYPE_NAME_VECTOR4)) == 0)
                         {
-                            Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, -1);
-                            *((Vectormath::Aos::Vector4 *) where) = *v;
+                            dmVMath::Vector4* v = dmScript::CheckVector4(L, -1);
+                            *((dmVMath::Vector4 *) where) = *v;
                         }
                         else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
                         {
-                            Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, -1);
-                            *((Vectormath::Aos::Quat *) where) = *q;
+                            dmVMath::Quat* q = dmScript::CheckQuat(L, -1);
+                            *((dmVMath::Quat *) where) = *q;
                         }
                         else if (strncmp(d->m_Name, DDF_TYPE_NAME_MATRIX4, sizeof(DDF_TYPE_NAME_MATRIX4)) == 0)
                         {
-                            Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, -1);
-                            *((Vectormath::Aos::Matrix4*) where) = *m;
+                            dmVMath::Matrix4* m = dmScript::CheckMatrix4(L, -1);
+                            *((dmVMath::Matrix4*) where) = *m;
                         }
                         else
                         {
@@ -516,23 +518,23 @@ namespace dmScript
                     const char *ptr = where + i * d->m_Size;
                     if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0)
                     {
-                        dmScript::PushVector3(L, *((Vectormath::Aos::Vector3*) ptr));
+                        dmScript::PushVector3(L, *((dmVMath::Vector3*) ptr));
                     }
                     else if (strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0)
                     {
-                        dmScript::PushVector3(L, Vectormath::Aos::Vector3(*((Vectormath::Aos::Vector3*) ptr)));
+                        dmScript::PushVector3(L, dmVMath::Vector3(*((dmVMath::Vector3*) ptr)));
                     }
                     else if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR4, sizeof(DDF_TYPE_NAME_VECTOR4)) == 0)
                     {
-                        dmScript::PushVector4(L, *((Vectormath::Aos::Vector4*) ptr));
+                        dmScript::PushVector4(L, *((dmVMath::Vector4*) ptr));
                     }
                     else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
                     {
-                        dmScript::PushQuat(L, *((Vectormath::Aos::Quat*) ptr));
+                        dmScript::PushQuat(L, *((dmVMath::Quat*) ptr));
                     }
                     else if (strncmp(d->m_Name, DDF_TYPE_NAME_MATRIX4, sizeof(DDF_TYPE_NAME_MATRIX4)) == 0)
                     {
-                        dmScript::PushMatrix4(L, *((Vectormath::Aos::Matrix4*) ptr));
+                        dmScript::PushMatrix4(L, *((dmVMath::Matrix4*) ptr));
                     }
                     else if (strncmp(d->m_Name, DDF_TYPE_NAME_LUAREF, sizeof(DDF_TYPE_NAME_LUAREF)) == 0)
                     {

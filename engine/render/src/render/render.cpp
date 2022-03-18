@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +21,8 @@
 #include <dlib/hashtable.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 
 #include <ddf/ddf.h>
 
@@ -29,7 +33,7 @@
 
 namespace dmRender
 {
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     const char* RENDER_SOCKET_NAME = "@render";
 
@@ -54,15 +58,6 @@ namespace dmRender
         m_SeparateFaceStates = 0;
     }
 
-    Constant::Constant() {}
-    Constant::Constant(dmhash_t name_hash, int32_t location)
-        : m_ValuePtr(0)
-        , m_NameHash(name_hash)
-        , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
-        , m_Location(location)
-    {
-    }
-
     RenderObject::RenderObject()
     {
         Init();
@@ -74,19 +69,6 @@ namespace dmRender
         memset(this, 0, sizeof(RenderObject));
         m_WorldTransform = Matrix4::identity();
         m_TextureTransform = Matrix4::identity();
-
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            m_Constants[i].m_Location = -1;
-        }
-    }
-
-    void RenderObject::ClearConstants()
-    {
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            m_Constants[i].m_Location = -1;
-        }
     }
 
     RenderContextParams::RenderContextParams()
@@ -131,7 +113,7 @@ namespace dmRender
         context->m_ViewProj = context->m_Projection * context->m_View;
 
         context->m_ScriptContext = params.m_ScriptContext;
-        InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_ScriptContext, params.m_CommandBufferSize);
+        InitializeRenderScriptContext(context->m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
         context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
 
         context->m_DebugRenderer.m_RenderContext = 0;
@@ -179,9 +161,10 @@ namespace dmRender
         render_context->m_RenderListSortIndices.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
+        render_context->m_FrustumHash = 0xFFFFFFFF; // trigger a first recalculation each frame
     }
 
-    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn fn, void *user_data)
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
     {
         if (render_context->m_RenderListDispatch.Size() == render_context->m_RenderListDispatch.Capacity())
         {
@@ -191,11 +174,17 @@ namespace dmRender
 
         // store & return index
         RenderListDispatch d;
-        d.m_Fn = fn;
+        d.m_DispatchFn = dispatch_fn;
+        d.m_VisibilityFn = visibility_fn;
         d.m_UserData = user_data;
         render_context->m_RenderListDispatch.Push(d);
 
         return render_context->m_RenderListDispatch.Size() - 1;
+    }
+
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, void* user_data)
+    {
+        return RenderListMakeDispatch(render_context, dispatch_fn, 0, user_data);
     }
 
     // Allocate a buffer (from the array) with room for 'entries' entries.
@@ -215,6 +204,10 @@ namespace dmRender
 
         uint32_t size = render_list.Size();
         render_list.SetSize(size + entries);
+
+        // If we push new items after the last frustum culling, we need to reevaluate it
+        render_context->m_FrustumHash = 0xFFFFFFFF;
+
         return (render_list.Begin() + size);
     }
 
@@ -227,6 +220,13 @@ namespace dmRender
         // Insert the used up indices into the sort buffer.
         assert(end - begin <= (intptr_t)render_context->m_RenderListSortIndices.Remaining());
         assert(end <= render_context->m_RenderList.End());
+
+        // If we didn't use all entries, let's put them back into the list
+        if (end < render_context->m_RenderList.End())
+        {
+            uint32_t list_size = end - render_context->m_RenderList.Begin();
+            render_context->m_RenderList.SetSize(list_size);
+        }
 
         // Transform pointers back to indices.
         RenderListEntry *base = render_context->m_RenderList.Begin();
@@ -355,35 +355,6 @@ namespace dmRender
         }
     }
 
-    void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const RenderObject* ro)
-    {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        if(!material)
-        {
-            for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-            {
-                const Constant* c = &ro->m_Constants[i];
-                if (c->m_Location != -1)
-                {
-                    dmGraphics::SetConstantV4(graphics_context, c->m_ValuePtr, 1, c->m_Location);
-                }
-            }
-            return;
-        }
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            const Constant* c = &ro->m_Constants[i];
-            if (c->m_Location != -1)
-            {
-                int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
-                if (location)
-                {
-                    dmGraphics::SetConstantV4(graphics_context, c->m_ValuePtr, 1, *location);
-                }
-            }
-        }
-    }
-
     // For unit testing only
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range)
     {
@@ -420,9 +391,9 @@ namespace dmRender
 
         RenderListRange* ranges = context->m_RenderListRanges.Begin();
         uint32_t num_ranges = context->m_RenderListRanges.Size();
-        for( uint32_t i = 0; i < num_ranges; ++i)
+        for( uint32_t r = 0; r < num_ranges; ++r)
         {
-            RenderListRange& range = ranges[i];
+            RenderListRange& range = ranges[r];
 
             MaterialTagList taglist;
             dmRender::GetMaterialTagList(context, range.m_TagListKey, &taglist);
@@ -435,18 +406,32 @@ namespace dmRender
             }
 
             // Write z values...
+            int num_visibility_skipped = 0;
             for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
             {
                 uint32_t idx = context->m_RenderListSortIndices[i];
                 RenderListEntry* entry = &entries[idx];
+                if (entry->m_Visibility == dmRender::VISIBILITY_NONE)
+                {
+                    num_visibility_skipped++;
+                    continue;
+                }
+
                 if (entry->m_MajorOrder != RENDER_ORDER_WORLD)
+                {
                     continue; // Could perhaps break here, if we also sorted on the major order (cost more when I tested it /MAWE)
+                }
 
                 const Vector4 res = transform * entry->m_WorldPosition;
                 const float zw = res.getZ() / res.getW();
                 sort_values[idx].m_ZW = zw;
                 if (zw < minZW) minZW = zw;
                 if (zw > maxZW) maxZW = zw;
+            }
+
+            if (num_visibility_skipped == range.m_Count)
+            {
+                range.m_Skip = 1;
             }
         }
 
@@ -465,6 +450,11 @@ namespace dmRender
             {
                 uint32_t idx = context->m_RenderListSortIndices[i];
                 RenderListEntry* entry = &entries[idx];
+
+                if (entry->m_Visibility == dmRender::VISIBILITY_NONE)
+                {
+                    continue;
+                }
 
                 sort_values[idx].m_MajorOrder = entry->m_MajorOrder;
                 if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
@@ -542,7 +532,51 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+    static bool RenderListEntryEqFn(RenderListEntry* a, RenderListEntry* b)
+    {
+        return a->m_Dispatch == b->m_Dispatch;
+    }
+
+    static void SetVisibility(uint32_t count, RenderListEntry* entries, Visibility visibility)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            entries[i].m_Visibility = visibility;
+        }
+    }
+
+    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum)
+    {
+        DM_PROFILE(Render, "FrustumCulling");
+
+        uint32_t num_entries = context->m_RenderList.Size();
+        if (num_entries == 0)
+            return;
+
+        BatchIterator<RenderListEntry*> iter(num_entries, context->m_RenderList.Begin(), RenderListEntryEqFn);
+        while(iter.Next())
+        {
+            RenderListEntry* batch_start = iter.Begin();
+
+            const RenderListDispatch* d = &context->m_RenderListDispatch[batch_start->m_Dispatch];
+            if (!d->m_VisibilityFn)
+            {
+                SetVisibility(iter.Length(), iter.Begin(), dmRender::VISIBILITY_FULL);
+            }
+            else {
+                RenderListVisibilityParams params;
+                params.m_Frustum = &frustum;
+                params.m_UserData = d->m_UserData;
+                params.m_Entries = batch_start;
+                params.m_NumEntries = iter.Length();
+                d->m_VisibilityFn(params);
+            }
+        }
+    }
+
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
     {
         DM_PROFILE(Render, "DrawRenderList");
 
@@ -555,6 +589,25 @@ namespace dmRender
         if (context->m_RenderListRanges.Empty())
         {
             SortRenderList(context);
+        }
+
+        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*)frustum_matrix, 16*sizeof(float)) : 0;
+        if (context->m_FrustumHash != frustum_hash)
+        {
+            // We use this to avoid calling the culling functions more than once in a row
+            context->m_FrustumHash = frustum_hash;
+
+            if (frustum_matrix)
+            {
+                dmIntersection::Frustum frustum;
+                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
+                FrustumCulling(context, frustum);
+            }
+            else
+            {
+                // Reset the visibility
+                SetVisibility(context->m_RenderList.Size(), context->m_RenderList.Begin(), dmRender::VISIBILITY_FULL);
+            }
         }
 
         MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0);
@@ -582,7 +635,7 @@ namespace dmRender
         {
             const RenderListDispatch& d = context->m_RenderListDispatch[i];
             params.m_UserData = d.m_UserData;
-            d.m_Fn(params);
+            d.m_DispatchFn(params);
         }
 
         params.m_Operation = RENDER_LIST_OPERATION_BATCH;
@@ -610,7 +663,7 @@ namespace dmRender
                 params.m_UserData = d->m_UserData;
                 params.m_Begin = last;
                 params.m_End = idx;
-                d->m_Fn(params);
+                d->m_DispatchFn(params);
             }
 
             last = idx;
@@ -625,13 +678,13 @@ namespace dmRender
         {
             const RenderListDispatch& d = context->m_RenderListDispatch[i];
             params.m_UserData = d.m_UserData;
-            d.m_Fn(params);
+            d.m_DispatchFn(params);
         }
 
         return Draw(context, predicate, constant_buffer);
     }
 
-    // NOTE: Currently only used in 1 test (fontview.cpp)
+    // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
@@ -673,9 +726,11 @@ namespace dmRender
             }
 
             ApplyMaterialConstants(render_context, material, ro);
-            ApplyRenderObjectConstants(render_context, context_material, ro);
 
-            if (constant_buffer)
+            if (ro->m_ConstantBuffer) // from components/scripts
+                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer);
+
+            if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
 
             if (ro->m_SetBlendFactors)
@@ -721,84 +776,21 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result DrawDebug3d(HRenderContext context)
+    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix)
     {
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_matrix);
     }
 
-    Result DrawDebug2d(HRenderContext context)
+    Result DrawDebug2d(HRenderContext context) // Deprecated
     {
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0);
     }
-
-    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4* values, uint32_t num_values)
-    {
-        assert(ro);
-        HMaterial material = ro->m_Material;
-        assert(material);
-
-        int32_t location = GetMaterialConstantLocation(material, name_hash);
-        if (location == -1)
-        {
-            // Unknown constant, ie at least not defined in material
-            return;
-        }
-
-        Constant material_constant;
-        GetMaterialProgramConstant(material, name_hash, material_constant);
-
-        Vector4* value_ptr     = ro->m_ConstantsData;
-        Vector4* value_ptr_end = value_ptr + RenderObject::MAX_CONSTANT_COUNT;
-
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            Constant* c = &ro->m_Constants[i];
-
-            if ((value_ptr + num_values) > value_ptr_end)
-            {
-                dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
-                return;
-            }
-
-            if (c->m_Location == -1 || c->m_NameHash == name_hash)
-            {
-                // New or current slot found
-                c->m_ValuePtr  = value_ptr;
-                c->m_ArraySize = material_constant.m_ArraySize;
-                memcpy(c->m_ValuePtr, values, sizeof(values[0]) * num_values);
-
-                c->m_NameHash = name_hash;
-                c->m_Type     = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
-                c->m_Location = location;
-                return;
-            }
-
-            value_ptr += c->m_ArraySize;
-        }
-
-        dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
-    }
-
-    void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash)
-    {
-        assert(ro);
-        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
-        {
-            Constant* c = &ro->m_Constants[i];
-            if (c->m_NameHash == name_hash)
-            {
-                c->m_Location = -1;
-                return;
-            }
-        }
-    }
-
 
     HPredicate NewPredicate()
     {
@@ -821,76 +813,4 @@ namespace dmRender
         std::sort(predicate->m_Tags, predicate->m_Tags+predicate->m_TagCount);
         return RESULT_OK;
     }
-
-    struct NamedConstantBuffer
-    {
-        dmHashTable64<Vectormath::Aos::Vector4> m_Constants;
-    };
-
-    HNamedConstantBuffer NewNamedConstantBuffer()
-    {
-        HNamedConstantBuffer buffer = new NamedConstantBuffer();
-        buffer->m_Constants.SetCapacity(16, 8);
-        return buffer;
-    }
-
-    void DeleteNamedConstantBuffer(HNamedConstantBuffer buffer)
-    {
-        delete buffer;
-    }
-
-    void SetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4 value)
-    {
-        dmHashTable64<Vectormath::Aos::Vector4>& constants = buffer->m_Constants;
-        if (constants.Full())
-        {
-            uint32_t capacity = constants.Capacity();
-            capacity += 8;
-            constants.SetCapacity(capacity * 2, capacity);
-        }
-        constants.Put(dmHashString64(name), value);
-    }
-
-    bool GetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4& value)
-    {
-        Vectormath::Aos::Vector4*v = buffer->m_Constants.Get(dmHashString64(name));
-        if (v)
-        {
-            value = *v;
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    struct ApplyContext
-    {
-        dmGraphics::HContext m_GraphicsContext;
-        HMaterial            m_Material;
-        ApplyContext(dmGraphics::HContext graphics_context, HMaterial material)
-        {
-            m_GraphicsContext = graphics_context;
-            m_Material = material;
-        }
-    };
-
-    static inline void ApplyConstant(ApplyContext* context, const uint64_t* name_hash, Vectormath::Aos::Vector4* value)
-    {
-        int32_t* location = context->m_Material->m_NameHashToLocation.Get(*name_hash);
-        if (location)
-        {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, value, 1, *location);
-        }
-    }
-
-    void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer)
-    {
-        dmHashTable64<Vectormath::Aos::Vector4>& constants = buffer->m_Constants;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        ApplyContext context(graphics_context, material);
-        constants.Iterate(ApplyConstant, &context);
-    }
-
 }

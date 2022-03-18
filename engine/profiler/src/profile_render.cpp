@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -22,6 +24,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/vmath.h>
 #include <render/font_renderer.h>
 #include <render/font_ddf.h>
 #include "profile_render.h"
@@ -103,7 +106,7 @@ namespace dmProfileRender
         DISPLAYMODE_PORTRAIT
     };
 
-    using namespace Vectormath::Aos;
+    using namespace dmVMath;
 
     static const Vector4 PROFILER_BG_COLOR  = Vector4(0.1f, 0.1f, 0.1f, 0.6f);
     static const Vector4 TITLE_FACE_COLOR   = Vector4(1.0f, 1.0f, 1.0f, 1.0f);

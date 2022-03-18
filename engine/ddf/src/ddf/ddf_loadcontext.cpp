@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,9 +22,9 @@ namespace dmDDF
 {
     LoadContext::LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options)
     {
-        m_Start = buffer;
-        m_Current = buffer;
-        m_End = buffer + buffer_size;
+        m_Start = (uintptr_t)buffer;
+        m_Current = (uintptr_t)buffer;
+        m_End = (uintptr_t)buffer + buffer_size;
         m_DryRun = dry_run;
         m_Options = options;
         if (!dry_run)
@@ -34,19 +36,19 @@ namespace dmDDF
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
     {
-        m_Current = (char*) DM_ALIGN(m_Current, 16);
-        char* b = m_Current;
+        m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
+        uintptr_t b = m_Current;
         m_Current += desc->m_Size;
         assert(m_DryRun || m_Current <= m_End);
 
-        return Message(desc, b, desc->m_Size, m_DryRun);
+        return Message(desc, (char*)b, desc->m_Size, m_DryRun);
     }
 
     void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count)
     {
         Type type = (Type) field_desc->m_Type;
 
-        m_Current = (char*) DM_ALIGN(m_Current, 16);
+        m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
         int element_size = 0;
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
@@ -61,7 +63,7 @@ namespace dmDDF
             element_size = ScalarTypeSize(type);
         }
 
-        char* b = m_Current;
+        uintptr_t b = m_Current;
         m_Current += count * element_size;
         assert(m_DryRun || m_Current <= m_End);
         return (void*) b;
@@ -69,37 +71,37 @@ namespace dmDDF
 
     char* LoadContext::AllocString(int length)
     {
-        char* b = m_Current;
+        uintptr_t b = m_Current;
         m_Current += length;
         assert(m_DryRun || m_Current <= m_End);
 
-        return b;
+        return (char*)b;
     }
 
     char* LoadContext::AllocBytes(int length)
     {
-        m_Current = (char*) DM_ALIGN(m_Current, 16);
-        char* b = m_Current;
+        m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
+        uintptr_t b = m_Current;
         m_Current += length;
         assert(m_DryRun || m_Current <= m_End);
-        return b;
+        return (char*)b;
     }
 
     uint32_t LoadContext::GetOffset(void* memory)
     {
-        return ((uintptr_t) memory) - ((uintptr_t) m_Start);
+        return ((uintptr_t) memory) - m_Start;
     }
 
     void* LoadContext::GetPointer(uint32_t offset)
     {
-        return m_Start+offset;
+        return (void*)(m_Start+offset);
     }
 
     void LoadContext::SetMemoryBuffer(char* buffer, int buffer_size, bool dry_run)
     {
-        m_Start = buffer;
-        m_Current = buffer;
-        m_End = buffer + buffer_size;
+        m_Start = (uintptr_t)buffer;
+        m_Current = (uintptr_t)buffer;
+        m_End = (uintptr_t)buffer + buffer_size;
         m_DryRun = dry_run;
         if (!dry_run)
         {

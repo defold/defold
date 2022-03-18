@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -16,6 +18,9 @@
 #include <dmsdk/dlib/log.h>
 #include <dlib/message.h>
 
+namespace dmLog
+{
+
 /**
  * @file
  * Logging functions. If DLIB_LOG_DOMAIN is defined the value of the defined is printed
@@ -32,7 +37,7 @@
  * No other messages with semantic meaning is sent.
  */
 
-struct dmLogMessage
+struct LogMessage
 {
     enum Type
     {
@@ -44,10 +49,10 @@ struct dmLogMessage
     char    m_Message[0];
 };
 
-const uint32_t DM_LOG_MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(dmLogMessage);
-struct dmLogParams
+const uint32_t MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(LogMessage);
+struct LogParams
 {
-    dmLogParams()
+    LogParams()
     {
     }
 };
@@ -57,49 +62,50 @@ struct dmLogParams
  * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
  * @param params log parameters
  */
-void dmLogInitialize(const dmLogParams* params);
+void LogInitialize(const LogParams* params);
 
 
 /**
  * Finalize logging system
  */
-void dmLogFinalize();
+void LogFinalize();
 
 /**
  * Get log server port
  * @return server port. 0 if the server isn't started.
  */
-uint16_t dmLogGetPort();
+uint16_t GetPort();
 
 
 /**
  * Set log level
  * @param severity Log severity
  */
-void dmLogSetlevel(dmLogSeverity severity);
+void Setlevel(Severity severity);
 
 /**
  * Set log file. The file will be created and truncated.
  * Subsequent invocations to this function will close previous opened file.
  * If the file can't be created a message will be logged to the "console"
  * @param path log path
+ * @return true if file successfully created.
  */
-void dmSetLogFile(const char* path);
+bool SetLogFile(const char* path);
 
 /**
- * Callback declaration for dmSetCustomLogCallback
+ * Callback declaration for SetCustomLogCallback
  */
-typedef void (*dmCustomLogCallback)(void* user_data, const char* s);
+typedef void (*CustomLogCallback)(void* user_data, const char* s);
 
 /**
  * Sets a custom callback for log output, if this function is set output
  * will only be sent to this callback.
  * Useful for testing purposes to validate logging output from a test
- * Calling dmSetCustomLogCallback with (0x0, 0x0) will restore normal operation
+ * Calling SetCustomLogCallback with (0x0, 0x0) will restore normal operation
  * @param callback the callback to call with output, once per logging call
  * @param user_data user data pointer that is provided as context in the callback
  */
-void dmSetCustomLogCallback(dmCustomLogCallback callback, void* user_data);
+void SetCustomLogCallback(CustomLogCallback callback, void* user_data);
 
 /**
  * iOS specific print function that wraps NSLog to be able to
@@ -111,7 +117,9 @@ void dmSetCustomLogCallback(dmCustomLogCallback callback, void* user_data);
  * @param severity Log severity
  * @param str_buf String buffer to print
  */
-void __ios_log_print(dmLogSeverity severity, const char* str_buf);
+void __ios_log_print(Severity severity, const char* str_buf);
 
+
+} //namespace dmLog
 
 #endif // DM_LOG_H

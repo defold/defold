@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -52,6 +54,5 @@
         (test-util/with-prop [node-id :sound v]
           (is (g/error? (test-util/prop-error node-id :sound)))))
       (is (nil? (test-util/prop-error node-id :gain)))
-      (doseq [v [-0.5 1.5]]
-        (test-util/with-prop [node-id :gain v]
-          (is (g/error? (test-util/prop-error node-id :gain))))))))
+      (test-util/with-prop [node-id :gain -0.5]
+          (is (g/error? (test-util/prop-error node-id :gain)))))))

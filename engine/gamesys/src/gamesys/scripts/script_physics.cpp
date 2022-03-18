@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -307,8 +309,8 @@ namespace dmGameSystem
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection");
         }
 
-        Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
-        Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
+        dmVMath::Point3 from( *dmScript::CheckVector3(L, 1) );
+        dmVMath::Point3 to( *dmScript::CheckVector3(L, 2) );
 
         uint32_t mask = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
@@ -346,7 +348,7 @@ namespace dmGameSystem
     {
         lua_pushnumber(L, response.m_Fraction);
         lua_setfield(L, -2, "fraction");
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
+        dmScript::PushVector3(L, dmVMath::Vector3(response.m_Position));
         lua_setfield(L, -2, "position");
         dmScript::PushVector3(L, response.m_Normal);
         lua_setfield(L, -2, "normal");
@@ -419,9 +421,9 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-        
-        Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
-        Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
+
+        dmVMath::Point3 from( *dmScript::CheckVector3(L, 1) );
+        dmVMath::Point3 to( *dmScript::CheckVector3(L, 2) );
 
         uint32_t mask = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
@@ -535,7 +537,7 @@ namespace dmGameSystem
     {
         if (GetTableField(L, table_index, table_field, LUA_TUSERDATA))
         {
-            Vectormath::Aos::Vector3* v3 = dmScript::ToVector3(L, -1);
+            dmVMath::Vector3* v3 = dmScript::ToVector3(L, -1);
             if (!v3) {
                 lua_pop(L, 1);
                 luaL_error(L, "joint property table field %s must be of vmath.vector3 type.", table_field);
@@ -556,6 +558,14 @@ namespace dmGameSystem
             bool_out = lua_toboolean(L, -1);
             lua_pop(L, 1);
         }
+    }
+
+    static bool CheckBoolean(lua_State* L, int index)
+    {
+        if ( lua_isboolean( L, index ) )
+            return lua_toboolean( L, index );
+
+        return luaL_error(L, "Argument %d must be a boolean", index);
     }
 
     static void UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
@@ -667,8 +677,8 @@ namespace dmGameSystem
         }
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 3);
-        Vectormath::Aos::Point3 pos_a = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 4));
-        Vectormath::Aos::Point3 pos_b = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 6));
+        dmVMath::Point3 pos_a = dmVMath::Point3(*dmScript::CheckVector3(L, 4));
+        dmVMath::Point3 pos_b = dmVMath::Point3(*dmScript::CheckVector3(L, 6));
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
@@ -794,7 +804,7 @@ namespace dmGameSystem
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
-                    Vectormath::Aos::Vector3 v(joint_params.m_SliderJointParams.m_LocalAxisA[0], joint_params.m_SliderJointParams.m_LocalAxisA[1], joint_params.m_SliderJointParams.m_LocalAxisA[2]);
+                    dmVMath::Vector3 v(joint_params.m_SliderJointParams.m_LocalAxisA[0], joint_params.m_SliderJointParams.m_LocalAxisA[1], joint_params.m_SliderJointParams.m_LocalAxisA[2]);
                     dmScript::PushVector3(L, v);
                     lua_setfield(L, -2, "local_axis_a");
                     lua_pushnumber(L, joint_params.m_SliderJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
@@ -891,7 +901,7 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
-        Vectormath::Aos::Vector3 reaction_force(0.0f);
+        dmVMath::Vector3 reaction_force(0.0f);
         dmPhysics::JointResult r = GetJointReactionForce(comp_world, comp, joint_id, reaction_force);
         if (r != dmPhysics::RESULT_OK)
         {
@@ -977,7 +987,7 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-        Vectormath::Aos::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
+        dmVMath::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
 
         dmGameSystem::SetGravity(world, new_gravity);
 
@@ -1024,7 +1034,7 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-        Vectormath::Aos::Vector3 gravity = dmGameSystem::GetGravity(world);
+        dmVMath::Vector3 gravity = dmGameSystem::GetGravity(world);
         dmScript::PushVector3(L, gravity);
 
         return 1;
@@ -1130,6 +1140,136 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# change the group of a collision object
+     *
+     * Updates the group property of a collision object to the specified
+     * string value. The group name should exist i.e. have been used in
+     * a collision object in the editor.
+     *
+     * @name physics.set_group
+     * @param url [type:string|hash|url] the collision object affected.
+     * @param group [type:string] the new group name to be assigned.
+     * ```lua
+     * local function change_collision_group()
+     *      physics.set_group("#collisionobject", "enemy")
+     * end
+     * ```
+     */
+    static int Physics_SetGroup(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
+
+        if (! dmGameSystem::SetCollisionGroup(comp_world, comp, group_id)) {
+            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+        }
+
+        return 0;
+    }
+
+    /*# returns the group of a collision object
+     *
+     * Returns the group name of a collision object as a hash.
+     *
+     * @name physics.get_group
+     * @param url [type:string|hash|url] the collision object to return the group of.
+     * @return [type:hash] hash value of the group.
+     * ```lua
+     * local function check_is_enemy()
+     *     local group = physics.get_group("#collisionobject")
+     *     return group == hash("enemy")
+     * end
+     * ```
+     */
+    static int Physics_GetGroup(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        dmhash_t group_hash = dmGameSystem::GetCollisionGroup(comp_world, comp);
+        dmScript::PushHash(L, group_hash);
+
+        return 1;
+    }
+
+    /*# updates the mask of a collision object
+     *
+     * Sets or clears the masking of a group (maskbit) in a collision object.
+     *
+     * @name physics.set_maskbit
+     * @param url [type:string|hash|url] the collision object to change the mask of.
+     * @param group [type:string] the name of the group (maskbit) to modify in the mask.
+     * @param maskbit [type:boolean] boolean value of the new maskbit. 'true' to enable, 'false' to disable.
+     * ```lua
+     * local function make_invincible()
+     *     -- no longer collide with the "bullet" group
+     *     physics.set_maskbit("#collisionobject", "bullet", false)
+     * end
+     * ```
+     */
+    static int Physics_SetMaskBit(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
+        bool boolvalue = CheckBoolean(L, 3);
+
+        if (! dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue)) {
+            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+        }
+
+        return 0;
+    }
+
+    /*# checks the presense of a group in the mask (maskbit) of a collision object
+     *
+     * Returns true if the specified group is set in the mask of a collision
+     * object, false otherwise.
+     *
+     * @name physics.get_maskbit
+     * @param url [type:string|hash|url] the collision object to check the mask of.
+     * @param group [type:string] the name of the group to check for.
+     * @return [type:boolean] boolean value of the maskbit. 'true' if present, 'false' otherwise.
+     * ```lua
+     * local function is_invincible()
+     *     -- check if the collisionobject would collide with the "bullet" group
+     *     local invincible = physics.get_maskbit("#collisionobject", "bullet")
+     *     return invincible
+     * end
+     * ```
+     */
+    static int Physics_GetMaskBit(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
+
+        bool boolvalue;
+        if (! dmGameSystem::GetCollisionMaskBit(comp_world, comp, group_id, &boolvalue)) {
+            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+        }
+        lua_pushboolean(L, (int) boolvalue);
+
+        return 1;
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -1149,6 +1289,10 @@ namespace dmGameSystem
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
         {"wakeup",          Physics_Wakeup},
+        {"get_group",		Physics_GetGroup},
+        {"set_group",		Physics_SetGroup},
+        {"get_maskbit",		Physics_GetMaskBit},
+        {"set_maskbit",		Physics_SetMaskBit},
         {0, 0}
     };
 

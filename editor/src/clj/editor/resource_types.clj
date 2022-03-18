@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -46,7 +48,6 @@
             [editor.rig :as rig]
             [editor.script-api :as script-api]
             [editor.sound :as sound]
-            [editor.spine :as spine]
             [editor.sprite :as sprite]
             [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]))
@@ -84,7 +85,6 @@
       (render-pb/register-resource-types workspace)
       (rig/register-resource-types workspace)
       (sound/register-resource-types workspace)
-      (spine/register-resource-types workspace)
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)

@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -13,29 +15,6 @@
 #ifndef DM_SPINLOCK_H
 #define DM_SPINLOCK_H
 
-#include <stdint.h>
-#include <dlib/spinlocktypes.h>
-
-namespace dmSpinlock
-{
-    struct ScopedLock
-    {
-        dmSpinlock::lock_t& m_Spinlock;
-        ScopedLock(dmSpinlock::lock_t& spinlock)
-            : m_Spinlock(spinlock)
-        {
-            dmSpinlock::Lock(&m_Spinlock);
-        }
-
-        ~ScopedLock()
-        {
-            dmSpinlock::Unlock(&m_Spinlock);
-        }
-    };
-}
-
-#define SCOPED_SPINLOCK_PASTE(x, y) x ## y
-#define SCOPED_SPINLOCK_PASTE2(x, y) SCOPED_SPINLOCK_PASTE(x, y)
-#define DM_SPINLOCK_SCOPED_LOCK(spinlock) dmSpinlock::ScopedLock SCOPED_SPINLOCK_PASTE2(lock, __LINE__)(spinlock);
+#include <dmsdk/dlib/spinlock.h>
 
 #endif

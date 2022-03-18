@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -109,7 +111,6 @@ public class BundlerTest {
 
             // Can only do this on OSX machines currently
             if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
-                data.add(new Platform[]{Platform.Armv7Darwin});
                 data.add(new Platform[]{Platform.Arm64Darwin});
                 data.add(new Platform[]{Platform.X86_64Ios});
             }
@@ -122,7 +123,6 @@ public class BundlerTest {
         switch (platform)
         {
             case X86_64Darwin:
-            case Armv7Darwin:
             case Arm64Darwin:
             case X86_64Ios:
                     folderName = projectName + ".app";
@@ -134,7 +134,6 @@ public class BundlerTest {
     private String getBundleAppFolder(String projectName) {
         switch (platform)
         {
-            case Armv7Darwin:
             case Arm64Darwin:
             case X86_64Ios:
                 return String.format("Payload/%s.app/", projectName);
@@ -190,7 +189,6 @@ public class BundlerTest {
                 assertTrue(wasmFile.exists());
             }
             break;
-            case Armv7Darwin:
             case Arm64Darwin:
             case X86_64Ios:
             {
@@ -261,7 +259,7 @@ public class BundlerTest {
             assertTrue(zip.exists());
             files = getZipFiles(zip);
         }
-        else if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios)
+        else if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios)
         {
             File zip = new File(outputDirFile.getParentFile(), projectName + ".ipa");
             assertTrue(zip.exists());
@@ -404,8 +402,8 @@ public class BundlerTest {
         if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             buildPlatform = Platform.Armv7Android;
         }
-        else if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
-            buildPlatform = Platform.Armv7Darwin;
+        else if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+            buildPlatform = Platform.Arm64Darwin;
         }
 
         project.setOption("platform", buildPlatform.getPair());
@@ -569,7 +567,6 @@ public class BundlerTest {
                     expectedFiles.add("META-INF/BNDLTOOL.RSA");
                 }
                 break;
-            case Armv7Darwin:
             case Arm64Darwin:
             case X86_64Ios:
                 expectedFiles.add("Payload/unnamed.app/unnamed");

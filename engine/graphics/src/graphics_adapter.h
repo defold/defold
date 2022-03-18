@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +17,7 @@
 
 #include <dlib/hash.h>
 #include <dmsdk/graphics/graphics.h>
+#include <dmsdk/dlib/vmath.h>
 
 namespace dmGraphics
 {
@@ -108,8 +111,8 @@ namespace dmGraphics
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     typedef uint32_t (*GetUniformCountFn)(HProgram prog);
     typedef int32_t (* GetUniformLocationFn)(HProgram prog, const char* name);
-    typedef void (*SetConstantV4Fn)(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    typedef void (*SetConstantM4Fn)(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
+    typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
+    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int base_register);
     typedef void (*SetSamplerFn)(HContext context, int32_t location, int32_t unit);
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);
@@ -151,6 +154,9 @@ namespace dmGraphics
     typedef void (*ReadPixelsFn)(HContext context, void* buffer, uint32_t buffer_size);
     typedef void (*RunApplicationLoopFn)(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
     typedef HandleResult (*GetTextureHandleFn)(HTexture texture, void** out_handle);
+    typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
+    typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
+    typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -258,6 +264,9 @@ namespace dmGraphics
         ReadPixelsFn m_ReadPixels;
         RunApplicationLoopFn m_RunApplicationLoop;
         GetTextureHandleFn m_GetTextureHandle;
+        IsExtensionSupportedFn m_IsExtensionSupported;
+        GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
+        GetSupportedExtensionFn m_GetSupportedExtension;
     };
 }
 

@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -70,7 +72,6 @@ Result GetStreamName(HBuffer buffer, uint32_t index, dmhash_t* stream_name);
 Result GetStreamOffset(HBuffer buffer, uint32_t index, uint32_t* offset);
 
 
-// FOR UNIT TESTING
 Result CalcStructSize(uint32_t num_streams, const StreamDeclaration* streams, uint32_t* size, uint32_t* offsets);
 
 }

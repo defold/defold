@@ -88,7 +88,12 @@ public:
 	b2ContactVelocityConstraint* m_velocityConstraints;
 	b2Contact** m_contacts;
 	int m_count;
+
+	static void setVelocityThreshold(float value); // defold: overrides #define b2_velocityThreshold in b2Settings.h
 };
+
+
+
 
 #endif
 

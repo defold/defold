@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -57,7 +59,7 @@ namespace dmPhysics
         return 0;
     }
 
-    HCollisionShape2D NewBoxShape2D(HContext2D context, const Vectormath::Aos::Vector3& half_extents)
+    HCollisionShape2D NewBoxShape2D(HContext2D context, const dmVMath::Vector3& half_extents)
     {
         return 0;
     }
@@ -79,7 +81,7 @@ namespace dmPhysics
     }
 
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
-                                     const Vectormath::Aos::Point3& position,
+                                     const dmVMath::Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count)
      {
@@ -90,12 +92,14 @@ namespace dmPhysics
     {
     }
 
-    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
+    bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
+        return false;
     }
 
-    void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
+    bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
+        return false;
     }
 
     void SetCollisionObjectFilter(HCollisionObject2D collision_object,
@@ -115,8 +119,8 @@ namespace dmPhysics
 
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data,
                                             HCollisionShape2D* shapes,
-                                            Vectormath::Aos::Vector3* translations,
-                                            Vectormath::Aos::Quat* rotations,
+                                            dmVMath::Vector3* translations,
+                                            dmVMath::Quat* rotations,
                                             uint32_t shape_count)
     {
         return 0;
@@ -140,40 +144,40 @@ namespace dmPhysics
         return 0;
     }
 
-    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
+    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const dmVMath::Vector3& force, const dmVMath::Point3& position)
     {
     }
 
-    Vectormath::Aos::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
+    dmVMath::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
+    dmVMath::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        return Vectormath::Aos::Point3();
+        return dmVMath::Point3();
     }
 
-    Vectormath::Aos::Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
+    dmVMath::Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        return Vectormath::Aos::Quat();
+        return dmVMath::Quat();
     }
 
-    Vectormath::Aos::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
+    dmVMath::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
+    dmVMath::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        return Vectormath::Aos::Vector3();
+        return dmVMath::Vector3();
     }
 
-    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const dmVMath::Vector3& velocity)
     {
     }
 
-    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const dmVMath::Vector3& velocity)
     {
     }
 
@@ -227,7 +231,25 @@ namespace dmPhysics
         return false;
     }
 
-    void SetBullet2D(HCollisionObject2D collision_object, bool value) {
+    void SetBullet2D(HCollisionObject2D collision_object, bool value)
+    {
+    }
+
+    uint16_t GetGroup2D(HCollisionObject2D collision_object)
+    {
+        return 0;
+    }
+
+    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    {
+    }
+
+    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    {
+        return false;
+    }
+
+    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
@@ -238,13 +260,13 @@ namespace dmPhysics
     {
     }
 
-    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity)
+    void SetGravity2D(HWorld2D world, const dmVMath::Vector3& gravity)
     {
     }
 
-    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world)
+    dmVMath::Vector3 GetGravity2D(HWorld2D world)
     {
-        return Vectormath::Aos::Vector3(0.0f);
+        return dmVMath::Vector3(0.0f);
     }
 
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
@@ -255,7 +277,7 @@ namespace dmPhysics
     {
     }
 
-    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const dmVMath::Point3& pos_a, HCollisionObject2D obj_b, const dmVMath::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
     {
         return (dmPhysics::HJoint)0x1;
     }
@@ -274,7 +296,7 @@ namespace dmPhysics
     {
     }
 
-    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vectormath::Aos::Vector3& force, float inv_dt)
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, dmVMath::Vector3& force, float inv_dt)
     {
         return true;
     }

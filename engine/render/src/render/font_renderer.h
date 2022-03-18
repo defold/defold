@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -14,6 +16,8 @@
 #define FONTRENDERER_H
 
 #include <stdint.h>
+
+#include <dmsdk/dlib/vmath.h>
 
 #include <ddf/ddf.h>
 
@@ -180,17 +184,17 @@ namespace dmRender
         DrawTextParams();
 
         /// Transform from font space to world (origo in font space is the base line of the first glyph)
-        Vectormath::Aos::Matrix4 m_WorldTransform;
+        dmVMath::Matrix4 m_WorldTransform;
         /// Color of the font face
-        Vectormath::Aos::Vector4 m_FaceColor;
+        dmVMath::Vector4 m_FaceColor;
         /// Color of the outline
-        Vectormath::Aos::Vector4 m_OutlineColor;
+        dmVMath::Vector4 m_OutlineColor;
         /// Color of the shadow
-        Vectormath::Aos::Vector4 m_ShadowColor;
+        dmVMath::Vector4 m_ShadowColor;
         /// Text to draw in utf8-format
         const char* m_Text;
         /// Render constants
-        dmRender::Constant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
+        dmRender::HConstant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
         /// The source blend factor
         dmGraphics::BlendFactor m_SourceBlendFactor;
         /// The destination blend factor
