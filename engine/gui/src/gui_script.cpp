@@ -83,7 +83,7 @@ namespace dmGui
      * go.property("cards_blue", resource.atlas("/cards_blue.atlas"))
      *
      * function init(self)
-     *   go.set("#gui", "textures", self.my_atlas, {key = "cards"})
+     *   go.set("#gui", "textures", self.cards_red, {key = "cards"})
      * end
      * ```
      */
