@@ -706,7 +706,13 @@ public class Bob {
             {
                 errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
             }
-            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+
+            String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
+            errors.append(msg);
+
+            if (verbose) {
+                errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+            }
         }
         for (TaskResult taskResult : result) {
             if (!taskResult.isOk()) {
@@ -747,10 +753,10 @@ public class Bob {
 
     private static void logErrorAndExit(Exception e) {
         System.err.println(e.getMessage());
+        if (e.getCause() != null) {
+            System.err.println("Cause: " + e.getCause());
+        }
         if (verbose) {
-            if (e.getCause() != null) {
-                System.err.println("Cause: " + e.getCause());
-            }
             e.printStackTrace();
         }
         System.exit(1);
@@ -761,7 +767,10 @@ public class Bob {
             mainInternal(args);
         } catch (LibraryException|CompileExceptionError e) {
             logErrorAndExit(e);
+        } catch (Exception e) {
+            logErrorAndExit(e);
         }
+
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {

@@ -1102,7 +1102,7 @@ public class BundleHelper {
         }
     }
 
-    public static File buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
+    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -1131,7 +1131,12 @@ public class BundleHelper {
                     buildError = FileUtils.readFileToString(logFile);
                     parseLog(platform, buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
+                    IResource projectResource = project.getGameProjectResource();
                     IResource extManifestResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+                    if (extManifestResource == null) {
+                        extManifestResource = projectResource;
+                    }
+
                     IResource contextResource = null;
 
                     for (ResourceInfo info : issues) {
@@ -1162,10 +1167,12 @@ public class BundleHelper {
                         }
                     }
 
-                    // If we do not yet have a context resource - fall back on an ext.manifest (possibly the wrong one!)
+                    // If we do not yet have a context resource - fall back on the project resource
                     if (contextResource == null) {
-                        contextResource = extManifestResource;
+                        contextResource = projectResource;
                     }
+
+                    exception.setLogPath(logFile.getAbsolutePath());
 
                     exception.attachLog(contextResource, buildError);
                     throw exception;

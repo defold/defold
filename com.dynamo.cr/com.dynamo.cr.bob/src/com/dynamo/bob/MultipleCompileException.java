@@ -55,6 +55,7 @@ public class MultipleCompileException extends Exception {
     public final List<Info> issues = new ArrayList<>();
     private IResource contextResource;
     private String rawLog;
+    private String logPath;
 
     public MultipleCompileException(String message, Throwable e) {
         super(message, e);
@@ -96,6 +97,14 @@ public class MultipleCompileException extends Exception {
 
         this.contextResource = contextResource;
         this.rawLog = rawLog;
+    }
+
+    public void setLogPath(String path) {
+        this.logPath = path;
+    }
+
+    public String getLogPath() {
+        return this.logPath;
     }
 
     public String getRawLog() {

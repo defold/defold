@@ -872,7 +872,7 @@ public class Project {
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-                File zip = BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile);
+                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
 
                 cleanEngine(platform, buildDir);
 
