@@ -152,7 +152,7 @@
    :options [["2D" "2D"] ["3D" "3D"]]}
   {:type :number,
    :help "number of physics updates per second. 0 means one update per game frame, using the dt passed in.",
-   :default "0",
+   :default 0,
    :path ["physics" "update_frequency"]}
   {:type :boolean,
    :help
