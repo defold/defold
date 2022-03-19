@@ -745,14 +745,22 @@ public class Bob {
         System.exit(ret ? 0 : 1);
     }
 
+    private static void logErrorAndExit(Exception e) {
+        System.err.println(e.getMessage());
+        if (verbose) {
+            if (e.getCause() != null) {
+                System.err.println("Cause: " + e.getCause());
+            }
+            e.printStackTrace();
+        }
+        System.exit(1);
+    }
+
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         try {
             mainInternal(args);
-        } catch (LibraryException e) {
-            System.err.println(e.getMessage());
-            System.err.println("Cause: " + e.getCause());
-            e.printStackTrace();
-            System.exit(1);
+        } catch (LibraryException|CompileExceptionError e) {
+            logErrorAndExit(e);
         }
     }
 

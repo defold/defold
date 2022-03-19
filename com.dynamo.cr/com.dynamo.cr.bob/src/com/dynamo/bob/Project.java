@@ -616,6 +616,9 @@ public class Project {
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
         Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(getLibPath(), this.libUrls);
+        if (libFiles == null) {
+            throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
+        }
         boolean missingFiles = false;
 
         for (String url : libFiles.keySet() ) {
