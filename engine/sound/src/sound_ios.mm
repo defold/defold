@@ -165,8 +165,6 @@ namespace {
 // ---------------------------------------------------------------------------
 namespace dmSound
 {
-    bool AudioSessionInitialized = false;
-
     Result PlatformInitialize(dmConfigFile::HConfig config,
             const InitializeParams* params)
     {
@@ -188,11 +186,7 @@ namespace dmSound
 
         NSError *error = nil;
         BOOL success = [[AVAudioSession sharedInstance] setCategory: AVAudioSessionCategoryAmbient error: &error];
-        if (success)
-        {
-            AudioSessionInitialized = false;
-        }
-        else
+        if (!success)
         {
             dmLogError("Failed to initialize AudioSession (%d)", (int)error.code);
         }
