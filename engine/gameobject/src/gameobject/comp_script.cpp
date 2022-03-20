@@ -121,7 +121,7 @@ namespace dmGameObject
                 lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
                 ++arg_count;
             }
-            if (script_function == SCRIPT_FUNCTION_UPDATE)
+            if (script_function == SCRIPT_FUNCTION_UPDATE || script_function == SCRIPT_FUNCTION_FIXED_UPDATE)
             {
                 lua_pushnumber(L, params.m_UpdateContext->m_DT);
                 ++arg_count;
@@ -212,7 +212,8 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+
+    static UpdateResult CompScriptUpdateInternal(const ComponentsUpdateParams& params, ScriptFunction function, ComponentsUpdateResult& update_result)
     {
         lua_State* L = GetLuaState(params.m_Context);
         int top = lua_gettop(L);
@@ -228,7 +229,7 @@ namespace dmGameObject
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
             if (script_instance->m_Update) {
-                ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
+                ScriptResult ret = RunScript(L, script_instance->m_Script, function, script_instance, run_params);
                 if (ret == SCRIPT_RESULT_FAILED)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -241,6 +242,16 @@ namespace dmGameObject
 
         assert(top == lua_gettop(L));
         return result;
+    }
+
+    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    {
+        return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_UPDATE, update_result);
+    }
+
+    UpdateResult CompScriptFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    {
+        return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_FIXED_UPDATE, update_result);
     }
 
     static UpdateResult HandleMessage(void* context, ScriptInstance* script_instance, dmMessage::Message* message, int function_ref, bool is_callback, bool deref_function_ref)

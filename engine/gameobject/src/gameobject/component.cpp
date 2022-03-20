@@ -113,6 +113,7 @@ void ComponentTypeSetAddToUpdateFn(ComponentType* type, ComponentAddToUpdate fn)
 void ComponentTypeSetGetFn(ComponentType* type, ComponentGet fn)                            { type->m_GetFunction = fn; }
 void ComponentTypeSetRenderFn(ComponentType* type, ComponentsRender fn)                     { type->m_RenderFunction = fn; }
 void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn)                     { type->m_UpdateFunction = fn; }
+void ComponentTypeSetFixedUpdateFn(ComponentType* type, ComponentsFixedUpdate fn)           { type->m_FixedUpdateFunction = fn; }
 void ComponentTypeSetPostUpdateFn(ComponentType* type, ComponentsPostUpdate fn)             { type->m_PostUpdateFunction = fn; }
 void ComponentTypeSetOnMessageFn(ComponentType* type, ComponentOnMessage fn)                { type->m_OnMessageFunction = fn; }
 void ComponentTypeSetOnInputFn(ComponentType* type, ComponentOnInput fn)                    { type->m_OnInputFunction = fn; }

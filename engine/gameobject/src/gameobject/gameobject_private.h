@@ -284,6 +284,8 @@ namespace dmGameObject
         // Tail of the same list, for O(1) appending
         uint16_t                 m_InstancesToAddTail;
 
+        float                    m_FixedAccumTime;
+
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
         // Used for deferred deletion

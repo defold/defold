@@ -849,6 +849,8 @@ namespace dmEngine
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
 #endif
 
+        engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
+
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
         engine->m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
@@ -1063,7 +1065,7 @@ namespace dmEngine
         }
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
-        engine->m_PhysicsContext.m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_UPDATE_FREQUENCY_KEY, 60);
+        engine->m_PhysicsContext.m_UseFixedTimestep = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
@@ -1536,6 +1538,7 @@ bail:
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
                 update_context.m_DT = dt;
+                update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                 // Don't render while iconified

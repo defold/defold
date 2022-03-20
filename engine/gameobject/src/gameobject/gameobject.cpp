@@ -208,6 +208,7 @@ namespace dmGameObject
         m_ScaleAlongZ = 0;
         m_DirtyTransforms = 1;
         m_Initialized = 0;
+        m_FixedAccumTime = 0.0f;
 
         m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
         m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
@@ -2491,7 +2492,69 @@ namespace dmGameObject
             }
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+            {
                 ret = false;
+            }
+        }
+
+        if (update_context->m_FixedUpdateFrequency != 0)
+        {
+            const float time = collection->m_FixedAccumTime + update_context->m_DT; // Add the scaled time
+            const float fixed_frequency = update_context->m_FixedUpdateFrequency;
+            // If the proxy is slowed down, we want e.g. the physics to be slowed down as well
+            const float fixed_dt = (1.0f / (float)fixed_frequency) * update_context->m_TimeScale;
+            float num_fixed_steps = (uint32_t)(time / fixed_dt);
+            // Store the remainder for the next frame
+            collection->m_FixedAccumTime = time - (num_fixed_steps * fixed_dt);
+
+            if (num_fixed_steps != 0)
+            {
+                UpdateContext fixed_update_context;
+                fixed_update_context = *update_context;
+                fixed_update_context.m_DT = fixed_dt;
+
+                for (uint32_t step = 0; step < num_fixed_steps; ++step)
+                {
+                    for (uint32_t i = 0; i < component_types; ++i)
+                    {
+                        uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+                        ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+
+                        DM_COUNTER_DYN(collection->m_Register->m_ComponentProfileCounterIndex[update_index], collection->m_ComponentInstanceCount[update_index]);
+
+                        // Avoid to call UpdateTransforms for each/all component types.
+                        if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
+                            UpdateTransforms(collection);
+                        }
+
+                        if (component_type->m_FixedUpdateFunction)
+                        {
+                            DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                            ComponentsUpdateParams params;
+                            params.m_Collection = collection->m_HCollection;
+                            params.m_UpdateContext = &fixed_update_context;
+                            params.m_World = collection->m_ComponentWorlds[update_index];
+                            params.m_Context = component_type->m_Context;
+
+                            ComponentsUpdateResult update_result;
+                            update_result.m_TransformsUpdated = false;
+                            UpdateResult res = component_type->m_FixedUpdateFunction(params, update_result);
+                            if (res != UPDATE_RESULT_OK)
+                                ret = false;
+
+                            // Mark the collections transforms as dirty if this component has updated
+                            // them in its update function.
+                            collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+                        }
+
+                        if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+                        {
+                            ret = false;
+                        }
+                    }
+                }
+
+            }
         }
 
         collection->m_InUpdate = 0;

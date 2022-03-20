@@ -255,7 +255,7 @@ namespace dmGameSystem
 
                 if (proxy->m_Enabled)
                 {
-                    dmGameObject::UpdateContext uc;
+                    dmGameObject::UpdateContext uc = *params.m_UpdateContext;
                     // We might be inside a parent proxy, so the scale will propagate
                     uc.m_TimeScale = params.m_UpdateContext->m_TimeScale * proxy->m_TimeStepFactor;
 

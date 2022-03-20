@@ -75,6 +75,7 @@ namespace dmGui
         "init",
         "final",
         "update",
+        "fixed_update",
         "on_message",
         "on_input",
         "on_reload"
