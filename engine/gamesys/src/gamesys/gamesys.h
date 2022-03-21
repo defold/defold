@@ -40,7 +40,7 @@ namespace dmGameSystem
     /// Config key to use for tweaking maximum number of contacts reported
     extern const char* PHYSICS_MAX_CONTACTS_KEY;
     /// Config key to use for tweaking the physics frame rate
-    extern const char* PHYSICS_UPDATE_FREQUENCY_KEY;
+    extern const char* PHYSICS_USE_FIXED_TIMESTEP;
     /// Config key to use for tweaking maximum number of collection proxies
     extern const char* COLLECTION_PROXY_MAX_COUNT_KEY;
     /// Config key to use for tweaking maximum number of factories
@@ -77,11 +77,11 @@ namespace dmGameSystem
             dmPhysics::HContext3D m_Context3D;
             dmPhysics::HContext2D m_Context2D;
         };
-        uint32_t m_UpdateFrequency;
         uint32_t m_MaxCollisionCount;
         uint32_t m_MaxContactPointCount;
         bool m_Debug;
         bool m_3D;
+        bool m_UseFixedTimestep;
     };
 
     struct ParticleFXContext

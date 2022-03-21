@@ -158,6 +158,7 @@ namespace dmEngine
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
         float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
+        uint32_t                                    m_FixedUpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
         uint32_t                                    m_ClearColor;

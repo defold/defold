@@ -73,6 +73,10 @@
    :default false,
    :path ["engine" "run_while_iconified"]}
   {:type :integer,
+   :help "enables some components to use a fixed frame rate. 0 means it's disabled. (Hz)",
+   :default 60,
+   :path ["engine" "fixed_update_frequency"]}
+  {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
    :default 960,
@@ -150,10 +154,10 @@
    :default "2D",
    :path ["physics" "type"]
    :options [["2D" "2D"] ["3D" "3D"]]}
-  {:type :integer,
-   :help "number of physics updates per second. 0 means one update per game frame, using the dt passed in.",
-   :default 0,
-   :path ["physics" "update_frequency"]}
+  {:type :boolean,
+   :help "If the physics should use fixed time steps. See engine.fixed_update_frequency",
+   :default false,
+   :path ["physics" "use_fixed_timestep"]}
   {:type :boolean,
    :help
    "visualize physics for debugging",

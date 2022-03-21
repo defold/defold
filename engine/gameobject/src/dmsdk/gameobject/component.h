@@ -258,6 +258,13 @@ namespace dmGameObject
     typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     /*#
+     * Component fixed update function. Updates all component of this type for all game objects
+     * @param params Input parameters
+     * @return UPDATE_RESULT_OK on success
+     */
+    typedef UpdateResult (*ComponentsFixedUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
+
+    /*#
      * Parameters to ComponentsRender callback.
      */
     struct ComponentsRenderParams
@@ -532,6 +539,14 @@ namespace dmGameObject
      * @param fn [type: ComponentsUpdate] callback
      */
     void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn);
+
+    /*# set the component update callback
+     * Set the component update callback. Called when it's time to update all component instances.
+     * @name ComponentTypeSetFixedUpdateFn
+     * @param type [type: ComponentType*] the type
+     * @param fn [type: ComponentsFixedUpdate] callback
+     */
+    void ComponentTypeSetFixedUpdateFn(ComponentType* type, ComponentsFixedUpdate fn);
 
     /*# set the component post update callback
      * Set the component post update callback. Called for each collection after the update, before the render.

@@ -41,8 +41,8 @@ namespace dmGameSystem
     const char* PHYSICS_MAX_COLLISIONS_KEY      = "physics.max_collisions";
     /// Config key to use for tweaking maximum number of contacts reported
     const char* PHYSICS_MAX_CONTACTS_KEY        = "physics.max_contacts";
-    /// Config key for setting the frame rate of the physics worlds
-    const char* PHYSICS_UPDATE_FREQUENCY_KEY    = "physics.update_frequency";
+    /// Config key for using fixed frame rate for the physics worlds
+    const char* PHYSICS_USE_FIXED_TIMESTEP      = "physics.use_fixed_timestep";
 
     static const dmhash_t PROP_LINEAR_DAMPING = dmHashString64("linear_damping");
     static const dmhash_t PROP_ANGULAR_DAMPING = dmHashString64("angular_damping");
@@ -125,6 +125,7 @@ namespace dmGameSystem
         float       m_AccumTime;    // Time saved from last component type update
         uint8_t     m_ComponentTypeIndex;
         uint8_t     m_3D : 1;
+        uint8_t     m_FirstUpdate : 1;
         dmArray<CollisionComponent*> m_Components;
     };
 
@@ -211,6 +212,7 @@ namespace dmGameSystem
         }
         world->m_ComponentTypeIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
+        world->m_FirstUpdate = 1;
         uint32_t comp_count = params.m_MaxComponentInstances;
         if (comp_count == 0xFFFFFFFF)
         {
@@ -955,7 +957,7 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    static dmGameObject::UpdateResult CompCollisionObjectUpdateInternal(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         if (params.m_World == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
@@ -1011,28 +1013,9 @@ namespace dmGameSystem
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 
-        float physics_dt = params.m_UpdateContext->m_DT;
-        uint32_t num_steps_i = 1;
+        step_world_context.m_DT = params.m_UpdateContext->m_DT;
 
-        if (physics_context->m_UpdateFrequency != 0) // 0 means old behavior
-        {
-            physics_dt = params.m_UpdateContext->m_TimeScale / (float)physics_context->m_UpdateFrequency;
-
-            float time = world->m_AccumTime + params.m_UpdateContext->m_DT;
-
-            float num_steps_f = time / physics_dt;
-            num_steps_i = (uint32_t)num_steps_f;
-
-            // Store the remainder for the next frame
-            world->m_AccumTime = time - (num_steps_i * physics_dt);
-        }
-
-        step_world_context.m_DT = physics_dt;
-
-        for (uint32_t i = 0; i < num_steps_i; ++i)
-        {
-            Step(world, physics_context, params.m_Collection, &step_world_context);
-        }
+        Step(world, physics_context, params.m_Collection, &step_world_context);
 
         // We only want to call this once per frame
         if (physics_context->m_3D)
@@ -1041,6 +1024,24 @@ namespace dmGameSystem
             dmPhysics::SetDrawDebug2D(world->m_World2D, physics_context->m_Debug);
 
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        if (physics_context->m_UseFixedTimestep)
+            return dmGameObject::UPDATE_RESULT_OK; // Let the fixed update handle this
+
+        return CompCollisionObjectUpdateInternal(params, update_result);
+    }
+
+    dmGameObject::UpdateResult CompCollisionObjectFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        if (!physics_context->m_UseFixedTimestep)
+            return dmGameObject::UPDATE_RESULT_OK; // Let the dynamic update handle this
+
+        return CompCollisionObjectUpdateInternal(params, update_result);
     }
 
     dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
@@ -1567,7 +1568,7 @@ namespace dmGameSystem
         }
 
         bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force, 1.0f / world->m_CurrentDT);
-     return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
     dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque)

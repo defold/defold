@@ -42,6 +42,7 @@ namespace dmGameObject
         ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentGet            m_GetFunction;
         ComponentsUpdate        m_UpdateFunction;
+        ComponentsFixedUpdate   m_FixedUpdateFunction;
         ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;

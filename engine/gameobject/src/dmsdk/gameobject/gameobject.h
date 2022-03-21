@@ -360,11 +360,18 @@ namespace dmGameObject
      * @name UpdateContext
      * @member m_TimeScale [type: float] the scaling factor what was applied on the dt (i.e. the collection update time scale)
      * @member m_DT [type: float] the delta time elapsed since last frame (seconds)
+     * @member m_FixedUpdateFrequency [type: uint32_t] Number of of calls per second to the FixedUpdate of each component
      */
     struct UpdateContext
     {
         float    m_TimeScale;
         float    m_DT;
+        uint32_t m_FixedUpdateFrequency;
+
+        UpdateContext()
+        : m_TimeScale(1.0f)
+        , m_DT(0.0)
+        , m_FixedUpdateFrequency(0) {}
     };
 
     /*#

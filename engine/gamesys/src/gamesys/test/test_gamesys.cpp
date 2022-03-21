@@ -418,7 +418,7 @@ TEST_P(ComponentFailTest, Test)
 }
 
 static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
-    dmGameObject::UpdateContext ctx = {0.0f};
+    dmGameObject::UpdateContext ctx;
     dmGameObject::Update(collection, &ctx);
     dmGameObject::Delete(collection, instance, false);
     dmGameObject::PostUpdate(collection);
