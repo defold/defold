@@ -95,6 +95,10 @@ public class LibraryUtil {
     public static Map<String, File> collectLibraryFiles(String libPath, List<URL> libUrls) {
         File currentFiles[] = new File(libPath).listFiles(File::isFile);
 
+        if (currentFiles == null && libUrls.size() > 0) {
+            return null;
+        }
+
         Map<String, File> libraries = new HashMap<String, File>();
         for (URL url : libUrls) {
             String hashedUrl = getHashedUrl(url);
