@@ -36,7 +36,7 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
     public void build(Task<Void> task) throws IOException, CompileExceptionError {
         IResource in = task.getInputs().get(0);
         try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
-            boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
+            boolean isDebug = (project.getVariant() == Bob.VARIANT_DEBUG);
             boolean outputSpirv = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
             ShaderDesc shaderDesc = compile(is, SHADER_TYPE, in, task.getOutputs().get(0).getPath(), project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
             task.output(0).setContent(shaderDesc.toByteArray());

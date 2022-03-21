@@ -204,6 +204,10 @@ public class Project {
         return this.publisher;
     }
 
+    public String getVariant() {
+        return option("variant", Bob.VARIANT_RELEASE);
+    }
+
     public static ClassLoaderScanner createClassLoaderScanner() throws IOException {
         scanner = new ClassLoaderScanner();
         return scanner;
@@ -928,9 +932,8 @@ public class Project {
 
         progress.beginTask("Downloading symbols...", platforms.length);
 
-        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
         String variantSuffix = "";
-        switch(variant) {
+        switch(getVariant()) {
             case Bob.VARIANT_RELEASE:
                 variantSuffix = "_release";
                 break;
@@ -1061,10 +1064,8 @@ public class Project {
                     if (buildRemoteEngine) {
                         logInfo("Build Remote Engine...");
 
-                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-
                         Map<String, String> appmanifestOptions = new HashMap<>();
-                        appmanifestOptions.put("baseVariant", variant);
+                        appmanifestOptions.put("baseVariant", getVariant());
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
 
                         if (this.hasOption("build-artifacts")) {

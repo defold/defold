@@ -415,7 +415,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         // Editor debugger scripts
-        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
+        if (project.getVariant().equals(Bob.VARIANT_DEBUG)) {
             findResources(project, project.getResource("/builtins/scripts/debugger.luac"), resources);
         }
 

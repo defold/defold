@@ -158,7 +158,7 @@ public class IOSBundler implements IBundler {
 
         Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final String variant = project.getVariant();
         final boolean strip_executable = project.hasOption("strip-executable");
 
         // If a custom engine was built we need to copy it

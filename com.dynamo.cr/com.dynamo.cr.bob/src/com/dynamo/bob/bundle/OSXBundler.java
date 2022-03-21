@@ -56,7 +56,7 @@ public class OSXBundler implements IBundler {
         final Platform platform = Platform.X86_64Darwin;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final String variant = project.getVariant();
         final boolean strip_executable = project.hasOption("strip-executable");
 
         BobProjectProperties projectProperties = project.getProjectProperties();

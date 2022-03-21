@@ -57,7 +57,7 @@ public class Win32Bundler implements IBundler {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
         if (bundleExes == null) {
-            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+            final String variant = project.getVariant();
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
         if (bundleExes.size() > 1) {

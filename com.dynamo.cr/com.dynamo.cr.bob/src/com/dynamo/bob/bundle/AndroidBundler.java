@@ -246,7 +246,7 @@ public class AndroidBundler implements IBundler {
         final String extenderExeDir = getExtenderExeDir(project);
         List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
         if (bundleExe == null) {
-            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+            final String variant = project.getVariant();
             bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
         }
 
@@ -647,7 +647,7 @@ public class AndroidBundler implements IBundler {
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = getExtenderExeDir(project);
         final List<Platform> architectures = getArchitectures(project);
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final String variant = project.getVariant();
         for (Platform architecture : architectures) {
             List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
             if (bundleExe == null) {
@@ -801,7 +801,7 @@ public class AndroidBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         Bob.initAndroid(); // extract resources
 
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final String variant = project.getVariant();
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
 
         File outDir = new File(bundleDir, getProjectTitle(project));

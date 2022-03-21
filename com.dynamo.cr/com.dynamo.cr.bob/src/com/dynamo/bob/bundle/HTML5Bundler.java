@@ -151,7 +151,7 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final String variant = project.getVariant();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");

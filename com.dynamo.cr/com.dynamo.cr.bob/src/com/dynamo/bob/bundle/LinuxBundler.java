@@ -37,7 +37,7 @@ public class LinuxBundler implements IBundler {
             throws IOException, CompileExceptionError {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final String variant = project.getVariant();
         if (bundleExes == null) {
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         } else {
