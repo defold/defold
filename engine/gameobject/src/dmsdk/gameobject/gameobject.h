@@ -367,6 +367,11 @@ namespace dmGameObject
         float    m_TimeScale;
         float    m_DT;
         uint32_t m_FixedUpdateFrequency;
+
+        UpdateContext()
+        : m_TimeScale(1.0f)
+        , m_DT(0.0)
+        , m_FixedUpdateFrequency(0) {}
     };
 
     /*#
