@@ -94,7 +94,8 @@ public class LibraryUtil {
      */
     public static Map<String, File> collectLibraryFiles(String libPath, List<URL> libUrls) {
         File currentFiles[] = new File(libPath).listFiles(File::isFile);
-        if (currentFiles == null) {
+
+        if (currentFiles == null && libUrls.size() > 0) {
             return null;
         }
 
