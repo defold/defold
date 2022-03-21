@@ -18,7 +18,6 @@
 
 #include <dmsdk/graphics/glfw/glfw.h>
 
-#import <AVFAudio/AVFAudio.h>
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 
