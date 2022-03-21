@@ -64,6 +64,7 @@ public class Bob {
 
     private static boolean verbose = false;
     private static File rootFolder = null;
+    private static boolean luaInitialized = false;
 
     public Bob() {
     }
@@ -92,6 +93,9 @@ public class Bob {
                     //
                     // For now we just issue a warning that we don't fully clean up.
                     System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
+                }
+                finally {
+                    luaInitialized = false;
                 }
             }
         }));
@@ -124,9 +128,13 @@ public class Bob {
     }
 
     public static void initLua() {
+        if (luaInitialized) {
+            return;
+        }
         init();
         try {
             extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
+            luaInitialized = true;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
