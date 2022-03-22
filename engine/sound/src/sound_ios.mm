@@ -165,8 +165,7 @@ namespace {
 // ---------------------------------------------------------------------------
 namespace dmSound
 {
-    Result PlatformInitialize(dmConfigFile::HConfig config,
-            const InitializeParams* params)
+    Result PlatformInitialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
         ::g_soundApplicationDelegate = [[SoundApplicationDelegate alloc] init];
         glfwRegisterUIApplicationDelegate(::g_soundApplicationDelegate);
