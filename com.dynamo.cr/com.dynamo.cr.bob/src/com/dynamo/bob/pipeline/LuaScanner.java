@@ -35,9 +35,9 @@ import javax.vecmath.Vector4d;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
-import com.dynamo.bob.pipeline.luaparser.LuaParser;
-import com.dynamo.bob.pipeline.luaparser.LuaLexer;
-import com.dynamo.bob.pipeline.luaparser.LuaParserBaseListener;
+import com.dynamo.bob.pipeline.antlr.LuaParser;
+import com.dynamo.bob.pipeline.antlr.LuaLexer;
+import com.dynamo.bob.pipeline.antlr.LuaParserBaseListener;
 
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;

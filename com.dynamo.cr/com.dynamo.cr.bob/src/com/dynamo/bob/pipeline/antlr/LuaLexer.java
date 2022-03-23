@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.bob.pipeline.luaparser;
+package com.dynamo.bob.pipeline.antlr;
 
 // Generated from LuaLexer.g4 by ANTLR 4.9.1
 import org.antlr.v4.runtime.Lexer;
