@@ -14,8 +14,16 @@
 
 package com.dynamo.bob.pipeline;
 
+/**
+ * LuaBuilderPlugin. Abstract class for performing a Lua build/processing step.
+ * Extend and annotate with LuaBuilderPluginParams.
+ */
+public abstract class LuaBuilderPlugin {
 
-public interface ILuaObfuscator {
-
-	public String obfuscate(String input);
+	/**
+	 * Perform a build or processing step on the provided Lua code
+	 * @param input String containing Lua code
+	 * @return String with processed Lua code
+	 */
+	public abstract String build(String input) throws Exception;
 }

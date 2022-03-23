@@ -429,7 +429,6 @@ public class Bob {
         addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
         addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
-        addOption(options, null, "obfuscate-lua", true, "Fully qualified class name of an obfuscator class to use on any Lua code", true);
         addOption(options, null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)", true);
         addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 

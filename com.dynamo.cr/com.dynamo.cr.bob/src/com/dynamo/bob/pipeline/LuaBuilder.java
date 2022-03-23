@@ -42,6 +42,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
@@ -63,6 +64,35 @@ import com.google.protobuf.Message;
 public abstract class LuaBuilder extends Builder<Void> {
 
     private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+
+    private static List<LuaBuilderPlugin> luaBuilderPlugins = null;
+
+    private void initBuilderPlugins() throws CompileExceptionError{
+        if (luaBuilderPlugins != null) {
+            return;
+        }
+
+        luaBuilderPlugins = new ArrayList<LuaBuilderPlugin>();
+        IClassScanner scanner = Project.getClassLoaderScanner();
+        Set<String> classNames = scanner.scan("com.dynamo.bob.pipeline");
+        for (String className : classNames) {
+            try {
+                Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
+                LuaBuilderPluginParams luaBuilderPluginParams = klass.getAnnotation(LuaBuilderPluginParams.class);
+                if (luaBuilderPluginParams != null) {
+                    LuaBuilderPlugin luaBuilderPlugin = (LuaBuilderPlugin)klass.newInstance();
+                    luaBuilderPlugins.add(luaBuilderPlugin);
+                }
+            }
+            catch(InstantiationException | IllegalAccessException e) {
+                throw new CompileExceptionError("Unable to create LuaBuilder plugin " + className, e);
+            }
+            catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 
 
     @Override
@@ -91,42 +121,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-    private byte[] obfuscateLuaCode(String s) throws IOException, CompileExceptionError {
-        String obfuscator_config = this.project.option("obfuscate-lua", "");
-        if (obfuscator_config.length() == 0) {
-            return s.getBytes();
-        }
-
-        // split obfuscator config (comma separated) into jar path and class name
-        String[] parts = obfuscator_config.split(",");
-        if (parts.length != 2) {
-            throw new CompileExceptionError("The --obfuscate-lua option must contain both jar path and full obfuscator class name (comma separated)");
-        }
-        String obfuscator_jar = parts[0];
-        String obfuscator_class = parts[1];
-        Bob.verbose("Obfuscating Lua code using %s from %s ", obfuscator_class, obfuscator_jar);
-
-        try {
-            // create class loader used to load classes from the provided obfuscator jar file
-            URL[] urls = { new File(obfuscator_jar).toURI().toURL() };
-            URLClassLoader obfuscator_class_loader = new URLClassLoader(urls, ClassLoader.getSystemClassLoader());
-
-            // create the obfuscator and apply it to the Lua code
-            ILuaObfuscator obfuscator = (ILuaObfuscator)Class.forName(obfuscator_class, true, obfuscator_class_loader).newInstance();
-            return obfuscator.obfuscate(s).getBytes();
-        }
-        catch(ClassNotFoundException e) {
-            throw new CompileExceptionError("Unable to find obfuscator class " + obfuscator_class + " in " + obfuscator_jar, e);
-        }
-        catch(InstantiationException | IllegalAccessException e) {
-            throw new CompileExceptionError("Unable to create obfuscator class " + obfuscator_class, e);
-        }
-        catch(Exception e) {
-            throw new CompileExceptionError("Unable to obfuscate Lua code using obfuscator class " + obfuscator_class + " in " + obfuscator_jar, e);
-        }
-    }
-
-    public byte[] constructBytecode(Task<Void> task, String luajitExe, byte[] byteString) throws IOException, CompileExceptionError {
+    public byte[] constructBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -140,7 +135,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
             fo = new java.io.FileOutputStream(inputFile);
-            fo.write(byteString);
+            fo.write(source.getBytes());
             fo.close();
 
             // Doing a bit of custom set up here as the path is required.
@@ -228,39 +223,43 @@ public abstract class LuaBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
         LuaModule.Builder builder = LuaModule.newBuilder();
-        byte[] scriptBytes = task.input(0).getContent();
-        String script = new String(scriptBytes, "UTF-8");
+        final byte[] originalScriptBytes = task.input(0).getContent();
+        final String originalScript = new String(originalScriptBytes, "UTF-8");
+
+        // run the Lua scanner to get and remove require and properties
         LuaScanner scanner = new LuaScanner();
-        String parsedScript = scanner.parse(script);
+        String script = scanner.parse(originalScript);
         List<String> modules = scanner.getModules();
         List<LuaScanner.Property> properties = scanner.getProperties();
 
+        // add detected modules to builder
         for (String module : modules) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
             BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
+
+        // add detected properties to builder
         Collection<String> propertyResources = new HashSet<String>();
         PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertyResources);
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
-        LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-        byte[] obfuscatedScript = obfuscateLuaCode(parsedScript);
+       
 
-        /*
-        // For now it will always return, or throw an exception. This leaves the possibility of
-        // disabling bytecode generation.
-        byte[] bytecode = constructBytecode(task, task.input(0).getPath(), scriptBytesStripped);
-        if (bytecode != null)
-            srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
-        */
+        // apply any builder plugins
+        initBuilderPlugins();
+        for(LuaBuilderPlugin builderPlugin : luaBuilderPlugins) {
+            try {
+                script = builderPlugin.build(script);
+            }
+            catch(Exception e) {
+                throw new CompileExceptionError("Unable to run Lua builder plugin", e);
+            }
+        }
 
-        srcBuilder.setFilename(task.input(0).getPath());
-
-        // If for some reason, the project needs to be bundled with regular Lua files (e.g. on iOS)
+        // if for some reason, the project needs to be bundled with regular Lua files (e.g. on iOS)
         boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
-
         if (use_vanilla_lua) {
             for(IResource res : task.getOutputs()) {
                 String path = res.getAbsPath();
@@ -270,14 +269,17 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
+        LuaSource.Builder srcBuilder = LuaSource.newBuilder();
+        srcBuilder.setFilename(task.input(0).getPath());
+
         if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
-            srcBuilder.setScript(ByteString.copyFrom(obfuscatedScript));
+            srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         } else {
-            byte[] bytecode = constructBytecode(task, "luajit-32", obfuscatedScript);
+            byte[] bytecode = constructBytecode(task, "luajit-32", script);
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
             }
-            byte[] bytecode64 = constructBytecode(task, "luajit-64", obfuscatedScript);
+            byte[] bytecode64 = constructBytecode(task, "luajit-64", script);
             if (bytecode64 != null) {
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
