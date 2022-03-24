@@ -81,6 +81,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
                 LuaBuilderPluginParams luaBuilderPluginParams = klass.getAnnotation(LuaBuilderPluginParams.class);
                 if (luaBuilderPluginParams != null) {
+                    Bob.verbose("LuBuilder found plugin " + luaBuilderPluginParams.name());
                     LuaBuilderPlugin luaBuilderPlugin = (LuaBuilderPlugin)klass.newInstance();
                     luaBuilderPlugins.add(luaBuilderPlugin);
                 }
