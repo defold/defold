@@ -506,7 +506,7 @@ namespace dmResourceArchive
             {
                 if (temp_buffer)
                     free(compressed_buf);
-                return r
+                return r;
             }
         }
 
