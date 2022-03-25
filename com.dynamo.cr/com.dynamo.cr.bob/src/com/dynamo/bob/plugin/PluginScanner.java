@@ -38,6 +38,10 @@ public class PluginScanner {
 		List<T> plugins = new ArrayList<>();
 
 		IClassScanner scanner = Project.getClassLoaderScanner();
+		if (scanner == null) {
+			return plugins;
+		}
+		
 		Set<String> classNames = scanner.scan(packageName);
 		for (String className : classNames) {
 			try {
