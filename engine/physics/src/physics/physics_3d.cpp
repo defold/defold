@@ -361,6 +361,7 @@ namespace dmPhysics
     void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
+        bool fixed_time_step = step_context.m_FixedTimeStep;
         HContext3D context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
@@ -425,7 +426,7 @@ namespace dmPhysics
             DM_PROFILE(Physics, "StepSimulation");
             // Step simulation
             // TODO: Max substeps = 1 for now...
-            world->m_DynamicsWorld->stepSimulation(dt, 1);
+            world->m_DynamicsWorld->stepSimulation(dt, fixed_time_step ? 0 : 1);
         }
 
         // Handle ray cast requests

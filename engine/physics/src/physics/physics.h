@@ -348,6 +348,7 @@ namespace dmPhysics
 
         /// Time step
         float                   m_DT;
+        bool                    m_FixedTimeStep;
         /// Collision callback function
         CollisionCallback       m_CollisionCallback;
         /// Collision callback user data
