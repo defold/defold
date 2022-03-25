@@ -1,0 +1,87 @@
+-- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+-- 
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+-- 
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+
+function init(self)
+	self.max_time = tonumber(sys.get_config("test.max_time", "1.0")) -- seconds
+	self.target_count = tonumber(sys.get_config("test.target_count", "15"))
+
+	self.fixed_update_frequency = tonumber(sys.get_config("engine.fixed_update_frequency", "60")) -- Hz
+	self.target_fixed_update_count = self.max_time * self.fixed_update_frequency
+
+	self.use_physics_fixed_timestep = sys.get_config("physics.use_fixed_timestep", "0") ~= "0"
+	self.use_fixed_timestep = self.fixed_update_frequency ~= 0
+
+	self.time = 0.0
+	self.fixed_time = 0.0
+	self.socket_last_time = socket.gettime()
+	self.socket_accum_time = 0
+	self.num_collision_responses = 0
+	self.num_updates = 0
+	self.num_fixed_updates = 0
+end
+
+function update(self, dt)
+	self.num_updates = self.num_updates + 1
+
+	local t = socket.gettime()
+	local socket_dt = t - self.socket_last_time
+	self.socket_accum_time = self.socket_accum_time + socket_dt
+	self.socket_last_time = t
+
+	self.time = self.time + dt
+	if self.time > self.max_time then
+		sys.exit(0)
+	end
+end
+
+function fixed_update(self, dt)
+	self.fixed_time = self.fixed_time + dt
+	self.num_fixed_updates = self.num_fixed_updates + 1
+end
+
+function on_message(self, message_id, message)
+	if message_id == hash("inc_collision_response") then
+		self.num_collision_responses = self.num_collision_responses + 1
+	end
+end
+
+function final(self)
+
+	if self.use_fixed_timestep then
+
+		if self.num_fixed_updates ~= self.target_fixed_update_count then
+			print("self.num_fixed_updates", self.num_fixed_updates, "target:", self.target_fixed_update_count)
+		end
+
+		if math.abs(self.socket_accum_time - self.fixed_time) > 0.01 then
+			print("times:", "socket:", self.socket_accum_time, "fixed time:", self.fixed_time)
+		end
+
+		assert(self.num_fixed_updates == self.target_fixed_update_count)
+		assert( math.abs(self.socket_accum_time - self.fixed_time) < 0.01 )
+	end
+
+	if math.abs(self.socket_accum_time - self.time) > 0.01 then
+		print("times:", "socket:", self.socket_accum_time, "time:", self.time)
+	end
+	assert( math.abs(self.socket_accum_time - self.time) < 0.01 )
+
+	if self.num_collision_responses ~= self.target_fixed_update_count then
+		print("self.num_collision_responses", self.num_collision_responses, "target:", self.target_fixed_update_count)
+	end
+
+	assert(self.num_collision_responses == self.target_fixed_update_count)
+
+end

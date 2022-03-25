@@ -210,6 +210,7 @@ namespace dmEngine
 
     Stats::Stats()
     : m_FrameCount(0)
+    , m_TotalTime(0.0f)
     {
 
     }
@@ -1656,6 +1657,7 @@ bail:
         dmProfile::Release(profile);
 
         ++engine->m_Stats.m_FrameCount;
+        engine->m_Stats.m_TotalTime += dt;
     }
 
     static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
@@ -1961,6 +1963,11 @@ bail:
     uint32_t GetFrameCount(HEngine engine)
     {
         return engine->m_Stats.m_FrameCount;
+    }
+
+    void GetStats(HEngine engine, Stats& stats)
+    {
+        stats = engine->m_Stats;
     }
 }
 

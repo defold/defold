@@ -22,8 +22,6 @@ namespace dmEngine
     typedef struct Engine* HEngine;
 
     uint16_t GetHttpPort(HEngine engine);
-    uint32_t GetFrameCount(HEngine engine);
-
 
 	enum UpdateResult
 	{
