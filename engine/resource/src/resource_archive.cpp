@@ -500,12 +500,13 @@ namespace dmResourceArchive
         if(encrypted)
         {
             assert(temp_buffer || compressed_buf == buffer);
-            dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) compressed_buf, compressed_size, (const uint8_t*) KEY, strlen(KEY));
-            if (cr != dmCrypt::RESULT_OK)
+
+            Result r = DecryptBuffer(compressed_buf, compressed_size);
+            if (r != RESULT_OK)
             {
                 if (temp_buffer)
                     free(compressed_buf);
-                return RESULT_UNKNOWN;
+                return r
             }
         }
 
