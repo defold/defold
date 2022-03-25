@@ -1684,12 +1684,10 @@ bail:
 
         // We don't allow having a higher framerate than the actual variable frame rate
         // since the update+render is currently coupled together and also Flip() would be called more than once.
+        // E.g. if the fixed_dt == 1/120 and the frame_dt == 1/60
         if (fixed_dt < frame_dt)
         {
-            step_dt = frame_dt;
-            num_steps = 1;
-            engine->m_AccumFrameTime = 0; // we consumed it all
-            return;
+            fixed_dt = frame_dt;
         }
 
         engine->m_AccumFrameTime += frame_dt;
