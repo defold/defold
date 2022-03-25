@@ -121,7 +121,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testBuilderAndReader() throws IOException
+    public void testBuilderAndReader() throws IOException, CompileExceptionError
     {
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, true, 4);
@@ -145,7 +145,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testEntriesOrder() throws IOException {
+    public void testEntriesOrder() throws IOException, CompileExceptionError {
 
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true, 4);
@@ -185,7 +185,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testArchiveIndexAlignment() throws IOException {
+    public void testArchiveIndexAlignment() throws IOException, CompileExceptionError {
     	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true, 4);
     	for (int i = 1; i < 50; ++i) {
 			String filename = "dummy" + Integer.toString(i);
