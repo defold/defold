@@ -20,6 +20,21 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Options& options)
+{
+    uint32_t file_size = 0;
+    void* mem = dmModelImporter::ReadFile(path, &file_size);
+    if (!mem)
+        return 0;
+
+    const char* suffix = strrchr(path, '.') + 1;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+
+    free(mem);
+
+    return scene;
+}
+
 TEST(ModelGLTF, Load)
 {
     const char* path = "/Users/mawe/work/projects/users/mawe/ModelTestKenneyFbx/assets/models/kenney/characters2/Animations/idle_test.glb";
@@ -40,9 +55,23 @@ TEST(ModelGLTF, Load)
     free(mem);
 }
 
+static int TestStandalone(const char* path)
+{
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    dmModelImporter::DebugScene(scene);
+
+    dmModelImporter::DestroyScene(scene);
+}
 
 int main(int argc, char **argv)
 {
+    if (argc > 1 && strstr(argv[1], ".gltf") != 0)
+    {
+        return TestStandalone(argv[1]);
+    }
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

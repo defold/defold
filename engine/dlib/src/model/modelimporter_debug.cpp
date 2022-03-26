@@ -103,7 +103,7 @@ static void OutputNodeTree(Node* node, int indent)
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    printf("mesh  vertices: %u  mat: %s  weights: %s\n", mesh->m_VertexCount, mesh->m_Material, mesh->m_Weights?"yes":"no");
+    printf("mesh  %s  vertices: %u  mat: %s  weights: %s\n", mesh->m_Name, mesh->m_VertexCount, mesh->m_Material, mesh->m_Weights?"yes":"no");
 
     // if (mesh->m_Weights)
     // {
@@ -185,19 +185,19 @@ void DebugScene(Scene* scene)
     }
     printf("------------------------------\n");
 
-    printf("Skins: count: %u\n", scene->m_SkinsCount);
-    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
-    {
-        printf("------------------------------\n");
-        OutputSkin(&scene->m_Skins[i], 1);
-        printf("------------------------------\n");
-    }
-
     printf("Subscenes: count: %u\n", scene->m_RootNodesCount);
     for (uint32_t i = 0; i < scene->m_RootNodesCount; ++i)
     {
         printf("------------------------------\n");
         OutputNodeTree(scene->m_RootNodes[i], 1);
+        printf("------------------------------\n");
+    }
+
+    printf("Skins: count: %u\n", scene->m_SkinsCount);
+    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    {
+        printf("------------------------------\n");
+        OutputSkin(&scene->m_Skins[i], 1);
         printf("------------------------------\n");
     }
 

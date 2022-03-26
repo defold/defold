@@ -235,6 +235,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 {
     scene->m_NodesCount = gltf_data->nodes_count;
     scene->m_Nodes = new Node[scene->m_NodesCount];
+    memset(scene->m_Nodes, 0, sizeof(Node)*scene->m_NodesCount);
 
     for (size_t i = 0; i < gltf_data->nodes_count; ++i)
     {
@@ -298,21 +299,21 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
     // Find root nodes
     scene->m_RootNodesCount = 0;
-    for (size_t i = 0; i < scene->m_NodesCount; ++i)
+    for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
     {
         Node* node = &scene->m_Nodes[i];
         if (node->m_Parent == 0)
             scene->m_RootNodesCount++;
     }
-
     scene->m_RootNodes = new Node*[scene->m_RootNodesCount];
+
     scene->m_RootNodesCount = 0;
-    for (size_t i = 0; i < scene->m_NodesCount; ++i)
+    for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
     {
         Node* node = &scene->m_Nodes[i];
         if (node->m_Parent == 0)
         {
-            scene->m_RootNodes[scene->m_RootNodesCount++] = &scene->m_Nodes[i];
+            scene->m_RootNodes[scene->m_RootNodesCount++] = node;
         }
     }
 }
@@ -320,13 +321,14 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
 {
     model->m_MeshesCount = gltf_mesh->primitives_count;
-    model->m_Meshes = new Mesh[gltf_mesh->primitives_count];
+    model->m_Meshes = new Mesh[model->m_MeshesCount];
+    memset(model->m_Meshes, 0, sizeof(Mesh)*model->m_MeshesCount);
 
     for (size_t i = 0; i < gltf_mesh->primitives_count; ++i)
     {
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
         Mesh* mesh = &model->m_Meshes[i];
-        memset(mesh, 0, sizeof(Mesh));
+        mesh->m_Name = strdup(gltf_mesh->name);
 
         mesh->m_Material = strdup(prim->material->name);
         mesh->m_VertexCount = 0;
@@ -403,6 +405,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
 {
     scene->m_ModelsCount = gltf_data->meshes_count;
     scene->m_Models = new Model[scene->m_ModelsCount];
+    memset(scene->m_Models, 0, sizeof(Model)*scene->m_ModelsCount);
 
     for (uint32_t i = 0; i < gltf_data->meshes_count; ++i)
     {
@@ -418,6 +421,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 {
     scene->m_SkinsCount = gltf_data->skins_count;
     scene->m_Skins = new Skin[scene->m_SkinsCount];
+    memset(scene->m_Skins, 0, sizeof(Skin)*scene->m_SkinsCount);
 
     for (uint32_t i = 0; i < gltf_data->skins_count; ++i)
     {
@@ -428,6 +432,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 
         skin->m_BonesCount = gltf_skin->joints_count;
         skin->m_Bones = new Bone[skin->m_BonesCount];
+        memset(skin->m_Bones, 0, sizeof(Bone)*skin->m_BonesCount);
 
         cgltf_accessor* accessor = gltf_skin->inverse_bind_matrices;
         for (uint32_t j = 0; j < gltf_skin->joints_count; ++j)
@@ -435,6 +440,8 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
             cgltf_node* gltf_joint = gltf_skin->joints[j];
             Bone* bone = &skin->m_Bones[j];
             bone->m_Name = strdup(gltf_joint->name);
+            // Cannot translate the bones here, since they're not created yet
+            // bone->m_Node = ...
 
             float matrix[16];
             if (ReadAccessorMatrix4(accessor, j, matrix))
@@ -444,6 +451,22 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
             {
                 assert(false);
             }
+        }
+    }
+}
+
+static void LinkBonesWithNodes(Scene* scene, cgltf_data* gltf_data)
+{
+    for (uint32_t i = 0; i < gltf_data->skins_count; ++i)
+    {
+        cgltf_skin* gltf_skin = &gltf_data->skins[i];
+        Skin* skin = &scene->m_Skins[i];
+
+        for (uint32_t j = 0; j < gltf_skin->joints_count; ++j)
+        {
+            cgltf_node* gltf_joint = gltf_skin->joints[j];
+            Bone* bone = &skin->m_Bones[j];
+            bone->m_Node = TranslateNode(gltf_joint, gltf_data, scene);
         }
     }
 }
@@ -595,6 +618,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     LoadSkins(scene, data);
     LoadNodes(scene, data);
+    LinkBonesWithNodes(scene, data);
     LoadMeshes(scene, data);
     LoadAnimations(scene, data);
 

@@ -39,44 +39,7 @@ public class ModelImporter {
         }
     }
 
-    // static void addToPath(String variable, String path) {
-    //     String newPath = null;
-
-    //     // Check if jna.library.path is set externally.
-    //     if (System.getProperty(variable) != null) {
-    //         newPath = System.getProperty(variable);
-    //     }
-
-    //     if (newPath == null) {
-    //         // Set path where model_shared library is found.
-    //         newPath = path;
-    //     } else {
-    //         // Append path where model_shared library is found.
-    //         newPath += File.pathSeparator + path;
-    //     }
-
-    //     // Set the concatenated jna.library path
-    //     System.setProperty(variable, newPath);
-    // }
-
     static final String LIBRARY_NAME = "model_shared";
-
-    // static String getPlatform() {
-    //     String os_name = System.getProperty("os.name").toLowerCase();
-    //     String os_arch = System.getProperty("os.arch").toLowerCase();
-
-    //     String os = "darwin";
-    //     String arch = "x86_64";
-
-    //     if (os_name.contains("win")) {
-    //         os = "win32";
-    //     }
-    //     else if (os_name.contains("linux")) {
-    //         os = "linux";
-    //     }
-
-    //     return arch + "-" + os;
-    // }
 
     static {
         try {
@@ -96,15 +59,6 @@ public class ModelImporter {
             System.out.println("FATAL: " + e.getMessage());
         }
     }
-
-    // public static class ModelPointer extends PointerType {
-    //     public ModelPointer() { super(); }
-    //     public ModelPointer(Pointer p) { super(p); }
-    //     @Override
-    //     public void finalize() {
-    //         SPINE_Destroy(this);
-    //     }
-    // }
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -142,19 +96,6 @@ public class ModelImporter {
         public Transform() {super();}
     }
 
-
-    static public class TestInfo extends Structure {
-        public static class ByReference extends TestInfo implements Structure.ByReference {}
-        public String name;
-        protected List getFieldOrder() { return Arrays.asList(new String[] {"name"});}
-        public TestInfo() {}
-
-        @SuppressWarnings("unchecked")
-        public TestInfo[] castToArray(int size) {
-            return (TestInfo[])super.toArray(size);
-        }
-    }
-
     static public class Mesh extends Structure {
         public static class ByReference extends Mesh implements Structure.ByReference {}
 
@@ -171,12 +112,13 @@ public class ModelImporter {
 
         public int         vertexCount;
         public String      material;
+        public String      name;
 
         protected List getFieldOrder() {
             return Arrays.asList(new String[] {
                 "positions","normals","tangents","colors","weights","bones",
                 "texCoords0NumComponents","texCoords0","texCoords1NumComponents","texCoords1",
-                "vertexCount","material"
+                "vertexCount","material","name"
             });
         }
         public Mesh() {}
@@ -203,6 +145,10 @@ public class ModelImporter {
         public Model[] castToArray(int size) {
             return (Model[])super.toArray(size);
         }
+
+        public Mesh[] getMeshes() {
+            return this.meshes.castToArray(this.meshesCount);
+        }
     }
 
     static public class Bone extends Structure {
@@ -210,7 +156,7 @@ public class ModelImporter {
 
         public Transform            invBindPose;
         public String               name;
-        public Pointer              node;
+        public Node.ByReference     node;
 
         protected List getFieldOrder() {
             return Arrays.asList(new String[] {"invBindPose","name","node"});
@@ -239,6 +185,10 @@ public class ModelImporter {
         public Skin[] castToArray(int size) {
             return (Skin[])super.toArray(size);
         }
+
+        public Bone[] getBones() {
+            return this.bones.castToArray(this.bonesCount);
+        }
     }
 
     static public class Node extends Structure {
@@ -249,7 +199,6 @@ public class ModelImporter {
         public Model.ByReference    model;
         public Skin.ByReference     skin;
         public Node.ByReference     parent;
-        //public Node.ByReference[]     children = new Node.ByReference[];
         public Pointer              children;
         public int                  childrenCount;
 
@@ -257,14 +206,29 @@ public class ModelImporter {
             return Arrays.asList(new String[] {
                 "transform", "name",
                 "model","skin","parent","children","childrenCount"
-                //"parent", "children", "childrenCount"
             });
         }
         public Node() {}
+        public Node(Pointer p) {
+            super(p);
+        }
 
         @SuppressWarnings("unchecked")
         public Node[] castToArray(int size) {
             return (Node[])super.toArray(size);
+        }
+
+        public Node[] getChildren() {
+            Pointer[] childPointers = this.children.getPointerArray(0, this.childrenCount);
+            Node[] childNodes = new Node[this.childrenCount];
+
+            int i = 0;
+            for (Pointer p : childPointers) {
+                Node node = new Node(p);
+                node.read();
+                childNodes[i++] = node;
+            }
+            return childNodes;
         }
     }
 
@@ -324,50 +288,86 @@ public class ModelImporter {
         public Animation[] castToArray(int size) {
             return (Animation[])super.toArray(size);
         }
+
+        public NodeAnimation[] getNodeAnimations() {
+            return this.nodeAnimations.castToArray(this.nodeAnimationsCount);
+        }
     }
 
     static public class Scene extends Structure {
         public Pointer opaqueSceneData;
         public Pointer destroyFn;
 
-        public TestInfo.ByReference     testInfos;
-        public int                      testInfosCount;
-
         public Node.ByReference         nodes;
         public int                      nodesCount;
 
-        // public Model.ByReference        models;
-        // public int                      modelsCount;
+        public Model.ByReference        models;
+        public int                      modelsCount;
 
-        // public Skin.ByReference         skins;
-        // public int                      skinsCount;
+        public Skin.ByReference         skins;
+        public int                      skinsCount;
 
-        // public Node.ByReference         rootNodes;
-        // public int                      rootNodesCount;
+        public Pointer                  rootNodes;
+        public int                      rootNodesCount;
 
-        // public Animation.ByReference    animations;
-        // public int                      animationsCount;
+        public Animation.ByReference    animations;
+        public int                      animationsCount;
 
         protected List getFieldOrder() {
             return Arrays.asList(new String[] {
                 "opaqueSceneData", "destroyFn",
-                "testInfos", "testInfosCount",
                 "nodes", "nodesCount",
-                // "models", "modelsCount",
-                // "skins", "skinsCount",
-                // "rootNodes", "rootNodesCount",
-                // "animations", "animationsCount",
+                "models", "modelsCount",
+                "skins", "skinsCount",
+                "rootNodes", "rootNodesCount",
+                "animations", "animationsCount",
             });
         }
-        // public Scene(Pointer p) {
-        //     super(p);
-        // }
+
         public Scene() {super();}
+
+        public Node[] getNodes() {
+            return this.nodes.castToArray(this.nodesCount);
+        }
+
+        public Node[] getRootNodes() {
+            Pointer[] rootPointers = this.rootNodes.getPointerArray(0, this.rootNodesCount);
+            Node[] rootNodes = new Node[this.rootNodesCount];
+
+            int i = 0;
+            for (Pointer p : rootPointers) {
+                Node node = new Node(p);
+                node.read();
+                rootNodes[i++] = node;
+            }
+            return rootNodes;
+        }
+
+        public Skin[] getSkins() {
+            return this.skins.castToArray(this.skinsCount);
+        }
+
+        public Model[] getModels() {
+            return this.models.castToArray(this.modelsCount);
+        }
+
+        public Animation[] getAnimations() {
+            return this.animations.castToArray(this.animationsCount);
+        }
     }
 
 
     ////////////////////////////////////////////////////////////////////////////////
-
+    public static native void AssertSizes(int sz_transform,
+                                         int sz_mesh,
+                                         int sz_model,
+                                         int sz_bone,
+                                         int sz_skin,
+                                         int sz_node,
+                                         int sz_keyframe,
+                                         int sz_nodeanimation,
+                                         int sz_animation,
+                                         int sz_scene);
     public static native Scene LoadFromBuffer(Options options, String suffix, Buffer buffer, int bufferSize);
     public static native Scene LoadFromPath(Options options, String path);
     public static native void DestroyScene(Scene scene);
@@ -460,17 +460,75 @@ public class ModelImporter {
     //     }
     // }
 
-    // private static void DebugPrintBones(Bone[] bones) {
-    //     for (Bone bone : bones) {
-    //         if (bone.parent == -1) {
-    //             DebugPrintBone(bone, bones, 0);
-    //         }
-    //     }
-    // }
+    private static void PrintIndent(int indent) {
+        for (int i = 0; i < indent; ++i) {
+            System.out.printf("  ");
+        }
+    }
 
-    // static int size(Class<? extends Structure> type) {
-    //   return size(type, null);
-    // }
+    private static void DebugPrintTree(Node node, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Node: %s\n", node.name);
+
+        for (Node child : node.getChildren()) {
+            DebugPrintTree(child, indent+1);
+        }
+    }
+
+    private static void DebugPrintMesh(Mesh mesh, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Mesh: %s\n", mesh.name);
+        PrintIndent(indent+1);
+        System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
+        PrintIndent(indent+1);
+        System.out.printf("Material: %s\n", mesh.material);
+    }
+
+    private static void DebugPrintModel(Model model, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Model: %s\n", model.name);
+
+        for (Mesh mesh : model.getMeshes()) {
+            DebugPrintMesh(mesh, indent+1);
+        }
+    }
+
+    private static void DebugPrintNodeAnimation(NodeAnimation nodeAnimation, int indent) {
+        PrintIndent(indent);
+        System.out.printf("node: %s num keys: t: %d  r: %d  s: %d\n", nodeAnimation.node.name,
+            nodeAnimation.translationKeysCount,
+            nodeAnimation.rotationKeysCount,
+            nodeAnimation.scaleKeysCount);
+    }
+
+    private static void DebugPrintAnimation(Animation animation, int indent) {
+        PrintIndent(indent);
+        System.out.printf("animation: %s\n", animation.name);
+
+        for (NodeAnimation nodeAnim : animation.getNodeAnimations()) {
+            DebugPrintNodeAnimation(nodeAnim, indent+1);
+        }
+    }
+
+    private static <T extends Structure> int sizeof(Class<T> cls)
+    {
+        return Structure.newInstance(cls).size();
+    }
+
+    private static void CheckSizes()
+    {
+        AssertSizes(sizeof(Transform.class),
+                    sizeof(Mesh.class),
+                    sizeof(Model.class),
+                    sizeof(Bone.class),
+                    sizeof(Skin.class),
+                    sizeof(Node.class),
+                    sizeof(KeyFrame.class),
+                    sizeof(NodeAnimation.class),
+                    sizeof(Animation.class),
+                    sizeof(Scene.class));
+
+    }
 
     // Used for testing functions
     // See ./com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/test_model_importer.sh
@@ -482,41 +540,57 @@ public class ModelImporter {
             return;
         }
 
-        System.out.printf("sizeof(Transform) == %d\n", Structure.newInstance(Transform.class).size());
-        System.out.printf("sizeof(Mesh) == %d\n", Structure.newInstance(Mesh.class).size());
-        System.out.printf("sizeof(Model) == %d\n", Structure.newInstance(Model.class).size());
-        System.out.printf("sizeof(Bone) == %d\n", Structure.newInstance(Bone.class).size());
-        System.out.printf("sizeof(Skin) == %d\n", Structure.newInstance(Skin.class).size());
-        System.out.printf("sizeof(Node) == %d\n", Structure.newInstance(Node.class).size());
-        System.out.printf("sizeof(KeyFrame) == %d\n", Structure.newInstance(KeyFrame.class).size());
-        System.out.printf("sizeof(NodeAnimation) == %d\n", Structure.newInstance(NodeAnimation.class).size());
-        System.out.printf("sizeof(Animation) == %d\n", Structure.newInstance(Animation.class).size());
-        System.out.printf("sizeof(Scene) == %d\n", Structure.newInstance(Scene.class).size());
-
+        CheckSizes();
 
         String path = args[0];       // .glb
 
         Options options = new Options();
         Scene scene = LoadFromPath(options, path);
 
-        // if (scene != null) {
-        //     System.out.printf("Loaded %s\n", path);
-        // } else {
-        //     System.err.printf("Failed to load %s\n", path);
-        //     return;
-        // }
-
-        //Node[] nodes = scene.nodes.getValue().toArray(scene.nodesCount);
-
-        //Node[] nodes = scene.nodes.castToArray(scene.nodesCount);
-        //System.out.printf("nodes: %d\n", (int)scene.nodes);
+        System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Nodes: %d\n", scene.nodesCount);
-        Node[] nodes = scene.nodes.castToArray(scene.nodesCount);
-        for (Node node : nodes)
+        for (Node node : scene.getNodes())
         {
-            System.out.printf("Node: %s\n", node.name != null ? node.name : "null");
+            System.out.printf("Node: %s\n", node.name);
         }
+
+        System.out.printf("--------------------------------\n");
+
+        for (Node root : scene.getRootNodes()) {
+            System.out.printf("Root Node: %s\n", root.name);
+            DebugPrintTree(root, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Skins: %d\n", scene.skinsCount);
+        for (Skin skin : scene.getSkins())
+        {
+            System.out.printf("Skin: %s\n", skin.name);
+            for (Bone bone : skin.getBones())
+            {
+                PrintIndent(1);
+                //System.out.printf("Bone: %s\n", bone.name);
+                System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
+            }
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Models: %d\n", scene.modelsCount);
+        for (Model model : scene.getModels()) {
+            DebugPrintModel(model, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Animations: %d\n", scene.animationsCount);
+        for (Animation animation : scene.getAnimations()) {
+            DebugPrintAnimation(animation, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
 
         /*
         SpinePointer p = new SpinePointer(spine_file);

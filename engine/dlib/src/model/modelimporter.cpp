@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +38,7 @@ static void DestroyMesh(Mesh* mesh)
     delete[] mesh->m_TexCoord0;
     delete[] mesh->m_TexCoord1;
     free((void*)mesh->m_Material);
+    free((void*)mesh->m_Name);
 }
 
 static void DestroyModel(Model* model)
@@ -108,14 +110,61 @@ Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t
     if (dmStrCaseCmp(suffix, "gltf") == 0 || dmStrCaseCmp(suffix, "glb") == 0)
         return LoadGltfFromBuffer(options, data, file_size);
 
-    printf("ModelImpoerter: File type not supported: %s\n", suffix);
+    printf("ModelImporter: File type not supported: %s\n", suffix);
     return 0;
+}
+
+static void ReportSizes()
+{
+    dmLogWarning("C sizes:");
+    dmLogWarning("sizeof(Transform) == %d", (uint32_t)sizeof(dmTransform::Transform));
+    dmLogWarning("sizeof(Mesh) == %d", (uint32_t)sizeof(Mesh));
+    dmLogWarning("sizeof(Model) == %d", (uint32_t)sizeof(Model));
+    dmLogWarning("sizeof(Bone) == %d", (uint32_t)sizeof(Bone));
+    dmLogWarning("sizeof(Skin) == %d", (uint32_t)sizeof(Skin));
+    dmLogWarning("sizeof(Node) == %d", (uint32_t)sizeof(Node));
+    dmLogWarning("sizeof(KeyFrame) == %d", (uint32_t)sizeof(KeyFrame));
+    dmLogWarning("sizeof(NodeAnimation) == %d", (uint32_t)sizeof(NodeAnimation));
+    dmLogWarning("sizeof(Animation) == %d", (uint32_t)sizeof(Animation));
+    dmLogWarning("sizeof(Scene) == %d", (uint32_t)sizeof(Scene));
+}
+
+static void AssertSize(const char* name, uint32_t java_sz, uint32_t c_size)
+{
+    if (java_sz != c_size) {
+        ReportSizes();
+
+        dmLogError("Sizes for struct %s differ: java: %u  c: %u", name, java_sz, c_size);
+    }
+    assert(java_sz == c_size);
+}
+
+void AssertSizes(uint32_t sz_transform,
+                 uint32_t sz_mesh,
+                 uint32_t sz_model,
+                 uint32_t sz_bone,
+                 uint32_t sz_skin,
+                 uint32_t sz_node,
+                 uint32_t sz_keyframe,
+                 uint32_t sz_nodeanimation,
+                 uint32_t sz_animation,
+                 uint32_t sz_scene)
+{
+    AssertSize("Transform",     sz_transform,       (uint32_t)sizeof(dmTransform::Transform));
+    AssertSize("Mesh",          sz_mesh,            (uint32_t)sizeof(Mesh));
+    AssertSize("Model",         sz_model,           (uint32_t)sizeof(Model));
+    AssertSize("Bone",          sz_bone,            (uint32_t)sizeof(Bone));
+    AssertSize("Skin",          sz_skin,            (uint32_t)sizeof(Skin));
+    AssertSize("Node",          sz_node,            (uint32_t)sizeof(Node));
+    AssertSize("KeyFrame",      sz_keyframe,        (uint32_t)sizeof(KeyFrame));
+    AssertSize("NodeAnimation", sz_nodeanimation,   (uint32_t)sizeof(NodeAnimation));
+    AssertSize("Animation",     sz_animation,       (uint32_t)sizeof(Animation));
+    AssertSize("Scene",         sz_scene,           (uint32_t)sizeof(Scene));
 }
 
 Scene* LoadFromPath(Options* options, const char* path)
 {
     const char* suffix = strrchr(path, '.') + 1;
-
 
     uint32_t file_size = 0;
     void* data = ReadFile(path, &file_size);

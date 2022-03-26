@@ -40,6 +40,7 @@ namespace dmModelImporter
         float*      m_TexCoord1;              // m_TexCoord1NumComponents floats per vertex
         uint32_t    m_VertexCount;
         const char* m_Material;
+        const char* m_Name;
     };
 
     struct Model
@@ -120,13 +121,14 @@ namespace dmModelImporter
         Skin*       m_Skins;
         uint32_t    m_SkinsCount;
 
-        //Node*       m_Skeleton; // The skeleton top node
-
         Node**      m_RootNodes;
         uint32_t    m_RootNodesCount;
 
         Animation*  m_Animations;
         uint32_t    m_AnimationsCount;
+
+        //Node*       m_Skeleton; // The skeleton top node
+
     };
 
     struct Options
@@ -135,6 +137,17 @@ namespace dmModelImporter
 
         int dummy; // for the java binding to not be zero size
     };
+
+    extern "C" DM_DLLEXPORT void AssertSizes(uint32_t sz_transform,
+                                             uint32_t sz_mesh,
+                                             uint32_t sz_model,
+                                             uint32_t sz_bone,
+                                             uint32_t sz_skin,
+                                             uint32_t sz_node,
+                                             uint32_t sz_keyframe,
+                                             uint32_t sz_nodeanimation,
+                                             uint32_t sz_animation,
+                                             uint32_t sz_scene);
 
     extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t file_size);
 
