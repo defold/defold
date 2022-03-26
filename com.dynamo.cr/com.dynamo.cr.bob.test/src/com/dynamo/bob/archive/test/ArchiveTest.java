@@ -35,6 +35,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
