@@ -1012,6 +1012,7 @@ namespace dmGameSystem
         step_world_context.m_TriggerExitedUserData = world;
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
+        step_world_context.m_FixedTimeStep = physics_context->m_UseFixedTimestep;
 
         step_world_context.m_DT = params.m_UpdateContext->m_DT;
 

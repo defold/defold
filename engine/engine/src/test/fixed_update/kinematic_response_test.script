@@ -1,0 +1,24 @@
+go.property("debug_gui_url", msg.url("/go#debug"))
+
+function init(self)
+end
+
+function final(self)
+end
+
+function update(self, dt)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if sender == msg.url(nil, nil, "collisionobject1") then
+			msg.post("go#fixed_update", "inc_collision_response")
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+end
+
+function on_reload(self)
+end
