@@ -111,7 +111,7 @@ jobs:
     strategy:
       matrix:
         platform: [arm64-darwin, x86_64-ios]
-    runs-on: ubuntu-20.04
+    runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
