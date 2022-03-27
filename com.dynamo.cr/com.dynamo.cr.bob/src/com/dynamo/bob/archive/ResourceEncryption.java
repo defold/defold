@@ -24,17 +24,16 @@ import java.util.List;
 
 public class ResourceEncryption {
 
-	private static ResourceEncryptionPlugin encryptionPlugin;
-
-	// create default encryption implementation
-	private static ResourceEncryptionPlugin defaultEncryption = new ResourceEncryptionPlugin() {
+	private static class DefaultResourceEncyption extends ResourceEncryptionPlugin {
 		private final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
 	
 		@Override
 		public byte[] encrypt(byte[] resource) throws Exception {
 			return Crypt.encryptCTR(resource, KEY);
 		}
-	};
+	}
+
+	private static ResourceEncryptionPlugin encryptionPlugin;
 
 	/**
 	 * Encrypt a resource
@@ -53,7 +52,7 @@ public class ResourceEncryption {
 				}
 				
 				// default or custom encryption
-				encryptionPlugin = encryptionPlugins.isEmpty() ? defaultEncryption : encryptionPlugins.get(0);
+				encryptionPlugin = encryptionPlugins.isEmpty() ? new DefaultResourceEncyption() : encryptionPlugins.get(0);
 			}
 
 			// do the encryption

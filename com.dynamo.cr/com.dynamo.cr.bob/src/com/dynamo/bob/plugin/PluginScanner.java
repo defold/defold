@@ -29,7 +29,12 @@ public class PluginScanner {
 
 	/**
 	 * Find and create instances of classes extending a specific base class
-	 * and located within a specific package
+	 * and located within a specific package. The class must:
+	 * 
+	 * - Have visibility other than private
+	 * - Not be abstract
+	 * - Extend the base class
+	 * 
 	 * @param packageName 
 	 * @param pluginBaseClass
 	 * @return List of instances
@@ -39,15 +44,20 @@ public class PluginScanner {
 
 		IClassScanner scanner = Project.getClassLoaderScanner();
 		if (scanner == null) {
+			Bob.verbose("PluginScanner has no class loader scanner");
 			return plugins;
 		}
+
+		Bob.verbose("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
 		
 		Set<String> classNames = scanner.scan(packageName);
 		for (String className : classNames) {
 			try {
 				Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
 				// check that the class extends or is of type pluginBaseClass and that it is not abstract
-				if (klass.isAssignableFrom(pluginBaseClass) && !Modifier.isAbstract(klass.getModifiers())) {
+				boolean isAbstract = Modifier.isAbstract(klass.getModifiers());
+				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
+				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
 					Bob.verbose("Found plugin " + className);
 					plugins.add((T)klass.newInstance());
 				}
