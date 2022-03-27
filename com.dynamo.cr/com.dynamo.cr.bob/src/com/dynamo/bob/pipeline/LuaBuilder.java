@@ -46,6 +46,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
+import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
@@ -67,34 +68,6 @@ public abstract class LuaBuilder extends Builder<Void> {
     private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
     private static List<LuaBuilderPlugin> luaBuilderPlugins = null;
-
-    private void initBuilderPlugins() throws CompileExceptionError{
-        if (luaBuilderPlugins != null) {
-            return;
-        }
-
-        luaBuilderPlugins = new ArrayList<LuaBuilderPlugin>();
-        IClassScanner scanner = Project.getClassLoaderScanner();
-        Set<String> classNames = scanner.scan("com.dynamo.bob.pipeline");
-        for (String className : classNames) {
-            try {
-                Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
-                LuaBuilderPluginParams luaBuilderPluginParams = klass.getAnnotation(LuaBuilderPluginParams.class);
-                if (luaBuilderPluginParams != null) {
-                    Bob.verbose("LuBuilder found plugin " + luaBuilderPluginParams.name());
-                    LuaBuilderPlugin luaBuilderPlugin = (LuaBuilderPlugin)klass.newInstance();
-                    luaBuilderPlugins.add(luaBuilderPlugin);
-                }
-            }
-            catch(InstantiationException | IllegalAccessException e) {
-                throw new CompileExceptionError("Unable to create LuaBuilder plugin " + className, e);
-            }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
 
 
     @Override
@@ -247,10 +220,12 @@ public abstract class LuaBuilder extends Builder<Void> {
         PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertyResources);
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
-       
 
+        // create any builder plugins
+        if (luaBuilderPlugins == null) {
+            luaBuilderPlugins = PluginScanner.createPlugins("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
+        }
         // apply any builder plugins
-        initBuilderPlugins();
         for(LuaBuilderPlugin builderPlugin : luaBuilderPlugins) {
             try {
                 script = builderPlugin.build(script);
