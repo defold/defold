@@ -244,6 +244,9 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         Node* node = &scene->m_Nodes[i];
         node->m_Name = strdup(gltf_node->name);
 
+        // We link them together later
+        // node->m_Model = ...
+
         //printf("node %s:  ", gltf_node->name);
 
         dmVMath::Vector3 scale = dmVMath::Vector3(1,1,1);
@@ -422,6 +425,9 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
 
 static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 {
+    if (gltf_data->skins_count == 0)
+        return;
+
     scene->m_SkinsCount = gltf_data->skins_count;
     scene->m_Skins = new Skin[scene->m_SkinsCount];
     memset(scene->m_Skins, 0, sizeof(Skin)*scene->m_SkinsCount);
@@ -455,10 +461,12 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
                 assert(false);
             }
         }
+
+        // LOAD SKELETON?
     }
 }
 
-static void LinkBonesWithNodes(Scene* scene, cgltf_data* gltf_data)
+static void LinkNodesWithBones(Scene* scene, cgltf_data* gltf_data)
 {
     for (uint32_t i = 0; i < gltf_data->skins_count; ++i)
     {
@@ -473,6 +481,24 @@ static void LinkBonesWithNodes(Scene* scene, cgltf_data* gltf_data)
         }
     }
 }
+
+static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
+{
+    for (uint32_t i = 0; i < gltf_data->nodes_count; ++i)
+    {
+        cgltf_node* gltf_node = &gltf_data->nodes[i];
+        Node* node = &scene->m_Nodes[i];
+
+        if (gltf_node->mesh == 0)
+            continue;
+
+        uint32_t index = gltf_node->mesh - gltf_data->meshes;
+        assert(index < gltf_data->meshes_count);
+
+        node->m_Model = &scene->m_Models[index];
+    }
+}
+
 
 static bool AreEqual(const float* a, const float* b, uint32_t num_components, float epsilon)
 {
@@ -560,6 +586,9 @@ static uint32_t CountAnimatedNodes(cgltf_animation* animation, dmHashTable64<uin
 
 static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
 {
+    if (gltf_data->animations_count == 0)
+        return;
+
     scene->m_AnimationsCount = gltf_data->animations_count;
     scene->m_Animations = new Animation[scene->m_AnimationsCount];
 
@@ -623,8 +652,9 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     LoadSkins(scene, data);
     LoadNodes(scene, data);
-    LinkBonesWithNodes(scene, data);
     LoadMeshes(scene, data);
+    LinkNodesWithBones(scene, data);
+    LinkMeshesWithNodes(scene, data);
     LoadAnimations(scene, data);
 
     //DebugStructScene(scene);
