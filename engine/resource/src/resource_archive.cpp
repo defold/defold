@@ -408,12 +408,9 @@ namespace dmResourceArchive
 
     Result DecryptBuffer(void* buffer, uint32_t buffer_len)
     {
-        dmLogInfo("DecryptBuffer");
         if (g_ResourceDecryption == 0)
         {
-            dmLogInfo("DecryptBuffer default encryption");
             dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
-            dmLogInfo("DecryptBuffer after default encryption");
             if (cr != dmCrypt::RESULT_OK)
             {
                 return RESULT_UNKNOWN;
@@ -421,9 +418,7 @@ namespace dmResourceArchive
             return RESULT_OK;
         }
 
-        dmLogInfo("DecryptBuffer custom encryption");
         Result result = g_ResourceDecryption(buffer, buffer_len);
-        dmLogInfo("DecryptBuffer after custom encryption");
         return result;
     }
 
@@ -440,7 +435,6 @@ namespace dmResourceArchive
 
     Result ReadEntryFromArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const EntryData* entry, void* buffer)
     {
-        dmLogInfo("ReadEntryFromArchive");
         (void)hash;
         (void)hash_len;
         uint32_t size = entry->m_ResourceSize;
