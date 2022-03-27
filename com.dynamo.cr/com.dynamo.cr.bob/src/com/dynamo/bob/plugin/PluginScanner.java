@@ -31,7 +31,7 @@ public class PluginScanner {
 	 * Find and create instances of classes extending a specific base class
 	 * and located within a specific package. The class must:
 	 * 
-	 * - Have visibility other than private
+	 * - Not be private
 	 * - Not be abstract
 	 * - Extend the base class
 	 * 
