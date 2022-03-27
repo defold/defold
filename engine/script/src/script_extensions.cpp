@@ -67,14 +67,17 @@ namespace dmScript
         const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
         uint32_t i = 0;
         while (ed) {
-            dmExtension::Params p;
-            p.m_ConfigFile = GetConfigFile(context);
-            p.m_L = L;
-            dmExtension::Result r = ed->Initialize(&p);
-            if (r == dmExtension::RESULT_OK) {
-                extension_data->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-            } else {
-                dmLogError("Failed to initialize extension: %s", ed->m_Name);
+            if (ed->Initialize)
+            {
+                dmExtension::Params p;
+                p.m_ConfigFile = GetConfigFile(context);
+                p.m_L = L;
+                dmExtension::Result r = ed->Initialize(&p);
+                if (r == dmExtension::RESULT_OK) {
+                    extension_data->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
+                } else {
+                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
+                }
             }
             ++i;
             ed = ed->m_Next;
