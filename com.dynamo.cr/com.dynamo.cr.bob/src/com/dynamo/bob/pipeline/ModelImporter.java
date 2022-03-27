@@ -86,6 +86,7 @@ public class ModelImporter {
     }
 
     static public class Transform extends Structure {
+        // The order is determined by dmTransform::Transform
         public Vec4 rotation;
         public Vec4 translation;
         public Vec4 scale;
@@ -126,6 +127,43 @@ public class ModelImporter {
         @SuppressWarnings("unchecked")
         public Mesh[] castToArray(int size) {
             return (Mesh[])super.toArray(size);
+        }
+
+        private float[] getFloatArray(Pointer p, int count) {
+            if (p == null)
+                return null;
+            return p.getFloatArray(0, count);
+        }
+        public float[] getPositions() {
+            return getFloatArray(this.positions, this.vertexCount*3);
+        }
+        public float[] getNormals() {
+            return getFloatArray(this.normals, this.vertexCount*3);
+        }
+        public float[] getTangents() {
+            return getFloatArray(this.tangents, this.vertexCount*3);
+        }
+        public float[] getColors() {
+            return getFloatArray(this.tangents, this.vertexCount*4);
+        }
+        public float[] getWeights() {
+            return getFloatArray(this.weights, this.vertexCount*4);
+        }
+        public int[] getBones() {
+            if (this.bones == null)
+                return null;
+            return this.bones.getIntArray(0, this.vertexCount*4);
+        }
+
+        public float[] getTexCoords(int index) {
+            assert(index < 2);
+            Pointer p = this.texCoords0;
+            int num_elements = this.texCoords0NumComponents;
+            if (index == 1) {
+                p = this.texCoords1;
+                num_elements = this.texCoords1NumComponents;
+            }
+            return getFloatArray(p, this.vertexCount*num_elements);
         }
     }
 
@@ -270,6 +308,16 @@ public class ModelImporter {
         public NodeAnimation[] castToArray(int size) {
             return (NodeAnimation[])super.toArray(size);
         }
+
+        public KeyFrame[] getTranslationKeys() {
+            return this.translationKeys.castToArray(this.translationKeysCount);
+        }
+        public KeyFrame[] getRotationKeys() {
+            return this.rotationKeys.castToArray(this.rotationKeysCount);
+        }
+        public KeyFrame[] getScaleKeys() {
+            return this.scaleKeys.castToArray(this.scaleKeysCount);
+        }
     }
 
     static public class Animation extends Structure {
@@ -372,93 +420,12 @@ public class ModelImporter {
     public static native Scene LoadFromPath(Options options, String path);
     public static native void DestroyScene(Scene scene);
 
-
-    // public static native AABB.ByValue SPINE_GetAABB(SpinePointer spine);
-
-    // ////////////////////////////////////////////////////////////////////////////////
-
-    // static public class SpineBone extends Structure {
-    //     public String name;
-    //     public int parent;
-    //     public float posX, posY, rotation, scaleX, scaleY, length;
-
-    //     protected List getFieldOrder() {
-    //         return Arrays.asList(new String[] {"name", "parent", "posX", "posY", "rotation", "scaleX", "scaleY", "length"});
-    //     }
-    //     public SpineBone() {
-    //         this.name = "<empty>";
-    //         this.parent = -1;
-    //         this.posX = this.posY = 0.0f;
-    //         this.scaleX = this.scaleY = 1.0f;
-    //         this.rotation = 0.0f;
-    //         this.length = 100.0f;
-    //     }
-    // }
-
-    // static public class Bone {
-    //     public String name;
-    //     public int   index;
-    //     public int   parent;
-    //     public int[] children;
-    //     public float posX, posY, rotation, scaleX, scaleY, length;
-    // }
-
-    // public static native int SPINE_GetNumBones(SpinePointer spine);
-    // public static native String SPINE_GetBoneInternal(SpinePointer spine, int index, SpineBone bone);
-    // public static native int SPINE_GetNumChildBones(SpinePointer spine, int bone);
-    // public static native int SPINE_GetChildBone(SpinePointer spine, int bone, int index);
-
-    // protected static Bone SPINE_GetBone(SpinePointer spine, int index) {
-    //     Bone bone = new Bone();
-    //     SpineBone internal = new SpineBone();
-    //     SPINE_GetBoneInternal(spine, index, internal);
-    //     bone.index = index;
-    //     bone.name = internal.name;
-    //     bone.posX = internal.posX;
-    //     bone.posY = internal.posY;
-    //     bone.scaleX = internal.scaleX;
-    //     bone.scaleY = internal.scaleY;
-    //     bone.rotation = internal.rotation;
-    //     bone.length = internal.length;
-    //     bone.parent = internal.parent;
-
-    //     int num_children = SPINE_GetNumChildBones(spine, index);
-    //     bone.children = new int[num_children];
-
-    //     for (int i = 0; i < num_children; ++i) {
-    //         bone.children[i] = SPINE_GetChildBone(spine, index, i);
-    //     }
-    //     return bone;
-    // }
-
-    // public static Bone[] SPINE_GetBones(SpinePointer spine) {
-    //     int num_bones = SPINE_GetNumBones(spine);
-    //     Bone[] bones = new Bone[num_bones];
-    //     for (int i = 0; i < num_bones; ++i) {
-    //         bones[i] = SPINE_GetBone(spine, i);
-    //     }
-    //     return bones;
-    // }
-
     // ////////////////////////////////////////////////////////////////////////////////
 
     private static void Usage() {
         System.out.printf("Usage: ModelImporter.class <model_file>\n");
         System.out.printf("\n");
     }
-
-    // private static void DebugPrintBone(Bone bone, Bone[] bones, int indent) {
-    //     String tab = " ".repeat(indent * 4);
-    //     System.out.printf("Bone:%s %s: idx: %d parent = %d, pos: %f, %f  scale: %f, %f  rot: %f  length: %f\n",
-    //             tab, bone.name, bone.index, bone.parent, bone.posX, bone.posY, bone.scaleX, bone.scaleY, bone.rotation, bone.length);
-
-    //     int num_children = bone.children.length;
-    //     for (int i = 0; i < num_children; ++i){
-    //         int child_index = bone.children[i];
-    //         Bone child = bones[child_index];
-    //         DebugPrintBone(child, bones, indent+1);
-    //     }
-    // }
 
     private static void PrintIndent(int indent) {
         for (int i = 0; i < indent; ++i) {
@@ -475,6 +442,46 @@ public class ModelImporter {
         }
     }
 
+    private static void DebugPrintFloatArray(int indent, String name, float[] arr, int count, int elements)
+    {
+        if (arr == null)
+            return;
+        PrintIndent(indent);
+        System.out.printf("%s:\t", name);
+        for (int i = 0; i < count; ++i) {
+            System.out.printf("(");
+            for (int e = 0; e < elements; ++e) {
+                System.out.printf("%f", arr[i*elements + e]);
+                if (e < (elements-1))
+                    System.out.printf(", ");
+            }
+            System.out.printf(")");
+            if (i < (count-1))
+                System.out.printf(", ");
+        }
+        System.out.printf("\n");
+    }
+
+    private static void DebugPrintIntArray(int indent, String name, int[] arr, int count, int elements)
+    {
+        if (arr == null)
+            return;
+        PrintIndent(indent);
+        System.out.printf("%s:\t", name);
+        for (int i = 0; i < count; ++i) {
+            System.out.printf("(");
+            for (int e = 0; e < elements; ++e) {
+                System.out.printf("%d", arr[i*elements + e]);
+                if (e < (elements-1))
+                    System.out.printf(", ");
+            }
+            System.out.printf(")");
+            if (i < (count-1))
+                System.out.printf(", ");
+        }
+        System.out.printf("\n");
+    }
+
     private static void DebugPrintMesh(Mesh mesh, int indent) {
         PrintIndent(indent);
         System.out.printf("Mesh: %s\n", mesh.name);
@@ -482,6 +489,18 @@ public class ModelImporter {
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
         System.out.printf("Material: %s\n", mesh.material);
+
+        // Print out the first ten of each array
+        int max_count = 10;
+        DebugPrintFloatArray(indent+1, "positions", mesh.getPositions(), max_count, 3);
+        DebugPrintFloatArray(indent+1, "normals", mesh.getNormals(), max_count, 3);
+        DebugPrintFloatArray(indent+1, "tangents", mesh.getTangents(), max_count, 3);
+        DebugPrintFloatArray(indent+1, "colors", mesh.getColors(), max_count, 4);
+        DebugPrintFloatArray(indent+1, "weights", mesh.getWeights(), max_count, 4);
+        DebugPrintIntArray(indent+1, "bones", mesh.getBones(), max_count, 4);
+
+        DebugPrintFloatArray(indent+1, "texCoords0", mesh.getTexCoords(0), max_count, mesh.texCoords0NumComponents);
+        DebugPrintFloatArray(indent+1, "texCoords1", mesh.getTexCoords(1), max_count, mesh.texCoords1NumComponents);
     }
 
     private static void DebugPrintModel(Model model, int indent) {
@@ -493,12 +512,27 @@ public class ModelImporter {
         }
     }
 
+    private static void DebugPrintKeyFrames(String name, KeyFrame[] keys, int indent)
+    {
+        PrintIndent(indent);
+        System.out.printf("node: %s\t", name);
+        for (KeyFrame key : keys)
+        {
+            System.out.printf("(t=%f: %f, %f, %f, %f), ", key.time, key.value[0],key.value[1],key.value[2],key.value[3]);
+        }
+        System.out.printf("\n");
+    }
+
     private static void DebugPrintNodeAnimation(NodeAnimation nodeAnimation, int indent) {
         PrintIndent(indent);
         System.out.printf("node: %s num keys: t: %d  r: %d  s: %d\n", nodeAnimation.node.name,
             nodeAnimation.translationKeysCount,
             nodeAnimation.rotationKeysCount,
             nodeAnimation.scaleKeysCount);
+
+        DebugPrintKeyFrames("translation", nodeAnimation.getTranslationKeys(), indent+1);
+        DebugPrintKeyFrames("rotation", nodeAnimation.getRotationKeys(), indent+1);
+        DebugPrintKeyFrames("scale", nodeAnimation.getScaleKeys(), indent+1);
     }
 
     private static void DebugPrintAnimation(Animation animation, int indent) {
@@ -507,6 +541,27 @@ public class ModelImporter {
 
         for (NodeAnimation nodeAnim : animation.getNodeAnimations()) {
             DebugPrintNodeAnimation(nodeAnim, indent+1);
+        }
+    }
+
+    private static void DebugPrintBone(Bone bone, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
+
+        PrintIndent(indent+1);
+        System.out.printf("t: %f, %f, %f\n", bone.invBindPose.translation.x, bone.invBindPose.translation.y, bone.invBindPose.translation.z);
+        PrintIndent(indent+1);
+        System.out.printf("r: %f, %f, %f, %f\n", bone.invBindPose.rotation.x, bone.invBindPose.rotation.y, bone.invBindPose.rotation.z, bone.invBindPose.rotation.z);
+        PrintIndent(indent+1);
+        System.out.printf("s: %f, %f, %f\n", bone.invBindPose.scale.x, bone.invBindPose.scale.y, bone.invBindPose.scale.z);
+    }
+
+    private static void DebugPrintSkin(Skin skin, int indent) {
+        PrintIndent(indent);
+        System.out.printf("skin: %s\n", skin.name);
+
+        for (Bone bone : skin.getBones()) {
+            DebugPrintBone(bone, indent+1);
         }
     }
 
@@ -567,13 +622,7 @@ public class ModelImporter {
         System.out.printf("Num Skins: %d\n", scene.skinsCount);
         for (Skin skin : scene.getSkins())
         {
-            System.out.printf("Skin: %s\n", skin.name);
-            for (Bone bone : skin.getBones())
-            {
-                PrintIndent(1);
-                //System.out.printf("Bone: %s\n", bone.name);
-                System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
-            }
+            DebugPrintSkin(skin, 0);
         }
 
         System.out.printf("--------------------------------\n");
@@ -591,59 +640,5 @@ public class ModelImporter {
         }
 
         System.out.printf("--------------------------------\n");
-
-        /*
-        SpinePointer p = new SpinePointer(spine_file);
-
-        {
-            int i = 0;
-            for (String name : SPINE_GetAnimations(p)) {
-                System.out.printf("Animation %d: %s\n", i++, name);
-            }
-        }
-
-        {
-            int i = 0;
-            for (String name : SPINE_GetSkins(p)) {
-                System.out.printf("Skin %d: %s\n", i++, name);
-            }
-        }
-
-        Bone[] bones = SPINE_GetBones(p);
-        DebugPrintBones(bones);
-
-        SPINE_UpdateVertices(p, 0.0f);
-
-        int count = 0;
-        SpineVertex[] vertices = SPINE_GetVertexBuffer(p);
-
-        System.out.printf("Vertices: count: %d  size: %d bytes\n", vertices.length, vertices.length>0 ? vertices.length * vertices[0].size() : 0);
-
-        for (SpineVertex vertex : vertices) {
-            if (count > 10) {
-                System.out.printf(" ...\n");
-                break;
-            }
-            System.out.printf(" vertex %d: %.4f, %.4f\n", count++, vertex.x, vertex.y);
-        }
-
-        count = 0;
-        RenderObject[] ros = SPINE_GetRenderObjects(p);
-
-        System.out.printf("Render Objects: count %d\n", ros.length);
-        for (RenderObject ro : ros) {
-            if (count > 10) {
-                System.out.printf(" ...\n");
-                break;
-            }
-
-            System.out.printf(" ro %d: fw(ccw): %b  offset: %d  count: %d  constants: %d\n", count++, ro.m_FaceWindingCCW, ro.m_VertexStart, ro.m_VertexCount, ro.m_NumConstants);
-
-            for (int i = 0; i < ro.m_NumConstants && i < 2; ++i)
-            {
-                System.out.printf("    var %d: %s %.3f, %.3f, %.3f, %.3f\n", i, Long.toUnsignedString(ro.m_Constants[i].m_NameHash), ro.m_Constants[i].m_Value.x, ro.m_Constants[i].m_Value.y, ro.m_Constants[i].m_Value.z, ro.m_Constants[i].m_Value.w);
-            }
-        }
-        */
     }
 }
