@@ -40,6 +40,7 @@ namespace dmResourceArchive
         RESULT_ALREADY_STORED = -5,
         RESULT_UNKNOWN = -1000,
     };
+
     typedef Result (*FDecryptResource)(void* buffer, uint32_t buffer_len);
 
     void RegisterResourceDecryption(FDecryptResource decrypt_resource);
