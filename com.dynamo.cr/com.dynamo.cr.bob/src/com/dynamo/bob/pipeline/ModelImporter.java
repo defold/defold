@@ -111,7 +111,10 @@ public class ModelImporter {
         public int         texCoords1NumComponents; // 2 or 3
         public Pointer     texCoords1; // float2 or float3
 
+        public Pointer     indices;
+
         public int         vertexCount;
+        public int         indexCount;
         public String      material;
         public String      name;
 
@@ -119,7 +122,8 @@ public class ModelImporter {
             return Arrays.asList(new String[] {
                 "positions","normals","tangents","colors","weights","bones",
                 "texCoords0NumComponents","texCoords0","texCoords1NumComponents","texCoords1",
-                "vertexCount","material","name"
+                "indices",
+                "vertexCount","indexCount","material","name"
             });
         }
         public Mesh() {}
@@ -153,6 +157,11 @@ public class ModelImporter {
             if (this.bones == null)
                 return null;
             return this.bones.getIntArray(0, this.vertexCount*4);
+        }
+        public int[] getIndices() {
+            if (this.indices == null || this.indexCount == 0)
+                return null;
+            return this.indices.getIntArray(0, this.indexCount);
         }
 
         public float[] getTexCoords(int index) {
@@ -392,14 +401,20 @@ public class ModelImporter {
         }
 
         public Skin[] getSkins() {
+            if (this.skins == null || this.skinsCount == 0)
+                return new Skin[0];
             return this.skins.castToArray(this.skinsCount);
         }
 
         public Model[] getModels() {
+            if (this.models == null || this.modelsCount == 0)
+                return new Model[0];
             return this.models.castToArray(this.modelsCount);
         }
 
         public Animation[] getAnimations() {
+            if (this.animations == null || this.animationsCount == 0)
+                return new Animation[0];
             return this.animations.castToArray(this.animationsCount);
         }
     }

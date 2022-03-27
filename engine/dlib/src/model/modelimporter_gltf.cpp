@@ -162,7 +162,7 @@ static uint32_t* ReadAccessorUint32(cgltf_accessor* accessor, uint32_t desired_n
 
         if (!result)
         {
-            printf("couldnt read floats!\n");
+            printf("couldnt read uints!\n");
             delete[] out;
             return 0;;
         }
@@ -335,6 +335,9 @@ static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
 
+        mesh->m_IndexCount = prim->indices->count;
+        mesh->m_Indices = ReadAccessorUint32(prim->indices, 1);
+
         for (uint32_t a = 0; a < prim->attributes_count; ++a)
         {
             cgltf_attribute* attribute = &prim->attributes[a];
@@ -491,6 +494,7 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     bool all_identical = true;
 
     KeyFrame* key_frames = new KeyFrame[accessor_times->count];
+    memset(key_frames, 0, sizeof(KeyFrame)*accessor_times->count);
     for (uint32_t i = 0; i < accessor->count; ++i)
     {
         cgltf_accessor_read_float(accessor_times, i, &key_frames[i].m_Time, 1);
@@ -613,6 +617,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     }
 
     Scene* scene = new Scene;
+    memset(scene, 0, sizeof(Scene));
     scene->m_OpaqueSceneData = (void*)data;
     scene->m_DestroyFn = DestroyGltf;
 
@@ -621,6 +626,8 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     LinkBonesWithNodes(scene, data);
     LoadMeshes(scene, data);
     LoadAnimations(scene, data);
+
+    //DebugStructScene(scene);
 
     return scene;
 }

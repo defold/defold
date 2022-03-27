@@ -103,7 +103,7 @@ static void OutputNodeTree(Node* node, int indent)
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    printf("mesh  %s  vertices: %u  mat: %s  weights: %s\n", mesh->m_Name, mesh->m_VertexCount, mesh->m_Material, mesh->m_Weights?"yes":"no");
+    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s\n", mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no");
 
     // if (mesh->m_Weights)
     // {
@@ -114,6 +114,14 @@ static void OutputMesh(Mesh* mesh, int indent)
     //     }
     // }
     //printf("tris: %u  material: %s", mesh->)
+
+    // for (uint32_t i = 0; i < mesh->m_IndexCount; ++i)
+    // {
+    //     printf("%3d\t", mesh->m_Indices[i]);
+    //     if ((i % (32-1)) == 0)
+    //         printf("\n");
+    // }
+    // printf("\n");
 }
 
 static void OutputModel(Model* model, int indent)
@@ -215,6 +223,82 @@ void DebugScene(Scene* scene)
         printf("------------------------------\n");
         OutputAnimation(&scene->m_Animations[i], 1);
         printf("------------------------------\n");
+    }
+}
+
+static void DebugStructNode(Node* node, int indent)
+{
+    OutputIndent(indent); printf("Node: %p\n", node);
+    OutputIndent(indent); printf("  m_Transform: .\n");
+    OutputIndent(indent); printf("  m_Name: %p (%s)\n", node->m_Name, node->m_Name);
+    OutputIndent(indent); printf("  m_Model: %p\n", node->m_Model);
+    OutputIndent(indent); printf("  m_Skin: %p\n", node->m_Skin);
+    OutputIndent(indent); printf("  m_Parent: %p\n", node->m_Parent);
+    OutputIndent(indent); printf("  m_Children: %p\n", node->m_Children);
+    OutputIndent(indent); printf("  m_ChildrenCount: %u\n", node->m_ChildrenCount);
+}
+
+static void DebugStructMesh(Mesh* mesh, int indent)
+{
+    OutputIndent(indent); printf("Mesh: %p\n", mesh);
+    OutputIndent(indent); printf("  m_Name: %p (%s)\n", mesh->m_Name, mesh->m_Name);
+    OutputIndent(indent); printf("  m_Material: %p (%s)\n", mesh->m_Material, mesh->m_Material);
+
+    OutputIndent(indent); printf("  m_Positions: %p\n", mesh->m_Positions);
+    OutputIndent(indent); printf("  m_Normals: %p\n", mesh->m_Normals);
+    OutputIndent(indent); printf("  m_Tangents: %p\n", mesh->m_Tangents);
+    OutputIndent(indent); printf("  m_Color: %p\n", mesh->m_Color);
+    OutputIndent(indent); printf("  m_Weights: %p\n", mesh->m_Weights);
+    OutputIndent(indent); printf("  m_Bones: %p\n", mesh->m_Bones);
+
+    OutputIndent(indent); printf("  m_TexCoord0: %p\n", mesh->m_TexCoord0);
+    OutputIndent(indent); printf("  m_TexCoord0NumComponents: %u\n", mesh->m_TexCoord0NumComponents);
+    OutputIndent(indent); printf("  m_TexCoord1: %p\n", mesh->m_TexCoord1);
+    OutputIndent(indent); printf("  m_TexCoord1NumComponents: %u\n", mesh->m_TexCoord1NumComponents);
+
+    OutputIndent(indent); printf("  m_Indices: %p\n", mesh->m_Indices);
+    OutputIndent(indent); printf("  m_VertexCount: %u\n", mesh->m_VertexCount);
+    OutputIndent(indent); printf("  m_IndexCount: %u\n", mesh->m_IndexCount);
+}
+
+static void DebugStructModel(Model* model, int indent)
+{
+    OutputIndent(indent); printf("Model: %p\n", model);
+    OutputIndent(indent); printf("  m_Name: %p (%s)\n", model->m_Name, model->m_Name);
+    OutputIndent(indent); printf("  m_Meshes: %p\n", model->m_Meshes);
+    OutputIndent(indent); printf("  m_MeshesCount: %u\n", model->m_MeshesCount);
+
+    for (uint32_t i = 0; i < model->m_MeshesCount; ++i) {
+        DebugStructMesh(&model->m_Meshes[i], indent+1);
+        OutputIndent(indent+1); printf("-------------------------------\n");
+    }
+
+}
+
+void DebugStructScene(Scene* scene)
+{
+    printf("Scene: %p\n", scene);
+    printf("  m_OpaqueSceneData: %p\n", scene->m_OpaqueSceneData);
+    printf("  m_DestroyFn: %p\n", scene->m_DestroyFn);
+    printf("  m_Nodes: %p\n", scene->m_Nodes);
+    printf("  m_NodesCount: %u\n", scene->m_NodesCount);
+    printf("  m_Models: %p\n", scene->m_Models);
+    printf("  m_ModelsCount: %u\n", scene->m_ModelsCount);
+    printf("  m_Skins: %p\n", scene->m_Skins);
+    printf("  m_SkinsCount: %u\n", scene->m_SkinsCount);
+    printf("  m_RootNodes: %p\n", scene->m_RootNodes);
+    printf("  m_RootNodesCount: %u\n", scene->m_RootNodesCount);
+    printf("  m_Animations: %p\n", scene->m_Animations);
+    printf("  m_AnimationsCount: %u\n", scene->m_AnimationsCount);
+
+    printf("-------------------------------\n");
+    for (uint32_t i = 0; i < scene->m_NodesCount; ++i) {
+        DebugStructNode(&scene->m_Nodes[i], 1);
+        printf("-------------------------------\n");
+    }
+    for (uint32_t i = 0; i < scene->m_ModelsCount; ++i) {
+        DebugStructModel(&scene->m_Models[i], 1);
+        printf("-------------------------------\n");
     }
 }
 

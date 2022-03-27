@@ -38,7 +38,9 @@ namespace dmModelImporter
         float*      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
         uint32_t    m_TexCoord1NumComponents; // e.g 2 or 3
         float*      m_TexCoord1;              // m_TexCoord1NumComponents floats per vertex
+        uint32_t*   m_Indices;
         uint32_t    m_VertexCount;
+        uint32_t    m_IndexCount;
         const char* m_Material;
         const char* m_Name;
     };
@@ -158,6 +160,7 @@ namespace dmModelImporter
     extern "C" DM_DLLEXPORT void DestroyScene(Scene* scene);
 
     void DebugScene(Scene* scene);
+    void DebugStructScene(Scene* scene);
 
     // For tests. User needs to call free() on the returned memory
     void* ReadFile(const char* path, uint32_t* file_size);
