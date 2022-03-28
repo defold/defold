@@ -121,6 +121,8 @@ namespace dmScript
         void (*DeleteScriptWorld)(HScriptWorld script_world);
         // Called once a frame for the world, dt is local time delta (affected by slo-mo etc)
         void (*UpdateScriptWorld)(HScriptWorld script_world, float dt);
+        // Called once a frame for the world, dt is local time delta (affected by slo-mo etc)
+        void (*FixedUpdateScriptWorld)(HScriptWorld script_world, float dt);
         // Called when a script instance has been created
         void (*InitializeScriptInstance)(HScriptWorld script_world);
         // Called just before a script instance is deleted
@@ -367,12 +369,20 @@ namespace dmScript
     void DeleteScriptWorld(HScriptWorld script_world);
 
     /**
-     * Update the script world
+     * Update the script extensions
      *
      * @param script_world the script world created with NewScriptWorld
      * @param dt the delta time in the world in seconds
      */
     void UpdateScriptWorld(HScriptWorld script_world, float dt);
+
+    /**
+     * Update the script extensions using the fixed timestep
+     *
+     * @param script_world the script world created with NewScriptWorld
+     * @param dt the delta time in the world in seconds
+     */
+    void FixedUpdateScriptWorld(HScriptWorld script_world, float dt);
 
     /**
      * Sets up the instance with associated data, expects SetInstance to have been

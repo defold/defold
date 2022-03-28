@@ -1129,6 +1129,22 @@ namespace dmScript
         }
     }
 
+    void FixedUpdateScriptWorld(HScriptWorld script_world, float dt)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->FixedUpdateScriptWorld != 0x0)
+            {
+                (*l)->FixedUpdateScriptWorld(script_world, dt);
+            }
+        }
+    }
+
     void InitializeInstance(HScriptWorld script_world)
     {
         if (script_world == 0x0)
