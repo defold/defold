@@ -707,6 +707,7 @@ namespace dmScript
         sl.NewScriptWorld = TimerNewScriptWorld;
         sl.DeleteScriptWorld = TimerDeleteScriptWorld;
         sl.UpdateScriptWorld = TimerUpdateScriptWorld;
+        sl.FixedUpdateScriptWorld = 0;
         sl.InitializeScriptInstance = TimerInitializeInstance;
         sl.FinalizeScriptInstance = TimerFinalizeInstance;
         RegisterScriptExtension(context, &sl);
