@@ -182,9 +182,10 @@ public class ModelImporter {
         public String               name;
         public Mesh.ByReference     meshes;
         public int                  meshesCount;
+        public int                  index;
 
         protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"name","meshes","meshesCount"});
+            return Arrays.asList(new String[] {"name","meshes","meshesCount","index"});
         }
         public Model() {}
 
@@ -222,11 +223,18 @@ public class ModelImporter {
         public String               name;
         public Bone.ByReference     bones;
         public int                  bonesCount;
+        public int                  index;
+
 
         protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"name","bones","bonesCount"});
+            return Arrays.asList(new String[] {"name","bones","bonesCount","index"});
         }
         public Skin() {}
+        public Skin(Pointer p) {
+            super(p);
+            this.read();
+            System.out.printf("Skin constructor\n");
+        }
 
         @SuppressWarnings("unchecked")
         public Skin[] castToArray(int size) {
@@ -248,16 +256,19 @@ public class ModelImporter {
         public Node.ByReference     parent;
         public Pointer              children;
         public int                  childrenCount;
+        public int                  index;
 
         protected List getFieldOrder() {
             return Arrays.asList(new String[] {
                 "transform", "name",
-                "model","skin","parent","children","childrenCount"
+                "model","skin","parent","children","childrenCount","index"
             });
         }
         public Node() {}
         public Node(Pointer p) {
             super(p);
+            this.read();
+            System.out.printf("Node constructor\n");
         }
 
         @SuppressWarnings("unchecked")
@@ -271,9 +282,7 @@ public class ModelImporter {
 
             int i = 0;
             for (Pointer p : childPointers) {
-                Node node = new Node(p);
-                node.read();
-                childNodes[i++] = node;
+                childNodes[i++] = new Node(p);
             }
             return childNodes;
         }
@@ -448,9 +457,23 @@ public class ModelImporter {
         }
     }
 
-    private static void DebugPrintTree(Node node, int indent) {
+    private static void DebugPrintTransform(Transform transform, int indent) {
         PrintIndent(indent);
-        System.out.printf("Node: %s\n", node.name);
+        System.out.printf("t: %f, %f, %f\n", transform.translation.x, transform.translation.y, transform.translation.z);
+        PrintIndent(indent);
+        System.out.printf("r: %f, %f, %f, %f\n", transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.z);
+        PrintIndent(indent);
+        System.out.printf("s: %f, %f, %f\n", transform.scale.x, transform.scale.y, transform.scale.z);
+    }
+
+    private static void DebugPrintNode(Node node, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Node: %s  idx: %d   mesh: %s\n", node.name, node.index, node.model!=null?node.model.name:"-");
+        DebugPrintTransform(node.transform, indent+1);
+    }
+
+    private static void DebugPrintTree(Node node, int indent) {
+        DebugPrintNode(node, indent);
 
         for (Node child : node.getChildren()) {
             DebugPrintTree(child, indent+1);
@@ -507,6 +530,8 @@ public class ModelImporter {
 
         // Print out the first ten of each array
         int max_count = 10;
+        if (max_count > mesh.vertexCount)
+            max_count = mesh.vertexCount;
         DebugPrintFloatArray(indent+1, "positions", mesh.getPositions(), max_count, 3);
         DebugPrintFloatArray(indent+1, "normals", mesh.getNormals(), max_count, 3);
         DebugPrintFloatArray(indent+1, "tangents", mesh.getTangents(), max_count, 3);
@@ -516,6 +541,10 @@ public class ModelImporter {
 
         DebugPrintFloatArray(indent+1, "texCoords0", mesh.getTexCoords(0), max_count, mesh.texCoords0NumComponents);
         DebugPrintFloatArray(indent+1, "texCoords1", mesh.getTexCoords(1), max_count, mesh.texCoords1NumComponents);
+
+        if (max_count > mesh.indexCount)
+            max_count = mesh.indexCount;
+        DebugPrintIntArray(indent+1, "indices", mesh.getIndices(), max_count, 3);
     }
 
     private static void DebugPrintModel(Model model, int indent) {
@@ -562,13 +591,7 @@ public class ModelImporter {
     private static void DebugPrintBone(Bone bone, int indent) {
         PrintIndent(indent);
         System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
-
-        PrintIndent(indent+1);
-        System.out.printf("t: %f, %f, %f\n", bone.invBindPose.translation.x, bone.invBindPose.translation.y, bone.invBindPose.translation.z);
-        PrintIndent(indent+1);
-        System.out.printf("r: %f, %f, %f, %f\n", bone.invBindPose.rotation.x, bone.invBindPose.rotation.y, bone.invBindPose.rotation.z, bone.invBindPose.rotation.z);
-        PrintIndent(indent+1);
-        System.out.printf("s: %f, %f, %f\n", bone.invBindPose.scale.x, bone.invBindPose.scale.y, bone.invBindPose.scale.z);
+        DebugPrintTransform(bone.invBindPose, indent+1);
     }
 
     private static void DebugPrintSkin(Skin skin, int indent) {
@@ -622,7 +645,7 @@ public class ModelImporter {
         System.out.printf("Num Nodes: %d\n", scene.nodesCount);
         for (Node node : scene.getNodes())
         {
-            System.out.printf("Node: %s\n", node.name);
+            DebugPrintNode(node, 0);
         }
 
         System.out.printf("--------------------------------\n");

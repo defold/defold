@@ -243,6 +243,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
         Node* node = &scene->m_Nodes[i];
         node->m_Name = strdup(gltf_node->name);
+        node->m_Index = i;
 
         // We link them together later
         // node->m_Model = ...
@@ -418,6 +419,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
         cgltf_mesh* gltf_mesh = &gltf_data->meshes[i]; // our "Model"
         Model* model = &scene->m_Models[i];
         model->m_Name = strdup(gltf_mesh->name);
+        model->m_Index = i;
 
         LoadPrimitives(model, gltf_mesh);
     }
@@ -438,6 +440,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 
         Skin* skin = &scene->m_Skins[i];
         skin->m_Name = strdup(gltf_skin->name);
+        skin->m_Index = i;
 
         skin->m_BonesCount = gltf_skin->joints_count;
         skin->m_Bones = new Bone[skin->m_BonesCount];

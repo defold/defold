@@ -54,4 +54,6 @@ if [ "${USING_ASAN}" != "" ]; then
     export DYLD_INSERT_LIBRARIES=${DYNAMO_HOME}/ext/SDKs/XcodeDefault13.2.1.xctoolchain/usr/lib/clang/13.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
 fi
 
-java -Djava.library.path=${DLIB_BUILD_DIR} -Djna.library.path=${DLIB_BUILD_DIR} -jar $JAR $*
+#JNA_DEBUG_FLAGS="-Djna.dump_memory=true -Djna.debug_load=true -Djna.debug_load.jna=true -Djna.debug=true"
+
+java -Djava.library.path=${DLIB_BUILD_DIR} -Djna.library.path=${DLIB_BUILD_DIR} ${JNA_DEBUG_FLAGS} -jar $JAR $*

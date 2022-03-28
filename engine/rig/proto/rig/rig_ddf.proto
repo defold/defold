@@ -205,16 +205,18 @@ message Mesh
 message MeshSlot
 {
     optional uint64 id = 1;                 // E.g. "default-torso", "naked-torso"
-    repeated uint32 mesh_attachments = 2;   // Index into the MeshSet.attachments
+    repeated uint32 mesh_attachments = 2;   // Indices into the MeshSet.attachments
     required uint32 active_index = 3;       // Index into MeshSlot.mesh_attachments
-    repeated float  slot_color = 4;
+    repeated float  slot_color = 4;         // Spine only
 }
 
-message MeshEntry // E.g. the AINode in the Asset Importer Scene
+message MeshEntry // E.g. the Node in the Scene
 {
-    required uint64         id = 1;             // E.g. "torso", "head". Or simply "character"
-    repeated MeshSlot       mesh_slots = 2;
-    required dmMath.Matrix4 transform = 3;
+    option (struct_align) = true;
+
+    required uint64             id          = 1;             // E.g. "torso", "head". Or simply "character"
+    repeated MeshSlot           mesh_slots  = 2;
+    required dmMath.Transform   transform   = 3 [(field_align)=true];;
 }
 
 message MeshSet

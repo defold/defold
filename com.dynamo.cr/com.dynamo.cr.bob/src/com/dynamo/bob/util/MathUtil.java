@@ -26,6 +26,7 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Matrix4;
+import com.dynamo.proto.DdfMath.Transform;
 
 public class MathUtil {
     public static Point3d ddfToVecmath(Point3 p) {
@@ -53,6 +54,11 @@ public class MathUtil {
     public static Vector3 vecmathToDDF(Vector3d p) {
         Vector3.Builder b = Vector3.newBuilder();
         return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
+    }
+
+    public static Transform vecmathToDDF(Vector3d t, Quat4d r, Vector3d s) {
+        Transform.Builder b = Transform.newBuilder();
+        return b.setTranslation(vecmathToDDF(t)).setRotation(vecmathToDDF(r)).setScale(vecmathToDDF(s)).build();
     }
 
     public static Matrix4 vecmathToDDF(Matrix4d m) {

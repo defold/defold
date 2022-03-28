@@ -50,6 +50,7 @@ namespace dmModelImporter
         const char* m_Name;
         Mesh*       m_Meshes;
         uint32_t    m_MeshesCount;
+        uint32_t    m_Index;        // The index into the scene.models array
     };
 
     struct Bone
@@ -64,6 +65,7 @@ namespace dmModelImporter
         const char*             m_Name;
         Bone*                   m_Bones;
         uint32_t                m_BonesCount;
+        uint32_t                m_Index;        // The index into the scene.skins array
     };
 
     struct Node
@@ -75,6 +77,7 @@ namespace dmModelImporter
         Node*                   m_Parent;
         Node**                  m_Children;
         uint32_t                m_ChildrenCount;
+        uint32_t                m_Index;        // The index into the scene.nodes array
     };
 
     struct KeyFrame
