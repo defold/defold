@@ -24,7 +24,7 @@ import java.util.List;
 
 public class ResourceEncryption {
 
-	private static class DefaultResourceEncyption extends ResourceEncryptionPlugin {
+	private static class DefaultResourceEncryption extends ResourceEncryptionPlugin {
 		private final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
 	
 		@Override
@@ -35,6 +35,8 @@ public class ResourceEncryption {
 
 	private static ResourceEncryptionPlugin encryptionPlugin;
 
+	private static DefaultResourceEncryption defaultEncryption = new DefaultResourceEncryption();
+
 	/**
 	 * Encrypt a resource
 	 * @param resource Bytes of resource data to encrypt
@@ -42,18 +44,10 @@ public class ResourceEncryption {
 	 */
 	public static byte[] encrypt(byte[] resource) throws CompileExceptionError {
 		try {
-			if (encryptionPlugin == null) {
-				// find and create plugin instances
-				List<ResourceEncryptionPlugin> encryptionPlugins = PluginScanner.createPlugins("com.dynamo.bob.archive", ResourceEncryptionPlugin.class);
+			ResourceEncryptionPlugin encryptionPlugin = PluginScanner.createPlugin("com.dynamo.bob.archive", ResourceEncryptionPlugin.class);
 				
-				// only accept a single encryption instance
-				if (encryptionPlugins.size() > 1) {
-					throw new CompileExceptionError("Found more than one ResourceEncryptionPlugin");
-				}
-				
-				// default or custom encryption
-				encryptionPlugin = encryptionPlugins.isEmpty() ? new DefaultResourceEncyption() : encryptionPlugins.get(0);
-			}
+			// default or custom encryption
+			encryptionPlugin = encryptionPlugin == null ? defaultEncryption : encryptionPlugin;
 
 			// do the encryption
 			return encryptionPlugin.encrypt(resource);
