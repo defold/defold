@@ -67,7 +67,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
-    private static List<LuaBuilderPlugin> luaBuilderPlugins = null;
+    private static LuaBuilderPlugin luaBuilderPlugin = null;
 
 
     @Override
@@ -221,14 +221,11 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // create any builder plugins
-        if (luaBuilderPlugins == null) {
-            luaBuilderPlugins = PluginScanner.createPlugins("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
-        }
-        // apply any builder plugins
-        for(LuaBuilderPlugin builderPlugin : luaBuilderPlugins) {
+        // create and apply a builder plugin if one exists
+        LuaBuilderPlugin luaBuilderPlugin = PluginScanner.createPlugin("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
+        if (luaBuilderPlugin != null) {
             try {
-                script = builderPlugin.build(script);
+                script = luaBuilderPlugin.build(script);
             }
             catch(Exception e) {
                 throw new CompileExceptionError("Unable to run Lua builder plugin", e);
