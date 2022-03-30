@@ -360,8 +360,6 @@ namespace dmPhysics
 
     void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
-        float dt = step_context.m_DT;
-        float fixed_timestep = step_context.m_FixedTimeStep ? dt : 1.0f/60.0f;
         HContext3D context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
@@ -425,11 +423,12 @@ namespace dmPhysics
         {
             DM_PROFILE(Physics, "StepSimulation");
 
-            // We want to make sure that if necessary, we at least cover two (potential) updates
-            // in order to not truncate the time (it would make the simulation go slower)
-            int maxSteps = 2;
+            // Default behavior for Bullet3D is to use fixed timesteps with max_steps=1 and fixed_timestep=1.0f/60.0f
+            float dt = step_context.m_DT;
+            float fixed_timestep = step_context.m_FixedTimeStep ? dt : 1.0f/60.0f;
+            int max_steps = step_context.m_MaxFixedTimeSteps;
 
-            world->m_DynamicsWorld->stepSimulation(dt, maxSteps, fixed_timestep);
+            world->m_DynamicsWorld->stepSimulation(dt, max_steps, fixed_timestep);
         }
 
         // Handle ray cast requests
