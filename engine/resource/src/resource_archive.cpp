@@ -45,7 +45,7 @@ namespace dmResourceArchive
 
     int              g_NumArchiveLoaders = 0;
     ArchiveLoader    g_ArchiveLoader[4];
-    FDecryptResource g_ResourceDecryption = 0;
+    FDecryptResource g_ResourceDecryption = dmResourceArchive::DecryptWithXtea;
 
     ArchiveIndex::ArchiveIndex()
     {
@@ -406,20 +406,19 @@ namespace dmResourceArchive
         return RESULT_NOT_FOUND;
     }
 
+    Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
+    {
+        dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
+        if (cr != dmCrypt::RESULT_OK)
+        {
+            return RESULT_UNKNOWN;
+        }
+        return RESULT_OK;
+    }
+
     Result DecryptBuffer(void* buffer, uint32_t buffer_len)
     {
-        if (g_ResourceDecryption == 0)
-        {
-            dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
-            if (cr != dmCrypt::RESULT_OK)
-            {
-                return RESULT_UNKNOWN;
-            }
-            return RESULT_OK;
-        }
-
-        Result result = g_ResourceDecryption(buffer, buffer_len);
-        return result;
+        return g_ResourceDecryption(buffer, buffer_len);
     }
 
     Result DecompressBuffer(const void* compressed_buf, uint32_t compressed_size, void* buffer, uint32_t buffer_len)
