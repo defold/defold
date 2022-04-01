@@ -826,9 +826,25 @@ TYPED_TEST(PhysicsTest, SetVelocity)
     ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_EQ(4.0f, lengthSqr(ang_vel));
 
+    ///////////////////////////////////////////////////////////////////////
+    // For the 3D physics engine to reset the local time
+    float old_dt = TestFixture::m_StepWorldContext.m_DT;
+    bool use_fixed_time_step = TestFixture::m_StepWorldContext.m_FixedTimeStep;
+    uint32_t max_fixed_timesteps = TestFixture::m_StepWorldContext.m_MaxFixedTimeSteps;
+    TestFixture::m_StepWorldContext.m_DT = 0;
+    TestFixture::m_StepWorldContext.m_FixedTimeStep = 0;
+    TestFixture::m_StepWorldContext.m_MaxFixedTimeSteps = 0;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    TestFixture::m_StepWorldContext.m_DT = old_dt;
+    TestFixture::m_StepWorldContext.m_MaxFixedTimeSteps = max_fixed_timesteps;
+    TestFixture::m_StepWorldContext.m_FixedTimeStep = use_fixed_time_step;
+    ///////////////////////////////////////////////////////////////////////
+
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
+
     ASSERT_NEAR(1.0f, lengthSqr(lin_vel), 0.05f);
     ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_NEAR(4.0f, lengthSqr(ang_vel), 0.05f);
@@ -1289,6 +1305,22 @@ TYPED_TEST(PhysicsTest, FilteredRayCasting)
 TYPED_TEST(PhysicsTest, GravityChange)
 {
     float box_half_ext = 0.5f;
+
+    ///////////////////////////////////////////////////////////////////////
+    // For the 3D physics engine to reset the local time
+    float old_dt = TestFixture::m_StepWorldContext.m_DT;
+    bool use_fixed_time_step = TestFixture::m_StepWorldContext.m_FixedTimeStep;
+    uint32_t max_fixed_timesteps = TestFixture::m_StepWorldContext.m_MaxFixedTimeSteps;
+    TestFixture::m_StepWorldContext.m_DT = 0;
+    TestFixture::m_StepWorldContext.m_FixedTimeStep = 0;
+    TestFixture::m_StepWorldContext.m_MaxFixedTimeSteps = 0;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    TestFixture::m_StepWorldContext.m_DT = old_dt;
+    TestFixture::m_StepWorldContext.m_MaxFixedTimeSteps = max_fixed_timesteps;
+    TestFixture::m_StepWorldContext.m_FixedTimeStep = use_fixed_time_step;
+    ///////////////////////////////////////////////////////////////////////
+
 
     // Verify that we get the defualt gravity.
     Vector3 gravity = (*TestFixture::m_Test.m_GetGravityFunc)(TestFixture::m_World);
