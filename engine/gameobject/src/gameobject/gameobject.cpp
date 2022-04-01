@@ -2503,7 +2503,7 @@ namespace dmGameObject
             const float fixed_frequency = update_context->m_FixedUpdateFrequency;
             // If the proxy is slowed down, we want e.g. the physics to be slowed down as well
             const float fixed_dt = (1.0f / (float)fixed_frequency) * update_context->m_TimeScale;
-            float num_fixed_steps = (uint32_t)(time / fixed_dt);
+            uint32_t num_fixed_steps = (uint32_t)(time / fixed_dt);
             // Store the remainder for the next frame
             collection->m_FixedAccumTime = time - (num_fixed_steps * fixed_dt);
 

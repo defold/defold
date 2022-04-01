@@ -43,6 +43,8 @@ namespace dmGameSystem
     const char* PHYSICS_MAX_CONTACTS_KEY        = "physics.max_contacts";
     /// Config key for using fixed frame rate for the physics worlds
     const char* PHYSICS_USE_FIXED_TIMESTEP      = "physics.use_fixed_timestep";
+    /// Config key for using max updates during a single step
+    const char* PHYSICS_MAX_FIXED_TIMESTEPS     = "physics.max_fixed_timesteps";
 
     static const dmhash_t PROP_LINEAR_DAMPING = dmHashString64("linear_damping");
     static const dmhash_t PROP_ANGULAR_DAMPING = dmHashString64("angular_damping");
@@ -1012,6 +1014,8 @@ namespace dmGameSystem
         step_world_context.m_TriggerExitedUserData = world;
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
+        step_world_context.m_FixedTimeStep = physics_context->m_UseFixedTimestep;
+        step_world_context.m_MaxFixedTimeSteps = physics_context->m_MaxFixedTimesteps;
 
         step_world_context.m_DT = params.m_UpdateContext->m_DT;
 

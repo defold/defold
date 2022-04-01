@@ -84,6 +84,7 @@ namespace dmEngine
         Stats();
 
         uint32_t m_FrameCount;
+        float    m_TotalTime;   // Total running time of the game
     };
 
     struct RecordData
@@ -208,6 +209,9 @@ namespace dmEngine
      *
      */
     int RunLoop(const RunLoopParams* params);
+
+    // For unit testing
+    void GetStats(HEngine engine, Stats& stats);
 }
 
 #endif // DM_ENGINE_PRIVATE_H

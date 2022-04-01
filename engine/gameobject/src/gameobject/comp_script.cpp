@@ -222,8 +222,6 @@ namespace dmGameObject
         RunScriptParams run_params;
         run_params.m_UpdateContext = params.m_UpdateContext;
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
-        dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
-
         uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
@@ -246,11 +244,15 @@ namespace dmGameObject
 
     UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
+        dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_UPDATE, update_result);
     }
 
     UpdateResult CompScriptFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
+        dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_FIXED_UPDATE, update_result);
     }
 
