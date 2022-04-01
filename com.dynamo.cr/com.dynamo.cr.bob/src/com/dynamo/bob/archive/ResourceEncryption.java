@@ -44,7 +44,7 @@ public class ResourceEncryption {
 	 */
 	public static byte[] encrypt(byte[] resource) throws CompileExceptionError {
 		try {
-			ResourceEncryptionPlugin encryptionPlugin = PluginScanner.createPlugin("com.dynamo.bob.archive", ResourceEncryptionPlugin.class);
+			ResourceEncryptionPlugin encryptionPlugin = PluginScanner.getOrCreatePlugin("com.dynamo.bob.archive", ResourceEncryptionPlugin.class);
 				
 			// default or custom encryption
 			encryptionPlugin = encryptionPlugin == null ? defaultEncryption : encryptionPlugin;

@@ -66,7 +66,5 @@ namespace dmResourceArchive
 
     void Delete(ArchiveIndex* archive);
 
-    Result DecryptWithXtea(void* buffer, uint32_t buffer_len);
-
 }
 #endif // RESOURCE_ARCHIVE_PRIVATE_H

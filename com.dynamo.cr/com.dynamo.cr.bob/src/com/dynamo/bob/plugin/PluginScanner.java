@@ -31,8 +31,9 @@ public class PluginScanner {
 	private static HashMap<String, Object> pluginsCache = new HashMap<>();
 
 	/**
-	 * Find and create an instance of a class extending a specific base class
-	 * and located within a specific package. The class must:
+	 * Get a previously cached instance or find and create an instance of a class
+	 * extending a specific base class and located within a specific package. The
+	 * class must:
 	 * 
 	 * - Not be private
 	 * - Not be abstract
@@ -45,7 +46,7 @@ public class PluginScanner {
 	 * @param pluginBaseClass
 	 * @return Class instance or null if no class was found
 	 */
-	public static <T> T createPlugin(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
+	public static <T> T getOrCreatePlugin(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
 		IClassScanner scanner = Project.getClassLoaderScanner();
 		if (scanner == null) {
@@ -75,10 +76,10 @@ public class PluginScanner {
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
 				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
 					Bob.verbose("Found plugin " + className);
-					plugins.add((T)klass.newInstance());
-					if (plugins.size() > 1) {
-						throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass);
+					if (plugins.size() == 1) {
+						throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
 					}
+					plugins.add((T)klass.newInstance());
 				}
 			}
 			catch(InstantiationException | IllegalAccessException e) {
