@@ -43,7 +43,7 @@ VERSION_IPHONESIMULATOR="15.2"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-VERSION_IPHONEOS_MIN="8.0"
+VERSION_IPHONEOS_MIN="9.0"
 VERSION_MACOSX_MIN="10.7"
 
 VERSION_XCODE_CLANG="13.0.0"

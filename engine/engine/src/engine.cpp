@@ -210,6 +210,7 @@ namespace dmEngine
 
     Stats::Stats()
     : m_FrameCount(0)
+    , m_TotalTime(0.0f)
     {
 
     }
@@ -1066,6 +1067,7 @@ namespace dmEngine
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         engine->m_PhysicsContext.m_UseFixedTimestep = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
+        engine->m_PhysicsContext.m_MaxFixedTimesteps = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
@@ -1656,6 +1658,7 @@ bail:
         dmProfile::Release(profile);
 
         ++engine->m_Stats.m_FrameCount;
+        engine->m_Stats.m_TotalTime += dt;
     }
 
     static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
@@ -1684,12 +1687,10 @@ bail:
 
         // We don't allow having a higher framerate than the actual variable frame rate
         // since the update+render is currently coupled together and also Flip() would be called more than once.
+        // E.g. if the fixed_dt == 1/120 and the frame_dt == 1/60
         if (fixed_dt < frame_dt)
         {
-            step_dt = frame_dt;
-            num_steps = 1;
-            engine->m_AccumFrameTime = 0; // we consumed it all
-            return;
+            fixed_dt = frame_dt;
         }
 
         engine->m_AccumFrameTime += frame_dt;
@@ -1963,6 +1964,11 @@ bail:
     uint32_t GetFrameCount(HEngine engine)
     {
         return engine->m_Stats.m_FrameCount;
+    }
+
+    void GetStats(HEngine engine, Stats& stats)
+    {
+        stats = engine->m_Stats;
     }
 }
 
