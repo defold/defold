@@ -222,13 +222,13 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.addAllPropertyResources(propertyResources);
 
         // create and apply a builder plugin if one exists
-        LuaBuilderPlugin luaBuilderPlugin = PluginScanner.createPlugin("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
+        LuaBuilderPlugin luaBuilderPlugin = PluginScanner.getOrCreatePlugin("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
         if (luaBuilderPlugin != null) {
             try {
                 script = luaBuilderPlugin.build(script);
             }
             catch(Exception e) {
-                throw new CompileExceptionError("Unable to run Lua builder plugin", e);
+                throw new CompileExceptionError(task.input(0), 0, "Unable to run Lua builder plugin", e);
             }
         }
 
