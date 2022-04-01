@@ -65,6 +65,7 @@ protected:
         m_StepWorldContext.m_CollisionUserData = &m_CollisionCount;
         m_StepWorldContext.m_ContactPointCallback = ContactPointCallback;
         m_StepWorldContext.m_ContactPointUserData = &m_ContactPointCount;
+        m_StepWorldContext.m_MaxFixedTimeSteps = 2;
     }
 
     virtual void TearDown()

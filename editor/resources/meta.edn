@@ -239,7 +239,11 @@
    :help
    "minimum velocity that will result in ellastic collisions",
    :default 1.0,
-   :path ["physics" "velocity_threshold"]},   
+   :path ["physics" "velocity_threshold"]},
+  {:type :integer,
+   :help "max number of steps in the simulation when using fixed timestep (3D only)",
+   :default 2,
+   :path ["physics" "max_fixed_timesteps"]},
   {:type :string,
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
@@ -821,6 +825,7 @@
   "resource" {:help "Resource loading and management related settings"},
   "factory" {:help "GameObject factory related settings"},
   "graphics" {:help "Graphics related settings"},
+  "engine" {:help "Runtime settings for the engine"},
   "bootstrap" {:help "Initial settings for the engine"},
   "label" {:help "Label related settings"},
   "collection" {:help "Collection related settings"},
