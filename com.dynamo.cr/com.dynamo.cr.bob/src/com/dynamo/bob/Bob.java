@@ -427,8 +427,9 @@ public class Bob {
         addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", false);
 
         addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
-        addOption(options, "ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)", false);
+        addOption(options, "ksp", "keystore-pass", true, "Password of the deployment keystore (Android)", false);
         addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
+        addOption(options, "kp", "key-pass", true, "Password of the deployment key if different from the keystore password (Android)", false);
 
         addOption(options, "d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead", false);
         addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
