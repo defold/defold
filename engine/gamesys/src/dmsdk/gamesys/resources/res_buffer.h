@@ -28,7 +28,8 @@ namespace dmGameSystem
         dmBufferDDF::BufferDesc* m_BufferDDF;
         dmBuffer::HBuffer        m_Buffer;
         dmhash_t                 m_NameHash;
-        uint32_t                 m_ElementCount;
+        uint32_t                 m_ElementCount;    // The number of vertices
+        uint32_t                 m_Stride;          // The vertex size (bytes)
         uint32_t                 m_Version;
     };
 }
