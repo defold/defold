@@ -14,6 +14,7 @@
 
 #include "res_buffer.h"
 
+#include <dlib/buffer.h>
 #include <dlib/log.h>
 #include <dlib/path.h>
 #include <dlib/dstrings.h>
@@ -198,6 +199,8 @@ namespace dmGameSystem
         }
 
         free(streams_decl);
+
+        buffer_resource->m_Stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
 
         return true;
     }
