@@ -965,12 +965,12 @@ def android_package(task):
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
 
-    dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    d8 = '%s/android-sdk/build-tools/%s/d8' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-
-    root = os.path.normpath(os.path.join(os.path.dirname(task.classes_dex.abspath(task.env)), '..', '..'))
+    dex_dir = os.path.dirname(task.classes_dex.abspath(task.env))
+    root = os.path.normpath(os.path.join(dex_dir, '..', '..'))
     libs = os.path.join(root, 'libs')
     bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
@@ -1002,9 +1002,9 @@ def android_package(task):
         dex_input = dx_jars
 
     if dex_input:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
+        ret = bld.exec_command('%s --output %s %s' % (d8, dex_dir, ' '.join(dex_input)))
         if ret != 0:
-            error('Error running dx')
+            error('Error running d8')
             return 1
 
     # strip the executable
