@@ -209,6 +209,10 @@ public class Project {
         return scanner;
     }
 
+    public static IClassScanner getClassLoaderScanner() {
+        return scanner;
+    }
+
     public static Class<?> getClass(String className) {
         try {
             return Class.forName(className, true, scanner.getClassLoader());

@@ -15,6 +15,7 @@
 #ifndef RESOURCE_ARCHIVE_H
 #define RESOURCE_ARCHIVE_H
 
+#include <dmsdk/resource/resource_archive.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -61,18 +62,6 @@ namespace dmResourceArchive
         uint32_t m_ResourceSize;
         uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
         uint32_t m_Flags;
-    };
-
-    enum Result
-    {
-        RESULT_OK = 0,
-        RESULT_NOT_FOUND = 1,
-        RESULT_VERSION_MISMATCH = -1,
-        RESULT_IO_ERROR = -2,
-        RESULT_MEM_ERROR = -3,
-        RESULT_OUTBUFFER_TOO_SMALL = -4,
-        RESULT_ALREADY_STORED = -5,
-        RESULT_UNKNOWN = -1000,
     };
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;

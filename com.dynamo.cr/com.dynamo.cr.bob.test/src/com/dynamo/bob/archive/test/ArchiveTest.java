@@ -35,6 +35,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
@@ -121,7 +122,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testBuilderAndReader() throws IOException
+    public void testBuilderAndReader() throws IOException, CompileExceptionError
     {
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, true, 4);
@@ -145,7 +146,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testEntriesOrder() throws IOException {
+    public void testEntriesOrder() throws IOException, CompileExceptionError {
 
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true, 4);
@@ -185,7 +186,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testArchiveIndexAlignment() throws IOException {
+    public void testArchiveIndexAlignment() throws IOException, CompileExceptionError {
     	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true, 4);
     	for (int i = 1; i < 50; ++i) {
 			String filename = "dummy" + Integer.toString(i);
