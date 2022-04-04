@@ -106,6 +106,8 @@ PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
+ANDROID_TARGET_API_LEVEL=31
+ANDROID_BUILD_TOOLS_VERSION="32.0.0"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -611,7 +613,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-31-32.0.0.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, ANDROID_TARGET_API_LEVEL, ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host2:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, sdk.PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), format='J')
