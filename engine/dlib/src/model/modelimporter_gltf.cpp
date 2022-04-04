@@ -425,6 +425,20 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static uint32_t FindBoneIndex(cgltf_skin* gltf_skin, cgltf_node* joint)
+{
+    if (joint == 0)
+        return 0xFFFFFFFF;
+
+    for (uint32_t i = 0; i < gltf_skin->joints_count; ++i)
+    {
+        cgltf_node* gltf_joint = gltf_skin->joints[i];
+        if (joint == gltf_joint)
+            return i;
+    }
+    return 0xFFFFFFFF;
+}
+
 static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 {
     if (gltf_data->skins_count == 0)
@@ -452,6 +466,8 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
             cgltf_node* gltf_joint = gltf_skin->joints[j];
             Bone* bone = &skin->m_Bones[j];
             bone->m_Name = strdup(gltf_joint->name);
+            bone->m_Index = j;
+            bone->m_ParentIndex = FindBoneIndex(gltf_skin, gltf_joint->parent);
             // Cannot translate the bones here, since they're not created yet
             // bone->m_Node = ...
 

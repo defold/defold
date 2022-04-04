@@ -35,6 +35,7 @@ public class ModelImporter {
             Class.forName("com.dynamo.bob.Bob");
             return true;
         } catch(Exception e) {
+            System.out.printf("Didn't find com.dynamo.bob.Bob");
             return false;
         }
     }
@@ -48,7 +49,7 @@ public class ModelImporter {
             {
                 Class<?> bob_cls = Class.forName("com.dynamo.bob.Bob");
                 Method getSharedLib = bob_cls.getMethod("getSharedLib", String.class);
-                Method addToPaths = bob_cls.getMethod("addToPaths", File.class);
+                Method addToPaths = bob_cls.getMethod("addToPaths", String.class);
 
                 File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
                 addToPaths.invoke(null, lib.getParent());
@@ -100,6 +101,9 @@ public class ModelImporter {
     static public class Mesh extends Structure {
         public static class ByReference extends Mesh implements Structure.ByReference {}
 
+        public String      name;
+        public String      material;
+
         public Pointer     positions; // float3
         public Pointer     normals; // float3
         public Pointer     tangents; // float3
@@ -115,15 +119,14 @@ public class ModelImporter {
 
         public int         vertexCount;
         public int         indexCount;
-        public String      material;
-        public String      name;
 
         protected List getFieldOrder() {
             return Arrays.asList(new String[] {
+                "name","material",
                 "positions","normals","tangents","colors","weights","bones",
                 "texCoords0NumComponents","texCoords0","texCoords1NumComponents","texCoords1",
                 "indices",
-                "vertexCount","indexCount","material","name"
+                "vertexCount","indexCount"
             });
         }
         public Mesh() {}
@@ -205,9 +208,11 @@ public class ModelImporter {
         public Transform            invBindPose;
         public String               name;
         public Node.ByReference     node;
+        public int                  parentIndex; // index into list of bones. -1 if no parent
+        public int                  index;      // index into list of bones
 
         protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"invBindPose","name","node"});
+            return Arrays.asList(new String[] {"invBindPose","name","node","parentIndex","index"});
         }
         public Bone() {}
 
@@ -268,7 +273,6 @@ public class ModelImporter {
         public Node(Pointer p) {
             super(p);
             this.read();
-            System.out.printf("Node constructor\n");
         }
 
         @SuppressWarnings("unchecked")
@@ -608,7 +612,7 @@ public class ModelImporter {
         return Structure.newInstance(cls).size();
     }
 
-    private static void CheckSizes()
+    public static void CheckSizes()
     {
         AssertSizes(sizeof(Transform.class),
                     sizeof(Mesh.class),

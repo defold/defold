@@ -49,11 +49,6 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
 
-import java.util.*; //need this??
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.assimp.*;
-import static org.lwjgl.assimp.Assimp.*;
-
 import com.dynamo.bob.util.MathUtil;
 
 import com.dynamo.bob.util.MurmurHash;
@@ -64,17 +59,22 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Matrix4;
+import com.dynamo.proto.DdfMath.Transform;
+
+import com.dynamo.bob.pipeline.ModelImporter.Bone;
+import com.dynamo.bob.pipeline.ModelImporter.Mesh;
+import com.dynamo.bob.pipeline.ModelImporter.Model;
+import com.dynamo.bob.pipeline.ModelImporter.Node;
+import com.dynamo.bob.pipeline.ModelImporter.Options;
+import com.dynamo.bob.pipeline.ModelImporter.Scene;
+
 
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
-import com.dynamo.rig.proto.Rig.MeshEntry;
-import com.dynamo.rig.proto.Rig.MeshSlot;
 import com.google.protobuf.ByteString;
 
 public class ModelUtil {
-
-    static int BONE_NO_PARENT = 0xffff;
 
     static private class AssetSpace
     {
@@ -87,27 +87,6 @@ public class ModelUtil {
         }
     }
 
-    static public class Bone {
-        String      name;
-        AINode      node;
-        AIBone      bone;
-        int         index;
-        int         parentIndex;
-        Matrix4d    offsetTransform; // the assimp transform
-        Matrix4d    transform;       // the local transform
-
-        public String getName() { return name; }
-    }
-
-    private static void printMatrix4x4(String name, AIMatrix4x4 mat) {
-        System.out.printf("BONE %s:\n", name);
-        System.out.printf("    %f, %f, %f, %f\n", mat.a1(),mat.a2(),mat.a3(),mat.a4());
-        System.out.printf("    %f, %f, %f, %f\n", mat.b1(),mat.b2(),mat.b3(),mat.b4());
-        System.out.printf("    %f, %f, %f, %f\n", mat.c1(),mat.c2(),mat.c3(),mat.c4());
-        System.out.printf("    %f, %f, %f, %f\n", mat.d1(),mat.d2(),mat.d3(),mat.d4());
-        System.out.printf("\n");
-    }
-
     private static void printMatrix4d(String name, Matrix4d mat) {
         System.out.printf("Mat %s:\n", name);
         System.out.printf("    %f, %f, %f, %f\n", mat.m00,mat.m01,mat.m02,mat.m03);
@@ -117,31 +96,24 @@ public class ModelUtil {
         System.out.printf("\n");
     }
 
-    private static Matrix4d convertMatrix4x4(AIMatrix4x4 mat) {
-        return new Matrix4d(mat.a1(),mat.a2(),mat.a3(),mat.a4(),
-                            mat.b1(),mat.b2(),mat.b3(),mat.b4(),
-                            mat.c1(),mat.c2(),mat.c3(),mat.c4(),
-                            mat.d1(),mat.d2(),mat.d3(),mat.d4());
-    }
-
-    public static AssetSpace getAssetSpace(AIScene scene)
+    public static AssetSpace getAssetSpace(Scene scene)
     {
         AssetSpace assetSpace = new AssetSpace();
         if (scene != null) {
 
             //UpAxis guessedUpAxis = null;
             {
-                AINode scene_root = scene.mRootNode();
-                AIMatrix4x4 mat = scene_root.mTransformation();
+                // AINode scene_root = scene.mRootNode();
+                // AIMatrix4x4 mat = scene_root.mTransformation();
 
                 //printMatrix4x4(scene_root.mName().dataString(), mat);
 
                 // if (mat.a1() == 1.0 && mat.b3() == 1.0 && mat.c2() == -1.0) {
                 // }
 
-                assetSpace.rotation.setRow(0, new double[] {mat.a1(), mat.a2(), mat.a3(), 0.0});
-                assetSpace.rotation.setRow(1, new double[] {mat.b1(), mat.b2(), mat.b3(), 0.0});
-                assetSpace.rotation.setRow(2, new double[] {mat.c1(), mat.c2(), mat.c3(), 0.0});
+                // assetSpace.rotation.setRow(0, new double[] {mat.a1(), mat.a2(), mat.a3(), 0.0});
+                // assetSpace.rotation.setRow(1, new double[] {mat.b1(), mat.b2(), mat.b3(), 0.0});
+                // assetSpace.rotation.setRow(2, new double[] {mat.c1(), mat.c2(), mat.c3(), 0.0});
                 //assetSpace.rotation.transpose();
 
                 // Blender usually defaults to Z_UP
@@ -172,67 +144,20 @@ public class ModelUtil {
         return assetSpace;
     }
 
-    // private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
-    //         throws LoaderException {
-    //     for (XMLInput i : inputs) {
-    //         if (i.semantic.equals(semantic))
-    //             return i;
-    //     }
-    //     if (required)
-    //         throw new LoaderException(String.format("Input '%s' not found", semantic));
-    //     return null;
-    // }
-
-    // public static boolean load(InputStream is, Rig.MeshSet.Builder meshSetBuilder, Rig.AnimationSet.Builder animationSetBuilder, Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
-    //     System.out.printf("ModelUtil: load\n");
-    //     XMLCOLLADA collada = loadDAE(is);
-    //     loadMesh(collada, meshSetBuilder, true);
-    //     loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
-    //     loadAnimations(collada, animationSetBuilder, "", new ArrayList<String>());
-    //     return true;
-    // }
-
-    // private static HashMap<String, XMLSource> getSamplersLUT(XMLAnimation animation) {
-    //     XMLSampler sampler = animation.samplers.get(0);
-    //     HashMap<String, XMLSource> samplersLUT = new HashMap<String, XMLSource>();
-    //     for (int i = 0; i < sampler.inputs.size(); i++) {
-    //         XMLInput input = sampler.inputs.get(i);
-
-    //         // Find source for sampler
-    //         XMLSource source = null;
-    //         for (int j = 0; j < animation.sources.size(); j++) {
-    //             if (animation.sources.get(j).id.equals(input.source)) {
-    //                 source = animation.sources.get(j);
-    //                 break;
-    //             }
-    //         }
-    //         samplersLUT.put(input.semantic, source);
-    //     }
-    //     return samplersLUT;
-    // }
-
-
-    public static AIScene loadScene(byte[] content, String suffix) {
-        // LWJGL only supports direct byte buffers
-        ByteBuffer buffer = ByteBuffer.allocateDirect(content.length);
-        buffer.put(ByteBuffer.wrap(content));
-        buffer.rewind();
-
-        // Like the texture_profiles, we might want a model_profiles
-        // https://github.com/assimp/assimp/blob/e157d7550b02414834c7532143d8751fb30bc886/include/assimp/postprocess.h
-        //  aiProcess_ImproveCacheLocality
-        //  aiProcess_OptimizeMeshes
-
-        // aiProcess_FlipUVs
-
-        // aiProcess_GenBoundingBoxes - undocumented?
-
-        return aiImportFileFromMemory(buffer, aiProcess_Triangulate | aiProcess_LimitBoneWeights, suffix);
+    public static Scene loadScene(byte[] content, String suffix, Options options) {
+        ModelImporter.CheckSizes(); // Make sure the Java/C struct sizes are the same
+        if (options == null)
+            options = new Options();
+        return ModelImporter.LoadFromBuffer(options, suffix, ByteBuffer.wrap(content), content.length);
     }
 
-    public static AIScene loadScene(InputStream stream, String suffix) throws IOException {
+    public static Scene loadScene(InputStream stream, String suffix, Options options) throws IOException {
         byte[] bytes = IOUtils.toByteArray(stream);
-        return loadScene(bytes, suffix);
+        return loadScene(bytes, suffix, options);
+    }
+
+    public static void unloadScene(Scene scene) {
+        ModelImporter.DestroyScene(scene);
     }
 
     private static AnimationKey createKey(float t, boolean stepped, int componentSize) {
@@ -256,7 +181,7 @@ public class ModelUtil {
         f[3] = (float)v.getW();
     }
 
-
+/*
     private static void ExtractMatrixKeys(AINodeAnim anim, double ticksPerSecond, Matrix4d localToParent, AssetSpace assetSpace, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
 
         Vector3d bindP = new Vector3d();
@@ -391,299 +316,386 @@ public class ModelUtil {
             }
         }
     }
+    */
 
     private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+        if (track.keys.isEmpty())
+            return;
+
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        animTrackBuilder.setBoneIndex(boneIndex);
+        RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true);
+        animBuilder.addTracks(animTrackBuilder.build());
     }
 
     private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
+        if (track.keys.isEmpty())
+            return;
 
-            //System.out.printf("sampleTrack rotations:  startTime %f\n", (float)startTime);
-            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        animTrackBuilder.setBoneIndex(boneIndex);
+        RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
 
-            // Rig.AnimationTrack track2 = animTrackBuilder.build();
-            // int num_rotations = track2.getRotationsCount() / 4;
-            // System.out.printf("rotations count: %d\n", num_rotations);
-            // for (int i = 0; i < num_rotations; ++i) {
+        //System.out.printf("sampleTrack rotations:  startTime %f\n", (float)startTime);
+        RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
 
-            //     System.out.printf(" track rot: %d  %f, %f, %f, %f\n", i, track2.getRotations(i*4+0), track2.getRotations(i*4+1), track2.getRotations(i*4+2), track2.getRotations(i*4+3));
-            // }
+        // Rig.AnimationTrack track2 = animTrackBuilder.build();
+        // int num_rotations = track2.getRotationsCount() / 4;
+        // System.out.printf("rotations count: %d\n", num_rotations);
+        // for (int i = 0; i < num_rotations; ++i) {
 
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+        //     System.out.printf(" track rot: %d  %f, %f, %f, %f\n", i, track2.getRotations(i*4+0), track2.getRotations(i*4+1), track2.getRotations(i*4+2), track2.getRotations(i*4+3));
+        // }
+
+        animBuilder.addTracks(animTrackBuilder.build());
     }
 
     private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
+        if (track.keys.isEmpty())
+            return;
+
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        animTrackBuilder.setBoneIndex(boneIndex);
+        RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, interpolate);
+        animBuilder.addTracks(animTrackBuilder.build());
+    }
+
+    private static void copyKeys(ModelImporter.KeyFrame keys[], int componentSize, List<RigUtil.AnimationKey> outKeys) {
+        for (ModelImporter.KeyFrame key : keys) {
+            RigUtil.AnimationKey outKey = createKey(key.time, false, componentSize);
+
+            for (int i = 0; i < componentSize; ++i)
+            {
+                outKey.value[i] = key.value[i];
+            }
+            outKeys.add(outKey);
         }
     }
 
-    public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, AssetSpace assetSpace, AINodeAnim anim, Matrix4d localToParent, int boneIndex, double duration, double sceneStartTime, double sampleRate, double ticksPerSecond) {
-        RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
-        posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
-        RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
-        rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-        RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
-        scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-        ExtractMatrixKeys(anim, ticksPerSecond, localToParent, assetSpace, posTrack, rotTrack, scaleTrack);
-
+    public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, ModelImporter.Bone bone, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
-        samplePosTrack(animBuilder, posTrack, boneIndex, duration, sceneStartTime, sampleRate, spf, true);
-        sampleRotTrack(animBuilder, rotTrack, boneIndex, duration, sceneStartTime, sampleRate, spf, true);
-        sampleScaleTrack(animBuilder, scaleTrack, boneIndex, duration, sceneStartTime, sampleRate, spf, true);
+        if (nodeAnimation.translationKeysCount > 0) {
+            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+            sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
+            copyKeys(nodeAnimation.getTranslationKeys(), 3, sparseTrack.keys);
+
+            samplePosTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+        }
+
+        if (nodeAnimation.rotationKeysCount > 0) {
+            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+            sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+            copyKeys(nodeAnimation.getRotationKeys(), 4, sparseTrack.keys);
+
+            sampleRotTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+        }
+
+        if (nodeAnimation.scaleKeysCount > 0) {
+            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+            sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+            copyKeys(nodeAnimation.getTranslationKeys(), 3, sparseTrack.keys);
+
+            sampleScaleTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+        }
     }
 
-    private static double getAnimationStartTime(AIAnimation anim) {
-        double startTime = 10000.0;
 
-        double ticksPerSecond = anim.mTicksPerSecond();
-        PointerBuffer aiChannels = anim.mChannels();
-        int num_channels = anim.mNumChannels();
-        for (int c = 0; c < num_channels; ++c) {
-            AINodeAnim nodeAnim = AINodeAnim.create(aiChannels.get(c));
-            {
-                AIVectorKey.Buffer buffer = nodeAnim.mPositionKeys();
-                while (buffer.remaining() > 0) {
-                    AIVectorKey key = buffer.get();
-                    double time = key.mTime() / ticksPerSecond;
-                    if (time < startTime) {
-                        startTime = time;
-                    }
-                    break;
-                }
-            }
-            {
-                AIQuatKey.Buffer buffer = nodeAnim.mRotationKeys();
-                while (buffer.remaining() > 0) {
-                    AIQuatKey key = buffer.get();
-                    double time = key.mTime() / ticksPerSecond;
-                    if (time < startTime) {
-                        startTime = time;
-                    }
-                    break;
-                }
-            }
-            {
-                AIVectorKey.Buffer buffer = nodeAnim.mScalingKeys();
-                while (buffer.remaining() > 0) {
-                    AIVectorKey key = buffer.get();
-                    double time = key.mTime() / ticksPerSecond;
-                    if (time < startTime) {
-                        startTime = time;
-                    }
-                    break;
-                }
-            }
+    // private static double getAnimationStartTime(AIAnimation anim) {
+    //     double startTime = 10000.0;
+
+    //     double ticksPerSecond = anim.mTicksPerSecond();
+    //     PointerBuffer aiChannels = anim.mChannels();
+    //     int num_channels = anim.mNumChannels();
+    //     for (int c = 0; c < num_channels; ++c) {
+    //         AINodeAnim nodeAnim = AINodeAnim.create(aiChannels.get(c));
+    //         {
+    //             AIVectorKey.Buffer buffer = nodeAnim.mPositionKeys();
+    //             while (buffer.remaining() > 0) {
+    //                 AIVectorKey key = buffer.get();
+    //                 double time = key.mTime() / ticksPerSecond;
+    //                 if (time < startTime) {
+    //                     startTime = time;
+    //                 }
+    //                 break;
+    //             }
+    //         }
+    //         {
+    //             AIQuatKey.Buffer buffer = nodeAnim.mRotationKeys();
+    //             while (buffer.remaining() > 0) {
+    //                 AIQuatKey key = buffer.get();
+    //                 double time = key.mTime() / ticksPerSecond;
+    //                 if (time < startTime) {
+    //                     startTime = time;
+    //                 }
+    //                 break;
+    //             }
+    //         }
+    //         {
+    //             AIVectorKey.Buffer buffer = nodeAnim.mScalingKeys();
+    //             while (buffer.remaining() > 0) {
+    //                 AIVectorKey key = buffer.get();
+    //                 double time = key.mTime() / ticksPerSecond;
+    //                 if (time < startTime) {
+    //                     startTime = time;
+    //                 }
+    //                 break;
+    //             }
+    //         }
+    //     }
+    //     if (startTime == 10000.0) {
+    //         startTime = 0.0;
+    //     }
+    //     return startTime;
+    // }
+
+    // private static ModelImporter.Bone findBone(ArrayList<ModelImporter.Bone> bones, String name) {
+    //     for (ModelImporter.Bone bone : bones) {
+    //         if (bone.name.equals(name)) {
+    //             return bone;
+    //         }
+    //     }
+    //     return null;
+    // }
+
+    public static void setBoneList(Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> bones) {
+        for (Bone bone : bones) {
+            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
         }
-        if (startTime == 10000.0) {
-            startTime = 0.0;
-        }
-        return startTime;
     }
 
-    private static ModelUtil.Bone findBone(ArrayList<ModelUtil.Bone> bones, String name) {
-        for (ModelUtil.Bone bone : bones) {
-            if (bone.name.equals(name)) {
+    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+        Scene scene = loadScene(content, suffix, options);
+        loadAnimations(scene, bones, animationSetBuilder, parentAnimationId, animationIds);
+    }
+
+    private static Bone findBone(ArrayList<ModelImporter.Bone> bones, ModelImporter.Node node) {
+        for (ModelImporter.Bone bone : bones) {
+            if (bone.node.name.equals(node.name)) {
                 return bone;
             }
         }
         return null;
     }
 
-    public static void setBoneList(Rig.AnimationSet.Builder animationSetBuilder, ArrayList<ModelUtil.Bone> bones) {
-        for (ModelUtil.Bone bone : bones) {
-            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
-        }
-    }
-
-    public static void loadAnimations(byte[] animContent, String suffix, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        AIScene animScene = loadScene(animContent, suffix);
-        loadAnimations(animScene, bones, animationSetBuilder, parentAnimationId, animationIds);
-    }
-
-    public static void loadAnimations(AIScene scene, ArrayList<ModelUtil.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        AssetSpace assetSpace = getAssetSpace(scene);
-        assert(bones != null);
-
-        //System.out.printf("loadAnimations skeleton: size: %d\n", bones.size());
-
-        int num_animations = scene.mNumAnimations();
-
-        //System.out.printf("ModelUtil: loadAnimations: %d\n", num_animations);
-
-        PointerBuffer aianimations = scene.mAnimations();
-        for (int i = 0; i < num_animations; ++i) {
-            AIAnimation aianimation = AIAnimation.create(aianimations.get(i));
-            String animation_name = aianimation.mName().dataString();
-
-            double duration = aianimation.mDuration();
-            double ticksPerSecond = aianimation.mTicksPerSecond();
-            double durationTime = duration/ticksPerSecond;
-            double sampleRate = 30.0;
-
-            int num_channels = aianimation.mNumChannels();
+    public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+        for (ModelImporter.Animation animation : scene.getAnimations()) {
 
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
-            animBuilder.setDuration((float)durationTime);
 
-            // We use the supplied framerate (if available) as samplerate to get correct timings when
-            // sampling the animation data. We used to have a static sample rate of 30, which would mean
-            // if the scene was saved with a different framerate the animation would either be too fast or too slow.
-            animBuilder.setSampleRate((float)sampleRate);
+            float sampleRate = 30.0f; // TODO: Retrieve this properly from either asset file or Options
+            float startTime = 1000000.0f;
+            float endTime = 0.0f;
 
-            double startTime = 0.0;//getAnimationStartTime(aianimation);
+            animBuilder.setSampleRate(sampleRate);
 
-            //System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f  mNumChannels: %d\n", animation_name, (float)durationTime, (float)sampleRate, (float)startTime, num_channels);
+            // Each file is supposed to only have one animation
+            // And the animation name is created from outside of this function, depending on the source
+            // E.g. if the animation is from within nested .animationset files
+            // So we _dont_ do this:
+            //   animationName = animation.name;
+            // but instead do this:
+            String animationName = parentAnimationId;
+            animBuilder.setId(MurmurHash.hash64(animationName));
+            animationIds.add(animationName);
 
-            PointerBuffer aiChannels = aianimation.mChannels();
-            for (int c = 0; c < num_channels; ++c) {
-                AINodeAnim aiNodeAnim = AINodeAnim.create(aiChannels.get(c));
-                String node_name = aiNodeAnim.mNodeName().dataString();
+            // TODO: add the duration, and start time to the Animation struct!
+            for (ModelImporter.NodeAnimation nodeAnimation : animation.getNodeAnimations()) {
 
-                ModelUtil.Bone bone = findBone(bones, node_name);
-                AssetSpace curAssetSpace = assetSpace;
-                if (bone.index != 0)
-                {
-                    // Only apply up axis rotation for first bone.
-                    curAssetSpace.rotation.setIdentity();
+                int count = 0;
+                ModelImporter.KeyFrame keys[] = null;
+
+                if (nodeAnimation.translationKeysCount > 0) {
+                    keys = nodeAnimation.getTranslationKeys();
+                    count = nodeAnimation.translationKeysCount;
                 }
 
-                Matrix4d localToParent = bone.transform;
-                loadAnimationTracks(animBuilder, curAssetSpace, aiNodeAnim, localToParent, bone.index, durationTime, startTime, sampleRate, ticksPerSecond);
+                if (nodeAnimation.rotationKeysCount > 0) {
+                    keys = nodeAnimation.getRotationKeys();
+                    count = nodeAnimation.rotationKeysCount;
+                }
+
+                if (nodeAnimation.scaleKeysCount > 0) {
+                    keys = nodeAnimation.getScaleKeys();
+                    count = nodeAnimation.scaleKeysCount;
+                }
+
+                if (keys == null) {
+                    System.err.printf("Animation contains no keys!");
+                    return;
+                }
+
+                ModelImporter.KeyFrame firstKey = keys[0];
+                ModelImporter.KeyFrame lastKey = keys[count-1];
+                startTime = firstKey.time;
+                endTime = lastKey.time;
             }
 
-            // The file name is usually based on the file name itself
-            animBuilder.setId(MurmurHash.hash64(parentAnimationId));
-            animationIds.add(parentAnimationId);
+            float duration = endTime - startTime;
+            animBuilder.setDuration(duration);
+
+    System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f\n", animation.name, duration, sampleRate, startTime);
+
+            for (ModelImporter.NodeAnimation nodeAnimation : animation.getNodeAnimations()) {
+
+                Bone bone = findBone(bones, nodeAnimation.node);
+                assert(bone != null);
+
+                loadAnimationTracks(animBuilder, nodeAnimation, bone, duration, startTime, sampleRate);
+            }
+
             animationSetBuilder.addAnimations(animBuilder.build());
         }
     }
 
-    private static ArrayList<Float> getBufferData(AIVector3D.Buffer buffer, int numComponents) {
-        if (buffer == null)
-            return null;
-        ArrayList<Float> out = new ArrayList<>();
-        while (buffer.remaining() > 0) {
-            AIVector3D v = buffer.get();
-            out.add(v.x());
-            if (numComponents >= 2)
-                out.add(v.y());
-            if (numComponents >= 3)
-                out.add(v.z());
-        }
-        return out;
-    }
+    // public static void loadAnimations(AIScene scene, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+    //     AssetSpace assetSpace = getAssetSpace(scene);
+    //     assert(bones != null);
 
-    public static void loadWeights(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton, Rig.Mesh.Builder meshBuilder) {
-        int num_vertices = mesh.mNumVertices();
+    //     //System.out.printf("loadAnimations skeleton: size: %d\n", bones.size());
 
-        int num_bones = mesh.mNumBones();
-        if (num_bones == 0)
-            return;
+    //     int num_animations = scene.mNumAnimations();
 
-        ArrayList<Float>[] bone_weights = new ArrayList[num_vertices];
-        ArrayList<Integer>[] bone_indices = new ArrayList[num_vertices];
-        for (int i = 0; i < num_vertices; ++i) {
-            bone_weights[i] = new ArrayList<Float>();
-            bone_indices[i] = new ArrayList<Integer>();
-        }
+    //     //System.out.printf("ModelUtil: loadAnimations: %d\n", num_animations);
 
-        PointerBuffer bones = mesh.mBones();
-        for (int i = 0; i < num_bones; ++i) {
-            AIBone bone = AIBone.create(bones.get(i));
+    //     PointerBuffer aianimations = scene.mAnimations();
+    //     for (int i = 0; i < num_animations; ++i) {
+    //         AIAnimation aianimation = AIAnimation.create(aianimations.get(i));
+    //         String animation_name = aianimation.mName().dataString();
 
-            // find the index of this bone in the skeleton list
-            int bone_index = 0;
-            for (ModelUtil.Bone skeleton_bone : skeleton) {
-                if (skeleton_bone.name.equals(bone.mName().dataString())) {
-                    break;
-                }
-                bone_index++;
-            }
+    //         double duration = aianimation.mDuration();
+    //         double ticksPerSecond = aianimation.mTicksPerSecond();
+    //         double durationTime = duration/ticksPerSecond;
+    //         double sampleRate = 30.0;
 
-            AIVertexWeight.Buffer aiWeights = bone.mWeights();
-            while (aiWeights.remaining() > 0) {
-                AIVertexWeight bone_weight = aiWeights.get();
-                int vertex_index = bone_weight.mVertexId();
-                float vertex_weight = bone_weight.mWeight();
+    //         int num_channels = aianimation.mNumChannels();
 
-                bone_weights[vertex_index].add(vertex_weight);
-                bone_indices[vertex_index].add(bone_index);
-            }
-        }
+    //         Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
+    //         animBuilder.setDuration((float)durationTime);
 
-        // Pad each list to the desired length (currently 4 weights per vertex)
-        for (int i = 0; i < num_vertices; ++i) {
-            ArrayList<Float> weights = bone_weights[i];
-            while (weights.size() < 4) {
-                weights.add(0.0f);
-                bone_indices[i].add(0);
-            }
-        }
+    //         // We use the supplied framerate (if available) as samplerate to get correct timings when
+    //         // sampling the animation data. We used to have a static sample rate of 30, which would mean
+    //         // if the scene was saved with a different framerate the animation would either be too fast or too slow.
+    //         animBuilder.setSampleRate((float)sampleRate);
 
-        // flatten the lists
-        ArrayList<Float> flattened_weights = new ArrayList<>();
-        ArrayList<Integer> flattened_indices = new ArrayList<>();
-        for (int i = 0; i < num_vertices; ++i) {
-            flattened_weights.addAll(bone_weights[i]);
-            flattened_indices.addAll(bone_indices[i]);
+    //         double startTime = 0.0;//getAnimationStartTime(aianimation);
 
-            // System.out.printf("%4d: %f, %f, %f, %f = %f   %d, %d, %d, %d\n", i, bone_weights[i].get(0), bone_weights[i].get(1), bone_weights[i].get(2), bone_weights[i].get(3),
-            //     bone_weights[i].get(0) + bone_weights[i].get(1) + bone_weights[i].get(2) + bone_weights[i].get(3),
-            //         bone_indices[i].get(0), bone_indices[i].get(1), bone_indices[i].get(2), bone_indices[i].get(3));
-        }
-        meshBuilder.addAllWeights(flattened_weights);
-        meshBuilder.addAllBoneIndices(flattened_indices);
-    }
+    //         //System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f  mNumChannels: %d\n", animation_name, (float)durationTime, (float)sampleRate, (float)startTime, num_channels);
 
-    private static String getMaterialProperty(AIMaterial aiMaterial, String name) {
-        AIString buffer = AIString.calloc();
-        Assimp.aiGetMaterialString(aiMaterial, name, 0, 0, buffer);
-        return buffer.dataString();
-    }
+    //         PointerBuffer aiChannels = aianimation.mChannels();
+    //         for (int c = 0; c < num_channels; ++c) {
+    //             AINodeAnim aiNodeAnim = AINodeAnim.create(aiChannels.get(c));
+    //             String node_name = aiNodeAnim.mNodeName().dataString();
 
-    public static ArrayList<String> loadMaterials(AIScene scene) {
+    //             ModelImporter.Bone bone = findBone(bones, node_name);
+    //             AssetSpace curAssetSpace = assetSpace;
+    //             if (bone.index != 0)
+    //             {
+    //                 // Only apply up axis rotation for first bone.
+    //                 curAssetSpace.rotation.setIdentity();
+    //             }
+
+    //             Matrix4d localToParent = bone.transform;
+    //             loadAnimationTracks(animBuilder, curAssetSpace, aiNodeAnim, localToParent, bone.index, durationTime, startTime, sampleRate, ticksPerSecond);
+    //         }
+
+    //         // The file name is usually based on the file name itself
+    //         animBuilder.setId(MurmurHash.hash64(parentAnimationId));
+    //         animationIds.add(parentAnimationId);
+    //         animationSetBuilder.addAnimations(animBuilder.build());
+    //     }
+    // }
+
+    // private static ArrayList<Float> getBufferData(AIVector3D.Buffer buffer, int numComponents) {
+    //     if (buffer == null)
+    //         return null;
+    //     ArrayList<Float> out = new ArrayList<>();
+    //     while (buffer.remaining() > 0) {
+    //         AIVector3D v = buffer.get();
+    //         out.add(v.x());
+    //         if (numComponents >= 2)
+    //             out.add(v.y());
+    //         if (numComponents >= 3)
+    //             out.add(v.z());
+    //     }
+    //     return out;
+    // }
+
+    // public static void loadWeights(AIMesh mesh, ArrayList<ModelImporter.Bone> skeleton, Rig.Mesh.Builder meshBuilder) {
+    //     int num_vertices = mesh.mNumVertices();
+
+    //     int num_bones = mesh.mNumBones();
+    //     if (num_bones == 0)
+    //         return;
+
+    //     ArrayList<Float>[] bone_weights = new ArrayList[num_vertices];
+    //     ArrayList<Integer>[] bone_indices = new ArrayList[num_vertices];
+    //     for (int i = 0; i < num_vertices; ++i) {
+    //         bone_weights[i] = new ArrayList<Float>();
+    //         bone_indices[i] = new ArrayList<Integer>();
+    //     }
+
+    //     PointerBuffer bones = mesh.mBones();
+    //     for (int i = 0; i < num_bones; ++i) {
+    //         AIBone bone = AIBone.create(bones.get(i));
+
+    //         // find the index of this bone in the skeleton list
+    //         int bone_index = 0;
+    //         for (ModelImporter.Bone skeleton_bone : skeleton) {
+    //             if (skeleton_bone.name.equals(bone.mName().dataString())) {
+    //                 break;
+    //             }
+    //             bone_index++;
+    //         }
+
+    //         AIVertexWeight.Buffer aiWeights = bone.mWeights();
+    //         while (aiWeights.remaining() > 0) {
+    //             AIVertexWeight bone_weight = aiWeights.get();
+    //             int vertex_index = bone_weight.mVertexId();
+    //             float vertex_weight = bone_weight.mWeight();
+
+    //             bone_weights[vertex_index].add(vertex_weight);
+    //             bone_indices[vertex_index].add(bone_index);
+    //         }
+    //     }
+
+    //     // Pad each list to the desired length (currently 4 weights per vertex)
+    //     for (int i = 0; i < num_vertices; ++i) {
+    //         ArrayList<Float> weights = bone_weights[i];
+    //         while (weights.size() < 4) {
+    //             weights.add(0.0f);
+    //             bone_indices[i].add(0);
+    //         }
+    //     }
+
+    //     // flatten the lists
+    //     ArrayList<Float> flattened_weights = new ArrayList<>();
+    //     ArrayList<Integer> flattened_indices = new ArrayList<>();
+    //     for (int i = 0; i < num_vertices; ++i) {
+    //         flattened_weights.addAll(bone_weights[i]);
+    //         flattened_indices.addAll(bone_indices[i]);
+
+    //         // System.out.printf("%4d: %f, %f, %f, %f = %f   %d, %d, %d, %d\n", i, bone_weights[i].get(0), bone_weights[i].get(1), bone_weights[i].get(2), bone_weights[i].get(3),
+    //         //     bone_weights[i].get(0) + bone_weights[i].get(1) + bone_weights[i].get(2) + bone_weights[i].get(3),
+    //         //         bone_indices[i].get(0), bone_indices[i].get(1), bone_indices[i].get(2), bone_indices[i].get(3));
+    //     }
+    //     meshBuilder.addAllWeights(flattened_weights);
+    //     meshBuilder.addAllBoneIndices(flattened_indices);
+    // }
+
+    public static ArrayList<String> loadMaterialNames(Scene scene) {
         ArrayList<String> materials = new ArrayList<>();
 
-        int num_materials = scene.mNumMaterials();
-        PointerBuffer aiMaterials = scene.mMaterials();
-        for (int i = 0; i < num_materials; i++) {
-            AIMaterial aiMaterial = AIMaterial.create(aiMaterials.get(i));
-
-            String id = getMaterialProperty(aiMaterial, Assimp.AI_MATKEY_NAME);
-            if (id == null)
-            {
-                id = String.format("null_%d", i);
+        for (Model model : scene.getModels()) {
+            for (Mesh mesh : model.getMeshes()) {
+                materials.add(mesh.material);
             }
-            materials.add(id);
         }
         return materials;
     }
-
-    private class OptimizedMesh
-    {
-        Rig.IndexBufferFormat indices_format;
-        int                   indices_count;
-        ByteBuffer            indices_bytes;
-        List<Rig.MeshVertexIndices> mesh_vertex_indices;
-    };
 
     private static void createMeshIndices(Rig.Mesh.Builder meshBuilder,
                                         int triangle_count,
@@ -700,7 +712,7 @@ public class ModelUtil {
         }
 
         // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
-        // We can then use this to quickly build am optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
+        // We can then use this to quickly build an optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
         boolean mesh_has_normals = normal_indices_list.size() > 0;
         List<MeshVertexIndex> shared_vertex_indices = new ArrayList<MeshVertexIndex>(triangle_count*3);
         List<Integer> mesh_index_list = new ArrayList<Integer>(triangle_count*3);
@@ -755,20 +767,25 @@ public class ModelUtil {
         }
         indices_bytes.rewind();
 
-
         meshBuilder.addAllVertices(mesh_vertex_indices);
         meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
         meshBuilder.setIndicesFormat(indices_format);
-
 
         //System.out.printf("opt: mesh_vertex_indices: %d\n", mesh_vertex_indices.size());
         //System.out.printf("opt: num_indices:         %d\n", mesh_index_list.size());
     }
 
-    public static Rig.Mesh loadMesh(AIMesh mesh, ArrayList<ModelUtil.Bone> skeleton) {
-        ArrayList<Float> positions = getBufferData(mesh.mVertices(), 3);
+    public static List<Integer> toList(int[] array) {
+        return Arrays.asList(ArrayUtils.toObject(array));
+    }
 
-        String name = mesh.mName().dataString();
+    public static List<Float> toList(float[] array) {
+        return Arrays.asList(ArrayUtils.toObject(array));
+    }
+
+    public static Rig.Mesh loadMesh(Mesh mesh, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials) {
+
+        String name = mesh.name;
 // if (name.equals("Cube-mesh"))
 // {
 // System.out.printf("Mesh positions: %s\n", mesh.mName().dataString());
@@ -778,65 +795,57 @@ public class ModelUtil {
 //             }
 // }
 
-        ArrayList<Float> normals = getBufferData(mesh.mNormals(), 3);
-        ArrayList<Float> tangents = getBufferData(mesh.mTangents(), 3);
-        //ArrayList<Float> bitangents = getBufferData(mesh.mBitangents());
-
-        ArrayList<Float> texcoord0 = getBufferData(mesh.mTextureCoords(0), mesh.mNumUVComponents(0));
-        ArrayList<Float> texcoord1 = getBufferData(mesh.mTextureCoords(1), mesh.mNumUVComponents(1));
-
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
 
+        float[] positions = mesh.getPositions();
+        float[] normals = mesh.getNormals();
+        float[] tangents = mesh.getTangents();
+        float[] colors = mesh.getColors();
+        float[] weights = mesh.getWeights();
+        int[] bones = mesh.getBones();
+        float[] texCoords0 = mesh.getTexCoords(0);
+        float[] texCoords1 = mesh.getTexCoords(1);
+
+        // new ArrayList<Float> (Arrays.asList(value));
+
         if (positions != null)
-            meshBuilder.addAllPositions(positions);
+            meshBuilder.addAllPositions(toList(positions));
 
         if (normals != null)
-            meshBuilder.addAllNormals(normals);
+            meshBuilder.addAllNormals(toList(normals));
 
         if (tangents != null)
-            meshBuilder.addAllTangents(tangents);
+            meshBuilder.addAllTangents(toList(tangents));
 
-        if (texcoord0 != null) {
-            meshBuilder.addAllTexcoord0(texcoord0);
-            meshBuilder.setNumTexcoord0Components(mesh.mNumUVComponents(0));
+        if (texCoords0 != null) {
+            meshBuilder.addAllTexcoord0(toList(texCoords0));
+            meshBuilder.setNumTexcoord0Components(mesh.texCoords0NumComponents);
         }
-        if (texcoord1 != null) {
-            meshBuilder.addAllTexcoord1(texcoord1);
-            meshBuilder.setNumTexcoord0Components(mesh.mNumUVComponents(1));
+        if (texCoords1 != null) {
+            meshBuilder.addAllTexcoord1(toList(texCoords1));
+            meshBuilder.setNumTexcoord0Components(mesh.texCoords1NumComponents);
         }
 
-        int triangle_count = mesh.mNumFaces();
+        int[] indices = mesh.getIndices();
+        int num_indices = mesh.indexCount;
 
-        List<Integer> position_indices_list = new ArrayList<Integer>(triangle_count*3);
-        List<Integer> normal_indices_list = new ArrayList<Integer>(triangle_count*3);
-        List<Integer> texcoord0_indices_list = new ArrayList<Integer>(triangle_count*3);
+        List<Integer> position_indices_list = new ArrayList<Integer>(num_indices);
+        List<Integer> normal_indices_list = new ArrayList<Integer>(num_indices);
+        List<Integer> texcoord0_indices_list = new ArrayList<Integer>(num_indices);
 
-        AIFace.Buffer faces = mesh.mFaces();
-        for (int f = 0; f < triangle_count; ++f) {
-            AIFace face = faces.get(f);
-            assert(face.mNumIndices() == 3); // We only allow triangles
+        for (int i = 0; i < num_indices; ++i) {
+            int vertex_index = indices[i];
 
-            IntBuffer indices = face.mIndices();
-            for (int i = 0; i < 3; ++i) {
+            position_indices_list.add(vertex_index);
 
-                // Sometimes the <p> values can be -1 from Maya exports, we clamp it below to 0 instead.
-                // Similar solution as AssImp; https://github.com/assimp/assimp/blob/master/code/ColladaParser.cpp#L2336
-                // TODO: Is it really true when using the AssImp library?
+            if (normals != null) {
+                normal_indices_list.add(vertex_index);
+            }
 
-                int vertex_index = indices.get(i);
-                vertex_index = Math.max(0, vertex_index);
-
-                position_indices_list.add(vertex_index);
-
-                if (normals != null) {
-                    normal_indices_list.add(vertex_index);
-                }
-
-                if (texcoord0 != null) {
-                    texcoord0_indices_list.add(vertex_index);
-                } else {
-                    texcoord0_indices_list.add(0);
-                }
+            if (texCoords0 != null) {
+                texcoord0_indices_list.add(vertex_index);
+            } else {
+                texcoord0_indices_list.add(0);
             }
         }
 
@@ -846,369 +855,325 @@ public class ModelUtil {
         meshBuilder.addAllPositionIndices(position_indices_list);
         meshBuilder.addAllTexcoord0Indices(texcoord0_indices_list);
 
+        int triangle_count = num_indices / 3;
+
         createMeshIndices(meshBuilder, triangle_count, true, position_indices_list, normal_indices_list, texcoord0_indices_list);
 
-        int material_index = mesh.mMaterialIndex();
+        int material_index = 0;
+        for (int i = 0; i < materials.size(); ++i) {
+            String material = materials.get(i);
+            if (material.equals(mesh.material)) {
+                material_index = i;
+                break;
+            }
+        }
         meshBuilder.setMaterialIndex(material_index);
 
-        loadWeights(mesh, skeleton, meshBuilder);
+        //loadWeights(mesh, skeleton, meshBuilder);
 
         return meshBuilder.build();
     }
 
-    public static Matrix4d getTransform(AINode node) {
-        if (node == null) {
-            Matrix4d identity = new Matrix4d();
-            identity.setIdentity();
-            return identity;
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials) {
+
+        Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
+
+        for (Mesh mesh : model.getMeshes()) {
+            modelBuilder.addMeshes(loadMesh(mesh, skeleton, materials));
         }
-        Matrix4d transform = convertMatrix4x4(node.mTransformation());
-        Matrix4d parentTransform = getTransform(node.mParent());
-        transform.mul(parentTransform, transform);
-        return transform;
+
+        modelBuilder.setId(MurmurHash.hash64(model.name));
+
+        Vector3d translation = new Vector3d(node.transform.translation.x, node.transform.translation.y, node.transform.translation.z);
+        Vector3d scale = new Vector3d(node.transform.scale.x, node.transform.scale.y, node.transform.scale.z);
+        Quat4d rotation = new Quat4d(node.transform.rotation.x, node.transform.rotation.y, node.transform.rotation.z, node.transform.rotation.w);
+        Transform ddfTransform = MathUtil.vecmathToDDF(translation, rotation, scale);
+
+        modelBuilder.setTransform(ddfTransform);
+
+        return modelBuilder.build();
     }
 
-    public static void loadMeshInstances(AINode node, ArrayList<String> mesh_names, ArrayList<Rig.MeshEntry> mesh_entries) {
-        int num_meshes = node.mNumMeshes();
+    private static void loadModelInstances(Node node, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials,
+                                            ArrayList<Rig.Model> models) {
 
-        if (num_meshes > 0)
+        if (node.model != null)
         {
-            IntBuffer meshrefs = node.mMeshes();
-
-            String node_name = node.mName().dataString();
-
-            Rig.MeshEntry.Builder meshEntryBuilder = Rig.MeshEntry.newBuilder();
-            meshEntryBuilder.setId(MurmurHash.hash64(node_name));
-
-            Matrix4d transformd = getTransform(node);
-            Matrix4 transform = MathUtil.vecmathToDDF(transformd);
-            meshEntryBuilder.setTransform(transform);
-
-            for (int i = 0; i < num_meshes; ++i) {
-                int meshref = meshrefs.get(i);
-
-                Rig.MeshSlot.Builder meshSlotBuilder = Rig.MeshSlot.newBuilder();
-
-                String mesh_name = mesh_names.get(meshref);
-                //System.out.printf("MESH SLOT: %s  %d \n", mesh_name, MurmurHash.hash64(mesh_name));
-                meshSlotBuilder.setId(MurmurHash.hash64(mesh_name));
-                meshSlotBuilder.setActiveIndex(0); // Default to the first mesh in the mesh attachments
-                meshSlotBuilder.addMeshAttachments(meshref);
-
-                // // Not really used by models
-                // meshSlotBuilder.addSlotColor(1.0f);
-                // meshSlotBuilder.addSlotColor(1.0f);
-                // meshSlotBuilder.addSlotColor(1.0f);
-                // meshSlotBuilder.addSlotColor(1.0f);
-
-                meshEntryBuilder.addMeshSlots(meshSlotBuilder);
-
-                //printMatrix4d(node.mName().dataString(), transformd);
-            }
-
-            //System.out.printf("MESH ENTRY: %s %d\n", node_name, MurmurHash.hash64(node_name));
-
-            mesh_entries.add(meshEntryBuilder.build());
+            models.add(loadModel(node, node.model, skeleton, materials));
         }
 
-        PointerBuffer children = node.mChildren();
-        for (int i = 0; i < node.mNumChildren(); ++i) {
-            AINode child = AINode.create(children.get(i));
-            loadMeshInstances(child, mesh_names, mesh_entries);
+        for (Node child : node.getChildren()) {
+            loadModelInstances(child, skeleton, materials, models);
         }
     }
 
-    public static void loadMeshes(AIScene scene, Rig.MeshSet.Builder meshSetBuilder) {
+    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
 // TODO: Compare with the skeleton that is set as the "skeleton" !
 // Report error if
 // * this internal skeleton contains nodes that are not part of the external skeleton
 // Remap indices if the layout is different?
 
-        ArrayList<ModelUtil.Bone> skeleton = loadSkeleton(scene);
+        ArrayList<ModelImporter.Bone> skeleton = loadSkeleton(scene);
 
-        ArrayList<String> materials = loadMaterials(scene);
+        ArrayList<String> materials = loadMaterialNames(scene);
         meshSetBuilder.addAllMaterials(materials);
 
-        ArrayList<Rig.Mesh> meshes = new ArrayList<>();
-        ArrayList<String> mesh_names = new ArrayList<>();
+        ArrayList<Rig.Model> models = new ArrayList<>();
+        for (Node root : scene.getRootNodes()) {
+            loadModelInstances(root, skeleton, materials, models);
 
-        PointerBuffer aiMeshes = scene.mMeshes();
-        for (int i = 0; i < scene.mNumMeshes(); ++i) {
-            AIMesh aiMesh = AIMesh.create(aiMeshes.get(i));
-
-            String mesh_name = aiMesh.mName().dataString();
-            mesh_names.add(mesh_name);
-            //System.out.printf("MESH: %s\n", mesh_name);
-
-            Rig.Mesh mesh = loadMesh(aiMesh, skeleton);
-            meshes.add(mesh);
+            break; // TODO: Support more than one root node
         }
 
-        ArrayList<Rig.MeshEntry> mesh_entries = new ArrayList<>();
-        loadMeshInstances(scene.mRootNode(), mesh_names, mesh_entries);
-
-        // The total number of slots in the scene (we can use it to preallocate data)
-        int num_slots = 0;
-        for (Rig.MeshEntry entry : mesh_entries) {
-            num_slots += entry.getMeshSlotsCount();
-        }
-        meshSetBuilder.setSlotCount(num_slots);
-
-        meshSetBuilder.addAllMeshAttachments(meshes);
-        meshSetBuilder.addAllMeshEntries(mesh_entries);
+        meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
 
-        for (ModelUtil.Bone bone : skeleton) {
+        for (ModelImporter.Bone bone : skeleton) {
             meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
         }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    private static void createNodeMap(AINode node, Map<String, AINode> map, int indent) {
-        map.put(node.mName().dataString(), node);
+    // private static void createNodeMap(AINode node, Map<String, AINode> map, int indent) {
+    //     map.put(node.mName().dataString(), node);
 
-        // for (int i = 0; i < indent; ++i)
-        // {
-        //     System.out.printf("  ");
-        // }
-        // System.out.printf("Node: %s  numMeshes: %d\n", node.mName().dataString(), node.mNumMeshes());
+    //     // for (int i = 0; i < indent; ++i)
+    //     // {
+    //     //     System.out.printf("  ");
+    //     // }
+    //     // System.out.printf("Node: %s  numMeshes: %d\n", node.mName().dataString(), node.mNumMeshes());
 
-        PointerBuffer children = node.mChildren();
-        for (int i = 0; i < node.mNumChildren(); ++i) {
-            AINode child = AINode.create(children.get(i));
-            createNodeMap(child, map, indent+1);
-        }
-    }
+    //     PointerBuffer children = node.mChildren();
+    //     for (int i = 0; i < node.mNumChildren(); ++i) {
+    //         AINode child = AINode.create(children.get(i));
+    //         createNodeMap(child, map, indent+1);
+    //     }
+    // }
 
-    private static void gatherMeshOwners(AIScene aiScene, AINode node, HashMap<String, AINode> meshOwners) {
+    // private static void gatherMeshOwners(AIScene aiScene, AINode node, HashMap<String, AINode> meshOwners) {
 
-        if (node.mNumMeshes() > 0)
+    //     if (node.mNumMeshes() > 0)
+    //     {
+    //         String name = node.mName().dataString();
+    //         PointerBuffer meshes = aiScene.mMeshes();
+    //         int numMeshes = node.mNumMeshes();
+    //         IntBuffer meshrefs = node.mMeshes();
+    //         for (int i = 0; i < numMeshes; ++i) {
+    //             int meshref = meshrefs.get(i);
+    //             AIMesh mesh = AIMesh.create(meshes.get(meshref));
+    //             String mesh_name = mesh.mName().dataString();
+
+    //             meshOwners.put(mesh_name, node);
+    //         }
+    //     }
+
+    //     PointerBuffer children = node.mChildren();
+    //     for (int i = 0; i < node.mNumChildren(); ++i) {
+    //         AINode child = AINode.create(children.get(i));
+    //         gatherMeshOwners(aiScene, child, meshOwners);
+    //     }
+    // }
+
+    // private static void markNecessary(AINode node, AINode mesh_owner, HashSet<String> boneSet) {
+    //     // The iteration step from https://assimp-docs.readthedocs.io/en/latest/usage/use_the_lib.html#bones
+    //     AINode mesh_owner_parent = mesh_owner.mParent();
+    //     if (node == null ||
+    //         node.mName().equals(mesh_owner.mName()) ||
+    //         node.mName().equals(mesh_owner_parent.mName()))
+    //         return;
+
+    //     String name = node.mName().dataString();
+    //     boneSet.add(name);
+
+    //     markNecessary(node.mParent(), mesh_owner, boneSet);
+    // }
+
+    // private static void gatherSkeleton(AINode node, int parentIndex, HashSet<String> boneSet, List<ModelImporter.Bone> skeleton) {
+    //     String name = node.mName().dataString();
+    //     if (!boneSet.contains(name))
+    //         return;
+
+    //     assert(false); // Use the skeleton returned from the modelimporter!
+
+    //     // ModelImporter.Bone bone = new ModelImporter.Bone();
+    //     // bone.name = name;
+    //     // bone.node = node;
+    //     // bone.index = skeleton.size();
+    //     // bone.parentIndex = parentIndex;
+
+    //     // parentIndex = skeleton.size();
+    //     // skeleton.add(bone);
+
+    //     // for (Node child : node.getChildren()) {
+    //     //     gatherSkeleton(child, parentIndex, boneSet, skeleton);
+    //     // }
+    // }
+
+    // private static ArrayList<ModelImporter.Bone> findSkeleton(AIScene aiScene) {
+
+    //     // Possible improvements:
+    //     // * check the bone.mArmature to only gather the first skeleton found
+    //     // * use bone.mNode to find the corresponding node
+
+
+    //     AINode root = aiScene.mRootNode();
+
+    //     HashSet<String> boneSet = new HashSet<>();
+    //     HashMap<String, AIBone> boneMap = new HashMap<>();
+    //     HashMap<String, AINode> nodeMap = new HashMap<>();
+    //     createNodeMap(root, nodeMap, 0);
+
+
+    //     HashMap<String, AINode> meshOwners = new HashMap<>();
+    //     gatherMeshOwners(aiScene, root, meshOwners);
+
+    //     // for (String key : meshOwners.keySet()) {
+    //     //     AINode node = meshOwners.get(key);
+    //     //     String name = node.mName().dataString();
+    //     // }
+
+    //     int numMeshes = aiScene.mNumMeshes();
+    //     PointerBuffer meshes = aiScene.mMeshes();
+    //     for (int i = 0; i < numMeshes; ++i) {
+    //         AIMesh mesh = AIMesh.create(meshes.get(i));
+    //         String mesh_name = mesh.mName().dataString();
+
+    //         //System.out.printf("MESH: %s\n", mesh_name);
+
+    //         int numBones = mesh.mNumBones();
+    //         PointerBuffer bones = mesh.mBones();
+    //         for (int b = 0; b < numBones; ++b) {
+    //             AIBone bone = AIBone.create(bones.get(b));
+    //             String bone_name = bone.mName().dataString();
+    //             //System.out.printf("  bone: %s 0x%016X\n", bone_name, MurmurHash.hash64(bone_name));
+
+    //             boneMap.put(bone_name, bone);
+
+    //             AINode bone_node = nodeMap.get(bone_name);
+    //             AINode mesh_owner = meshOwners.get(mesh_name);
+    //             markNecessary(bone_node, mesh_owner, boneSet);
+    //         }
+    //     }
+
+    //     if (boneSet.isEmpty()) {
+    //         return new ArrayList<ModelImporter.Bone>();
+    //     }
+
+    //     // Find the root bone
+    //     String some_bone_name = boneSet.iterator().next();
+    //     AINode root_bone = nodeMap.get(some_bone_name);
+    //     AINode parent = root_bone.mParent();
+    //     String parent_name = parent.mName().dataString();
+    //     while (boneSet.contains(parent_name)) {
+    //         root_bone = parent;
+    //         parent = parent.mParent();
+    //         parent_name = parent.mName().dataString();
+    //     }
+
+    //     //System.out.printf("root bone: %s\n", root_bone.mName().dataString());
+
+    //     ArrayList<ModelImporter.Bone> skeleton = new ArrayList<>();
+    //     gatherSkeleton(root_bone, BONE_NO_PARENT, boneSet, skeleton);
+
+    //     int index = 0;
+    //     for (ModelImporter.Bone bone : skeleton) {
+    //         // Note that some bones might not actually influence any vertices, and won't have an AIBone
+    //         bone.bone = boneMap.getOrDefault(bone.name, null);
+
+    //         //System.out.printf("Skeleton %2d: %s       0x%016X\n", index++, bone.name, MurmurHash.hash64(bone.name));
+
+    //         // TODO: check that the bone.bone.mNumWeights() is <= 4, otherwise output a warning
+    //     }
+
+    //     return skeleton;
+    // }
+
+    public static ArrayList<ModelImporter.Bone> loadSkeleton(Scene scene) {
+        ArrayList<ModelImporter.Bone> skeleton = new ArrayList<>();
+
+        if (scene.skinsCount == 0)
         {
-            String name = node.mName().dataString();
-            PointerBuffer meshes = aiScene.mMeshes();
-            int numMeshes = node.mNumMeshes();
-            IntBuffer meshrefs = node.mMeshes();
-            for (int i = 0; i < numMeshes; ++i) {
-                int meshref = meshrefs.get(i);
-                AIMesh mesh = AIMesh.create(meshes.get(meshref));
-                String mesh_name = mesh.mName().dataString();
-
-                meshOwners.put(mesh_name, node);
-            }
+            return skeleton;
         }
 
-        PointerBuffer children = node.mChildren();
-        for (int i = 0; i < node.mNumChildren(); ++i) {
-            AINode child = AINode.create(children.get(i));
-            gatherMeshOwners(aiScene, child, meshOwners);
-        }
-    }
-
-    private static void markNecessary(AINode node, AINode mesh_owner, HashSet<String> boneSet) {
-        // The iteration step from https://assimp-docs.readthedocs.io/en/latest/usage/use_the_lib.html#bones
-        AINode mesh_owner_parent = mesh_owner.mParent();
-        if (node == null ||
-            node.mName().equals(mesh_owner.mName()) ||
-            node.mName().equals(mesh_owner_parent.mName()))
-            return;
-
-        String name = node.mName().dataString();
-        boneSet.add(name);
-
-        markNecessary(node.mParent(), mesh_owner, boneSet);
-    }
-
-    private static void gatherSkeleton(AINode node, int parentIndex, HashSet<String> boneSet, List<ModelUtil.Bone> skeleton) {
-        String name = node.mName().dataString();
-        if (!boneSet.contains(name))
-            return;
-
-        ModelUtil.Bone bone = new ModelUtil.Bone();
-        bone.name = name;
-        bone.node = node;
-        bone.index = skeleton.size();
-        bone.parentIndex = parentIndex;
-
-        parentIndex = skeleton.size();
-        skeleton.add(bone);
-
-        PointerBuffer children = node.mChildren();
-        for (int i = 0; i < node.mNumChildren(); ++i) {
-            AINode child = AINode.create(children.get(i));
-            gatherSkeleton(child, parentIndex, boneSet, skeleton);
-        }
-    }
-
-    private static ArrayList<ModelUtil.Bone> findSkeleton(AIScene aiScene) {
-
-        // Possible improvements:
-        // * check the bone.mArmature to only gather the first skeleton found
-        // * use bone.mNode to find the corresponding node
-
-
-        AINode root = aiScene.mRootNode();
-
-        HashSet<String> boneSet = new HashSet<>();
-        HashMap<String, AIBone> boneMap = new HashMap<>();
-        HashMap<String, AINode> nodeMap = new HashMap<>();
-        createNodeMap(root, nodeMap, 0);
-
-
-        HashMap<String, AINode> meshOwners = new HashMap<>();
-        gatherMeshOwners(aiScene, root, meshOwners);
-
-        // for (String key : meshOwners.keySet()) {
-        //     AINode node = meshOwners.get(key);
-        //     String name = node.mName().dataString();
-        // }
-
-        int numMeshes = aiScene.mNumMeshes();
-        PointerBuffer meshes = aiScene.mMeshes();
-        for (int i = 0; i < numMeshes; ++i) {
-            AIMesh mesh = AIMesh.create(meshes.get(i));
-            String mesh_name = mesh.mName().dataString();
-
-            //System.out.printf("MESH: %s\n", mesh_name);
-
-            int numBones = mesh.mNumBones();
-            PointerBuffer bones = mesh.mBones();
-            for (int b = 0; b < numBones; ++b) {
-                AIBone bone = AIBone.create(bones.get(b));
-                String bone_name = bone.mName().dataString();
-                //System.out.printf("  bone: %s 0x%016X\n", bone_name, MurmurHash.hash64(bone_name));
-
-                boneMap.put(bone_name, bone);
-
-                AINode bone_node = nodeMap.get(bone_name);
-                AINode mesh_owner = meshOwners.get(mesh_name);
-                markNecessary(bone_node, mesh_owner, boneSet);
-            }
-        }
-
-        if (boneSet.isEmpty()) {
-            return new ArrayList<ModelUtil.Bone>();
-        }
-
-        // Find the root bone
-        String some_bone_name = boneSet.iterator().next();
-        AINode root_bone = nodeMap.get(some_bone_name);
-        AINode parent = root_bone.mParent();
-        String parent_name = parent.mName().dataString();
-        while (boneSet.contains(parent_name)) {
-            root_bone = parent;
-            parent = parent.mParent();
-            parent_name = parent.mName().dataString();
-        }
-
-        //System.out.printf("root bone: %s\n", root_bone.mName().dataString());
-
-        ArrayList<ModelUtil.Bone> skeleton = new ArrayList<>();
-        gatherSkeleton(root_bone, BONE_NO_PARENT, boneSet, skeleton);
-
-        int index = 0;
-        for (ModelUtil.Bone bone : skeleton) {
-            // Note that some bones might not actually influence any vertices, and won't have an AIBone
-            bone.bone = boneMap.getOrDefault(bone.name, null);
-
-            //System.out.printf("Skeleton %2d: %s       0x%016X\n", index++, bone.name, MurmurHash.hash64(bone.name));
-
-            // TODO: check that the bone.bone.mNumWeights() is <= 4, otherwise output a warning
+        // get the first skeleton
+        ModelImporter.Skin skin = scene.getSkins()[0];
+        for (Bone bone : skin.getBones()) {
+            skeleton.add(bone);
         }
 
         return skeleton;
     }
 
-    public static ArrayList<ModelUtil.Bone> loadSkeleton(AIScene aiScene) {
-        AssetSpace assetSpace = getAssetSpace(aiScene);
-
-        ArrayList<ModelUtil.Bone> skeleton = findSkeleton(aiScene);
-
-        Matrix4d skeletonTransform = new Matrix4d();
-        skeletonTransform.setIdentity();
-
-        for (ModelUtil.Bone bone : skeleton) {
-            AIMatrix4x4 offset_matrix = AIMatrix4x4.create();
-            if (bone.bone != null) {
-                offset_matrix = bone.bone.mOffsetMatrix();
-            } else {
-                offset_matrix.set(1.0f,0.0f,0.0f,0.0f, 0.0f,1.0f,0.0f,0.0f, 0.0f,0.0f,1.0f,0.0f, 0.0f,0.0f,0.0f,1.0f);
-            }
-
-            // "The offset matrix is a 4x4 matrix that transforms from mesh space to bone space in bind pose." - https://github.com/assimp/assimp/blob/master/port/jassimp/jassimp/src/jassimp/AiBone.java
-            bone.offsetTransform = convertMatrix4x4(offset_matrix);
-            //printMatrix4d("offsetTransform", bone.offsetTransform);
-
-            bone.transform = convertMatrix4x4(bone.node.mTransformation());
-            //printMatrix4d("transform", bone.transform);
-        }
-        return skeleton;
-    }
-
-    public static ArrayList<ModelUtil.Bone> loadSkeleton(byte[] content, String suffix) {
-        AIScene aiScene = loadScene(content, suffix);
-        return loadSkeleton(aiScene);
+    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options) {
+        Scene scene = loadScene(content, suffix, options);
+        return loadSkeleton(scene);
     }
 
     // Generate skeleton DDF data of bones.
     // It will extract the position, rotation and scale from the bone transform as needed by the runtime.
-    private static void boneToDDF(ModelUtil.Bone bone, ArrayList<Rig.Bone> ddfBones) {
+    private static void boneToDDF(ModelImporter.Bone bone, ArrayList<Rig.Bone> ddfBones) {
         Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
         b.setParent(bone.parentIndex);
         b.setId(MurmurHash.hash64(bone.name));
         b.setName(bone.name);
 
-        // Decompose pos, rot and scale from bone matrix.
-        Vector3d position = new Vector3d();
-        Quat4d rotation = new Quat4d();
-        Vector3d scale = new Vector3d();
-        MathUtil.decompose(bone.transform, position, rotation, scale);
-
-        Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position));
-        b.setPosition(ddfpos);
-
-        Quat ddfrot = MathUtil.vecmathToDDF(rotation);
-        b.setRotation(ddfrot);
-
-        Vector3 ddfscale = MathUtil.vecmathToDDF(scale);
-        b.setScale(ddfscale);
-
         b.setLength(0.0f);
         b.setInheritScale(true);
+
+        ModelImporter.Transform transform = bone.node.transform;
+        Vector3d translation = new Vector3d(transform.translation.x, transform.translation.y, transform.translation.z);
+        Vector3d scale = new Vector3d(transform.scale.x, transform.scale.y, transform.scale.z);
+        Quat4d rotation = new Quat4d(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w);
+        Transform ddfTransform = MathUtil.vecmathToDDF(translation, rotation, scale);
+
+        b.setTransform(ddfTransform);
+        // Vector3d translation = new Vector3d(bone.transform.translation.x, bone.transform.translation.y, bone.transform.translation.z);
+        // Vector3d scale = new Vector3d(bone.transform.scale.x, bone.transform.scale.y, bone.transform.scale.z);
+        // Quat4d rotation = new Quat4d(bone.transform.rotation.x, bone.transform.rotation.y, bone.transform.rotation.z, bone.transform.rotation.w);
+
+        //Transform ddfTransform = MathUtil.vecmathToDDF(translation, rotation, scale);
+
+        // // Decompose pos, rot and scale from bone matrix.
+        // Vector3d position = new Vector3d();
+        // Quat4d rotation = new Quat4d();
+        // Vector3d scale = new Vector3d();
+        // MathUtil.decompose(bone.transform, position, rotation, scale);
+
+        // Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position));
+        // b.setPosition(ddfpos);
+
+        // Quat ddfrot = MathUtil.vecmathToDDF(rotation);
+        // b.setRotation(ddfrot);
+
+        // Vector3 ddfscale = MathUtil.vecmathToDDF(scale);
+        // b.setScale(ddfscale);
 
         ddfBones.add(b.build());
     }
 
-    public static void loadSkeleton(AIScene aiScene, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
-        ArrayList<ModelUtil.Bone> boneList = loadSkeleton(aiScene);
+    public static boolean loadSkeleton(Scene scene, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) {
+        ArrayList<Bone> boneList = loadSkeleton(scene);
 
         // Generate DDF representation of bones.
         ArrayList<Rig.Bone> ddfBones = new ArrayList<Rig.Bone>();
-        for (ModelUtil.Bone bone : boneList) {
+        for (Bone bone : boneList) {
             boneToDDF(bone, ddfBones);
         }
         skeletonBuilder.addAllBones(ddfBones);
+        return ddfBones.size() > 0;
     }
 
-    public static void skeletonToDDF(ArrayList<ModelUtil.Bone> bones, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
+    public static void skeletonToDDF(ArrayList<ModelImporter.Bone> bones, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) {
         // Generate DDF representation of bones.
         ArrayList<Rig.Bone> ddfBones = new ArrayList<>();
-        for (ModelUtil.Bone bone : bones) {
+        for (ModelImporter.Bone bone : bones) {
             boneToDDF(bone, ddfBones);
         }
         skeletonBuilder.addAllBones(ddfBones);
     }
-
-    public static void loadSkeleton(byte[] content, String suffix, Rig.Skeleton.Builder skeletonBuilder) throws IOException, LoaderException {
-        AIScene aiScene = loadScene(content, suffix);
-        loadSkeleton(aiScene, skeletonBuilder);
-    }
-
-    // private float getFloatProperty(aiScene scene, String name, float default_value) {
-
-    // }
-
 
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
     public static void main(String[] args) throws IOException {
@@ -1224,91 +1189,43 @@ public class ModelUtil {
             return;
         }
 
-        AIScene scene;
+        Scene scene;
         try {
             String suffix = FilenameUtils.getExtension(file.getName());
             InputStream is = new FileInputStream(file);
-            scene = loadScene(is, suffix);
+            scene = loadScene(is, suffix, new ModelImporter.Options());
         } catch (Exception e) {
             System.out.printf("Failed reading'%s':\n%s\n", file, e.getMessage());
             return;
         }
 
-        System.out.printf("Meta Data:\n");
-        {
-            AIMetaData meta_data = scene.mMetaData();
-            AIString.Buffer meta_data_keys = meta_data.mKeys();
-            AIMetaDataEntry.Buffer meta_data_values = meta_data.mValues();
-            int num_properties = meta_data.mNumProperties();
-            for (int i = 0; i < num_properties; ++i) {
-                AIString name = meta_data_keys.get(i);
-                AIMetaDataEntry entry = meta_data_values.get(i);
-                int type = entry.mType(); // Assimp.java
-                ByteBuffer data = entry.mData(2048);
 
-                // https://github.com/LWJGL/lwjgl3/blob/02e5523774b104866e502e706141ae1a468183e6/modules/lwjgl/assimp/src/generated/java/org/lwjgl/assimp/Assimp.java#L1767-L1776
+        // System.out.printf("Scene Root Transform:\n");
+        // printMatrix4x4(scene.mRootNode().mName().dataString(), scene.mRootNode().mTransformation());
+        // System.out.printf("\n");
 
-                String str_value = "<...>";
-                String str_type = "?";
+        System.out.printf("--------------------------------------------\n");
 
-                switch (type)
-                {
-                case AI_BOOL: str_type = "AI_BOOL"; break;
-                case AI_INT32:
-                    str_type = "AI_INT32";
-                    str_value = Integer.toString(data.getInt());
-                    break;
-                case AI_UINT64:
-                    str_type = "AI_UINT64";
-                    str_value = Long.toString(data.getLong());
-                    break;
-                case AI_FLOAT:
-                    str_type = "AI_FLOAT";
-                    str_value = Float.toString(data.getFloat());
-                    break;
-                case AI_DOUBLE:
-                    str_type = "AI_DOUBLE";
-                    str_value = Double.toString(data.getDouble());
-                    break;
-                case AI_AISTRING:
-                    str_type = "AI_AISTRING";
-                    int len = data.getInt();
-                    data.limit(data.position() + len);
-                    str_value = StandardCharsets.UTF_8.decode(data).toString();
-                    break;
-                case AI_AIVECTOR3D:
-                    str_type = "AI_AIVECTOR3D";
-                    str_value = String.format("%f, %f, %f", data.getFloat(), data.getFloat(), data.getFloat());
-                    break;
-                case AI_AIMETADATA: str_type = "AI_AIMETADATA"; break;
-                default: break;
-                }
+        // System.out.printf("Bones:\n");
 
-                System.out.printf("  Property: %s: %s (%s)\n", name.dataString(), str_value, str_type);
-            }
-        }
-        System.out.printf("\n");
-
-        System.out.printf("Scene Root Transform:\n");
-        printMatrix4x4(scene.mRootNode().mName().dataString(), scene.mRootNode().mTransformation());
-        System.out.printf("\n");
-
-        System.out.printf("Bones:\n");
-
-        ArrayList<ModelUtil.Bone> bones = loadSkeleton(scene);
-        for (Bone bone : bones) {
-            System.out.printf("  Bone: %s  index: %d\n", bone.name, bone.index);
-        }
+        // ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+        // for (Bone bone : bones) {
+        //     System.out.printf("  Bone: %s  index: %d  parent: %d\n", bone.name, bone.index, bone.parentIndex);
+        // }
+        // System.out.printf("--------------------------------------------\n");
 
         System.out.printf("Materials:\n");
-        ArrayList<String> materials = loadMaterials(scene);
+        ArrayList<String> materials = loadMaterialNames(scene);
         for (String material : materials) {
             System.out.printf("  Material: %s\n", material);
         }
-        System.out.printf("\n");
+        System.out.printf("--------------------------------------------\n");
 
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        loadMeshes(scene, meshSetBuilder);
+        loadModels(scene, meshSetBuilder);
+
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        loadSkeleton(scene, skeletonBuilder);
     }
 
 }

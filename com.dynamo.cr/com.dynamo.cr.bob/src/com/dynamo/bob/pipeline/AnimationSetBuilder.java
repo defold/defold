@@ -36,8 +36,6 @@ import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.google.protobuf.TextFormat;
 
-import org.lwjgl.assimp.AIScene;
-
 
 @BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc")
 public class AnimationSetBuilder extends Builder<Void>  {
@@ -91,7 +89,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task<Void> task, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder, String parentId, ArrayList<ModelUtil.Bone> bones) throws CompileExceptionError, IOException {
+    private void buildAnimations(Task<Void> task, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder, String parentId, ArrayList<ModelImporter.Bone> bones) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
 
         for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
@@ -117,7 +115,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
             ByteArrayInputStream animFileIS = new ByteArrayInputStream(animFile.getContent());
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
             ArrayList<String> animationIds = new ArrayList<String>();
-            ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), bones, animBuilder, animId, animationIds);
+            ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), new ModelImporter.Options(), bones, animBuilder, animId, animationIds);
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
         }
@@ -150,7 +148,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         return makeUnique(animations);
     }
 
-    static public void buildAnimations(List<String> paths, ArrayList<ModelUtil.Bone> bones, List<InputStream> streams, List<String> parentIds, AnimationSet.Builder animationSetBuilder, ArrayList<String> animationIds) throws IOException, LoaderException {
+    static public void buildAnimations(List<String> paths, ArrayList<ModelImporter.Bone> bones, List<InputStream> streams, List<String> parentIds, AnimationSet.Builder animationSetBuilder, ArrayList<String> animationIds) throws IOException, LoaderException {
 
         int count = paths.size();
         for (int i = 0; i < count; ++i) {
@@ -160,7 +158,8 @@ public class AnimationSetBuilder extends Builder<Void>  {
 
             String baseName = FilenameUtils.getBaseName(path);
             String suffix = FilenameUtils.getExtension(path);
-            AIScene scene = ModelUtil.loadScene(stream, suffix);
+
+            ModelImporter.Scene scene = ModelUtil.loadScene(stream, suffix, new ModelImporter.Options());
 
             ArrayList<String> localAnimationIds = new ArrayList<String>();
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
@@ -176,6 +175,8 @@ public class AnimationSetBuilder extends Builder<Void>  {
             ModelUtil.loadAnimations(scene, bones, animBuilder, animId, localAnimationIds);
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
+
+            ModelUtil.unloadScene(scene);
         }
         ModelUtil.setBoneList(animationSetBuilder, bones);
     }
@@ -190,7 +191,12 @@ public class AnimationSetBuilder extends Builder<Void>  {
         TextFormat.merge(animSetDescISR, animSetDescBuilder);
 
         IResource skeletonFile = BuilderUtil.checkResource(this.project, task.input(0), "skeleton", animSetDescBuilder.getSkeleton());
-        ArrayList<ModelUtil.Bone> bones = ModelUtil.loadSkeleton(skeletonFile.getContent(), BuilderUtil.getSuffix(skeletonFile.getPath()));
+        ModelImporter.Scene skeletonScene = ModelUtil.loadScene(skeletonFile.getContent(), BuilderUtil.getSuffix(skeletonFile.getPath()), new ModelImporter.Options());
+        ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(skeletonScene);
+
+        if (bones.size() == 0) {
+            throw new CompileExceptionError(skeletonFile, -1, "No skeleton found in file!");
+        }
 
         // evaluate hierarchy
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();

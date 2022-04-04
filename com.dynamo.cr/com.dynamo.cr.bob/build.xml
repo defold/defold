@@ -202,6 +202,7 @@
         <copy todir="${bob.dir}/lib/x86_64-darwin" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>
+                <include name="x86_64-darwin/*model_shared*"/>
             </fileset>
 <!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
             </fileset> -->
@@ -209,6 +210,7 @@
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>
+                <include name="x86_64-linux/*model_shared*"/>
             </fileset>
 <!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
             </fileset> -->
@@ -216,11 +218,13 @@
         <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
               <include name="win32/*texc_shared*"/>
+              <include name="win32/*model_shared*"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
+                <include name="x86_64-win32/*model_shared*"/>
             </fileset>
 <!--             <fileset dir="${env.DYNAMO_HOME}/lib">
             </fileset> -->
@@ -294,6 +298,7 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
+                <include name="lib/**/*model_shared*"/>
             </fileset>
 
             <fileset dir="${bob.dir}">
@@ -343,6 +348,7 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
+                <include name="lib/**/*model_shared*"/>
                 <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
                 <include name="lib/*win32/wrap_oal.dll"/>

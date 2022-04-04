@@ -23,19 +23,11 @@ import org.apache.commons.io.FilenameUtils;
 
 import java.util.Objects;
 
-// https://lwjglgamedev.gitbooks.io/3d-game-development-with-lwjgl/content/chapter27/chapter27.html
-// https://javadoc.lwjgl.org/index.html?org/lwjgl/assimp/Assimp.html
-import java.util.*; //need this??
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.assimp.*;
-import static org.lwjgl.assimp.Assimp.*;
-
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.channels.FileChannel;
-
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -48,7 +40,7 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-@BuilderParams(name="Meshset", inExts={".dae",".fbx"}, outExt=".meshsetc")
+@BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc")
 public class MeshsetBuilder extends Builder<Void>  {
 
     @Override
@@ -63,19 +55,75 @@ public class MeshsetBuilder extends Builder<Void>  {
         return taskBuilder.build();
     }
 
+    public void buildCollada(Task<Void> task) throws CompileExceptionError, IOException {
+        // Previously ColladaModelBuilder.java
+        ByteArrayInputStream collada_is = new ByteArrayInputStream(task.input(0).getContent());
+
+        // MeshSet
+        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+        MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+        try {
+            ColladaUtil.loadMesh(collada_is, meshSetBuilder, true);
+        } catch (XMLStreamException e) {
+            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh: " + e.getLocalizedMessage(), e);
+        } catch (LoaderException e) {
+            throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh: " + e.getLocalizedMessage(), e);
+        }
+        meshSetBuilder.build().writeTo(out);
+        out.close();
+        task.output(0).setContent(out.toByteArray());
+
+        // Skeleton
+        out = new ByteArrayOutputStream(64 * 1024);
+        collada_is.reset();
+        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+        try {
+            ColladaUtil.loadSkeleton(collada_is, skeletonBuilder, new ArrayList<String>());
+        } catch (XMLStreamException e) {
+            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
+        } catch (LoaderException e) {
+            throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
+        }
+        skeletonBuilder.build().writeTo(out);
+        out.close();
+        task.output(1).setContent(out.toByteArray());
+
+        // Animationset
+        out = new ByteArrayOutputStream(64 * 1024);
+        collada_is.reset();
+        AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
+        try {
+            ColladaUtil.loadAnimations(collada_is, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+        } catch (XMLStreamException e) {
+            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile animation: " + e.getLocalizedMessage(), e);
+        } catch (LoaderException e) {
+            throw new CompileExceptionError(task.input(0), -1, "Failed to compile animation: " + e.getLocalizedMessage(), e);
+        }
+        animationSetBuilder.build().writeTo(out);
+        out.close();
+        task.output(2).setContent(out.toByteArray());
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
         String suffix = BuilderUtil.getSuffix(task.input(0).getPath());
-        AIScene aiScene = ModelUtil.loadScene(task.input(0).getContent(), suffix);
-        if (aiScene == null) {
+
+        if (suffix.equals("dae")) {
+            buildCollada(task); // Until our model importer supports collada
+            return;
+        }
+
+        ModelImporter.Options options = new ModelImporter.Options();
+        ModelImporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), suffix, options);
+        if (scene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
         }
 
         // MeshSet
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-            ModelUtil.loadMeshes(aiScene, meshSetBuilder);
+            ModelUtil.loadModels(scene, meshSetBuilder);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
@@ -86,10 +134,8 @@ public class MeshsetBuilder extends Builder<Void>  {
         // Skeleton
         {
             Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-            try {
-                ModelUtil.loadSkeleton(aiScene, skeletonBuilder);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
+            if (!ModelUtil.loadSkeleton(scene, skeletonBuilder)) {
+                throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton");
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
@@ -100,9 +146,9 @@ public class MeshsetBuilder extends Builder<Void>  {
 
         // Animationset
         {
-            ArrayList<ModelUtil.Bone> skeleton = ModelUtil.loadSkeleton(aiScene);
+            ArrayList<ModelImporter.Bone> skeleton = ModelUtil.loadSkeleton(scene);
             AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-            ModelUtil.loadAnimations(aiScene, skeleton, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+            ModelUtil.loadAnimations(scene, skeleton, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             animationSetBuilder.build().writeTo(out);
@@ -110,7 +156,7 @@ public class MeshsetBuilder extends Builder<Void>  {
             task.output(2).setContent(out.toByteArray());
         }
 
-        aiReleaseImport(aiScene);
+        ModelUtil.unloadScene(scene);
     }
 }
 

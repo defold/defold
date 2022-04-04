@@ -21,6 +21,8 @@
 
 namespace dmModelImporter
 {
+    #pragma pack(8) // TO make it easier to match with the Java side
+
     struct Material
     {
         const char* m_Name;
@@ -28,6 +30,8 @@ namespace dmModelImporter
 
     struct Mesh
     {
+        const char* m_Name;
+        const char* m_Material;
         float*      m_Positions;    // 3 floats per vertex
         float*      m_Normals;      // 3 floats per vertex
         float*      m_Tangents;     // 3 floats per vertex
@@ -41,8 +45,6 @@ namespace dmModelImporter
         uint32_t*   m_Indices;
         uint32_t    m_VertexCount;
         uint32_t    m_IndexCount;
-        const char* m_Material;
-        const char* m_Name;
     };
 
     struct Model
@@ -58,6 +60,8 @@ namespace dmModelImporter
         dmTransform::Transform  m_InvBindPose; // inverse(world_transform)
         const char*             m_Name;
         struct Node*            m_Node;
+        uint32_t                m_ParentIndex;  // Index into skin.bones. 0xFFFFFFFF if not set
+        uint32_t                m_Index;        // Index into skin.bones
     };
 
     struct Skin
@@ -142,6 +146,9 @@ namespace dmModelImporter
 
         int dummy; // for the java binding to not be zero size
     };
+
+
+    #pragma pack(pop)
 
     extern "C" DM_DLLEXPORT void AssertSizes(uint32_t sz_transform,
                                              uint32_t sz_mesh,

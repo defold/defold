@@ -25,7 +25,6 @@ import javax.vecmath.Vector3d;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
-import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 
 /**
  * Convenience class for loading spine json data.
@@ -235,10 +234,6 @@ public class RigUtil {
         public boolean positive;
     }
 
-    public static class IKAnimationTrack extends AbstractAnimationTrack<IKAnimationKey> {
-        public IK ik;
-    }
-
     public static class SlotAnimationKey extends AnimationKey {
         public int attachment;
         public int orderOffset;
@@ -275,7 +270,6 @@ public class RigUtil {
         public String name;
         public double duration;
         public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
-        public List<IKAnimationTrack> iKTracks = new ArrayList<IKAnimationTrack>();
         public List<SlotAnimationTrack> slotTracks = new ArrayList<SlotAnimationTrack>();
         public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
     }
@@ -321,22 +315,6 @@ public class RigUtil {
         protected com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder;
 
         public AbstractPropertyBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
-            this.builder = builder;
-        }
-    }
-
-    public static abstract class AbstractIKPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.IKAnimationKey> {
-        protected com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder;
-
-        public AbstractIKPropertyBuilder(com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder) {
-            this.builder = builder;
-        }
-    }
-
-    public static abstract class AbstractMeshPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.SlotAnimationKey> {
-        protected MeshAnimationTrack.Builder builder;
-
-        public AbstractMeshPropertyBuilder(MeshAnimationTrack.Builder builder) {
             this.builder = builder;
         }
     }
@@ -506,194 +484,6 @@ public class RigUtil {
             return out;
         }
     }
-
-    public static class IKMixBuilder extends AbstractIKPropertyBuilder<Float> {
-        public IKMixBuilder(com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder) {
-            super(builder);
-        }
-
-        @Override
-        public void addComposite(Float value) {
-            builder.addMix(value);
-        }
-
-        @Override
-        public void add(double v) {
-            builder.addMix((float)v);
-        }
-
-        @Override
-        public void duplicateLast() {
-            int length = builder.getMixCount();
-            builder.addMix(builder.getMix(length-1));
-        }
-
-        @Override
-        public Float toComposite(RigUtil.IKAnimationKey key) {
-            return new Float(key.mix);
-        }
-
-        @Override
-        public Float interpolate(double t, Float a, Float b)
-        {
-            return ((1.0f - (float)t) * a + (float)t * b);
-        }
-    }
-
-    public static class IKPositiveBuilder extends AbstractIKPropertyBuilder<Boolean> {
-        public IKPositiveBuilder(com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder) {
-            super(builder);
-        }
-
-        @Override
-        public void addComposite(Boolean value) {
-            builder.addPositive(value);
-        }
-
-        @Override
-        public void add(double v) {
-            throw new RuntimeException("Not supported");
-        }
-
-        @Override
-        public void duplicateLast() {
-            int length = builder.getPositiveCount();
-            builder.addPositive(builder.getPositive(length-1));
-        }
-
-        @Override
-        public Boolean toComposite(RigUtil.IKAnimationKey key) {
-            return new Boolean(key.positive);
-        }
-
-        @Override
-        public Boolean interpolate(double t, Boolean a, Boolean b)
-        {
-            if (t <= 0.5) {
-                return a;
-            } else {
-                return b;
-            }
-        }
-    }
-
-    public static class ColorBuilder extends AbstractMeshPropertyBuilder<float[]> {
-        public ColorBuilder(MeshAnimationTrack.Builder builder) {
-            super(builder);
-        }
-
-        @Override
-        public void addComposite(float[] c) {
-            builder.addSlotColors(c[0]).addSlotColors(c[1]).addSlotColors(c[2]).addSlotColors(c[3]);
-        }
-
-        @Override
-        public void add(double v) {
-            builder.addSlotColors((float)v);
-        }
-
-        @Override
-        public void duplicateLast() {
-            int length = builder.getSlotColorsCount();
-            builder.addSlotColors(builder.getSlotColors(length-4));
-            builder.addSlotColors(builder.getSlotColors(length-3));
-            builder.addSlotColors(builder.getSlotColors(length-2));
-            builder.addSlotColors(builder.getSlotColors(length-1));
-        }
-
-        @Override
-        public float[] toComposite(RigUtil.SlotAnimationKey key) {
-            return key.value;
-        }
-
-        @Override
-        public float[] interpolate(double t, float[] a, float[] b)
-        {
-            float out[] = {0.0f, 0.0f, 0.0f, 0.0f};
-            out[0] = ((1.0f - (float)t) * a[0] + (float)t * b[0]);
-            out[1] = ((1.0f - (float)t) * a[1] + (float)t * b[1]);
-            out[2] = ((1.0f - (float)t) * a[2] + (float)t * b[2]);
-            out[3] = ((1.0f - (float)t) * a[3] + (float)t * b[3]);
-            return out;
-        }
-    }
-
-    public static class AttachmentBuilder extends AbstractMeshPropertyBuilder<Integer> {
-
-        public AttachmentBuilder(MeshAnimationTrack.Builder builder) {
-            super(builder);
-        }
-
-        @Override
-        public void addComposite(Integer value) {
-            builder.addMeshAttachment(value);
-        }
-
-        @Override
-        public void add(double v) {
-            throw new RuntimeException("Not supported");
-        }
-
-        @Override
-        public void duplicateLast() {
-            int length = builder.getMeshAttachmentCount();
-            builder.addMeshAttachment(builder.getMeshAttachment(length-1));
-        }
-
-
-        @Override
-        public Integer toComposite(RigUtil.SlotAnimationKey key) {
-            return key.attachment;
-        }
-
-        @Override
-        public Integer interpolate(double t, Integer a, Integer b)
-        {
-            if (t <= 0.5) {
-                return a;
-            } else {
-                return b;
-            }
-        }
-    }
-
-    public static class DrawOrderBuilder extends AbstractMeshPropertyBuilder<Integer> {
-        public DrawOrderBuilder(MeshAnimationTrack.Builder builder) {
-            super(builder);
-        }
-
-        @Override
-        public void addComposite(Integer value) {
-            builder.addOrderOffset(value);
-        }
-
-        @Override
-        public void add(double v) {
-            throw new RuntimeException("Not supported");
-        }
-
-        @Override
-        public void duplicateLast() {
-            int length = builder.getOrderOffsetCount();
-            builder.addOrderOffset(builder.getOrderOffset(length-1));
-        }
-
-        @Override
-        public Integer toComposite(RigUtil.SlotAnimationKey key) {
-            return key.orderOffset;
-        }
-
-        @Override
-        public Integer interpolate(double t, Integer a, Integer b)
-        {
-            if (t <= 0.5) {
-                return a;
-            } else {
-                return b;
-            }
-        }
-    }
-
 
     private static double evalCurve(RigUtil.AnimationCurve curve, double x) {
         if (curve == null) {

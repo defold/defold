@@ -372,8 +372,8 @@ public class Bob {
     public static File getSharedLib(String name) throws IOException {
         init();
 
-        Platform platform = Platform.getJavaPlatform();
-        String libName = platform + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
+        Platform platform = Platform.getHostPlatform();
+        String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/lib/" + libName);
@@ -406,7 +406,7 @@ public class Bob {
         System.setProperty(variable, newPath);
     }
 
-    static void addToPaths(String dir) {
+    static public void addToPaths(String dir) {
         addToPath("jna.library.path", dir);
         addToPath("java.library.path", dir);
     }

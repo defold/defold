@@ -77,12 +77,12 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Matrix4;
+import com.dynamo.proto.DdfMath.Transform;
 
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
-import com.dynamo.rig.proto.Rig.MeshEntry;
-import com.dynamo.rig.proto.Rig.MeshSlot;
+import com.dynamo.rig.proto.Rig.Model;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
@@ -776,11 +776,6 @@ public class ColladaUtil {
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
         int max_bone_count = loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
-        // We currently only support one mesh per collada file
-        // This result in one dmRigDDF::Mesh, one dmRigDDF::MeshEntry with only one MeshSlot.
-        // The MeshSlot will only contain one "mesh attachment" pointing to the Mesh (index: 0),
-        // the active index should be 0 to indicate the one and only attachment.
-
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
         meshBuilder.addAllVertices(mesh_vertex_indices);
         meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
@@ -796,27 +791,23 @@ public class ColladaUtil {
         meshBuilder.addAllWeights(bone_weights_list);
         meshBuilder.addAllBoneIndices(bone_indices_list);
 
-        MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
-        meshSlotBuilder.addMeshAttachments(0);
-        meshSlotBuilder.setActiveIndex(0);
-        meshSlotBuilder.addSlotColor(1.0f);
-        meshSlotBuilder.addSlotColor(1.0f);
-        meshSlotBuilder.addSlotColor(1.0f);
-        meshSlotBuilder.addSlotColor(1.0f);
-
-        MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
-        meshEntryBuilder.addMeshSlots(meshSlotBuilder);
-        meshEntryBuilder.setId(0);
+        Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
+        modelBuilder.addMeshes(meshBuilder);
+        modelBuilder.setId(MurmurHash.hash64(sceneNode.name));
 
         Matrix4d transformd = new Matrix4d();
         transformd.setIdentity();
-        Matrix4 transform = MathUtil.vecmathToDDF(transformd);
-        meshEntryBuilder.setTransform(transform);
 
-        meshSetBuilder.addMeshAttachments(meshBuilder);
-        meshSetBuilder.addMeshEntries(meshEntryBuilder);
+        Vector3d tPos = new Vector3d();
+        Quat4d tRot = new Quat4d();
+        Vector3d tScale = new Vector3d();
+        MathUtil.decompose(transformd, tPos, tRot, tScale);
+        Transform transform = MathUtil.vecmathToDDF(tPos, tRot, tScale);
+
+        modelBuilder.setTransform(transform);
+
+        meshSetBuilder.addModels(modelBuilder);
         meshSetBuilder.setMaxBoneCount(max_bone_count);
-        meshSetBuilder.setSlotCount(1);
 
         List<String> boneRefArray = createBoneReferenceList(collada);
         if (boneRefArray != null && !boneRefArray.isEmpty()) {
@@ -825,7 +816,6 @@ public class ColladaUtil {
             }
         }
     }
-
 
     public static void loadSkeleton(InputStream is, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
         loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
@@ -1121,14 +1111,8 @@ public class ColladaUtil {
         Vector3d scale = new Vector3d();
         MathUtil.decompose(matrix, position, rotation, scale);
 
-        Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position));
-        b.setPosition(ddfpos);
-
-        Quat ddfrot = MathUtil.vecmathToDDF(rotation);
-        b.setRotation(ddfrot);
-
-        Vector3 ddfscale = MathUtil.vecmathToDDF(scale);
-        b.setScale(ddfscale);
+        Transform transform = MathUtil.vecmathToDDF(position, rotation, scale);
+        b.setTransform(transform);
 
         /*
          * Collada "bones" are just joints and don't have any length.

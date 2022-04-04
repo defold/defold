@@ -69,7 +69,7 @@ static void OutputTransform(dmTransform::Transform& transform)
 static void OutputBone(Bone* bone, int indent)
 {
     OutputIndent(indent);
-    printf("%s  ", bone->m_Name);
+    printf("%s  idx: %u parent: %u ", bone->m_Name, bone->m_Index, bone->m_ParentIndex);
     OutputTransform(bone->m_InvBindPose);
     printf("\n");
 }
