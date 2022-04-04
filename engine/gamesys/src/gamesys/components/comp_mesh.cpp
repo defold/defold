@@ -188,8 +188,6 @@ namespace dmGameSystem
             vertex_buffer = AllocVertexBuffer(world, world->m_GraphicsContext);
             AddVertexBufferInfo(world, br->m_NameHash, vertex_buffer, version); // ref count == 1
 
-            VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
-
             CopyBufferToVertexBuffer(br->m_Buffer, vertex_buffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
         else
