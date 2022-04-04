@@ -223,14 +223,23 @@ public class LuaScanner extends LuaParserBaseListener {
     public void enterFunctioncall(LuaParser.FunctioncallContext ctx) {
         String text = ctx.getText();
         // require() call?
-        if (text.startsWith("require")) {
+        final boolean startsWithRequire = text.startsWith("require");
+        final boolean startsWithGlobalRequire = text.startsWith("_G.require");
+        if (startsWithRequire || startsWithGlobalRequire) {
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-            // token 0 is the require function
-            // token 1 is either the first token of the require argument or the
+            // in case of _G.require:
+            // - token 0 is _G
+            // - token 1 is .
+            // - token 3 is the require function
+            //
+            // in case of require:
+            // - token 0 is the require function
+            //
+            // next token is either the first token of the require argument or the
             // parenthesis
             // if it is a parenthesis we make sure to skip over both the start
             // and end parenthesis
-            int startIndex = 1;
+            int startIndex = startsWithRequire ? 1 : 3;
             int endIndex = tokens.size() - 1;
             if (tokens.get(startIndex).getText().equals("(")) {
                 startIndex++;
@@ -272,16 +281,14 @@ public class LuaScanner extends LuaParserBaseListener {
         // go.property() call?
         else if (text.startsWith("go.property")) {
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-            Property property = parseProperty(text, tokens.get(0).getLine() - 1);
-            if (property != null) {
-                properties.add(property);
-            }
-            // strip property from code
-            for (Token token : tokens) {
-                int from = token.getStartIndex();
-                int to = from + token.getText().length();
-                for(int i = from; i <= to; i++) {
-                    parsedBuffer.replace(i, i + 1, " ");
+            properties.add(new PropertyAndLine(text, tokens.get(0).getLine()));
+            if (this.stripProperties) {
+                for (Token token : tokens) {
+                    int from = token.getStartIndex();
+                    int to = from + token.getText().length();
+                    for(int i = from; i <= to; i++) {
+                        parsedBuffer.replace(i, i + 1, " ");
+                    }
                 }
             }
         }
