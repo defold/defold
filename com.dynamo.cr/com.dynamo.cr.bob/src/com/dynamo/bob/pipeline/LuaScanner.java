@@ -281,14 +281,16 @@ public class LuaScanner extends LuaParserBaseListener {
         // go.property() call?
         else if (text.startsWith("go.property")) {
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-            properties.add(new PropertyAndLine(text, tokens.get(0).getLine()));
-            if (this.stripProperties) {
-                for (Token token : tokens) {
-                    int from = token.getStartIndex();
-                    int to = from + token.getText().length();
-                    for(int i = from; i <= to; i++) {
-                        parsedBuffer.replace(i, i + 1, " ");
-                    }
+            Property property = parseProperty(text, tokens.get(0).getLine() - 1);
+            if (property != null) {
+                properties.add(property);
+            }
+            // strip property from code
+            for (Token token : tokens) {
+                int from = token.getStartIndex();
+                int to = from + token.getText().length();
+                for(int i = from; i <= to; i++) {
+                    parsedBuffer.replace(i, i + 1, " ");
                 }
             }
         }
