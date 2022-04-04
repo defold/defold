@@ -40,23 +40,14 @@
 
 namespace dmResourceArchive
 {
+
+    static Result DecryptWithXtea(void* buffer, uint32_t buffer_len);
+
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
     int              g_NumArchiveLoaders = 0;
     ArchiveLoader    g_ArchiveLoader[4];
-
-
-    Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
-    {
-        dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
-        if (cr != dmCrypt::RESULT_OK)
-        {
-            return RESULT_UNKNOWN;
-        }
-        return RESULT_OK;
-    }
-
     FDecryptResource g_ResourceDecryption = DecryptWithXtea;
 
 
@@ -417,6 +408,16 @@ namespace dmResourceArchive
         }
 
         return RESULT_NOT_FOUND;
+    }
+
+    static Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
+    {
+        dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
+        if (cr != dmCrypt::RESULT_OK)
+        {
+            return RESULT_UNKNOWN;
+        }
+        return RESULT_OK;
     }
 
     Result DecryptBuffer(void* buffer, uint32_t buffer_len)
