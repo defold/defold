@@ -114,6 +114,10 @@
    :help "Number of game loop updates per seconds. Set to 0 for variable frame rate. Set to e.g. 30 to throttle the update frequency.",
    :default 0,
    :path ["display" "update_frequency"]}
+  {:type :integer,
+   :help "the vsync interval. 0 means it's disabled",
+   :default 1,
+   :path ["display" "swap_interval"]}
   {:type :boolean,
    :help "Vertical sync, rely on hardware vsync for frame timing. Can be overridden depending on graphics driver and platform specifics. For deprecated 'variable_dt' behavior, uncheck this setting and set frame cap 0",
    :default true,
