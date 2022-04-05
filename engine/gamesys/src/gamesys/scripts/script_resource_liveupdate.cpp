@@ -210,14 +210,17 @@ namespace dmLiveUpdate
         StoreArchiveCallbackData* callback_data = (StoreArchiveCallbackData*)_data;
 
         if (!dmScript::IsCallbackValid(callback_data->m_Callback))
+        {
+            dmLogError("%s: Failed to validate callback", __FUNCTION__);
             return;
+        }
 
         lua_State* L = dmScript::GetCallbackLuaContext(callback_data->m_Callback);
         DM_LUA_STACK_CHECK(L, 0)
 
         if (!dmScript::SetupCallback(callback_data->m_Callback))
         {
-            dmLogError("Failed to setup callback");
+            dmLogError("%s: Failed to setup callback", __FUNCTION__);
             return;
         }
 

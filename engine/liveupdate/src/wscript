@@ -10,8 +10,13 @@ def configure(conf):
     pass
 
 def build(bld):
+
+    defines = []
+    #defines.append('DM_USE_LIVEUPDATE_THREAD') # use on all platforms but HTML5
+
     liveupdate = bld.new_task_gen(features = 'cxx cstaticlib',
                                   includes = '.',
+                                  defines = defines,
                                   target = 'liveupdate')
 
     liveupdate.find_sources_in_dirs('.')

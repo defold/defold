@@ -29,10 +29,14 @@ namespace dmLiveUpdate
     static const uint32_t m_JobQueueSizeIncrement = 32;
 
     /// The liveupdate thread and synchronization objects, used for sequentially processing async liveupdate resource requests
+
+#if defined(DM_USE_LIVEUPDATE_THREAD)
     static dmThread::Thread m_AsyncThread = 0x0;
     static dmMutex::HMutex  m_ConsumerThreadMutex;
     static dmConditionVariable::HConditionVariable m_ConsumerThreadCondition;
     static volatile bool m_ThreadJobComplete = false;
+#endif
+
     static volatile bool m_Active = false;
 
     /// job input and output queues
@@ -80,8 +84,8 @@ namespace dmLiveUpdate
         m_JobCompleteData.m_Callback(m_JobCompleteData.m_Status, m_JobCompleteData.m_CallbackData);
     }
 
+#if defined(DM_USE_LIVEUPDATE_THREAD)
 
-#if !(defined(__EMSCRIPTEN__))
     static void AsyncThread(void* args)
     {
         (void)args;
