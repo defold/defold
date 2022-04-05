@@ -264,18 +264,17 @@ Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` an
 `ANDROID_BUILD_TOOLS_VERSION` maybe found here:
 ![Screenshot 2022-04-05 at 10 28 15](https://user-images.githubusercontent.com/2209596/161712727-f52f3616-1965-454b-87ef-f1f6bca1c037.jpg)
 
-### Copy android.jar
+### Update Dockerfile
 
-Copy the android.jar to the bob path:
+Update Android environment variables in [the extender's Dockerfile](https://github.com/defold/extender/blob/2960a454940bc4d2629af721e9dc48c60c4ed432/server/docker-base/Dockerfile#L207).
 
-    $ cp $DYNAMO_HOME/ext/share/java/android.jar com.dynamo.cr/com.dynamo.cr.bob/lib/
 
-### Rebuild
+### Reinstall and rebuild
 
     $ ./scripts/build.py distclean
     $ ./scripts/build.py install_sdk --platform=arm64-android
     $ ./scripts/build.py install_ext --platform=arm64-android
-    $ b-android.sh
+    $ ./scripts/build.py build_engine --platform=arm64-android --skip-docs --skip-codesign --skip-tests
 
 ## Energy Consumption
 
