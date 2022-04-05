@@ -227,10 +227,9 @@ This is done by updating the `defold/packages/android-<android version>-<arch>.t
 
 Some relevant links:
 
-- http://developer.android.com/tools/sdk/tools-notes.html
-- http://developer.android.com/guide/topics/manifest/uses-sdk-element.html
-- http://developer.android.com/about/versions/marshmallow/android-6.0-changes.html
-- http://developer.android.com/tools/support-library/index.html
+- https://developer.android.com/guide/topics/manifest/uses-sdk-element.html
+- https://developer.android.com/about/versions
+- https://developer.android.com/tools/support-library/index.html
 
 ### AAPT Binaries
 
@@ -240,23 +239,30 @@ We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms
 
 Creating a new android package is straight forward:
 
-    APILEVEL=23
+    APILEVEL=31
 
     mkdir -p sdkpack_android
     cd sdkpack_android
 
     mkdir -p share/java
-    cp ~/android/android-sdk/platforms/android-$APILEVEL/android.jar share/java
+    cp ../tmp/dynamo_home/ext/SDKs/android-sdk/platforms/android-$APILEVEL/android.jar share/java
     tar -cvzf android-$APILEVEL-armv7-android.tar.gz share
+    tar -cvzf android-$APILEVEL-arm64-android.tar.gz share
 
-    cp android-$APILEVEL-armv7-android.tar.gz ~/work/defold/packages
+    cp android-$APILEVEL-armv7-android.tar.gz ../packages
+    cp android-$APILEVEL-arm64-android.tar.gz ../packages
 
 
 ### Update build script
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`
 
-    PACKAGES_ANDROID="... android-23 ...".split()
+    PACKAGES_ANDROID="... android-31 ...".split()
+
+Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
+
+`ANDROID_BUILD_TOOLS_VERSION` maybe found here:
+![Screenshot 2022-04-05 at 10 28 15](https://user-images.githubusercontent.com/2209596/161712727-f52f3616-1965-454b-87ef-f1f6bca1c037.jpg)
 
 ### Copy android.jar
 
@@ -267,7 +273,8 @@ Copy the android.jar to the bob path:
 ### Rebuild
 
     $ ./scripts/build.py distclean
-    $ ./scripts/build.py install_ext
+    $ ./scripts/build.py install_sdk --platform=arm64-android
+    $ ./scripts/build.py install_ext --platform=arm64-android
     $ b-android.sh
 
 ## Energy Consumption
