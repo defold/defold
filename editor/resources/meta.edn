@@ -114,6 +114,10 @@
    :help "Number of game loop updates per seconds. Set to 0 for variable frame rate. Set to e.g. 30 to throttle the update frequency.",
    :default 0,
    :path ["display" "update_frequency"]}
+  {:type :integer,
+   :help "the vsync interval. 0 means it's disabled",
+   :default 1,
+   :path ["display" "swap_interval"]}
   {:type :boolean,
    :help "Vertical sync, rely on hardware vsync for frame timing. Can be overridden depending on graphics driver and platform specifics. For deprecated 'variable_dt' behavior, uncheck this setting and set frame cap 0",
    :default true,
@@ -235,7 +239,11 @@
    :help
    "minimum velocity that will result in ellastic collisions",
    :default 1.0,
-   :path ["physics" "velocity_threshold"]},   
+   :path ["physics" "velocity_threshold"]},
+  {:type :integer,
+   :help "max number of steps in the simulation when using fixed timestep (3D only)",
+   :default 2,
+   :path ["physics" "max_fixed_timesteps"]},
   {:type :string,
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
@@ -817,6 +825,7 @@
   "resource" {:help "Resource loading and management related settings"},
   "factory" {:help "GameObject factory related settings"},
   "graphics" {:help "Graphics related settings"},
+  "engine" {:help "Runtime settings for the engine"},
   "bootstrap" {:help "Initial settings for the engine"},
   "label" {:help "Label related settings"},
   "collection" {:help "Collection related settings"},

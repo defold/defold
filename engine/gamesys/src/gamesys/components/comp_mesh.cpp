@@ -63,8 +63,7 @@ namespace dmGameSystem
         // used by the mesh resource), we need to create a specific vertex declaration
         // and vertbuffer for this buffer resource instead.
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        uint32_t                        m_ElementCount;
-        uint16_t                        m_VertSize;
+        uint32_t                        m_BufferVersion;
 
         /// Component enablement
         uint8_t                         m_Enabled : 1;
@@ -158,6 +157,19 @@ namespace dmGameSystem
         info->m_RefCount++;
     }
 
+    static uint32_t CalcBufferVersion(const MeshComponent* component, BufferResource* br)
+    {
+        HashState32 state;
+        dmHashInit32(&state, false);
+
+        uint32_t version;
+        dmBuffer::GetContentVersion(br->m_Buffer, &version);
+        dmHashUpdateBuffer32(&state, &br->m_Buffer, sizeof(br->m_Buffer)); // The handle is not a pointer, but a version+index
+        dmHashUpdateBuffer32(&state, &version, sizeof(version));
+
+        return dmHashFinal32(&state);
+    }
+
     static void CopyBufferToVertexBuffer(dmBuffer::HBuffer buffer, dmGraphics::HVertexBuffer vertex_buffer, uint32_t vert_size, uint32_t elem_count, dmGraphics::BufferUsage buffer_usage)
     {
         uint8_t* bytes = 0x0;
@@ -168,17 +180,15 @@ namespace dmGameSystem
         dmGraphics::SetVertexBufferData(vertex_buffer, vert_size * elem_count, bytes, buffer_usage);
     }
 
-    static void CreateVertexBuffer(MeshWorld* world, dmGameSystem::BufferResource* br, uint32_t vert_size)
+    static void CreateVertexBuffer(MeshWorld* world, dmGameSystem::BufferResource* br, uint32_t version)
     {
         dmGraphics::HVertexBuffer vertex_buffer = GetVertexBuffer(world, br->m_NameHash);
         if (!vertex_buffer)
         {
             vertex_buffer = AllocVertexBuffer(world, world->m_GraphicsContext);
-            AddVertexBufferInfo(world, br->m_NameHash, vertex_buffer, br->m_Version); // ref count == 1
+            AddVertexBufferInfo(world, br->m_NameHash, vertex_buffer, version); // ref count == 1
 
-            uint32_t elem_count = br->m_ElementCount;
-
-            CopyBufferToVertexBuffer(br->m_Buffer, vertex_buffer, vert_size, elem_count, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            CopyBufferToVertexBuffer(br->m_Buffer, vertex_buffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
         else
         {
@@ -247,10 +257,6 @@ namespace dmGameSystem
         return component->m_BufferResource ? component->m_BufferResource : resource->m_BufferResource;
     }
 
-    static inline bool HasCustomVerticesBuffer(const MeshComponent* component) {
-        return component->m_BufferResource;
-    }
-
     static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
@@ -258,10 +264,6 @@ namespace dmGameSystem
     static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index) {
         assert(index < MAX_TEXTURE_COUNT);
         return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
-    }
-
-    static inline uint32_t GetVertexSize(const MeshComponent* component) {
-        return component->m_VertexDeclaration ? component->m_VertSize : component->m_Resource->m_VertSize;
     }
 
     static inline dmGraphics::HVertexDeclaration GetVertexDeclaration(const MeshComponent* component) {
@@ -285,8 +287,8 @@ namespace dmGameSystem
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
 
-        dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
-        dmHashUpdateBuffer32(&state, &br->m_Version, sizeof(br->m_Version));
+        BufferResource* br = GetVerticesBuffer(component, resource);
+        dmHashUpdateBuffer32(&state, &br->m_NameHash, sizeof(br->m_NameHash));
 
         // Make sure there is a vertex declaration
         // If the mesh uses a buffer that has zero elements we couldn't
@@ -320,6 +322,8 @@ namespace dmGameSystem
 
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
+        component->m_BufferVersion = 0;
+
         const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
         if (dmGameObject::ScaleAlongZ(component->m_Instance))
         {
@@ -334,7 +338,8 @@ namespace dmGameSystem
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
         {
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
-            CreateVertexBuffer(world, br, GetVertexSize(component));
+            component->m_BufferVersion = CalcBufferVersion(component, br);
+            CreateVertexBuffer(world, br, component->m_BufferVersion);
         }
 
         ReHash(component);
@@ -425,11 +430,26 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            // Check the buffer version
-            BufferResource* br = GetVerticesBuffer(&component, component.m_Resource);
-            dmBuffer::GetContentVersion(br->m_Buffer, &br->m_Version);
+            dmRender::HMaterial material = GetMaterial(&component, component.m_Resource);
+            if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
+            {
+                dmGameSystem::BufferResource* br = GetVerticesBuffer(&component, component.m_Resource);
 
-            if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
+                VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
+                assert(info != 0);
+
+                if (info->m_Version != component.m_BufferVersion)
+                {
+                    info->m_Version = component.m_BufferVersion;
+
+                    CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                }
+            }
+
+            if (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants))
+                component.m_ReHash = 1;
+
+            if (component.m_ReHash)
             {
                 ReHash(&component);
             }
@@ -579,13 +599,14 @@ namespace dmGameSystem
 
         const MeshComponent* first = (MeshComponent*) buf[*begin].m_UserData;
         const MeshResource* mr = first->m_Resource;
+        const BufferResource* br = GetVerticesBuffer(first, mr);
 
         // Setup vertex declaration, count and sizes etc.
         // These defaults to values in the mesh and buffer resources,
         // but will be overwritten if the component instance has a "custom"
         // vertices buffer set (ie set via resource properties).
         dmGraphics::HVertexDeclaration vert_decl = mr->m_VertexDeclaration;
-        uint32_t vert_size = mr->m_VertSize;
+        uint32_t vert_size = br->m_Stride;
 
         // Find out how many elements/vertices all instances in this batch has
         // TODO: We might want to calculate this only when a mesh/buffer changes.
@@ -666,46 +687,15 @@ namespace dmGameSystem
 
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
-            dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
+            dmGameSystem::BufferResource* br = GetVerticesBuffer(component, mr);
 
-            // Setup vertex declaration, buffer, count and sizes etc.
-            // These defaults to values in the mesh and buffer resources,
-            // but will be overwritten if the component instance has a "custom"
-            // vertices buffer set (ie set via resource properties).
-            dmGraphics::HVertexDeclaration vert_decl = mr->m_VertexDeclaration;
-            uint32_t vert_size = mr->m_VertSize;
-            uint32_t elem_count = br->m_ElementCount;
-            if (HasCustomVerticesBuffer(component)) {
-                vert_decl = component->m_VertexDeclaration;
-                vert_size = component->m_VertSize;
-                elem_count = component->m_ElementCount;
-            }
+            world->m_RenderedVertexSize += br->m_Stride * br->m_ElementCount;
 
-            dmGraphics::HVertexBuffer vertex_buffer = 0;
-            uint32_t info_version;
             VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
-            if (!info)
-            {
-                vertex_buffer = AllocVertexBuffer(world, world->m_GraphicsContext);
-                AddVertexBufferInfo(world, br->m_NameHash, vertex_buffer, br->m_Version);
-                info_version = ~br->m_Version; // make sure it differs
-            }
-            else {
-                vertex_buffer = info->m_VertexBuffer;
-                info_version = info->m_Version;
-            }
+            assert(info != 0);
 
-            // Data has changed, and we need to update the vertex buffer
-            if (info_version != br->m_Version)
-            {
-                info->m_Version = br->m_Version;
-
-                CopyBufferToVertexBuffer(br->m_Buffer, vertex_buffer, vert_size, elem_count, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-            }
-
-            world->m_RenderedVertexSize += vert_size * elem_count;
-
-            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, component->m_Textures, vert_decl, vertex_buffer, 0, elem_count, component->m_World, component->m_RenderConstants);
+            dmGraphics::HVertexDeclaration vert_decl = GetVertexDeclaration(component);
+            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, component->m_Textures, vert_decl, info->m_VertexBuffer, 0, br->m_ElementCount, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
     }
@@ -908,14 +898,14 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
+                component->m_BufferVersion = CalcBufferVersion(component, br);
 
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
                 if (!prev_custom_buffer_resource || (component->m_BufferResource != prev_buffer_resource)) {
 
                     // Perhaps figure our a way to avoid recreating the same vertex declarations all the time? (If if it's worth it?)
                     dmGraphics::HVertexDeclaration new_vert_decl;
-                    uint32_t vert_size = 0;
-                    bool r = dmGameSystem::BuildVertexDeclaration(component->m_BufferResource, &new_vert_decl, &component->m_ElementCount, &vert_size);
+                    bool r = dmGameSystem::BuildVertexDeclaration(component->m_BufferResource, &new_vert_decl);
                     if (!r) {
                         dmLogError("Error while building vertex declaration from new resource.");
                         return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
@@ -926,13 +916,12 @@ namespace dmGameSystem
                         dmGraphics::DeleteVertexDeclaration(component->m_VertexDeclaration);
                     }
 
-                    component->m_VertSize = vert_size;
                     component->m_VertexDeclaration = new_vert_decl;
                 }
 
                 if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
                 {
-                    CreateVertexBuffer(world, br, GetVertexSize(component)); // Will inc ref the buffer
+                    CreateVertexBuffer(world, br, component->m_BufferVersion); // Will inc ref the buffer
                     DecRefVertexBuffer(world, prev_buffer_resource->m_NameHash);
                 }
             }

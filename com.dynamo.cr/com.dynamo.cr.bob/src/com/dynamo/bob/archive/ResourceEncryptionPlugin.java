@@ -12,26 +12,17 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_GAMESYS_RES_BUFFER_H
-#define DMSDK_GAMESYS_RES_BUFFER_H
+package com.dynamo.bob.archive;
 
-#include <stdint.h>
+/**
+ * ResourceEncryptionPlugin. Abstract class for encrypting a resource.
+ */
+public abstract class ResourceEncryptionPlugin {
 
-#include <dmsdk/dlib/buffer.h>
-#include <dmsdk/dlib/hash.h>
-#include <gamesys/buffer_ddf.h>
-
-namespace dmGameSystem
-{
-    struct BufferResource
-    {
-        dmBufferDDF::BufferDesc* m_BufferDDF;
-        dmBuffer::HBuffer        m_Buffer;
-        dmhash_t                 m_NameHash;
-        uint32_t                 m_ElementCount;    // The number of vertices
-        uint32_t                 m_Stride;          // The vertex size (bytes)
-        uint32_t                 m_Version;
-    };
+	/**
+	 * Encrypt a resource
+	 * @param resource Bytes of resource data to encrypt
+	 * @return Bytes of encrypted resource data
+	 */
+	public abstract byte[] encrypt(byte[] resource) throws Exception;
 }
-
-#endif // DMSDK_GAMESYS_RES_BUFFER_H

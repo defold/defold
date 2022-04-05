@@ -12,26 +12,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_GAMESYS_RES_BUFFER_H
-#define DMSDK_GAMESYS_RES_BUFFER_H
+package com.dynamo.bob.pipeline;
 
-#include <stdint.h>
+/**
+ * LuaBuilderPlugin. Abstract class for performing a Lua build/processing step.
+ * Extend and annotate with LuaBuilderPluginParams.
+ */
+public abstract class LuaBuilderPlugin {
 
-#include <dmsdk/dlib/buffer.h>
-#include <dmsdk/dlib/hash.h>
-#include <gamesys/buffer_ddf.h>
-
-namespace dmGameSystem
-{
-    struct BufferResource
-    {
-        dmBufferDDF::BufferDesc* m_BufferDDF;
-        dmBuffer::HBuffer        m_Buffer;
-        dmhash_t                 m_NameHash;
-        uint32_t                 m_ElementCount;    // The number of vertices
-        uint32_t                 m_Stride;          // The vertex size (bytes)
-        uint32_t                 m_Version;
-    };
+	/**
+	 * Perform a build or processing step on the provided Lua code
+	 * @param input String containing Lua code
+	 * @return String with processed Lua code
+	 */
+	public abstract String build(String input) throws Exception;
 }
-
-#endif // DMSDK_GAMESYS_RES_BUFFER_H

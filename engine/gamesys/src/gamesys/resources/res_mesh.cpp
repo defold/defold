@@ -122,9 +122,7 @@ namespace dmGameSystem
         }
     }
 
-    bool BuildVertexDeclaration(BufferResource* buffer_resource,
-        dmGraphics::HVertexDeclaration* out_vert_decl,
-        uint32_t* out_elem_count, uint32_t* out_vert_size)
+    bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
     {
         assert(buffer_resource);
 
@@ -170,20 +168,14 @@ namespace dmGameSystem
             assert(b2);
         }
 
-        // We need to keep track of the exact vertex size (ie the "struct" size according to dmBuffer)
-        // since for world space vertices we need to allocate a correct data buffer size for it.
-        // We also use it when passing the vertsize*elemcount to dmGraphics.
-        *out_vert_size = stride;
-
-        *out_elem_count = buffer_resource->m_ElementCount;
-
         return true;
     }
 
     static bool BuildVertices(MeshResource* mesh_resource)
     {
+        BufferResource* br = mesh_resource->m_BufferResource;
         assert(mesh_resource);
-        assert(mesh_resource->m_BufferResource);
+        assert(br);
 
         // Cleanup if we are rebuilding
         if (mesh_resource->m_VertexBuffer) {
@@ -197,7 +189,7 @@ namespace dmGameSystem
 
         mesh_resource->m_PrimitiveType = ToGraphicsPrimitiveType(mesh_resource->m_MeshDDF->m_PrimitiveType);
 
-        bool vert_decl_res = BuildVertexDeclaration(mesh_resource->m_BufferResource, &mesh_resource->m_VertexDeclaration, &mesh_resource->m_ElementCount, &mesh_resource->m_VertSize);
+        bool vert_decl_res = BuildVertexDeclaration(br, &mesh_resource->m_VertexDeclaration);
         if (!vert_decl_res) {
             dmLogError("Could not create vertex declaration from buffer resource.");
             return false;
@@ -206,13 +198,13 @@ namespace dmGameSystem
         // Get buffer data and upload/send to dmGraphics.
         uint8_t* bytes = 0x0;
         uint32_t size = 0;
-        dmBuffer::Result r = dmBuffer::GetBytes(mesh_resource->m_BufferResource->m_Buffer, (void**)&bytes, &size);
+        dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, (void**)&bytes, &size);
         if (r != dmBuffer::RESULT_OK) {
             dmLogError("Could not get bytes from buffer.");
             return false;
         }
 
-        mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(g_GraphicsContext, mesh_resource->m_VertSize * mesh_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(g_GraphicsContext, br->m_Stride * br->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         return true;
     }
