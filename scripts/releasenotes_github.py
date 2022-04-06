@@ -14,7 +14,7 @@
 # specific language governing permissions and limitations under the License.
 
 # add build_tools folder to the import search path
-import sys, os, io
+import sys, os, io, re
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
@@ -22,10 +22,12 @@ import optparse
 import github
 import json
 
-
 owner = "defold"
 repo = "defold"
 token = None
+
+TYPE_FIX = "FIX"
+TYPE_NEW = "NEW"
 
 def pprint(d):
     print(json.dumps(d, indent=4, sort_keys=True))
@@ -74,14 +76,17 @@ def get_closing_pull_request(issue):
                 return issue
 
 
-def issue_to_markdown(issue, hide_details = True):
-    prefix = "FIX"
-    if "bug" in issue["labels"]:
-        prefix = "BUG"
-    elif "feature request" in issue["labels"]:
-        prefix = "NEW"
+def get_issue_type(issue):
+    labels = get_issue_labels(issue)
+    if "bug" in labels:
+        return TYPE_FIX
+    elif "feature request" in labels:
+        return TYPE_NEW
+    return TYPE_FIX
 
-    md = ("__%s__: %s ([#%s](%s))\n" % (prefix, issue["title"], issue["number"], issue["url"]))
+
+def issue_to_markdown(issue, hide_details = True):
+    md = ("__%s__: %s ([#%s](%s))\n" % (issue["type"], issue["title"], issue["number"], issue["url"]))
     if hide_details: md += ("[details=\"Details\"]\n")
     md += ("%s\n" % issue["body"])
     if hide_details: md += ("\n---\n[/details]\n")
@@ -90,7 +95,7 @@ def issue_to_markdown(issue, hide_details = True):
 
 
 
-def generate(version):
+def generate(version, hide_details = False):
     print("Generating release notes for %s" % version)
     project = get_project(version)
     if not project:
@@ -121,25 +126,30 @@ def generate(version):
             continue
 
         # get the pr that closed the issue
+        entry = None
         pr = get_closing_pull_request(issue)
+
         if pr:
-            output.append({
+            entry = {
                 "title": pr["title"],
                 "body": pr["body"],
                 "number": issue["number"],
                 "url": issue["html_url"],
-                "labels": get_issue_labels(issue)
-            })
+                "labels": get_issue_labels(issue),
+                "type": get_issue_type(issue)
+            }
         else:
             print("  Issue is not associated with a pull request.")
-            output.append({
+            entry = {
                 "title": issue["title"],
                 "body": issue["body"],
                 "number": issue["number"],
                 "url": issue["html_url"],
-                "labels": get_issue_labels(issue)
-            })
-
+                "labels": get_issue_labels(issue),
+                "type": get_issue_type(issue)
+            }
+        entry["body"] = re.sub("Fixes #....", "", entry["body"])
+        output.append(entry)
 
     cards = []
     engine = []
@@ -156,12 +166,18 @@ def generate(version):
     content = ("# Defold %s\n" % version)
     for card in cards:
         content += ("%s\n" % card["body"])
+
     content += ("## Engine\n")
-    for issue in engine:
-        content += issue_to_markdown(issue)
+    for issue_type in [TYPE_NEW, TYPE_FIX]:
+        for issue in engine:
+            if issue["type"] == issue_type:
+                content += issue_to_markdown(issue, hide_details = hide_details)
+
     content += ("## Editor\n")
-    for issue in editor:
-        content += issue_to_markdown(issue)
+    for issue_type in [TYPE_NEW, TYPE_FIX]:
+        for issue in editor:
+            if issue["type"] == issue_type:
+                content += issue_to_markdown(issue, hide_details = hide_details)
 
     with io.open("releasenotes-forum-%s.md" % version, "wb") as f:
         f.write(content.encode('utf-8'))
@@ -183,6 +199,10 @@ generate - Generate release notes
                       default = None,
                       help = 'GitHub API topken')
 
+    parser.add_option('--hide-details', dest='hide_details',
+                      default = False,
+                      help = 'Hide details for each entry')
+
 
     options, args = parser.parse_args()
 
@@ -203,7 +223,7 @@ generate - Generate release notes
     token = options.token
     for cmd in args:
         if cmd == "generate":
-            generate(options.version)
+            generate(options.version, options.hide_details)
 
 
     print('Done')
