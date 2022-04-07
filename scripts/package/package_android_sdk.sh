@@ -25,9 +25,9 @@
 
 set -e
 
-ANDROID_PLATFORM=30
-ANDROID_TARGET_API_LEVEL=30
-ANDROID_BUILD_TOOLS_VERSION=30.0.3
+ANDROID_PLATFORM=31
+ANDROID_TARGET_API_LEVEL=31
+ANDROID_BUILD_TOOLS_VERSION=32.0.0
 
 PLATFORM=android-${ANDROID_PLATFORM}
 
@@ -84,20 +84,20 @@ echo "cd ${ANDROID_SDK_INSTALLDIR}"
 # e.g. export PATH=/usr/lib/jdk/jdk-10.0.2/bin:$PATH
 #export JAVA_OPTS="-XX:+IgnoreUnrecognizedVMOptions --add-modules java.se.ee"
 
-if [ ! -e ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx ]; then
+if [ ! -e ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8 ]; then
 	mkdir -p ${TMP_ANDROID_HOME}
 
 	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose --sdk_root=${TMP_ANDROID_HOME} "tools" "platform-tools" )
 	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose --sdk_root=${TMP_ANDROID_HOME} "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" )
 
 	# make sure it installed properly!
-	ls -la ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx
+	ls -la ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8
 
 	echo "Removing folders..."
 	rm -rf ${TMP_ANDROID_HOME}/extras/android/m2repository/com/android/support/test
 	rm -rf ${TMP_ANDROID_HOME}/emulator
 else
-	echo "Found" ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx
+	echo "Found" ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8
 	echo "Skipping reinstallation"
 fi
 

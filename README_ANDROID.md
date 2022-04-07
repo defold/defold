@@ -227,10 +227,9 @@ This is done by updating the `defold/packages/android-<android version>-<arch>.t
 
 Some relevant links:
 
-- http://developer.android.com/tools/sdk/tools-notes.html
-- http://developer.android.com/guide/topics/manifest/uses-sdk-element.html
-- http://developer.android.com/about/versions/marshmallow/android-6.0-changes.html
-- http://developer.android.com/tools/support-library/index.html
+- https://developer.android.com/guide/topics/manifest/uses-sdk-element.html
+- https://developer.android.com/about/versions
+- https://developer.android.com/tools/support-library/index.html
 
 ### AAPT Binaries
 
@@ -240,35 +239,42 @@ We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms
 
 Creating a new android package is straight forward:
 
-    APILEVEL=23
+    APILEVEL=31
 
     mkdir -p sdkpack_android
     cd sdkpack_android
 
     mkdir -p share/java
-    cp ~/android/android-sdk/platforms/android-$APILEVEL/android.jar share/java
+    cp ../tmp/dynamo_home/ext/SDKs/android-sdk/platforms/android-$APILEVEL/android.jar share/java
     tar -cvzf android-$APILEVEL-armv7-android.tar.gz share
+    tar -cvzf android-$APILEVEL-arm64-android.tar.gz share
 
-    cp android-$APILEVEL-armv7-android.tar.gz ~/work/defold/packages
+    cp android-$APILEVEL-armv7-android.tar.gz ../packages
+    cp android-$APILEVEL-arm64-android.tar.gz ../packages
 
 
 ### Update build script
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`
 
-    PACKAGES_ANDROID="... android-23 ...".split()
+    PACKAGES_ANDROID="... android-31 ...".split()
 
-### Copy android.jar
+Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
 
-Copy the android.jar to the bob path:
+`ANDROID_BUILD_TOOLS_VERSION` maybe found here:
+![Screenshot 2022-04-05 at 10 28 15](https://user-images.githubusercontent.com/2209596/161712727-f52f3616-1965-454b-87ef-f1f6bca1c037.jpg)
 
-    $ cp $DYNAMO_HOME/ext/share/java/android.jar com.dynamo.cr/com.dynamo.cr.bob/lib/
+### Update Dockerfile
 
-### Rebuild
+Update Android environment variables in [the extender's Dockerfile](https://github.com/defold/extender/blob/2960a454940bc4d2629af721e9dc48c60c4ed432/server/docker-base/Dockerfile#L207).
+
+
+### Reinstall and rebuild
 
     $ ./scripts/build.py distclean
-    $ ./scripts/build.py install_ext
-    $ b-android.sh
+    $ ./scripts/build.py install_sdk --platform=arm64-android
+    $ ./scripts/build.py install_ext --platform=arm64-android
+    $ ./scripts/build.py build_engine --platform=arm64-android --skip-docs --skip-codesign --skip-tests
 
 ## Energy Consumption
 
