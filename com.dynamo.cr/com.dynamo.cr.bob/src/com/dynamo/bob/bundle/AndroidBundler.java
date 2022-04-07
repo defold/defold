@@ -515,7 +515,12 @@ public class AndroidBundler implements IBundler {
             for(File asset : getExtenderAssets(project)) {
                 File dest = new File(assetsDir, asset.getName());
                 log("Copying asset " + asset + " to " + dest);
-                FileUtils.copyFile(asset, dest);
+                if (asset.isDirectory()) {
+                    FileUtils.copyDirectory(asset, dest);
+                }
+                else {
+                    FileUtils.copyFile(asset, dest);
+                }
                 BundleHelper.throwIfCanceled(canceled);
             }
 
