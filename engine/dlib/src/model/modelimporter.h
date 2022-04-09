@@ -21,7 +21,7 @@
 
 namespace dmModelImporter
 {
-    #pragma pack(8) // TO make it easier to match with the Java side
+    #pragma pack(8) // To make it easier to match with the Java side
 
     struct Material
     {

@@ -38,8 +38,8 @@
 (set! *warn-on-reflection* true)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
-(def model-file-types ["dae" "fbx"])
-(def animation-file-types ["animationset" "dae" "fbx"])
+(def model-file-types ["dae" "gltf" "glb"])
+(def animation-file-types ["animationset" "dae" "gltf" "glb"])
 
 (vtx/defvertex vtx-pos-nrm-tex
   (vec3 position)
@@ -173,9 +173,7 @@
 
 (defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
-        node-id (:node-id renderable)
         user-data (:user-data renderable)
-        meshes (:meshes user-data)
         shader (:shader user-data)
         textures (:textures user-data)
         vertex-space (:vertex-space user-data)
@@ -270,11 +268,17 @@
     (update :normals-indices int-array)
     (update :texcoord0-indices int-array)))
 
+(defn- get-and-update-meshes [model]
+  (let [transform (:transform model) ; :rotation [0.0 0.0 0.0 1.0], :translation [0.0 0.0 0.0], :scale [1.0 1.0 1.0]}
+        meshes (:meshes model)
+        out (map arrayify meshes)
+        out (map (fn [mesh] (assoc mesh :transform transform)) out)]
+    out))
+
 (g/defnk produce-meshes [mesh-set]
-  (into []
-        (comp (remove (comp :positions empty?))
-              (map arrayify))
-        (:mesh-attachments mesh-set)))
+  (let [models (:models mesh-set)
+        meshes (flatten (map get-and-update-meshes models))]
+    meshes))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource mesh-set]
   (rig/make-mesh-set-build-target (resource/workspace resource) _node-id mesh-set))

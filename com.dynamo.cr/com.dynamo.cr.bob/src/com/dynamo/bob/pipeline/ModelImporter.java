@@ -546,8 +546,8 @@ public class ModelImporter {
         DebugPrintFloatArray(indent+1, "texCoords0", mesh.getTexCoords(0), max_count, mesh.texCoords0NumComponents);
         DebugPrintFloatArray(indent+1, "texCoords1", mesh.getTexCoords(1), max_count, mesh.texCoords1NumComponents);
 
-        if (max_count > mesh.indexCount)
-            max_count = mesh.indexCount;
+        if (max_count > mesh.indexCount/3)
+            max_count = mesh.indexCount/3;
         DebugPrintIntArray(indent+1, "indices", mesh.getIndices(), max_count, 3);
     }
 

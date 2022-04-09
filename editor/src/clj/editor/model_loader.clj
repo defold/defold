@@ -22,29 +22,27 @@
 
 (defn create-scene [resource]
   (let [stream (io/input-stream resource)
-        scene (ModelUtil/loadScene stream (:ext resource))]
+        options nil
+        scene (ModelUtil/loadScene stream (:ext resource) options)]
     scene))
-
-(defn load-bones [resource]
-  (let [scene (create-scene resource)
-        bones (ModelUtil/loadSkeleton scene)]
-    bones))
 
 (defn load-scene [resource]
   (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         scene (create-scene resource)
         bones (ModelUtil/loadSkeleton scene)
+        material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ArrayList.)]
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadMeshes scene mesh-set-builder)
+    (ModelUtil/loadModels scene mesh-set-builder)
     (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
           skeleton (protobuf/pb->map (.build skeleton-builder))]
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones
-       :animation-ids animation-ids})))
+       :animation-ids animation-ids
+       :material-ids material-ids})))
 
 
 (set! *warn-on-reflection* true)

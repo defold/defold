@@ -383,6 +383,18 @@ static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
 
                 else if (attribute->type == cgltf_attribute_type_texcoord)
                 {
+                    bool flip_v = true; // Possibly move to the option
+                    if (flip_v)
+                    {
+                        float* coords = fdata;
+                        float* coords_end = fdata + (mesh->m_VertexCount * num_components);
+                        while (coords < coords_end)
+                        {
+                            coords[1] = 1.0f - coords[1];
+                            coords += num_components;
+                        }
+                    }
+
                     if (attribute->index == 0)
                     {
                         mesh->m_TexCoord0 = fdata;
