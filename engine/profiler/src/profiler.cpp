@@ -15,11 +15,12 @@
 #include "profiler.h"
 
 #include <dlib/dlib.h>
-#include <dlib/profile.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
+#include <dlib/time.h>
 #include <extension/extension.h>
 #include <render/render.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "profiler_private.h"
 #include "profile_render.h"
@@ -37,9 +38,15 @@ namespace dmProfiler
  * @namespace profiler
  */
 
+
+static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
 static bool g_TrackCpuUsage = false;
 static dmProfileRender::HRenderProfile gRenderProfile = 0;
 static uint32_t gUpdateFrequency = 60;
+
+static dmProfileRender::ProfilerFrame*  g_ProfilerCurrentFrame = 0;
+static dmMutex::HMutex                  g_ProfilerMutex = 0;
+
 
 void SetUpdateFrequency(uint32_t update_frequency)
 {
@@ -59,14 +66,16 @@ void ToggleProfiler()
     }
 }
 
+
 void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map)
 {
-    if(gRenderProfile)
+    if(gRenderProfile && g_ProfilerCurrentFrame)
     {
-        DM_PROFILE(Profile, "Draw");
-        dmProfile::Pause(true);
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
-        dmProfileRender::UpdateRenderProfile(gRenderProfile, profile);
+        DM_PROFILE(Profile, "Draw");
+
+        dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -74,8 +83,6 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0, 0);
         dmRender::ClearRenderObjects(render_context);
-
-        dmProfile::Pause(false);
     }
 }
 
@@ -415,7 +422,83 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
 * @variable
 */
 
-} // dmProfiler
+
+static void printIndent(int indent)
+{
+    for (int i = 0; i < indent; ++i) {
+        printf("  ");
+    }
+}
+
+
+static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+{
+    dmProfileRender::ProfilerSample out;
+
+    out.m_Time = dmProfile::SampleGetTime(sample);
+    out.m_SelfTime = dmProfile::SampleGetSelfTime(sample);
+    out.m_Count = dmProfile::SampleGetCallCount(sample);
+    out.m_Color = dmProfile::SampleGetColor(sample);
+    out.m_Indent = (uint8_t)indent;
+
+    const char* name = dmProfile::SampleGetName(sample); // Do not store this pointer!
+    out.m_Name = strdup(name);
+
+    if (thread->m_Samples.Full())
+        thread->m_Samples.OffsetCapacity(32);
+    thread->m_Samples.Push(out);
+
+    if (strcmp("Post", name) == 0)
+    {
+        printf("Sample name: '%s'  %p\n", name, name);
+        printf("Thread name: '%s'  %p\n", thread->m_Name, thread->m_Name);
+    }
+
+    //printIndent(indent); printf("%s %u  time: %llu  self: %llu\n", name, out.m_Count, out.m_Time, out.m_SelfTime);
+}
+
+static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+{
+    ProcessSample(thread, indent, sample);
+
+    dmProfile::SampleIterator iter = dmProfile::IterateChildren(sample);
+    while (dmProfile::IterateNext(&iter))
+    {
+        TraverseSampleTree(thread, indent + 1, iter.m_Sample);
+    }
+}
+
+static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
+{
+    // Since the profiling internals may be threaded, we want to gather the statistics into a ready-to-use place for the
+    // our internal profile renderer
+    //dmProfile::IterateSamples(root, void* context, void (*callback)(void* context, const Sample* sample));
+
+    if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
+        return;
+
+    if (strcmp(thread_name, "Remotery") == 0)
+        return;
+
+    DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+
+    dmProfileRender::ProfilerFrame* frame = (dmProfileRender::ProfilerFrame*)_ctx;
+    frame->m_Time = dmTime::GetTime();
+
+    // Prune old profiler threads
+    dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 50000);
+
+    dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, thread_name);
+    dmProfileRender::ClearProfilerThreadSamples(thread);
+
+    thread->m_Time = frame->m_Time;
+
+    thread->m_SamplesTotalTime = dmProfile::SampleGetTime(root);
+
+    //printf("Thread: %s\n", thread_name);
+    TraverseSampleTree(thread, 0, root);
+}
+
 
 static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 {
@@ -488,12 +571,37 @@ static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 
 static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
+    dmProfiler::g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
+
+    dmProfile::Options options;
+    options.m_Port = dmProfiler::g_ProfilerPort;
+    dmProfile::Initialize(&options);
+
+    // Note that the callback might come from a different thread!
+    g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
+    g_ProfilerMutex = dmMutex::New();
+    dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
+
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 {
+    dmProfile::SetSampleTreeCallback(0, 0);
+    dmProfile::Finalize();
+
+    if (g_ProfilerCurrentFrame)
+    {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+        DeleteProfilerFrame(g_ProfilerCurrentFrame);
+        g_ProfilerCurrentFrame = 0;
+    }
+    dmMutex::Delete(g_ProfilerMutex);
+    g_ProfilerMutex = 0;
+
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerExt, "Profiler", AppInitializeProfiler, AppFinalizeProfiler, InitializeProfiler, UpdateProfiler, 0, FinalizeProfiler)
+} // dmProfiler
+
+DM_DECLARE_EXTENSION(ProfilerExt, "Profiler", dmProfiler::AppInitializeProfiler, dmProfiler::AppFinalizeProfiler, dmProfiler::InitializeProfiler, dmProfiler::UpdateProfiler, 0, dmProfiler::FinalizeProfiler)

@@ -24,7 +24,7 @@ def build(bld):
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
-        uselib = 'TESTMAIN RECORD CRASH VPX PROFILEREXT GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES'.split() + additional_libs,
+        uselib = 'TESTMAIN RECORD CRASH VPX PROFILE PROFILEREXT GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES'.split() + additional_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         uselib_local = 'engine engine_service',
         web_libs = ['library_sys.js', 'library_script.js'],

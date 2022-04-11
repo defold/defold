@@ -412,7 +412,7 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
 
 int main(int argc, char **argv)
 {
-    dmProfile::Initialize(256, 1024 * 16, 128);
+    dmProfile::Initialize(0);
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);

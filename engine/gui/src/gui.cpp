@@ -18,6 +18,7 @@
 #include <new>
 #include <algorithm>
 
+#include <dlib/dlib.h>
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/index_pool.h>
@@ -1743,7 +1744,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                     else
                     {
-                        if (dmProfile::g_IsInitialized)
+                        if (dmProfile::IsInitialized())
                         {
                             // Try to find the message name via id and reverse hash
                             message_name = (const char*)dmHashReverse64(message->m_Id, 0);
@@ -1946,9 +1947,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             Result result = RESULT_OK;
 
             {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[script_function], message_name, &profiler_hash);
-                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+                char buffer[128];
+                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[script_function], message_name, buffer, sizeof(buffer));
+                DM_PROFILE_DYN(Script, profiler_string);
+
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
@@ -4169,6 +4171,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
         dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        free((void*)script->m_SourceFileName);
         script->~Script();
         ResetScript(script);
     }
@@ -4227,9 +4230,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             lua_pushnil(L);
             lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
         }
-        // m_SourceFileName will be null if profiling is not enabled, this is fine
-        // as m_SourceFileName will only be used if profiling is enabled
-        script->m_SourceFileName = DM_INTERNALIZE(source->m_Filename);
+        script->m_SourceFileName = strdup(source->m_Filename);
 bail:
         assert(top == lua_gettop(L));
         return res;

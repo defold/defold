@@ -18,13 +18,13 @@
 #include "atomic.h"
 #include "hash.h"
 #include "hashtable.h"
-#include "profile.h"
 #include "array.h"
 #include "condition_variable.h"
 #include "dstrings.h"
 #include <dlib/mutex.h>
 #include <dlib/static_assert.h>
 #include <dlib/spinlock.h>
+#include <dlib/profile/profile.h>
 
 namespace dmMessage
 {
@@ -480,23 +480,17 @@ namespace dmMessage
     }
 
     // Low level string concatenation to void the overhead of dmSnPrintf and having to call strlen
-    static const char* GetProfilerString(const char* socket_name, uint32_t* out_profiler_hash)
+    static const char* GetProfilerString(const char* socket_name, char* buffer, uint32_t buffer_size)
     {
-        const char* profiler_string = 0;
-        if (dmProfile::g_IsInitialized)
-        {
-            char buffer[128];
-            char* w_ptr = buffer;
-            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
-            w_ptr = ConcatString(w_ptr, w_ptr_end, "Dispatch ");
-            w_ptr = ConcatString(w_ptr, w_ptr_end, socket_name);
-            uint32_t str_len = (uint32_t)(w_ptr - buffer);
-            *w_ptr++ = 0;
-            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
-            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
-            *out_profiler_hash = hash;
-        }
-        return profiler_string;
+        if (!dmProfile::IsInitialized())
+            return 0;
+
+        char* w_ptr = buffer;
+        const char* w_ptr_end = buffer + buffer_size - 1;
+        w_ptr = ConcatString(w_ptr, w_ptr_end, "Dispatch ");
+        w_ptr = ConcatString(w_ptr, w_ptr_end, socket_name);
+        *w_ptr++ = 0;
+        return buffer;
     }
 
     uint32_t InternalDispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr, bool blocking)
@@ -522,9 +516,14 @@ namespace dmMessage
             }
         }
 
-        uint32_t profiler_hash = 0;
-        const char* profiler_string = GetProfilerString(s->m_Name, &profiler_hash);
-        DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
+
+        char buffer[128];
+        const char* profiler_string = GetProfilerString(s->m_Name, buffer, sizeof(buffer));
+        DM_PROFILE_DYN(Message, profiler_string);
+
+        // uint32_t profiler_hash = 0;
+        // const char* profiler_string = GetProfilerString(s->m_Name, &profiler_hash);
+        // DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
 
         uint32_t dispatch_count = 0;
 

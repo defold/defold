@@ -16,7 +16,8 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-#include "profile.h"
+#include <dlib/profile/profile.h>
+
 #include "memprofile.h"
 
 #if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__))
@@ -30,7 +31,6 @@
 #include <sys/stat.h>
 #include <pthread.h>
 #include "dlib.h"
-#include "profile.h"
 #include "shared_library.h"
 
 #ifdef __MACH__

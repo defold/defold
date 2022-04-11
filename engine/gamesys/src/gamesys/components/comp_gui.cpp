@@ -14,6 +14,7 @@
 
 #include <string.h>
 
+#include <dlib/dlib.h>
 #include <dlib/array.h>
 #include <dlib/buffer.h>
 #include <dlib/hash.h>

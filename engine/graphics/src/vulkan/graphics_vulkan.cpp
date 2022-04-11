@@ -15,6 +15,7 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 #include <dlib/profile.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>

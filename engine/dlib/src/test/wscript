@@ -6,7 +6,7 @@ from waf_dynamo import is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None, skip_run = False):
+                extra_includes = None, extra_defines = None, skip_run = False, extra_local_libs = None, exclude_libs = None):
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
@@ -15,7 +15,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     build_util = create_build_utility(bld.env)
 
-    req_libs = ['CARES']
+    req_libs = ['PROFILE']
     req_defines = []
 
     if 'DM_IPV6_UNSUPPORTED' in os.environ:
@@ -41,8 +41,14 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         req_features.extend(extra_features)
     if extra_libs != None:
         req_libs.extend(extra_libs)
+    if extra_local_libs == None:
+        extra_local_libs = []
     if extra_defines != None:
         req_defines.extend(extra_defines)
+
+    if exclude_libs != None:
+        req_libs = [x for x in req_libs if not x in exclude_libs]
+        extra_local_libs = [x for x in extra_local_libs if not x in exclude_libs]
 
     if embed_source != None:
         req_embed = embed_source
@@ -53,7 +59,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp' + platform_source,
         'uselib': ' '.join(req_libs),
-        'uselib_local': 'dlib mbedtls zip',
+        'uselib_local': 'dlib mbedtls zip'.split() + extra_local_libs,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,

@@ -164,11 +164,65 @@ def build(bld):
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
+    # ******************************************************************
+
+    libprofile_dirs = ['dlib/profile']
+    libprofile = bld.new_task_gen( features     = 'cc cxx cstaticlib',
+                                    includes    = '. ./dlib/profile ./remotery',
+                                    source      = './dlib/profile/profile_remotery.cpp',
+                                    target      = 'profile',
+                                    defines     = ['VALGRIND'] + extra_defines)
+    libprofile.env.append_unique('CCFLAGS', FLAG_ST % 's')
+
+    libprofile_noasan = bld.new_task_gen(features  = libprofile.features + ' skip_asan',
+                                         includes  = libprofile.includes,
+                                         defines   = libprofile.defines,
+                                         target    = 'profile_noasan')
+    libprofile_noasan.source = libprofile.source
+    libprofile_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+
+    # null version
+    libprofile_null_dirs = ['dlib/profile']
+    libprofile_null = bld.new_task_gen( features    = libprofile.features,
+                                        includes    = libprofile.includes,
+                                        defines     = libprofile.defines,
+                                        source      = './dlib/profile/profile_null.cpp',
+                                        target      = 'profile_null')
+    libprofile_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+
+    libprofile_null_noasan = bld.new_task_gen( features  = libprofile_null.features + ' skip_asan',
+                                      includes  = libprofile_null.includes,
+                                      defines   = libprofile_null.defines,
+                                      target    = 'profile_null_noasan')
+    libprofile_null_noasan.source = libprofile_null.source
+    libprofile_null_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+
+    # ******************************************************************
+
+    libremotery_dirs = ['remotery']
+    libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
+                                    includes    = '. ./remotery',
+                                    target      = 'remotery',
+                                defines     = ['VALGRIND'] + extra_defines)
+    libremotery.find_sources_in_dirs(libremotery_dirs)
+
+    if build_util.get_target_os() not in ['osx', 'ios']:
+        libremotery.source = [x for x in libremotery.source if not x.endswith('.mm')]
+
+    libremotery_noasan = bld.new_task_gen( features  = libremotery.features + ' skip_asan',
+                                      includes  = libremotery.includes,
+                                      defines   = libremotery.defines,
+                                      target    = 'remotery_noasan')
+    libremotery_noasan.source = [x for x in libremotery.source]
+    libremotery_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+
+    # ******************************************************************
+
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:
         dlib_shared = bld.new_task_gen( features = 'cc cxx cshlib skip_asan',
                                         includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                                        uselib_local = 'mbedtls_noasan zip_noasan',
+                                        uselib_local = 'mbedtls_noasan zip_noasan profile_null_noasan',
                                         target = 'dlib_shared',
                                         defines= ['VALGRIND'] + extra_defines,
                                         uselib = ['PLATFORM_SOCKET', 'CARES'])
@@ -285,7 +339,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile/profile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <dlib/profile.h>
 #include <dmsdk/dlib/thread.h>
 
 #if defined(_WIN32)
@@ -82,6 +83,7 @@ namespace dmThread
         ret = pthread_attr_destroy(&attr);
         assert(ret == 0);
 
+        dmProfile::SetThreadName(name);
 
         return thread;
     }
@@ -165,6 +167,8 @@ namespace dmThread
             free(buf);
         }
     #endif
+
+        dmProfile::SetThreadName(name);
     }
 
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)

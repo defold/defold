@@ -1464,7 +1464,7 @@ bail:
             }
         }
 
-        dmProfile::HProfile profile = dmProfile::Begin();
+        dmProfile::HProfile profile = dmProfile::BeginFrame();
         {
             DM_PROFILE(Engine, "Frame");
 
@@ -1481,7 +1481,7 @@ bail:
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
-                        dmProfile::Release(profile);
+                        dmProfile::EndFrame(profile);
                         return;
                     }
                 }
@@ -1655,7 +1655,7 @@ bail:
                 record_data->m_FrameCount++;
             }
         }
-        dmProfile::Release(profile);
+        dmProfile::EndFrame(profile);
 
         ++engine->m_Stats.m_FrameCount;
         engine->m_Stats.m_TotalTime += dt;
@@ -1986,7 +1986,6 @@ void dmEngineInitialize()
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     dmMemProfile::Initialize();
-    dmProfile::Initialize(256, 1024 * 16, 128);
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
@@ -2005,7 +2004,6 @@ void dmEngineFinalize()
     }
     dmGraphics::Finalize();
     dmLog::LogFinalize();
-    dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();

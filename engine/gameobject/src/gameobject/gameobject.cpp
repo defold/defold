@@ -309,7 +309,7 @@ namespace dmGameObject
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name, regist->m_ComponentTypes[i].m_NameHash);
+            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name);
 
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
@@ -568,7 +568,7 @@ namespace dmGameObject
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypes[regist->m_ComponentTypeCount].m_NameHash = dmHashString64(type.m_Name);
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
-        regist->m_ComponentProfileCounterIndex[regist->m_ComponentTypeCount] = dmProfile::AllocateCounter(type.m_Name);
+        regist->m_ComponentProfileCounterIndex[regist->m_ComponentTypeCount] = 0; // TODO: dmProfile Remotery
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
     }
@@ -743,7 +743,7 @@ namespace dmGameObject
             ComponentType* component_type = component->m_Type;
             assert(component_type);
 
-            DM_PROFILE_DYN(GameObjectCreateComponents, component_type->m_Name, component_type->m_NameHash);
+            DM_PROFILE_DYN(GameObjectCreateComponents, component_type->m_Name);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -819,7 +819,7 @@ namespace dmGameObject
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
 
-            DM_PROFILE_DYN(GameObjectDestroyComponents, component_type->m_Name, component_type->m_NameHash);
+            DM_PROFILE_DYN(GameObjectDestroyComponents, component_type->m_Name);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -2473,7 +2473,7 @@ namespace dmGameObject
 
             if (component_type->m_UpdateFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                DM_PROFILE_DYN(GameObject, component_type->m_Name);
                 ComponentsUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_UpdateContext = update_context;
@@ -2529,7 +2529,7 @@ namespace dmGameObject
 
                         if (component_type->m_FixedUpdateFunction)
                         {
-                            DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                            DM_PROFILE_DYN(GameObject, component_type->m_Name);
                             ComponentsUpdateParams params;
                             params.m_Collection = collection->m_HCollection;
                             params.m_UpdateContext = &fixed_update_context;
@@ -2585,7 +2585,7 @@ namespace dmGameObject
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
             if (component_type->m_RenderFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                DM_PROFILE_DYN(GameObject, component_type->m_Name);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -2629,7 +2629,7 @@ namespace dmGameObject
 
             if (component_type->m_PostUpdateFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                DM_PROFILE_DYN(GameObject, component_type->m_Name);
                 ComponentsPostUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];

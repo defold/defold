@@ -1596,6 +1596,9 @@ def detect(conf):
 
     conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
+    if platform not in ('x86_64-darwin',):
+        conf.env['STATICLIB_UNWIND'] = 'unwind'
+
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
     elif platform in ('armv7-android', 'arm64-android'):
@@ -1619,6 +1622,10 @@ def detect(conf):
 
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STATICLIB_DDF'] = 'ddf'
+
+    conf.env['STATICLIB_PROFILE'] = ['profile', 'remotery']
+    conf.env['STATICLIB_PROFILE_NULL'] = ['profile_null']
+    conf.env['STATICLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
 
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'

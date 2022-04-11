@@ -20,28 +20,76 @@
 #include <jc_test/jc_test.h>
 #include "dlib/dstrings.h"
 #include "dlib/hash.h"
-#include "dlib/profile.h"
 #include "dlib/time.h"
+#include "dlib/mutex.h"
 #include "dlib/thread.h"
+#include "dlib/profile/profile.h"
 
 #if !defined(_WIN32)
 
-void ProfileSampleCallback(void* context, const dmProfile::Sample* sample)
+struct TestSample
 {
-    std::vector<dmProfile::Sample>* samples = (std::vector<dmProfile::Sample>*) context;
-    samples->push_back(*sample);
+    char m_Name[32];
+    uint64_t m_Elapsed;
+    uint32_t m_Count;
+
+    TestSample() {
+        memset(this, 0, sizeof(*this));
+    }
+
+    TestSample(const TestSample& rhs) {
+        memcpy(this, &rhs, sizeof(*this));
+    }
+};
+
+struct TestCtx
+{
+    dmMutex::HMutex m_Mutex;
+    std::vector<TestSample> samples;
+};
+
+static void ProcessSample(TestCtx* ctx, dmProfile::HSample sample)
+{
+    TestSample out;
+
+    const char* name = dmProfile::SampleGetName(sample); // Do not store this pointer!
+
+    dmStrlCpy(out.m_Name, name, sizeof(out.m_Name));
+    out.m_Name[sizeof(out.m_Name)-1] = 0;
+    out.m_Elapsed = dmProfile::SampleGetTime(sample);
+    out.m_Count = dmProfile::SampleGetCallCount(sample);
+
+    ctx->samples.push_back(out);
+
+    printf("%s %u  time: %llu\n", name, out.m_Count, out.m_Elapsed);
 }
 
-void ProfileScopeCallback(void* context, const dmProfile::ScopeData* scope_data)
+static void TraverseSampleTree(TestCtx* ctx, int indent, dmProfile::HSample sample)
 {
-    std::map<std::string, const dmProfile::ScopeData*>* scopes = (std::map<std::string, const dmProfile::ScopeData*>*) context;
-    (*scopes)[std::string(scope_data->m_Scope->m_Name)] = scope_data;
+    ProcessSample(ctx, sample);
+
+    dmProfile::SampleIterator iter = dmProfile::IterateChildren(sample);
+    while (dmProfile::IterateNext(&iter))
+    {
+        TraverseSampleTree(ctx, indent + 1, iter.m_Sample);
+    }
 }
 
-void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter)
+static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
 {
-    std::map<std::string, const dmProfile::CounterData*>* counters = (std::map<std::string, const dmProfile::CounterData*>*) context;
-    (*counters)[std::string(counter->m_Counter->m_Name)] = counter;
+    // Since the profiling internals may be threaded, we want to gather the statistics into a ready-to-use place for the
+    // our internal profile renderer
+    //dmProfile::IterateSamples(root, void* context, void (*callback)(void* context, const Sample* sample));
+
+    TestCtx* ctx = (TestCtx*)_ctx;
+    if (strcmp(thread_name, "Remotery") == 0)
+        return;
+
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+    ctx->samples.clear();
+
+    printf("Thread: %s\n", thread_name);
+    TraverseSampleTree(ctx, 1, root);
 }
 
 // TODO
@@ -53,13 +101,17 @@ void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter
 
 TEST(dmProfile, Profile)
 {
-    dmProfile::Initialize(128, 1024, 0);
+    TestCtx ctx;
+    ctx.m_Mutex = dmMutex::New();
+
+    dmProfile::Initialize(0);
+
+    dmProfile::SetSampleTreeCallback(&ctx, SampleTreeCallback);
 
     for (int i = 0; i < 2; ++i)
     {
         {
-            dmProfile::HProfile profile = dmProfile::Begin();
-            dmProfile::Release(profile);
+            dmProfile::HProfile profile = dmProfile::BeginFrame();
             {
                 DM_PROFILE(A, "a")
                 dmTime::BusyWait(100000);
@@ -90,210 +142,63 @@ TEST(dmProfile, Profile)
                 DM_PROFILE(D, "a_d")
                 dmTime::BusyWait(80000);
             }
+            dmProfile::EndFrame(profile);
+            dmTime::BusyWait(80000);
         }
 
-        dmProfile::HProfile profile = dmProfile::Begin();
-
-        std::vector<dmProfile::Sample> samples;
-        std::map<std::string, const dmProfile::ScopeData*> scopes;
-
-        dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
-        dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
-        dmProfile::Release(profile);
-
-        ASSERT_EQ(7U, samples.size());
-
-        double ticks_per_sec = dmProfile::GetTicksPerSecond();
-
-        ASSERT_STREQ("a", samples[0].m_Name);
-        ASSERT_STREQ("a_b1", samples[1].m_Name);
-        ASSERT_STREQ("a_b1_c", samples[2].m_Name);
-        ASSERT_STREQ("b2", samples[3].m_Name);
-        ASSERT_STREQ("a_b2_c1", samples[4].m_Name);
-        ASSERT_STREQ("a_b2_c2", samples[5].m_Name);
-        ASSERT_STREQ("a_d", samples[6].m_Name);
-
-        ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, samples[0].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((50000 + 40000) / 1000000.0, samples[1].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((40000) / 1000000.0, samples[2].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, samples[3].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((40000) / 1000000.0, samples[4].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((60000) / 1000000.0, samples[5].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((80000) / 1000000.0, samples[6].m_Elapsed / ticks_per_sec, TOL);
-
-        ASSERT_TRUE(scopes.end() != scopes.find("A"));
-        ASSERT_TRUE(scopes.end() != scopes.find("B"));
-        ASSERT_TRUE(scopes.end() != scopes.find("C"));
-        ASSERT_TRUE(scopes.end() != scopes.find("D"));
-
-        ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
-                    scopes["A"]->m_Elapsed / ticks_per_sec, TOL);
-
-        ASSERT_NEAR((50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
-                    scopes["B"]->m_Elapsed / ticks_per_sec, TOL);
-
-        ASSERT_NEAR((40000 + 40000 + 60000) / 1000000.0,
-                    scopes["C"]->m_Elapsed / ticks_per_sec, TOL);
-
-        ASSERT_NEAR((80000) / 1000000.0,
-                    scopes["D"]->m_Elapsed / ticks_per_sec, TOL);
-
-    }
-    dmProfile::Finalize();
-}
-
-#if !defined(GITHUB_CI)
-TEST(dmProfile, ProfileSorted)
-{
-    dmProfile::Initialize(128, 1024, 0);
-
-    for (int i = 0; i < 2; ++i)
-    {
         {
-            dmProfile::HProfile profile = dmProfile::Begin();
-            dmProfile::Release(profile);
-            {
-                DM_PROFILE(A, "a")
-                dmTime::BusyWait(1000);
-                {
-                    {
-                        DM_PROFILE(B, "a_b1")
-                        dmTime::BusyWait(5000);
-                        {
-                            DM_PROFILE(C, "a_b1_c")
-                            dmTime::BusyWait(4000);
-                        }
-                    }
-                    {
-                        DM_PROFILE(B, "b2")
-                        dmTime::BusyWait(1000);
-                        {
-                            DM_PROFILE(C, "a_b2_c1")
-                            dmTime::BusyWait(3000);
-                        }
-                        {
-                            DM_PROFILE(C, "a_b2_c2")
-                            dmTime::BusyWait(6000);
-                        }
-                    }
-                }
-            }
-            {
-                DM_PROFILE(D, "a_d")
-                dmTime::BusyWait(80000);
-            }
+            DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
+
+            double ticks_per_sec = (double)dmProfile::GetTicksPerSecond();
+
+            ASSERT_EQ(8U, (uint32_t)ctx.samples.size());
+
+            int index = 0;
+            ASSERT_STREQ("FrameBegin", ctx.samples[index++].m_Name);
+            ASSERT_STREQ("a", ctx.samples[index++].m_Name);
+            ASSERT_STREQ("a_b1", ctx.samples[index++].m_Name);
+            ASSERT_STREQ("a_b1_c", ctx.samples[index++].m_Name);
+            ASSERT_STREQ("b2", ctx.samples[index++].m_Name);
+            ASSERT_STREQ("a_b2_c1", ctx.samples[index++].m_Name);
+            ASSERT_STREQ("a_b2_c2", ctx.samples[index++].m_Name);
+            ASSERT_STREQ("a_d", ctx.samples[index++].m_Name);
+
+            index = 1;
+            ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
+            ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
+            ASSERT_NEAR((40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
+            ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
+            ASSERT_NEAR((40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
+            ASSERT_NEAR((60000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
+            ASSERT_NEAR((80000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
         }
 
-        dmProfile::HProfile profile = dmProfile::Begin();
+        // ASSERT_TRUE(scopes.end() != scopes.find("A"));
+        // ASSERT_TRUE(scopes.end() != scopes.find("B"));
+        // ASSERT_TRUE(scopes.end() != scopes.find("C"));
+        // ASSERT_TRUE(scopes.end() != scopes.find("D"));
 
-        std::vector<dmProfile::Sample> samples;
-        std::map<std::string, const dmProfile::ScopeData*> scopes;
+        // ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
+        //             scopes["A"]->m_Elapsed / ticks_per_sec, TOL);
 
-        dmProfile::IterateSamples(profile, &samples, true, &ProfileSampleCallback);
-        dmProfile::IterateScopeData(profile, &scopes, true, &ProfileScopeCallback);
-        dmProfile::Release(profile);
+        // ASSERT_NEAR((50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0,
+        //             scopes["B"]->m_Elapsed / ticks_per_sec, TOL);
 
-        ASSERT_EQ(7U, samples.size());
+        // ASSERT_NEAR((40000 + 40000 + 60000) / 1000000.0,
+        //             scopes["C"]->m_Elapsed / ticks_per_sec, TOL);
 
-        ASSERT_STREQ("a_d", samples[0].m_Name);
-        ASSERT_STREQ("a", samples[1].m_Name);
-        ASSERT_STREQ("b2", samples[2].m_Name);
-        ASSERT_STREQ("a_b1", samples[3].m_Name);
-        ASSERT_STREQ("a_b2_c2", samples[4].m_Name);
-        ASSERT_STREQ("a_b1_c", samples[5].m_Name);
-        ASSERT_STREQ("a_b2_c1", samples[6].m_Name);
-    }
-    dmProfile::Finalize();
-}
-
-TEST(dmProfile, Nested)
-{
-    dmProfile::Initialize(128, 1024, 0);
-
-    for (int i = 0; i < 2; ++i)
-    {
-        {
-            dmProfile::HProfile profile = dmProfile::Begin();
-            dmProfile::Release(profile);
-            {
-                DM_PROFILE(A, "a")
-                dmTime::BusyWait(50000);
-                {
-                    DM_PROFILE(A, "a_nest")
-                    dmTime::BusyWait(50000);
-                }
-            }
-        }
-
-        dmProfile::HProfile profile = dmProfile::Begin();
-
-        std::vector<dmProfile::Sample> samples;
-        std::map<std::string, const dmProfile::ScopeData*> scopes;
-
-        dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
-        dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
-        dmProfile::Release(profile);
-
-        ASSERT_EQ(2U, samples.size());
-
-        double ticks_per_sec = dmProfile::GetTicksPerSecond();
-
-        ASSERT_STREQ("a", samples[0].m_Name);
-        ASSERT_STREQ("a_nest", samples[1].m_Name);
-
-        ASSERT_NEAR((50000 + 50000) / 1000000.0, samples[0].m_Elapsed / ticks_per_sec, TOL);
-        ASSERT_NEAR((50000) / 1000000.0, samples[1].m_Elapsed / ticks_per_sec, TOL);
-
-        ASSERT_TRUE(scopes.end() != scopes.find("A"));
-
-        ASSERT_NEAR((100000) / 1000000.0,
-                    scopes["A"]->m_Elapsed / ticks_per_sec, TOL);
+        // ASSERT_NEAR((80000) / 1000000.0,
+        //             scopes["D"]->m_Elapsed / ticks_per_sec, TOL);
 
     }
     dmProfile::Finalize();
+
+    dmMutex::Delete(ctx.m_Mutex);
 }
+
 #endif
 
-TEST(dmProfile, ProfileOverflow1)
-{
-    dmProfile::Initialize(128, 2, 0);
-    {
-        dmProfile::HProfile profile = dmProfile::Begin();
-        dmProfile::Release(profile);
-        {
-            { DM_PROFILE(X, "a") }
-            { DM_PROFILE(X, "b") }
-            { DM_PROFILE(X, "c") }
-            { DM_PROFILE(X, "d") }
-        }
-    }
-    dmProfile::HProfile profile = dmProfile::Begin();
-
-    std::vector<dmProfile::Sample> samples;
-    dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
-    dmProfile::Release(profile);
-
-    ASSERT_EQ(2U, samples.size());
-
-    dmProfile::Finalize();
-}
-
-TEST(dmProfile, ProfileOverflow2)
-{
-    dmProfile::Initialize(128, 0, 0);
-    {
-        dmProfile::HProfile profile = dmProfile::Begin();
-        dmProfile::Release(profile);
-        {
-            { DM_PROFILE(X, "a") }
-            { DM_PROFILE(X, "b") }
-            { DM_PROFILE(X, "c") }
-            { DM_PROFILE(X, "d") }
-        }
-    }
-
-    dmProfile::Finalize();
-}
+/*
 
 TEST(dmProfile, Counter1)
 {
@@ -421,13 +326,13 @@ TEST(dmProfile, DynamicScope)
     for (uint32_t i = 0; i < 10 ; ++i)
     {
         {
-            DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
-            DM_PROFILE_DYN(Scope2, names[1], names_hash[1]);
+            DM_PROFILE_DYN(Scope1, names[0]);
+            DM_PROFILE_DYN(Scope2, names[1]);
         }
         {
-            DM_PROFILE_DYN(Scope2, names[2], names_hash[2]);
+            DM_PROFILE_DYN(Scope2, names[2]);
         }
-        DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
+        DM_PROFILE_DYN(Scope1, names[0]);
     }
 
     std::vector<dmProfile::Sample> samples;
@@ -482,9 +387,8 @@ TEST(dmProfile, DynamicScope)
 
     dmProfile::Finalize();
 }
+*/
 
-#else
-#endif
 
 int main(int argc, char **argv)
 {

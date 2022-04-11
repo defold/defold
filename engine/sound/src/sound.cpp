@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <dlib/array.h>
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
 #include <dlib/log.h>

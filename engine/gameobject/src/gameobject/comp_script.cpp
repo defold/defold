@@ -128,9 +128,10 @@ namespace dmGameObject
             }
 
             {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[script_function], 0, &profiler_hash);
-                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+                char buffer[128];
+                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[script_function], 0, buffer, sizeof(buffer));
+                DM_PROFILE_DYN(Script, profiler_string);
+
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     result = SCRIPT_RESULT_FAILED;
@@ -307,7 +308,7 @@ namespace dmGameObject
         }
         else
         {
-            if (dmProfile::g_IsInitialized)
+            if (dmProfile::IsInitialized())
             {
                 // Try to find the message name via id and reverse hash
                 message_name = (const char*)dmHashReverse64(message->m_Id, 0);
@@ -322,9 +323,10 @@ namespace dmGameObject
 
         // An on_message function shouldn't return anything.
         {
-            uint32_t profiler_hash = 0;
-            const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
-            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+            char buffer[128];
+            const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, buffer, sizeof(buffer));
+            DM_PROFILE_DYN(Script, profiler_string);
+
             if (dmScript::PCall(L, 4, 0) != 0)
             {
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -673,9 +675,10 @@ namespace dmGameObject
             int input_ret = lua_gettop(L) - arg_count;
             int ret;
             {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], 0, &profiler_hash);
-                DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
+                char buffer[128];
+                const char* profiler_string = dmScript::GetProfilerString(L, 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], 0, buffer, sizeof(buffer));
+                DM_PROFILE_DYN(Script, profiler_string);
+
                 ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];

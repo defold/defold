@@ -1650,7 +1650,7 @@ void Release(HFactory factory, void* resource)
     {
         SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
 
-        DM_PROFILE_DYN(ResourceRelease, resource_type->m_Extension, resource_type->m_ExtensionHash);
+        DM_PROFILE_DYN(ResourceRelease, resource_type->m_Extension);
 
         ResourceDestroyParams params;
         params.m_Factory = factory;
