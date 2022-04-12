@@ -170,6 +170,12 @@ namespace dmProfile
 
     bool IsInitialized();
 
+    /**
+     * Logs a text to the profiler
+     * @return Ticks per second
+     */
+    void LogText(const char* text);
+
     // *******************************************************************
 
     // Sample iterator

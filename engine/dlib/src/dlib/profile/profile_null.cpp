@@ -58,6 +58,10 @@ namespace dmProfile
 
     }
 
+    void LogText(const char* text)
+    {
+    }
+
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
     {
     }

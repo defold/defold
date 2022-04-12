@@ -130,6 +130,11 @@ namespace dmProfile
 
     }
 
+    void LogText(const char* text)
+    {
+        rmt_LogText(text);
+    }
+
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
     {
         g_SampleTreeCallback = callback;

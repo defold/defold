@@ -412,6 +412,43 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
     return 0;
 }
 
+/*# displays a previously recorded frame in the on-screen profiler ui
+ * Pauses and displays a frame from the recording buffer in the on-screen profiler ui
+ *
+ * The frame to show can either be an absolute frame or a relative frame to the current frame.
+ *
+ * @name profiler.view_recorded_frame
+ * @param frame_index [type:table] a table where you specify one of the following parameters:
+ *
+ * - `distance` The offset from the currently displayed frame (this is truncated between zero and the number of recorded frames)
+ * - `frame` The frame index in the recording buffer (1 is first recorded frame)
+ *
+ * @examples
+ * ```lua
+ * -- Go back one frame
+ * profiler.view_recorded_frame({distance = -1})
+ * ```
+ */
+static int ProfilerLogText(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0)
+
+    if (!gRenderProfile)
+    {
+        return 0;
+    }
+
+    const char* text = luaL_checkstring(L, 1);
+    if (!text)
+    {
+        return DM_LUA_ERROR("Expected string as second argument");
+    }
+
+    dmProfile::LogText(text);
+
+    return 0;
+}
+
 /*# continously show latest frame
 *
 * @name profiler.MODE_RUN
@@ -536,14 +573,15 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 
     static const luaL_reg Module_methods[] =
     {
-        {"get_memory_usage", dmProfiler::MemoryUsage},
-        {"get_cpu_usage", dmProfiler::CPUUsage},
-        {"enable_ui", dmProfiler::EnableProfilerUI},
-        {"set_ui_mode", dmProfiler::SetProfileUIMode},
-        {"set_ui_view_mode", dmProfiler::SetProfilerUIViewMode},
-        {"set_ui_vsync_wait_visible", dmProfiler::SetProfileUIVSyncWaitVisible},
-        {"recorded_frame_count", dmProfiler::ProfilerUIRecordedFrameCount},
-        {"view_recorded_frame", dmProfiler::ProfilerUIViewRecordedFrame},
+        {"get_memory_usage",            MemoryUsage},
+        {"get_cpu_usage",               CPUUsage},
+        {"enable_ui",                   EnableProfilerUI},
+        {"set_ui_mode",                 SetProfileUIMode},
+        {"set_ui_view_mode",            SetProfilerUIViewMode},
+        {"set_ui_vsync_wait_visible",   SetProfileUIVSyncWaitVisible},
+        {"recorded_frame_count",        ProfilerUIRecordedFrameCount},
+        {"view_recorded_frame",         ProfilerUIViewRecordedFrame},
+        {"log_text",                    ProfilerLogText},
         {0, 0}
     };
 
