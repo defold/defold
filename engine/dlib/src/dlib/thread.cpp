@@ -42,6 +42,9 @@ namespace dmThread
         int ret = pthread_setname_np(pthread_self(), data->m_Name);
         assert(ret == 0);
 #endif
+
+        dmProfile::SetThreadName(data->m_Name);
+
         data->m_Start(data->m_Arg);
         delete data;
     }
@@ -82,8 +85,6 @@ namespace dmThread
         assert(ret == 0);
         ret = pthread_attr_destroy(&attr);
         assert(ret == 0);
-
-        dmProfile::SetThreadName(name);
 
         return thread;
     }
@@ -168,7 +169,7 @@ namespace dmThread
         }
     #endif
 
-        dmProfile::SetThreadName(name);
+        // dmProfile::SetThreadName(name); // TODO: Make sure to set it _on_ the thread
     }
 
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)

@@ -407,6 +407,9 @@ typedef struct rmtSampleIterator
 #define rmt_SampleGetCallCount(sample)                                              \
     RMT_OPTIONAL_RET(RMT_ENABLED, _rmt_SampleGetCallCount(sample), 0U)
 
+#define rmt_SampleGetStart(sample)                                                  \
+    RMT_OPTIONAL_RET(RMT_ENABLED, _rmt_SampleGetStart(sample), 0LLU)
+
 #define rmt_SampleGetTime(sample)                                                   \
     RMT_OPTIONAL_RET(RMT_ENABLED, _rmt_SampleGetTime(sample), 0LLU)
 
@@ -740,6 +743,7 @@ RMT_API rmtSample*          _rmt_SampleTreeGetRootSample(rmtSampleTree* sample_t
 RMT_API const char*         _rmt_SampleGetName(rmtSample* sample);
 RMT_API rmtU32              _rmt_SampleGetNameHash(rmtSample* sample);
 RMT_API rmtU32              _rmt_SampleGetCallCount(rmtSample* sample);
+RMT_API rmtU64              _rmt_SampleGetStart(rmtSample* sample);
 RMT_API rmtU64              _rmt_SampleGetTime(rmtSample* sample);
 RMT_API rmtU64              _rmt_SampleGetSelfTime(rmtSample* sample);
 RMT_API void                _rmt_SampleGetColour(rmtSample* sample, rmtU8* r, rmtU8* g, rmtU8* b);

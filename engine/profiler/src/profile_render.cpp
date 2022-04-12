@@ -78,6 +78,7 @@ namespace dmProfileRender
     static const int CHARACTER_BORDER  = 1;
     static const int LINE_SPACING = CHARACTER_HEIGHT + CHARACTER_BORDER * 2;
     static const int BORDER_SIZE  = 8;
+    static const int INDENT_WIDTH = 2 * CHARACTER_WIDTH;
 
     static const int SCOPES_NAME_WIDTH  = 17 * CHARACTER_WIDTH;
     static const int SCOPES_TIME_WIDTH  = 6 * CHARACTER_WIDTH;
@@ -387,19 +388,19 @@ namespace dmProfileRender
 
     static Area GetScopesArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
     {
-        const int count = dmMath::Max(scopes_count, counters_count);
+        // const int count = dmMath::Max(scopes_count, counters_count);
 
-        Size s(SCOPES_NAME_WIDTH + CHARACTER_WIDTH + SCOPES_TIME_WIDTH + CHARACTER_WIDTH + SCOPES_COUNT_WIDTH, LINE_SPACING * (1 + count));
-        if (display_mode == DISPLAYMODE_LANDSCAPE)
-        {
-            Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
-            return Area(p, s);
-        }
-        else if (display_mode == DISPLAYMODE_PORTRAIT)
-        {
-            Position p(details_area.p.x + details_area.s.w - s.w, details_area.p.y);
-            return Area(p, s);
-        }
+        // Size s(SCOPES_NAME_WIDTH + CHARACTER_WIDTH + SCOPES_TIME_WIDTH + CHARACTER_WIDTH + SCOPES_COUNT_WIDTH, LINE_SPACING * (1 + count));
+        // if (display_mode == DISPLAYMODE_LANDSCAPE)
+        // {
+        //     Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
+        //     return Area(p, s);
+        // }
+        // else if (display_mode == DISPLAYMODE_PORTRAIT)
+        // {
+        //     Position p(details_area.p.x + details_area.s.w - s.w, details_area.p.y);
+        //     return Area(p, s);
+        // }
         return Area(Position(0, 0), Size(0, 0));
     }
 
@@ -450,6 +451,16 @@ namespace dmProfileRender
         dmRender::Square2d(render_context, a.p.x, a.p.y, a.p.x + a.s.w, a.p.y + a.s.h, col);
     }
 
+    struct ThreadSortTimePred
+    {
+        ThreadSortTimePred() {}
+        bool operator()(ProfilerThread* a, ProfilerThread* b) const
+        {
+            return a->m_SamplesTotalTime > b->m_SamplesTotalTime;
+        }
+    };
+
+
     static void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const Size display_size, DisplayMode display_mode)
     {
         uint32_t batch_key = 0;
@@ -478,7 +489,10 @@ namespace dmProfileRender
         params.m_FaceColor   = TITLE_FACE_COLOR;
         params.m_ShadowColor = TITLE_SHADOW_COLOR;
 
-        ProfilerFrame* frame = render_profile->m_ActiveFrame;
+        ProfilerFrame* frame = render_profile->m_ActiveFrame ? render_profile->m_ActiveFrame : render_profile->m_CurrentFrame;
+        std::sort(frame->m_Threads.Begin(), frame->m_Threads.End(), ThreadSortTimePred());
+
+
         ProfilerThread* thread = GetSelectedThread(render_profile, frame);
 
         uint64_t ticks_per_second   = render_profile->m_TicksPerSecond;
@@ -635,11 +649,15 @@ namespace dmProfileRender
 
             int name_x   = samples_area.p.x;
             int time_x   = name_x + SAMPLE_FRAMES_NAME_WIDTH + CHARACTER_WIDTH;
+            // tODO: Self time
             int count_x  = time_x + SAMPLE_FRAMES_TIME_WIDTH + CHARACTER_WIDTH;
             int frames_x = sample_frames_area.p.x;
 
             params.m_FaceColor = TITLE_FACE_COLOR;
-            params.m_Text      = "Samples:";
+
+
+            dmSnPrintf(buffer, sizeof(buffer), "Thread: %s", thread->m_Name);
+            params.m_Text = buffer;
             params.m_WorldTransform.setElem(3, 0, name_x);
             dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             params.m_Text = "    ms";
@@ -658,8 +676,78 @@ namespace dmProfileRender
             // const uint32_t active_frame_ticks   = GetActiveFrameTicks(render_profile, frame_ticks);
             // const uint32_t frame_time           = (frame_ticks == 0) ? (uint32_t)(ticks_per_second / render_profile->m_FPS) : render_profile->m_IncludeFrameWait ? frame_ticks : active_frame_ticks;
 
-            float tick_length = (float)(sample_frame_width) / frame_time_f;
+
             uint32_t num_samples = thread->m_Samples.Size();
+
+            uint64_t frame_start = num_samples ? thread->m_Samples[0].m_StartTime : 0;
+            for (uint32_t i = 0; i < num_samples; ++i)
+            {
+                ProfilerSample& sample = thread->m_Samples[i];
+                sample.m_StartTime -= frame_start;
+            }
+
+            uint64_t frame_length = num_samples ? thread->m_Samples[0].m_Time : 1;
+
+            for (uint32_t i = 0; i < num_samples; ++i)
+            {
+                const ProfilerSample& sample = thread->m_Samples[i];
+
+                // There are so many samples and so little screen space, so we omit the smallest ones
+                if (sample.m_Indent > 4)
+                    continue;
+
+                y -= LINE_SPACING;
+
+                if (y < (samples_area.p.y + LINE_SPACING))
+                {
+                    break;
+                }
+
+                float t = (sample.m_Time * 1000) / (float)ticks_per_second; // in milliseconds
+
+                float x = sample.m_Indent * INDENT_WIDTH;
+                params.m_WorldTransform.setElem(3, 0, name_x + x);
+                params.m_WorldTransform.setElem(3, 1, y);
+
+                uint32_t color = sample.m_Color;
+                float b = ((color >> 0 ) & 0xFF) / 255.0f;
+                float g = ((color >> 8 ) & 0xFF) / 255.0f;
+                float r = ((color >> 16) & 0xFF) / 255.0f;
+                params.m_FaceColor = Vector4(r, g, b, 1.0f);
+
+                dmSnPrintf(buffer, sizeof(buffer), "%s", sample.m_Name);
+                params.m_Text = buffer;
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+
+                dmSnPrintf(buffer, sizeof(buffer), "%6.3f", t);
+                params.m_WorldTransform.setElem(3, 0, time_x);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+
+                dmSnPrintf(buffer, sizeof(buffer), "%3u", sample.m_Count);
+                params.m_WorldTransform.setElem(3, 0, count_x);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+
+                float unit_start = sample.m_StartTime / (float)frame_length;
+                float unit_length = sample.m_Time / (float)frame_length;
+                x = frames_x + unit_start * sample_frame_width;
+                float w = unit_length * sample_frame_width;
+
+                bool debug = false;
+
+                //if (sample.m_Indent <= 1)
+                if (debug)
+                {
+                    printf("Coord: %s frames_x: %d  x: %f  width: %f  m_StartTime: %llu  m_Time: %llu  unit start/length: %f %f\n", sample.m_Name, frames_x, x - frames_x, w, sample.m_StartTime, sample.m_Time, unit_start, unit_length);
+                }
+
+                if (w < 0.5f)
+                {
+                    w = 0.5f;
+                }
+
+                dmRender::Square2d(render_context, x, y - CHARACTER_HEIGHT, x + w, y, Vector4(r, g, b, 1.0f));
+
+            }
 
             // for (TIndex sort_index = 0; sort_index < sample_aggregate_count; ++sort_index)
             // {

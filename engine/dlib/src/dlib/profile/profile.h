@@ -161,11 +161,11 @@ namespace dmProfile
      */
     uint64_t GetTicksPerSecond();
 
-    // /**
-    //  * Add #amount to counter with #name
-    //  * @param name Counter name
-    //  * @param amount Amount to add
-    //  */
+    /**
+     * Add #amount to counter with #name
+     * @param name Counter name
+     * @param amount Amount to add
+     */
     void AddCounter(const char* name, uint32_t amount);
 
     bool IsInitialized();
@@ -190,6 +190,7 @@ namespace dmProfile
     // Sample accessors
 
     const char*     SampleGetName(HSample sample);
+    uint64_t        SampleGetStart(HSample sample);
     uint64_t        SampleGetTime(HSample sample);      // in ticks per second
     uint64_t        SampleGetSelfTime(HSample sample);  // in ticks per second
     uint32_t        SampleGetCallCount(HSample sample);

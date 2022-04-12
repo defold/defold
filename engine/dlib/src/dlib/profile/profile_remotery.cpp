@@ -21,6 +21,9 @@
 
 #include "dlib/hash.h"
 
+#if !(defined(_WIN32))
+    #define RMT_USE_POSIX_THREADNAMES 1
+#endif
 #include "remotery/Remotery.h"
 
 namespace dmProfile
@@ -98,18 +101,12 @@ namespace dmProfile
             return 0;
         }
 
-        rmt_BeginCPUSample(FrameBegin, 0);
-
         return g_Remotery;
     }
 
     void SetThreadName(const char* name)
     {
         rmt_SetCurrentThreadName(name);
-    }
-
-    void Pause(bool pause)
-    {
     }
 
     void EndFrame(HProfile profile)
@@ -121,8 +118,6 @@ namespace dmProfile
 
         if (!profile)
             return;
-
-        rmt_EndCPUSample();
     }
 
     uint64_t GetTicksPerSecond()
@@ -189,6 +184,11 @@ namespace dmProfile
         return rmt_SampleGetName(FromHandle(sample));
     }
 
+    uint64_t SampleGetStart(HSample sample)
+    {
+        return rmt_SampleGetStart(FromHandle(sample));
+    }
+
     uint64_t SampleGetTime(HSample sample)
     {
         return rmt_SampleGetTime(FromHandle(sample));
@@ -208,7 +208,7 @@ namespace dmProfile
     {
         uint8_t r, g, b;
         rmt_SampleGetColour(FromHandle(sample), &r, &g, &b);
-        return r << 24 | g << 16 | b;
+        return r << 16 | g << 8 | b;
     }
 
     // *******************************************************************

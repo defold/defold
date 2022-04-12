@@ -25,6 +25,8 @@
 #include "profiler_private.h"
 #include "profile_render.h"
 
+#include <algorithm> // std::sort
+
 namespace dmProfiler
 {
 
@@ -46,6 +48,7 @@ static uint32_t gUpdateFrequency = 60;
 
 static dmProfileRender::ProfilerFrame*  g_ProfilerCurrentFrame = 0;
 static dmMutex::HMutex                  g_ProfilerMutex = 0;
+static dmHashTable64<int>               g_ProfilerThreadSortOrder;
 
 
 void SetUpdateFrequency(uint32_t update_frequency)
@@ -66,6 +69,21 @@ void ToggleProfiler()
     }
 }
 
+struct ThreadSortPred
+{
+    dmHashTable64<int>* m_SortOrder;
+    ThreadSortPred(dmHashTable64<int>* sort_order) : m_SortOrder(sort_order) {}
+
+    bool operator()(dmProfileRender::ProfilerThread* a, dmProfileRender::ProfilerThread* b) const
+    {
+        int* p_order_a = m_SortOrder->Get(a->m_NameHash);
+        int* p_order_b = m_SortOrder->Get(b->m_NameHash);
+        int order_a = p_order_a ? *p_order_a : -1;
+        int order_b = p_order_b ? *p_order_b : -1;
+        return order_a < order_b;
+    }
+};
+
 
 void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map)
 {
@@ -74,6 +92,9 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
         DM_PROFILE(Profile, "Draw");
+
+        // Make sure the main thread is at the front so it's picked by default
+        std::sort(g_ProfilerCurrentFrame->m_Threads.Begin(), g_ProfilerCurrentFrame->m_Threads.End(), ThreadSortPred(&g_ProfilerThreadSortOrder));
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
         dmRender::RenderListBegin(render_context);
@@ -435,6 +456,7 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
 {
     dmProfileRender::ProfilerSample out;
 
+    out.m_StartTime = dmProfile::SampleGetStart(sample);
     out.m_Time = dmProfile::SampleGetTime(sample);
     out.m_SelfTime = dmProfile::SampleGetSelfTime(sample);
     out.m_Count = dmProfile::SampleGetCallCount(sample);
@@ -461,6 +483,8 @@ static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int inde
 {
     ProcessSample(thread, indent, sample);
 
+    const dmProfileRender::ProfilerSample& last = thread->m_Samples.Back();
+
     dmProfile::SampleIterator iter = dmProfile::IterateChildren(sample);
     while (dmProfile::IterateNext(&iter))
     {
@@ -486,7 +510,7 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     frame->m_Time = dmTime::GetTime();
 
     // Prune old profiler threads
-    dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 50000);
+    dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);
 
     dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, thread_name);
     dmProfileRender::ClearProfilerThreadSamples(thread);
@@ -546,7 +570,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 
 static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 {
-    if (dmProfiler::g_TrackCpuUsage)
+    if (g_TrackCpuUsage)
     {
         dmProfilerExt::SampleCpuUsage();
     }
@@ -561,26 +585,31 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 
 static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 {
-    if (dmProfiler::gRenderProfile)
+    if (gRenderProfile)
     {
-        dmProfileRender::DeleteRenderProfile(dmProfiler::gRenderProfile);
-        dmProfiler::gRenderProfile = 0;
+        dmProfileRender::DeleteRenderProfile(gRenderProfile);
+        gRenderProfile = 0;
     }
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
-    dmProfiler::g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
+    g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
 
     dmProfile::Options options;
-    options.m_Port = dmProfiler::g_ProfilerPort;
+    options.m_Port = g_ProfilerPort;
     dmProfile::Initialize(&options);
 
     // Note that the callback might come from a different thread!
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
     g_ProfilerMutex = dmMutex::New();
     dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
+
+    g_ProfilerThreadSortOrder.SetCapacity(7, 8);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("sound"), 1);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("liveupdate"), 2);
 
     return dmExtension::RESULT_OK;
 }

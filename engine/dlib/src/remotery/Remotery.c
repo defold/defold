@@ -8872,6 +8872,11 @@ RMT_API rmtU32 _rmt_SampleGetCallCount(rmtSample* sample)
     return sample->call_count;
 }
 
+RMT_API rmtU64 _rmt_SampleGetStart(rmtSample* sample)
+{
+    return sample->us_start;
+}
+
 RMT_API rmtU64 _rmt_SampleGetTime(rmtSample* sample)
 {
     return sample->us_length;

@@ -39,10 +39,6 @@ namespace dmProfile
     {
     }
 
-    void Pause(bool pause)
-    {
-    }
-
     HProfile BeginFrame()
     {
         return 0;
@@ -99,6 +95,11 @@ namespace dmProfile
     }
 
     const char* SampleGetName(HSample sample)
+    {
+        return 0;
+    }
+
+    uint64_t SampleGetStart(HSample sample)
     {
         return 0;
     }
