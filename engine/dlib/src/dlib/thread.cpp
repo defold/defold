@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <dlib/profile.h>
+#include <dlib/profile/profile.h>
 #include <dmsdk/dlib/thread.h>
 
 #if defined(_WIN32)
