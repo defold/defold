@@ -29,34 +29,49 @@
 
 namespace dmCrypt
 {
+    /*# encryption algorithm enumeration
+     *
+     * @enum
+     * @name Algorithm
+     * @member dmCrypt::ALGORITHM_XTEA
+     */
     enum Algorithm
     {
         ALGORITHM_XTEA
     };
 
+    /*# result enumeration
+     *
+     * @enum
+     * @name Result
+     * @member dmCrypt::RESULT_OK = 0
+     * @member dmCrypt::RESULT_ERROR = 1
+     */
     enum Result
     {
         RESULT_OK = 0,
         RESULT_ERROR = 1,
     };
 
-    /**
-     *  Encrypt data in place
-     *  @param algo algorithm
-     *  @param data data
-     *  @param datalen data length in bytes
-     *  @param key key
-     *  @param keylen key length
+    /*#
+     * Encrypt data in place
+     * @param algo [type:dmCrypt::Algorithm] algorithm
+     * @param data data
+     * @param datalen data length in bytes
+     * @param key key
+     * @param keylen key length
+     * @return result [type:dmCrypt::Result] the encryption result
      */
     Result Encrypt(Algorithm algo, uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen);
 
-    /**
-     *  Decrypt data in place
-     *  @param algo algorithm
-     *  @param data data
-     *  @param datalen data length in bytes
-     *  @param key key
-     *  @param keylen key length
+    /*#
+     * Decrypt data in place
+     * @param algo [type:dmCrypt::Algorithm] algorithm
+     * @param data data
+     * @param datalen data length in bytes
+     * @param key key
+     * @param keylen key length
+     * @return result [type:dmCrypt::Result] the decryption result
      */
     Result Decrypt(Algorithm algo, uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen);
 
