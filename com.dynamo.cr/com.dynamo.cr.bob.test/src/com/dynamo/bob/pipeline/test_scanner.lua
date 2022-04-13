@@ -72,6 +72,9 @@ local foo = require('foo15') {
     some_table = "abc"
 }
 
+-- Issue 6438
+local foo = _G.require('foo16')
+
 -- REQUIRE USING A VARIABLE SHOULD NOT BE INCLUDED
 local modname = "foo.bar"
 local module = require(modname)
