@@ -246,7 +246,7 @@ namespace dmGameObject
         return regist->m_DefaultInputStackCapacity;
     }
 
-    void DeleteRegister(HRegister regist)
+    void DeleteCollections(HRegister regist)
     {
         uint32_t collection_count = regist->m_Collections.Size();
         for (uint32_t i = 0; i < collection_count; ++i)
@@ -257,6 +257,12 @@ namespace dmGameObject
             FinalCollection(collection);
             DeleteCollection(collection);
         }
+        regist->m_Collections.SetSize(0);
+    }
+
+    void DeleteRegister(HRegister regist)
+    {
+        DeleteCollections(regist);
         delete regist;
     }
 

@@ -270,7 +270,7 @@ namespace dmEngine
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
         dmGameObject::PostUpdate(engine->m_Register);
 
-        dmGameObject::DeleteRegister(engine->m_Register); // Delete all collections and game objects
+        dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
 
         dmHttpClient::ShutdownConnectionPool();
 
@@ -300,6 +300,8 @@ namespace dmEngine
         }
 
         dmHttpClient::ReopenConnectionPool();
+
+        dmGameObject::DeleteRegister(engine->m_Register);
 
         UnloadBootstrapContent(engine);
 
