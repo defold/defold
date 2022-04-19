@@ -86,7 +86,7 @@ def get_issue_type(issue):
 
 
 def issue_to_markdown(issue, hide_details = True):
-    md = ("__%s__: %s ([#%s](%s))\n" % (issue["type"], issue["title"], issue["number"], issue["url"]))
+    md = ("__%s__: __%s__ ([#%s](%s))\n" % (issue["type"], issue["title"], issue["number"], issue["url"]))
     if hide_details: md += ("[details=\"Details\"]\n")
     md += ("%s\n" % issue["body"])
     if hide_details: md += ("\n---\n[/details]\n")
