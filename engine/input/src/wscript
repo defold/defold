@@ -5,7 +5,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    script = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    script = bld.__call__(features = 'cxx cstaticlib ddf',
                           includes = '../proto .',
                           target = 'input',
                           proto_gen_py = True,
@@ -15,4 +15,4 @@ def build(bld):
     bld.install_files('${PREFIX}/include/input', 'input.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/input/input_ddf.proto')
 
-    bld.add_subdirs('test')
+    bld.recurse('test')

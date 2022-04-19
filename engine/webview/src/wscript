@@ -11,7 +11,7 @@ def build(bld):
     if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios', 'armv7-android'):
         source = ['webview_mobile.cpp']
 
-    webview = bld.new_task_gen(features = 'cxx cstaticlib',
+    webview = bld.__call__(features = 'cxx cstaticlib',
                                includes = '.',
                                source = source,
                                target = 'webviewext')

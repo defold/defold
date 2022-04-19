@@ -34,7 +34,7 @@ def build(bld):
         source += ['devices/device_nx64.cpp']
     else:
         source += ['devices/device_openal.cpp']
-        bld.add_subdirs('openal')
+        bld.recurse('openal')
 
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_sound.js', postpone = False)
@@ -42,18 +42,18 @@ def build(bld):
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)
         bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
-        bld.new_task_gen(features='javac seq', classpath=classpath, source_root='java')
-        bld.new_task_gen(features='jar seq', basedir='java', destfile='sound_android.jar')
+        bld.__call__(features='javac seq', classpath=classpath, source_root='java')
+        bld.__call__(features='jar seq', basedir='java', destfile='sound_android.jar')
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
 
 
-    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+    sound = bld.__call__(features = 'cc cxx cstaticlib ddf',
                              includes = '. %s' % include,
                              defines = defines,
                              target = 'sound',
                              source = source)
 
-    sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+    sound_null = bld.__call__(features = 'cc cxx cstaticlib ddf',
                                   includes = '.',
                                   defines = defines,
                                   target = 'sound_null',
@@ -67,4 +67,4 @@ def build(bld):
         sound_null.defines = '_XBOX'
 
     if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+        bld.recurse('test')

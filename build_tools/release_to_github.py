@@ -24,13 +24,14 @@ import re
 import run
 import s3
 import subprocess
-import urlparse
+import urllib
 
 def get_current_repo():
     # git@github.com:defold/defold.git
     # https://github.com/defold/defold.git
-    url = run.shell_command('git remote get-url origin')
-    url = url.replace('.git', '').strip()
+    url = str(run.shell_command('git remote get-url origin'))
+    url = url.replace('.git', '')
+    url = url.strip()
 
     domain = "github.com"
     index = url.index(domain)
@@ -135,7 +136,7 @@ def release(config, tag_name, release_sha, s3_release):
     # for now we ignore this and fix it ourselves (note this may break if GitHub
     # changes the way uploads are done)
     log("Uploading artifacts to GitHub from S3")
-    base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
+    base_url = "https://" + urllib.parse(config.archive_path).hostname
 
     def is_main_file(path):
         return os.path.basename(path) in ('bob.jar', 'Defold-x86_64-darwin.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip')

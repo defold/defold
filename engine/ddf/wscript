@@ -13,10 +13,10 @@ import os, sys, re
 sys.path = ["src"] + sys.path
 import waf_ddf, waf_dynamo
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
 
@@ -35,7 +35,7 @@ def configure(conf):
 
     conf.check_tool('waf_dynamo')
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
 
@@ -52,7 +52,7 @@ def build(bld):
     # Only required 'in' ddf-lib.
     python_path = os.environ.get('PYTHONPATH', '')
     os.environ['PYTHONPATH'] = 'default/src' + os.pathsep + 'default/src/ddf' + os.pathsep + python_path
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
 def shutdown():
     import Options, Build

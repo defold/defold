@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
 
     # The static library for the tests
-    texc = bld.new_task_gen(features = 'cxx cstaticlib',
+    texc = bld.__call__(features = 'cxx cstaticlib',
                             includes = ['.'],
                             target = 'texc')
     texc.find_sources_in_dirs(["."], ['.cpp'])
@@ -23,7 +23,7 @@ def build(bld):
         remove_flags['LINKFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
         extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
-    texc_shared = bld.new_task_gen(features = 'cxx cshlib skip_asan remove_flags',
+    texc_shared = bld.__call__(features = 'cxx cshlib skip_asan remove_flags',
                                    includes = ['.'],
                                    remove_flags = remove_flags,
                                    target = 'texc_shared',
@@ -34,4 +34,4 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
-    bld.add_subdirs('test')
+    bld.recurse('test')

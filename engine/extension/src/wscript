@@ -7,7 +7,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    bld.add_subdirs('test')
+    bld.recurse('test')
     bld.install_files('${PREFIX}/include/extension', 'extension.h')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
@@ -17,7 +17,7 @@ def build(bld):
     if re.match('arm.*?android', bld.env.PLATFORM):
         source += ['extension_android.cpp']
 
-    extension = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    extension = bld.__call__(features = 'cxx cstaticlib ddf',
                                  includes = '.',
                                  source = source,
                                  target = 'extension')

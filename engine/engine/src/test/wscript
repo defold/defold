@@ -22,7 +22,7 @@ def build(bld):
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui']
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
-    obj = bld.new_task_gen(
+    obj = bld.__call__(
         features = 'cc cxx cprogram test',
         uselib = 'TESTMAIN RECORD CRASH VPX PROFILEREXT GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES'.split() + additional_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
@@ -51,6 +51,6 @@ def build(bld):
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bld.new_task_gen(rule = 'java -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} -k distclean build %s' % ' '.join(bob_flags),
+    bld.__call__(rule = 'java -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} -k distclean build %s' % ' '.join(bob_flags),
                      source = '../../content/bob-engine.jar wscript',
                      always = True)

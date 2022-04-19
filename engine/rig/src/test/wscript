@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cprogram test',
+    bld.__call__(features = 'cxx cprogram test',
                     includes = '../../src . ../../proto',
                     uselib = 'TESTMAIN DLIB PLATFORM_SOCKET LUA SCRIPT',
                     uselib_local = 'rig',

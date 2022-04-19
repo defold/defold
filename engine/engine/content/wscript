@@ -2,7 +2,7 @@
 import os, shutil, zipfile
 import Node, Options
 
-def set_options(opt):
+def options(opt):
     pass
 
 def package_bob(self):
@@ -17,10 +17,10 @@ def package_bob(self):
     zip.close()
 
 def build(bld):
-    obj = bld.new_task_gen(source = [])
+    obj = bld.__call__(source = [])
     obj.find_sources_in_dirs('materials')
 
-    builtins = bld.new_task_gen(features='barchive',
+    builtins = bld.__call__(features='barchive',
                                 source_root='default/content',
                                 resource_name='builtins',
                                 use_compression=True)
@@ -32,7 +32,7 @@ def build(bld):
     # to make sure that builtins + builtins_release are built consecutively.
     bld.add_group()
 
-    builtins_release = bld.new_task_gen(features='barchive',
+    builtins_release = bld.__call__(features='barchive',
                                 source_root='default/content',
                                 resource_name='builtins_release',
                                 use_compression=True)
@@ -49,7 +49,7 @@ def build(bld):
                   relative_trick=True)
 
     if not Options.options.skip_build_tests:
-        bld.new_task_gen(name = 'bob-engine',
+        bld.__call__(name = 'bob-engine',
                          source = bld.path.ant_glob('builtins/**'),
                          target = 'bob-engine.jar',
                          rule = package_bob,

@@ -3,7 +3,7 @@
 import os
 from BuildUtility import create_build_utility
 
-def set_options(opt):
+def options(opt):
     pass
 
 def configure(conf):
@@ -19,7 +19,7 @@ def build(bld):
         if os.path.exists(os.path.join('src',d)):
             source_dirs.extend([d])
 
-    b = bld.new_task_gen(features   = 'cc cxx cstaticlib',
+    b = bld.__call__(features   = 'cc cxx cstaticlib',
                       includes  = '. ..',
                       target    = 'testmain')
     b.find_sources_in_dirs(source_dirs)

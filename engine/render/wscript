@@ -11,10 +11,10 @@ import Options
 
 import waf_ddf, waf_dynamo
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
 
@@ -23,7 +23,7 @@ def configure(conf):
 
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     platform = conf.env['PLATFORM']
 
@@ -67,7 +67,7 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
 
 def build(bld):
-    bld.add_subdirs('src')
+    bld.recurse('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
 def shutdown():

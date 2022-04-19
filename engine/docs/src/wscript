@@ -11,13 +11,13 @@ def build(bld):
     files = bld.path.ant_glob('*.apidoc_')
     for source in files.split():
         namespace, _ = os.path.splitext(source)
-        bld.new_task_gen(source = source,
+        bld.__call__(source = source,
                      target = '%s_doc.sdoc' % namespace,
                      rule = 'python ${SCRIPT_DOC} ${SRC} ${TGT}')
-        bld.new_task_gen(source = source,
+        bld.__call__(source = source,
                      target = '%s_doc.json' % namespace,
                      rule = 'python ${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-        bld.new_task_gen(source = source,
+        bld.__call__(source = source,
                      target = '%s_doc.script_api' % namespace,
                      rule = 'python ${SCRIPT_DOC} -t script_api ${SRC} ${TGT}')
 
@@ -25,5 +25,5 @@ def build(bld):
         bld.install_files('${PREFIX}/share/doc', '%s_doc.json' % namespace)
         bld.install_files('${PREFIX}/share/doc', '%s_doc.script_api' % namespace)
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')

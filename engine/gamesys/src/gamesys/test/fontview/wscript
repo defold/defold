@@ -14,7 +14,7 @@ def build(bld):
     if 'web' in bld.env['PLATFORM']:
         flist = flist + ' web'
 
-    font_viewer = bld.new_task_gen(features = flist,
+    font_viewer = bld.__call__(features = flist,
                                     source = 'fontview.cpp deja_vu_sans.font vera_mo_bd.font font.vp font.fp font.material',
                                     uselib = 'RENDER CRASH GRAPHICS RESOURCE HID DDF DMGLFW PLATFORM_SOCKET SCRIPT LUA EXTENSION DLIB X CARES',
                                     web_libs = ['library_sys.js', 'library_glfw.js'],

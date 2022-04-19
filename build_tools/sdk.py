@@ -215,7 +215,7 @@ def get_windows_local_sdk_info(platform):
         vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
         vswhere_path = path.normpath(vswhere_path)
         if not os.path.exists(vswhere_path):
-            print "Couldn't find executable '%s'" % vswhere_path
+            print ("Couldn't find executable '%s'" % vswhere_path)
             return None
 
     sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip()
@@ -310,15 +310,15 @@ def _setup_info_from_windowsinfo(windowsinfo, platform):
 
     info['bin_paths'] = {}
     info['bin_paths']['version'] = info[platform]['version']
-    info['bin_paths']['path'] = windowsinfo['bin_paths'].split(',')
+    info['bin_paths']['path'] = str(windowsinfo['bin_paths']).split(',')
 
     info['lib_paths'] = {}
     info['lib_paths']['version'] = info[platform]['version']
-    info['lib_paths']['path'] = windowsinfo['lib_paths'].split(',')
+    info['lib_paths']['path'] = str(windowsinfo['lib_paths']).split(',')
 
     info['includes'] = {}
     info['includes']['version'] = info[platform]['version']
-    info['includes']['path'] = windowsinfo['includes'].split(',')
+    info['includes']['path'] = str(windowsinfo['includes']).split(',')
 
     return info
 
@@ -330,7 +330,7 @@ def _get_defold_path(sdkfolder, platform):
 
 def check_defold_sdk(sdkfolder, platform):
     folders = []
-    print "check_defold_sdk", sdkfolder, platform
+    print ("check_defold_sdk", sdkfolder, platform)
 
     if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
@@ -387,7 +387,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, platform)
 
-        print "MAWE", info
+        print ("MAWE", info)
 
     if platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)

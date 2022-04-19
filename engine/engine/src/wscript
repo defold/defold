@@ -3,17 +3,17 @@ import os, re
 from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature
 import Options
 
-def set_options(opt):
+def options(opt):
     pass
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cstaticlib embed',
+    bld.__call__(features = 'cxx cstaticlib embed',
                     includes = '. ..',
                     source = 'engine_service.cpp',
                     target = 'engine_service',
                     embed_source = '../content/profiler.html')
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                     includes = '. ..',
                     source = 'engine_service_null.cpp',
                     target = 'engine_service_null')
@@ -22,7 +22,7 @@ def build(bld):
     if 'arm64-nx64' in bld.env.PLATFORM:
         platform_main_cpp = 'nx64/main.cpp'
 
-    bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    bld.__call__(features = 'cxx cstaticlib ddf embed',
                     includes = '../proto . ..',
                     target = 'engine',
                     proto_gen_py = True,
@@ -31,7 +31,7 @@ def build(bld):
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     uselib_local = 'engine_service')
 
-    bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    bld.__call__(features = 'cxx cstaticlib ddf embed',
                     includes = '../proto . ..',
                     target = 'engine_release',
                     defines = 'DM_RELEASE=1',
@@ -104,7 +104,7 @@ def build(bld):
 
     main_cpp = 'common/main.cpp'
 
-    obj = bld.new_task_gen(
+    obj = bld.__call__(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
         uselib_local = 'engine engine_service',
@@ -131,7 +131,7 @@ def build(bld):
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
         
-    obj = bld.new_task_gen(
+    obj = bld.__call__(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
         uselib_local = 'engine_release engine_service_null',
@@ -158,7 +158,7 @@ def build(bld):
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-darwin', 'x86_64-ios'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw. UIApplicationMain is currently in glfw
 
-    obj = bld.new_task_gen(
+    obj = bld.__call__(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CARES CRASH'.split() + graphics_lib.split() + additional_libs,
         exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
@@ -187,7 +187,7 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_headless.nso')
 
     if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+        bld.recurse('test')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 

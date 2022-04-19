@@ -9,7 +9,7 @@ def build(bld):
     if options.skip_build_tests:
        return
 
-    test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
+    test_texc = bld.__call__(features = 'cc cxx cprogram test',
                                      uselib = 'DLIB BASIS_ENCODER',
                                      uselib_local = 'texc',
                                      proto_gen_py = True,

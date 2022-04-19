@@ -9,7 +9,7 @@ def build(bld):
 
         is64Bit = bld.env.PLATFORM in ('x86_64-darwin', 'x86_64-win32', 'x86_64-linux')
 
-        crashtool = bld.new_task_gen(features = 'cxx cprogram',
+        crashtool = bld.__call__(features = 'cxx cprogram',
                                          includes = '..',
                                          uselib = libs,
                                          uselib_local = 'crashext',

@@ -11,7 +11,7 @@ def build(bld):
     libs = 'TESTMAIN SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT CARES'
     if 'android' in bld.env['PLATFORM']:
         libs += ' UNWIND'
-    test_crash = bld.new_task_gen(features = 'cxx cprogram test',
+    test_crash = bld.__call__(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext',
@@ -24,7 +24,7 @@ def build(bld):
         test_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
     # essentially only test that it links
-    test_crash_null = bld.new_task_gen(features = 'cxx cprogram',
+    test_crash_null = bld.__call__(features = 'cxx cprogram',
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext_null',
@@ -34,7 +34,7 @@ def build(bld):
 
     test_crash_null.install_path = None
 
-    test_script_crash = bld.new_task_gen(features = 'cxx cprogram test',
+    test_script_crash = bld.__call__(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext',
@@ -47,7 +47,7 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         test_script_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
-    test_script_crash_null = bld.new_task_gen(features = 'cxx cprogram test',
+    test_script_crash_null = bld.__call__(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext_null',

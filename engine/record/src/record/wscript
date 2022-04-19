@@ -5,12 +5,12 @@ def configure(conf):
     pass
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                     includes = '.',
                     source = 'record.cpp record_common.cpp',
                     target = 'record')
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                      includes = '.',
                      source = 'record_null.cpp record_common.cpp',
                      target = 'record_null')

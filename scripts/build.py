@@ -19,7 +19,7 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes
-import optparse, subprocess, urllib, urlparse, tempfile, time
+import optparse, subprocess, urllib, tempfile, time
 import imp
 import github
 import run
@@ -31,8 +31,8 @@ import http_cache
 from tarfile import TarFile
 from glob import glob
 from threading import Thread, Event
-from Queue import Queue
-from ConfigParser import ConfigParser
+from queue import Queue
+from configparser import ConfigParser
 
 BASE_PLATFORMS = [  'x86_64-linux',
                     'x86_64-darwin',
@@ -45,13 +45,13 @@ sys.dont_write_bytecode = True
 try:
     import build_nx64
     sys.modules['build_private'] = build_nx64
-except Exception, e:
+except Exception:
     pass
 
 sys.dont_write_bytecode = False
 try:
     import build_private
-except Exception, e:
+except Exception:
     pass
 
 if 'build_private' not in sys.modules:
@@ -217,7 +217,7 @@ class ThreadPool(object):
             try:
                 result = func(*args)
                 future.result = result
-            except Exception,e:
+            except Exception as e:
                 future.result = e
             future.event.set()
             func, args, future = self.work_queue.get()
@@ -233,7 +233,7 @@ class Future(object):
             # In order to respond to ctrl+c wait with timeout...
             while not self.event.is_set():
                 self.event.wait(0.1)
-        except KeyboardInterrupt,e:
+        except KeyboardInterrupt as e:
             sys.exit(0)
 
         if isinstance(self.result, Exception):
@@ -248,7 +248,7 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
         path = conf.get_local_or_remote_file(url)
         conf._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
     else:
-        print "SDK already installed:", targetfolder
+        print ("SDK already installed:", targetfolder)
 
 class Configuration(object):
     def __init__(self, dynamo_home = None,
@@ -348,7 +348,7 @@ class Configuration(object):
             os.makedirs(path)
 
     def _log(self, msg):
-        print msg
+        print(msg)
         sys.stdout.flush()
         sys.stderr.flush()
 
@@ -414,7 +414,7 @@ class Configuration(object):
         def _extract_zip_entry( zf, info, extract_dir ):
             zf.extract( info.filename, path=extract_dir )
             out_path = os.path.join( extract_dir, info.filename )
-            perm = info.external_attr >> 16L
+            perm = info.external_attr >> 16
             os.chmod( out_path, perm )
 
         with zipfile.ZipFile(file, 'r') as zf:
@@ -558,7 +558,7 @@ class Configuration(object):
         if os.path.isdir(self.package_path): # is is a local path?
             if os.path.exists(path):
                 return os.path.normpath(os.path.abspath(path))
-            print "Could not find local file:", path
+            print("Could not find local file:", path)
             sys.exit(1)
         dirname, basename = os.path.split(path)
         path = dirname + "/" + urllib.quote(basename)
@@ -642,7 +642,7 @@ class Configuration(object):
         os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
 
         if os.path.isdir(emsDir):
-            print "Emscripten is already installed:", emsDir
+            print("Emscripten is already installed:", emsDir)
         else:
             self._check_package_path()
             platform_map = {'x86_64-linux':'linux','x86_64-darwin':'darwin','x86_64-win32':'win32'}
@@ -676,14 +676,14 @@ class Configuration(object):
         config = join(self.get_ems_dir(), '.emscripten')
         err = False
         if not os.path.isfile(config):
-            print 'No .emscripten file.'
+            print('No .emscripten file.')
             err = True
         emsDir = self.get_ems_dir()
         if not os.path.isdir(emsDir):
-            print 'Emscripten tools not installed.'
+            print('Emscripten tools not installed.')
             err = True
         if err:
-            print 'Consider running install_ems'
+            print('Consider running install_ems')
 
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
@@ -852,7 +852,7 @@ class Configuration(object):
                 for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/lib/python/google')):
                     for f in files:
                         _, ext = os.path.splitext(f)
-                        print root, f
+                        print (root, f)
                         if ext in ('.pyc',):
                             continue
                         path = os.path.join(root, f)
@@ -880,10 +880,10 @@ class Configuration(object):
         # Helper function to make it easier to build a platform sdk locally
         try:
             path = self._package_platform_sdk(self.target_platform)
-        except Exception, e:
-            print "Failed to package sdk for platform %s: %s" % (self.target_platform, e)
+        except Exception as e:
+            print ("Failed to package sdk for platform %s: %s" % (self.target_platform, e))
         else:
-            print "Wrote %s" % path
+            print ("Wrote %s" % path)
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -1059,11 +1059,11 @@ class Configuration(object):
         s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
         if self.verbose:
-            print s
+            print (s)
 
         s = run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
-            print s
+            print (s)
 
     def build_engine(self):
         self.check_sdk()
@@ -1111,7 +1111,7 @@ class Configuration(object):
             shutil.rmtree(scan_output_dir)
 
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
-            print "Removing", os.environ['DM_BOB_ROOTFOLDER']
+            print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
     def build_external(self):
@@ -1257,15 +1257,15 @@ class Configuration(object):
                 raise Exception("Could not find sdk: %s" % prefix)
 
             platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
-            print "Downloading", entry.key
+            print ("Downloading", entry.key)
             entry.get_contents_to_filename(platform_sdk_zip.name)
-            print "Downloaded", entry.key, "to", platform_sdk_zip.name
+            print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
 
             self._extract_zip(platform_sdk_zip.name, tempdir)
-            print "Extracted", platform_sdk_zip.name, "to", tempdir
+            print ("Extracted", platform_sdk_zip.name, "to", tempdir)
 
             os.unlink(platform_sdk_zip.name)
-            print ""
+            print ("")
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
         # and set the flags explicitly
@@ -1278,13 +1278,13 @@ class Configuration(object):
 
         treepath = os.path.join(tempdir, 'defoldsdk')
         sdkpath = self._ziptree(treepath, directory=tempdir)
-        print "Packaged defold sdk from", tempdir, "to", sdkpath
+        print ("Packaged defold sdk from", tempdir, "to", sdkpath)
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
         shutil.rmtree(tempdir)
-        print "Removed", tempdir
+        print ("Removed", tempdir)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -1417,8 +1417,8 @@ class Configuration(object):
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        print 'Bumping engine version from %s to %s' % (current, new_version)
-        print 'Review changes and commit'
+        print ('Bumping engine version from %s to %s' % (current, new_version))
+        print ('Review changes and commit')
 
     def save_env(self):
         if not self.save_env_path:
@@ -1434,14 +1434,14 @@ class Configuration(object):
             f.write(res)
 
     def shell(self):
-        print 'Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
+        print ('Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
         if "win32" in self.host:
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
 
         if "darwin" in self.host and "arm" in platform.processor():
-            print 'Detected Apple M1 CPU - running shell with x86 architecture'
+            print ('Detected Apple M1 CPU - running shell with x86 architecture')
             args = ['arch', '-arch', 'x86_64', SHELL, '-l']
         else:
             args = [SHELL, '-l']
@@ -2174,8 +2174,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     options, all_args = parser.parse_args()
 
-    args = filter(lambda x: x[:2] != '--', all_args)
-    waf_options = filter(lambda x: x[:2] == '--', all_args)
+    args = list(filter(lambda x: x[:2] != '--', all_args))
+    waf_options = list(filter(lambda x: x[:2] == '--', all_args))
 
     if len(args) == 0:
         parser.error('No command specified')

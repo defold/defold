@@ -17,16 +17,16 @@ from log import log
 import os
 import re
 import sys
-import urlparse
+import urllib
 from datetime import datetime
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 
 
 
 s3buckets = {}
 
 def get_archive_prefix(archive_path, sha1):
-    u = urlparse.urlparse(archive_path)
+    u = urllib.parse(archive_path)
     assert (u.scheme == 's3')
     prefix = os.path.join(u.path, sha1)[1:]
     return prefix
@@ -66,7 +66,7 @@ def get_bucket(bucket_name):
 
 
 def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
-    root = urlparse.urlparse(archive_path).path[1:]
+    root = urllib.parse(archive_path).path[1:]
     base_prefix = os.path.join(root, sha1)
     prefix = os.path.join(base_prefix, path)
     files = []
@@ -93,7 +93,7 @@ def get_files(archive_path, bucket, sha1):
     return files
 
 def get_tagged_releases(archive_path, pattern=None):
-    u = urlparse.urlparse(archive_path)
+    u = urllib.parse(archive_path)
     bucket = get_bucket(u.hostname)
 
     if pattern is None:
@@ -129,7 +129,7 @@ def get_tagged_releases(archive_path, pattern=None):
     return releases
 
 def get_single_release(archive_path, version_tag, sha1):
-    u = urlparse.urlparse(archive_path)
+    u = urllib.parse(archive_path)
     bucket = get_bucket(u.hostname)
     files = get_files(archive_path, bucket, sha1)
 
@@ -139,7 +139,7 @@ def get_single_release(archive_path, version_tag, sha1):
             'files': files}
 
 def move_release(archive_path, sha1, channel):
-    u = urlparse.urlparse(archive_path)
+    u = urllib.parse(archive_path)
     # get archive root and bucket name
     # archive root:     s3://d.defold.com/archive -> archive
     # bucket name:      s3://d.defold.com/archive -> d.defold.com
@@ -169,7 +169,7 @@ def move_release(archive_path, sha1, channel):
             continue
 
         # resolve the redirect and get a key to the file
-        redirect_name = urlparse.urlparse(redirect_path).path[1:]
+        redirect_name = urllib.parse(redirect_path).path[1:]
         redirect_key = bucket.get_key(redirect_name)
         if not redirect_key:
             print("Invalid redirect for %s. The file will not be moved" % redirect_path)

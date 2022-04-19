@@ -10,10 +10,10 @@ blddir = 'build'
 
 import waf_dynamo
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
@@ -25,7 +25,7 @@ def configure(conf):
 
 
 def build(bld):
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
 def shutdown():
     waf_dynamo.run_tests(valgrind = True)

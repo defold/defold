@@ -8,10 +8,10 @@ APPNAME = 'testmain'
 srcdir = '.'
 blddir = 'build'
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
     opt.sub_options('src')
 

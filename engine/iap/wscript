@@ -8,18 +8,18 @@ blddir = 'build'
 
 import waf_dynamo
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
-def init():
+def init(ctx):
     pass
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
-    conf.sub_config('src')
+    conf.recurse('src')
 
 def build(bld):
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
 def shutdown():
     waf_dynamo.run_tests(valgrind = True)

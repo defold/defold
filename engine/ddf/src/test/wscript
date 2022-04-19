@@ -26,7 +26,7 @@ def pf_file(self, node):
 def build(bld):
     if options.skip_build_tests:
        return
-    bld.new_task_gen(features = 'cxx cprogram ddf test',
+    bld.__call__(features = 'cxx cprogram ddf test',
                     source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
                     uselib = 'TESTMAIN PROTOBUF DLIB PTHREAD',
                     uselib_local = 'ddf',

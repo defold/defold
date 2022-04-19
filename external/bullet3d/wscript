@@ -15,7 +15,7 @@ import waf_package
 def init():
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):

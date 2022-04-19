@@ -11,10 +11,10 @@ import os, sys, re
 import waf_ddf, waf_dynamo
 import Options
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
@@ -52,7 +52,7 @@ def configure(conf):
     conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')
 
 def build(bld):
-    bld.add_subdirs('lib')
+    bld.recurse('lib')
     bld.install_files('${PREFIX}/sdk/include/dmsdk/graphics/glfw', 'include/GL/glfw.h')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')
 
@@ -60,13 +60,13 @@ def build(bld):
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME];
         classpath = os.pathsep.join(classpath)
 
-        bld.new_task_gen(features='javac seq',
+        bld.__call__(features='javac seq',
                          classpath=classpath,
                          source_root='java')
 
         bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
 
-        bld.new_task_gen(features='jar seq',
+        bld.__call__(features='jar seq',
                          basedir='java',
                          destfile='glfw_android.jar')
 

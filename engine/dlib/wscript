@@ -6,23 +6,23 @@ APPNAME = 'dlib'
 srcdir = '.'
 blddir = 'build'
 
-import Options
-import os, sys, tempfile, ConfigParser
+# import Options
+import os, sys, tempfile, configparser
 import waf_dynamo
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
-    opt.sub_options('src')
+def options(opt):
+    opt.load('waf_dynamo')
+    opt.recurse('src')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.sub_config('src')
+    conf.load('waf_dynamo')
+    conf.recurse('src')
 
-    conf.check_tool('java')
+    conf.load('java')
 
     build_util = None
     try:
@@ -39,7 +39,7 @@ def build(bld):
     if not os.path.exists('tmp'):
         os.mkdir('tmp')
 
-    bld.add_subdirs('src')
+    bld.recurse('src')
     bld.install_files('${PREFIX}/include/x86_64-win32', 'include/x86_64-win32/*.h')
 
 def shutdown():

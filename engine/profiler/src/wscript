@@ -21,12 +21,12 @@ def build(bld):
     else:
         source += ' profiler_unsupported.cpp'
 
-    profiler = bld.new_task_gen(features = 'cxx cstaticlib',
+    profiler = bld.__call__(features = 'cxx cstaticlib',
                             includes = '.',
                             source = source,
                             target = 'profilerext')
 
-    profiler = bld.new_task_gen(features = 'cxx cstaticlib',
+    profiler = bld.__call__(features = 'cxx cstaticlib',
                             includes = '.',
                             source = source_null,
                             target = 'profilerext_null')
@@ -36,4 +36,4 @@ def build(bld):
     apidoc_extract_task(bld, ['profiler.cpp'])
 
     if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+        bld.recurse('test')

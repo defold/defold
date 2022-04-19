@@ -6,17 +6,17 @@ def configure(conf):
     pass
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    resource = bld.__call__(features = 'cxx cstaticlib ddf',
                                 includes = '.',
                                 source = 'gui.cpp gui_script.cpp',
                                 target = 'gui')
 
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    resource = bld.__call__(features = 'cxx cstaticlib ddf',
                                 includes = '.',
                                 source = 'gui_null.cpp',
                                 target = 'gui_null')
 
-    bld.add_subdirs('test')
+    bld.recurse('test')
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

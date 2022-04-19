@@ -5,10 +5,10 @@ import sys
 from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
-    conf.sub_config('test')
+    conf.recurse('test')
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    resource = bld.__call__(features = 'cxx cstaticlib ddf embed',
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
@@ -47,7 +47,7 @@ def build(bld):
         'components/comp_collection_proxy.cpp'] + proto_files)
 
     bld.add_group()
-    bld.add_subdirs('test')
+    bld.recurse('test')
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/include/gamesys/components', 'components/comp_gui.h')

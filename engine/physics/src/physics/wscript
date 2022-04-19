@@ -4,7 +4,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    physics = bld.new_task_gen(features = 'cxx cstaticlib',
+    physics = bld.__call__(features = 'cxx cstaticlib',
                                use_lib = 'DLIB  BULLET',
                                includes = '. .. ../box2d',
                                proto_gen_py = True,
@@ -12,21 +12,21 @@ def build(bld):
     physics.find_sources_in_dirs('.')
     physics.source = [x for x in physics.source if not 'null.cpp' in x]
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                     use_lib = 'DLIB',
                     includes = '. ..',
                     proto_gen_py = True,
                     source = ['physics_common.cpp', 'physics_2d_null.cpp', 'physics_3d_null.cpp'],
                     target = 'physics_null')
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                     use_lib = 'DLIB',
                     includes = '. .. ../box2d',
                     proto_gen_py = True,
                     source = ['physics.cpp', 'physics_common.cpp', 'physics_2d.cpp', 'physics_3d_null.cpp', 'debug_draw_2d.cpp'],
                     target = 'physics_2d')
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                     use_lib = 'DLIB',
                     includes = '. ..',
                     proto_gen_py = True,
@@ -37,5 +37,5 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'waf_physics.py')
 
     if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+        bld.recurse('test')
 

@@ -9,13 +9,13 @@ blddir = 'build'
 import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
-import Logs
-import Options
+# import Logs
+# import Options
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
     opt.tool_options('waf_ddf')
@@ -57,7 +57,7 @@ namespace dmEngineVersion
     waf_render.configure(conf)
     waf_gamesys.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     operating_sys = build_util.get_target_os()
     architecture = build_util.get_target_architecture()
@@ -157,11 +157,11 @@ def build(bld):
     sys.path.insert(0, os.path.abspath('build/default/proto/engine'))
     sys.path.insert(0, os.path.abspath('default/proto/engine'))
 
-    bld.add_subdirs('content')
+    bld.recurse('content')
     bld.add_group()
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
-    bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0755)
+    bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0O755)
 
     build_util = None
     try:

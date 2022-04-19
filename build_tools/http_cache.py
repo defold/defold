@@ -12,8 +12,8 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import sys, os, os.path, glob, urlparse, urllib2
-from urllib2 import HTTPError
+import sys, os, os.path, glob, urllib
+from urllib.error import HTTPError
 
 def mangle(url):
     url = urlparse.urlparse(url)
@@ -21,7 +21,7 @@ def mangle(url):
     return 'defold%s' % url.path.replace('/', '-') # we avoid putting the possibly secret url in the output messages
 
 def log(msg):
-    print msg
+    print (msg)
     sys.stdout.flush()
     sys.stderr.flush()
 

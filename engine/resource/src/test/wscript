@@ -21,10 +21,10 @@ new_copy_task('ad', '.ad', '.adc')
 new_copy_task('script', '.script', '.scriptc')
 
 def build(bld):
-    resources = bld.new_task_gen(source = ['test.cont_pb', 'test_ref.cont_pb', ])
+    resources = bld.__call__(source = ['test.cont_pb', 'test_ref.cont_pb', ])
     sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script', 'liveupdate.file7.ad', 'liveupdate.file6.script']]
 
-    archive = bld.new_task_gen(features='barchive',
+    archive = bld.__call__(features='barchive',
                                source_root='default/src/test',
                                resource_name='resources',
                                use_compression=False,
@@ -32,7 +32,7 @@ def build(bld):
 
     bld.add_group()
 
-    archive_compressed = bld.new_task_gen(features='barchive',
+    archive_compressed = bld.__call__(features='barchive',
                                source_root='default/src/test',
                                resource_name='resources_compressed',
                                use_compression=True,
@@ -40,7 +40,7 @@ def build(bld):
 
     bld.add_group()
 
-    archive_pb = bld.new_task_gen(features='barchive',
+    archive_pb = bld.__call__(features='barchive',
                                source_root='default/src/test',
                                resource_name='resources_pb',
                                use_compression=False,
@@ -48,7 +48,7 @@ def build(bld):
 
     bld.add_group()
 
-    test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
+    test_resource = bld.__call__(features = 'cxx cprogram embed test',
                                      includes = '.. ../../proto',
                                      uselib = 'TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
                                      uselib_local = 'resource',
@@ -60,7 +60,7 @@ def build(bld):
 
     test_resource.install_path = None
 
-    test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
+    test_resource_archive = bld.__call__(features = 'cxx cprogram embed test',
                                              includes = '.. ../../proto',
                                              uselib = 'TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
                                              uselib_local = 'resource',
@@ -71,7 +71,7 @@ def build(bld):
 
     test_resource_archive.install_path = None
 
-    test_block_allocator = bld.new_task_gen(features = 'cxx cprogram test',
+    test_block_allocator = bld.__call__(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = 'TESTMAIN DLIB THREAD',
                                      uselib_local = 'resource',

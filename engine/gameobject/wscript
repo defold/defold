@@ -10,10 +10,10 @@ import sys, os
 import waf_dynamo, waf_ddf
 import Options
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
 
@@ -22,7 +22,7 @@ def configure(conf):
     conf.check_tool('java')
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
@@ -39,7 +39,7 @@ def configure(conf):
 def build(bld):
     sys.path.insert(0, os.path.abspath('build/default/proto'))
     sys.path.insert(0, os.path.abspath('build/default/proto/gameobject'))
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
 def shutdown():
     waf_dynamo.run_tests(valgrind = True)

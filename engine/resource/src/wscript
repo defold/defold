@@ -7,7 +7,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    resource = bld.__call__(features = 'cxx cstaticlib ddf',
                                 includes = '. ../proto',
                                 protoc_includes = '../proto',
                                 proto_gen_py = True,
@@ -29,7 +29,7 @@ def build(bld):
     resource.find_sources_in_dirs('../proto/resource')
 
     if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+        bld.recurse('test')
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

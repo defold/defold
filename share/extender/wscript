@@ -45,7 +45,7 @@ def feature_merge_yaml(self):
 def init():
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):

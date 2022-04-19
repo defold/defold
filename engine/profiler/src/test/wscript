@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cprogram test skip_test',
+    bld.__call__(features = 'cxx cprogram test skip_test',
                                     source = 'test_profilerext_null.cpp',
                                     uselib = 'TESTMAIN DLIB',
                                     uselib_local = 'profilerext_null',

@@ -13,13 +13,14 @@
 # specific language governing permissions and limitations under the License.
 
 import os, sys, subprocess, shutil, re, stat, glob, zipfile
-import Build, Options, Utils, Task, Logs
-import Configure
-import cc # for supporting LIBDIR
-from Configure import conf
-from TaskGen import extension, taskgen, feature, after, before
-from Logs import error
-from Constants import RUN_ME
+#import Build, Options, Utils, Task, Logs
+#import Configure
+#import cc # for supporting LIBDIR
+from waflib.Configure import conf
+from waflib import Utils, Build, Options, Task, Logs
+from waflib.TaskGen import extension, feature, after, before, task_gen
+from waflib.Logs import error
+#from waflib.Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import sdk
 
@@ -43,10 +44,9 @@ for platform in ('nx64', 'ps4'):
     break
 
 if 'waf_dynamo_private' not in sys.modules:
-
     class waf_dynamo_private(object):
         @classmethod
-        def set_options(cls, opt):
+        def options(cls, opt):
             pass
         @classmethod
         def setup_tools(cls, ctx, build_util):
@@ -61,8 +61,6 @@ if 'waf_dynamo_private' not in sys.modules:
         def transform_runnable_path(cls, platform, path):
             return path
     globals()['waf_dynamo_private'] = waf_dynamo_private
-
-
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
@@ -109,7 +107,7 @@ def new_copy_task(name, input_ext, output_ext):
 
         return 0
 
-    task = Task.task_type_from_func(name,
+    task = Task.task_factory(name,
                                     func  = compile,
                                     color = 'PINK')
 
@@ -125,7 +123,7 @@ def copy_file_task(bld, src, name=None):
     parts = src.split('/')
     filename = parts[-1]
     src_path = src.replace('/', os.sep)
-    return bld.new_task_gen(rule = '%s %s ${TGT}' % (copy, src_path),
+    return bld.__call__(rule = '%s %s ${TGT}' % (copy, src_path),
                             target = filename,
                             name = name,
                             shell = True)
@@ -180,7 +178,7 @@ def apidoc_extract_task(bld, src):
             elements[ns].append('/' + comment_str + '*/')
         return elements
 
-    import Node
+    import waflib.Node
     from itertools import chain
     from collections import defaultdict
     elements = {}
@@ -213,7 +211,7 @@ def apidoc_extract_task(bld, src):
         for ns in elements.keys():
             if ns is not None:
                 target.append(ns + '.apidoc')
-        return bld.new_task_gen(rule=write_docs, name='apidoc_extract', source = src, target = target)
+        return bld.__call__(rule=write_docs, name='apidoc_extract', source = src, target = target)
 
 
 # Add single dmsdk file.
@@ -585,7 +583,7 @@ def asan_cxxflags(self):
         self.env.append_value('CCFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
 
-@taskgen
+@task_gen
 @feature('cprogram', 'cxxprogram')
 @after('apply_link')
 def apply_unit_test(self):
@@ -777,7 +775,7 @@ def codesign(task):
 
     return 0
 
-Task.task_type_from_func('codesign',
+Task.task_factory('codesign',
                          func = codesign,
                          #color = 'RED',
                          after  = 'app_bundle')
@@ -807,14 +805,14 @@ def create_export_symbols(task):
 
     return 0
 
-task = Task.task_type_from_func('create_export_symbols',
+task = Task.task_factory('create_export_symbols',
                                 func  = create_export_symbols,
                                 color = 'PINK',
                                 before  = 'cc cxx')
 
 task.runnable_status = lambda self: RUN_ME
 
-@taskgen
+@task_gen
 @feature('cprogram')
 @before('apply_core')
 def export_symbols(self):
@@ -833,7 +831,7 @@ def export_symbols(self):
     task.exported_symbols = self.exported_symbols
     task.set_outputs([exported_symbols])
 
-Task.task_type_from_func('app_bundle',
+Task.task_factory('app_bundle',
                          func = app_bundle,
                          vars = ['SRC', 'DST'],
                          #color = 'RED',
@@ -886,11 +884,11 @@ def authenticode_sign(task):
 
     return 0
 
-Task.task_type_from_func('authenticode_sign',
+Task.task_factory('authenticode_sign',
                          func = authenticode_sign,
                          after = 'cxx_link cc_link static_link msvc_manifest')
 
-@taskgen
+@task_gen
 @feature('authenticode')
 def authenticode(self):
     exe_file = self.link_task.outputs[0].abspath(self.env)
@@ -898,7 +896,7 @@ def authenticode(self):
     sign_task.set_inputs(self.link_task.outputs)
     sign_task.set_outputs([self.link_task.outputs[0].change_ext('_signed.exe')])
 
-@taskgen
+@task_gen
 @after('apply_link')
 @feature('cprogram')
 def create_app_bundle(self):
@@ -1028,12 +1026,12 @@ def android_package(task):
 
     return 0
 
-Task.task_type_from_func('android_package',
+Task.task_factory('android_package',
                          func = android_package,
                          vars = ['SRC', 'DST'],
                          after  = 'cxx_link cc_link static_link')
 
-@taskgen
+@task_gen
 @after('apply_link')
 @feature('apk')
 def create_android_package(self):
@@ -1088,14 +1086,14 @@ def copy_stub(task):
 
     return 0
 
-task = Task.task_type_from_func('copy_stub',
+task = Task.task_factory('copy_stub',
                                 func  = copy_stub,
                                 color = 'PINK',
                                 before  = 'cc cxx')
 
 task.runnable_status = lambda self: RUN_ME
 
-@taskgen
+@task_gen
 @before('apply_core')
 @feature('apk')
 def create_copy_glue(self):
@@ -1146,12 +1144,12 @@ unsigned char DM_ALIGNED(16) %s[] =
     task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
     return 0
 
-Task.simple_task_type('dex', '${DX} --dex --output ${TGT} ${SRC}',
+Task.task_factory('dex', '${DX} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
                       after='jar_create',
                       shell=True)
 
-@taskgen
+@task_gen
 @after('apply_java')
 @feature('dex')
 def apply_dex(self):
@@ -1164,7 +1162,7 @@ def apply_dex(self):
     task.set_inputs(jar)
     task.set_outputs(dex)
 
-Task.task_type_from_func('embed_file',
+Task.task_factory('embed_file',
                          func = embed_build,
                          vars = ['SRC', 'DST'],
                          color = 'RED',
@@ -1274,7 +1272,7 @@ def js_web_link_flags(self):
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
-@taskgen
+@task_gen
 @before('apply_core')
 @feature('test')
 def test_flags(self):
@@ -1305,12 +1303,12 @@ def js_web_web_link_flags(self):
                 js = os.path.join(jsLibHome, lib)
             self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
 
-Task.simple_task_type('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
+Task.task_factory('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
                       color='YELLOW',
                       after='cxx_link',
                       shell=True)
 
-Task.simple_task_type('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
+Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       color='BROWN',
                       after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
 
@@ -1387,10 +1385,10 @@ def detect(conf):
 
     if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env['TESTS_UNSUPPORTED'] = True
-        print "Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform)
+        print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform))
 
         conf.env['CODESIGN_UNSUPPORTED'] = True
-        print "Codesign disabled", Options.options.skip_codesign
+        print ("Codesign disabled", Options.options.skip_codesign)
 
     # Vulkan support
     if Options.options.with_vulkan and build_util.get_target_platform() in ('x86_64-ios','js-web','wasm-web'):
@@ -1508,8 +1506,8 @@ def detect(conf):
 
     platform_setup_tools(conf, build_util)
 
-    conf.check_tool('compiler_cc')
-    conf.check_tool('compiler_cxx')
+    conf.load('compiler_c')
+    conf.load('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
@@ -1679,9 +1677,9 @@ def exec_command(self, cmd, **kw):
 
 Build.BuildContext.exec_command = exec_command
 
-def set_options(opt):
-    opt.tool_options('compiler_cc')
-    opt.tool_options('compiler_cxx')
+def options(opt):
+    opt.load('compiler_c')
+    opt.load('compiler_cxx')
 
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')

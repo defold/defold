@@ -6,7 +6,7 @@ def configure(conf):
 
 def build(bld):
 
-    tracking = bld.new_task_gen(features = 'cxx cstaticlib ddf cc',
+    tracking = bld.__call__(features = 'cxx cstaticlib ddf cc',
                                 includes = ['.'],
                                 proto_gen_py = True,
                                 proto_gen_cc = True,

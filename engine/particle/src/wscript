@@ -18,7 +18,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    particle = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    particle = bld.__call__(features = 'cxx cstaticlib ddf',
                                 includes = ['.', '../proto'],
                                 proto_gen_py = True,
                                 protoc_includes = '../proto',
@@ -30,7 +30,7 @@ def build(bld):
     is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
 
     if is_host:
-        bld.new_task_gen(features = 'cxx cshlib ddf',
+        bld.__call__(features = 'cxx cshlib ddf',
                         includes = ['.', '../proto'],
                         target = 'particle_shared',
                         protoc_includes = '../proto',
@@ -41,4 +41,4 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')
 
     if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+        bld.recurse('test')

@@ -10,10 +10,10 @@ import sys, os
 import waf_dynamo, waf_ddf
 import Options
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
@@ -22,7 +22,7 @@ def configure(conf):
 
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
@@ -36,7 +36,7 @@ def configure(conf):
 def build(bld):
     python_path = os.environ.get('PYTHONPATH', '')
     os.environ['PYTHONPATH'] = os.path.abspath('build/default/src/script') + os.pathsep + python_path
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
 def shutdown():
     if not Options.commands['build']:

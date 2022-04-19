@@ -15,7 +15,7 @@ def build(bld):
             source = 'push_stub.cpp'
             break
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                     includes = '.',
                     source = source,
                     target = 'pushext')

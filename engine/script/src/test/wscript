@@ -17,7 +17,7 @@ def build(bld):
     web_libs = ['library_sys.js', 'library_script.js']
     libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA CARES'
 
-    test_script_ddf = bld.new_task_gen(features = flist,
+    test_script_ddf = bld.__call__(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
@@ -26,7 +26,7 @@ def build(bld):
                                         target = 'test_script_ddf',
                                         source = 'test_script_ddf.cpp test_ddf.proto')
 
-    test_script_msg = bld.new_task_gen(features = flist,
+    test_script_msg = bld.__call__(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
@@ -35,7 +35,7 @@ def build(bld):
                                         target = 'test_script_msg',
                                         source = 'test_script_msg.cpp test_ddf.proto')
 
-    test_script_hash = bld.new_task_gen(features = flist,
+    test_script_hash = bld.__call__(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
@@ -44,7 +44,7 @@ def build(bld):
                                         target = 'test_script_hash',
                                         source = 'test_script_hash.cpp test_hash.lua')
 
-    test_script_vmath = bld.new_task_gen(features = flist,
+    test_script_vmath = bld.__call__(features = flist,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
@@ -54,7 +54,7 @@ def build(bld):
                                      source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua')
 
     script_table_features = flist + ' embed';
-    test_script_table = bld.new_task_gen(features = script_table_features,
+    test_script_table = bld.__call__(features = script_table_features,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
@@ -64,7 +64,7 @@ def build(bld):
                                      target = 'test_script_table',
                                      source = 'test_script_table.cpp test_script_table.lua')
 
-    test_script_table_log = bld.new_task_gen(features = flist,
+    test_script_table_log = bld.__call__(features = flist,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
@@ -73,7 +73,7 @@ def build(bld):
                                      target = 'test_script_table_log',
                                      source = 'test_script_table_log.cpp')
 
-    test_script_timer = bld.new_task_gen(features = flist,
+    test_script_timer = bld.__call__(features = flist,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
@@ -84,7 +84,7 @@ def build(bld):
 
     test_script_timer.install_path = None
 
-    test_script_sys = bld.new_task_gen(features = flist,
+    test_script_sys = bld.__call__(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -93,7 +93,7 @@ def build(bld):
                                        target = 'test_script_sys',
                                        source = 'test_script_sys.cpp test_sys.lua')
 
-    test_script = bld.new_task_gen(features = flist,
+    test_script = bld.__call__(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
@@ -102,7 +102,7 @@ def build(bld):
                                         target = 'test_script',
                                         source = 'test_script.cpp test_script.lua test_script_coroutine.lua test_circular_ref_pprint.lua test_pprint_truncate.lua test_lua_callstack.lua')
 
-    test_script_module = bld.new_task_gen(features = flist,
+    test_script_module = bld.__call__(features = flist,
                                           includes = '..',
                                           uselib = libs,
                                           uselib_local = 'script',
@@ -111,7 +111,7 @@ def build(bld):
                                           target = 'test_script_module',
                                           source = 'test_script_module.cpp test_module.lua test_module_missing.lua')
 
-    test_script_json = bld.new_task_gen(features = flist,
+    test_script_json = bld.__call__(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -122,7 +122,7 @@ def build(bld):
 
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
-            bld.new_task_gen(features = flist,
+            bld.__call__(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -131,7 +131,7 @@ def build(bld):
                                        target = 'test_script_http',
                                        source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
 
-    test_script_zlib = bld.new_task_gen(features = flist,
+    test_script_zlib = bld.__call__(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -140,7 +140,7 @@ def build(bld):
                                        target = 'test_script_zlib',
                                        source = 'test_script_zlib.cpp test_zlib.lua')
 
-    test_script_image = bld.new_task_gen(features = flist,
+    test_script_image = bld.__call__(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -149,7 +149,7 @@ def build(bld):
                                        target = 'test_script_image',
                                        source = 'test_script_image.cpp test_image.lua')
 
-    test_script_user_type = bld.new_task_gen(features = flist,
+    test_script_user_type = bld.__call__(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -159,7 +159,7 @@ def build(bld):
                                        source = 'test_script_user_type.cpp')
 
     if platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
-        bld.new_task_gen(features = flist,
+        bld.__call__(features = flist,
                         includes = '..',
                         uselib = libs,
                         uselib_local = 'script',
@@ -168,7 +168,7 @@ def build(bld):
                         target = 'test_script_luasocket',
                         source = 'test_script_luasocket.cpp test_luasocket.lua')
 
-    test_script_bitop = bld.new_task_gen(features = flist,
+    test_script_bitop = bld.__call__(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',

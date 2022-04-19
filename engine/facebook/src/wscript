@@ -3,7 +3,7 @@ import os, re
 
 from waf_dynamo import apidoc_extract_task
 
-def init():
+def init(ctx):
     pass
 
 def configure(conf):
@@ -18,7 +18,7 @@ def build(bld):
             source = 'facebook_stub.cpp'
             break
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
+    bld.__call__(features = 'cxx cstaticlib',
                     includes = '.',
                     source = source,
                     target = 'facebookext')

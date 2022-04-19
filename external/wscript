@@ -12,7 +12,7 @@ PACKAGES='bullet3d'.split()
 def get_packages():
     return PACKAGES
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
     for d in get_packages():

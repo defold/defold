@@ -11,11 +11,11 @@ import sys, os, re, fnmatch
 import Options
 import waf_dynamo
 
-def init():
+def init(ctx):
     pass
 
 def configure(conf):
-    conf.sub_config('src')
+    conf.recurse('src')
     pass
 
 def clean(conf):
@@ -46,9 +46,9 @@ def build(bld):
         comments = '\n'.join([Utils.readf(f) for f in files])
         with open('src/%s.apidoc_' % ns, 'w') as out_f:
             out_f.write(comments)
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
-def set_options(opt):
+def options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')

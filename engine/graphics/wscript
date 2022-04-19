@@ -10,10 +10,10 @@ import os, sys
 
 import waf_ddf, waf_dynamo
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
 
@@ -21,7 +21,7 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     platform = conf.env['PLATFORM']
 
@@ -63,7 +63,7 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
 
 def build(bld):
-    bld.add_subdirs('src')
+    bld.recurse('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
     bld.install_files('${PREFIX}/bin', 'bin/*', chmod=493)

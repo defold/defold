@@ -10,10 +10,10 @@ import sys, os, re
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
 from waf_dynamo import platform_supports_feature
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
 
@@ -59,7 +59,7 @@ def configure(conf):
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
 def build(bld):
     sys.path.insert(0, bld.path.find_dir('src').abspath())
@@ -67,9 +67,9 @@ def build(bld):
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/input'))
 
-    bld.add_subdirs('content')
+    bld.recurse('content')
     bld.add_group()
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
 import Build, Options
 import os, subprocess

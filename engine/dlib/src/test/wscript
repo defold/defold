@@ -10,7 +10,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
-        print "Skipping test '%s' due to platform missing feature" % name
+        print ("Skipping test '%s' due to platform missing feature" % name)
         return
 
     build_util = create_build_utility(bld.env)
@@ -62,7 +62,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if req_embed != None:
         task_args['embed_source'] = ' '.join(req_embed)
 
-    test = bld.new_task_gen(**task_args)
+    test = bld.__call__(**task_args)
     test.install_path = None
 
     js_lib_paths = {}
@@ -71,7 +71,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
 def build(bld):
 
-    bld.new_task_gen(features='javac seq',
+    bld.__call__(features='javac seq',
                      classpath=os.pathsep.join(['../ext/jetty-all-7.0.2.v20100331.jar','../ext/servlet-api-2.5.jar']),
                      source_root='http_server')
 
@@ -119,7 +119,7 @@ def build(bld):
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
-    bld.new_task_gen(rule = 'echo generated data > ${TGT}',
+    bld.__call__(rule = 'echo generated data > ${TGT}',
                      target = 'generated.embed')
 
     bld.add_group()

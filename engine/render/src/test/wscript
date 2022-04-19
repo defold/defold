@@ -4,7 +4,7 @@ def build(bld):
     libs = 'TESTMAIN PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA CARES'
     exported_symbols = ['GraphicsAdapterNull']
 
-    bld.new_task_gen(features = 'cxx cprogram test',
+    bld.__call__(features = 'cxx cprogram test',
                     source = 'test_render.cpp',
                     uselib = libs,
                     exported_symbols = exported_symbols,
@@ -13,7 +13,7 @@ def build(bld):
                     includes = ['../../src', '../../proto'],
                     target = 'test_render')
 
-    bld.new_task_gen(features = 'cxx cprogram test',
+    bld.__call__(features = 'cxx cprogram test',
                     source = 'test_display_profiles.cpp',
                     uselib = libs,
                     exported_symbols = exported_symbols,
@@ -22,7 +22,7 @@ def build(bld):
                     includes = ['../../src', '../../proto'],
                     target = 'test_display_profiles')
 
-    bld.new_task_gen(features = 'cxx cprogram test',
+    bld.__call__(features = 'cxx cprogram test',
                     source = 'test_material.cpp',
                     uselib = libs,
                     exported_symbols = exported_symbols,
@@ -31,7 +31,7 @@ def build(bld):
                     includes = ['../../src', '../../proto'],
                     target = 'test_material')
 
-    bld.new_task_gen(features = 'cxx cprogram test',
+    bld.__call__(features = 'cxx cprogram test',
                     source = 'test_render_script.cpp',
                     uselib = libs,
                     exported_symbols = exported_symbols,

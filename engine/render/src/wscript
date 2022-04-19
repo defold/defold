@@ -4,14 +4,14 @@ import os, sys
 import waf_graphics, waf_dynamo
 from waf_dynamo import apidoc_extract_task, dmsdk_add_files
 
-def set_options(opt):
+def options(opt):
     pass
 
 def configure(cont):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    obj = bld.__call__(features = 'cxx cstaticlib ddf',
                            includes = ['.', '../build/default/proto'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',
@@ -19,7 +19,7 @@ def build(bld):
 
     obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto'])
 
-    bld.add_subdirs('test')
+    bld.recurse('test')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')

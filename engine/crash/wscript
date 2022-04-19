@@ -10,10 +10,10 @@ import sys, re, os
 import waf_dynamo, waf_ddf
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
     opt.tool_options('waf_ddf')
 
@@ -29,7 +29,7 @@ def configure(conf):
         conf.fatal(ex.msg)
     operating_sys = build_util.get_target_os()
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     conf.env.append_value('CPPPATH', "default/src")
 
@@ -49,7 +49,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['dbghelp.lib'])
 
 def build(bld):
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
 def shutdown():
     waf_dynamo.run_tests(valgrind = True)

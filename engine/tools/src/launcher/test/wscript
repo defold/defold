@@ -2,7 +2,7 @@
 import os
 
 def build(bld):
-    test = bld.new_task_gen(features='cxx cprogram test',
+    test = bld.__call__(features='cxx cprogram test',
                             uselib='DLIB',
                             uselib_local='launcherutil',
                             includes = ['.'],

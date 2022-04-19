@@ -7,7 +7,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    script = bld.new_task_gen(features = 'cxx cc cstaticlib',
+    script = bld.__call__(features = 'cxx cc cstaticlib',
                           includes = '. script',
                           proto_gen_cc = False,
                           proto_gen_py = True,
@@ -54,7 +54,7 @@ def build(bld):
 
     # for #imports to work for other projects
     # ..first for python
-    ddf_ext = bld.new_task_gen(
+    ddf_ext = bld.__call__(
          rule   = 'echo "" > ${TGT}',
          source = 'script/lua_source_ddf.proto script/ddf_script.proto',
          target = '__init__.py',
@@ -68,4 +68,4 @@ def build(bld):
     if 'web' in bld.env.PLATFORM:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env.PLATFORM, '../lib/js/library_script.js', postpone = False)
 
-    bld.add_subdirs('test')
+    bld.recurse('test')
