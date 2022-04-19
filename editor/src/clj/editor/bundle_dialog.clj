@@ -390,7 +390,7 @@
       (ui/children! [(labeled! "Keystore" keystore-file-field)
                      (labeled! "Keystore Password" keystore-pass-file-field)
                      (labeled! "Architectures" architecture-controls)
-                     (labeled! "Bundle Format" (doto (make-choice-box refresh! [["APK" "apk"] ["AAB" "aab"]])
+                     (labeled! "Bundle Format" (doto (make-choice-box refresh! [["APK" "apk"] ["AAB" "aab"] ["APK+AAB", "apk,aab"]])
                                                 (.setId "bundle-format-choice-box")))]))))
 
 (defn- load-android-prefs! [prefs view]
