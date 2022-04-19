@@ -399,7 +399,7 @@ public class Bob {
 
         addOption(options, "p", "platform", true, "Platform (when bundling)", true);
         addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
-        addOption(options, "bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')", false);
+        addOption(options, "bf", "bundle-format", true, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false);
 
         addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
         addOption(options, null, "identity", true, "Sign identity (iOS)", false);
