@@ -1,8 +1,9 @@
 (ns editor.reveal
-  (:require [vlaaad.reveal :as r]
+  (:require [clojure.main :as m]
             [dynamo.graph :as g]
-            [internal.system :as is]
-            [clojure.main :as m]))
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [vlaaad.reveal :as r]))
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -12,29 +13,34 @@
 
 (defn- node-value-or-err->sf [[v e]]
   (if e
-    (let [{:clojure.error/keys [cause class]}
-          (-> e Throwable->map m/ex-triage)]
+    (let [{:clojure.error/keys [cause class]} (-> e Throwable->map m/ex-triage)]
       (r/as e (r/raw-string (or cause class) {:fill :error})))
     (r/stream v)))
 
-(defn- node-id-sf [basis node-id]
+(defn- node-id-sf [{:keys [basis] :as ec} node-id]
   (let [type-sym (symbol (:k (g/node-type* basis node-id)))]
-    (r/raw-string (str type-sym "#" node-id) {:fill :scalar})))
+    (r/raw-string
+      (str type-sym
+           (when (g/node-instance? basis resource-node/ResourceNode node-id)
+             (str "@" (or (resource/proj-path (g/node-value node-id :resource ec))
+                          "[in-memory]")))
+           "#" node-id)
+      {:fill :scalar})))
 
 (declare label-tree-node)
 
-(defn- node-children-fn [system basis ec node-id]
+(defn- node-children-fn [ec node-id]
   (fn []
-    (let [node-type-def @(g/node-type* basis node-id)]
+    (let [node-type-def @(g/node-type* (:basis ec) node-id)]
       (->> [:input :property :output]
            (mapcat (fn [k] (keys (get node-type-def k))))
            distinct
            sort
            (map
              (fn [label]
-               (label-tree-node system basis ec node-id label)))))))
+               (label-tree-node ec node-id label)))))))
 
-(defn- label-tree-node [system basis ec node-id label]
+(defn- label-tree-node [{:keys [basis] :as ec} node-id label]
   (let [[v e :as v-or-e] (node-value-or-err ec node-id label)
         sources (g/sources-of basis node-id label)
         targets (g/targets-of basis node-id label)]
@@ -46,7 +52,7 @@
                  (node-value-or-err->sf v-or-e))}
       (or (seq sources) (seq targets))
       (assoc :children #(map (fn [[relation [rel-node-id related-label]]]
-                               (let [[v e :as v-or-e] (node-value-or-err ec node-id label)]
+                               (let [[v e :as v-or-e] (node-value-or-err ec rel-node-id related-label)]
                                  {:value (or e v)
                                   :render (r/horizontal
                                             (r/raw-string
@@ -54,34 +60,27 @@
                                               {:fill :util})
                                             (r/stream related-label)
                                             (r/raw-string " of " {:fill :util})
-                                            (node-id-sf basis rel-node-id)
+                                            (node-id-sf ec rel-node-id)
                                             (r/raw-string ": " {:fill :util})
                                             (node-value-or-err->sf v-or-e))
-                                  :children (node-children-fn system basis ec rel-node-id)}))
+                                  :children (node-children-fn ec rel-node-id)}))
                              (concat (map (fn [x] [:source x]) sources)
                                      (map (fn [x] [:target x]) targets)))))))
 
-(defn root-tree-node [system basis ec node-id]
-  (let [node-type-def @(g/node-type* basis node-id)]
-    {:value node-id
-     :render (r/horizontal (r/raw-string (str
-                                           (:name node-type-def)
-                                           "#"
-                                           node-id)
-                                         {:fill :scalar}))
-     :children (node-children-fn system basis ec node-id)}))
+(defn root-tree-node [ec node-id]
+  {:value node-id
+   :render (node-id-sf ec node-id)
+   :children (node-children-fn ec node-id)})
 
 (r/defaction ::defold:node-tree [x]
   (when (g/node-id? x)
-    (let [sys @g/*the-system*
-          basis (is/basis sys)]
-      (when (g/node-by-id basis x)
+    (let [ec (g/make-evaluation-context)]
+      (when (g/node-by-id (:basis ec) x)
         (fn []
-          (let [ec (is/default-evaluation-context sys)]
-            {:fx/type r/tree-view
-             :branch? :children
-             :render #(:render % (:value %))
-             :valuate :value
-             :children #((:children %))
-             :root (root-tree-node sys basis ec x)}))))))
+          {:fx/type r/tree-view
+           :branch? :children
+           :render #(:render % (:value %))
+           :valuate :value
+           :children #((:children %))
+           :root (root-tree-node ec x)})))))
 
