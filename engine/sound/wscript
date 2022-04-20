@@ -23,7 +23,7 @@ def configure(conf):
 
     conf.recurse('src')
 
-    conf.env.append_value('CPPPATH', "default/src")
+    conf.env.append_value('INCLUDES', "default/src")
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
 

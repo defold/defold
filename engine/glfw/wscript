@@ -47,7 +47,7 @@ def configure(conf):
     elif 'win32' in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'xinput9_1_0.lib', 'glu32.lib'])
 
-    conf.env.append_value('CPPPATH', "../src")
+    conf.env.append_value('INCLUDES', "../src")
     conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
     conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')
 

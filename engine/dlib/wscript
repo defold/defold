@@ -30,7 +30,7 @@ def configure(conf):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    conf.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
+    conf.env.append_value('INCLUDES', build_util.get_dynamo_ext('include'))
     conf.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')

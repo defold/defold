@@ -22,7 +22,7 @@ def configure(conf):
 
     conf.recurse('src')
 
-    conf.env.append_value('CPPPATH', "default/src")
+    conf.env.append_value('INCLUDES', "default/src")
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="HID"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="HID"')

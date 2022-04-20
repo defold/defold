@@ -50,11 +50,11 @@ def configure(conf):
     elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib'])
 
-    conf.env.append_value('CPPPATH', "../src")
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
+    conf.env.append_value('INCLUDES', "../src")
+    conf.env.append_value('INCLUDES', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
+    conf.env.append_value('INCLUDES', os.path.join(dynamo_home, "include" ))
+    conf.env.append_value('INCLUDES', os.path.join(dynamo_home, "include", platform))
 
     conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
     conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')

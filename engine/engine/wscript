@@ -138,7 +138,7 @@ namespace dmEngineVersion
         pass
     elif operating_sys == "win" and architecture == "x86":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
-        conf.env.append_value('CPPPATH', build_util.get_dynamo_ext("include", "AL"))
+        conf.env.append_value('INCLUDES', build_util.get_dynamo_ext("include", "AL"))
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')

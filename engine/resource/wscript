@@ -31,7 +31,7 @@ def configure(conf):
 
     conf.recurse('src')
 
-    conf.env.append_value('CPPPATH', "default/src")
+    conf.env.append_value('INCLUDES', "default/src")
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STATICLIB_DDF'] = 'ddf'
 

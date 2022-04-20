@@ -31,26 +31,26 @@ def build(bld):
     if not Options.options.skip_build_tests:
         bld.recurse('test')
 
-    source_dirs = 'dlib/** dlib/jsmn/** zlib/** lz4/**'.split(' ')
+    source_dirs = 'dlib/**/*.cpp dlib/jsmn/**/*.cpp zlib/**/*.cpp lz4/**/*.cpp'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
-        source_dirs.append('dlib/linux/**')
+        source_dirs.append('dlib/linux/**/*.cpp')
     elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
-        source_dirs.append('dlib/darwin/**')
+        source_dirs.append('dlib/darwin/**/*.cpp')
     elif 'win32' in bld.env.PLATFORM:
-        source_dirs.append('dlib/win32/**')
+        source_dirs.append('dlib/win32/**/*.cpp')
     elif ('linux'  in bld.env.PLATFORM) or ('android' in bld.env.PLATFORM):
-        source_dirs.append('dlib/linux/**')
+        source_dirs.append('dlib/linux/**/*.cpp')
     elif 'web' in bld.env.PLATFORM:
-        source_dirs.append('dlib/js/**')
+        source_dirs.append('dlib/js/**/*.cpp')
     elif 'nx64' in bld.env.PLATFORM:
-        source_dirs.append('dlib/nx64/**')
+        source_dirs.append('dlib/nx64/**/*.cpp')
 
     private_source_dir = ''
     private_include_dir = ''
     if is_platform_private(bld.env.PLATFORM):
-        private_source_dir = 'dlib/%s/dlib/**' % build_util.get_target_os()
-        private_include_dir = 'dlib/%s/**' % build_util.get_target_os()
+        private_source_dir = 'dlib/%s/dlib/**/*.cpp' % build_util.get_target_os()
+        private_include_dir = 'dlib/%s/**/*.cpp' % build_util.get_target_os()
         if os.path.exists('src/'+private_source_dir):
             source_dirs.append(private_source_dir)
 
@@ -66,8 +66,12 @@ def build(bld):
         # on windows due to compile error in RNG_custom_init()
         # when CONFIG_WIN32_USE_CRYPTO_LIB is set (missing entropy_pool, see top of file)
 
+    # source_files = [x.bldpath() for x in bld.path.ant_glob(source_dirs)]
+
+    source_files = bld.path.ant_glob(source_dirs)
+
     dlib = bld.__call__(features = 'cc cxx cstaticlib',
-                        source   = bld.path.ant_glob(source_dirs),
+                        source   = source_files,
                         includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
                         target   = 'dlib',
                         defines  = ['VALGRIND'] + extra_defines)
@@ -107,14 +111,15 @@ def build(bld):
             if os.path.exists(os.path.join(os.path.join('src',private_source))):
                 lib_features[feature] = private_source
 
+    print("Before make node")
     for feature, source in lib_features.items():
         dlib.source.append(bld.path.make_node(source))
 
     # Create a separate library, in order to separate it from the ASAN builds
     dlib_noasan = bld.__call__( features    = dlib.features + ' skip_asan',
-                                    includes    = dlib.includes,
-                                    defines     = dlib.defines,
-                                    target      = 'dlib_noasan')
+                                includes    = dlib.includes,
+                                defines     = dlib.defines,
+                                target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
 
@@ -135,19 +140,19 @@ def build(bld):
         extra_defines += ['MBEDTLS_ERROR_C']
 
     mbedtls = bld.__call__( features    = 'cc cxx cstaticlib remove_flags',
-                                includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
-                                target      = 'mbedtls',
-                                source      = bld.path.ant_glob(mbedtls_dirs),
-                                remove_flags= remove_flags,
-                                defines     = ['VALGRIND'] + extra_defines)
+                            includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
+                            target      = 'mbedtls',
+                            source      = bld.path.ant_glob(mbedtls_dirs),
+                            remove_flags= remove_flags,
+                            defines     = ['VALGRIND'] + extra_defines)
     mbedtls.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
     mbedtls_noasan = bld.__call__(  features     = mbedtls.features + ' skip_asan',
-                                        includes     = mbedtls.includes,
-                                        remove_flags = remove_flags,
-                                        defines      = mbedtls.defines,
-                                        target       = 'mbedtls_noasan')
+                                    includes     = mbedtls.includes,
+                                    remove_flags = remove_flags,
+                                    defines      = mbedtls.defines,
+                                    target       = 'mbedtls_noasan')
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
@@ -159,20 +164,20 @@ def build(bld):
                            defines     = ['VALGRIND'] + extra_defines)
 
     libzip_noasan = bld.__call__( features  = libzip.features + ' skip_asan',
-                                      includes  = libzip.includes,
-                                      defines   = libzip.defines,
-                                      target    = 'zip_noasan')
+                                  includes  = libzip.includes,
+                                  defines   = libzip.defines,
+                                  target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:
         dlib_shared = bld.__call__( features = 'cc cxx cshlib skip_asan',
-                                        includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                                        uselib_local = 'mbedtls_noasan zip_noasan',
-                                        target = 'dlib_shared',
-                                        defines= ['VALGRIND'] + extra_defines,
-                                        uselib = ['PLATFORM_SOCKET', 'CARES'])
+                                    includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                    uselib_local = 'mbedtls_noasan zip_noasan',
+                                    target = 'dlib_shared',
+                                    defines= ['VALGRIND'] + extra_defines,
+                                    uselib = ['PLATFORM_SOCKET', 'CARES'])
 
         dlib_shared.source = [x for x in dlib.source]
 

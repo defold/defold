@@ -8,7 +8,7 @@ def options(opt):
     pass
 
 def configure(conf):
-    conf.env.append_value('CPPPATH', "../src")
+    conf.env.append_value('INCLUDES', "../src")
 
 def build(bld):
     apidoc_extract_task(bld, ['lua_base.doc_h', 'lua_string.doc_h', 'lua_coroutine.doc_h',
