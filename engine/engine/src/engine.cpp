@@ -1335,6 +1335,8 @@ namespace dmEngine
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
 
+        engine->m_PreviousFrameTime = dmTime::GetTime();
+
         return true;
 
 bail:
