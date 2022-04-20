@@ -2125,9 +2125,8 @@
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" "Layouts" 4 false []))
   (output add-handler-info g/Any
           (g/fnk [_node-id scene]
-            (first ;; FIXME: all, not first!
-              (mapv #(vector _node-id % layout-icon add-layout-handler {:display-profile %})
-                    (unused-display-profiles scene))))))
+            (mapv #(vector _node-id % layout-icon add-layout-handler {:display-profile %})
+                  (unused-display-profiles scene)))))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2308,6 +2307,11 @@
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
 
+(defn- one-or-many-handler-infos-to-vec [one-or-many-handler-infos]
+  (if (g/node-id? (first one-or-many-handler-infos))
+    [one-or-many-handler-infos]
+    one-or-many-handler-infos))
+
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
@@ -2361,6 +2365,8 @@
   (input textures-node g/NodeID) ; for tests
   (input particlefx-resources-node g/NodeID) ; for tests
   (input handler-infos g/Any :array)
+  (output handler-infos g/Any (g/fnk [handler-infos]
+                                (into [] (mapcat one-or-many-handler-infos-to-vec) handler-infos)))
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
   (input default-tex-params g/Any)
@@ -2553,10 +2559,12 @@
                        [])
         handler-options (when (empty? node-options)
                           (when (g/has-output? (g/node-type* node) :add-handler-info)
-                            (let [[parent menu-label menu-icon add-fn opts] (g/node-value node :add-handler-info)
-                                  parent (if (= node scene) parent node)]
-                              (make-add-handler scene parent menu-label menu-icon add-fn opts))))]
-      (filter some? (conj node-options handler-options))))
+                            (->> (g/node-value node :add-handler-info)
+                                 one-or-many-handler-infos-to-vec
+                                 (map (fn [[parent menu-label menu-icon add-fn opts]]
+                                        (let [parent (if (= node scene) parent node)]
+                                          (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
+      (filter some? (into node-options handler-options))))
 
 (defn- add-layout-options [node user-data]
   (let [scene (node->gui-scene node)
