@@ -9,6 +9,7 @@
         <option value="provided" />
         <option value="dev" />
         <option value="test" />
+        <option value="reveal" />
       </list>
     </option>
   </component>
