@@ -2303,14 +2303,6 @@
     [one-or-many-handler-infos]
     one-or-many-handler-infos))
 
-(g/defnk produce-unused-display-profiles [layout-msgs display-profiles]
-  (let [layouts (into #{} (map :name) layout-msgs)]
-    (into []
-          (comp
-            (map :name)
-            (remove layouts))
-          display-profiles)))
-
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
@@ -2478,7 +2470,13 @@
                                                 {:width w :height h}))))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
-  (output unused-display-profiles g/Any produce-unused-display-profiles))
+  (output unused-display-profiles g/Any (g/fnk [layout-msgs display-profiles]
+                                          (let [layouts (into #{} (map :name) layout-msgs)]
+                                            (into []
+                                                  (comp
+                                                    (map :name)
+                                                    (remove layouts))
+                                                  display-profiles)))))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
@@ -2566,18 +2564,14 @@
                                           (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
       (filter some? (into node-options handler-options))))
 
-(defn- unused-display-profiles [gui-scene-node-id]
-  (g/with-auto-evaluation-context evaluation-context
-    (produce-unused-display-profiles
-      {:layout-msgs (g/node-value gui-scene-node-id :layout-msgs evaluation-context)
-       :display-profiles (g/node-value gui-scene-node-id :display-profiles evaluation-context)})))
-
 (defn- add-layout-options [node user-data]
-  (let [scene (node->gui-scene node)
-        parent (if (= node scene)
-                 (g/node-value scene :layouts-node)
-                 node)]
-    (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %}) (unused-display-profiles scene))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [scene (node->gui-scene node)
+          parent (if (= node scene)
+                   (g/node-value scene :layouts-node evaluation-context)
+                   node)]
+      (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
+            (g/node-value scene :unused-display-profiles evaluation-context)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
