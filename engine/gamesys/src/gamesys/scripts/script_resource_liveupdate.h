@@ -167,6 +167,10 @@ namespace dmLiveUpdate
      * `status`
      * : [type:constant] the status of the store operation (See resource.store_manifest)
      *
+     * @param [options] [type:table] optional table with extra parameters. Supported entries:
+     *
+     * - [type:boolean] `validate`: if archive should be validated as well as stored (defaults to true)
+     *
      * @examples
      *
      * How to download an archive with HTTP and store it on device.
