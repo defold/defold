@@ -238,6 +238,32 @@ TEST_F(AnimTest, Cancel)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
+TEST_F(AnimTest, CancelAll)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id1 = hash("position");
+    dmhash_t id2 = hash("scale");
+    dmGameObject::PropertyVar var1(Vectormath::Aos::Vector3(10.f, 0.f, 0.f));
+    dmGameObject::PropertyVar var2(2.f);
+    float duration = 1.0f;
+    float delay = 0.f;
+
+    Animate(m_Collection, go, 0, id1, dmGameObject::PLAYBACK_ONCE_FORWARD, var1, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
+    Animate(m_Collection, go, 0, id2, dmGameObject::PLAYBACK_ONCE_FORWARD, var2, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, 0));
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_EQ(0.0f, X(go));
+    ASSERT_EQ(1.0f, dmGameObject::GetUniformScale(go));
+
+    ASSERT_EQ(0u, this->m_FinishCount);
+    ASSERT_EQ(2u, this->m_CancelCount);
+
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
 TEST_F(AnimTest, AnimateEuler)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
