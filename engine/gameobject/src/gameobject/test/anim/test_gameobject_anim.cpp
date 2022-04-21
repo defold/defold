@@ -100,20 +100,6 @@ static float X(dmGameObject::HInstance instance)
     return dmGameObject::GetPosition(instance).getX();
 }
 
-static float ScaleX(dmGameObject::HInstance instance)
-{
-    return dmGameObject::GetScale(instance).getX();
-}
-
-static float EulerZ(dmGameObject::HInstance instance)
-{
-    dmGameObject::PropertyDesc out_value;
-    dmGameObject::PropertyOptions property_opt;
-    property_opt.m_Index = 0;
-    dmGameObject::GetProperty(instance, 0, dmHashString64("euler.z"), property_opt, out_value);
-    return (float)out_value.m_Variant.m_Number;
-}
-
 static dmhash_t hash(const char* s)
 {
     return dmHashString64(s);
@@ -235,28 +221,19 @@ TEST_F(AnimTest, Cancel)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
 
     m_UpdateContext.m_DT = 0.25f;
-    dmhash_t id1 = hash("position");
-    dmhash_t id2 = hash("scale");
-    dmhash_t id3 = hash("euler.z");
-    dmGameObject::PropertyVar var1(Vectormath::Aos::Vector3(10.f, 0.f, 0.f));
-    dmGameObject::PropertyVar var2(Vectormath::Aos::Vector3(2.0f));
-    dmGameObject::PropertyVar var3(360.0f);
+    dmhash_t id = hash("position");
+    dmGameObject::PropertyVar var(Vectormath::Aos::Vector3(10.f, 0.f, 0.f));
     float duration = 1.0f;
     float delay = 0.f;
 
-    Animate(m_Collection, go, 0, id1, dmGameObject::PLAYBACK_ONCE_FORWARD, var1, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
-    Animate(m_Collection, go, 0, id2, dmGameObject::PLAYBACK_ONCE_FORWARD, var2, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
-    Animate(m_Collection, go, 0, id3, dmGameObject::PLAYBACK_ONCE_FORWARD, var3, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, id1));
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, 0));
+    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, id));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_EQ(0.0f, X(go));
-    ASSERT_EQ(1.0f, ScaleX(go));
-    ASSERT_EQ(0.0f, EulerZ(go));
 
     ASSERT_EQ(0u, this->m_FinishCount);
-    ASSERT_EQ(3u, this->m_CancelCount);
+    ASSERT_EQ(1u, this->m_CancelCount);
 
     dmGameObject::Delete(m_Collection, go, false);
 }
