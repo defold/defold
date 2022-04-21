@@ -2106,27 +2106,18 @@
                   (when select-fn
                     (select-fn [node]))))))
 
-(defn- unused-display-profiles [gui-scene-node-id]
-  (g/with-auto-evaluation-context ec
-    (let [layouts (->> (g/node-value gui-scene-node-id :layout-msgs ec)
-                       (map :name)
-                       set)]
-      (->> (g/node-value gui-scene-node-id :display-profiles ec)
-           (map :name)
-           (remove layouts)))))
-
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
   (input names g/Str :array)
-  (input scene g/NodeID)
+  (input unused-display-profiles g/Any)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" "Layouts" 4 false []))
   (output add-handler-info g/Any
-          (g/fnk [_node-id scene]
+          (g/fnk [_node-id unused-display-profiles]
             (mapv #(vector _node-id % layout-icon add-layout-handler {:display-profile %})
-                  (unused-display-profiles scene)))))
+                  unused-display-profiles))))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2312,6 +2303,14 @@
     [one-or-many-handler-infos]
     one-or-many-handler-infos))
 
+(g/defnk produce-unused-display-profiles [layout-msgs display-profiles]
+  (let [layouts (into #{} (map :name) layout-msgs)]
+    (into []
+          (comp
+            (map :name)
+            (remove layouts))
+          display-profiles)))
+
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
@@ -2478,7 +2477,8 @@
                                                     h (get project-settings ["display" "height"])]
                                                 {:width w :height h}))))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (gu/passthrough id-prefix)))
+  (output id-prefix g/Str (gu/passthrough id-prefix))
+  (output unused-display-profiles g/Any produce-unused-display-profiles))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
@@ -2565,6 +2565,12 @@
                                         (let [parent (if (= node scene) parent node)]
                                           (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
       (filter some? (into node-options handler-options))))
+
+(defn- unused-display-profiles [gui-scene-node-id]
+  (g/with-auto-evaluation-context evaluation-context
+    (produce-unused-display-profiles
+      {:layout-msgs (g/node-value gui-scene-node-id :layout-msgs evaluation-context)
+       :display-profiles (g/node-value gui-scene-node-id :display-profiles evaluation-context)})))
 
 (defn- add-layout-options [node user-data]
   (let [scene (node->gui-scene node)
@@ -2787,7 +2793,7 @@
       (g/make-nodes graph-id [layouts-node LayoutsNode]
                     (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
                     (g/connect layouts-node :_node-id self :nodes)
-                    (g/connect self :_node-id layouts-node :scene)
+                    (g/connect self :unused-display-profiles layouts-node :unused-display-profiles)
                     (g/connect layouts-node :build-errors self :build-errors)
                     (g/connect layouts-node :node-outline self :child-outlines)
                     (g/connect layouts-node :add-handler-info self :handler-infos)
