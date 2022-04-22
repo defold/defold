@@ -101,7 +101,7 @@ namespace dmLiveUpdate
 
     // zip archive implementation
     // Verifies and stores a zip archive
-    Result StoreZipArchive(const char* path, const bool validate_archive);
+    Result StoreZipArchive(const char* path, const bool verify_archive);
     dmResourceArchive::Result LULoadManifest_Zip(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** out);
     dmResourceArchive::Result LULoadArchive_Zip(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out);
     dmResourceArchive::Result LUUnloadArchive_Zip(dmResourceArchive::HArchiveIndexContainer archive);
