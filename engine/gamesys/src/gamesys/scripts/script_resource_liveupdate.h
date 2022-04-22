@@ -153,8 +153,11 @@ namespace dmLiveUpdate
 
     /*# register and store a live update zip file
      *
-     * Stores a zip file and uses it for live update content.
-     * The path is renamed and stored in the (internal) live update location
+     * Stores a zip file and uses it for live update content. The contents of the
+     * zip file will be verified against the manifest to ensure file integrity.
+     * It is possible to opt out of the resource verification using an option passed
+     * to this function.
+     * The path is renamed and stored in the (internal) live update location.
      *
      * @name resource.store_archive
      * @param path [type:string] the path to the original file on disc
@@ -169,7 +172,7 @@ namespace dmLiveUpdate
      *
      * @param [options] [type:table] optional table with extra parameters. Supported entries:
      *
-     * - [type:boolean] `validate`: if archive should be validated as well as stored (defaults to true)
+     * - [type:boolean] `verify`: if archive should be verified as well as stored (defaults to true)
      *
      * @examples
      *
