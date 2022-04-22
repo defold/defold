@@ -583,6 +583,18 @@ TEST_F(AnimTest, ScriptedCancel)
     }
 }
 
+TEST_F(AnimTest, ScriptedCancelAll)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel_all.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+}
+
 TEST_F(AnimTest, ScriptedAnimBadURL)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/anim_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
