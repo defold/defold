@@ -256,7 +256,6 @@ namespace dmLiveUpdate
                 if (strcmp(attr, "verify") == 0)
                 {
                     verify_archive = lua_toboolean(L, -1);
-                    dmLogError("Resource_StoreArchive %d", verify_archive);;
                 }
                 lua_pop(L, 1);
             }
