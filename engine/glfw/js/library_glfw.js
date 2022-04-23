@@ -114,18 +114,23 @@ var LibraryGLFW = {
       }
 
       // Map additional keys not already mapped to any GLFW keys
+      // We use KeyEvent.code here as it represents a physical key on the keyboard
       switch (code) {
         case "Minus":         return 45  ; // -
         case "Period":        return 46  ; // .
         case "Comma":         return 44  ; // ,
         case "Slash":         return 47  ; // /
         case "Backslash":     return 92  ; // \
-        case "IntlBackslash": return 96  ; // `
+        case "IntlRo":        return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-104
+        case "IntlYen":       return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-101alt
+        case "IntlBackslash": return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-102
+        case "Backquote":     return 96  ; // `
         case "BracketLeft":   return 91  ; // [
         case "BracketRight":  return 93  ; // ]
         case "Equal":         return 61  ; // =
         case "Quote":         return 39  ; // '
         case "Semicolon":     return 59  ; // ;
+        case "NumpadComma":   return 316 ; // GLFW_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
       }
 
       return keycode;
