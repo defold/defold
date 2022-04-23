@@ -180,7 +180,7 @@ namespace dmLiveUpdate
     }
 
     // Store the path to the file into the liveupdate.ref.tmp
-    Result StoreZipArchive(const char* path, const bool verify_archive)
+    Result StoreZipArchive(const char* path, bool verify_archive)
     {
         char application_support_path[DMPATH_MAX_PATH];
 

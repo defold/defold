@@ -314,7 +314,7 @@ namespace dmLiveUpdate
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
-    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, const bool verify_archive)
+    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive)
     {
         struct stat file_stat;
         bool exists = stat(path, &file_stat) == 0;

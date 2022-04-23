@@ -63,7 +63,7 @@ Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_d
    return dmLiveUpdate::RESULT_INVALID_RESOURCE;
 }
 
-Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, const bool verify_archive)
+Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive)
 {
    return dmLiveUpdate::RESULT_INVALID_RESOURCE;
 }

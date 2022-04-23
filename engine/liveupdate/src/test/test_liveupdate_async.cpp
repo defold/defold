@@ -57,7 +57,7 @@ struct StoreResourceCallbackData
 
 namespace dmLiveUpdate
 {
-    dmLiveUpdate::Result StoreZipArchive(const char* path, const bool verify_archive)
+    dmLiveUpdate::Result StoreZipArchive(const char* path, bool verify_archive)
     {
         return dmLiveUpdate::RESULT_OK;
     }
