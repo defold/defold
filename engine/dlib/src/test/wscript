@@ -69,11 +69,14 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     js_lib_paths['library_sys.js'] = '../src/dlib/js'
     test.env['JS_LIB_PATHS'] = js_lib_paths
 
-def build(bld):
+def configure(conf):
+    conf.env.append_value('CLASSPATH', '../ext/jetty-all-7.0.2.v20100331.jar')
+    conf.env.append_value('CLASSPATH', '../ext/servlet-api-2.5.jar')
 
+def build(bld):
     bld.__call__(features='javac seq',
-                     classpath=os.pathsep.join(['../ext/jetty-all-7.0.2.v20100331.jar','../ext/servlet-api-2.5.jar']),
-                     source_root='http_server')
+                 #classpath='../ext/jetty-all-7.0.2.v20100331.jar:../ext/servlet-api-2.5.jar',
+                 source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 

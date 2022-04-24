@@ -3,10 +3,12 @@
 VERSION = '0.1'
 APPNAME = 'dlib'
 
-srcdir = '.'
-blddir = 'build'
+top = '.'
+out = 'build'
 
 # import Options
+
+from waflib import Options, Logs
 import os, sys, tempfile, configparser
 import waf_dynamo
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
@@ -42,13 +44,13 @@ def build(bld):
     bld.recurse('src')
     bld.install_files('${PREFIX}/include/x86_64-win32', 'include/x86_64-win32/*.h')
 
-def shutdown():
-    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
+def shutdown(sht):
+    if not 'build' in Options.commands or getattr(Options.options, 'skip_tests', False):
         return
 
     # TODO: Fix support for win32
-    from Logs import warn, error
-    import urllib2, time, atexit
+    from waflib.Logs import warn, error
+    import urllib, time, atexit
 
     server_sockets = None
 
@@ -69,7 +71,7 @@ def shutdown():
                 if not os.path.exists(server_config_path):
                     raise IOError("Waiting for server to write config file")
 
-                server_sockets = ConfigParser.RawConfigParser()
+                server_sockets = configparser.RawConfigParser()
                 server_sockets.read(server_config_path)
                 server_socket = server_sockets.getint("server", "socket")
 
@@ -86,7 +88,7 @@ def shutdown():
         warn('HTTP tests not supported on Win32 yet')
 
     # write a config file for the tests to use
-    config = ConfigParser.RawConfigParser()
+    config = configparser.RawConfigParser()
     if sys.platform != 'win32':
         config.add_section("server")
         config.set("server", "socket", server_sockets.getint("server", "socket"))

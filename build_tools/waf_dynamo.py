@@ -509,7 +509,7 @@ def default_flags(self):
 @after('cxx')
 def remove_flags_fn(self):
     lookup = getattr(self, 'remove_flags', [])
-    for name, values in lookup.iteritems():
+    for name, values in lookup.items():
         for flag, argcount in values:
             remove_flag(self.env[name], flag, argcount)
 
@@ -1178,10 +1178,10 @@ def embed_file(self):
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
-        task = self.create_task('embed_file')
+        task = self.create_task('embed_file', cc_out)
         task.set_inputs(node)
         task.set_outputs([cc_out, h_out])
-        self.allnodes.append(cc_out)
+        #self.nodes.append(cc_out)
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
@@ -1202,7 +1202,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     return ret
 
 def run_tests(valgrind = False, configfile = None):
-    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
+    if not 'build' in Options.commands or getattr(Options.options, 'skip_tests', False):
         return
 
     # TODO: Add something similar to this
