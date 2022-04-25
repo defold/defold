@@ -12,35 +12,36 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.bob;
+package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.CopyBuilder;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-/**
- * Copy builder. This class is abstract. Inherit from this class
- * and add appropriate {@link BuilderParams}
- * @author Christian Murray
- *
- */
-public abstract class CopyBuilder extends Builder<Void> {
+@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc")
+public class OggBuilder extends CopyBuilder{
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task<Void> task = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .disableCache()
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .build();
-        return task;
+        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "oggz"),
+            "validate",
+            input.getPath()
+        );
+
+        if (result.ret != 0) {
+            throw new CompileExceptionError(input, 0, 
+                String.format("Can't validate ogg file using `oggz` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
+        }
+
+        return super.create(input);
     }
 
-    @Override
-    public void build(Task<Void> task) throws IOException {
-        IResource in = task.getInputs().get(0);
-        IResource out = task.getOutputs().get(0);
-        out.setContent(in.getContent());
-    }
 }
