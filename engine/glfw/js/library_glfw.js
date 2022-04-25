@@ -60,7 +60,7 @@ var LibraryGLFW = {
  * DOM EVENT CALLBACKS
  ******************************************************************************/
 
-    DOMToGLFWKeyCode: function(keycode) {
+    DOMToGLFWKeyCode: function(keycode, code) {
       switch (keycode) {
         case 0x08: return 295 ; // DOM_VK_BACKSPACE -> GLFW_KEY_BACKSPACE
         case 0x09: return 293 ; // DOM_VK_TAB -> GLFW_KEY_TAB
@@ -111,8 +111,29 @@ var LibraryGLFW = {
         case 103 : return 309 ; // GLFW_KEY_KP_7
         case 104 : return 310 ; // GLFW_KEY_KP_8
         case 105 : return 311 ; // GLFW_KEY_KP_9
-        default  : return keycode;
       }
+
+      // Map additional keys not already mapped to any GLFW keys
+      // We use KeyEvent.code here as it represents a physical key on the keyboard
+      switch (code) {
+        case "Minus":         return 45  ; // -
+        case "Period":        return 46  ; // .
+        case "Comma":         return 44  ; // ,
+        case "Slash":         return 47  ; // /
+        case "Backslash":     return 92  ; // \
+        case "IntlRo":        return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-104
+        case "IntlYen":       return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-101alt
+        case "IntlBackslash": return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-102
+        case "Backquote":     return 96  ; // `
+        case "BracketLeft":   return 91  ; // [
+        case "BracketRight":  return 93  ; // ]
+        case "Equal":         return 61  ; // =
+        case "Quote":         return 39  ; // '
+        case "Semicolon":     return 59  ; // ;
+        case "NumpadComma":   return 316 ; // GLFW_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
+      }
+
+      return keycode;
     },
 
     // The button ids for right and middle are swapped between GLFW and JS.
@@ -198,7 +219,7 @@ var LibraryGLFW = {
     onKeyChanged: function(event, status) {
       if (!GLFW.isCanvasActive(event)) { return; }
 
-      var key = GLFW.DOMToGLFWKeyCode(event.keyCode);
+      var key = GLFW.DOMToGLFWKeyCode(event.keyCode, event.code);
       if (key) {
         GLFW.keys[key] = status;
         if (GLFW.keyFunc) {
