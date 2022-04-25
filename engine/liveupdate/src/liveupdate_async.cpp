@@ -53,7 +53,7 @@ namespace dmLiveUpdate
         if (request.m_IsArchive)
         {
             // Stores/stages a zip archive for loading after next reboot
-            res = dmLiveUpdate::StoreZipArchive(request.m_Path);
+            res = dmLiveUpdate::StoreZipArchive(request.m_Path, request.m_VerifyArchive);
             m_JobCompleteData.m_Manifest = 0;
         }
         else if (request.m_Resource.m_Header != 0x0)
