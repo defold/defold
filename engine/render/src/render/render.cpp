@@ -212,9 +212,6 @@ namespace dmRender
     // Submit a range of entries (pointers must be from a range allocated by RenderListAlloc, and not between two alloc calls).
     void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end)
     {
-        if (end == begin) {
-            return;
-        }
         // Insert the used up indices into the sort buffer.
         assert(end - begin <= (intptr_t)render_context->m_RenderListSortIndices.Remaining());
         assert(end <= render_context->m_RenderList.End());
@@ -224,6 +221,10 @@ namespace dmRender
         {
             uint32_t list_size = end - render_context->m_RenderList.Begin();
             render_context->m_RenderList.SetSize(list_size);
+        }
+
+        if (end == begin) {
+            return;
         }
 
         // Transform pointers back to indices.
