@@ -157,7 +157,7 @@ namespace dmLiveUpdate
      * zip file will be verified against the manifest to ensure file integrity.
      * It is possible to opt out of the resource verification using an option passed
      * to this function.
-     * The path is renamed and stored in the (internal) live update location.
+     * The path is stored in the (internal) live update location.
      *
      * @name resource.store_archive
      * @param path [type:string] the path to the original file on disc
