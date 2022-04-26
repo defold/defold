@@ -237,6 +237,25 @@ public class Bob {
         return exes.get(0);
     }
 
+    public static void unpackDependencyLibs(Platform platform, List<String> names) throws IOException {
+        init();
+
+        String libSufix = platform.getLibSuffix();
+        for (String name : names) {
+
+            String depName = platform.getPair() + "/" + name + libSufix;
+            File f = new File(rootFolder, depName);
+            if (!f.exists()) {
+                URL url = Bob.class.getResource("/libexec/" + depName);
+                if (url == null) {
+                    throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
+                }
+
+                atomicCopy(url, f, true);
+            }
+        }
+    }
+
     // https://stackoverflow.com/a/30755071/468516
     private static final String ENOTEMPTY = "Directory not empty";
     private static void move(final File source, final File target) throws FileAlreadyExistsException, IOException {

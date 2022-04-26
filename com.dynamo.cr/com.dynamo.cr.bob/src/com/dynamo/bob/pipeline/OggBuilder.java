@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.util.List;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
@@ -31,7 +32,10 @@ public class OggBuilder extends CopyBuilder{
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "oggz-validate"),
+        Platform curr_platform = Platform.getHostPlatform();
+        List<String> deps = List.of("libogg", "liboggz");
+        Bob.unpackDependencyLibs(curr_platform, deps);
+        Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
             input.getPath()
         );
 
