@@ -31,8 +31,7 @@ public class OggBuilder extends CopyBuilder{
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "oggz"),
-            "validate",
+        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "oggz-validate"),
             input.getPath()
         );
 
