@@ -849,6 +849,10 @@ namespace dmGui
     {
     }
 
+    void ClearNodeFlipbookAnim(HScene scene, HNode node)
+    {
+    }
+
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical)
     {
     }

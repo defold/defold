@@ -515,6 +515,11 @@ TEST_F(dmGuiTest, FlipbookAnim)
     dmGui::CancelNodeFlipbookAnim(m_Scene, node);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(dmHashString64("ta1"), fb_id);
+
+    dmGui::ClearNodeFlipbookAnim(m_Scene, node);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0U, fb_id);
 
     r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);

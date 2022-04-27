@@ -465,7 +465,7 @@ namespace dmGui
             {
                 if (node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET)
                 {
-                    CancelNodeFlipbookAnim(scene, GetNodeHandle(&nodes[i]));
+                    ClearNodeFlipbookAnim(scene, GetNodeHandle(&nodes[i]));
                 }
 
                 node.m_Texture     = 0;
@@ -484,7 +484,7 @@ namespace dmGui
             Node& node = nodes[i].m_Node;
             if (node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET)
             {
-                CancelNodeFlipbookAnim(scene, GetNodeHandle(&nodes[i]));
+                ClearNodeFlipbookAnim(scene, GetNodeHandle(&nodes[i]));
             }
             node.m_Texture = 0;
             node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
@@ -2868,7 +2868,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET)
-            CancelNodeFlipbookAnim(scene, node);
+            ClearNodeFlipbookAnim(scene, node);
         if (TextureInfo* texture_info = scene->m_Textures.Get(texture_id)) {
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture_info->m_TextureSource;
@@ -3754,6 +3754,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* n = GetNode(scene, node);
         CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
         n->m_Node.m_Animated = false;
+    }
+
+    void ClearNodeFlipbookAnim(HScene scene, HNode node)
+    {
+        CancelNodeFlipbookAnim(scene, node);
+        n->m_Node.m_FlipbookAnimHash = 0x0;
     }
 
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical)
