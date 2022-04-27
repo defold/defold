@@ -12,15 +12,18 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns internal.graph.types
-  (:require [internal.util :as util]
-            [schema.core :as s]))
+(ns internal.graph.types)
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
-(defrecord Arc [source-id source-label target-id target-label])
+(defrecord Arc [^long source-id source-label ^long target-id target-label])
 
+(defn source-id ^long [^Arc arc] (.source-id arc))
+(defn source-label [^Arc arc] (.source-label arc))
 (defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
+(defn target-id ^long [^Arc arc] (.target-id arc))
+(defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
 (defn node-id? [v] (integer? v))

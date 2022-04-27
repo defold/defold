@@ -28,6 +28,7 @@
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]
+           [internal.graph.types Arc]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -141,16 +142,19 @@
   Transaction result-keys:
   `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]`
   "
-  [txs]
-  (when *tps-debug*
-    (send-off tps-counter tick (System/nanoTime)))
-  (let [basis     (is/basis @*the-system*)
-        id-generators   (is/id-generators @*the-system*)
-        override-id-generator (is/override-id-generator @*the-system*)
-        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
-    (when (= :ok (:status tx-result))
-      (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
-    tx-result))
+  ([txs]
+   (transact nil txs))
+  ([metrics-collector txs]
+   (when *tps-debug*
+     (send-off tps-counter tick (System/nanoTime)))
+   (let [system (deref *the-system*)
+         basis (is/basis system)
+         id-generators (is/id-generators system)
+         override-id-generator (is/override-id-generator system)
+         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator metrics-collector) txs)]
+     (when (= :ok (:status tx-result))
+       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+     tx-result)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
@@ -928,7 +932,7 @@
   "Returns true if the node is a member of a given type, including
    supertypes."
   [type node]
-  (if-let [nt (and type (node-type node))]
+  (if-let [nt (and type (gt/node-type node))]
     (isa? (:key @nt) (:key @type))
     false))
 
@@ -939,6 +943,26 @@
    (node-instance? (now) type node-id))
   ([basis type node-id]
    (node-instance*? type (gt/node-by-id-at basis node-id))))
+
+(defn node-instance-of-any*?
+  "Returns true if the node is a member of any of the given types, including
+   their supertypes."
+  [node types]
+  (let [node-type-key (some-> (gt/node-type node) deref :key)]
+    (some? (and node-type-key
+                (some (fn [type]
+                        (let [type-key (:key @type)]
+                          (when (isa? node-type-key type-key)
+                            type)))
+                      types)))))
+
+(defn node-instance-of-any?
+  "Returns true if the node is a member of any of the given types, including
+  their supertypes."
+  ([node-id types]
+   (node-instance-of-any? (now) node-id types))
+  ([basis node-id types]
+   (node-instance-of-any*? (gt/node-by-id-at basis node-id) types)))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
@@ -966,24 +990,85 @@
      (transit/write writer fragment)
      (.toString out "UTF-8"))))
 
-(defn- serialize-arc [id-dictionary arc]
-  (let [[source-id source-label]  (gt/source arc)
-        [target-id target-label]  (gt/target arc)]
-    [(id-dictionary source-id) source-label (id-dictionary target-id) target-label]))
+(defn- serialize-arc [id-dictionary ^Arc arc]
+  [(id-dictionary (.source-id arc))
+   (.source-label arc)
+   (id-dictionary (.target-id arc))
+   (.target-label arc)])
 
-(defn- in-same-graph? [_ arc]
-  (apply = (map node-id->graph-id (take-nth 2 arc))))
-
+(defn- in-same-graph? [_ ^Arc arc]
+  (= (node-id->graph-id (.source-id arc))
+     (node-id->graph-id (.target-id arc))))
 
 (defn- every-arc-pred [& preds]
-  (fn [basis arc]
-    (reduce (fn [v pred] (and v (pred basis arc))) true preds)))
+  (fn [basis ^Arc arc]
+    (loop [preds preds]
+      (if-some [pred (first preds)]
+        (if (pred basis arc)
+          (recur (next preds))
+          false)
+        true))))
 
 (defn- predecessors [pred basis node-id]
   (into []
-        (comp (filter #(pred basis %))
-              (map first))
-        (inputs basis node-id)))
+        (keep (fn [^Arc arc]
+                (when (pred basis arc)
+                  (.source-id arc))))
+        (ig/inputs basis node-id)))
+
+(defn override-predecessors
+  "This is an optimized version of the predecessors function above that is used
+  when processing overrides. We do this a lot, since a complex project can have
+  a lot of override nodes. Instead of taking a general traversal predicate, this
+  optimized function inlines some aspects of the graph traversal, with a few
+  minor optimizations that apply specifically to overrides. Specifically, this
+  function will only traverse :cascade-delete inputs, and will ignore all
+  connections that span multiple graphs."
+  [pred basis ^long target-id]
+  (when-some [target-node (gt/node-by-id-at basis target-id)]
+    (let [graph-id (gt/node-id->graph-id target-id)
+          graph (ig/node-id->graph basis target-id)
+          graph-tarcs (:tarcs graph)]
+      (loop [result []
+             node-id target-id
+             override-chain '()
+             followed-inputs (in/cascade-deletes (gt/node-type target-node))]
+        (let [arcs-by-input-label (graph-tarcs node-id)
+              explicit-arcs (when arcs-by-input-label
+                              (into []
+                                    (comp
+                                      (mapcat arcs-by-input-label)
+                                      (filter (fn [^Arc arc]
+                                                (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
+                                                     (pred basis arc)))))
+                                    followed-inputs))
+              source-node-ids (into []
+                                    (comp
+                                      (map gt/source-id)
+                                      (distinct))
+                                    explicit-arcs)
+              result' (if (zero? (count source-node-ids))
+                        result
+                        (into result
+                              (reduce (fn [source-node-ids override-id]
+                                        (mapv (fn [source-node-id]
+                                                (or (ig/override-of graph source-node-id override-id)
+                                                    source-node-id))
+                                              source-node-ids))
+                                      source-node-ids
+                                      override-chain)))
+              node (ig/node-id->node graph node-id)
+              original-node-id (gt/original node)]
+          (if (nil? original-node-id)
+            result'
+            (recur result'
+                   (long original-node-id)
+                   (conj override-chain (gt/override-id node))
+                   (persistent!
+                     (transduce (map gt/target-label)
+                                disj!
+                                (transient followed-inputs)
+                                explicit-arcs)))))))))
 
 (defn- input-traverse
   [basis pred root-ids]
@@ -994,7 +1079,7 @@
         all-node-properties    (into {} (map (fn [[key value]] [key (:value value)])
                                              (:properties (node-value node-id :_declared-properties))))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
-    {:node-type  (node-type node)
+    {:node-type  (gt/node-type node)
      :properties properties-without-fns}))
 
 (def opts-schema {(s/optional-key :traverse?) Runnable
@@ -1031,7 +1116,7 @@
   predicate returns true, then that node --- or a stand-in for it ---
   will be included in the fragment.
 
-  `:traverse?` will be called with the basis and arc data.
+  `:traverse?` will be called with the basis and an Arc.
 
    The `:serializer` function determines _how_ to represent the node
   in the fragment.  `dynamo.graph/default-node-serializer` adds a map
@@ -1051,7 +1136,7 @@
 
   Example:
 
-  `(g/copy root-ids {:traverse? (comp not resource? #(nth % 3))
+  `(g/copy root-ids {:traverse? (comp not resource-node-id? (fn [basis ^Arc arc] (.target-id arc))
                      :serializer (some-fn custom-serializer default-node-serializer %)})"
   ([root-ids opts]
    (copy (now) root-ids opts))
@@ -1129,16 +1214,35 @@
 ;; ---------------------------------------------------------------------------
 ;; Sub-graph instancing
 ;; ---------------------------------------------------------------------------
-(defn- traverse-cascade-delete [basis [source-id source-label target-id target-label]]
-  (get (cascade-deletes (node-type* basis target-id)) target-label))
+
+(defn make-override-traverse-fn [traverse?]
+  (partial override-predecessors traverse?))
+
+(def always-override-traverse-fn
+  (make-override-traverse-fn
+    (fn always-override-traverse-fn [_basis ^Arc _arc]
+      true)))
+
+(def never-override-traverse-fn
+  (make-override-traverse-fn
+    (fn never-override-traverse-fn [_basis ^Arc _arc]
+      false)))
+
+(defn default-override-init-fn [_evaluation-context _original-node-id->override-node-id]
+  [])
+
+(defn default-override-properties-by-node-id [_node-id]
+  {})
 
 (defn override
   ([root-id]
-   (override root-id {}))
+   (override root-id {} default-override-init-fn))
   ([root-id opts]
-   (override root-id opts (clojure.core/constantly [])))
-  ([root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}} init-fn]
-   (let [traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))]
+   (override root-id opts default-override-init-fn))
+  ([root-id opts init-fn]
+   (let [{:keys [traverse-fn properties-by-node-id]
+          :or {traverse-fn always-override-traverse-fn
+               properties-by-node-id default-override-properties-by-node-id}} opts]
      (it/override root-id traverse-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]

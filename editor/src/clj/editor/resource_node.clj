@@ -98,11 +98,11 @@
               :outline-error? (g/error-fatal? own-build-errors)
               :outline-overridden? (not (empty? _overridden-properties))})))
 
-  (output sha256 g/Str :cached (g/fnk [resource save-data]
+  (output sha256 g/Str :cached (g/fnk [resource undecorated-save-data]
                                  ;; Careful! This might throw if resource has been removed
                                  ;; outside the editor. Use from editor.engine.native-extensions seems
                                  ;; to catch any exceptions.
-                                 (let [content (get save-data :content ::no-content)]
+                                 (let [content (get undecorated-save-data :content ::no-content)]
                                    (if (= ::no-content content)
                                      (with-open [s (io/input-stream resource)]
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
@@ -122,7 +122,8 @@
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
 (defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
+  (let [read-fn (cond->> (partial protobuf/read-text ddf-type)
+                         (some? sanitize-fn) (comp sanitize-fn))
         args (assoc args
                :textual? true
                :load-fn (fn [project self resource]
