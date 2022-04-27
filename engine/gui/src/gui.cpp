@@ -3730,7 +3730,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         n->m_Node.m_FlipbookAnimHash = anim;
 
-        if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE || GetNodeAnimationFrameCount(scene, node) == 1)
+        if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
         {
             n->m_Node.m_Animated = false;
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);

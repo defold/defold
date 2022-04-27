@@ -287,6 +287,11 @@ namespace dmGui
     {
         return 0;
     }
+    
+    int32_t GetNodeAnimationFrameCount(HScene scene, HNode node)
+    {
+        return 0;
+    }
 
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node)
     {

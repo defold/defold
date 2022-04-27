@@ -833,7 +833,7 @@ TEST_F(dmGuiTest, ScriptFlipbookAnim)
                     "    gui.cancel_flipbook(n)\n"
                     "    id2 = gui.get_flipbook(n)\n"
                     "    gui.play_flipbook(n, id, flipbook_complete)\n"
-                    "    assert(id ~= id2)\n"
+                    "    assert(id == id2)\n"
                     "end\n"
                     "\n"
                     "function update(self, dt)\n"
