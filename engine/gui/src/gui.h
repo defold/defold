@@ -884,7 +884,6 @@ namespace dmGui
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical);
     int32_t GetNodeAnimationFrame(HScene scene, HNode node);
-    int32_t GetNodeAnimationFrameCount(HScene scene, HNode node);
     TextureSetAnimDesc* GetNodeTextureSet(HScene scene, HNode node);
 
     void* GetNodeFont(HScene scene, HNode node);

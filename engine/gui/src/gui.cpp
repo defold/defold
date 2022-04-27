@@ -3084,7 +3084,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         cursor = dmMath::Clamp(cursor, 0.0f, 1.0f);
         n->m_Node.m_FlipbookAnimPosition = cursor;
-        if (n->m_Node.m_FlipbookAnimHash) {
+        if (n->m_Node.m_FlipbookAnimHash && n->m_Node.m_Animated) {
             Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             if (anim) {
 
@@ -3104,7 +3104,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
 
-        if (n->m_Node.m_FlipbookAnimHash) {
+        if (n->m_Node.m_FlipbookAnimHash && n->m_Node.m_Animated) {
             Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             if (anim) {
                 return anim->m_PlaybackRate;
@@ -3118,7 +3118,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
 
-        if (n->m_Node.m_FlipbookAnimHash) {
+        if (n->m_Node.m_FlipbookAnimHash && n->m_Node.m_Animated) {
             Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             if (anim) {
                 anim->m_PlaybackRate = playback_rate;
@@ -3663,7 +3663,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         // if we got a textureset (i.e. texture animation), we want to update the animation in case it is reloaded
         uint64_t anim_hash = n->m_Node.m_FlipbookAnimHash;
-        if(n->m_Node.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET || anim_hash == 0)
+        if(n->m_Node.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET || anim_hash == 0 || !n->m_Node.m_Animated)
             return;
 
         // update animationdata, compare state to current and early bail if equal
@@ -3700,7 +3700,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_FlipbookAnimPosition = 0.0f;
-        n->m_Node.m_FlipbookAnimHash = 0x0;
 
         if(anim == 0x0)
         {
@@ -3713,7 +3712,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_INVAL_ERROR;
         }
 
-        n->m_Node.m_FlipbookAnimHash = anim;
         FetchTextureSetAnimResult result = FetchTextureSetAnim(scene, n, anim);
         if(result != FETCH_ANIMATION_OK)
         {
@@ -3730,11 +3728,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
             return RESULT_RESOURCE_NOT_FOUND;
         }
+        n->m_Node.m_FlipbookAnimHash = anim;
 
-        if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
+        if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE || GetNodeAnimationFrameCount(scene, node) == 1)
+        {
+            n->m_Node.m_Animated = false;
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        }
         else
+        {
+            n->m_Node.m_Animated = true;
             AnimateTextureSetAnim(scene, node, offset, playback_rate, anim_complete_callback, callback_userdata1, callback_userdata2);
+        }
         CalculateNodeSize(n);
         return RESULT_OK;
     }
@@ -3748,7 +3753,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
         CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
-        n->m_Node.m_FlipbookAnimHash = 0;
+        n->m_Node.m_Animated = false;
     }
 
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical)
@@ -4063,7 +4068,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             out_n->m_Node.m_CustomType = n->m_Node.m_CustomType;
         }
 
-        if (n->m_Node.m_FlipbookAnimHash != 0)
+        if (n->m_Node.m_FlipbookAnimHash != 0 && n->m_Node.m_Animated)
         {
             float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
             float cursor = GetNodeFlipbookCursor(scene, node);

@@ -301,15 +301,6 @@ namespace dmGameSystem
                         dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
                         result = false;
                     }
-                    // Fix for https://github.com/defold/defold/issues/6384
-                    // If the animation is a single frame there's no point in actually playing the
-                    // animation. Instead we can immediately cancel the animation and the node will
-                    // still have the correct image.
-                    // By doing this we'll not take up an animation slot (there's a max animation cap).
-                    if (dmGui::GetNodeAnimationFrameCount(scene, n) == 1)
-                    {
-                        dmGui::CancelNodeFlipbookAnim(scene, n);
-                    }
                 }
             }
         }

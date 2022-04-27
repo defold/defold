@@ -153,6 +153,7 @@ namespace dmGui
         TextureSetAnimDesc m_TextureSetAnimDesc;
         uint64_t    m_FlipbookAnimHash;
         float       m_FlipbookAnimPosition;
+        bool        m_Animated;
 
         uint64_t    m_FontHash;
         void*       m_Font;
