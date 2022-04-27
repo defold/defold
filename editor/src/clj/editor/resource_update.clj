@@ -17,14 +17,14 @@
   * new - a list of resources to create new resource nodes for
   * delete - a list of resource nodes to remove - either because they were really removed or because they have been replaced
   * transfer-overrides - a list of pairs of new resource & old node. The resource should be in :new, and any override nodes that used to have old node as override-original will be transferred to the newly created resource node.
-  * transfer-outgoing-arcs - a list of pairs resource & list of [label [target node target label]]. The connections will be added to the resource node corresponding to the resource.
+  * transfer-outgoing-arcs - a list of pairs resource & list of [label [target node, target label]]. The connections will be added to the resource node corresponding to the resource.
   * mark-deleted - a list of resource nodes to be marked as deleted
   * invalidate-outputs - a list of resource nodes (stateless) whose outputs should be invalidated
-  * redirect - a list of [resource node new resource], the resource nodes :resource will be reset to new resource."
+  * redirect - a list of [resource node, new resource] pairs, the resource nodes :resource will be reset to new resource."
   (:require [dynamo.graph :as g]
-            [editor.resource :as resource]
-            [editor.graph-util :as gu])
-  (:import [editor.resource FileResource]))
+            [editor.graph-util :as gu]
+            [editor.resource :as resource])
+  (:import [editor.resource ZipResource]))
 
 (defn print-plan [plan]
   (let [resource-info (fn [r] (pr-str r))
@@ -62,30 +62,44 @@
 (defn- replace-resources-plan [{:keys [resource->old-node]} resources]
   ;; creates new resource nodes for all resources, transfers overrides and outgoing arcs
   ;; from old (if any) and deletes them.
-  {:new (vec resources)
-   :transfer-overrides (into [] (keep (fn [resource] (when-let [old-node (resource->old-node resource)] [resource old-node]))) resources)
-   :transfer-outgoing-arcs (into [] (keep (fn [resource] (when-let [old-node (resource->old-node resource)] [resource (gu/explicit-outputs old-node)]))) resources)
-   :delete (into [] (keep resource->old-node) resources)
-   })
+  (let [new-resources (vec resources)
+        transfer-overrides (into []
+                                 (keep (fn transfer-overrides-selector [resource]
+                                         (when-some [old-node (resource->old-node resource)]
+                                           [resource old-node])))
+                                 new-resources)
+        transfer-outgoing-arcs (mapv (fn transfer-outgoing-arcs-selector [[resource old-node]]
+                                       [resource (gu/explicit-outputs old-node)])
+                                     transfer-overrides)
+        delete (mapv (fn delete-selector [[_ old-node]]
+                       old-node)
+                     transfer-overrides)]
+    {:new new-resources
+     :transfer-overrides transfer-overrides
+     :transfer-outgoing-arcs transfer-outgoing-arcs
+     :delete delete}))
 
 (defn- resource-added-plan [{:keys [added]} {:keys [move-target-paths] :as plan-info}]
   (let [non-moved-added (remove (comp move-target-paths resource/proj-path) added)]
+    ;; When a non-existing resource is referenced, a dummy "missing file" node is added to
+    ;; the graph and marked defective, so we must do a full replacement here instead of
+    ;; simply adding a new node.
     (replace-resources-plan plan-info non-moved-added)))
 
-(defn- resource-data-embedded? [resource]
-  (not (instance? FileResource resource)))
+(defn- resource-may-linger-on-disk? [resource]
+  (instance? ZipResource resource))
 
 (defn- resource-removed-plan [{:keys [removed]} {:keys [move-source-paths resource->old-node]}]
   ;; Ideally, for stateless (external) resources, we should only have to invalidate-outputs
   ;; and the next attempt to access the data will cause an appropriate "file not found" error.
-  ;; But since the resource data is embedded some resources (ZipResource), those have to be explicitly
-  ;; marked deleted as well.
+  ;; But since the .zip file that hosts ZipResources may remain cached on disk, those have
+  ;; to be explicitly marked deleted as well. Note that marking a node as deleted will
+  ;; implicitly invalidate its cached outputs.
   (let [non-moved-removed (remove (comp move-source-paths resource/proj-path) removed)
         {loadable-removed true stateless-removed false} (group-by stateful? non-moved-removed)
-        {stateless-embedded true stateless-external false} (group-by resource-data-embedded? stateless-removed)]
-    {:mark-deleted (mapv resource->old-node (concat loadable-removed stateless-embedded))
-     :invalidate-outputs (mapv resource->old-node stateless-external)
-     }))
+        {stateless-lingering true stateless-external false} (group-by resource-may-linger-on-disk? stateless-removed)]
+    {:mark-deleted (mapv resource->old-node (concat loadable-removed stateless-lingering))
+     :invalidate-outputs (mapv resource->old-node stateless-external)}))
 
 (defn- resource-changed-plan [{:keys [changed]}
                               {:keys [move-source-paths
@@ -96,8 +110,11 @@
   ;; Ideally, for stateless (external) resources, we should only have to invalidate-outputs
   ;; and the data will be reloaded from disk when needed (through FileResource).
   ;; But in some cases the actual resource/Resource *value* is changed, from one
-  ;; ZipResource to another - and since the data is embedded in that value, we must
-  ;; update the :resource field of the node. Just like a redirect.
+  ;; ZipResource to another - e.g. if you replace a library dependency with another
+  ;; one that has the same file - thus, we must update the :resource field of the
+  ;; node. Just like a redirect.
+  ;;
+  ;; TODO: Don't we also need to invalidate outputs when we redirect? Not done currently.
   (let [non-moved-changed (remove (comp (some-fn move-source-paths move-target-paths) resource/proj-path) changed)
         {loadable-changed true stateless-changed false} (group-by stateful? non-moved-changed)
         {stateless-swapped true stateless-changed false} (group-by resource-swapped? stateless-changed)]
@@ -112,14 +129,21 @@
   ;; For added target resources we can still have a lingering mark-defectiv'ed/invalidate-output'ed node from a
   ;; previously deleted version of the resource. We transfer all connections & overrides from the lingerers
   ;; to the to-be-redirected resource before deleting them.
-  (let [redirects (mapv (fn [[source target]] [(resource->old-node source) target]) move-pairs)
-        transfer-overrides (into [] (keep (fn [[source target]]
-                                            (when-let [old-target-node (resource->old-node target)]
-                                              [source old-target-node])) move-pairs))
-        transfer-outgoing-arcs (into [] (keep (fn [[source target]]
-                                                (when-let [old-target-node (resource->old-node target)]
-                                                  [source (gu/explicit-outputs old-target-node)])) move-pairs))
-        delete (into [] (keep (fn [[_ target]] (resource->old-node target)) move-pairs))]
+  (let [redirects (mapv (fn redirects-selector [[source target]]
+                          [(resource->old-node source) target])
+                        move-pairs)
+        transfer-overrides (into []
+                                 (keep (fn transfer-overrides-selector [[source target]]
+                                         (when-some [old-target-node (resource->old-node target)]
+                                           [source old-target-node])))
+                                 move-pairs)
+        transfer-outgoing-arcs (mapv (fn transfer-outgoing-arcs-selector [[source old-target-node]]
+                                       [source (gu/explicit-outputs old-target-node)])
+                                     transfer-overrides)
+        delete (into []
+                     (keep (fn delete-selector [[_ target]]
+                             (resource->old-node target)))
+                     move-pairs)]
     {:transfer-overrides transfer-overrides
      :transfer-outgoing-arcs transfer-outgoing-arcs
      :delete delete
@@ -183,11 +207,10 @@
      :invalidate-outputs (mapv resource->old-node stateless-changed)
      :redirect (mapv (juxt resource->old-node identity) stateless-swapped)}))
 
-(defn- resource-moved-plan [{:keys [added removed changed moved] :as changes}
-                            {:keys [resource->old-node] :as plan-info}]
-  (let [added-paths (set (map resource/proj-path added))
-        removed-paths (set (map resource/proj-path removed))
-        changed-paths (set (map resource/proj-path changed))
+(defn- resource-moved-plan [{:keys [added removed changed moved] :as changes} plan-info]
+  (let [added-paths (into #{} (map resource/proj-path) added)
+        removed-paths (into #{} (map resource/proj-path) removed)
+        changed-paths (into #{} (map resource/proj-path) changed)
         resource-status (comp (fn [resource-path]
                                 ;; Since we only use mtime to determine if a resource has changed,
                                 ;; it could be that the move target ends up in neither added nor
@@ -219,12 +242,18 @@
 (defn resource-change-plan [old-nodes-by-path {:keys [added removed changed moved] :as changes}]
   (let [move-sources (map first moved)
         move-targets (map second moved)
-        move-source-paths (set (map resource/proj-path move-sources))
-        move-target-paths (set (map resource/proj-path move-targets))
+        move-source-paths (into #{} (map resource/proj-path) move-sources)
+        move-target-paths (into #{} (map resource/proj-path) move-targets)
         resource->old-node (comp old-nodes-by-path resource/proj-path)
-        resource->old-resource (comp (fn [rn] (g/node-value rn :resource)) resource->old-node)
+        old-resource-by-old-node (g/with-auto-evaluation-context evaluation-context
+                                   (into {}
+                                         (map (fn [[_ old-node]]
+                                                (let [old-resource (g/node-value old-node :resource evaluation-context)]
+                                                  [old-node old-resource])))
+                                         old-nodes-by-path))
+        resource->old-resource (comp old-resource-by-old-node resource->old-node)
         resource-swapped? (fn [r] (not= r (resource->old-resource r)))
-        changed-map (into {} (map (juxt resource/proj-path identity) changed))
+        changed-map (into {} (map (juxt resource/proj-path identity)) changed)
         resource->changed-resource (some-fn (comp changed-map resource/proj-path) identity) ; fallback to original
         plan-info {:move-source-paths move-source-paths
                    :move-target-paths move-target-paths
@@ -238,11 +267,11 @@
           unknown-changed (filter unknown? changed)
           unknown-removed (filter unknown? removed)
           unknown-move-sources (filter unknown? move-sources)]
-      (assert (not (seq unknown-changed))
+      (assert (empty? unknown-changed)
               (mapv resource/proj-path unknown-changed)) ; no unknown resources are :changed
-      (assert (not (seq unknown-removed))
+      (assert (empty? unknown-removed)
               (mapv resource/proj-path unknown-removed)) ; no unknown resources have been :removed
-      (assert (not (seq unknown-move-sources))
+      (assert (empty? unknown-move-sources)
               (mapv resource/proj-path unknown-move-sources))) ; no unknown resources have been :moved
     (let [plan (merge-resource-change-plans (resource-added-plan changes plan-info)
                                             (resource-removed-plan changes plan-info)

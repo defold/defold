@@ -26,6 +26,7 @@
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]
+           [internal.graph.types Arc]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -141,9 +142,10 @@
   [txs]
   (when *tps-debug*
     (send-off tps-counter tick (System/nanoTime)))
-  (let [basis     (is/basis @*the-system*)
-        id-generators   (is/id-generators @*the-system*)
-        override-id-generator (is/override-id-generator @*the-system*)
+  (let [system (deref *the-system*)
+        basis (is/basis system)
+        id-generators (is/id-generators system)
+        override-id-generator (is/override-id-generator system)
         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
     (when (= :ok (:status tx-result))
       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
@@ -951,6 +953,28 @@
   ([basis type node-id]
     (node-instance*? basis type (gt/node-by-id-at basis node-id))))
 
+(defn node-instance-of-any*?
+  "Returns true if the node is a member of any of the given types, including
+   their supertypes."
+  ([node types]
+   (node-instance-of-any*? (now) node types))
+  ([basis node types]
+   (let [node-type-key (some-> (node-type basis node) deref :key)]
+     (some? (and node-type-key
+                 (some (fn [type]
+                         (let [type-key (:key @type)]
+                           (when (isa? node-type-key type-key)
+                             type)))
+                       types))))))
+
+(defn node-instance-of-any?
+  "Returns true if the node is a member of any of the given types, including
+  their supertypes."
+  ([node-id types]
+   (node-instance-of-any? (now) node-id types))
+  ([basis node-id types]
+   (node-instance-of-any*? basis (gt/node-by-id-at basis node-id) types)))
+
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
@@ -982,19 +1006,28 @@
         [target-id target-label]  (gt/target arc)]
     [(id-dictionary source-id) source-label (id-dictionary target-id) target-label]))
 
-(defn- in-same-graph? [_ arc]
-  (apply = (map node-id->graph-id (take-nth 2 arc))))
-
+(defn- in-same-graph? [_ ^Arc arc]
+  (let [^long source-node-id (.source-id arc)
+        ^long target-node-id (.target-id arc)]
+    (= (node-id->graph-id source-node-id)
+       (node-id->graph-id target-node-id))))
 
 (defn- every-arc-pred [& preds]
-  (fn [basis arc]
-    (reduce (fn [v pred] (and v (pred basis arc))) true preds)))
+  (fn [basis ^Arc arc]
+    (loop [preds preds]
+      (if-some [pred (first preds)]
+        (if (pred basis arc)
+          (recur (next preds))
+          false)
+        true))))
 
 (defn- predecessors [pred basis node-id]
   (into []
-        (comp (filter #(pred basis %))
-              (map first))
-        (inputs basis node-id)))
+        (comp (filter (fn [^Arc arc]
+                        (pred basis arc)))
+              (map (fn [^Arc arc]
+                     (.source-id arc))))
+        (ig/inputs basis node-id)))
 
 (defn- input-traverse
   [basis pred root-ids]
@@ -1043,7 +1076,7 @@
   predicate returns true, then that node --- or a stand-in for it ---
   will be included in the fragment.
 
-  `:traverse?` will be called with the basis and arc data.
+  `:traverse?` will be called with the basis and an Arc.
 
    The `:serializer` function determines _how_ to represent the node
   in the fragment.  `dynamo.graph/default-node-serializer` adds a map
@@ -1063,7 +1096,7 @@
 
   Example:
 
-  `(g/copy root-ids {:traverse? (comp not resource? #(nth % 3))
+  `(g/copy root-ids {:traverse? (comp not resource-node-id? (fn [basis ^Arc arc] (.target-id arc))
                      :serializer (some-fn custom-serializer default-node-serializer %)})"
   ([root-ids opts]
    (copy (now) root-ids opts))
@@ -1141,8 +1174,9 @@
 ;; ---------------------------------------------------------------------------
 ;; Sub-graph instancing
 ;; ---------------------------------------------------------------------------
-(defn- traverse-cascade-delete [basis [source-id source-label target-id target-label]]
-  (get (cascade-deletes (node-type* basis target-id)) target-label))
+(defn- traverse-cascade-delete [basis ^Arc arc]
+  (get (cascade-deletes (node-type* basis (.target-id arc)))
+       (.target-label arc)))
 
 (defn override
   ([root-id]

@@ -147,8 +147,9 @@
                                        [node-id (g/node-value node-id :resource evaluation-context)]))
                                 node-ids)
         old-nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
-        loaded-nodes-by-resource-path (into {} (map (fn [[node-id resource]]
-                                                      [(resource/proj-path resource) node-id]))
+        loaded-nodes-by-resource-path (into {}
+                                            (map (fn [[node-id resource]]
+                                                   [(resource/proj-path resource) node-id]))
                                             node-id->resource)
         nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
         loaded-nodes (set node-ids)

@@ -33,9 +33,11 @@
             [editor.scene :as scene]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.cache :as c]
             [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [internal.graph.types Arc]
            [java.io StringReader]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
@@ -252,13 +254,8 @@
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
 
 (defn- component-resource [comp-id basis]
-  (cond
-    (g/node-instance? basis game-object/ReferencedComponent comp-id)
-    (some-> (g/node-value comp-id :path (g/make-evaluation-context {:basis basis}))
-            :resource)
-
-    (g/node-instance? basis game-object/ComponentNode comp-id)
-    (g/node-value comp-id :source-resource (g/make-evaluation-context {:basis basis}))))
+  (when (g/node-instance? basis game-object/ComponentNode comp-id)
+    (g/node-value comp-id :source-resource (g/make-evaluation-context {:basis basis :cache c/null-cache}))))
 
 (defn- overridable-component? [basis node-id]
   (some-> node-id
@@ -267,11 +264,12 @@
     :tags
     (contains? :overridable-properties)))
 
-(defn- or-go-traverse? [basis [src-id src-label tgt-id tgt-label]]
-  (or
-    (overridable-component? basis src-id)
-    (g/node-instance? basis resource-node/ResourceNode src-id)
-    (g/node-instance? basis script/ScriptPropertyNode src-id)))
+(defn- or-go-traverse? [basis ^Arc arc]
+  (let [source-node-id (.source-id arc)]
+    (or (overridable-component? basis source-node-id)
+        (g/node-instance-of-any? basis source-node-id
+                                 [resource-node/ResourceNode
+                                  script/ScriptPropertyNode]))))
 
 (defn- path-error [node-id resource]
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
@@ -560,12 +558,13 @@
              :outline-reference? true
              :alt-outline source-outline))))
 
-(defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]
-  (or
-    (overridable-component? basis src-id)
-    (g/node-instance? basis resource-node/ResourceNode src-id)
-    (g/node-instance? basis script/ScriptPropertyNode src-id)
-    (g/node-instance? basis InstanceNode src-id)))
+(defn- or-coll-traverse? [basis ^Arc arc]
+  (let [source-node-id (.source-id arc)]
+    (or (overridable-component? basis source-node-id)
+        (g/node-instance-of-any? basis source-node-id
+                                 [resource-node/ResourceNode
+                                  script/ScriptPropertyNode
+                                  InstanceNode]))))
 
 (g/defnode CollectionInstanceNode
   (inherits scene/SceneNode)

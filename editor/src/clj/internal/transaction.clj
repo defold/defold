@@ -13,7 +13,6 @@
 (ns internal.transaction
   "Internal functions that implement the transactional behavior."
   (:require [clojure.set :as set]
-            [clojure.string :as str]
             [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -354,7 +353,8 @@
                 (reduce populate-overrides
                         (ctx-make-override-nodes ctx override-id node-ids)
                         override-nodes)))
-            ctx override-nodes)))
+            ctx
+            override-nodes)))
 
 (defmethod perform :transfer-overrides
   [ctx {:keys [from-id->to-id]}]
@@ -364,13 +364,23 @@
                                          (keys from-id->to-id)) ; "first level" override nodes
         override-node-ids (into #{} cat (vals from-id->override-node-ids))
         retained override-node-ids
-        override-node-id->override-id (into {} (map (fn [override-node-id] [override-node-id (gt/override-id (gt/node-by-id-at basis override-node-id))])) override-node-ids)
-        override-id->override (into {} (map (fn [[_ override-id]] [override-id (ig/override-by-id basis override-id)])) override-node-id->override-id)
+        override-node-id->override-id (into {}
+                                            (map (fn [override-node-id]
+                                                   [override-node-id (gt/override-id (gt/node-by-id-at basis override-node-id))]))
+                                            override-node-ids)
+        override-id->override (into {}
+                                    (comp
+                                      (map val)
+                                      (distinct)
+                                      (map (fn [override-id]
+                                             [override-id (ig/override-by-id basis override-id)])))
+                                    override-node-id->override-id)
         override-node-id->override (comp override-id->override override-node-id->override-id)
-        overrides-to-fix (into '()
-                               (filter (fn [[_ override]] (contains? from-id->to-id (:root-id override))))
+        overrides-to-fix (into []
+                               (filter (fn [[_ override]]
+                                         (contains? from-id->to-id (:root-id override))))
                                override-id->override)
-        nodes-to-delete (into '()
+        nodes-to-delete (into []
                               (comp
                                 (mapcat (fn [override-node-id]
                                           (let [override (override-node-id->override override-node-id)
