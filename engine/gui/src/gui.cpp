@@ -3759,6 +3759,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     void ClearNodeFlipbookAnim(HScene scene, HNode node)
     {
         CancelNodeFlipbookAnim(scene, node);
+        InternalNode* n = GetNode(scene, node);
         n->m_Node.m_FlipbookAnimHash = 0x0;
     }
 
