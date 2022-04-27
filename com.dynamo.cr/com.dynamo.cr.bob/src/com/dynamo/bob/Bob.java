@@ -237,13 +237,13 @@ public class Bob {
         return exes.get(0);
     }
 
-    public static void unpackDependencyLibs(Platform platform, List<String> names) throws IOException {
+    public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
         init();
 
-        String libSufix = platform.getLibSuffix();
+        String libSuffix = platform.getLibSuffix();
         for (String name : names) {
 
-            String depName = platform.getPair() + "/" + name + libSufix;
+            String depName = platform.getPair() + "/" + name + libSuffix;
             File f = new File(rootFolder, depName);
             if (!f.exists()) {
                 URL url = Bob.class.getResource("/libexec/" + depName);

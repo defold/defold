@@ -34,14 +34,14 @@ public class OggBuilder extends CopyBuilder{
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Platform curr_platform = Platform.getHostPlatform();
         List<String> deps = List.of("libogg", "liboggz");
-        Bob.unpackDependencyLibs(curr_platform, deps);
+        Bob.unpackSharedLibraries(curr_platform, deps);
         Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
             input.getPath()
         );
 
         if (result.ret != 0) {
             throw new CompileExceptionError(input, 0, 
-                String.format("Can't validate ogg file using `oggz` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
+                String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
         }
 
         return super.create(input);
