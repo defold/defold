@@ -1666,7 +1666,7 @@ bail:
         engine->m_Stats.m_TotalTime += dt;
     }
 
-    static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps, float& fixed_dt)
+    static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
     {
         uint64_t time = dmTime::GetTime();
         uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
@@ -1684,12 +1684,11 @@ bail:
         {
             step_dt = frame_dt;
             num_steps = 1;
-            fixed_dt = 1.0f / 60.0f;
             return;
         }
 
         // Fixed frame rate
-        fixed_dt = 1.0f / (float)engine->m_UpdateFrequency;
+        float fixed_dt = 1.0f / (float)engine->m_UpdateFrequency;
 
         // We don't allow having a higher framerate than the actual variable frame rate
         // since the update+render is currently coupled together and also Flip() would be called more than once.
@@ -1705,6 +1704,8 @@ bail:
 
         num_steps = (uint32_t)num_steps_f;
         step_dt = fixed_dt;
+
+        engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
     }
 
     void Step(HEngine engine)
@@ -1714,10 +1715,9 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
 
         float step_dt;      // The dt for each step (the game frame)
-        float fixed_dt;      // The dt for each step (the game frame)
         uint32_t num_steps; // Number of times to loop over the StepFrame function
 
-        CalcTimeStep(engine, step_dt, num_steps, fixed_dt);
+        CalcTimeStep(engine, step_dt, num_steps);
 
         for (uint32_t i = 0; i < num_steps; ++i)
         {
@@ -1729,10 +1729,6 @@ bail:
                 break;
         }
 
-        if (engine->m_UpdateFrequency != 0)
-        {
-            engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
-        }
     }
 
     static int IsRunning(void* context)
