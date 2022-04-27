@@ -184,6 +184,7 @@ namespace dmScript
             uint64_t timeout = g_Timeout;
             const char* path = 0;
             bool ignore_cache = false;
+            bool chunked_transfer = true;
             if (top > 5 && !lua_isnil(L, 6)) {
                 luaL_checktype(L, 6, LUA_TTABLE);
                 lua_pushvalue(L, 6);
@@ -201,6 +202,10 @@ namespace dmScript
                     else if (strcmp(attr, "ignore_cache") == 0)
                     {
                         ignore_cache = lua_toboolean(L, -1);
+                    }
+                    else if (strcmp(attr, "chunked_transfer") == 0)
+                    {
+                        chunked_transfer = lua_toboolean(L, -1);
                     }
 
                     lua_pop(L, 1);
@@ -224,6 +229,7 @@ namespace dmScript
             request->m_Timeout = timeout;
             request->m_Path = path;
             request->m_IgnoreCache = ignore_cache;
+            request->m_ChunkedTransfer = chunked_transfer;
 
             uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1;
             dmMessage::URL receiver;
