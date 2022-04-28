@@ -66,10 +66,10 @@ def build(bld):
     source_files = bld.path.ant_glob(source_dirs)
 
     dlib = bld.stlib(features = 'cc cxx cstaticlib',
-               source   = source_files,
-               includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
-               target   = 'dlib',
-               defines  = ['VALGRIND'] + extra_defines)
+                     source   = source_files,
+                     includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
+                     target   = 'dlib',
+                     defines  = ['VALGRIND'] + extra_defines)
 
     lib_features = {
                     'CONDITIONVARIABLE':    os.path.join('dlib', 'condition_variable.cpp'),
@@ -133,34 +133,34 @@ def build(bld):
     else:
         extra_defines += ['MBEDTLS_ERROR_C']
 
-    mbedtls = bld( features    = 'cc cxx cstaticlib remove_flags',
-                            includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
-                            target      = 'mbedtls',
-                            source      = bld.path.ant_glob(mbedtls_dirs),
-                            remove_flags= remove_flags,
-                            defines     = ['VALGRIND'] + extra_defines)
+    mbedtls = bld(features    = 'cc cxx cstaticlib remove_flags',
+                  includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
+                  target      = 'mbedtls',
+                  source      = bld.path.ant_glob(mbedtls_dirs),
+                  remove_flags= remove_flags,
+                  defines     = ['VALGRIND'] + extra_defines)
     mbedtls.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
-    mbedtls_noasan = bld(  features     = mbedtls.features + ' skip_asan',
-                                    includes     = mbedtls.includes,
-                                    remove_flags = remove_flags,
-                                    defines      = mbedtls.defines,
-                                    target       = 'mbedtls_noasan')
+    mbedtls_noasan = bld(features     = mbedtls.features + ' skip_asan',
+                         includes     = mbedtls.includes,
+                         remove_flags = remove_flags,
+                         defines      = mbedtls.defines,
+                         target       = 'mbedtls_noasan')
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     libzip_dirs = ['zip/**/*.cpp']
-    libzip = bld( features    = 'cc cxx cstaticlib',
-                           includes    = '. ./zip',
-                           source      = bld.path.ant_glob(libzip_dirs),
-                           target      = 'zip',
-                           defines     = ['VALGRIND'] + extra_defines)
+    libzip = bld(features    = 'cc cxx cstaticlib',
+                 includes    = '. ./zip',
+                 source      = bld.path.ant_glob(libzip_dirs),
+                 target      = 'zip',
+                 defines     = ['VALGRIND'] + extra_defines)
 
-    libzip_noasan = bld( features  = libzip.features + ' skip_asan',
-                                  includes  = libzip.includes,
-                                  defines   = libzip.defines,
-                                  target    = 'zip_noasan')
+    libzip_noasan = bld(features  = libzip.features + ' skip_asan',
+                        includes  = libzip.includes,
+                        defines   = libzip.defines,
+                        target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
@@ -168,19 +168,18 @@ def build(bld):
     if desktop:
         dlib_shared = bld.shlib(features = 'cc cxx cshlib skip_asan',
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                                uselib_local = 'mbedtls_noasan zip_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                use = ['PLATFORM_SOCKET', 'CARES'])
+                                use = ['PLATFORM_SOCKET', 'CARES', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
 
         if 'win32' not in bld.env['PLATFORM']:
-            dlib_memprofile = bld( features = 'cc cxx cshlib',
-                                                source='dlib/memprofile.cpp',
-                                                includes = '.',
-                                                target = 'dlib_memprofile',
-                                                defines= 'DM_LIBMEMPROFILE')
+            dlib_memprofile = bld(features = 'cc cxx cshlib',
+                                  source='dlib/memprofile.cpp',
+                                  includes = '.',
+                                  target = 'dlib_memprofile',
+                                  defines= 'DM_LIBMEMPROFILE')
 
             if 'linux' in bld.env['PLATFORM']:
                 dlib_memprofile.env.append_value('LINKFLAGS', [ '-ldl' ])
@@ -315,9 +314,9 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
 
     # for tools
-    bld.install_files('${PREFIX}/ext/include/basis/encoder', 'basis/encoder/*.h')
-    bld.install_files('${PREFIX}/ext/include/basis/transcoder', 'basis/transcoder/*.h')
-    bld.install_files('${PREFIX}/ext/include/stb/', 'stb/*.h')
+    bld.install_files('${PREFIX}/ext/include/basis/encoder', bld.path.ant_glob('basis/encoder/*.h'))
+    bld.install_files('${PREFIX}/ext/include/basis/transcoder', bld.path.ant_glob('basis/transcoder/*.h'))
+    bld.install_files('${PREFIX}/ext/include/stb/', bld.path.ant_glob('stb/*.h'))
 
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')

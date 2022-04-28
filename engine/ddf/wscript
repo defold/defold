@@ -17,23 +17,23 @@ def init(ctx):
     pass
 
 def options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+    opt.recurse('src')
+    opt.load('waf_dynamo')
 
 def configure(conf):
     # Replace version number in python file.
     ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'rb').read()
-    ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, ddfc_py_str)
-    ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, ddfc_py_str)
+    ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, str(ddfc_py_str))
+    ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, str(ddfc_py_str))
     if ddfc_py_str != ddfc_py_str_orig:
-        open('src/ddfc.py', 'wb').write(ddfc_py_str)
+        open('src/ddfc.py', 'w').write(ddfc_py_str)
 
     # Create config.h with version numbers
     conf.define('DDF_MAJOR_VERSION', DDF_MAJOR_VERSION)
     conf.define('DDF_MINOR_VERSION', DDF_MINOR_VERSION)
     conf.write_config_header('config.h')
 
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
 
     conf.recurse('src')
 
@@ -54,7 +54,7 @@ def build(bld):
     os.environ['PYTHONPATH'] = 'default/src' + os.pathsep + 'default/src/ddf' + os.pathsep + python_path
     bld.recurse('src')
 
-def shutdown():
-    import Options, Build
+def shutdown(ctx):
+    import waflib.Options, waflib.Build
 
     waf_dynamo.run_tests(valgrind = True)

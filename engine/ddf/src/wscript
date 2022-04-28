@@ -1,6 +1,6 @@
 #! /usr/bin/env python
-import os, Task
-from TaskGen import feature, before
+import os, waflib.Task
+from waflib.TaskGen import feature, before
 from waf_dynamo import dmsdk_add_files
 
 def options(opt):

@@ -119,14 +119,14 @@ def new_copy_task(name, input_ext, output_ext):
         task.set_outputs(out)
 
 def copy_file_task(bld, src, name=None):
-    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
+    copy = 'cp' # 'copy /Y' if sys.platform == 'win32' else 'cp'
     parts = src.split('/')
     filename = parts[-1]
     src_path = src.replace('/', os.sep)
-    return bld.__call__(rule = '%s %s ${TGT}' % (copy, src_path),
-                            target = filename,
-                            name = name,
-                            shell = True)
+    return bld(rule = '%s %s ${TGT}' % (copy, src_path),
+               target = filename,
+               name = name,
+               shell = True)
 
 #   Extract api docs from source files and store the raw text in .apidoc
 #   files per file and namespace for later collation into .json and .sdoc files.
@@ -201,8 +201,8 @@ def apidoc_extract_task(bld, src):
     def write_docs(task):
         # Write all namespace files
         for o in task.outputs:
-            ns = o.file_base()
-            with open(o.bldpath(task.env), 'w+') as out_f:
+            ns = os.path.splitext(o.name)[0]
+            with open(str(o.get_bld()), 'w+') as out_f:
                 out_f.write('\n'.join(elements[ns]))
 
     if not getattr(Options.options, 'skip_apidocs', False):

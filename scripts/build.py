@@ -1445,7 +1445,8 @@ class Configuration(object):
             args = ['arch', '-arch', 'x86_64', SHELL, '-l']
         else:
             args = [SHELL, '-l']
-        process = subprocess.Popen(args, env = self._form_env(), preexec_fn=preexec_fn)
+
+        process = subprocess.Popen(args, env=self._form_env(), shell=True)
         output = process.communicate()[0]
 
         if process.returncode != 0:
@@ -1955,7 +1956,7 @@ class Configuration(object):
         self.futures = []
 
     def _form_env(self):
-        env = dict(os.environ)
+        env = os.environ.copy()
 
         host = self.host2
         if 'x86-' in host:
@@ -1992,6 +1993,7 @@ class Configuration(object):
                                       '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
+        env['PATH'] = "/SO_COOL_PATH/:" + env['PATH']
 
         # This trickery is needed for the bash to properly inherit the PATH that we've set here
         # See /etc/profile for further details

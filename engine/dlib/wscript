@@ -42,7 +42,7 @@ def build(bld):
         os.mkdir('tmp')
 
     bld.recurse('src')
-    bld.install_files('${PREFIX}/include/x86_64-win32', 'include/x86_64-win32/*.h')
+    bld.install_files('${PREFIX}/include/x86_64-win32', bld.path.ant_glob('include/x86_64-win32/*.h'))
 
 def shutdown(sht):
     if not 'build' in Options.commands or getattr(Options.options, 'skip_tests', False):
