@@ -170,6 +170,10 @@ namespace dmLiveUpdate
                 dmDDF::FreeMessage(manifest->m_DDFData);
                 dmDDF::FreeMessage(manifest->m_DDF);
             }
+            else
+            {
+                dmLogInfo("Skipping archive verification '%s'", path);
+            }
 
         }
         // else { resources are already free'd here }
