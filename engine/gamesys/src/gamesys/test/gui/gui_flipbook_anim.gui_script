@@ -20,6 +20,10 @@ end
 
 function init( self )
     self.node = gui.get_node("box")
+    
+    local flipbook = gui.get_flipbook(self.node)
+    assert(flipbook == hash("anim"))
+
     gui.play_flipbook(self.node, "anim_once", callback)
 end
 

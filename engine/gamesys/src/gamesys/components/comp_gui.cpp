@@ -306,9 +306,11 @@ namespace dmGameSystem
                     // animation. Instead we can immediately cancel the animation and the node will
                     // still have the correct image.
                     // By doing this we'll not take up an animation slot (there's a max animation cap).
+                    // Even though we cancel animation we still need flipbook hash:
+                    // https://github.com/defold/defold/issues/6551
                     if (dmGui::GetNodeAnimationFrameCount(scene, n) == 1)
                     {
-                        dmGui::CancelNodeFlipbookAnim(scene, n);
+                        dmGui::CancelNodeFlipbookAnim(scene, n, true);
                     }
                 }
             }
