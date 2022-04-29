@@ -14,31 +14,30 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
   ordinary paths."
   (:require [clojure.java.io :as io]
-            [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.code.script-intelligence :as si]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
+            [editor.game-project-core :as gpc]
             [editor.gl :as gl]
+            [editor.graph-util :as gu]
             [editor.handler :as handler]
-            [editor.ui :as ui]
             [editor.library :as library]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
-            [editor.workspace :as workspace]
-            [editor.game-project-core :as gpc]
             [editor.settings-core :as settings-core]
-            [editor.pipeline :as pipeline]
-            [editor.placeholder-resource :as placeholder-resource]
+            [editor.ui :as ui]
             [editor.util :as util]
-            [service.log :as log]
-            [editor.graph-util :as gu]
-            [util.text-util :as text-util]
+            [editor.workspace :as workspace]
             [schema.core :as s]
+            [service.log :as log]
+            [util.debug-util :as du]
+            [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import (java.util.concurrent.atomic AtomicLong)))
 
@@ -537,9 +536,10 @@
         (g/reset-undo! (graph project))))))
 
 (defn- handle-resource-changes [project changes render-progress!]
-  (-> (resource-update/resource-change-plan (g/node-value project :nodes-by-resource-path) changes)
-      ;; for debugging resource loading/reloading issues: (resource-update/print-plan)
-      (perform-resource-change-plan project render-progress!)))
+  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
+        resource-change-plan (du/metrics-time "Generate resource change plan" (resource-update/resource-change-plan nodes-by-resource-path changes))]
+    (du/when-metrics (resource-update/print-plan resource-change-plan))
+    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))))
 
 (g/defnk produce-collision-groups-data
   [collision-group-nodes]
