@@ -21,10 +21,13 @@
   * mark-deleted - a list of resource nodes to be marked as deleted
   * invalidate-outputs - a list of resource nodes (stateless) whose outputs should be invalidated
   * redirect - a list of [resource node, new resource] pairs, the resource nodes :resource will be reset to new resource."
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.resource :as resource])
-  (:import [editor.resource ZipResource]))
+  (:import [editor.resource ZipResource]
+           [java.io InputStream]
+           [org.apache.commons.codec.digest DigestUtils]))
 
 (defn print-plan [plan]
   (let [resource-info (fn [r] (pr-str r))
@@ -35,6 +38,8 @@
         generic-node-info (fn [node] (str "{:" (node-type-name node) " " node
                                           (when (g/override? node) (str " :override " (g/override-original node))) "}"))]
 
+    (doseq [kept (:kept plan)]
+      (println "KEPT:" (resource-info kept)))
     (doseq [new (:new plan)]
       (println "NEW:" (resource-info new)))
     (doseq [[resource old-node] (:transfer-overrides plan)]
@@ -59,32 +64,79 @@
 (defn- merge-resource-change-plans [& plans]
   (apply merge-with into plans))
 
-(defn- replace-resources-plan [{:keys [resource->old-node]} resources]
-  ;; creates new resource nodes for all resources, transfers overrides and outgoing arcs
-  ;; from old (if any) and deletes them.
-  (let [new-resources (vec resources)
-        transfer-overrides (into []
-                                 (keep (fn transfer-overrides-selector [resource]
-                                         (when-some [old-node (resource->old-node resource)]
-                                           [resource old-node])))
-                                 new-resources)
-        transfer-outgoing-arcs (mapv (fn transfer-outgoing-arcs-selector [[resource old-node]]
+(defn- keep-existing-node?
+  "Check if we can safely keep the existing node in the graph. Every time a file
+  has an updated timestamp it will be reported as changed, but if the contents
+  are unchanged we don't need to reload the node."
+  [old-node new-resource evaluation-context]
+  (let [resource-type (resource/resource-type new-resource)]
+    ;; Determine if the file contents have changed by comparing the sha256
+    ;; value of the in-memory state of the old-node to the calculated sha256 of
+    ;; the on-disk state of the new-resource.
+    (if (:stateless? resource-type)
+      ;; Stateless resources do not have an in-memory state, so their sha256
+      ;; output will return the sha256 of their on-disk state. Thus, we cannot
+      ;; determine if the file has changed compared to their in-memory state,
+      ;; and must assume it is unsafe to keep the existing node in the graph.
+      false
+
+      ;; This is a stateful resource. Compare the sha256 of the in-memory state
+      ;; to the sha256 of the on-disk state of the new-resource.
+      (let [read-fn (:read-fn resource-type)
+            write-fn (:write-fn resource-type)
+            old-sha256 (try
+                         (g/node-value old-node :sha256 evaluation-context)
+                         (catch Exception _
+                           nil))
+            new-sha256 (try
+                         (if (and read-fn write-fn)
+                           (let [source-value (read-fn new-resource)
+                                 sanitized-content (write-fn source-value)]
+                             (DigestUtils/sha256Hex ^String sanitized-content))
+                           (with-open [input-stream (io/input-stream new-resource)]
+                             (DigestUtils/sha256Hex ^InputStream input-stream)))
+                         (catch Exception _
+                           nil))]
+        (and (some? old-sha256)
+             (some? new-sha256)
+             (not (g/error? old-sha256))
+             (= old-sha256 new-sha256))))))
+
+(defn- replace-resources-plan [{:keys [resource->old-node]} resources force-replacement]
+  ;; Creates new resource nodes for all resources, transfers overrides and outgoing arcs
+  ;; from old (if any) and deletes them. If force-replacement is false,
+  (let [in-graph (into []
+                       (keep (fn [resource]
+                               (when-some [old-node (resource->old-node resource)]
+                                 [resource old-node])))
+                       resources)
+        [kept replaced] (if force-replacement
+                          [nil in-graph]
+                          (let [{replaced true kept false}
+                                (g/with-auto-evaluation-context evaluation-context
+                                  (group-by (fn [[resource old-node]]
+                                              (keep-existing-node? old-node resource evaluation-context))
+                                            in-graph))]
+                            [replaced kept]))
+        transfer-overrides replaced
+        transfer-outgoing-arcs (mapv (fn [[resource old-node]]
                                        [resource (gu/explicit-outputs old-node)])
-                                     transfer-overrides)
-        delete (mapv (fn delete-selector [[_ old-node]]
-                       old-node)
-                     transfer-overrides)]
+                                     replaced)
+        delete (mapv second replaced)
+        kept-resources (into #{} (map first) kept)
+        new-resources (into [] (remove kept-resources) resources)]
     {:new new-resources
      :transfer-overrides transfer-overrides
      :transfer-outgoing-arcs transfer-outgoing-arcs
-     :delete delete}))
+     :delete delete
+     :kept kept-resources}))
 
 (defn- resource-added-plan [{:keys [added]} {:keys [move-target-paths] :as plan-info}]
   (let [non-moved-added (remove (comp move-target-paths resource/proj-path) added)]
     ;; When a non-existing resource is referenced, a dummy "missing file" node is added to
-    ;; the graph and marked defective, so we must do a full replacement here instead of
-    ;; simply adding a new node.
-    (replace-resources-plan plan-info non-moved-added)))
+    ;; the graph and marked defective, so we must attempt a full replacement here rather
+    ;; than simply adding new nodes for the introduced resources.
+    (replace-resources-plan plan-info non-moved-added true)))
 
 (defn- resource-may-linger-on-disk? [resource]
   (instance? ZipResource resource))
@@ -119,7 +171,7 @@
         {loadable-changed true stateless-changed false} (group-by stateful? non-moved-changed)
         {stateless-swapped true stateless-changed false} (group-by resource-swapped? stateless-changed)]
     (merge-resource-change-plans
-      (replace-resources-plan plan-info loadable-changed)
+      (replace-resources-plan plan-info loadable-changed false)
       {:invalidate-outputs (mapv resource->old-node stateless-changed)
        :redirect (mapv (juxt resource->old-node identity) stateless-swapped)})))
 
@@ -277,5 +329,8 @@
                                             (resource-removed-plan changes plan-info)
                                             (resource-changed-plan changes plan-info)
                                             (resource-moved-plan changes plan-info))]
-      (doseq [[k v] plan] (assert (vector? v))) ; we should never produce lazy lists
+      (doseq [[_ v] plan]
+        ;; We should never produce lazy lists.
+        (assert (or (vector? v)
+                    (set? v))))
       plan)))
