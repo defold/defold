@@ -120,7 +120,7 @@ bproto = waflib.Task.task_factory('bproto', 'protoc \
 --ddf_out=${TGT[0].src_dir_abs()} \
 -I ../${SRC[0].src_dir()} -I ${SRC[0].parent.src_dir_abs()} ${PROTOC_FLAGS} ${SRC}',
                       color='PINK',
-                      before='cc cxx',
+                      before='c cxx',
                       after='proto_b',
                       shell=True)
 bproto.scan = scan

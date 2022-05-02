@@ -287,14 +287,14 @@ def apply_framework(self):
     for x in self.to_list(self.env['FRAMEWORK']):
         self.env.append_value('LINKFLAGS',['-framework',x])
 
-feature('cc','cxx')(apply_framework)
-after('apply_lib_vars')(apply_framework)
+feature('c','cxx')(apply_framework)
+after('process_source')(apply_framework)
 
-@feature('cc', 'cxx')
+@feature('c', 'cxx')
 # We must apply this before the objc_hook below
 # Otherwise will .mm-files not be compiled with -arch armv7 etc.
 # I don't know if this is entirely correct
-@before('apply_core')
+@before('process_source')
 def default_flags(self):
     build_util = create_build_utility(self.env)
 
@@ -504,8 +504,8 @@ def default_flags(self):
 
 # Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
 @feature('remove_flags')
-@before('apply_core')
-@after('cc')
+@before('process_source')
+@after('c')
 @after('cxx')
 def remove_flags_fn(self):
     lookup = getattr(self, 'remove_flags', [])
@@ -514,8 +514,8 @@ def remove_flags_fn(self):
             remove_flag(self.env[name], flag, argcount)
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
-@before('apply_core')
-@after('cc')
+@before('process_source')
+@after('c')
 @after('cxx')
 def web_exported_functions(self):
 
@@ -550,7 +550,7 @@ def android_link_flags(self):
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
 
 @feature('cprogram', 'cxxprogram')
-@before('apply_core')
+@before('process_source')
 def osx_64_luajit(self):
     # Was previously needed for 64bit OSX, but removed when we updated luajit-2.1.0-beta3,
     # however it is still needed for 64bit iOS Simulator.
@@ -558,17 +558,17 @@ def osx_64_luajit(self):
         self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
 
 @feature('skip_asan')
-@before('apply_core')
+@before('process_source')
 def asan_skip(self):
     self.skip_asan = True
 
 @feature('skip_test')
-@before('apply_core')
+@before('process_source')
 def test_skip(self):
     self.skip_test = True
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
-@before('apply_core')
+@before('process_source')
 @after('skip_asan')
 def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
@@ -593,7 +593,7 @@ def apply_unit_test(self):
                 t.hasrun = True
 
 @feature('apk')
-@before('apply_core')
+@before('process_source')
 def apply_apk_test(self):
     build_util = create_build_utility(self.env)
     if 'android' == build_util.get_target_os():
@@ -603,13 +603,13 @@ def apply_apk_test(self):
 # Install all static libraries by default
 @feature('cstaticlib')
 @after('default_cc')
-@before('apply_core')
+@before('process_source')
 def default_install_staticlib(self):
     self.default_install_path = self.env.LIBDIR
 
 @feature('cshlib')
 @after('default_cc')
-@before('apply_core')
+@before('process_source')
 def default_install_shlib(self):
     # Force installation dir to LIBDIR.
     # Default on windows is BINDIR
@@ -806,15 +806,15 @@ def create_export_symbols(task):
     return 0
 
 task = Task.task_factory('create_export_symbols',
-                                func  = create_export_symbols,
-                                color = 'PINK',
-                                before  = 'cc cxx')
+                         func  = create_export_symbols,
+                         color = 'PINK',
+                         before  = 'c cxx')
 
 task.runnable_status = lambda self: RUN_ME
 
 @task_gen
 @feature('cprogram')
-@before('apply_core')
+@before('process_source')
 def export_symbols(self):
     # Force inclusion of symbol, e.g. from static libraries
     # We used to use -Wl,-exported_symbol on Darwin but changed
@@ -835,7 +835,7 @@ Task.task_factory('app_bundle',
                          func = app_bundle,
                          vars = ['SRC', 'DST'],
                          #color = 'RED',
-                         after  = 'cxx_link cc_link static_link')
+                         after  = 'link_task stlink_task')
 
 
 def _strip_executable(bld, platform, target_arch, path):
@@ -885,8 +885,8 @@ def authenticode_sign(task):
     return 0
 
 Task.task_factory('authenticode_sign',
-                         func = authenticode_sign,
-                         after = 'cxx_link cc_link static_link msvc_manifest')
+                     func = authenticode_sign,
+                     after = 'link_task stlink_task msvc_manifest')
 
 @task_gen
 @feature('authenticode')
@@ -1029,7 +1029,7 @@ def android_package(task):
 Task.task_factory('android_package',
                          func = android_package,
                          vars = ['SRC', 'DST'],
-                         after  = 'cxx_link cc_link static_link')
+                         after  = 'link_task stlink_task')
 
 @task_gen
 @after('apply_link')
@@ -1089,12 +1089,12 @@ def copy_stub(task):
 task = Task.task_factory('copy_stub',
                                 func  = copy_stub,
                                 color = 'PINK',
-                                before  = 'cc cxx')
+                                before  = 'c cxx')
 
 task.runnable_status = lambda self: RUN_ME
 
 @task_gen
-@before('apply_core')
+@before('process_source')
 @feature('apk')
 def create_copy_glue(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
@@ -1108,9 +1108,9 @@ def create_copy_glue(self):
 
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
-    in_file = open(task.inputs[0].bldpath(task.env), 'rb')
-    cpp_out_file = open(task.outputs[0].bldpath(task.env), 'wb')
-    h_out_file = open(task.outputs[1].bldpath(task.env), 'wb')
+    in_file = open(task.inputs[0].abspath(), 'rb')
+    cpp_out_file = open(task.outputs[0].abspath(), 'w')
+    h_out_file = open(task.outputs[1].abspath(), 'w')
 
     cpp_str = """
 #include <stdint.h>
@@ -1123,12 +1123,12 @@ unsigned char DM_ALIGNED(16) %s[] =
     data = in_file.read()
 
     tmp = ''
-    for i,x in enumerate(data):
+    for i,x in enumerate(str(data)):
         tmp += hex(ord(x)) + ', '
         if i > 0 and i % 4 == 0:
             tmp += '\n    '
-    cpp_out_file.write(tmp)
 
+    cpp_out_file.write(tmp)
     cpp_out_file.write('\n};\n')
     cpp_out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
 
@@ -1141,7 +1141,11 @@ unsigned char DM_ALIGNED(16) %s[] =
     m = Utils.md5()
     m.update(data)
 
-    task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
+    #task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
+    task.generator.bld.node_sigs[task.inputs[0]] = m.digest()
+
+    print(task.outputs)
+
     return 0
 
 Task.task_factory('dex', '${DX} --dex --output ${TGT} ${SRC}',
@@ -1163,25 +1167,28 @@ def apply_dex(self):
     task.set_outputs(dex)
 
 Task.task_factory('embed_file',
-                         func = embed_build,
-                         vars = ['SRC', 'DST'],
-                         color = 'RED',
-                         before  = 'cc cxx')
+                  func = embed_build,
+                  vars = ['SRC', 'DST'],
+                  color = 'RED',
+                  before  = 'c cxx')
 
 @feature('embed')
-@before('apply_core')
+@before('process_source')
 def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
+    embed_out_nodes = []
+
     for name in Utils.to_list(self.embed_source):
         Logs.info("Embedding '%s' ..." % name)
         node = self.path.find_resource(name)
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
-        task = self.create_task('embed_file', cc_out)
-        task.set_inputs(node)
-        task.set_outputs([cc_out, h_out])
-        #self.nodes.append(cc_out)
+        task = self.create_task('embed_file', node, [cc_out, h_out])
+        embed_out_nodes.append(cc_out)
+
+    # Add dependency on generated embed source files to the task gen
+    self.source = self.path.ant_glob(self.source) + embed_out_nodes
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
@@ -1238,7 +1245,7 @@ def run_tests(valgrind = False, configfile = None):
                 launch_pattern = t.env.TEST_LAUNCH_PATTERN
 
             for task in t.tasks:
-                if task.name in ['cxx_link', 'cc_link']:
+                if task.name in ['link_task']:
                     break
 
             program = transform_runnable_path(Build.bld.env.PLATFORM, task.outputs[0].abspath(task.env))
@@ -1273,7 +1280,7 @@ def js_web_link_flags(self):
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
 @task_gen
-@before('apply_core')
+@before('process_source')
 @feature('test')
 def test_flags(self):
     self.install_path = None # the tests shouldn't be installed
@@ -1305,7 +1312,7 @@ def js_web_web_link_flags(self):
 
 Task.task_factory('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='cxx_link',
+                      after='link_task',
                       shell=True)
 
 Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',

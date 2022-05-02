@@ -8,7 +8,7 @@ from waflib.Options import options
 
 waflib.Task.task_factory('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
                       color='PINK',
-                      before='cc cxx')
+                      before='c cxx')
 
 @extension('.pf')
 def pf_file(self, node):

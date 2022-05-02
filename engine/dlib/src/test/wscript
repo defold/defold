@@ -59,10 +59,11 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'defines': req_defines,
         'target': name
     }
+
     if req_embed != None:
         task_args['embed_source'] = ' '.join(req_embed)
 
-    test = bld.__call__(**task_args)
+    test = bld(**task_args)
     test.install_path = None
 
     js_lib_paths = {}
