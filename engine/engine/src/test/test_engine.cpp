@@ -407,7 +407,7 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
     "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
     ASSERT_EQ(stats.m_FrameCount, 12u);
-    ASSERT_NEAR(stats.m_TotalTime, 0.2f, 0.01f);
+    ASSERT_NEAR(stats.m_TotalTime, 0.2f, 0.02f);
 }
 
 int main(int argc, char **argv)
