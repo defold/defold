@@ -21,11 +21,14 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.net.URLClassLoader;
+import java.net.URL;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -40,8 +43,10 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
+import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
@@ -62,6 +67,9 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
+    private static LuaBuilderPlugin luaBuilderPlugin = null;
+
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -70,7 +78,10 @@ public abstract class LuaBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(params.outExt()));
 
         String script = new String((input.getContent()));
-        List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(script);
+
+        List<LuaScanner.Property> properties = scanner.getProperties();
         for (LuaScanner.Property property : properties) {
             if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
                 String value = (String)property.value;
@@ -85,13 +96,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-    public byte[] constructStrippedLuaCode(byte[] byteString) throws IOException, CompileExceptionError {
-        String string = new String(byteString, "UTF-8");
-        string = LuaScanner.stripProperties(string);
-        return string.getBytes();
-    }
-
-    public byte[] constructBytecode(Task<Void> task, String luajitExe, byte[] byteString) throws IOException, CompileExceptionError {
+    public byte[] constructBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -105,7 +110,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
             fo = new java.io.FileOutputStream(inputFile);
-            fo.write(byteString);
+            fo.write(source.getBytes());
             fo.close();
 
             // Doing a bit of custom set up here as the path is required.
@@ -118,8 +123,17 @@ public abstract class LuaBuilder extends Builder<Void> {
             // If a script error occurs in runtime we want Lua to report the end of the filepath
             // associated with the chunk, since this is where the filename is visible.
             //
-            String chunkName = "@" + task.input(0).getPath();
-            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), luajitExe), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+            final String chunkName = "@" + task.input(0).getPath();
+            List<String> options = new ArrayList<String>();
+            options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
+            options.add("-b");
+            options.add("-g");
+            options.add("-f"); options.add(chunkName);
+            options.add(inputFile.getAbsolutePath());
+            options.add(outputFile.getAbsolutePath());
+
+
+            ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
             env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
@@ -184,37 +198,42 @@ public abstract class LuaBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
         LuaModule.Builder builder = LuaModule.newBuilder();
-        byte[] scriptBytes = task.input(0).getContent();
-        String script = new String(scriptBytes);
-        List<String> modules = LuaScanner.scan(script);
+        final byte[] originalScriptBytes = task.input(0).getContent();
+        final String originalScript = new String(originalScriptBytes, "UTF-8");
 
+        // run the Lua scanner to get and remove require and properties
+        LuaScanner scanner = new LuaScanner();
+        String script = scanner.parse(originalScript);
+        List<String> modules = scanner.getModules();
+        List<LuaScanner.Property> properties = scanner.getProperties();
+
+        // add detected modules to builder
         for (String module : modules) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
             BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
+
+        // add detected properties to builder
         Collection<String> propertyResources = new HashSet<String>();
-        List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
         PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertyResources);
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
-        LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-        byte[] scriptBytesStripped = constructStrippedLuaCode(task.input(0).getContent());
 
-        /*
-        // For now it will always return, or throw an exception. This leaves the possibility of
-        // disabling bytecode generation.
-        byte[] bytecode = constructBytecode(task, task.input(0).getPath(), scriptBytesStripped);
-        if (bytecode != null)
-            srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
-        */
+        // create and apply a builder plugin if one exists
+        LuaBuilderPlugin luaBuilderPlugin = PluginScanner.getOrCreatePlugin("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
+        if (luaBuilderPlugin != null) {
+            try {
+                script = luaBuilderPlugin.build(script);
+            }
+            catch(Exception e) {
+                throw new CompileExceptionError(task.input(0), 0, "Unable to run Lua builder plugin", e);
+            }
+        }
 
-        srcBuilder.setFilename(task.input(0).getPath());
-
-        // If for some reason, the project needs to be bundled with regular Lua files (e.g. on iOS)
+        // if for some reason, the project needs to be bundled with regular Lua files (e.g. on iOS)
         boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
-
         if (use_vanilla_lua) {
             for(IResource res : task.getOutputs()) {
                 String path = res.getAbsPath();
@@ -224,14 +243,17 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
+        LuaSource.Builder srcBuilder = LuaSource.newBuilder();
+        srcBuilder.setFilename(task.input(0).getPath());
+
         if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
-            srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
+            srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         } else {
-            byte[] bytecode = constructBytecode(task, "luajit-32", scriptBytesStripped);
+            byte[] bytecode = constructBytecode(task, "luajit-32", script);
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
             }
-            byte[] bytecode64 = constructBytecode(task, "luajit-64", scriptBytesStripped);
+            byte[] bytecode64 = constructBytecode(task, "luajit-64", script);
             if (bytecode64 != null) {
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }

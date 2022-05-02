@@ -366,11 +366,13 @@ namespace dmGameObject
     {
         float    m_TimeScale;
         float    m_DT;
-        uint32_t m_FixedUpdateFrequency;
+        float    m_AccumFrameTime;          // Unscaled time. Amount of time left after last fixed update tick
+        uint32_t m_FixedUpdateFrequency;    // Hz
 
         UpdateContext()
         : m_TimeScale(1.0f)
-        , m_DT(0.0)
+        , m_DT(0.0f)
+        , m_AccumFrameTime(0.0f)
         , m_FixedUpdateFrequency(0) {}
     };
 

@@ -34,8 +34,6 @@ namespace dmGameSystem
 
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
-        uint32_t                        m_ElementCount;
-        uint32_t                        m_VertSize;
 
         dmGraphics::PrimitiveType       m_PrimitiveType;
 
