@@ -54,6 +54,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.cache.ResourceCacheKey;
 
 public class Bob {
@@ -574,6 +575,15 @@ public class Bob {
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
         verbose = cmd.hasOption('v');
+
+        if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
+            String path = cmd.getOptionValue("build-report");
+            if (path == null) {
+                path = cmd.getOptionValue("build-report-html");
+            }
+
+            TimeProfiler.init((new File(path)).getParent());
+        }
 
         if (cmd.hasOption("version")) {
             System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));

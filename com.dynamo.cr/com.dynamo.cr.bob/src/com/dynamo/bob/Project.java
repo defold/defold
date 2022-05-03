@@ -88,6 +88,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.HttpUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
@@ -1057,6 +1058,7 @@ public class Project {
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
+            TimeProfiler.start(command);
             switch (command) {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
@@ -1215,6 +1217,7 @@ public class Project {
                 }
                 default: break;
             }
+            TimeProfiler.stop();
         }
 
         monitor.done();
