@@ -13,17 +13,17 @@ def init(ctx):
     pass
 
 def options(opt):
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_DLIB_NOASAN'] = 'dlib_noasan'
-    conf.env['STATICLIB_BASIS_ENCODER'] = 'basis_encoder'
-    conf.env['STATICLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
+    conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_DLIB_NOASAN'] = 'dlib_noasan'
+    conf.env['STLIB_BASIS_ENCODER'] = 'basis_encoder'
+    conf.env['STLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
 
     platform = conf.env['PLATFORM']
 
@@ -33,5 +33,5 @@ def configure(conf):
 def build(bld):
     bld.recurse('src')
 
-def shutdown():
+def shutdown(self):
     waf_dynamo.run_tests(valgrind = True)

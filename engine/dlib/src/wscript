@@ -69,6 +69,7 @@ def build(bld):
                      source   = source_files,
                      includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
                      target   = 'dlib',
+                     install_path = build_util.get_library_path(),
                      defines  = ['VALGRIND'] + extra_defines)
 
     lib_features = {
@@ -110,9 +111,10 @@ def build(bld):
         dlib.source.append(bld.path.make_node(source))
 
     # Create a separate library, in order to separate it from the ASAN builds
-    dlib_noasan = bld(features    = dlib.features + ['skip_asan'],
+    dlib_noasan = bld.stlib(features    = dlib.features + ['skip_asan'],
                       includes    = dlib.includes,
                       defines     = dlib.defines,
+                      install_path = build_util.get_library_path(),
                       target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
@@ -133,33 +135,37 @@ def build(bld):
     else:
         extra_defines += ['MBEDTLS_ERROR_C']
 
-    mbedtls = bld(features    = 'c cxx cstaticlib remove_flags',
+    mbedtls = bld.stlib(features    = 'c cxx cstaticlib remove_flags',
                   includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
                   target      = 'mbedtls',
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
+                  install_path = build_util.get_library_path(),
                   defines     = ['VALGRIND'] + extra_defines)
     mbedtls.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
-    mbedtls_noasan = bld(features     = mbedtls.features + ' skip_asan',
+    mbedtls_noasan = bld.stlib(features     = ' '.join(mbedtls.features) + ' skip_asan',
                          includes     = mbedtls.includes,
                          remove_flags = remove_flags,
                          defines      = mbedtls.defines,
+                         install_path = build_util.get_library_path(),
                          target       = 'mbedtls_noasan')
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     libzip_dirs = ['zip/**/*.cpp']
-    libzip = bld(features    = 'c cxx cstaticlib',
+    libzip = bld.stlib(features    = 'c cxx cstaticlib',
                  includes    = '. ./zip',
                  source      = bld.path.ant_glob(libzip_dirs),
                  target      = 'zip',
+                 install_path = build_util.get_library_path(),
                  defines     = ['VALGRIND'] + extra_defines)
 
-    libzip_noasan = bld(features  = libzip.features + ' skip_asan',
+    libzip_noasan = bld(features  = ' '.join(libzip.features) + ' skip_asan',
                         includes  = libzip.includes,
                         defines   = libzip.defines,
+                        install_path = build_util.get_library_path(),
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
@@ -206,10 +212,11 @@ def build(bld):
     if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-darwin'):
         basis_flags += ['BASISU_SUPPORT_SSE=1']
 
-    basis_encoder = bld(features = 'c cxx cstaticlib skip_asan remove_flags',
+    basis_encoder = bld.stlib(features = 'c cxx cstaticlib skip_asan remove_flags',
                             includes = ['basis'],
                             target = 'basis_encoder',
-                            source = bld.path.ant_glob("basis/**/*.cpp"), 
+                            source = bld.path.ant_glob(["basis/**/*.cpp", "basis/**/*.c"]), 
+                            install_path = build_util.get_library_path(),
                             remove_flags = remove_flags,
                             defines = ['DM_BASIS_ENCODER'] + basis_flags)
     #basis_encoder.find_sources_in_dirs(["basis/encoder", "basis/transcoder"], ['.cpp'])
@@ -219,11 +226,12 @@ def build(bld):
         basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
 
     # For the runtime
-    basis_transcoder = bld(features = 'cxx cstaticlib remove_flags',
+    basis_transcoder = bld.stlib(features = 'cxx cstaticlib remove_flags',
                             includes = ['basis'],
                             target = 'basis_transcoder',
                             remove_flags = remove_flags,
                             source = bld.path.ant_glob("basis/transcoder/**/*.cpp"),
+                            install_path = build_util.get_library_path(),
                             defines = ['DM_BASIS_TRANSCODER_UASTC', 'BASISD_SUPPORT_KTX2=0'] + basis_flags,
                             use = 'dlib')
     #basis_transcoder.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])

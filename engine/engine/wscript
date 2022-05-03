@@ -86,7 +86,7 @@ namespace dmEngineVersion
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal'])
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
-        conf.env['STATICLIB_CPP_RUNTIME'] = 'c++_static'
+        conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
 
@@ -100,37 +100,37 @@ namespace dmEngineVersion
     elif 'web' in operating_sys:
         pass
 
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_RENDER'] = 'render'
-    conf.env['STATICLIB_GAMESYS'] = 'gamesys'
-    conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
-    conf.env['STATICLIB_GUI'] = 'gui'
-    conf.env['STATICLIB_PARTICLE'] = 'particle'
-    conf.env['STATICLIB_RIG'] = 'rig'
-    conf.env['STATICLIB_SOUND'] = sound_lib
-    conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STATICLIB_OPENAL_SOFT'] = 'openal_soft'
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_RESOURCE'] = 'resource'
+    conf.env['STLIB_RENDER'] = 'render'
+    conf.env['STLIB_GAMESYS'] = 'gamesys'
+    conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_GUI'] = 'gui'
+    conf.env['STLIB_PARTICLE'] = 'particle'
+    conf.env['STLIB_RIG'] = 'rig'
+    conf.env['STLIB_SOUND'] = sound_lib
+    conf.env['STLIB_SOUND_NULL'] = 'sound_null'
+    conf.env['STLIB_OPENAL_SOFT'] = 'openal_soft'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'
-    conf.env['STATICLIB_HID'] = 'hid'
-    conf.env['STATICLIB_HID_NULL'] = 'hid_null'
-    conf.env['STATICLIB_INPUT'] = 'input'
-    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
+    conf.env['STLIB_HID'] = 'hid'
+    conf.env['STLIB_HID_NULL'] = 'hid_null'
+    conf.env['STLIB_INPUT'] = 'input'
+    conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
     if operating_sys != "osx":
-        conf.env['STATICLIB_UNWIND'] = 'unwind'
+        conf.env['STLIB_UNWIND'] = 'unwind'
 
-    conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STATICLIB_IAPEXT'] = 'iapext'
-    conf.env['STATICLIB_PUSHEXT'] = 'pushext'
-    conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
-    conf.env['STATICLIB_IACEXT'] = 'iacext'
-    conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
-    conf.env['STATICLIB_PROFILEREXT_NULL'] = 'profilerext_null'
+    conf.env['STLIB_FACEBOOKEXT'] = 'facebookext'
+    conf.env['STLIB_IAPEXT'] = 'iapext'
+    conf.env['STLIB_PUSHEXT'] = 'pushext'
+    conf.env['STLIB_WEBVIEWEXT'] = 'webviewext'
+    conf.env['STLIB_IACEXT'] = 'iacext'
+    conf.env['STLIB_PROFILEREXT'] = 'profilerext'
+    conf.env['STLIB_PROFILEREXT_NULL'] = 'profilerext_null'
 
-    conf.env['STATICLIB_TREMOLO'] = 'tremolo'
+    conf.env['STLIB_TREMOLO'] = 'tremolo'
 
     if operating_sys == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
