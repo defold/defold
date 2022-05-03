@@ -37,5 +37,13 @@ def build(bld):
                          target = 'test_liveupdate_async' + suffix,
                          source = '../liveupdate_async.cpp test_liveupdate_async.cpp')
 
+        bld.new_task_gen(features = 'cxx cprogram test'.split() + features,
+                         includes = '../../../src',
+                         uselib = uselib,
+                         uselib_local = local_lib,
+                         web_libs = ['library_sys.js'],
+                         target = 'test_liveupdate_zip_archive' + suffix,
+                         source = '../liveupdate.cpp ../liveupdate_private.cpp ../liveupdate_async.cpp ../liveupdate_archive.cpp ../liveupdate_zip_archive.cpp test_liveupdate_zip_archive.cpp')
+
 def shutdown():
     pass
