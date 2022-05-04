@@ -423,9 +423,6 @@ public class Bob {
         addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
         addOption(options, null, "identity", true, "Sign identity (iOS)", false);
 
-        addOption(options, "ce", "certificate", true, "DEPRECATED! Certificate (Android)", false);
-        addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", false);
-
         addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
         addOption(options, "ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)", false);
         addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
@@ -435,8 +432,7 @@ public class Bob {
         addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false);
         addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", false);
 
-        addOption(options, "tp", "texture-profiles", true, "Use texture profiles (deprecated)", true);
-        addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
+        addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles (true|false)", true);
         addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
         addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
