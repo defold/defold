@@ -39,7 +39,7 @@ import org.apache.commons.io.IOUtils;
  */
 public class TimeProfiler {
 
-    private static final String JSON_FILENAME = "time_report.json";
+    private static final String FILENAME = "time_report";
 
     /**
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
@@ -54,6 +54,21 @@ public class TimeProfiler {
 
         public ProfilingScope parent;
         public ArrayList<ProfilingScope> children;
+    }
+
+    public enum ReportFormat {
+        JSON(".html"),
+        HTML(".json");
+
+        private String format;
+
+        ReportFormat(String fileFormat) {
+            this.format = fileFormat;
+        }
+
+        public String getFormat() {
+            return format;
+        }
     }
 
     private static ProfilingScope rootScope;
@@ -121,7 +136,7 @@ public class TimeProfiler {
         return strWriter.toString();
     }
 
-    public static void init(String reportFolderPath) {
+    public static void init(String reportFolderPath, ReportFormat format) {
         RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
         long startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
         rootScope = new ProfilingScope();
@@ -152,7 +167,7 @@ public class TimeProfiler {
                 try {
                     String jsonReport = generateJSON();
                     FileWriter fileJSONWriter = null;
-                    File reportJSONFile = new File(reportFolderPath, JSON_FILENAME);
+                    File reportJSONFile = new File(reportFolderPath, FILENAME + format.getFormat());
                     fileJSONWriter = new FileWriter(reportJSONFile);
                     fileJSONWriter.write(jsonReport);
                     fileJSONWriter.close();
@@ -217,6 +232,10 @@ public class TimeProfiler {
             currentScope.additionalBooleanData = new HashMap<String, Boolean>();
         }
         currentScope.additionalBooleanData.put(fieldName, data);
+    }
+
+    public static void addData(String fieldName, Integer data) {
+        addData(fieldName, data.floatValue());
     }
 
 }

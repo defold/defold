@@ -578,11 +578,14 @@ public class Bob {
 
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
             String path = cmd.getOptionValue("build-report");
+            TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
             if (path == null) {
                 path = cmd.getOptionValue("build-report-html");
+                format = TimeProfiler.ReportFormat.HTML;
             }
-
-            TimeProfiler.init((new File(path)).getParent());
+            File report = new File(path);
+            String folder = report.getParent();
+            TimeProfiler.init(folder, format);
         }
 
         if (cmd.hasOption("version")) {

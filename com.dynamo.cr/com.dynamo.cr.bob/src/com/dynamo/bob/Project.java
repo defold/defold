@@ -1142,20 +1142,23 @@ public class Project {
 
                     mrep = m.subProgress(1);
                     mrep.beginTask("Reading tasks...", 1);
+                    TimeProfiler.start("Create tasks");
                     pruneSources();
                     createTasks();
                     validateBuildResourceMapping();
+                    TimeProfiler.addData("TasksCount", tasks.size());
+                    TimeProfiler.stop();
                     mrep.done();
 
                     BundleHelper.throwIfCanceled(monitor);
                     m.beginTask("Building...", tasks.size());
-                    long tstart = System.currentTimeMillis();
+                    TimeProfiler.start("Build tasks");
+                    TimeProfiler.addData("TasksCount", tasks.size());
 
                     result = runTasks(m);
                     m.done();
 
-                    long tend = System.currentTimeMillis();
-                    Bob.verbose("Content tasks took %f s\n", (tend-tstart)/1000.0);
+                    TimeProfiler.stop();
 
                     if (anyFailing(result)) {
                         break loop;
