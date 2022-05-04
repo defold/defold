@@ -36,7 +36,7 @@ public class OggBuilder extends CopyBuilder{
         List<String> deps = List.of("libogg", "liboggz");
         Bob.unpackSharedLibraries(curr_platform, deps);
         Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
-            input.getPath()
+            input.getAbsPath()
         );
 
         if (result.ret != 0) {
