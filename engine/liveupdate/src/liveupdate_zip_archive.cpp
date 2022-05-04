@@ -65,9 +65,9 @@ namespace dmLiveUpdate
         return data;
     }
 
-    static Result VerifyZipArchive(const char* path, char* application_support_path, uint32_t application_support_path_len)
+    static Result LoadAndOptionallyVerifyZipArchive(const char* path, char* application_support_path, uint32_t application_support_path_len, bool verify_archive)
     {
-        dmLogInfo("Verifying archive '%s'", path);
+        dmLogInfo("Loading archive '%s'", path);
 
         dmZip::HZip zip;
         dmZip::Result zr = dmZip::Open(path, &zip);
@@ -95,77 +95,86 @@ namespace dmLiveUpdate
             // store the live update folder for later
             dmResource::GetApplicationSupportPath(manifest, application_support_path, application_support_path_len);
 
-            // Verify
-            result = dmLiveUpdate::VerifyManifest(manifest);
-            if (RESULT_SCHEME_MISMATCH == result)
+            if (verify_archive)
             {
-                dmLogWarning("Scheme mismatch, manifest storage is only supported for bundled package. Manifest was not stored.");
-            }
-            else if (RESULT_OK != result)
-            {
-                dmLogError("Manifest verification failed. Manifest was not stored.");
-            }
+                dmLogInfo("Verifying archive '%s'", path);
 
-            result = dmLiveUpdate::VerifyManifestReferences(manifest);
-            if (RESULT_OK != result)
-            {
-                dmLogError("Manifest references non existing resources. Manifest was not stored.");
-            }
-
-            // Verify the resources in the zip file
-            if (RESULT_OK == result)
-            {
-                uint32_t num_entries = dmZip::GetNumEntries(zip);
-                uint8_t* entry_data = 0;
-                uint32_t entry_data_capacity = 0;
-                for( uint32_t i = 0; i < num_entries && RESULT_OK == result; ++i)
+                result = dmLiveUpdate::VerifyManifest(manifest);
+                if (RESULT_SCHEME_MISMATCH == result)
                 {
-                    zr = dmZip::OpenEntry(zip, i);
-
-                    const char* entry_name = dmZip::GetEntryName(zip);
-                    if (!dmZip::IsEntryDir(zip) && !(strcmp(LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, entry_name) == 0))
-                    {
-                        // verify resource
-                        uint32_t entry_size;
-                        zr = dmZip::GetEntrySize(zip, &entry_size);
-                        if (dmZip::RESULT_OK != zr)
-                        {
-                            dmLogError("Could not get entry size '%s'", entry_name);
-                            dmZip::Close(zip);
-                            return RESULT_INVALID_RESOURCE;
-                        }
-
-                        if (entry_data_capacity < entry_size)
-                        {
-                            entry_data = (uint8_t*)realloc(entry_data, entry_size);
-                            entry_data_capacity = entry_size;
-                        }
-
-                        zr = dmZip::GetEntryData(zip, entry_data, entry_size);
-
-                        dmResourceArchive::LiveUpdateResource resource(entry_data, entry_size);
-                        if (entry_size >= sizeof(dmResourceArchive::LiveUpdateResourceHeader))
-                        {
-                            result = dmLiveUpdate::VerifyResource(manifest, entry_name, strlen(entry_name), (const char*)resource.m_Data, resource.m_Count);
-
-                            if (RESULT_OK != result)
-                            {
-                                dmLogError("Failed to verify resource '%s' in archive %s", entry_name, path);
-                            }
-                        }
-                        else {
-                            dmLogError("Skipping resource %s from archive %s", entry_name, path);
-                        }
-
-                    }
-
-                    dmZip::CloseEntry(zip);
+                    dmLogWarning("Scheme mismatch, manifest storage is only supported for bundled package. Manifest was not stored.");
+                }
+                else if (RESULT_OK != result)
+                {
+                    dmLogError("Manifest verification failed. Manifest was not stored.");
                 }
 
-                free(entry_data);
+                result = dmLiveUpdate::VerifyManifestReferences(manifest);
+                if (RESULT_OK != result)
+                {
+                    dmLogError("Manifest references non existing resources. Manifest was not stored.");
+                }
+
+                // Verify the resources in the zip file
+                if (RESULT_OK == result)
+                {
+                    uint32_t num_entries = dmZip::GetNumEntries(zip);
+                    uint8_t* entry_data = 0;
+                    uint32_t entry_data_capacity = 0;
+                    for( uint32_t i = 0; i < num_entries && RESULT_OK == result; ++i)
+                    {
+                        zr = dmZip::OpenEntry(zip, i);
+
+                        const char* entry_name = dmZip::GetEntryName(zip);
+                        if (!dmZip::IsEntryDir(zip) && !(strcmp(LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, entry_name) == 0))
+                        {
+                            // verify resource
+                            uint32_t entry_size;
+                            zr = dmZip::GetEntrySize(zip, &entry_size);
+                            if (dmZip::RESULT_OK != zr)
+                            {
+                                dmLogError("Could not get entry size '%s'", entry_name);
+                                dmZip::Close(zip);
+                                return RESULT_INVALID_RESOURCE;
+                            }
+
+                            if (entry_data_capacity < entry_size)
+                            {
+                                entry_data = (uint8_t*)realloc(entry_data, entry_size);
+                                entry_data_capacity = entry_size;
+                            }
+
+                            zr = dmZip::GetEntryData(zip, entry_data, entry_size);
+
+                            dmResourceArchive::LiveUpdateResource resource(entry_data, entry_size);
+                            if (entry_size >= sizeof(dmResourceArchive::LiveUpdateResourceHeader))
+                            {
+                                result = dmLiveUpdate::VerifyResource(manifest, entry_name, strlen(entry_name), (const char*)resource.m_Data, resource.m_Count);
+
+                                if (RESULT_OK != result)
+                                {
+                                    dmLogError("Failed to verify resource '%s' in archive %s", entry_name, path);
+                                }
+                            }
+                            else {
+                                dmLogError("Skipping resource %s from archive %s", entry_name, path);
+                            }
+
+                        }
+
+                        dmZip::CloseEntry(zip);
+                    }
+
+                    free(entry_data);
+                }
+                dmDDF::FreeMessage(manifest->m_DDFData);
+                dmDDF::FreeMessage(manifest->m_DDF);
             }
-            dmDDF::FreeMessage(manifest->m_DDFData);
-            dmDDF::FreeMessage(manifest->m_DDF);
+            else
+            {
+                dmLogInfo("Skipping archive verification '%s'", path);
+            }
+
         }
         // else { resources are already free'd here }
 
@@ -174,7 +183,7 @@ namespace dmLiveUpdate
 
         dmZip::Close(zip);
 
-        dmLogInfo("Archive verification %s", RESULT_OK == result ? "OK":"FAILED");
+        dmLogInfo("Archive load and verify %s", RESULT_OK == result ? "OK":"FAILED");
 
         return result;
     }
@@ -183,14 +192,10 @@ namespace dmLiveUpdate
     Result StoreZipArchive(const char* path, bool verify_archive)
     {
         char application_support_path[DMPATH_MAX_PATH];
-
-        if (verify_archive)
+        Result result = LoadAndOptionallyVerifyZipArchive(path, application_support_path, sizeof(application_support_path), verify_archive);
+        if (RESULT_OK != result)
         {
-            Result result = VerifyZipArchive(path, application_support_path, sizeof(application_support_path));
-            if (RESULT_OK != result)
-            {
-                return result;
-            }
+            return result;
         }
 
         // Store zip file ref in "<support path>/liveupdate.ref.tmp"
