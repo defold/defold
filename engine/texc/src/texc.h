@@ -67,10 +67,11 @@ namespace dmTexc
     enum CompressionType
     {
         CT_DEFAULT,     // == NONE
-        CT_WEBP,        // Deprecated
-        CT_WEBP_LOSSY,  // Deprecated
+        CT_WEBP,        // Not supported
+        CT_WEBP_LOSSY,  // Not supported
         CT_BASIS_UASTC,
-        CT_BASIS_ETC1S,
+        CT_BASIS_ETC1S, // Not supported
+        CT_NONE,
     };
 
     enum CompressionFlags

@@ -31,6 +31,7 @@ namespace dmTexc
         {
             case dmTexc::CT_BASIS_UASTC:
             case dmTexc::CT_BASIS_ETC1S:    GetEncoderBasis(encoder); return true;
+            case dmTexc::CT_NONE:
             case dmTexc::CT_DEFAULT:        GetEncoderDefault(encoder); return true;
             default:
                 return false;

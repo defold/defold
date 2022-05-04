@@ -548,7 +548,7 @@ static int SetTexture(lua_State* L)
         image->m_OriginalWidth = width;
         image->m_OriginalHeight = height;
         image->m_Format = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
-        image->m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        image->m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_NONE;
         image->m_CompressionFlags = 0;
         image->m_Data.m_Data = data;
         image->m_Data.m_Count = datasize;

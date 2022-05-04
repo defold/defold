@@ -95,9 +95,10 @@ public class TexcLibrary {
     }
 
     public interface CompressionType {
-        public static int CT_DEFAULT    = 0;
+        public static int CT_DEFAULT    = 0; // Deprecated in favor of NONE
         public static int CT_BASIS_UASTC= 3;
         public static int CT_BASIS_ETC1S= 4;
+        public static int CT_NONE       = 5;
     }
 
     public enum FlipAxis {

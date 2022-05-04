@@ -27,16 +27,23 @@ message TextureImage
 
     enum CompressionType
     {
-        // Not compressed
+        // Deprecated, converts to NONE
         COMPRESSION_TYPE_DEFAULT = 0;
-        // WebP encoded (Deprecated, converts to Default)
+        
+        // Not supported. Converts to Default
         COMPRESSION_TYPE_WEBP = 1;
-        // WebP lossy encoded (Deprecated, converts to UASTC)
+        
+        // Not supported. Converts to Basis UASTC
         COMPRESSION_TYPE_WEBP_LOSSY = 2;
+        
         // Basis UASTC
         COMPRESSION_TYPE_BASIS_UASTC = 3;
-        // Basis ETC1S
+        
+        // Not supported. Converts to Basis UASTC
         COMPRESSION_TYPE_BASIS_ETC1S = 4;
+        
+        // Not compressed
+        COMPRESSION_TYPE_NONE = 5;
     }
 
     enum CompressionFlags
@@ -81,7 +88,7 @@ message TextureImage
         repeated uint32 mip_map_offset  = 6;
         repeated uint32 mip_map_size    = 7;    // always uncompressed (native) size
         required bytes data             = 8;
-        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
+        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_NONE];
         optional uint64 compression_flags = 10;
         repeated uint32 mip_map_size_compressed  = 11;
     }
@@ -107,7 +114,7 @@ message TextureFormatAlternative
 
     required TextureImage.TextureFormat format  = 1;
     required CompressionLevel compression_level = 2;
-    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT];
+    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_NONE];
 }
 
 message PathSettings

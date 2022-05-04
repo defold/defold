@@ -35,7 +35,7 @@
 (def CL_HIGH   TexcLibrary$CompressionLevel/CL_HIGH)
 (def CL_BEST   TexcLibrary$CompressionLevel/CL_BEST)
 
-(def CT_DEFAULT     TexcLibrary$CompressionType/CT_DEFAULT)
+(def CT_NONE     TexcLibrary$CompressionType/CT_NONE)
 
 (def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
 (def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
@@ -118,7 +118,7 @@
         color-count                   (image-color-components img)
         [pixel-format texture-format] (get formats color-count default-formats)
         name                          nil ; for easier debugging
-        texture                       (TexcLibrary/TEXC_Create name, width height R8G8B8A8 SRGB CT_DEFAULT (image->byte-buffer img))
+        texture                       (TexcLibrary/TEXC_Create name, width height R8G8B8A8 SRGB CT_NONE (image->byte-buffer img))
         compression-level             Graphics$TextureFormatAlternative$CompressionLevel/FAST
         mipmaps                       false]
 
@@ -127,7 +127,7 @@
         (resize texture width height width-pot height-pot)      "could not resize texture to POT"
         (premultiply-alpha texture)                             "could not premultiply alpha"
         (gen-mipmaps texture)                                   "could not generate mip-maps"
-        (transcode texture pixel-format SRGB compression-level CT_DEFAULT mipmaps) "could not transcode")
+        (transcode texture pixel-format SRGB compression-level CT_NONE mipmaps) "could not transcode")
       (let [buffer-size  (* width-pot height-pot color-count 2)
             buffer       (little-endian (new-byte-buffer buffer-size))
             data-size    (TexcLibrary/TEXC_GetData texture buffer buffer-size)

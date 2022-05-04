@@ -104,7 +104,7 @@ uint16_t default_data_rgba_4444[4] =
 
 static dmTexc::HTexture CreateDefaultRGBA16(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(0, 2, 2, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CT_DEFAULT, default_data_rgba_4444);
+    return dmTexc::Create(0, 2, 2, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CT_NONE, default_data_rgba_4444);
 }
 
 
@@ -119,12 +119,12 @@ struct Format
 };
 Format formats[] =
 {
-        {CreateDefaultL8, 1, default_data_l, dmTexc::CT_DEFAULT, dmTexc::PF_L8},
-        {CreateDefaultL8A8, 2, default_data_l8a8, dmTexc::CT_DEFAULT, dmTexc::PF_L8A8},
-        {CreateDefaultRGB24, 3, default_data_rgb_888, dmTexc::CT_DEFAULT, dmTexc::PF_R8G8B8},
-        {CreateDefaultRGBA32, 4, default_data_rgba_8888, dmTexc::CT_DEFAULT, dmTexc::PF_R8G8B8A8},
-        {CreateDefaultRGB16, 2, default_data_rgb_565, dmTexc::CT_DEFAULT, dmTexc::PF_R5G6B5},
-        {CreateDefaultRGBA16, 2, default_data_rgba_4444, dmTexc::CT_DEFAULT, dmTexc::PF_R4G4B4A4},
+        {CreateDefaultL8, 1, default_data_l, dmTexc::CT_NONE, dmTexc::PF_L8},
+        {CreateDefaultL8A8, 2, default_data_l8a8, dmTexc::CT_NONE, dmTexc::PF_L8A8},
+        {CreateDefaultRGB24, 3, default_data_rgb_888, dmTexc::CT_NONE, dmTexc::PF_R8G8B8},
+        {CreateDefaultRGBA32, 4, default_data_rgba_8888, dmTexc::CT_NONE, dmTexc::PF_R8G8B8A8},
+        {CreateDefaultRGB16, 2, default_data_rgb_565, dmTexc::CT_NONE, dmTexc::PF_R5G6B5},
+        {CreateDefaultRGBA16, 2, default_data_rgba_4444, dmTexc::CT_NONE, dmTexc::PF_R4G4B4A4},
 };
 static const size_t format_count = sizeof(formats)/sizeof(Format);
 
@@ -253,7 +253,7 @@ TEST_F(TexcTest, FlipAxis)
     const uint8_t white[4] = {255, 255, 255, 255};
 
     uint8_t out[4*4];
-    dmTexc::HTexture texture = CreateDefaultRGBA32(dmTexc::CT_DEFAULT);
+    dmTexc::HTexture texture = CreateDefaultRGBA32(dmTexc::CT_NONE);
 
     // Original values
     dmTexc::GetData(texture, out, 16);
@@ -442,7 +442,7 @@ struct CompileInfo
 };
 CompileInfo compile_info[] =
 {
-    {"src/test/data/a.png", dmTexc::CT_DEFAULT, dmTexc::PF_R8G8B8A8, dmTexc::PF_R5G6B5, dmTexc::CS_SRGB},
+    {"src/test/data/a.png", dmTexc::CT_NONE, dmTexc::PF_R8G8B8A8, dmTexc::PF_R5G6B5, dmTexc::CS_SRGB},
 };
 
 class TexcCompileTest : public jc_test_params_class<CompileInfo>
