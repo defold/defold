@@ -1144,8 +1144,6 @@ unsigned char DM_ALIGNED(16) %s[] =
     #task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
     task.generator.bld.node_sigs[task.inputs[0]] = m.digest()
 
-    print(task.outputs)
-
     return 0
 
 Task.task_factory('dex', '${DX} --dex --output ${TGT} ${SRC}',

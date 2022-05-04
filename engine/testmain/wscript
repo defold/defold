@@ -12,11 +12,11 @@ def init(ctx):
     pass
 
 def options(opt):
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
     opt.sub_options('src')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
     conf.recurse('src')
 
 def build(bld):

@@ -8,7 +8,7 @@ blddir = 'build'
 
 import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
-from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+from waflib.BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 # import Logs
 # import Options
 
@@ -17,13 +17,13 @@ def init(ctx):
 
 def options(opt):
     opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
-    opt.tool_options('waf_ddf')
+    opt.load('waf_dynamo')
+    opt.load('waf_ddf')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
-    conf.check_tool('waf_resource')
+    conf.load('waf_dynamo')
+    conf.load('java')
+    conf.load('waf_resource')
 
     build_util = None
     try:

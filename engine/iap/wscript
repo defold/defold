@@ -9,13 +9,13 @@ blddir = 'build'
 import waf_dynamo
 
 def options(opt):
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
 
 def init(ctx):
     pass
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
     conf.recurse('src')
 
 def build(bld):

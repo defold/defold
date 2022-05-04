@@ -14,11 +14,11 @@ def init(ctx):
 
 def options(opt):
     opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
+    conf.load('waf_dynamo')
+    conf.load('java')
     waf_ddf.configure(conf)
 
     conf.recurse('src')

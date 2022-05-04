@@ -243,21 +243,27 @@ def build(bld):
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)
 
+    print("PATHING", bld.path)
+
     bld(features='javac seq',
-                     classpath=classpath,
-                     source_root='java')
+        classpath=classpath,
+        srcdir='java',
+        outdir='java')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
     bld(features='jar seq',
-        basedir='../../src/java',
+        basedir='java',
         destfile='dlib.jar')
+
+    # PATHING c:\dev\defold\engine\dlib\src
 
     bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
     bld(features='javac seq',
-                 classpath=classpath  + os.pathsep + 'default/src/java',
-                 source_root='java_test')
+        classpath=classpath  + os.pathsep + 'src/java',
+        srcdir='java_test',
+        outdir='java_test')
 
     if not Options.options.skip_build_tests:
         bld.recurse('test')

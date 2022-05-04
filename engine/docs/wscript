@@ -50,7 +50,7 @@ def build(bld):
 
 def options(opt):
     opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
 
 def shutdown():

@@ -26,4 +26,4 @@ def build(bld):
         bld.install_files('${PREFIX}/share/doc', '%s_doc.script_api' % namespace)
 
 def options(opt):
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')

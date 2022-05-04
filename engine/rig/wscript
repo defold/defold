@@ -13,11 +13,11 @@ def init(ctx):
     pass
 
 def options(opt):
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('waf_ddf')
+    conf.load('waf_dynamo')
+    conf.load('waf_ddf')
 
     waf_ddf.configure(conf)
 
