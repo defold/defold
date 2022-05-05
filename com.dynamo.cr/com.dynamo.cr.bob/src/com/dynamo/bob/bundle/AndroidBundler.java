@@ -203,6 +203,25 @@ public class AndroidBundler implements IBundler {
         }
         return alias;
     }
+    
+    /**
+     * Get key password. This loads the key password file and returns
+     * the password stored in the file.
+     */
+    private static String getKeyPassword(Project project) throws IOException, CompileExceptionError {
+        return readFile(getKeyPasswordFile(project)).trim();
+    }
+    
+    /**
+     * Get key password file. Uses the keystore password file if none specified
+     */
+    private static String getKeyPasswordFile(Project project) throws IOException, CompileExceptionError {
+        String keyPassword = project.option("key-pass", "");
+        if (keyPassword.length() == 0) {
+            return getKeystorePasswordFile(project);
+        }
+        return keyPassword;
+    }
 
     private static String getProjectTitle(Project project) {
         BobProjectProperties projectProperties = project.getProjectProperties();
@@ -617,11 +636,13 @@ public class AndroidBundler implements IBundler {
         String keystore = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
+        String keyPassword = getKeyPassword(project);
 
         Result r = exec(getJavaBinFile("jarsigner"),
             "-verbose",
             "-keystore", keystore,
             "-storepass", keystorePassword,
+            "-keypass", keyPassword,
             signFile.getAbsolutePath(),
             keystoreAlias);
         if (r.ret != 0) {
@@ -728,6 +749,7 @@ public class AndroidBundler implements IBundler {
         String keystore = getKeystore(project);
         String keystorePasswordFile = getKeystorePasswordFile(project);
         String keystoreAlias = getKeystoreAlias(project);
+        String keyPasswordFile = getKeyPasswordFile(project);
 
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
@@ -746,6 +768,7 @@ public class AndroidBundler implements IBundler {
             args.add("--ks"); args.add(keystore);
             args.add("--ks-pass"); args.add("file:" + keystorePasswordFile);
             args.add("--ks-key-alias"); args.add(keystoreAlias);
+            args.add("--key-pass"); args.add("file:" + keyPasswordFile);
 
             Result res = exec(args);
             if (res.ret != 0) {
