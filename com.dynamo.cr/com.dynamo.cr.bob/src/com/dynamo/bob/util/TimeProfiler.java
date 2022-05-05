@@ -14,7 +14,10 @@
 
 package com.dynamo.bob.util;
 
+import com.dynamo.bob.Bob;
+
 import java.io.File;
+import java.io.InputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -33,6 +36,9 @@ import org.codehaus.jackson.JsonGenerator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+
+import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
 
 /**
  * Class helps to profile time of the Bob tool and generate report.
@@ -56,9 +62,21 @@ public class TimeProfiler {
         public ArrayList<ProfilingScope> children;
     }
 
+    /**
+     * Helper class that contains marks data.
+     */
+    private static class ProfilingMark {
+        public String shortName;
+        public String fullName;
+        public long timestamp;
+    }
+
+    private static ArrayList<ProfilingMark> marks;
+    private static long buildTime;
+
     public enum ReportFormat {
-        JSON(".html"),
-        HTML(".json");
+        JSON(".json"),
+        HTML(".html");
 
         private String format;
 
@@ -67,7 +85,7 @@ public class TimeProfiler {
         }
 
         public String getFormat() {
-            return format;
+            return this.format;
         }
     }
 
@@ -82,10 +100,10 @@ public class TimeProfiler {
         generator.writeStartObject();
         generator.writeFieldName("name");
         generator.writeString(scope.name);
-        generator.writeFieldName("startTime");
-        generator.writeNumber(scope.startTime);
-        generator.writeFieldName("endTime");
-        generator.writeNumber(scope.endTime);
+        generator.writeFieldName("start");
+        generator.writeNumber(scope.startTime - buildTime);
+        generator.writeFieldName("duration");
+        generator.writeNumber(scope.endTime - scope.startTime);
         if (scope.additionalStringData != null) {
             for (Map.Entry<String, String> entry : scope.additionalStringData.entrySet())  {
                 generator.writeFieldName(entry.getKey());
@@ -125,7 +143,25 @@ public class TimeProfiler {
             writer = new BufferedWriter(strWriter);
             generator = (new JsonFactory()).createJsonGenerator(writer);
             generator.useDefaultPrettyPrinter();
+            generator.writeStartObject();
+            generator.writeFieldName("data");
+            generator.writeStartArray();
             generateJsonRecursively(generator, rootScope);
+            generator.writeEndArray();
+            generator.writeFieldName("marks");
+            generator.writeStartArray();
+            for(ProfilingMark mark : marks) {
+                generator.writeStartObject();
+                generator.writeFieldName("shortName");
+                generator.writeNumber(mark.shortName);
+                generator.writeFieldName("fullName");
+                generator.writeNumber(mark.fullName);
+                generator.writeFieldName("timestamp");
+                generator.writeNumber(mark.timestamp);
+                generator.writeEndObject();
+            }
+            generator.writeEndArray();
+            generator.writeEndObject();
         } finally {
             if (null != generator) {
                 generator.close();
@@ -136,9 +172,44 @@ public class TimeProfiler {
         return strWriter.toString();
     }
 
-    public static void init(String reportFolderPath, ReportFormat format) {
+    private static void saveJSON(String jsonReport, File reportFile) throws IOException {
+        FileWriter fileJSONWriter = null;
+        fileJSONWriter = new FileWriter(reportFile);
+        fileJSONWriter.write(jsonReport);
+        fileJSONWriter.close();
+    }
+
+    private static void saveHTML(String jsonReport, File reportFile) throws IOException {
+        FileWriter fileHTMMLWriter = null;
+        fileHTMMLWriter = new FileWriter(reportFile);
+
+        InputStream templateStream = Bob.class.getResourceAsStream("/lib/time_report_template.html");
+
+        StringWriter writer = new StringWriter();
+        try {
+            IOUtils.copy(templateStream, writer);
+        } catch (IOException e) {
+            throw new IOException("Error while reading time report template: " + e.toString());
+        }
+        String templateString = writer.toString();
+
+        HashMap<String, Object> ctx = new HashMap<String, Object>();
+        ctx.put("json-data", jsonReport);
+
+        Template template = Mustache.compiler().compile(templateString);
+        StringWriter sw = new StringWriter();
+        template.execute(ctx, sw);
+        sw.flush();
+
+        fileHTMMLWriter.write(sw.toString());
+        fileHTMMLWriter.close();
+    }
+
+    public static void init(String reportFolderPath, ReportFormat format) throws IOException {
+        marks = new ArrayList();
         RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
         long startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
+        buildTime = startTime;
         rootScope = new ProfilingScope();
         rootScope.name = "Total time";
         rootScope.startTime = startTime;
@@ -166,11 +237,12 @@ public class TimeProfiler {
 
                 try {
                     String jsonReport = generateJSON();
-                    FileWriter fileJSONWriter = null;
-                    File reportJSONFile = new File(reportFolderPath, FILENAME + format.getFormat());
-                    fileJSONWriter = new FileWriter(reportJSONFile);
-                    fileJSONWriter.write(jsonReport);
-                    fileJSONWriter.close();
+                    File reportFile = new File(reportFolderPath, FILENAME + format.getFormat());
+                    if (format == ReportFormat.JSON) {
+                        saveJSON(jsonReport, reportFile);
+                    } else {
+                        saveHTML(jsonReport, reportFile);
+                    }
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -202,6 +274,21 @@ public class TimeProfiler {
         }
         currentScope.endTime = time();
         currentScope = currentScope.parent;
+    }
+
+    public static void addMark(String shortName, String fullName) {
+        if (rootScope == null) {
+            return;
+        }
+        ProfilingMark mark = new ProfilingMark();
+        mark.timestamp = time();
+        mark.shortName = shortName;
+        mark.fullName = fullName;
+        marks.add(mark);
+    }
+
+    public static void addMark(String shortName) {
+        addMark(shortName, shortName);
     }
 
     public static void addData(String fieldName, String data) {
