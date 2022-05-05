@@ -16,11 +16,11 @@
 
 
 readonly PRODUCT=protobuf
-readonly VERSION=2.3.0
-readonly BASE_URL=https://github.com/mathiaswking/protobuf-${VERSION}/archive
+readonly VERSION=3.20.1
+readonly BASE_URL=https://github.com/protocolbuffers/protobuf/archive
 readonly FILE_URL=protobuf-${VERSION}.tar.gz
 
-readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc CPPFLAGS=-DGOOGLE_PROTOBUF_NO_RTTI --disable-shared "
+readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc CPPFLAGS=-DGOOGLE_PROTOBUF_NO_RTTI --disable-shared"
 
 #test the compiler
 if [ "$(uname -o)" == "Msys" ]; then
@@ -44,6 +44,20 @@ function download() {
 
 download
 
+function cmi_configure() {
+	./autogen.sh
+    echo CONFIGURE_ARGS=$CONFIGURE_ARGS $2
+    ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
+        --disable-shared \
+        --prefix=${PREFIX} \
+        --bindir=${PREFIX}/bin/$1 \
+        --libdir=${PREFIX}/lib/$1 \
+        --with-http=off \
+        --with-html=off \
+        --with-ftp=off \
+        --with-x=no
+}
+
 #
 # Build protoc locally first,
 # in order to make the cross platform configuration work
@@ -54,13 +68,16 @@ pushd cross_tmp >/dev/null
 tar xfz ../../download/$FILE_URL --strip-components=1
 
 # We need to apply patches for this cross_tmp build as well
-[ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
+# [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 
 echo **********************
 echo CREATING HOST TOOLS
 echo **********************
 
+echo "$PWD"
+
 set -e
+./autogen.sh
 ./configure
 make -j8
 set +e
