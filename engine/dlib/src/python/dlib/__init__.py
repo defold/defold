@@ -69,10 +69,10 @@ dlib.DecryptXTeaCTR.restype = ctypes.c_int
 
 
 def dmHashBuffer32(buf):
-    return dlib.dmHashBuffer32(buf, len(buf))
+    return dlib.dmHashBuffer32(buf.encode('ascii'), len(buf))
 
 def dmHashBuffer64(buf):
-    return dlib.dmHashBuffer64(buf, len(buf))
+    return dlib.dmHashBuffer64(buf.encode('ascii'), len(buf))
 
 def dmLZ4MaxCompressedSize(uncompressed_size):
     mcs = ctypes.c_int()

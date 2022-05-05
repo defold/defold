@@ -33,7 +33,7 @@ def configure(conf):
 def build(bld):
     bld.recurse('src')
 
-def shutdown():
+def shutdown(self):
     if sys.platform == 'linux2' and not os.path.exists('/dev/snd/controlC0'):
         print "SKIPPING TESTS SINCE WE DETECTED NO SOUND CARD"
         return

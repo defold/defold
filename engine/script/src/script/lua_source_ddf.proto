@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmLuaDDF;
 
 option java_package = "com.dynamo.script.proto";

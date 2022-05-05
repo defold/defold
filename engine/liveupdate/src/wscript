@@ -26,5 +26,5 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/liveupdate', 'liveupdate.h')
 
-def shutdown():
+def shutdown(self):
     pass

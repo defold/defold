@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmEngineDDF;
 
 import "ddf/ddf_extensions.proto";

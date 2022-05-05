@@ -30,5 +30,5 @@ def configure(conf):
 def build(bld):
     bld.recurse('src')
 
-def shutdown():
+def shutdown(self):
     waf_dynamo.run_tests(valgrind = True)

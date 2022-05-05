@@ -11,7 +11,7 @@ import sys
 sys.path = ["src"] + sys.path
 import urllib2, time, atexit
 from Logs import error
-import Options
+import waflib.Options
 import waf_dynamo, waf_ddf, waf_resource
 
 os.environ['PATH'] = os.path.abspath('src') + os.pathsep + os.environ['PATH']
@@ -44,7 +44,7 @@ def build(bld):
 def kill_proc(proc):
     proc.kill()
 
-def shutdown():
+def shutdown(self):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os
-import Options
+import waflib.Options
 from waf_dynamo import dmsdk_add_files
 
 def configure(conf):

@@ -8,13 +8,14 @@ def configure(conf):
 def build(bld):
     gameobject = bld.__call__(features = 'cxx cstaticlib ddf',
                                   includes = '. .. ../../src ../../proto ../dmsdk',
+                                  source = bld.path.ant_glob(['**/*.cpp', '../../proto/gameobject']),
                                   proto_gen_py = True,
                                   protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],
                                   protopy_includes = bld.env['PREFIX'] + '/lib/python',
                                   # NOTE: default/... is hardcoded. How to solve?
                                   target = 'gameobject')
 
-    gameobject.find_sources_in_dirs(['.', '../../proto/gameobject'])
+    # gameobject.find_sources_in_dirs(['.', '../../proto/gameobject'])
     bld.add_group()
 
     bld.recurse('test')

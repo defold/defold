@@ -2,7 +2,7 @@
 import os
 from waf_dynamo import platform_supports_feature
 from BuildUtility import create_build_utility
-import Options
+import waflib.Options
 
 def _get_native_file(target_os, name):
     native_source = '%s/%s' % (target_os, name)

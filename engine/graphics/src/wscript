@@ -3,7 +3,7 @@
 import os, sys
 from waf_dynamo import dmsdk_add_files, platform_supports_feature
 from BuildUtility import create_build_utility
-import Options
+import waflib.Options
 
 def options(opt):
     pass

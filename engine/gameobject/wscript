@@ -8,13 +8,13 @@ blddir = 'build'
 
 import sys, os
 import waf_dynamo, waf_ddf
-import Options
+import waflib.Options
 
 def init(ctx):
     pass
 
 def options(opt):
-    opt.sub_options('src')
+    opt.recurse('src')
     opt.load('waf_dynamo')
 
 def configure(conf):
@@ -41,5 +41,5 @@ def build(bld):
     sys.path.insert(0, os.path.abspath('build/default/proto/gameobject'))
     bld.recurse('src')
 
-def shutdown():
+def shutdown(self):
     waf_dynamo.run_tests(valgrind = True)

@@ -22,7 +22,7 @@ def options(opt):
 
 def configure(conf):
     # Replace version number in python file.
-    ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'rb').read()
+    ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'r').read()
     ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, str(ddfc_py_str))
     ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, str(ddfc_py_str))
     if ddfc_py_str != ddfc_py_str_orig:
@@ -51,7 +51,8 @@ def build(bld):
     # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
     # Only required 'in' ddf-lib.
     python_path = os.environ.get('PYTHONPATH', '')
-    os.environ['PYTHONPATH'] = 'default/src' + os.pathsep + 'default/src/ddf' + os.pathsep + python_path
+    os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'src/ddf' + os.pathsep + python_path
+
     bld.recurse('src')
 
 def shutdown(ctx):

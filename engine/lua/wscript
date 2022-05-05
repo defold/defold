@@ -14,7 +14,7 @@ def init(ctx):
 
 def options(opt):
     opt.load('waf_dynamo')
-    opt.sub_options('src')
+    opt.recurse('src')
 
 def configure(conf):
     conf.load('waf_dynamo')

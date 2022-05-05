@@ -13,7 +13,7 @@ def init(ctx):
 
 def options(opt):
     opt.load('waf_dynamo')
-    opt.sub_options('src')
+    opt.recurse('src')
 
 def configure(conf):
     conf.load('waf_dynamo')
@@ -22,5 +22,5 @@ def configure(conf):
 def build(bld):
     bld.recurse('src')
 
-def shutdown():
+def shutdown(self):
     waf_dynamo.run_tests(valgrind = True)

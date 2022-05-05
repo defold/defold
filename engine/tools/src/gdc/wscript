@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os
-import Options
+import waflib.Options
 
 def configure(conf):
     pass

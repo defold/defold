@@ -8,7 +8,7 @@ blddir = 'build'
 
 import sys, os
 import waf_dynamo, waf_ddf
-import Options
+import waflib.Options
 
 def init(ctx):
     pass
@@ -38,7 +38,7 @@ def build(bld):
     os.environ['PYTHONPATH'] = os.path.abspath('build/default/src/script') + os.pathsep + python_path
     bld.recurse('src')
 
-def shutdown():
+def shutdown(self):
     if not Options.commands['build']:
         return
 

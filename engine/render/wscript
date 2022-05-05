@@ -7,7 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import os, sys
-import Options
+import waflib.Options
 
 import waf_ddf, waf_dynamo
 
@@ -15,7 +15,7 @@ def init(ctx):
     pass
 
 def options(opt):
-    opt.sub_options('src')
+    opt.recurse('src')
     opt.load('waf_dynamo')
 
 def configure(conf):
@@ -70,7 +70,7 @@ def build(bld):
     bld.recurse('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
-def shutdown():
+def shutdown(self):
 
     waf_dynamo.run_tests(valgrind = True)
 

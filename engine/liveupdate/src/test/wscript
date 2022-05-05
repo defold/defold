@@ -37,5 +37,5 @@ def build(bld):
                          target = 'test_liveupdate_async' + suffix,
                          source = '../liveupdate_async.cpp test_liveupdate_async.cpp')
 
-def shutdown():
+def shutdown(self):
     pass

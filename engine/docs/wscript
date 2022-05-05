@@ -8,7 +8,7 @@ blddir = 'build'
 
 import Utils
 import sys, os, re, fnmatch
-import Options
+import waflib.Options
 import waf_dynamo
 
 def init(ctx):
@@ -49,11 +49,11 @@ def build(bld):
     bld.recurse('src')
 
 def options(opt):
-    opt.sub_options('src')
+    opt.recurse('src')
     opt.load('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
 
-def shutdown():
+def shutdown(self):
     if not Options.commands['build']:
         return
     if not getattr(Options.options, 'skip_tests', False):

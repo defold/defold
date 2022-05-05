@@ -1,7 +1,7 @@
 import sys, os
 import Task, TaskGen
 from TaskGen import extension
-from Options import options
+from waflib.Options import options
 
 def build(bld):
     if options.skip_build_tests:

@@ -14,7 +14,7 @@ def init(ctx):
     pass
 
 def options(opt):
-    opt.sub_options('src')
+    opt.recurse('src')
     opt.load('waf_dynamo')
 
 def configure(conf):
@@ -68,5 +68,5 @@ def build(bld):
 
     bld.install_files('${PREFIX}/bin', 'bin/*', chmod=493)
 
-def shutdown():
+def shutdown(self):
     waf_dynamo.run_tests(valgrind = True)
