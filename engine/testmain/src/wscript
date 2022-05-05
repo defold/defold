@@ -17,10 +17,12 @@ def build(bld):
     for platform in [build_util.get_target_os(), 'common']:
         d = os.path.join(platform)
         if os.path.exists(os.path.join('src',d)):
-            source_dirs.extend([d])
+            source_dirs.extend(['%s/*.cpp' % d])
 
-    b = bld.__call__(features   = 'cc cxx cstaticlib',
-                      includes  = '. ..',
-                      target    = 'testmain')
-    b.find_sources_in_dirs(source_dirs)
+    b = bld.stlib(features     = 'c cxx cstaticlib',
+                  includes     = '. ..',
+                  source       = bld.path.ant_glob(source_dirs),
+                  target       = 'testmain',
+                  install_path = build_util.get_library_path())
+    #b.find_sources_in_dirs(source_dirs)
 

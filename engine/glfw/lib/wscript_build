@@ -2,14 +2,15 @@
 import sys, re, os
 import waflib.Options
 
-dmglfw = bld.new_task_gen(features = 'cc cstaticlib',
-                          target   = 'dmglfw')
+dmglfw = bld(features = 'c cstaticlib', 
+             target   = 'dmglfw')
 
 platform = bld.env.PLATFORM
 darwin_vulkan_mobile  = False
 
 if platform == 'darwin' or platform == 'x86_64-darwin':
-    dmglfw.find_sources_in_dirs('. cocoa')
+    #dmglfw.find_sources_in_dirs('. cocoa')
+    dmglfw.source += bld.path.ant_glob(['*', 'cocoa/*.m'])
     dmglfw.includes = '. cocoa'
 elif platform in ('arm64-darwin', 'x86_64-ios'):
     dmglfw.find_sources_in_dirs('. ios ios/app')
@@ -22,7 +23,8 @@ elif platform == 'linux' or platform == 'x86_64-linux':
     dmglfw.find_sources_in_dirs('. x11')
     dmglfw.includes = '. x11'
 elif 'win32' in platform:
-    dmglfw.find_sources_in_dirs('. win32')
+    #dmglfw.find_sources_in_dirs('. win32')
+    dmglfw.source += bld.path.ant_glob(['*.cpp', 'win32/*.cpp'])
     dmglfw.includes = '. win32'
 elif 'web' in platform:
     dmglfw.find_sources_in_dirs('js-web')

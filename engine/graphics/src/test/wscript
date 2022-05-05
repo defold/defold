@@ -8,11 +8,10 @@ def build(bld):
                          includes = ['../../src', '../../proto'],
                          exported_symbols = ['GraphicsAdapterNull'],
                          source = name + '.cpp',
-                         uselib = 'TESTMAIN DDF DLIB',
-                         uselib_local = 'graphics_null graphics_transcoder_null',
+                         use = 'TESTMAIN DDF DLIB graphics_null graphics_transcoder_null',
                          target = name)
 
-    print "MAWE", platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}), bld.env.PLATFORM 
+    print ("MAWE", platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}), bld.env.PLATFORM) 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
 
         extra_libs = []

@@ -20,6 +20,7 @@ from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
+from waflib.Task import RUN_ME
 #from waflib.Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import sdk
@@ -794,13 +795,13 @@ def app_bundle(task):
     return 0
 
 def create_export_symbols(task):
-    with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+    with open(task.outputs[0].abspath(), 'w') as out_f:
         for name in Utils.to_list(task.exported_symbols):
-            print >>out_f, 'extern "C" void %s();' % name
-        print >>out_f, 'extern "C" void dmExportedSymbols() {'
+            print ('extern "C" void %s();' % name, file=out_f)
+        print ('extern "C" void dmExportedSymbols() {', file=out_f)
         for name in Utils.to_list(task.exported_symbols):
-            print >>out_f, "    %s();" % name
-        print >>out_f, "}"
+            print ("    %s();" % name, file=out_f)
+        print ("}", file=out_f)
 
     return 0
 
@@ -824,7 +825,8 @@ def export_symbols(self):
         return
 
     exported_symbols = self.path.find_or_declare('__exported_symbols_%d.cpp' % self.idx)
-    self.allnodes.append(exported_symbols)
+    # self.allnodes.append(exported_symbols)
+    # self.source += ' %s' % exported_symbols.abspath()
 
     task = self.create_task('create_export_symbols')
     task.exported_symbols = self.exported_symbols
@@ -1588,15 +1590,15 @@ def detect(conf):
         use_vanilla = True
 
     if use_vanilla:
-        conf.env['STATICLIB_LUA'] = 'lua'
+        conf.env['STLIB_LUA'] = 'lua'
     else:
-        conf.env['STATICLIB_LUA'] = 'luajit-5.1'
+        conf.env['STLIB_LUA'] = 'luajit-5.1'
         if '64' in build_util.get_target_platform():
             conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_64']
         else:
             conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_32']
 
-    conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
+    conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
@@ -1619,36 +1621,36 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
-    conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF'] = 'ddf'
 
-    conf.env['STATICLIB_CRASH'] = 'crashext'
-    conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'
+    conf.env['STLIB_CRASH'] = 'crashext'
+    conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
 
     if ('record' not in Options.options.disable_features):
-        conf.env['STATICLIB_RECORD'] = 'record_null'
+        conf.env['STLIB_RECORD'] = 'record_null'
     else:
         if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin'):
-            conf.env['STATICLIB_RECORD'] = 'record'
+            conf.env['STLIB_RECORD'] = 'record'
             conf.env['LINKFLAGS_RECORD'] = ['vpx.lib']
         else:
             Logs.info("record disabled")
-            conf.env['STATICLIB_RECORD'] = 'record_null'
-    conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
+            conf.env['STLIB_RECORD'] = 'record_null'
+    conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STATICLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STATICLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STATICLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
+    conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-darwin'):
         vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
-        conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
+        conf.env['STLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('arm64-darwin','x86_64-ios'):
-        conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
+        conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
     elif platform in ('x86_64-linux',):
@@ -1661,13 +1663,13 @@ def detect(conf):
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
     elif platform in ('armv7-android', 'arm64-android'):
-        conf.env['STATICLIB_TESTAPP'] += ['android']
+        conf.env['STLIB_TESTAPP'] += ['android']
     elif platform in ('x86_64-linux',):
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_TESTAPP'] = ['user32.lib', 'shell32.lib']
 
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
