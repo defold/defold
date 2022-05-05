@@ -40,5 +40,5 @@ def build(bld):
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')
 
-    if not Options.options.skip_build_tests:
+    if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')

@@ -112,17 +112,15 @@ def src_dir(self):
 def src_dir_abs(self):
     return self.parent.abspath()
 def src_dir_abs_test(self):
-    print("ULTRA TESTING", self.parent.abspath())
     return self.parent.abspath()
 
 waflib.Node.Node.src_dir=src_dir
 waflib.Node.Node.src_dir_abs=src_dir_abs
-waflib.Node.Node.src_dir_abs_test=src_dir_abs_test
 
 # The "protoc-gen-ddf" adds a new plugin with name "ddf", and protoc automatically checks for the "--ddf_out"
 bproto = waflib.Task.task_factory('bproto', 'protoc \
 --plugin=protoc-gen-ddf=${DDFC_CXX} \
---ddf_out=${TGT[0].src_dir_abs_test()} \
+--ddf_out=${TGT[0].src_dir_abs()} \
 -I ../${SRC[0].src_dir()} -I ${SRC[0].parent.src_dir_abs()} ${PROTOC_FLAGS} ${SRC}',
                       color='PINK',
                       before='c cxx',
@@ -137,7 +135,6 @@ def bproto_file(self, node):
     protoc.env['PROTOC_FLAGS'] = get_protoc_flags(self)
 
     self.source += [out_cc]
-    # self.allnodes.append(out)
     # TODO: Appending java_node doesn't work. Missing "extension-featre" in built-in tool?
     # An explicit node is create below
 
@@ -194,7 +191,7 @@ def get_protoc_cc_flags(self):
     protoc_includes = [self.env['DYNAMO_HOME'] + '/share/proto', self.env['DYNAMO_HOME'] + '/ext/include']
 
     if hasattr(self, "protoc_includes"):
-        protoc_includes.extend(waflib.Utils.to_list(self.protoc_includes))
+        protoc_includes = waflib.Utils.to_list(self.protoc_includes) + protoc_includes
 
     protoc_flags = ""
     for pi in protoc_includes:

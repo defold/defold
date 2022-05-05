@@ -15,8 +15,6 @@ def build(bld):
                                   protopy_includes = bld.env['PREFIX'] + '/lib/python',
                                   # NOTE: default/... is hardcoded. How to solve?
                                   target = 'gameobject')
-
-    # gameobject.find_sources_in_dirs(['.', '../../proto/gameobject'])
     bld.add_group()
 
     bld.recurse('test')
