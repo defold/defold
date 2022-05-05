@@ -348,7 +348,7 @@ class Configuration(object):
             os.makedirs(path)
 
     def _log(self, msg):
-        print(msg)
+        print(str(msg))
         sys.stdout.flush()
         sys.stderr.flush()
 

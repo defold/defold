@@ -1,6 +1,6 @@
 import os, re, sys
 import waflib.Task, waflib.TaskGen
-from waflib.TaskGen import extension, extension
+from waflib.TaskGen import extension
 import dlib
 import google.protobuf.text_format
 from threading import Lock
@@ -18,13 +18,13 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
     extension([ext], create)
 
-create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObjectDDF.AResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
-create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
-create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
-create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='cc cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
-create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='cc cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
-create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.ReloadTarget', before='cc cxx', proto_file = '../src/gameobject/test/reload/test_gameobject_reload_ddf.proto')
-create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='cc cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
+create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObjectDDF.AResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='c cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
+create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='c cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
+create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.ReloadTarget', before='c cxx', proto_file = '../src/gameobject/test/reload/test_gameobject_reload_ddf.proto')
+create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='c cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
 
 def transform_properties(properties, out_properties):
     import gameobject_ddf_pb2
@@ -112,7 +112,7 @@ task = waflib.Task.task_factory('collection',
                                 func    = compile_collection,
                                 color   = 'RED',
                                 after='proto_gen_py',
-                                before='cc cxx')
+                                before='c cxx')
 
 @extension('.collection')
 def collectionfile(self, node):
@@ -151,7 +151,7 @@ task = waflib.Task.task_factory('gameobject',
                                 func    = compile_go,
                                 color   = 'RED',
                                 after='proto_gen_py',
-                                before='cc cxx')
+                                before='c cxx')
 
 @extension('.go_pb')
 def gofile(self, node):

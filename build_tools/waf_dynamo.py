@@ -101,15 +101,14 @@ os.environ['CCACHE_CPP2'] = 'yes'
 
 def new_copy_task(name, input_ext, output_ext):
     def compile(task):
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
-            with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.inputs[0].srcpath(), 'rb') as in_f:
+            with open(task.outputs[0].abspath(), 'wb') as out_f:
                 out_f.write(in_f.read())
-
         return 0
 
     task = Task.task_factory(name,
-                                    func  = compile,
-                                    color = 'PINK')
+                             func  = compile,
+                             color = 'PINK')
 
     @extension(input_ext)
     def copy_file(self, node):

@@ -15,6 +15,9 @@
 import sys
 
 def log(msg):
-    print (msg)
+    if type(msg) == bytes:
+        print (msg.decode('ascii'))
+    else:
+        print(msg)
     sys.stdout.flush()
     sys.stderr.flush()

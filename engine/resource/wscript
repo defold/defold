@@ -9,8 +9,8 @@ blddir = 'build'
 import os, subprocess
 import sys
 sys.path = ["src"] + sys.path
-import urllib2, time, atexit
-from Logs import error
+import urllib, time, atexit
+from waflib.Logs import error
 import waflib.Options
 import waf_dynamo, waf_ddf, waf_resource
 
@@ -45,7 +45,7 @@ def kill_proc(proc):
     proc.kill()
 
 def shutdown(self):
-    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
+    if not 'build' in waflib.Options.commands or getattr(waflib.Options.options, 'skip_tests', False):
         return
 
     proc = subprocess.Popen(["python", "-m", "SimpleHTTPServer", "6123"],

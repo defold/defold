@@ -6,9 +6,10 @@ def configure(conf):
     pass
 
 def build(bld):
+
     gameobject = bld.__call__(features = 'cxx cstaticlib ddf',
                                   includes = '. .. ../../src ../../proto ../dmsdk',
-                                  source = bld.path.ant_glob(['**/*.cpp', '../../proto/gameobject']),
+                                  source = bld.path.ant_glob('**/*.cpp') + bld.path.parent.parent.ant_glob('proto/gameobject/*'),
                                   proto_gen_py = True,
                                   protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],
                                   protopy_includes = bld.env['PREFIX'] + '/lib/python',
