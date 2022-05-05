@@ -438,7 +438,7 @@
 
 (defn- parse-requires [node-path node]
   (lazy-seq
-    (if-some [[module-name] (matching-args one-string-arg (matching-functioncall "require" node))]
+    (if-some [[module-name] (matching-args one-string-arg (or (matching-functioncall "_G" "require" node) (matching-functioncall "require" node)))]
       (list [(parse-exp-binding node-path) module-name])
       (when (seq? node)
         (mapcat (partial parse-requires (cons node node-path))

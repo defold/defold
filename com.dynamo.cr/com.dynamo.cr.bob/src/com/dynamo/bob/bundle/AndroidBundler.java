@@ -534,7 +534,12 @@ public class AndroidBundler implements IBundler {
             for(File asset : getExtenderAssets(project)) {
                 File dest = new File(assetsDir, asset.getName());
                 log("Copying asset " + asset + " to " + dest);
-                FileUtils.copyFile(asset, dest);
+                if (asset.isDirectory()) {
+                    FileUtils.copyDirectory(asset, dest);
+                }
+                else {
+                    FileUtils.copyFile(asset, dest);
+                }
                 BundleHelper.throwIfCanceled(canceled);
             }
 
@@ -688,6 +693,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         FileUtils.deleteDirectory(new File(outDir, "aab"));
+        FileUtils.deleteDirectory(new File(outDir, "res"));
     }
 
     private static File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
@@ -823,15 +829,17 @@ public class AndroidBundler implements IBundler {
 
 
         String bundleFormat = project.option("bundle-format", "apk");
-        if (bundleFormat.equals("aab")) {
-            createAAB(project, outDir, helper, canceled);
-        }
-        else if (bundleFormat.equals("apk")) {
-            File aab = createAAB(project, outDir, helper, canceled);
+        File aab = createAAB(project, outDir, helper, canceled);
+
+        if (bundleFormat.contains("apk")) {
             File apk = createAPK(aab, project, outDir, canceled);
+        }
+
+        if (!bundleFormat.contains("aab")) {
             aab.delete();
         }
-        else {
+
+        if (!bundleFormat.contains("aab") && !bundleFormat.contains("apk")) {
             throw new CompileExceptionError("Unknown bundle format: " + bundleFormat);
         }
     }

@@ -849,6 +849,10 @@ namespace dmGui
     {
         return RESULT_OK;
     }
+    
+    void CancelNodeFlipbookAnim(HScene scene, HNode node, bool keep_anim_hash)
+    {
+    }
 
     void CancelNodeFlipbookAnim(HScene scene, HNode node)
     {

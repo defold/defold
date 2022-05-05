@@ -237,6 +237,25 @@ public class Bob {
         return exes.get(0);
     }
 
+    public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
+        init();
+
+        String libSuffix = platform.getLibSuffix();
+        for (String name : names) {
+
+            String depName = platform.getPair() + "/" + name + libSuffix;
+            File f = new File(rootFolder, depName);
+            if (!f.exists()) {
+                URL url = Bob.class.getResource("/libexec/" + depName);
+                if (url == null) {
+                    throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
+                }
+
+                atomicCopy(url, f, true);
+            }
+        }
+    }
+
     // https://stackoverflow.com/a/30755071/468516
     private static final String ENOTEMPTY = "Directory not empty";
     private static void move(final File source, final File target) throws FileAlreadyExistsException, IOException {
@@ -399,7 +418,7 @@ public class Bob {
 
         addOption(options, "p", "platform", true, "Platform (when bundling)", true);
         addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
-        addOption(options, "bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')", false);
+        addOption(options, "bf", "bundle-format", true, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false);
 
         addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
         addOption(options, null, "identity", true, "Sign identity (iOS)", false);

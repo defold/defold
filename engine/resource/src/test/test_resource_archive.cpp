@@ -858,6 +858,37 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     dmResourceArchive::Delete(archive);
 }
 
+
+static dmResourceArchive::Result TestDecryption(void* buffer, uint32_t buffer_len)
+{
+    uint8_t* b = (uint8_t*)buffer;
+    for (int i=0; i<buffer_len; i++)
+    {
+        b[i] = i;
+    }
+    return dmResourceArchive::RESULT_OK;
+}
+
+TEST(dmResourceArchive, ResourceDecryption)
+{
+    uint8_t buffer[] = { 0x00, 0x00, 0x00 };
+    uint32_t buffer_len = 3;
+    // test the default decryption (using Xtea)
+    dmResourceArchive::Result result = dmResourceArchive::DecryptBuffer(buffer, buffer_len);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(0xE7, buffer[0]);
+    ASSERT_EQ(0xF0, buffer[1]);
+    ASSERT_EQ(0x00, buffer[2]);
+
+    // set a custom decryption function and test that it works
+    dmResourceArchive::RegisterResourceDecryption(TestDecryption);
+    result = dmResourceArchive::DecryptBuffer(buffer, buffer_len);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(0x00, buffer[0]);
+    ASSERT_EQ(0x01, buffer[1]);
+    ASSERT_EQ(0x02, buffer[2]);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

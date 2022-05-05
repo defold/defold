@@ -63,6 +63,12 @@ namespace dmGameObject
     void DeleteRegister(HRegister regist);
 
     /**
+     * Delete a the loaded collections
+     * @param regist the register
+     */
+    void DeleteCollections(HRegister regist);
+
+    /**
      * Initialize system
      * @param context Script context
      */

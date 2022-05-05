@@ -1018,6 +1018,11 @@ int _glfwPlatformTerminate( void )
             if (source != NULL) {
                 source->process(g_AndroidApp, source);
             }
+            if (g_AndroidApp->destroyRequested) {
+                // App requested exit. It doesn't wait when thread work finished because app is in background already.
+                // App will never end up here from within the app itself, only using OS functions.
+                return GL_TRUE;
+            }
         }
     }
 

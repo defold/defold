@@ -209,6 +209,7 @@ namespace dmGameObject
         m_DirtyTransforms = 1;
         m_Initialized = 0;
         m_FixedAccumTime = 0.0f;
+        m_FirstUpdate = 1;
 
         m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
         m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
@@ -249,7 +250,7 @@ namespace dmGameObject
         return regist->m_DefaultInputStackCapacity;
     }
 
-    void DeleteRegister(HRegister regist)
+    void DeleteCollections(HRegister regist)
     {
         uint32_t collection_count = regist->m_Collections.Size();
         for (uint32_t i = 0; i < collection_count; ++i)
@@ -260,6 +261,12 @@ namespace dmGameObject
             FinalCollection(collection);
             DeleteCollection(collection);
         }
+        regist->m_Collections.SetSize(0);
+    }
+
+    void DeleteRegister(HRegister regist)
+    {
+        DeleteCollections(regist);
         delete regist;
     }
 
@@ -2458,6 +2465,20 @@ namespace dmGameObject
 
         bool ret = true;
 
+
+        UpdateContext dynamic_update_context;
+        dynamic_update_context = *update_context;
+
+        // pass it as unscaled time
+        if (update_context->m_TimeScale > 0.001f )
+        {
+            dynamic_update_context.m_AccumFrameTime = collection->m_FixedAccumTime / update_context->m_TimeScale;
+        }
+        else
+        {
+            dynamic_update_context.m_AccumFrameTime = collection->m_FixedAccumTime;
+        }
+
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
@@ -2476,7 +2497,7 @@ namespace dmGameObject
                 DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
                 ComponentsUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
-                params.m_UpdateContext = update_context;
+                params.m_UpdateContext = &dynamic_update_context;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
 
@@ -2499,6 +2520,12 @@ namespace dmGameObject
 
         if (update_context->m_FixedUpdateFrequency != 0)
         {
+            if (collection->m_FirstUpdate)
+            {
+                collection->m_FirstUpdate = 0;
+                collection->m_FixedAccumTime = update_context->m_AccumFrameTime * update_context->m_TimeScale;
+            }
+
             const float time = collection->m_FixedAccumTime + update_context->m_DT; // Add the scaled time
             const float fixed_frequency = update_context->m_FixedUpdateFrequency;
             // If the proxy is slowed down, we want e.g. the physics to be slowed down as well
@@ -2510,7 +2537,7 @@ namespace dmGameObject
             if (num_fixed_steps != 0)
             {
                 UpdateContext fixed_update_context;
-                fixed_update_context = *update_context;
+                fixed_update_context = dynamic_update_context;
                 fixed_update_context.m_DT = fixed_dt;
 
                 for (uint32_t step = 0; step < num_fixed_steps; ++step)
