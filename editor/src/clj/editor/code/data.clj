@@ -14,7 +14,8 @@
   (:require [clojure.set :as set]
             [clojure.string :as string]
             [editor.code.syntax :as syntax]
-            [editor.code.util :as util])
+            [editor.code.util :as util]
+            [util.coll :refer [pair]])
   (:import [java.io IOException Reader Writer InputStream]
            [java.nio CharBuffer]
            [java.util Collections]
@@ -672,7 +673,7 @@
         (map (fn [cursor-range]
                (let [start-row (.row (cursor-range-start cursor-range))
                      end-row (inc (.row (cursor-range-end cursor-range)))]
-                 (util/pair start-row end-row))))))
+                 (pair start-row end-row))))))
 
 (defn cursor-ranges->row-runs [lines cursor-ranges]
   (into [] (cursor-ranges->row-runs-xform lines) cursor-ranges))
@@ -1433,7 +1434,7 @@
         range-inverted? (pos? (compare-cursor-position from to))
         start (assoc (if range-inverted? to from) :order :start)
         end (assoc (if range-inverted? from to) :order :end)]
-    (util/pair start end)))
+    (pair start end)))
 
 (defn- pack-cursor-range
   ^CursorRange [^CursorRange cursor-range ^Cursor start ^Cursor end]
@@ -1787,7 +1788,7 @@
                   (assert (= row (.row ^Cursor (.to line-cursor-range))))
                   (assert (= 1 (count replacement-lines)))
                   (when-not (zero? length-difference)
-                    (util/pair row length-difference)))))
+                    (pair row length-difference)))))
         indentation-splices))
 
 (defn- splice-indentation [lines cursor-ranges regions indentation-splices]
@@ -1932,7 +1933,7 @@
 
 (defn- insert-lines-seqs [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (-> (splice lines regions (map #(util/pair (adjust-cursor-range lines %1) %2) cursor-ranges lines-seqs))
+    (-> (splice lines regions (map #(pair (adjust-cursor-range lines %1) %2) cursor-ranges lines-seqs))
         (fix-indentation-after-splice indent-level-pattern indent-string grammar)
         (update-document-width-after-splice layout)
         (update :cursor-ranges (partial mapv cursor-range-end-range))
@@ -2756,7 +2757,7 @@
     (when-some [counterpart-cursor-range (case search-direction
                                            :prev (find-brace-counterpart brace counterpart lines (.from brace-cursor-range) -1)
                                            :next (find-brace-counterpart brace counterpart lines (.to brace-cursor-range) 1))]
-      (util/pair brace-cursor-range counterpart-cursor-range))))
+      (pair brace-cursor-range counterpart-cursor-range))))
 
 (defn- line-empty? [line line-start]
   (= line-start (count line)))

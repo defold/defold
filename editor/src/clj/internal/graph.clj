@@ -15,7 +15,8 @@
             [clojure.core.reducers :as r]
             [internal.graph.types :as gt]
             [internal.util :as util]
-            [internal.node :as in])
+            [internal.node :as in]
+            [util.coll :refer [pair]])
   (:import [internal.graph.types Arc]
            [clojure.lang IPersistentSet]))
 
@@ -798,7 +799,11 @@
                result')
         (persistent! result')))))
 
-(def ^:private set-or-union (fn [s1 s2] (if s1 (set/union s1 s2) s2)))
+(defn- set-or-union [s1 s2]
+  (if s1
+    (into s1 s2)
+    s2))
+
 (def ^:private merge-with-union (let [red-f (fn [m [k v]] (update m k set-or-union v))]
                                   (completing (fn [m1 m2] (reduce red-f m1 m2)))))
 
@@ -827,7 +832,7 @@
               ;; ignore the outputs we have already seen
               (let [outputs (if seen? (set/difference outputs seen?) outputs)
                     ;; Add every successor to the stack for later processing
-                    next-todo (transduce (map #(label->succ %)) merge-with-union next-todo outputs)
+                    next-todo (transduce (map label->succ) merge-with-union next-todo outputs)
                     ;; And include the unseen output labels to the result
                     result (update result node-id set-or-union outputs)]
                 (recur (next todo) next-todo result))
@@ -1119,33 +1124,29 @@
      the internal input-dependencies, i.e. outputs consuming the given output
      the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
      all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
-  [old-successors basis graph-id graph changes]
+  [old-successors basis graph changes]
   (let [node-id->overrides (or (:node->overrides graph) (constantly nil))
-        ;; Transducer to collect override-id's
-        override-id-xf (keep #(some->> %
-                                       (node-id->node graph)
-                                       (gt/override-id)))
         changes+old-node-successors (mapv (fn [[node-id labels]]
                                             [node-id labels (old-successors node-id)])
                                           changes)
         [new-successors removed-successor-entries] (r/fold
                                                      (fn combinef
-                                                       ([] [{} []])
+                                                       ([]
+                                                        (pair {} []))
                                                        ([[new-successors-1 removed-successor-entries-1] [new-successors-2 removed-successor-entries-2]]
-                                                        [(merge new-successors-1 new-successors-2) (into removed-successor-entries-1 removed-successor-entries-2)]))
+                                                        (pair (into new-successors-1 new-successors-2) (into removed-successor-entries-1 removed-successor-entries-2))))
                                                      (fn reducef
-                                                       ([] [{} []])
+                                                       ([]
+                                                        (pair {} []))
                                                        ([[new-acc remove-acc] [node-id labels old-node-successors]]
                                                         (let [new-node-successors (if-some [node (gt/node-by-id-at basis node-id)]
                                                                                     (let [node-type (gt/node-type node basis)
                                                                                           deps-by-label (or (in/input-dependencies node-type) {})
-                                                                                          node-and-overrides (tree-seq (constantly true) node-id->overrides node-id)
-                                                                                          override-filter-fn (complement (into #{} override-id-xf node-and-overrides))
                                                                                           overrides (node-id->overrides node-id)
                                                                                           labels (or labels (in/output-labels node-type))
                                                                                           arcs-by-source (if (> (count labels) 1)
                                                                                                            (let [arcs (gt/arcs-by-source basis node-id)
-                                                                                                                 arcs-by-source-label (group-by #(.source-label ^Arc %) arcs)]
+                                                                                                                 arcs-by-source-label (util/group-into #(.source-label ^Arc %) arcs)]
                                                                                                              (fn [_ _ label]
                                                                                                                (arcs-by-source-label label)))
                                                                                                            (fn [basis node-id label]
@@ -1155,10 +1156,10 @@
                                                                                                       dep-labels (get deps-by-label label)
                                                                                                       ;; The internal dependent outputs
                                                                                                       deps (cond-> (transient {})
-                                                                                                             (and dep-labels (> (count dep-labels) 0))
-                                                                                                             (assoc! node-id dep-labels))
+                                                                                                                   (and dep-labels (> (count dep-labels) 0))
+                                                                                                                   (assoc! node-id dep-labels))
                                                                                                       ;; The closest overrides
-                                                                                                      deps (transduce (map #(vector % single-label)) conj! deps overrides)
+                                                                                                      deps (transduce (map #(pair % single-label)) conj! deps overrides)
                                                                                                       ;; The connected nodes and their outputs
                                                                                                       deps (transduce (keep (fn [^Arc arc]
                                                                                                                               (let [target-id (.target-id arc)
@@ -1173,17 +1174,20 @@
                                                                                               labels))
                                                                                     nil)]
                                                           (if (nil? new-node-successors)
-                                                            [new-acc (conj remove-acc node-id)]
-                                                            [(assoc new-acc node-id new-node-successors) remove-acc]))))
+                                                            (pair new-acc (conj remove-acc node-id))
+                                                            (pair (assoc new-acc node-id new-node-successors) remove-acc)))))
                                                      changes+old-node-successors)]
-    (apply dissoc (merge old-successors new-successors) removed-successor-entries)))
+    (persistent!
+      (reduce dissoc!
+              (transient (into old-successors new-successors))
+              removed-successor-entries))))
 
 (defn update-successors
   [basis changes]
   ;; changes = {node-id #{outputs}}
   (reduce (fn [basis [graph-id changes]]
             (if-let [graph (get (:graphs basis) graph-id)]
-              (update-in basis [:graphs graph-id :successors] update-graph-successors basis graph-id graph changes)
+              (update-in basis [:graphs graph-id :successors] update-graph-successors basis graph changes)
               basis))
           basis
-          (group-by (comp gt/node-id->graph-id first) changes)))
+          (util/group-into (comp gt/node-id->graph-id first) changes)))

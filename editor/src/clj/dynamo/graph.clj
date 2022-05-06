@@ -139,17 +139,19 @@
   Transaction result-keys:
   `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]`
   "
-  [txs]
-  (when *tps-debug*
-    (send-off tps-counter tick (System/nanoTime)))
-  (let [system (deref *the-system*)
-        basis (is/basis system)
-        id-generators (is/id-generators system)
-        override-id-generator (is/override-id-generator system)
-        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
-    (when (= :ok (:status tx-result))
-      (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
-    tx-result))
+  ([txs]
+   (transact nil txs))
+  ([metrics-collector txs]
+   (when *tps-debug*
+     (send-off tps-counter tick (System/nanoTime)))
+   (let [system (deref *the-system*)
+         basis (is/basis system)
+         id-generators (is/id-generators system)
+         override-id-generator (is/override-id-generator system)
+         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator metrics-collector) txs)]
+     (when (= :ok (:status tx-result))
+       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+     tx-result)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data

@@ -18,7 +18,9 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [util.debug-util :as du])
+  (:import [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -154,31 +156,56 @@
 ;; ---------------------------------------------------------------------------
 (defn- mark-input-activated
   [ctx node-id input-label]
-  (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
-    (let [basis (:basis ctx)
-          dirty-deps (-> (gt/node-by-id-at basis node-id) (gt/node-type basis) in/input-dependencies (get input-label))]
-      (update ctx :nodes-affected assoc node-id (reduce conj nodes-affected dirty-deps)))
-    ctx))
+  ;; This gets called a lot, so we're trying to keep allocations to a minimum.
+  (let [basis (:basis ctx)
+        dirty-deps (-> (gt/node-by-id-at basis node-id)
+                       (gt/node-type basis)
+                       in/input-dependencies
+                       (get input-label))
+        nodes-affected (:nodes-affected ctx)]
+    (assoc ctx
+      :nodes-affected
+      (assoc nodes-affected
+        node-id
+        (into (nodes-affected node-id #{})
+              dirty-deps)))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
-  (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
-    (update ctx :nodes-affected assoc node-id (conj nodes-affected output-label))
-    ctx))
+  ;; This gets called a lot, so we're trying to keep allocations to a minimum.
+  (let [nodes-affected (:nodes-affected ctx)]
+    (assoc ctx
+      :nodes-affected
+      (assoc nodes-affected
+        node-id
+        (if-some [existing-affected (nodes-affected node-id)]
+          (conj existing-affected output-label)
+          #{output-label})))))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
-  (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
-    (update ctx :nodes-affected assoc node-id (reduce conj nodes-affected output-labels))
-    ctx))
+  ;; This gets called a lot, so we're trying to keep allocations to a minimum.
+  (let [nodes-affected (:nodes-affected ctx)]
+    (assoc ctx
+      :nodes-affected
+      (assoc nodes-affected
+        node-id
+        (into (nodes-affected node-id #{})
+              output-labels)))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
+  ;; This gets called a lot, so we're trying to keep allocations to a minimum.
   (let [basis (:basis ctx)
-        all-labels (-> (gt/node-by-id-at basis node-id)
-                       (gt/node-type basis)
-                       in/output-labels)]
-    (update ctx :nodes-affected assoc node-id (set all-labels))))
+        output-labels (-> (gt/node-by-id-at basis node-id)
+                          (gt/node-type basis)
+                          in/output-labels)
+        nodes-affected (:nodes-affected ctx)]
+    (assoc ctx
+      :nodes-affected
+      (assoc nodes-affected
+        node-id
+        output-labels))))
 
 (defn- next-node-id [ctx graph-id]
   (is/next-node-id* (:node-id-generators ctx) graph-id))
@@ -201,12 +228,12 @@
   such as [[connect]] and [[update-property]]."
   (fn [ctx m] (:type m)))
 
+(defmulti metrics-key :type)
+
 (def ^:private ctx-disconnect)
 
-(defn- ctx-disconnect-arc [ctx arc]
-  (let [[source-id source-label] (gt/source arc)
-        [target-id target-label] (gt/target arc)]
-    (ctx-disconnect ctx source-id source-label target-id target-label)))
+(defn- ctx-disconnect-arc [ctx ^Arc arc]
+  (ctx-disconnect ctx (.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)))
 
 (defn- disconnect-inputs [ctx target-id target-label]
   (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-target (:basis ctx) target-id target-label)))
@@ -243,7 +270,8 @@
       (let [targets (ig/explicit-targets basis node-id)]
         (-> (reduce (fn [ctx [node-id input]]
                       (mark-input-activated ctx node-id input))
-                    ctx targets)
+                    ctx
+                    targets)
             (disconnect-all-inputs node-id)
             (mark-all-outputs-activated node-id)
             (update :basis gt/delete-node node-id)
@@ -263,10 +291,18 @@
   [ctx {:keys [node-id]}]
   (ctx-delete-node ctx node-id))
 
+(defmethod metrics-key :delete-node
+  [{:keys [node-id]}]
+  node-id)
+
 (defmethod perform :new-override
   [ctx {:keys [override-id root-id traverse-fn]}]
   (-> ctx
       (update :basis gt/add-override override-id (ig/make-override root-id traverse-fn))))
+
+(defmethod metrics-key :new-override
+  [{:keys [root-id]}]
+  root-id)
 
 (defn- flag-all-successors-changed [ctx node-ids]
   (let [successors (get ctx :successors-changed)]
@@ -297,6 +333,10 @@
   [ctx {:keys [original-node-id override-node-id]}]
   (ctx-override-node ctx original-node-id override-node-id))
 
+(defmethod metrics-key :override-node
+  [{:keys [original-node-id]}]
+  original-node-id)
+
 (declare apply-tx)
 
 (defmethod perform :override
@@ -321,6 +361,10 @@
                              new-override-tx-data))
       (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx')})
                               original-node-id->override-node-id)))))
+
+(defmethod metrics-key :override
+  [{:keys [root-id]}]
+  root-id)
 
 (defn- node-id->override-id [basis node-id]
   (->> node-id
@@ -416,6 +460,11 @@
          override-node-ids)
         ((partial reduce populate-overrides) (vals from-id->to-id)))))
 
+(defmethod metrics-key :transfer-overrides
+  [{:keys [from-id->to-id]}]
+  (when (= 1 (count from-id->to-id))
+    (second (first from-id->to-id))))
+
 (defn- property-default-setter
   [basis node-id node property _ new-value]
   (first (gt/replace-node basis node-id (gt/set-property node basis property new-value))))
@@ -488,6 +537,10 @@
   (when (and *tx-debug* (nil? (gt/node-id node))) (println "NIL NODE ID: " node))
   (ctx-add-node ctx node))
 
+(defmethod metrics-key :create-node
+  [{:keys [node]}]
+  (gt/node-id node))
+
 (defmethod perform :update-property [ctx {:keys [node-id property fn args] :as tx-step}]
   (let [basis (:basis ctx)]
     (when (and *tx-debug* (nil? node-id)) (println "NIL NODE ID: update-property " tx-step))
@@ -500,6 +553,10 @@
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
         (invoke-setter ctx node-id node property old-value new-value override-node? dynamic?))
       ctx)))
+
+(defmethod metrics-key :update-property
+  [{:keys [node-id property]}]
+  [node-id property])
 
 (defn- ctx-set-property-to-nil [ctx node-id node property]
   (let [basis (:basis ctx)
@@ -520,9 +577,17 @@
             (ctx-set-property-to-nil node-id node property)))
       ctx)))
 
+(defmethod metrics-key :clear-property
+  [{:keys [node-id property]}]
+  [node-id property])
+
 (defmethod perform :callback [ctx {:keys [fn args]}]
   (apply fn args)
   ctx)
+
+(defmethod metrics-key :callback
+  [_]
+  nil)
 
 (defn- ctx-disconnect-single [ctx target target-id target-label]
   (if (= :one (in/input-cardinality (gt/node-type target (:basis ctx)) target-label))
@@ -577,6 +642,10 @@
   [ctx {:keys [source-id source-label target-id target-label] :as tx-data}]
   (ctx-connect ctx source-id source-label target-id target-label))
 
+(defmethod metrics-key :connect
+  [{:keys [source-id source-label target-id target-label]}]
+  [source-id source-label target-id target-label])
+
 (defn- ctx-remove-overrides [ctx source-id source-label target-id target-label]
   (let [basis (:basis ctx)
         target (gt/node-by-id-at basis target-id)]
@@ -607,25 +676,45 @@
   [ctx {:keys [source-id source-label target-id target-label]}]
   (ctx-disconnect ctx source-id source-label target-id target-label))
 
+(defmethod metrics-key :disconnect
+  [{:keys [source-id source-label target-id target-label]}]
+  [source-id source-label target-id target-label])
+
 (defmethod perform :update-graph-value
   [ctx {:keys [graph-id fn args]}]
   (-> ctx
       (update-in [:basis :graphs graph-id :graph-values] #(apply fn % args))
       (update :graphs-modified conj graph-id)))
 
+(defmethod metrics-key :update-graph-value
+  [{:keys [graph-id]}]
+  graph-id)
+
 (defmethod perform :label
   [ctx {:keys [label]}]
   (assoc ctx :label label))
 
+(defmethod metrics-key :label
+  [_]
+  nil)
+
 (defmethod perform :sequence-label
   [ctx {:keys [label]}]
   (assoc ctx :sequence-label label))
+
+(defmethod metrics-key :sequence-label
+  [_]
+  nil)
 
 (defmethod perform :invalidate
   [ctx {:keys [node-id] :as tx-data}]
   (if (gt/node-by-id-at (:basis ctx) node-id)
     (mark-all-outputs-activated ctx node-id)
     ctx))
+
+(defmethod metrics-key :invalidate
+  [{:keys [node-id]}]
+  node-id)
 
 (defn- apply-tx
   [ctx actions]
@@ -635,14 +724,15 @@
       (if-let [action (first actions)]
         (if (sequential? action)
           (recur (apply-tx ctx action) (next actions))
-          (recur
-            (update
-              (try (perform ctx action)
-                   (catch Exception e
-                     (when *tx-debug*
-                       (println (txerrstr ctx "Transaction failed on " action)))
-                     (throw e)))
-              :completed conj action) (next actions)))
+          (recur (-> (try
+                       (du/measuring (:metrics ctx) (:type action) (metrics-key action)
+                         (perform ctx action))
+                       (catch Exception e
+                         (when *tx-debug*
+                           (println (txerrstr ctx "Transaction failed on " action)))
+                         (throw e)))
+                     (update :completed conj action))
+                 (next actions)))
         (recur ctx (next actions)))
       ctx)))
 
@@ -661,7 +751,9 @@
     label
     (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))))
 
-(def tx-report-keys [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label])
+(def tx-report-keys
+  (cond-> [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]
+          (du/metrics-enabled?) (conj :metrics)))
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -671,7 +763,7 @@
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
 
 (defn new-transaction-context
-  [basis node-id-generators override-id-generator]
+  [basis node-id-generators override-id-generator metrics-collector]
   {:basis basis
    :nodes-affected {}
    :nodes-added []
@@ -685,21 +777,26 @@
    :completed []
    :txid (new-txid)
    :tx-data-context (atom {})
-   :deferred-setters []})
+   :deferred-setters []
+   :metrics metrics-collector})
 
 (defn- update-successors
   [{:keys [successors-changed] :as ctx}]
-  (update ctx :basis ig/update-successors successors-changed))
+  (du/measuring (:metrics ctx) :update-successors
+    (update ctx :basis ig/update-successors successors-changed)))
 
 (defn- trace-dependencies
   [ctx]
   ;; at this point, :outputs-modified contains [node-id output] pairs.
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
-  (let [outputs-modified (->> (:nodes-affected ctx)
-                              (gt/dependencies (:basis ctx))
-                              (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
-    (assoc ctx :outputs-modified outputs-modified)))
+  (du/measuring (:metrics ctx) :trace-dependencies
+    (let [outputs-modified (->> (:nodes-affected ctx)
+                                (gt/dependencies (:basis ctx))
+                                (into []
+                                      (mapcat (fn [[nid ls]]
+                                                (mapv #(vector nid %) ls)))))]
+      (assoc ctx :outputs-modified outputs-modified))))
 
 (defn transact*
   [ctx actions]

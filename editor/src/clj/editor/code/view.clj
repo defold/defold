@@ -15,7 +15,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [pair split-lines]]
+            [editor.code.util :refer [split-lines]]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
@@ -29,7 +29,8 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [service.smoke-log :as slog])
+            [service.smoke-log :as slog]
+            [util.coll :refer [pair]])
   (:import [com.defold.control ListView]
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]

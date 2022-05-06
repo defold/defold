@@ -96,9 +96,9 @@
      :label ""}))
 
 (def ^:private identity-transform-properties
-  {:position [0.0 0.0 0.0]
-   :rotation [0.0 0.0 0.0 1.0]
-   :scale [1.0 1.0 1.0]})
+  {:position [(float 0.0) (float 0.0) (float 0.0)]
+   :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
+   :scale [(float 1.0) (float 1.0) (float 1.0)]})
 
 (defn- supported-transform-properties [component-resource-type]
   (assert (some? component-resource-type))
