@@ -47,15 +47,15 @@ protected:
         params.m_RepeatInterval = 0.2f;
         m_Context = dmInput::NewContext(params);
         dmInputDDF::GamepadMaps* gamepad_maps;
-        dmDDF::Result result = dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+        dmDDF::Result result = dmDDF::LoadMessageFromFile(MOUNTFS "build/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
         (void)result;
         assert(dmDDF::RESULT_OK == result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test2.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test_text.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
+        dmDDF::LoadMessageFromFile(MOUNTFS "build/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
+        dmDDF::LoadMessageFromFile(MOUNTFS "build/src/test/test2.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
+        dmDDF::LoadMessageFromFile(MOUNTFS "build/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
+        dmDDF::LoadMessageFromFile(MOUNTFS "build/src/test/test_text.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
         m_DT = 1.0f / 60.0f;
     }
 

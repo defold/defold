@@ -5,12 +5,12 @@ def configure(conf):
     pass
 
 def build(bld):
-    script = bld.__call__(features = 'cxx cstaticlib ddf',
-                          includes = '../proto .',
-                          target = 'input',
-                          proto_gen_py = True,
-                          protoc_includes = '../proto')
-    script.find_sources_in_dirs(['.', '../proto/input'])
+    script = bld.stlib(features = 'cxx ddf',
+                       includes = '../proto .',
+                       target = 'input',
+                       source = bld.path.ant_glob('*.cpp') + bld.path.parent.ant_glob('proto/input/*'),
+                       proto_gen_py = True,
+                       protoc_includes = '../proto')
 
     bld.install_files('${PREFIX}/include/input', 'input.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/input/input_ddf.proto')

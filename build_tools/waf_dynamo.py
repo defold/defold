@@ -1207,25 +1207,25 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
-def run_tests(valgrind = False, configfile = None):
-    if not 'build' in Options.commands or getattr(Options.options, 'skip_tests', False):
+def run_tests(ctx, valgrind = False, configfile = None):
+    if ctx == None or getattr(Options.options, 'skip_tests', False):
         return
 
     # TODO: Add something similar to this
     # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
     # to find leaks and set error code
 
-    if not Build.bld.env['VALGRIND']:
+    if not ctx.env['VALGRIND']:
         valgrind = False
 
     if not getattr(Options.options, 'with_valgrind', False):
         valgrind = False
 
-    if 'web' in Build.bld.env.PLATFORM and not Build.bld.env['NODEJS']:
+    if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
 
-    for t in Build.bld.all_task_gen:
+    for t in ctx.all_task_gen:
         if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
             if getattr(t, 'skip_test', False):
                 continue
@@ -1244,14 +1244,14 @@ def run_tests(valgrind = False, configfile = None):
                 launch_pattern = t.env.TEST_LAUNCH_PATTERN
 
             for task in t.tasks:
-                if task.name in ['link_task']:
+                if task in ['link_task']:
                     break
 
-            program = transform_runnable_path(Build.bld.env.PLATFORM, task.outputs[0].abspath(task.env))
+            program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
 
             cmd = launch_pattern % (program, configfile if configfile else '')
-            if 'web' in Build.bld.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
-                cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
+            if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
+                cmd = '%s %s' % (ctx.env['NODEJS'], cmd)
             # disable shortly during beta release, due to issue with jctest + test_gui
             valgrind = False
             if valgrind:

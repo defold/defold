@@ -26,7 +26,7 @@ def create_protoc_task(name, type):
                                     color='PINK')
 
 cont_pb_task = create_protoc_task('cont_pb', 'TestResource.ResourceContainerDesc')
-foo_pb_task = create_protoc_task('.foo_pb', 'TestResource.ResourceFoo')
+foo_pb_task = create_protoc_task('foo_pb', 'TestResource.ResourceFoo')
 
 @extension('.cont_pb')
 def extension_cont_pb(self, node):

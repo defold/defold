@@ -6,8 +6,6 @@ APPNAME = 'dlib'
 top = '.'
 out = 'build'
 
-# import Options
-
 from waflib import Options, Logs
 import os, sys, tempfile, configparser
 import waf_dynamo

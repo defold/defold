@@ -4,12 +4,12 @@ from waf_dynamo import platform_supports_feature
 
 def build(bld):
     for name in ['test_graphics', 'test_glsl_uniform_parser']:
-        bld.__call__(features = 'cxx cprogram test',
-                         includes = ['../../src', '../../proto'],
-                         exported_symbols = ['GraphicsAdapterNull'],
-                         source = name + '.cpp',
-                         use = 'TESTMAIN DDF DLIB graphics_null graphics_transcoder_null',
-                         target = name)
+        bld.program(features = 'cxx test',
+                    includes = ['../../src', '../../proto'],
+                    exported_symbols = ['GraphicsAdapterNull'],
+                    source = name + '.cpp',
+                    use = 'TESTMAIN DDF DLIB graphics_null graphics_transcoder_null',
+                    target = name)
 
     print ("MAWE", platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}), bld.env.PLATFORM) 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
@@ -18,10 +18,9 @@ def build(bld):
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
             extra_libs += ['CARES', 'OPENGL']
 
-        bld.__call__(features = 'cxx cprogram test skip_test',
-                         includes = ['../../src', '../../proto'],
-                         exported_symbols = ['GraphicsAdapterVulkan'],
-                         source = 'test_app_vulkan.cpp',
-                         uselib = 'TESTMAIN PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN'.split() + extra_libs,
-                         uselib_local = 'graphics_vulkan graphics_transcoder_basisu',
-                         target = 'test_app_vulkan')
+        bld.program(features = 'cxx cprogram test skip_test',
+                    includes = ['../../src', '../../proto'],
+                    exported_symbols = ['GraphicsAdapterVulkan'],
+                    source = 'test_app_vulkan.cpp',
+                    use = 'TESTMAIN PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN graphics_vulkan graphics_transcoder_basisu'.split() + extra_libs,
+                    target = 'test_app_vulkan')

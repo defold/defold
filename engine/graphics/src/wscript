@@ -19,15 +19,14 @@ def build(bld):
     build_util = create_build_utility(bld.env)
 
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
-        obj = bld(features = 'ddf cxx cstaticlib',
-                  includes = ['. opengl', '../proto'],
-                  source = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                  proto_gen_py = True,
-                  protoc_includes = '../proto',
-                  uselib = 'DDF DLIB',
-                  target = 'graphics')
-
-        # obj.find_sources_in_dirs('. opengl ../proto/graphics')
+        obj = bld.stlib(features = 'ddf cxx',
+                        includes = ['. opengl', '../proto'],
+                        source = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                        proto_gen_py = True,
+                        protoc_includes = '../proto',
+                        uselib = 'DDF DLIB',
+                        install_path = build_util.get_library_path(),
+                        target = 'graphics')
 
         if 'web' in bld.env.PLATFORM:
              obj.source.append('opengl/async/job_queue_sync.cpp');
@@ -35,12 +34,13 @@ def build(bld):
              obj.source.append('opengl/async/job_queue_threaded.cpp');
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
-        obj = bld(features = 'ddf cxx cstaticlib',
-                               includes = ['. vulkan', '../proto'],
-                               proto_gen_py = True,
-                               protoc_includes = '../proto',
-                               uselib = 'DDF DLIB',
-                               target = 'graphics_vulkan')
+        obj = bld.stlib(features = 'ddf cxx',
+                        includes = ['. vulkan', '../proto'],
+                        proto_gen_py = True,
+                        protoc_includes = '../proto',
+                        uselib = 'DDF DLIB',
+                        install_path = build_util.get_library_path(),
+                        target = 'graphics_vulkan')
 
         obj.find_sources_in_dirs('. vulkan ../proto/graphics')
 
@@ -62,27 +62,30 @@ def build(bld):
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
-    obj = bld(features = 'ddf cxx cstaticlib',
-              includes = ['. null', '../proto'],
-              source = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.ant_glob('proto/*'),
-              proto_gen_py = True,
-              protoc_includes = '../proto',
-              uselib = 'DDF DLIB',
-              target = 'graphics_null')
+    obj = bld.stlib(features        = 'ddf cxx',
+                    includes        = ['. null', '../proto'],
+                    source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.ant_glob('proto/*'),
+                    proto_gen_py    = True,
+                    protoc_includes = '../proto',
+                    use             = 'DDF DLIB',
+                    install_path    = build_util.get_library_path(),
+                    target          = 'graphics_null')
 
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
-    obj = bld(features = 'cxx cstaticlib',
-                           includes = ['.', '../proto'],
-                           uselib = 'DLIB',
-                           source = 'transcoder/graphics_transcoder_null.cpp',
-                           target = 'graphics_transcoder_null')
+    obj = bld.stlib(features     = 'cxx',
+                    includes     = ['.', '../proto'],
+                    uselib       = 'DLIB',
+                    install_path = build_util.get_library_path(),
+                    source       = 'transcoder/graphics_transcoder_null.cpp',
+                    target       = 'graphics_transcoder_null')
 
-    obj = bld(features = 'cxx cstaticlib',
-                           includes = ['.', '../proto'],
-                           uselib = 'DLIB',
-                           source = 'transcoder/graphics_transcoder_basisu.cpp',
-                           target = 'graphics_transcoder_basisu')
+    obj = bld.stlib(features     = 'cxx',
+                    includes     = ['.', '../proto'],
+                    use          = 'DLIB',
+                    install_path = build_util.get_library_path(),
+                    source       = 'transcoder/graphics_transcoder_basisu.cpp',
+                    target       = 'graphics_transcoder_basisu')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')

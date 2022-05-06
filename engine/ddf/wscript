@@ -56,6 +56,4 @@ def build(bld):
     bld.recurse('src')
 
 def shutdown(ctx):
-    import waflib.Options, waflib.Build
-
     waf_dynamo.run_tests(valgrind = True)
