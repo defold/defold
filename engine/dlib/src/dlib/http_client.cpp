@@ -581,7 +581,7 @@ if (sock_res != dmSocket::RESULT_OK)\
                 chunked = 1;
             }
             // disable chunked transfer encoding if explicitly disabled by the user
-            if (chunked == 1 && client->m_ChunkedTransfer == 0)
+            if (client->m_ChunkedTransfer == 0)
             {
                 chunked = 0;
             }
