@@ -86,6 +86,7 @@ namespace dmScript
      * - [type:number] `timeout`: timeout in seconds
      * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200
      * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304
+     * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true.
      *
      *
      * @examples
