@@ -231,6 +231,7 @@ public class TimeProfiler {
                 //Close all unclosed scopes
                 while(currentScope != rootScope) {
                     addData("forceFinishedScope", true);
+                    addData("color", "#FF0000");
                     stop();
                 };
                 stop();
@@ -266,6 +267,10 @@ public class TimeProfiler {
         scope.parent = currentScope;
         currentScope.children.add(scope);
         currentScope = scope;
+    }
+
+    public static void startF(String fmt, Object... args) {
+        start(String.format(fmt, args));
     }
 
     public static void stop() {
