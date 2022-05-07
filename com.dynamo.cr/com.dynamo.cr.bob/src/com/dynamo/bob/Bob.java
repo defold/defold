@@ -600,8 +600,7 @@ public class Bob {
                 format = TimeProfiler.ReportFormat.HTML;
             }
             File report = new File(path);
-            String folder = report.getParent();
-            TimeProfiler.init(folder, format);
+            TimeProfiler.init(report.getParent(), report.getName(), format);
         }
 
         if (cmd.hasOption("version")) {

@@ -45,7 +45,7 @@ import com.samskivert.mustache.Template;
  */
 public class TimeProfiler {
 
-    private static final String FILENAME = "time_report";
+    private static final String FILENAME_POSTFIX = "_time";
 
     /**
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
@@ -205,7 +205,7 @@ public class TimeProfiler {
         fileHTMMLWriter.close();
     }
 
-    public static void init(String reportFolderPath, ReportFormat format) throws IOException {
+    public static void init(String reportFolderPath, String fileName, ReportFormat fileFormat) throws IOException {
         marks = new ArrayList();
         RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
         long startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
@@ -238,8 +238,10 @@ public class TimeProfiler {
 
                 try {
                     String jsonReport = generateJSON();
-                    File reportFile = new File(reportFolderPath, FILENAME + format.getFormat());
-                    if (format == ReportFormat.JSON) {
+                    String format = fileFormat.getFormat();
+                    String name = fileName.replace(format, "");
+                    File reportFile = new File(reportFolderPath, name + FILENAME_POSTFIX + format);
+                    if (fileFormat == ReportFormat.JSON) {
                         saveJSON(jsonReport, reportFile);
                     } else {
                         saveHTML(jsonReport, reportFile);
