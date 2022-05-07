@@ -153,11 +153,11 @@ public class TimeProfiler {
             for(ProfilingMark mark : marks) {
                 generator.writeStartObject();
                 generator.writeFieldName("shortName");
-                generator.writeNumber(mark.shortName);
+                generator.writeString(mark.shortName);
                 generator.writeFieldName("fullName");
-                generator.writeNumber(mark.fullName);
+                generator.writeString(mark.fullName);
                 generator.writeFieldName("timestamp");
-                generator.writeNumber(mark.timestamp);
+                generator.writeNumber(mark.timestamp - buildTime);
                 generator.writeEndObject();
             }
             generator.writeEndArray();
