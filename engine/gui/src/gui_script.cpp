@@ -1193,14 +1193,17 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
+        dmhash_t property_hash = 0;
+        if (top >= 2 && !lua_isnil(L, 2))
+        {
+            if (dmScript::IsHash(L, 2)) {
+                property_hash = dmScript::CheckHash(L, 2);
+            } else {
+                property_hash = dmHashString64(luaL_checkstring(L, 2));
+            }
         }
 
-        if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
+        if (property_hash != 0 && !dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             luaL_error(L, "property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
