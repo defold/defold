@@ -1148,13 +1148,13 @@ namespace dmGui
         return 0;
     }
 
-    /*# cancels an ongoing animation
+    /*# cancels an ongoing animation(s)
      *
      * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
      *
      * @name gui.cancel_animation
      * @param node [type:node] node that should have its animation canceled
-     * @param property [type:string|constant] property for which the animation should be canceled
+     * @param [property] [type:string|constant] optional property for which the animation should be canceled
      *
      * - `"position"`
      * - `"rotation"`
@@ -1180,6 +1180,18 @@ namespace dmGui
      * ...
      * -- cancel animation of the x component.
      * gui.cancel_animation(node, "position.x")
+     * ```
+     * 
+     * Cancels all property animations on a node in a single call:
+     * 
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * -- animate to new position and scale
+     * gui.animate(node, "position", vmath.vector3(100, 100, 0), go.EASING_LINEAR, 5)
+     * gui.animate(node, "scale", vmath.vector3(0.5), go.EASING_LINEAR, 5)
+     * ...
+     * -- cancel positioning and scaling at once
+     * gui.cancel_animation(node)
      * ```
      */
     int LuaCancelAnimation(lua_State* L)
