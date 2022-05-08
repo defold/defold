@@ -185,6 +185,7 @@ namespace dmHttpClient
         bool                m_Secure;
         uint16_t            m_Port;
         uint16_t            m_IgnoreCache:1;
+        uint16_t            m_ChunkedTransfer:1;
         int*                m_CancelFlag;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
@@ -292,6 +293,9 @@ namespace dmHttpClient
                 break;
             case OPTION_REQUEST_IGNORE_CACHE:
                 client->m_IgnoreCache = value != 0 ? 1 : 0;
+                break;
+            case OPTION_REQUEST_CHUNKED_TRANSFER:
+                client->m_ChunkedTransfer = value != 0 ? 1 : 0;
                 break;
             default:
                 return RESULT_INVAL_ERROR;
@@ -575,6 +579,11 @@ if (sock_res != dmSocket::RESULT_OK)\
             if (client->m_Secure && send_content_length > MAX_HTTPS_POST_CHUNK_SIZE)
             {
                 chunked = 1;
+            }
+            // disable chunked transfer encoding if explicitly disabled by the user
+            if (client->m_ChunkedTransfer == 0)
+            {
+                chunked = 0;
             }
 
             // If we want to send more that this, we need to send it chunked
