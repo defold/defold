@@ -256,7 +256,7 @@ public class TimeProfiler {
         }));
     }
 
-    public static void start(String scopeName) {
+    public static void start() {
         if (rootScope == null) {
             return;
         }
@@ -264,11 +264,18 @@ public class TimeProfiler {
             currentScope.children = new ArrayList<ProfilingScope>();
         }
         ProfilingScope scope = new ProfilingScope();
-        scope.name = scopeName;
         scope.startTime = time();
         scope.parent = currentScope;
         currentScope.children.add(scope);
         currentScope = scope;
+    }
+
+    public static void start(String scopeName) {
+        if (rootScope == null) {
+            return;
+        }
+        start();
+        addData("name", scopeName);
     }
 
     public static void startF(String fmt, Object... args) {

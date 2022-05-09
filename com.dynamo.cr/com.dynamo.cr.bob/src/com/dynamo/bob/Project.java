@@ -476,9 +476,10 @@ public class Project {
             if (!skipped) {
                 Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
                 if (!ignoreTaskAutoCreation.contains(builderClass)) {
-                    TimeProfiler.start(input);
-                    TimeProfiler.addData("builderClass", builderClass.toString());
-                    createTask(input, builderClass);
+                    TimeProfiler.start();
+                    Task<?> task = createTask(input, builderClass);
+                    TimeProfiler.addData("name", task.getName());
+                    TimeProfiler.addData("output", task.getOutputsString());
                     TimeProfiler.stop();
                 }
             }
