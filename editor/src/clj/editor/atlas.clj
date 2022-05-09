@@ -608,7 +608,7 @@
   (output all-atlas-images [Image] :cached (g/fnk [animation-images]
                                              (vec (distinct (flatten animation-images)))))
 
-  (output layout-data-generator g/Any          produce-layout-data-generator)
+  (output layout-data-generator g/Any          :cached produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (call-generator layout-data-generator)))
   (output layout-size      g/Any               (g/fnk [layout-data] (:size layout-data)))
@@ -616,31 +616,31 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
-                                         (let [flat-image-resources (filterv some? (flatten image-resources))
-                                               image-sha1s (map (fn [resource]
-                                                                  (resource-io/with-error-translation resource _node-id nil
-                                                                    (resource/resource->path-inclusive-sha1-hex resource)))
-                                                                flat-image-resources)
-                                               errors (filter g/error? image-sha1s)]
-                                           (if (seq errors)
-                                             (g/error-aggregate errors)
-                                             (let [packed-image-sha1 (digestable/sha1-hash
-                                                                       {:extrude-borders extrude-borders
-                                                                        :image-sha1s image-sha1s
-                                                                        :inner-padding inner-padding
-                                                                        :margin margin
-                                                                        :type :packed-atlas-image})]
-                                               {:f generate-packed-image
-                                                :sha1 packed-image-sha1
-                                                :args {:_node-id _node-id
-                                                       :image-resources flat-image-resources
-                                                       :layout-data-generator layout-data-generator}})))))
+  (output packed-image-generator g/Any :cached (g/fnk [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
+                                                 (let [flat-image-resources (filterv some? (flatten image-resources))
+                                                       image-sha1s (map (fn [resource]
+                                                                          (resource-io/with-error-translation resource _node-id nil
+                                                                            (resource/resource->path-inclusive-sha1-hex resource)))
+                                                                        flat-image-resources)
+                                                       errors (filter g/error? image-sha1s)]
+                                                   (if (seq errors)
+                                                     (g/error-aggregate errors)
+                                                     (let [packed-image-sha1 (digestable/sha1-hash
+                                                                               {:extrude-borders extrude-borders
+                                                                                :image-sha1s image-sha1s
+                                                                                :inner-padding inner-padding
+                                                                                :margin margin
+                                                                                :type :packed-atlas-image})]
+                                                       {:f generate-packed-image
+                                                        :sha1 packed-image-sha1
+                                                        :args {:_node-id _node-id
+                                                               :image-resources flat-image-resources
+                                                               :layout-data-generator layout-data-generator}})))))
 
   (output packed-image     BufferedImage       :cached (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 
-  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
-                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  (output texture-image    g/Any               :cached (g/fnk [packed-image texture-profile]
+                                                         (tex-gen/make-preview-texture-image packed-image texture-profile)))
   
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 

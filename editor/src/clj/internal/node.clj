@@ -26,9 +26,50 @@
            [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
 
+(import '[com.github.benmanes.caffeine.cache Caffeine CacheLoader LoadingCache Cache])
+
+(def ^LoadingCache --cache
+  (-> (Caffeine/newBuilder)
+      (.maximumSize 10000)
+      (.build (reify CacheLoader
+                (load [_ [fn arg]]
+                  (fn arg))))))
+
+(def ^LoadingCache --cache2
+  (-> (Caffeine/newBuilder)
+      (.maximumSize 10000)
+      (.build (reify CacheLoader
+                (load [_ [node-id f]]
+                  (-> (Caffeine/newBuilder)
+                      (.maximumSize 8)
+                      (.build (reify CacheLoader
+                                (load [_ arg]
+                                  (f arg))))))))))
+
+(def --cache3
+  (-> (Caffeine/newBuilder)
+      (.maximumSize 10000)
+      (.build (reify CacheLoader
+                (load [_ _]
+                  (-> (Caffeine/newBuilder)
+                      (.maximumSize 8)
+                      (.build)))))))
+
+(def --cache4
+  (-> (Caffeine/newBuilder)
+      (.recordStats)
+      (.maximumSize 10000)
+      (.build)))
+
+(def --cache5
+  (-> (Caffeine/newBuilder)
+      (.recordStats)
+      (.maximumSize 10000)
+      (.build)))
+
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
+(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas false))
 
 (defn trace-expr [node-id label evaluation-context label-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
@@ -1202,8 +1243,14 @@
     input-array))
 
 (defn argument-error-aggregate [node-id label input-value]
-  (when-some [input-errors (not-empty (filter #(instance? ErrorValue %) (vals input-value)))]
-    (ie/error-aggregate input-errors :_node-id node-id :_label label)))
+  (when (reduce-kv (fn [acc _ v]
+                     (if (instance? ErrorValue v)
+                       (reduced true)
+                       acc))
+                   false
+                   input-value)
+    (ie/error-aggregate (not-empty (filter #(instance? ErrorValue %) (vals input-value)))
+                        :_node-id node-id :_label label)))
 
 (defn- call-with-error-checked-fnky-arguments-form
   [description label node-sym node-id-sym evaluation-context-sym arguments runtime-fnk-expr & [supplied-arguments]]
@@ -1358,9 +1405,12 @@
 (defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
   (let [result-sym 'result]
     (if (get-in description [:output label :flags :cached])
-      `(if-some [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
-         (cached-nil->nil ~result-sym)
-         ~forms)
+      ;; new v1
+      #_forms
+      ;; old
+      #_`(if-some [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
+           (cached-nil->nil ~result-sym)
+           ~forms)
       `(if-some [~result-sym (check-local-temp-cache ~node-id-sym ~label-sym ~evaluation-context-sym)]
          ~(with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :cache
             `(cached-nil->nil ~result-sym))
@@ -1380,13 +1430,37 @@
     `(or (argument-error-aggregate ~node-id-sym ~label-sym ~arguments-sym)
          ~forms)))
 
+(defn- from-cache-form [id-expr fn-expr arg-expr]
+  `(let [arg-key# (dissoc ~arg-expr :_basis)
+         f# (reify java.util.function.Function
+              (apply [_ _]
+                [arg-key# (~fn-expr ~arg-expr)]))
+         [cached-arg-key# cached-value#] (.get ^Cache --cache5 [~id-expr ~fn-expr] f#)]
+     (if (= cached-arg-key# arg-key#)
+       cached-value#
+       (let [ret# (~fn-expr ~arg-expr)]
+         (.put ^Cache --cache5 [~id-expr ~fn-expr] [arg-key# ret#])
+         ret#))))
+
+(comment
+  (.stats ^Cache --cache5)
+  (.estimatedSize ^Cache --cache5)
+  (require 'clj-async-profiler.core)
+  (clj-async-profiler.core/profile-for 2)
+
+  ,)
+
 (defn- call-production-function-form [description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym forms]
   (let [output-fn (get-in description [:output label :fn])]
     `(let [~result-sym ~(argument-error-check-form description label node-id-sym label-sym evaluation-context-sym arguments-sym
-                                                   (check-dry-run-form evaluation-context-sym
-                                                                       (if (var? output-fn)
-                                                                         `(~output-fn ~arguments-sym)
-                                                                         `((var ~(symbol (dollar-name (:name description) [:output label]))) ~arguments-sym))))]
+                          (check-dry-run-form evaluation-context-sym
+                            (if (get-in description [:output label :flags :cached])
+                              (if (var? output-fn)
+                                (from-cache-form node-id-sym output-fn arguments-sym)
+                                (from-cache-form node-id-sym `(var ~(symbol (dollar-name (:name description) [:output label]))) arguments-sym))
+                              (if (var? output-fn)
+                                `(~output-fn ~arguments-sym)
+                                `((var ~(symbol (dollar-name (:name description) [:output label]))) ~arguments-sym)))))]
        ~forms)))
 
 (defn update-local-cache! [node-id label evaluation-context value]
@@ -1398,9 +1472,7 @@
 
 (defn- cache-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if (contains? (get-in description [:output label :flags]) :cached)
-    `(do
-       (update-local-cache! ~node-id-sym ~label-sym ~evaluation-context-sym ~result-sym)
-       ~forms)
+    forms
     `(do
        (update-local-temp-cache! ~node-id-sym ~label-sym ~evaluation-context-sym ~result-sym)
        ~forms)))
