@@ -88,10 +88,13 @@
 (defn node-type
   "Return the node-type given a node. Uses the current basis if not provided."
   ([node]
-    (node-type (now) node))
+   (node-type (now) node))
   ([basis node]
-    (when node
-      (gt/node-type node basis))))
+   (when node
+     (gt/node-type node basis))))
+
+(defn node-override? [node]
+  (some? (gt/original node)))
 
 (defn cache "The system cache of node values"
   []
@@ -174,9 +177,9 @@
 (defn is-modified?
   "Returns a boolean if a node, or node and output, was modified as a result of a transaction given a tx-result."
   ([transaction node-id]
-    (boolean (contains? (:outputs-modified transaction) node-id)))
+   (boolean (contains? (:outputs-modified transaction) node-id)))
   ([transaction node-id output]
-    (boolean (get-in transaction [:outputs-modified node-id output]))))
+   (boolean (get-in transaction [:outputs-modified node-id output]))))
 
 (defn is-added?
   "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
@@ -555,10 +558,10 @@
 
 (defn disconnect-sources
   ([target-id target-label]
-    (disconnect-sources (now) target-id target-label))
+   (disconnect-sources (now) target-id target-label))
   ([basis target-id target-label]
    (assert target-id)
-    (it/disconnect-sources basis target-id target-label)))
+   (it/disconnect-sources basis target-id target-label)))
 
 (defn set-property
   "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
@@ -939,19 +942,19 @@
   "Returns true if the node is a member of a given type, including
    supertypes."
   ([type node]
-    (node-instance*? (now) type node))
+   (node-instance*? (now) type node))
   ([basis type node]
-    (if-let [nt (and type (node-type basis node))]
-      (isa? (:key @nt) (:key @type))
-      false)))
+   (if-let [nt (and type (node-type basis node))]
+     (isa? (:key @nt) (:key @type))
+     false)))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
    supertypes."
   ([type node-id]
-    (node-instance? (now) type node-id))
+   (node-instance? (now) type node-id))
   ([basis type node-id]
-    (node-instance*? basis type (gt/node-by-id-at basis node-id))))
+   (node-instance*? basis type (gt/node-by-id-at basis node-id))))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
@@ -1070,7 +1073,7 @@
   ([root-ids opts]
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
-    (s/validate opts-schema opts)
+   (s/validate opts-schema opts)
    (let [arcs-by-source (partial deep-arcs-by-source basis)
          arcs-by-target (partial gt/arcs-by-target basis)
          serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
@@ -1166,9 +1169,9 @@
 
 (defn override-original
   ([node-id]
-    (override-original (now) node-id))
+   (override-original (now) node-id))
   ([basis node-id]
-    (ig/override-original basis node-id)))
+   (ig/override-original basis node-id)))
 
 (defn override-root
   ([node-id]
@@ -1180,9 +1183,9 @@
 
 (defn override?
   ([node-id]
-    (override? (now) node-id))
+   (override? (now) node-id))
   ([basis node-id]
-    (not (nil? (override-original basis node-id)))))
+   (not (nil? (override-original basis node-id)))))
 
 (defn override-id
   ([node-id]
@@ -1191,12 +1194,15 @@
    (when-some [node (node-by-id basis node-id)]
      (:override-id node))))
 
+(defn node-property-overridden? [node property]
+  (gt/property-overridden? node property))
+
 (defn property-overridden?
   ([node-id property]
    (property-overridden? (now) node-id property))
   ([basis node-id property]
    (if-let [node (node-by-id basis node-id)]
-     (gt/property-overridden? node property)
+     (node-property-overridden? node property)
      false)))
 
 (defn property-value-origin?

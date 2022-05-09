@@ -272,7 +272,7 @@
                     property (:name @node-type)))
     (assoc this property value))
 
-  (overridden-properties [this basis] {})
+  (overridden-properties [this] {})
   (property-overridden?  [this property] false)
 
   gt/Evaluation
@@ -593,7 +593,7 @@
 
 (defn- all-available-arguments
   [description]
-  (set/union #{:_this :_basis}
+  (set/union #{:_this :_type}
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -797,7 +797,7 @@
   [(list 'property '_node-id :dynamo.graph/NodeID :unjammable)
    (list 'property '_output-jammers :dynamo.graph/KeywordMap :unjammable)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'_this ~'_basis] (gt/overridden-properties ~'_this ~'_basis)))])
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'_this] (gt/overridden-properties ~'_this)))])
 
 (def ^:private intrinsic-properties #{:_node-id :_output-jammers})
 
@@ -1207,7 +1207,8 @@
 
 (defn- call-with-error-checked-fnky-arguments-form
   [description label node-sym node-id-sym evaluation-context-sym arguments runtime-fnk-expr & [supplied-arguments]]
-  (let [base-args {:_node-id `(gt/node-id ~node-sym) :_basis `(:basis ~evaluation-context-sym)}
+  (let [base-args {:_node-id `(gt/node-id ~node-sym)
+                   :_type `(gt/node-type ~node-sym (:basis ~evaluation-context-sym))}
         arglist (without arguments (keys supplied-arguments))
         argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
                                                                 `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
@@ -1243,8 +1244,8 @@
     (= :_this argument)
     node-sym
 
-    (= :_basis argument)
-    `(:basis ~evaluation-context-sym)
+    (= :_type argument)
+    `(gt/node-type ~node-sym (:basis ~evaluation-context-sym))
 
     (and (= output argument)
          (desc-has-property? description argument)
@@ -1369,7 +1370,9 @@
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
   (let [arg-names (get-in description [:output label :arguments])
         argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))
-        argument-forms (assoc argument-forms :_node-id node-id-sym :_basis `(:basis ~evaluation-context-sym))]
+        argument-forms (assoc argument-forms
+                         :_node-id node-id-sym
+                         :_type `(gt/node-type ~node-sym (:basis ~evaluation-context-sym)))]
     (list `let
           [arguments-sym argument-forms]
           forms)))
@@ -1548,7 +1551,7 @@
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
       (assoc-in this [:properties property] value)))
-  (overridden-properties [this basis] properties)
+  (overridden-properties [this] properties)
   (property-overridden?  [this property] (contains? properties property))
 
   gt/Evaluation
