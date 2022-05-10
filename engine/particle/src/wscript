@@ -13,29 +13,32 @@
 # specific language governing permissions and limitations under the License.
 
 import waflib.Options
+from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-    particle = bld.__call__(features = 'cxx cstaticlib ddf',
-                                includes = ['.', '../proto'],
-                                proto_gen_py = True,
-                                protoc_includes = '../proto',
-                                target = 'particle',
-                                uselib = 'DDF DLIB PLATFORM_SOCKET',
-                                source = 'particle.cpp ../proto/particle/particle_ddf.proto')
+    build_util = create_build_utility(bld.env)
+    particle = bld.stlib(features = 'cxx ddf',
+                         includes = ['.', '../proto'],
+                         proto_gen_py = True,
+                         protoc_includes = '../proto',
+                         install_path = build_util.get_library_path(),
+                         target = 'particle',
+                         uselib = 'DDF DLIB PLATFORM_SOCKET',
+                         source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     # We only need this library in the editor
     is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
 
     if is_host:
-        bld.__call__(features = 'cxx cshlib ddf',
-                        includes = ['.', '../proto'],
-                        target = 'particle_shared',
-                        protoc_includes = '../proto',
-                        uselib = 'DDF DLIB PLATFORM_SOCKET',
-                        source = 'particle.cpp ../proto/particle/particle_ddf.proto')
+        bld.shlib(features = 'cxx ddf',
+                  includes = ['.', '../proto'],
+                  target = 'particle_shared',
+                  protoc_includes = '../proto',
+                  uselib = 'DDF DLIB PLATFORM_SOCKET',
+                  source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')

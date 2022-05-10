@@ -831,10 +831,12 @@ def export_symbols(self):
     task.set_outputs([exported_symbols])
 
     # Add exported symbols as a dependancy to this task
-    sources = [exported_symbols]
-    for x in self.source.split(' '):
-        sources.append(self.path.make_node(x))
-    self.source = sources
+    if type(self.source) == str:
+        sources = []
+        for x in self.source.split(' '):
+            sources.append(self.path.make_node(x))
+        self.source = sources
+    self.source.append(exported_symbols)
 
 Task.task_factory('app_bundle',
                          func = app_bundle,
