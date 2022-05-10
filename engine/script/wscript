@@ -29,15 +29,13 @@ def configure(conf):
 
     conf.recurse('src')
 
-    # conf.env.append_value('INCLUDES', 'src')
-    # conf.env.append_value('INCLUDES', '../')
+    conf.env.append_value('INCLUDES', 'src')
+    conf.env.append_value('INCLUDES', '../')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_EXTENSION'] = 'extension'
-
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
 
 def build(bld):
     global test_context
@@ -59,7 +57,8 @@ def shutdown(self):
     import server
 
     serv = None
-    if not getattr(Options.options, 'skip_tests', False):
+    if not getattr(waflib.Options.options, 'skip_tests', False):
+        print("SERVER")
         serv = server.Server()
         serv.start()
     try:
