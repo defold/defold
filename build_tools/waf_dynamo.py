@@ -825,12 +825,16 @@ def export_symbols(self):
         return
 
     exported_symbols = self.path.find_or_declare('__exported_symbols_%d.cpp' % self.idx)
-    # self.allnodes.append(exported_symbols)
-    # self.source += ' %s' % exported_symbols.abspath()
 
     task = self.create_task('create_export_symbols')
     task.exported_symbols = self.exported_symbols
     task.set_outputs([exported_symbols])
+
+    # Add exported symbols as a dependancy to this task
+    sources = [exported_symbols]
+    for x in self.source.split(' '):
+        sources.append(self.path.make_node(x))
+    self.source = sources
 
 Task.task_factory('app_bundle',
                          func = app_bundle,

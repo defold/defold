@@ -6,4 +6,3 @@ def build(bld):
                       includes = '..',
                       source = bld.path.ant_glob('**/*.cpp'),
                       target = 'Box2D')
-    #box2d.find_sources_in_dirs('. Collision Collision/Shapes Common Dynamics Dynamics/Contacts Dynamics/Joints')

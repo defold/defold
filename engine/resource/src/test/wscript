@@ -59,8 +59,6 @@ def build(bld):
                                 source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
                                 embed_source = 'resources.arci resources.arcd resources.dmanifest')
 
-    bld.add_group()
-
     test_resource.install_path = None
 
     test_resource_archive = bld.program(features     = 'cxx embed test',
@@ -72,8 +70,6 @@ def build(bld):
                                         embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
 
     test_resource_archive.install_path = None
-
-    bld.add_group()
 
     test_block_allocator = bld.program(features = 'cxx test',
                                        includes = '..',
