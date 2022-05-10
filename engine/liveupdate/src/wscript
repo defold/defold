@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from BuildUtility import create_build_utility
+
 def init(ctx):
     pass
 
@@ -10,17 +12,20 @@ def configure(conf):
     pass
 
 def build(bld):
-    liveupdate = bld.__call__(features = 'cxx cstaticlib',
-                                  includes = '.',
-                                  target = 'liveupdate')
+    build_util  = create_build_utility(bld.env)
+    liveupdate = bld.stlib(features = 'cxx',
+                           includes = '.',
+                           source   = bld.path.ant_glob('*.cpp'),
+                           target   = 'liveupdate')
 
-    liveupdate.find_sources_in_dirs('.')
-    liveupdate.source = [x for x in liveupdate.source if not 'null' in x]
+    #liveupdate.find_sources_in_dirs('.')
+    liveupdate.source = [x for x in liveupdate.source if not 'null' in x.name]
 
-    liveupdate_null = bld.__call__(features = 'cxx cstaticlib',
-                                  includes = '.',
-                                  source = 'liveupdate_null.cpp',
-                                  target = 'liveupdate_null')
+    liveupdate_null = bld.stlib(features     = 'cxx',
+                                includes     = '.',
+                                install_path = build_util.get_library_path(),
+                                source       = 'liveupdate_null.cpp',
+                                target       = 'liveupdate_null')
 
     bld.recurse('test')
 

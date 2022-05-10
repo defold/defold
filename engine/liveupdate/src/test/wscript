@@ -21,18 +21,16 @@ def build(bld):
             suffix += '_' + impl
             features = ['skip_test']
 
-        bld.__call__(features = 'cxx cprogram test'.split() + features,
+        bld.program(features = 'cxx test'.split() + features,
                          includes = '../../../src',
-                         uselib = uselib,
-                         uselib_local = local_lib,
+                         use = uselib + [local_lib],
                          web_libs = ['library_sys.js'],
                          target = 'test_liveupdate' + suffix,
                          source = 'test_liveupdate.cpp')
 
-        bld.__call__(features = 'cxx cprogram test'.split() + features,
+        bld.program(features = 'cxx test'.split() + features,
                          includes = '../../../src',
-                         uselib = uselib,
-                         uselib_local = local_lib,
+                         use = uselib + [local_lib],
                          web_libs = ['library_sys.js'],
                          target = 'test_liveupdate_async' + suffix,
                          source = '../liveupdate_async.cpp test_liveupdate_async.cpp')
