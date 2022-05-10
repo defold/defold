@@ -19,6 +19,7 @@
             [clojure.java.io :as io])
   (:import  [com.defold.util Profiler]))
 
+(def ^:const url-prefix "/profiler")
 (def ^:private template-path "profiler_template.html")
 (def ^:private html (atom nil))
 
