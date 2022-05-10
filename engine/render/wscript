@@ -73,7 +73,6 @@ def configure(conf):
 def build(bld):
     global test_context
     bld.recurse('src')
-    bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
     TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(self):

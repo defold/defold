@@ -18,8 +18,6 @@ def build(bld):
                     source          = bld.path.ant_glob('render/*.cpp') + bld.path.parent.ant_glob('proto/render/*.proto'),
                     target          = 'render')
 
-    #obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto'])
-
     bld.recurse('test')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
