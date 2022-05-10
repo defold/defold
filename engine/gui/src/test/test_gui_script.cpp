@@ -917,6 +917,71 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
         dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestCancelAnimationAll)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+   	dmGui::SetSceneResolution(scene, 1, 1);
+    dmGui::SetSceneScript(scene, script);
+
+    // Animate position and scale
+    const char* src =
+            "local n1\n"
+            "local elapsed = 0\n"
+            "local animating = true\n"
+            "function init(self)\n"
+            "    n1 = gui.new_box_node(vmath.vector3(0), vmath.vector3(1))\n"
+            "    gui.set_pivot(n1, gui.PIVOT_SW)\n"
+            "    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(100, 100, 0), gui.EASING_LINEAR, 1)\n"
+            "    gui.animate(n1, gui.PROP_SCALE, vmath.vector3(2), gui.EASING_LINEAR, 1)\n"
+            "end\n"
+            "function update(self, dt)\n"
+            "    elapsed = elapsed + dt\n"
+            "    if 0.5 <= elapsed and animating then\n"
+            "        gui.cancel_animation(n1)\n"
+            "        animating = false\n"
+            "    end\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    int ticks = 0;
+    dmVMath::Matrix4 t1;
+    while (ticks < 4) {
+        dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
+        dmGui::UpdateScene(scene, 0.125f);
+        ++ticks;
+    }
+    dmVMath::Vector3 translation = t1.getTranslation();
+    dmVMath::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+
+    const float tinyDifference = 10e-10f;
+    while (ticks < 8) {
+        dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
+        dmGui::UpdateScene(scene, 0.125f);
+
+        dmVMath::Vector3 currentTranslation = t1.getTranslation();
+        dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+
+        ASSERT_LE(Vectormath::Aos::lengthSqr(currentTranslation - translation), tinyDifference);
+        ASSERT_LE(Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal), tinyDifference);
+
+        ++ticks;
+    }
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
 TEST_F(dmGuiScriptTest, TestInstanceContext)
 {
     lua_State* L = dmGui::GetLuaState(m_Context);
