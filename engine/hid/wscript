@@ -9,7 +9,6 @@ blddir = 'build'
 import sys
 import waf_dynamo, waf_ddf
 import waflib.Options
-
 import TestContext
 
 test_context = None

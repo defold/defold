@@ -16,7 +16,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
 
     cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ../src/gameobject/test/input -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
-    extension([ext], create)
+    extension(ext)(create)
 
 create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObjectDDF.AResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
 create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
@@ -86,24 +86,24 @@ def read_collection(path):
     for coll_inst in msg.collection_instances:
         sub_msg = read_collection(os.path.dirname(path) + coll_inst.collection)
         merge_collections(msg, sub_msg, coll_inst.id)
-    msg.collection_instances.__delslice__(0, len(msg.collection_instances))
+    msg.collection_instances.__delitem__(slice(0, len(msg.collection_instances)))
 
     return msg
 
 def compile_collection(task):
     try:
-        src_path = task.inputs[0].srcpath(task.env)
+        src_path = task.inputs[0].srcpath()
         msg = read_collection(src_path)
         msg = transform_collection(task, msg)
 
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
 
         return 0
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (src_path, str(e))
+            print ('%s: %s' % (src_path, str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
@@ -131,18 +131,17 @@ def compile_go(task):
     try:
         import gameobject_ddf_pb2
         msg = gameobject_ddf_pb2.PrototypeDesc()
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+        with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
         msg = transform_gameobject(task, msg)
-
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
 
         return 0
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(), str(e))
         finally:
             stderr_lock.release()
         return 1
@@ -314,19 +313,19 @@ def parse_properties(props):
 
 def compile_lua(task):
     import lua_ddf_pb2
-    with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+    with open(task.inputs[0].srcpath(), 'r') as in_f:
         script = in_f.read()
         modules, props = scan_lua(script)
         script = strip_props(script)
         lua_module = lua_ddf_pb2.LuaModule()
-        lua_module.source.script = script
-        lua_module.source.filename = task.inputs[0].srcpath(task.env)
+        lua_module.source.script = script.encode()
+        lua_module.source.filename = task.inputs[0].srcpath()
         for m in modules:
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)
             lua_module.resources.append(module_file + 'c')
         lua_module.properties.CopyFrom(parse_properties(props))
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(lua_module.SerializeToString())
 
     return 0
@@ -354,17 +353,14 @@ def script_file(self, node):
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
         exported_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim','ComponentTypeScript', 'ComponentTypeAnim']
-        test_task_gen = bld.__call__(features = 'cxx cprogram test',
-                                         includes = '../../../src . .. ../../../proto',
-                                         source = bld.path.ant_glob(dir, incl=exts),
-                                         exported_symbols = exported_symbols,
-                                         uselib = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG HID',
-                                         uselib_local = 'gameobject',
-                                         web_libs = ['library_sys.js', 'library_script.js'],
-                                         proto_gen_py = True,
-                                         target = 'test_gameobject_%s' % dir)
-        #test_task_gen.find_sources_in_dirs(dir, exts)
-
+        test_task_gen = bld.program(features = 'cxx cprogram test',
+                                    includes = '../../../src . .. ../../../proto',
+                                    source = bld.path.ant_glob('%s/*' % (dir), incl=exts),
+                                    exported_symbols = exported_symbols,
+                                    use = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG HID gameobject',
+                                    web_libs = ['library_sys.js', 'library_script.js'],
+                                    proto_gen_py = True,
+                                    target = 'test_gameobject_%s' % dir)
     new_test('anim')
     new_test('bones', exts = ['.cpp', '.a_pb', '.go_pb', '.script'])
     new_test('collection', exts = ['.cpp', '.go_pb', '.script', '.collection', '.a_pb'])
