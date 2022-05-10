@@ -1,14 +1,16 @@
 #! /usr/bin/env python
 import os, sys, re
 import waflib.Options
+from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-    source        = 'sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
-    source_null   = 'devices/device_null.cpp sound_null.cpp'.split()
-    decoders      = 'decoders/decoder_wav.cpp decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
+    build_util  = create_build_utility(bld.env)
+    source      = 'sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
+    source_null = 'devices/device_null.cpp sound_null.cpp'.split()
+    decoders    = 'decoders/decoder_wav.cpp decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
 
     if bld.env['PLATFORM'] not in ['arm64-nx64']:
         decoders += 'decoders/decoder_tremolo.cpp'.split()
@@ -47,17 +49,19 @@ def build(bld):
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
 
 
-    sound = bld.__call__(features = 'cc cxx cstaticlib ddf',
-                             includes = '. %s' % include,
-                             defines = defines,
-                             target = 'sound',
-                             source = source)
+    sound = bld.stlib(features = 'c cxx ddf',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'sound',
+                      install_path = build_util.get_library_path(),
+                      source= source)
 
-    sound_null = bld.__call__(features = 'cc cxx cstaticlib ddf',
-                                  includes = '.',
-                                  defines = defines,
-                                  target = 'sound_null',
-                                  source = source_null)
+    sound_null = bld.stlib(features = 'c cxx ddf',
+                           includes = '.',
+                           defines  = defines,
+                           target   = 'sound_null',
+                           install_path = build_util.get_library_path(),
+                           source   = source_null)
 
     bld.install_files('${PREFIX}/include/sound', 'sound.h')
 
@@ -66,5 +70,5 @@ def build(bld):
         sound.defines = '_XBOX'
         sound_null.defines = '_XBOX'
 
-    if not Options.options.skip_build_tests:
+    if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
