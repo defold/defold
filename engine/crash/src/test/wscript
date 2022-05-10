@@ -1,6 +1,6 @@
-import Task, TaskGen
-from TaskGen import extension, declare_extension
-from Options import options
+import waflib.Task, waflib.TaskGen
+from waflib.TaskGen import extension
+from waflib.Options import options
 from waf_dynamo import new_copy_task
 
 new_copy_task('luascript', '.lua', '.luac')
@@ -8,36 +8,33 @@ new_copy_task('luascript', '.lua', '.luac')
 def build(bld):
     if options.skip_build_tests:
        return
-    libs = 'TESTMAIN SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT CARES'
+    libs = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'THREAD', 'RESOURCE', 'DDF', 'DLIB', 'LUA', 'SCRIPT', 'CARES']
     if 'android' in bld.env['PLATFORM']:
-        libs += ' UNWIND'
-    test_crash = bld.__call__(features = 'cxx cprogram test',
-                                     includes = '..',
-                                     uselib = libs,
-                                     uselib_local = 'crashext',
-                                     web_libs = ['library_sys.js'],
-                                     target = 'test_crash',
-                                     source = 'test_crash.cpp')
+        libs.append('UNWIND')
+    test_crash = bld.program(features = 'cxx cprogram test',
+                             includes = '..',
+                             use = libs + ['crashext'],
+                             web_libs = ['library_sys.js'],
+                             target = 'test_crash',
+                             source = 'test_crash.cpp')
 
     test_crash.install_path = None
     if 'win32' in bld.env['PLATFORM']:
         test_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
     # essentially only test that it links
-    test_crash_null = bld.__call__(features = 'cxx cprogram',
+    test_crash_null = bld.program(features = 'cxx cprogram',
                                      includes = '..',
-                                     uselib = libs,
-                                     uselib_local = 'crashext_null',
+                                     use = libs + ['crashext_null'],
                                      web_libs = ['library_sys.js'],
                                      target = 'test_crash_null',
                                      source = 'test_crash.cpp')
 
     test_crash_null.install_path = None
 
-    test_script_crash = bld.__call__(features = 'cxx cprogram test',
+    test_script_crash = bld.program(features = 'cxx cprogram test',
                                      includes = '..',
-                                     uselib = libs,
-                                     uselib_local = 'crashext',
+                                     use = libs + ['crashext'],
                                      web_libs = ['library_sys.js','library_script.js'],
                                      target = 'test_script_crash',
                                      exported_symbols = 'CrashExt',
@@ -47,12 +44,11 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         test_script_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
-    test_script_crash_null = bld.__call__(features = 'cxx cprogram test',
-                                     includes = '..',
-                                     uselib = libs,
-                                     uselib_local = 'crashext_null',
-                                     web_libs = ['library_sys.js','library_script.js'],
-                                     target = 'test_script_crash_null',
-                                     exported_symbols = 'CrashExt',
-                                     source = 'test_script_crash_null.cpp test_crash_null.lua')
+    test_script_crash_null = bld.program(features         = 'cxx cprogram test',
+                                         includes         = '..',
+                                         use              = libs + ['crashext_null'],
+                                         web_libs         = ['library_sys.js','library_script.js'],
+                                         target           = 'test_script_crash_null',
+                                         exported_symbols = 'CrashExt',
+                                         source           = 'test_script_crash_null.cpp test_crash_null.lua')
     test_script_crash_null.install_path = None
