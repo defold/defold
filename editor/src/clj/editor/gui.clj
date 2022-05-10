@@ -480,8 +480,8 @@
 (g/deftype ^:private NodeIndex [(s/one s/Int "node-id") (s/one s/Int "index")])
 (g/deftype ^:private NameIndex [(s/one s/Str "name") (s/one s/Int "index")])
 
-(g/defnk override-node? [_basis _node-id] (g/override? _basis _node-id))
-(g/defnk not-override-node? [_basis _node-id] (not (g/override? _basis _node-id)))
+(g/defnk override-node? [_this] (g/node-override? _this))
+(g/defnk not-override-node? [_this] (not (g/node-override? _this)))
 
 (defn- validate-contains [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id

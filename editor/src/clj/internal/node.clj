@@ -260,7 +260,7 @@
   (node-id [this]
     (:_node-id this))
 
-  (node-type [_ _]
+  (node-type [_]
     node-type)
 
   (get-property [this basis property]
@@ -272,7 +272,7 @@
                     property (:name @node-type)))
     (assoc this property value))
 
-  (overridden-properties [this basis] {})
+  (overridden-properties [this] {})
   (property-overridden?  [this property] false)
 
   gt/Evaluation
@@ -428,8 +428,7 @@
 
 (defn node-property-value* [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
-  (let [basis (:basis evaluation-context)
-        node-type (gt/node-type node basis)]
+  (let [node-type (gt/node-type node)]
     (when-let [behavior (property-behavior node-type label)]
       ((:fn behavior) node label evaluation-context))))
 
@@ -593,7 +592,7 @@
 
 (defn- all-available-arguments
   [description]
-  (set/union #{:_this :_basis}
+  (set/union #{:_this}
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -797,7 +796,7 @@
   [(list 'property '_node-id :dynamo.graph/NodeID :unjammable)
    (list 'property '_output-jammers :dynamo.graph/KeywordMap :unjammable)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'_this ~'_basis] (gt/overridden-properties ~'_this ~'_basis)))])
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'_this] (gt/overridden-properties ~'_this)))])
 
 (def ^:private intrinsic-properties #{:_node-id :_output-jammers})
 
@@ -1207,7 +1206,7 @@
 
 (defn- call-with-error-checked-fnky-arguments-form
   [description label node-sym node-id-sym evaluation-context-sym arguments runtime-fnk-expr & [supplied-arguments]]
-  (let [base-args {:_node-id `(gt/node-id ~node-sym) :_basis `(:basis ~evaluation-context-sym)}
+  (let [base-args {:_node-id `(gt/node-id ~node-sym)}
         arglist (without arguments (keys supplied-arguments))
         argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
                                                                 `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
@@ -1242,9 +1241,6 @@
   (cond
     (= :_this argument)
     node-sym
-
-    (= :_basis argument)
-    `(:basis ~evaluation-context-sym)
 
     (and (= output argument)
          (desc-has-property? description argument)
@@ -1316,7 +1312,7 @@
 (defn- node-type-name [node-id evaluation-context]
   (let [basis (:basis evaluation-context)
         node (gt/node-by-id-at basis node-id)]
-    (type-name (gt/node-type node basis))))
+    (type-name (gt/node-type node))))
 
 (defn mark-in-production [node-id label evaluation-context]
   (assert (not (contains? (:in-production evaluation-context) [node-id label]))
@@ -1369,7 +1365,7 @@
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
   (let [arg-names (get-in description [:output label :arguments])
         argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))
-        argument-forms (assoc argument-forms :_node-id node-id-sym :_basis `(:basis ~evaluation-context-sym))]
+        argument-forms (assoc argument-forms :_node-id node-id-sym)]
     (list `let
           [arguments-sym argument-forms]
           forms)))
@@ -1511,7 +1507,7 @@
           display-order-sym 'display-order]
       `(fn [~node-sym ~label-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)
-               ~display-order-sym (property-display-order (gt/node-type ~node-sym (:basis ~evaluation-context-sym)))
+               ~display-order-sym (property-display-order (gt/node-type ~node-sym))
                ~value-map-sym ~(apply merge {}
                                       (for [[p _] (remove (comp intrinsic-properties key) props)]
                                         {p (property-value-exprs description p node-sym node-id-sym evaluation-context-sym (get props p))}))]
@@ -1538,34 +1534,33 @@
 ;;; ----------------------------------------
 ;;; Overrides
 
-(defrecord OverrideNode [override-id node-id original-id properties]
+(defrecord OverrideNode [override-id node-id node-type original-id properties]
   gt/Node
   (node-id [this] node-id)
-  (node-type [this basis] (gt/node-type (gt/node-by-id-at basis original-id) basis))
+  (node-type [this] node-type)
   (get-property [this basis property]
     (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
   (set-property [this basis property value]
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
       (assoc-in this [:properties property] value)))
-  (overridden-properties [this basis] properties)
+  (overridden-properties [this] properties)
   (property-overridden?  [this property] (contains? properties property))
 
   gt/Evaluation
   (produce-value [this output evaluation-context]
-    (let [basis (:basis evaluation-context)
-          type (gt/node-type this basis)]
+    (let [basis (:basis evaluation-context)]
       (cond
         (= :_node-id output)
         node-id
 
         (or (= :_declared-properties output)
             (= :_properties output))
-        (let [beh (behavior type output)
+        (let [beh (behavior node-type output)
               props ((:fn beh) this output evaluation-context)
               original (gt/node-by-id-at basis original-id)
               orig-props (:properties (gt/produce-value original output evaluation-context))
-              declared? (partial contains? (all-properties type))]
+              declared? (partial contains? (all-properties node-type))]
           (when-not (:dry-run evaluation-context)
             (let [;; Values for undeclared properties must be manually propagated from the original.
                   props-with-inherited-override-values
@@ -1613,13 +1608,13 @@
                              orig-props)]
               (assoc props :properties props-with-overrides-and-original-values))))
 
-        (or (has-output? type output)
-            (has-input? type output))
-        (let [beh (behavior type output)]
+        (or (has-output? node-type output)
+            (has-input? node-type output))
+        (let [beh (behavior node-type output)]
           ((:fn beh) this output evaluation-context))
 
         true
-        (if (contains? (all-properties type) output)
+        (if (contains? (all-properties node-type) output)
           (get properties output)
           (when-some [node (gt/node-by-id-at basis original-id)]
             (gt/produce-value node output evaluation-context))))))
@@ -1630,5 +1625,5 @@
   (original [this] original-id)
   (set-original [this original-id] (assoc this :original-id original-id)))
 
-(defn make-override-node [override-id node-id original-id properties]
-  (->OverrideNode override-id node-id original-id properties))
+(defn make-override-node [override-id node-id node-type original-id properties]
+  (->OverrideNode override-id node-id node-type original-id properties))
