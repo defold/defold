@@ -397,12 +397,16 @@ public class Project {
         if (task != null) {
             return task;
         }
+        TimeProfiler.start();
+        TimeProfiler.addData("type", "createTask");
         Builder<?> builder;
         try {
             builder = builderClass.newInstance();
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
+                TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("name", task.getName());
                 tasks.put(key, task);
             }
             return task;
@@ -411,6 +415,8 @@ public class Project {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            TimeProfiler.stop();
         }
     }
 
@@ -476,11 +482,7 @@ public class Project {
             if (!skipped) {
                 Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
                 if (!ignoreTaskAutoCreation.contains(builderClass)) {
-                    TimeProfiler.start();
                     Task<?> task = createTask(input, builderClass);
-                    TimeProfiler.addData("name", task.getName());
-                    TimeProfiler.addData("output", task.getOutputsString());
-                    TimeProfiler.stop();
                 }
             }
         }
@@ -1330,6 +1332,7 @@ run:
 
                 TimeProfiler.start(task.getName());
                 TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("type", "buildTask");
                 completedTasks.add(task);
 
                 TaskResult taskResult = new TaskResult(task);
