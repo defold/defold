@@ -2518,7 +2518,7 @@ namespace dmGameObject
             }
         }
 
-        if (update_context->m_FixedUpdateFrequency != 0)
+        if (update_context->m_FixedUpdateFrequency != 0 && update_context->m_TimeScale > 0.001f)
         {
             if (collection->m_FirstUpdate)
             {
