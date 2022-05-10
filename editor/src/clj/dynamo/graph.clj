@@ -88,7 +88,8 @@
 (defn node-type
   "Return the node-type given a node. Uses the current basis if not provided."
   [node]
-  (gt/node-type node))
+  (when node
+    (gt/node-type node)))
 
 (defn node-override? [node]
   (some? (gt/original node)))
