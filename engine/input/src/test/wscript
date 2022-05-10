@@ -9,23 +9,6 @@ if sys.platform == "win32":
 else:
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto"
 
-
-"""
-def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/input/input_ddf.proto'):
-    def create(self, node):
-        task = self.create_task(name)
-        task.set_inputs(node)
-        out = node.change_ext(compiled_ext)
-        task.set_outputs(out)
-
-    cmd = 'protoc --encode=%s -I ../src/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
-    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
-    declare_extension([ext], create)
-
-create_simple_protoc_task('input_binding', '.input_binding', '.input_bindingc', 'dmInputDDF.InputBinding', before='cc cxx')
-create_simple_protoc_task('gamepads', '.gamepads', '.gamepadsc', 'dmInputDDF.GamepadMaps', before='cc cxx')
-"""
-
 def create_protoc_task(name, type):
     return waflib.Task.task_factory(name, 
                                     'protoc --encode=%s -I ../src/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ../proto/input/input_ddf.proto < ${SRC} > ${TGT}' % type,

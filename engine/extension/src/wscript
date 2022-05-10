@@ -18,9 +18,9 @@ def build(bld):
         source += ['extension_android.cpp']
 
     build_util = create_build_utility(bld.env)
-    extension = bld.stlib(features = 'cxx ddf',
-                          includes = '.',
-                          source = source,
+    extension = bld.stlib(features     = 'cxx ddf',
+                          includes     = '.',
+                          source       = source,
                           install_path = build_util.get_library_path(),
-                          target = 'extension')
+                          target       = 'extension')
 

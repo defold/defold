@@ -155,7 +155,7 @@ proto_gen_cc = waflib.Task.task_factory('proto_gen_cc', 'protoc --cpp_out=${PROT
                                       shell=True)
 proto_gen_cc.scan = scan
 
-proto_gen_py = waflib.Task.task_factory('proto_gen_py', 'protoc --python_out=${PROTO_OUT_DIR} -I ../${SRC[0].src_dir()} -I ${SRC[0].parent.src_dir_abs()} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_py = waflib.Task.task_factory('proto_gen_py', 'protoc --python_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${PROTOC_FLAGS} ${SRC}',
                                      color='RED',
                                      before='c cxx',
                                      after='proto_b',
@@ -309,6 +309,8 @@ def proto_file(self, node):
             task.env['PROTOC_FLAGS'] = protoc_flags
             task.set_inputs(node)
             py_out = node.change_ext('_pb2.py')
+            
+            task.env['PROTOC_CC_FLAGS'] = get_protoc_cc_flags(self)
             task.env['PROTO_OUT_DIR'] = proto_out_dir(self, py_out, n_parent)
 
             gen_py_proto_packages = getattr(self, 'gen_py_proto_packages', set())

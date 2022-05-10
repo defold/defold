@@ -35,3 +35,8 @@ def build(bld):
                         source = bld.path.ant_glob(['*.particlefx', '*.cpp']),
                         target = 'test_particle')
     test_particle.install_path = None
+
+    print(test_particle.tasks)
+
+    for x in test_particle.tasks:
+        print(x)

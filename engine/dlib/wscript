@@ -10,9 +10,14 @@ from waflib import Options, Logs
 import os, sys, tempfile, configparser
 import waf_dynamo
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+import TestContext
+
+test_context = None
 
 def init(ctx):
-    pass
+    global test_context
+    if 'build' in Options.commands:
+        test_context = TestContext.create_test_context()
 
 def options(opt):
     opt.load('waf_dynamo')
@@ -36,14 +41,16 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
 
 def build(bld):
+    global test_context
     if not os.path.exists('tmp'):
         os.mkdir('tmp')
 
     bld.recurse('src')
     bld.install_files('${PREFIX}/include/x86_64-win32', bld.path.ant_glob('include/x86_64-win32/*.h'))
+    TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(sht):
-    if not 'build' in Options.commands or getattr(Options.options, 'skip_tests', False):
+    if not TestContext.is_valid(test_context):
         return
 
     # TODO: Fix support for win32
@@ -99,7 +106,7 @@ def shutdown(sht):
         print("Wrote test config file: %s" % configfilepath)
 
     try:
-        waf_dynamo.run_tests(valgrind = True, configfile = configfilepath)
+        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfilepath)
     finally:
         os.remove(configfilepath)
 

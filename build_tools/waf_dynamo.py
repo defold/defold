@@ -1107,9 +1107,23 @@ def create_copy_glue(self):
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
 
+def get_file_contents(path):
+    """data = None
+    try:
+        handle = open(path, 'r')
+        data = handle.read()
+    except UnicodeDecodeError:
+        handle = open(path, 'rb')
+        data = handle.read()
+    return data
+    """
+    handle = open(path, 'rb')
+    return handle.read()
+
+
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
-    in_file = open(task.inputs[0].abspath(), 'rb')
+    in_file = get_file_contents(task.inputs[0].abspath()) #open(task.inputs[0].abspath(), 'rt')
     cpp_out_file = open(task.outputs[0].abspath(), 'w')
     h_out_file = open(task.outputs[1].abspath(), 'w')
 
@@ -1120,12 +1134,15 @@ unsigned char DM_ALIGNED(16) %s[] =
 """
     cpp_out_file.write(cpp_str % (symbol))
     cpp_out_file.write('{\n    ')
-
-    data = in_file.read()
+    data = in_file
+    data_is_binary = type(data) == bytes
 
     tmp = ''
-    for i,x in enumerate(str(data)):
-        tmp += hex(ord(x)) + ', '
+    for i,x in enumerate(data):
+        if data_is_binary:
+            tmp += hex(x) + ', '
+        else:
+            tmp += hex(ord(x)) + ', '
         if i > 0 and i % 4 == 0:
             tmp += '\n    '
 
@@ -1140,7 +1157,11 @@ unsigned char DM_ALIGNED(16) %s[] =
     h_out_file.close()
 
     m = Utils.md5()
-    m.update(data)
+
+    if data_is_binary:
+        m.update(data)
+    else:
+        m.update(data.encode('utf-8'))
 
     #task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
     task.generator.bld.node_sigs[task.inputs[0]] = m.digest()
