@@ -801,12 +801,6 @@
        (update-cache-from-evaluation-context! ~ec))
      result#))
 
-(defn invalidate-counter
-  ([node-id output]
-   (get (:invalidate-counters @*the-system*) [node-id output]))
-  ([node-id output evaluation-context]
-   (get (:initial-invalidate-counters evaluation-context) [node-id output])))
-
 (defn- do-node-value [node-id label evaluation-context]
   (is/node-value @*the-system* node-id label evaluation-context))
 
