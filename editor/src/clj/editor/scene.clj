@@ -1141,7 +1141,7 @@
           last-frame-version (ui/user-data image-view ::last-frame-version)
           frame-version (cond-> (or last-frame-version 0)
                           (or (nil? last-renderables)
-                              (not= last-renderables renderables)
+                              (not (identical? last-renderables renderables))
                               (and (= :playing play-mode) (seq active-updatables)))
                           inc)]
       (when (seq action-queue)
