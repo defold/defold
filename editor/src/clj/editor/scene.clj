@@ -1366,7 +1366,7 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
   (output frame BufferedImage produce-frame)
-  (output all-renderables pass/RenderData (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
+  (output all-renderables pass/RenderData :cached (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil)))))
 
 (defn make-preview-view [graph width height]
