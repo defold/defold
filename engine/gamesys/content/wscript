@@ -5,8 +5,7 @@ def options(opt):
     pass
 
 def build(bld):
-    obj = bld.__call__(source = [])
-    obj.find_sources_in_dirs('materials')
+    obj = bld(source = bld.path.ant_glob('materials/*'))
 
 def configure(conf):
     pass

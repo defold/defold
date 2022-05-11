@@ -27,7 +27,7 @@ waflib.Task.task_factory('texture', 'python ${TEXC} ${SRC} -o ${TGT}',
                       before='c cxx',
                       shell=True)
 
-@extension('.png .jpg')
+@extension('.png', '.jpg')
 def png_file(self, node):
     texture = self.create_task('texture')
     texture.set_inputs(node)

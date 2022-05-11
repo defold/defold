@@ -8,13 +8,12 @@ def configure(conf):
     conf.recurse('test')
 
 def build(bld):
-    resource = bld.__call__(features = 'cxx cstaticlib ddf embed',
+    resource = bld.stlib(features = 'cxx ddf embed',
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
+        source = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*'),
         target = 'gamesys')
-
-    resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto/gamesys'])
 
     if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
         resource.source += ['scripts/window/script_window_ios.mm']

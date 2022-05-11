@@ -21,19 +21,19 @@ def build(bld):
     build_util = create_build_utility(bld.env)
     target = build_util.get_target_os()
 
-    exe = bld.__call__(features = ['cc', 'cxx', 'cprogram'],
-                           includes = ['.'],
-                           uselib = 'DLIB CARES',
-                           source = ['launcher.cpp', 'launcher_util.cpp'],
-                           target = 'launcher')
+    exe = bld.program(features  = 'c cxx',
+                       includes = ['.'],
+                       use      = 'DLIB CARES',
+                       source   = ['launcher.cpp', 'launcher_util.cpp'],
+                       target   = 'launcher')
 
     if 'osx' == target:
         exe.source.append('macos_events.mm')
 
-    lib = bld.__call__(features = 'cxx cstaticlib',
-                           includes = ['.'],
-                           target = 'launcherutil',
-                           source = ['launcher_util.cpp'])
+    lib = bld.stlib(features = 'cxx',
+                    includes = ['.'],
+                    target   = 'launcherutil',
+                    source   = ['launcher_util.cpp'])
 
     if 'win32' in bld.env.BUILD_PLATFORM:
         exe.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']

@@ -23,8 +23,8 @@ def build(bld):
 
         bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
 
-        bld.__call__(features='jar seq',
-                         basedir='java',
-                         destfile='gamesys_android.jar')
+        bld(features='jar seq',
+            basedir='java',
+            destfile='gamesys_android.jar')
 
         bld.install_files('${PREFIX}/share/java', 'gamesys_android.jar')

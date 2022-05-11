@@ -1,6 +1,5 @@
 import sys, os
-import Task, TaskGen
-from TaskGen import extension
+import waflib.Task, waflib.TaskGen
 from waflib.Options import options
 
 def build(bld):
@@ -9,16 +8,16 @@ def build(bld):
 
     sys.path.insert(0, "default/proto")
 
-    flist = 'cc cxx cprogram'
+    flist = 'c cxx cprogram'
 
     if 'web' in bld.env['PLATFORM']:
         flist = flist + ' web'
 
-    font_viewer = bld.__call__(features = flist,
-                                    source = 'fontview.cpp deja_vu_sans.font vera_mo_bd.font font.vp font.fp font.material',
-                                    uselib = 'RENDER CRASH GRAPHICS RESOURCE HID DDF DMGLFW PLATFORM_SOCKET SCRIPT LUA EXTENSION DLIB X CARES',
-                                    web_libs = ['library_sys.js', 'library_glfw.js'],
-                                    uselib_local = 'gamesys',
-                                    includes = ['../../../../src',  '../../../build'],
-                                    target = 'fontview')
+    font_viewer = bld.program(features = flist,
+                              source   = 'fontview.cpp deja_vu_sans.font vera_mo_bd.font font.vp font.fp font.material',
+                              use      = 'RENDER CRASH GRAPHICS RESOURCE HID DDF DMGLFW PLATFORM_SOCKET SCRIPT LUA EXTENSION DLIB X CARES gamesys',
+                              web_libs = ['library_sys.js', 'library_glfw.js'],
+                              includes = ['../../../../src',  '../../../build'],
+                              target   = 'fontview')
+
     font_viewer.install_path = None

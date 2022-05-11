@@ -2,12 +2,11 @@
 import os
 
 def build(bld):
-    test = bld.__call__(features='cxx cprogram test',
-                            uselib='DLIB',
-                            uselib_local='launcherutil',
-                            includes = ['.'],
-                            target='test_launcher',
-                            source='test_launcher.cpp')
+    test = bld.program(features='cxx test',
+                       use='DLIB launcherutil',
+                       includes = ['.'],
+                       target='test_launcher',
+                       source='test_launcher.cpp')
 
     test.install_path = None
     

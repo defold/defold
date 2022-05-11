@@ -12,15 +12,15 @@ def build(bld):
 
     graphics_lib = 'GRAPHICS'
     graphics_adapter = 'GraphicsAdapterOpenGL'
-    if Options.options.with_vulkan:
+    if waflib.Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
         graphics_adapter = 'GraphicsAdapterVulkan'
 
-    b = bld.__call__(features = 'cc cxx cprogram',
-                        uselib = 'PLATFORM_SOCKET HID INPUT DDF DLIB DMGLFW X CARES ' + graphics_lib,
-                        exported_symbols = [graphics_adapter],
-                        source = 'main.cpp',
-                        target = 'gdc')
+    b = bld.program(features         = 'c cxx',
+                    use              = 'PLATFORM_SOCKET HID INPUT DDF DLIB DMGLFW X CARES ' + graphics_lib,
+                    exported_symbols = [graphics_adapter],
+                    source           = 'main.cpp',
+                    target           = 'gdc')
 
     if bld.env.PLATFORM == 'x86_64-darwin':
         b.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])

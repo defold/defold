@@ -13,8 +13,8 @@
 # specific language governing permissions and limitations under the License.
 
 import sys, os
-import Task, TaskGen
-from TaskGen import extension
+import waflib.Task, waflib.TaskGen
+from waflib.TaskGen import extension
 from waf_content import proto_compile_task
 
 def configure(conf):
@@ -27,11 +27,11 @@ def transform_material(task, msg):
 
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
 
-Task.simple_task_type('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='cc cxx',
-                      shell=False)
+waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
+                         color='PINK',
+                         after='proto_gen_py',
+                         before='c cxx',
+                         shell=False)
 
 @extension('.font')
 def font_file(self, node):

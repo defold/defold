@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import Task, TaskGen, Options
+import waflib.Task, TaskGen, Options
 from TaskGen import extension, declare_extension
 import os, sys, glob, re
 import waf_gamesys

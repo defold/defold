@@ -35,8 +35,7 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
 
 def build(bld):
     global test_context
