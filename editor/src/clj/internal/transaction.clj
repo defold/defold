@@ -388,17 +388,17 @@
 
 (defn- populate-overrides [ctx node-id]
   (let [basis (:basis ctx)
-        override-nodes (ig/get-overrides basis node-id)]
-    (reduce (fn [ctx override-node-id]
-              (let [override-id (node-id->override-id basis override-node-id)
-                    override (ig/override-by-id basis override-id)
-                    traverse-fn (:traverse-fn override)
-                    node-ids (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1)]
-                (reduce populate-overrides
-                        (ctx-make-override-nodes ctx override-id node-ids)
-                        override-nodes)))
+        override-node-ids (ig/get-overrides basis node-id)
+        ctx (reduce (fn [ctx override-node-id]
+                      (let [override-id (node-id->override-id basis override-node-id)
+                            traverse-fn (:traverse-fn (ig/override-by-id basis override-id))
+                            node-ids (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1)]
+                        (ctx-make-override-nodes ctx override-id node-ids)))
+                    ctx
+                    override-node-ids)]
+    (reduce populate-overrides
             ctx
-            override-nodes)))
+            override-node-ids)))
 
 (defmethod perform :transfer-overrides
   [ctx {:keys [from-id->to-id]}]

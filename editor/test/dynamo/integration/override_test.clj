@@ -15,15 +15,13 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.integration.override-test-support :as support]
-            [editor.defold-project :as project]
-            [editor.resource :as resource]
             [editor.util :as util]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [internal.util]
             [schema.core :as s]
             [support.test-support :as ts])
-  (:import  [javax.vecmath Vector3d]))
+  (:import [javax.vecmath Vector3d]))
 
 (g/defnode BaseNode
   (property base-property g/Str))
@@ -47,7 +45,9 @@
                                          (update :display-order conj :c-property)))))
 
 (g/defnode SubNode
-  (property value g/Str))
+  (property value g/Str)
+  (input sub-nodes g/NodeID :array :cascade-delete)
+  (output sub-nodes [g/NodeID] (g/fnk [sub-nodes] sub-nodes)))
 
 (defn- override [node-id]
   (-> (g/override node-id {})
@@ -94,6 +94,63 @@
                     (get-in p [:properties :dyn-property :override?])))]
           (is (false? (f main)))
           (is (true? (f or-main))))))))
+
+(deftest connect
+  (testing "Connecting to original spawns override nodes in direct override layers"
+    (ts/with-clean-system
+      ;; Test with two direct overrides of main.
+      (let [[main] (ts/tx-nodes (g/make-nodes world [main MainNode]
+                                  (g/override main)
+                                  (g/override main)))
+            [new1-sub new2-sub] (ts/tx-nodes (g/make-nodes world [new1-sub SubNode
+                                                                  new2-sub SubNode
+                                                                  new2-sub-sub SubNode]
+                                               (g/connect new2-sub-sub :_node-id new2-sub :sub-nodes)))
+            node-count-before-connection (-> world g/graph :nodes count)]
+        (g/connect! new1-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2) ; Single node cloned to two override layers.
+               (-> world g/graph :nodes count)))
+        (g/connect! new2-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2 4) ; Two-node chain cloned to two override layers.
+               (-> world g/graph :nodes count))))))
+  (testing "Connecting to original spawns override nodes in recursive override layers"
+    (ts/with-clean-system
+      ;; Test with one direct override of main, and one override of that override.
+      (let [[main] (ts/tx-nodes (g/make-node world MainNode))
+            [or-main] (ts/tx-nodes (g/override main))
+            [_or2-main] (ts/tx-nodes (g/override or-main))
+            [new1-sub new2-sub] (ts/tx-nodes (g/make-nodes world [new1-sub SubNode
+                                                                  new2-sub SubNode
+                                                                  new2-sub-sub SubNode]
+                                               (g/connect new2-sub-sub :_node-id new2-sub :sub-nodes)))
+            node-count-before-connection (-> world g/graph :nodes count)]
+        (g/connect! new1-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2) ; Single node cloned to two override layers.
+               (-> world g/graph :nodes count)))
+        (g/connect! new2-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2 4) ; Two-node chain cloned to two override layers.
+               (-> world g/graph :nodes count))))))
+  (testing "Connecting to override only spawns override nodes in subsequent override layers"
+    (ts/with-clean-system
+      ;; Test with one direct override of main, and one override of that override.
+      (let [[main] (ts/tx-nodes (g/make-node world MainNode))
+            [or-main] (ts/tx-nodes (g/override main))
+            [or2-main] (ts/tx-nodes (g/override or-main))
+            [new1-sub new2-sub new3-sub] (ts/tx-nodes (g/make-nodes world [new1-sub SubNode
+                                                                           new2-sub SubNode
+                                                                           new3-sub SubNode
+                                                                           new3-sub-sub SubNode]
+                                                        (g/connect new3-sub-sub :_node-id new3-sub :sub-nodes)))
+            node-count-before-connection (-> world g/graph :nodes count)]
+        (g/connect! new1-sub :_node-id or2-main :sub-nodes)
+        (is (= node-count-before-connection)
+            (-> world g/graph :nodes count)) ; Connecting to override with no subsequent overrides spawns no nodes.
+        (g/connect! new2-sub :_node-id or-main :sub-nodes)
+        (is (= (+ node-count-before-connection 1) ; Single node cloned to one override layer.
+               (-> world g/graph :nodes count)))
+        (g/connect! new3-sub :_node-id or-main :sub-nodes)
+        (is (= (+ node-count-before-connection 1 2) ; Two-node chain cloned to one override layer.
+               (-> world g/graph :nodes count)))))))
 
 (deftest delete
   (ts/with-clean-system
