@@ -190,7 +190,7 @@ def apidoc_extract_task(bld, src):
             if not n:
                 print("Couldn't find resource: %s" % s)
                 continue
-            with open(n.abspath(), 'r') as in_f:
+            with open(n.abspath(), encoding='utf8') as in_f:
                 source = in_f.read()
                 for k,v in chain(elements.items(), ns_elements(source).items()):
                     if k == None:
@@ -282,7 +282,7 @@ def apply_framework(self):
     for x in self.to_list(self.env['FRAMEWORKPATH']):
         frameworkpath_st='-F%s'
         self.env.append_unique('CXXFLAGS',frameworkpath_st%x)
-        self.env.append_unique('CCFLAGS',frameworkpath_st%x)
+        self.env.append_unique('CFLAGS',frameworkpath_st%x)
         self.env.append_unique('LINKFLAGS',frameworkpath_st%x)
     for x in self.to_list(self.env['FRAMEWORK']):
         self.env.append_value('LINKFLAGS',['-framework',x])
@@ -315,7 +315,7 @@ def default_flags(self):
     if Options.options.ndebug:
         flags += [self.env.CXXDEFINES_ST % 'NDEBUG']
 
-    for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+    for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
 
     if Options.options.show_includes:
@@ -324,7 +324,7 @@ def default_flags(self):
         else:
             flags += ['-H']
 
-    for f in ['CCFLAGS', 'CXXFLAGS']:
+    for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
     use_cl_exe = build_util.get_target_platform() in ['win32', 'x86_64-win32']
@@ -333,11 +333,11 @@ def default_flags(self):
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
-       for f in ['CCFLAGS', 'CXXFLAGS']:
+       for f in ['CFLAGS', 'CXXFLAGS']:
            self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
            self.env.append_value(f, self.env.CXXDEFINES_ST % "JC_TEST_USE_COLORS=1")
 
-    for f in ['CCFLAGS', 'CXXFLAGS']:
+    for f in ['CFLAGS', 'CXXFLAGS']:
         if '64' in build_util.get_target_architecture():
             self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
         else:
@@ -370,7 +370,7 @@ def default_flags(self):
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
     if "linux" == build_util.get_target_os():
-        for f in ['CCFLAGS', 'CXXFLAGS']:
+        for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
@@ -381,7 +381,7 @@ def default_flags(self):
         sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_MACOSX)
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
-        for f in ['CCFLAGS', 'CXXFLAGS']:
+        for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
@@ -419,7 +419,7 @@ def default_flags(self):
             sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONESIMULATOR)
             swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
-        for f in ['CCFLAGS', 'CXXFLAGS']:
+        for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
 
@@ -438,7 +438,7 @@ def default_flags(self):
         bp_arch, bp_os = self.env['BUILD_PLATFORM'].split('-')
         sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
-        for f in ['CCFLAGS', 'CXXFLAGS']:
+        for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
@@ -475,7 +475,7 @@ def default_flags(self):
             flags = ['-g4']
             linkflags = ['-g4']
 
-        for f in ['CCFLAGS', 'CXXFLAGS']:
+        for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
                                         '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS'])
             self.env.append_value(f, emflags)
@@ -486,7 +486,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', linkflags)
 
     elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
-        for f in ['CCFLAGS', 'CXXFLAGS']:
+        for f in ['CFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX' '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
@@ -524,7 +524,7 @@ def web_exported_functions(self):
 
     use_crash = 'CRASH' in self.uselib or self.name in ('crashext', 'crashext_null')
 
-    for name in ('CCFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
+    for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
 
         for i, v in enumerate(arr):
@@ -576,11 +576,11 @@ def asan_cxxflags(self):
     build_util = create_build_utility(self.env)
     if Options.options.with_asan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
     if Options.options.with_ubsan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined'])
-        self.env.append_value('CCFLAGS', ['-fsanitize=undefined'])
+        self.env.append_value('CFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
 
 @task_gen
@@ -864,7 +864,7 @@ AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 def authenticode_certificate_installed(task):
     if Options.options.skip_codesign:
         return 0
-    ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, log=True)
+    ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, stdout=True, stderr=True)
     return ret > 0
 
 def authenticode_sign(task):
@@ -874,17 +874,17 @@ def authenticode_sign(task):
     exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
     exe_file_signed = task.outputs[0].abspath(task.env)
 
-    ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), log=True)
+    ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), stdout=True, stderr=True)
     if ret != 0:
         error("Unable to copy file before signing")
         return 1
 
-    ret = task.exec_command('"%s" sign /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), log=True)
+    ret = task.exec_command('"%s" sign /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), stdout=True, stderr=True)
     if ret != 0:
         error("Unable to sign executable")
         return 1
 
-    ret = task.exec_command('move /Y %s %s' % (exe_file_to_sign, exe_file_signed), log=True)
+    ret = task.exec_command('move /Y %s %s' % (exe_file_to_sign, exe_file_signed), stdout=True, stderr=True)
     if ret != 0:
         error("Unable to rename file after signing")
         return 1
@@ -1213,8 +1213,17 @@ def embed_file(self):
         task = self.create_task('embed_file', node, [cc_out, h_out])
         embed_out_nodes.append(cc_out)
 
+    # some sources are added as nodes and some are not
+    # so we have to make sure we only have nodes in the source list
+    source_nodes = []
+    for x in Utils.to_list(self.source):
+        if type(x) == str:
+            source_nodes.append(self.path.find_node(x))
+        else:
+            source_nodes.append(x)
+
     # Add dependency on generated embed source files to the task gen
-    self.source = self.path.ant_glob(self.source) + embed_out_nodes
+    self.source = source_nodes + embed_out_nodes
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
@@ -1226,7 +1235,10 @@ def do_find_file(file_name, path_list):
 def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     if not path_list: path_list = os.environ['PATH'].split(os.pathsep)
     ret = do_find_file(file_name, path_list)
-    self.check_message('file', file_name, ret, ret)
+
+    # JG: Maybe fix this. Not sure it's the correct conversion to 'check_message'
+    self.start_msg('Checking for file %s' % (file_name))
+    self.end_msg(ret)
     if var: self.env[var] = ret
 
     if not ret and mandatory:
@@ -1313,7 +1325,7 @@ def test_flags(self):
     # When building tests for the web, we disable emission of emscripten js.mem init files,
     # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
-        for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+        for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             self.env.append_value(f, ['--memory-init-file', '0'])
 
 @feature('cprogram', 'cxxprogram')
@@ -1543,8 +1555,8 @@ def detect(conf):
     conf.load('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
-    remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
-    remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
+    remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)
+    remove_flag(conf.env['shlib_CFLAGS'], '-current_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 

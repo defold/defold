@@ -87,7 +87,8 @@ class BuildUtility:
         if process.returncode != 0:
             sys.exit(process.returncode)
 
-        line = str(out).split('\n')[0].strip()
+        out_decoded = out.decode()
+        line = out_decoded.split('\n')[0].strip()
         sha1 = line.split()[0]
         return sha1
     # get_sha1
