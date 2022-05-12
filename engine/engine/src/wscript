@@ -7,13 +7,13 @@ def options(opt):
     pass
 
 def build(bld):
-    bld.__call__(features = 'cxx cstaticlib embed',
+    bld.stlib(features = 'cxx embed',
                     includes = '. ..',
                     source = 'engine_service.cpp',
                     target = 'engine_service',
                     embed_source = '../content/profiler.html')
 
-    bld.__call__(features = 'cxx cstaticlib',
+    bld.stlib(features = 'cxx',
                     includes = '. ..',
                     source = 'engine_service_null.cpp',
                     target = 'engine_service_null')
@@ -22,16 +22,16 @@ def build(bld):
     if 'arm64-nx64' in bld.env.PLATFORM:
         platform_main_cpp = 'nx64/main.cpp'
 
-    bld.__call__(features = 'cxx cstaticlib ddf embed',
+    bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
                     target = 'engine',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
-                    uselib_local = 'engine_service')
+                    use = 'engine_service')
 
-    bld.__call__(features = 'cxx cstaticlib ddf embed',
+    bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
                     target = 'engine_release',
                     defines = 'DM_RELEASE=1',
@@ -39,7 +39,7 @@ def build(bld):
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins_release.arci ../content/builtins_release.arcd ../content/builtins_release.dmanifest', # for draw_line/draw_text
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
-                    uselib_local = 'engine_service_null')
+                    use = 'engine_service_null')
 
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto/engine', '../proto/engine/engine_ddf.proto')
@@ -62,7 +62,7 @@ def build(bld):
 
     graphics_lib = 'GRAPHICS DMGLFW'
     graphics_lib_symbols = 'GraphicsAdapterOpenGL'
-    if bld.env['PLATFORM'] in ('arm64-nx64',) or Options.options.with_vulkan:
+    if bld.env['PLATFORM'] in ('arm64-nx64',) or waflib.Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
         graphics_lib_symbols = 'GraphicsAdapterVulkan'
 
@@ -104,10 +104,15 @@ def build(bld):
 
     main_cpp = 'common/main.cpp'
 
-    obj = bld.__call__(
-        features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
-        uselib_local = 'engine engine_service',
+
+    bld.recurse('test')
+    return
+
+    bld.add_group()
+
+    obj = bld.program(
+        features = 'c cxx cprogram apk web extract_symbols',
+        use = 'engine_rs WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CARES CRASH X engine engine_service'.split() + graphics_lib + sound_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -124,17 +129,17 @@ def build(bld):
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
-
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'defold.ico')
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
         
-    obj = bld.__call__(
-        features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
-        uselib_local = 'engine_release engine_service_null',
+    bld.add_group()
+
+    obj = bld.program(
+        features = 'c cxx cprogram apk web extract_symbols',
+        use = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CARES CRASH X engine_release engine_service_null'.split() + graphics_lib + sound_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -143,8 +148,8 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_release',
-        source=main_cpp.split(),
-        jars = android_jar_paths)
+        source = main_cpp.split(),
+        jars   = android_jar_paths)
 
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc')
@@ -158,24 +163,25 @@ def build(bld):
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-darwin', 'x86_64-ios'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw. UIApplicationMain is currently in glfw
 
-    obj = bld.__call__(
-        features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CARES CRASH'.split() + graphics_lib.split() + additional_libs,
+    bld.add_group()
+
+    obj = bld.program(
+        features = 'c cxx cprogram apk web extract_symbols',
+        use = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF Psapi LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CARES CRASH engine engine_service'.split() + graphics_lib.split() + additional_libs,
         exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
-        uselib_local = 'engine engine_service',
         web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_headless',
-        source=main_cpp.split())
+        source = main_cpp.split())
 
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc')
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
         src_dir = "%s/ext/lib/%s" % (bld.env.PREFIX, bld.env.PLATFORM)
-        install_path = bld.get_install_path("${PREFIX}/bin/${PLATFORM}")
+        install_path = os.path.join(bld.env["PREFIX"], 'bin', bld.env['PLATFORM']) # bld.get_install_path("${PREFIX}/bin/${PLATFORM}")
         task = copy_file_task(bld, "%s/OpenAL32.dll" % src_dir)
         task.install_path = install_path
         task = copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
@@ -186,7 +192,9 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.nso')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_headless.nso')
 
-    if not Options.options.skip_build_tests:
+    bld.add_group()
+
+    if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

@@ -1,43 +1,55 @@
 #! /usr/bin/env python
 import os, shutil, zipfile
-import Node, Options
+import waflib.Node, waflib.Options
 
 def options(opt):
     pass
 
 def package_bob(self):
-    bob = self.outputs[0].bldpath(self.env)
+    bob = self.outputs[0].abspath()
     bob_light = os.path.join(self.env['DYNAMO_HOME'], 'share/java/bob-light.jar')
     shutil.copyfile(bob_light, bob)
     zip = zipfile.ZipFile(bob, 'a')
     for input in self.inputs:
-        if input.get_type() == Node.FILE:
-            name = os.path.relpath(input.nice_path(), 'content').replace('\\', '/')
+        if not input.isdir():
+            name = os.path.relpath(input.abspath(), 'content').replace('\\', '/')
             zip.write(input.srcpath(), name)
     zip.close()
 
 def build(bld):
-    obj = bld.__call__(source = [])
-    obj.find_sources_in_dirs('materials')
+    obj = bld.__call__(source = bld.path.ant_glob('materials/*'))
+    #obj.find_sources_in_dirs('materials')
 
-    builtins = bld.__call__(features='barchive',
-                                source_root='default/content',
-                                resource_name='builtins',
-                                use_compression=True)
+    builtins = bld(features='barchive',
+                   source_root='default/content',
+                   content_root='../content',
+                   resource_name='builtins',
+                   source = bld.path.ant_glob([
+                       'builtins/input/**/*',
+                       'builtins/render/**/*',
+                       'builtins/fonts/**/*',
+                       'builtins/connect/**/*',
+                       'builtins/materials/**/*',
+                       'builtins/graphics/**/*',
+                       'builtins/scripts/**/*'],
+                       excl = ['**/*.ttf', '**/*.texture_profiles', '**/LICENSE']),
+                   use_compression=True)
 
-    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts builtins/ca-certificates')
+    # builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts builtins/ca-certificates')
 
     # DEF-3259 - The resource build system doesn't take into account that several builds using same source contnt
     # may be running at the same time. And, as a fix, we add a synchronization point here for the builds,
     # to make sure that builtins + builtins_release are built consecutively.
     bld.add_group()
 
-    builtins_release = bld.__call__(features='barchive',
-                                source_root='default/content',
-                                resource_name='builtins_release',
-                                use_compression=True)
+    builtins_release = bld(features='barchive',
+                           source_root='default/content',
+                           content_root='../content',
+                           resource_name='builtins_release',
+                           source = bld.path.ant_glob('builtins/fonts/*', excl=['builtins/fonts//*.ttf']),
+                           use_compression=True)
 
-    builtins_release.find_sources_in_dirs('builtins/fonts')
+    # builtins_release.find_sources_in_dirs('builtins/fonts')
 
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
@@ -48,12 +60,12 @@ def build(bld):
                   cwd=bld.path.find_dir('builtins'),
                   relative_trick=True)
 
-    if not Options.options.skip_build_tests:
-        bld.__call__(name = 'bob-engine',
-                         source = bld.path.ant_glob('builtins/**'),
-                         target = 'bob-engine.jar',
-                         rule = package_bob,
-                         always = True)
+    if not waflib.Options.options.skip_build_tests:
+        bld(name = 'bob-engine',
+            source = bld.path.ant_glob('builtins/**'),
+            target = 'bob-engine.jar',
+            rule = package_bob,
+            always = True)
         bld.install_files('${PREFIX}/share/java', 'bob-engine.jar')
 
 
