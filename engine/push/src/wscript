@@ -1,12 +1,14 @@
 #! /usr/bin/env python
 import os, re
 from waf_dynamo import apidoc_extract_task
-
+from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
+    build_util  = create_build_utility(bld.env)
+
     source = 'push_null.cpp'
 
     platforms = ['arm.*?darwin', 'arm.*?android', 'x86_64-ios']
@@ -15,10 +17,11 @@ def build(bld):
             source = 'push_stub.cpp'
             break
 
-    bld.__call__(features = 'cxx cstaticlib',
-                    includes = '.',
-                    source = source,
-                    target = 'pushext')
+    bld.stlib(features = 'cxx',
+              includes = '.',
+              source = source,
+              install_path = build_util.get_library_path(),
+              target = 'pushext')
 
     apidoc_extract_task(bld, ['push_doc.h'])
 

@@ -1,18 +1,22 @@
 #! /usr/bin/env python
 import os
+from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-    bld.__call__(features = 'cxx cstaticlib',
-                    includes = '.',
-                    source = 'record.cpp record_common.cpp',
-                    target = 'record')
+    build_util  = create_build_utility(bld.env)
+    bld.stlib(features = 'cxx cstaticlib',
+              includes = '.',
+              source = 'record.cpp record_common.cpp',
+              install_path = build_util.get_library_path(),
+              target = 'record')
 
-    bld.__call__(features = 'cxx cstaticlib',
-                     includes = '.',
-                     source = 'record_null.cpp record_common.cpp',
-                     target = 'record_null')
+    bld.stlib(features = 'cxx cstaticlib',
+              includes = '.',
+              source = 'record_null.cpp record_common.cpp',
+              install_path = build_util.get_library_path(),
+              target = 'record_null')
 
     bld.install_files('${PREFIX}/include/record', 'record.h')

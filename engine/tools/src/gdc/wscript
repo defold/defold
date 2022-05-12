@@ -16,7 +16,7 @@ def build(bld):
         graphics_lib = 'GRAPHICS_VULKAN'
         graphics_adapter = 'GraphicsAdapterVulkan'
 
-    b = bld.program(features         = 'c cxx',
+    b = bld.program(features         = 'c cprogram cxx',
                     use              = 'PLATFORM_SOCKET HID INPUT DDF DLIB DMGLFW X CARES ' + graphics_lib,
                     exported_symbols = [graphics_adapter],
                     source           = 'main.cpp',

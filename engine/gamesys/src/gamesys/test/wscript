@@ -69,7 +69,7 @@ def build(bld):
                                 exported_symbols = exported_symbols,
                                 web_libs = ['library_sys.js', 'library_script.js'],
                                 proto_gen_py = True,
-                                content_root='.',
+                                content_root='../test',
                                 source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob(dirs, excl=excl), 
                                 target = 'test_gamesys')
 

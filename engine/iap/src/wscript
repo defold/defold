@@ -1,12 +1,13 @@
 #! /usr/bin/env python
 import os, re
 from waf_dynamo import apidoc_extract_task
-
+from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
+    build_util  = create_build_utility(bld.env)
     source = 'iap_null.cpp'
 
     platforms = ['arm.*?darwin', 'arm.*?android', 'x86_64-ios', 'web']
@@ -15,9 +16,10 @@ def build(bld):
             source = 'iap_stub.cpp'
             break
 
-    bld.__call__(features = 'cxx cstaticlib',
-                    includes = '.',
-                    source = source,
-                    target = 'iapext')
+    bld.stlib(features = 'cxx',
+              includes = '.',
+              source = source,
+              install_path = build_util.get_library_path(),
+              target = 'iapext')
 
     apidoc_extract_task(bld, ['iap_doc.h'])

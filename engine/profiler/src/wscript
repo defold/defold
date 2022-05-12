@@ -2,11 +2,14 @@
 import os, re
 from waf_dynamo import apidoc_extract_task
 import waflib.Options
+from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
+    build_util  = create_build_utility(bld.env)
+
     embed_source = ''
 
     source = 'profiler.cpp profile_render.cpp'
@@ -21,19 +24,21 @@ def build(bld):
     else:
         source += ' profiler_unsupported.cpp'
 
-    profiler = bld.__call__(features = 'cxx cstaticlib',
+    profiler = bld.stlib(features = 'cxx',
                             includes = '.',
                             source = source,
+                            install_path = build_util.get_library_path(),
                             target = 'profilerext')
 
-    profiler = bld.__call__(features = 'cxx cstaticlib',
+    profiler = bld.stlib(features = 'cxx',
                             includes = '.',
                             source = source_null,
+                            install_path = build_util.get_library_path(),
                             target = 'profilerext_null')
 
     bld.install_files('${PREFIX}/include/profiler', 'profiler.h')
 
     apidoc_extract_task(bld, ['profiler.cpp'])
 
-    if not Options.options.skip_build_tests:
+    if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')

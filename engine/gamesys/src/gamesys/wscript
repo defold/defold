@@ -3,15 +3,18 @@ import os
 import re
 import sys
 from waf_dynamo import apidoc_extract_task
+from BuildUtility import create_build_utility
 
 def configure(conf):
     conf.recurse('test')
 
 def build(bld):
+    build_util  = create_build_utility(bld.env)
     resource = bld.stlib(features = 'cxx ddf embed',
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
+        install_path = build_util.get_library_path(),
         source = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*'),
         target = 'gamesys')
 
