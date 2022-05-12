@@ -27,9 +27,9 @@
 #include <jc_test/jc_test.h>
 
 #if defined(__NX__)
-    #define CONTENT_ROOT "host:/src/test/build/default"
+    #define CONTENT_ROOT "host:/build/src/test/build/default"
 #else
-    #define CONTENT_ROOT "src/test/build/default"
+    #define CONTENT_ROOT "build/src/test/build/default"
 #endif
 
 typedef void (*PreRun)(dmEngine::HEngine engine, void* context);

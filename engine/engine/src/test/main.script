@@ -15,6 +15,9 @@
 local test_duration = 3
 
 function init(self)
+    
+    print("TEST SCRIPT INIT!")
+
     self.timer = test_duration
     self.loading_proxy = "#loading_proxy"
     self.test_proxies = {
@@ -33,6 +36,9 @@ function init(self)
 end
 
 function update(self, dt)
+    
+    print("TEST SCRIPT UPDATE!")
+
     self.timer = self.timer - dt
     if self.timer < 0 then
         local error_code = -1

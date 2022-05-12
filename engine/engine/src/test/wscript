@@ -49,10 +49,8 @@ def build(bld):
     if waflib.Options.options.use_vanilla_lua:
         bob_flags.append("--use-vanilla-lua")
 
-    return
-
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bld.__call__(rule = 'java -jar content/bob-engine.jar --output ${SRC[0].parent.parent.parent.abspath()} -root ../src/test -k distclean build %s' % ' '.join(bob_flags),
+    bld.__call__(rule = 'java -jar content/bob-engine.jar --output ${SRC[0].parent.parent.parent.abspath()}/build/src/test/build/default -root ../src/test -k distclean build %s' % ' '.join(bob_flags),
                      source = 'wscript',
                      always = True)

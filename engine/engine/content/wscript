@@ -46,13 +46,13 @@ def build(bld):
                            source_root='default/content',
                            content_root='../content',
                            resource_name='builtins_release',
-                           source = bld.path.ant_glob('builtins/fonts/*', excl=['builtins/fonts//*.ttf']),
+                           source = bld.path.ant_glob('builtins/fonts/*', excl=['builtins/fonts/*.ttf']),
                            use_compression=True)
 
     # builtins_release.find_sources_in_dirs('builtins/fonts')
 
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:
-        bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
+        bld.install_files('${PREFIX}/content/builtins/%s' % d, bld.path.ant_glob('builtins/%s/*' % d))
 
     for d in ['manifests', 'assets']:
         bld.install_files('${PREFIX}/content',
