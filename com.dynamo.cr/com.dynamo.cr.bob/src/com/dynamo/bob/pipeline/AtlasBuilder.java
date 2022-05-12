@@ -26,7 +26,6 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -64,18 +63,15 @@ public class AtlasBuilder extends Builder<Void>  {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        TimeProfiler.start("generateTextureSet");
         TextureSetResult result = AtlasUtil.generateTextureSet(project, task.input(0));
 
         int buildDirLen = project.getBuildDirectory().length();
         String texturePath = task.output(1).getPath().substring(buildDirLen);
         TextureSet textureSet = result.builder.setTexture(texturePath).build();
-        TimeProfiler.stop();
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
         Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        TimeProfiler.start("generateTexture");
         TextureImage texture;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
@@ -83,7 +79,6 @@ public class AtlasBuilder extends Builder<Void>  {
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
-        TimeProfiler.stop();
 
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(texture.toByteArray());

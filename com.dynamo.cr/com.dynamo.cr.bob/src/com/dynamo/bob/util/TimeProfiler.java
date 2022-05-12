@@ -133,7 +133,7 @@ public class TimeProfiler {
         generator.writeEndObject();
     }
 
-    private static String generateJSON() throws IOException {
+    private static String generateJSON(ProfilingScope scope) throws IOException {
 
         StringWriter strWriter = new StringWriter();
         BufferedWriter writer = null;
@@ -146,7 +146,7 @@ public class TimeProfiler {
             generator.writeStartObject();
             generator.writeFieldName("data");
             generator.writeStartArray();
-            generateJsonRecursively(generator, rootScope);
+            generateJsonRecursively(generator, scope);
             generator.writeEndArray();
             generator.writeFieldName("marks");
             generator.writeStartArray();
@@ -226,18 +226,21 @@ public class TimeProfiler {
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             @Override
             public void run() {
+                var _rootScope = rootScope;
+                // Make sure that using of TimeProfiler is impossible from now on
+                rootScope = null;
                 long reportStartTime = time();
 
                 //Close all unclosed scopes
-                while(currentScope != rootScope) {
-                    addData("forceFinishedScope", true);
-                    addData("color", "#FF0000");
-                    stop();
+                while(currentScope != _rootScope) {
+                    unsafeAddData("forceFinishedScope", true);
+                    unsafeAddData("color", "#FF0000");
+                    unsafeStop();
                 };
-                stop();
+                unsafeStop();
 
                 try {
-                    String jsonReport = generateJSON();
+                    String jsonReport = generateJSON(_rootScope);
                     String format = fileFormat.getFormat();
                     String name = fileName.replace(format, "");
                     File reportFile = new File(reportFolderPath, name + FILENAME_POSTFIX + format);
@@ -282,12 +285,16 @@ public class TimeProfiler {
         start(String.format(fmt, args));
     }
 
+    private static void unsafeStop() {
+        currentScope.endTime = time();
+        currentScope = currentScope.parent;
+    }
+
     public static void stop() {
         if (rootScope == null) {
             return;
         }
-        currentScope.endTime = time();
-        currentScope = currentScope.parent;
+        unsafeStop();
     }
 
     public static void addMark(String shortName, String fullName) {
@@ -305,34 +312,46 @@ public class TimeProfiler {
         addMark(shortName, shortName);
     }
 
-    public static void addData(String fieldName, String data) {
-        if (rootScope == null) {
-            return;
-        }
+    private static void unsafeAddData(String fieldName, String data) {
         if (currentScope.additionalStringData == null) {
             currentScope.additionalStringData = new HashMap<String, String>();
         }
         currentScope.additionalStringData.put(fieldName, data);
     }
 
-    public static void addData(String fieldName, Float data) {
-        if (rootScope == null) {
-            return;
-        }
+    private static void unsafeAddData(String fieldName, Float data) {
         if (currentScope.additionalNumberData == null) {
             currentScope.additionalNumberData = new HashMap<String, Float>();
         }
         currentScope.additionalNumberData.put(fieldName, data);
     }
 
-    public static void addData(String fieldName, Boolean data) {
-        if (rootScope == null) {
-            return;
-        }
+    private static void unsafeAddData(String fieldName, Boolean data) {
         if (currentScope.additionalBooleanData == null) {
             currentScope.additionalBooleanData = new HashMap<String, Boolean>();
         }
         currentScope.additionalBooleanData.put(fieldName, data);
+    }
+
+    public static void addData(String fieldName, String data) {
+        if (rootScope == null) {
+            return;
+        }
+        unsafeAddData(fieldName, data);
+    }
+
+    public static void addData(String fieldName, Float data) {
+        if (rootScope == null) {
+            return;
+        }
+        unsafeAddData(fieldName, data);
+    }
+
+    public static void addData(String fieldName, Boolean data) {
+        if (rootScope == null) {
+            return;
+        }
+        unsafeAddData(fieldName, data);
     }
 
     public static void addData(String fieldName, Integer data) {
