@@ -54,6 +54,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.cache.ResourceCacheKey;
 
 public class Bob {
@@ -105,7 +106,7 @@ public class Bob {
         if (rootFolder != null) {
             return;
         }
-
+        TimeProfiler.start("Create root folder");
         try {
             String envRootFolder = System.getenv("DM_BOB_ROOTFOLDER");
             if (envRootFolder != null) {
@@ -125,6 +126,7 @@ public class Bob {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        TimeProfiler.stop();
     }
 
     public static void initLua() {
@@ -240,9 +242,10 @@ public class Bob {
     public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
         init();
 
+        TimeProfiler.start("unpackSharedLibraries");
         String libSuffix = platform.getLibSuffix();
         for (String name : names) {
-
+            TimeProfiler.start(name);
             String depName = platform.getPair() + "/" + name + libSuffix;
             File f = new File(rootFolder, depName);
             if (!f.exists()) {
@@ -253,7 +256,9 @@ public class Bob {
 
                 atomicCopy(url, f, true);
             }
+            TimeProfiler.stop();
         }
+        TimeProfiler.stop();
     }
 
     // https://stackoverflow.com/a/30755071/468516
@@ -297,7 +302,7 @@ public class Bob {
 
     public static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-
+        TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
@@ -308,12 +313,14 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
-
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
+        TimeProfiler.startF("getLibExecPath %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/libexec/" + filename);
@@ -323,11 +330,14 @@ public class Bob {
 
             atomicCopy(url, f, false);
         }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
     public static String getJarFile(String filename) throws IOException {
         init();
+        TimeProfiler.startF("getJarFile %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/share/java/" + filename);
@@ -336,6 +346,8 @@ public class Bob {
             }
             atomicCopy(url, f, false);
         }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
@@ -385,6 +397,7 @@ public class Bob {
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
+        TimeProfiler.startF("getLib %s", name);
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
@@ -395,6 +408,8 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
@@ -531,7 +546,9 @@ public class Bob {
         List<URL> libUrls = LibraryUtil.parseLibraryUrls(dependencies);
         project.setLibUrls(libUrls);
         if (resolveLibraries) {
+            TimeProfiler.start("Resolve libs");
             project.resolveLibUrls(new ConsoleProgress());
+            TimeProfiler.stop();
         }
         project.mount(new ClassLoaderResourceScanner());
 
@@ -575,6 +592,17 @@ public class Bob {
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
         verbose = cmd.hasOption('v');
+
+        if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
+            String path = cmd.getOptionValue("build-report");
+            TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
+            if (path == null) {
+                path = cmd.getOptionValue("build-report-html");
+                format = TimeProfiler.ReportFormat.HTML;
+            }
+            File report = new File(path);
+            TimeProfiler.init(report.getParent(), report.getName(), format);
+        }
 
         if (cmd.hasOption("version")) {
             System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));

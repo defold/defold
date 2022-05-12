@@ -55,6 +55,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.TimeProfiler;
 
 import com.defold.extender.client.ExtenderResource;
 
@@ -818,7 +819,9 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        Bob.initAndroid(); // extract resources
+        TimeProfiler.start("Init Android");
+        Bob.initAndroid(); // extract 
+        TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
@@ -829,10 +832,14 @@ public class AndroidBundler implements IBundler {
 
 
         String bundleFormat = project.option("bundle-format", "apk");
+        TimeProfiler.start("Create AAB");
         File aab = createAAB(project, outDir, helper, canceled);
+        TimeProfiler.stop();
 
         if (bundleFormat.contains("apk")) {
+            TimeProfiler.start("Create APK");
             File apk = createAPK(aab, project, outDir, canceled);
+            TimeProfiler.stop();
         }
 
         if (!bundleFormat.contains("aab")) {
