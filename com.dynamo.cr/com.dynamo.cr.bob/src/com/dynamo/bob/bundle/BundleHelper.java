@@ -148,7 +148,7 @@ public class BundleHelper {
         return output;
     }
 
-    static Object convert(String value, String type) {
+    private static Object convertToType(String value, String type) {
         if (type != null && type.equals("bool")) {
             if (value != null) {
                 return value.equals("1");
@@ -179,7 +179,7 @@ public class BundleHelper {
                 if (k.endsWith(".default")) {
                     String k2 = k.split("\\.")[0];
                     String v = meta.getStringValue(c, k);
-                    Object v2 = convert(v, meta.getStringValue(c, k2 + ".type"));
+                    Object v2 = convertToType(v, meta.getStringValue(c, k2 + ".type"));
                     map.get(c).put(k2, v2);
                 }
             }
@@ -194,7 +194,7 @@ public class BundleHelper {
                 String def = meta.getStringValue(c, k + ".default");
                 map.get(c).put(k, def);
                 String v = projectProperties.getStringValue(c, k);
-                Object v2 = convert(v, meta.getStringValue(c, k + ".type"));
+                Object v2 = convertToType(v, meta.getStringValue(c, k + ".type"));
                 map.get(c).put(k, v2);
             }
         }
@@ -216,7 +216,7 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
-    public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
+    private String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
         byte[] data = resource.getContent();
         if (data == null) {
             return "";
@@ -229,26 +229,8 @@ public class BundleHelper {
         return sw.toString();
     }
 
-    public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
+    private void formatResourceToFile(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
         FileUtils.write(toFile, formatResource(properties, resource));
-        return this;
-    }
-
-    // Formats all the manifest files.
-    // This is required for the manifest merger to not choke on the Mustasch patterns
-    private List<File> formatAll(List<IResource> sources, File toDir, Map<String, Object> properties) throws IOException {
-        List<File> out = new ArrayList<File>();
-        for (IResource source : sources) {
-            if (!source.exists()) {
-                throw new IOException(String.format("Resource %s does not exist.", source));
-            }
-            // converts a relative path to something we can easily see if we get a merge failure: a/b/c.xml -> a_b_c.xml
-            String name = source.getPath().replaceAll("[^a-zA-Z0-9_]", "_");
-            File target = new File(toDir, name);
-            format(properties, source, target);
-            out.add(target);
-        }
-        return out;
     }
 
     private String getManifestName(Platform platform) {
@@ -312,7 +294,8 @@ public class BundleHelper {
             if (!parent.exists()) {
                 parent.mkdirs();
             }
-            format(properties, resource, manifest);
+
+            formatResourceToFile(properties, resource, manifest);
 
             String path = resource.getPath();
             // Store the main manifest at the root (and not in e.g. builtins/manifests/...)
@@ -325,7 +308,7 @@ public class BundleHelper {
         return resolvedManifests;
     }
 
-    public File getAppManifestFile(Platform platform, File appDir) {
+    private File getAppManifestFile(Platform platform, File appDir) {
         if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
@@ -338,7 +321,7 @@ public class BundleHelper {
         return null;
     }
 
-    public static String getMainManifestName(Platform platform) {
+    private static String getMainManifestName(Platform platform) {
         if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             return MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
@@ -379,84 +362,6 @@ public class BundleHelper {
         return targetManifest;
     }
 
-    private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
-
-    // Extra packages are specified in the extensions nowadays
-    private void aaptMakePackageInternal(Platform platform, File manifestFile, File apk) throws CompileExceptionError {
-        try {
-            Map<String, String> aaptEnv = new HashMap<String, String>();
-            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
-                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
-            }
-
-            List<String> args = new ArrayList<String>();
-            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
-            args.add("package");
-            args.add("-f");
-            args.add("-m");
-            args.add("--auto-add-overlay");
-            args.add("-M"); args.add(manifestFile.getAbsolutePath());
-            args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
-            args.add("-F"); args.add(apk.getAbsolutePath());
-
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-
-            // Get a list of relative paths, in the order gradle returned them
-            List<String> directories = new ArrayList<>();
-            File packagesList = new File(packagesDir, "packages.txt");
-            if (packagesList.exists()) {
-                try {
-                    List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
-                    for (String line : allLines) {
-
-                        File resDir = new File(packagesDir, line);
-                        if (!resDir.isDirectory())
-                            continue;
-
-                        directories.add(resDir.getAbsolutePath());
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            } else {
-                File[] dirs = packagesDir.listFiles(File::isDirectory);
-                for (File dir : dirs) {
-                    File resDir = new File(dir, "res");
-                    if (!resDir.isDirectory())
-                        continue;
-                    directories.add(resDir.getAbsolutePath());
-                }
-            }
-
-            for (String dir : directories) {
-                args.add("-S"); args.add(dir);
-            }
-
-            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
-
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-
-                // Try our best to visualize the error from aapt
-                Matcher m = aaptResourceErrorRe.matcher(msg);
-                if (m.matches()) {
-                    String path = m.group(1);
-                    if (path.startsWith(project.getRootDirectory())) {
-                        path = path.substring(project.getRootDirectory().length());
-                    }
-                    IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
-                    if (r != null) {
-                        throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
-                    }
-                }
-                throw new IOException(msg);
-            }
-
-        } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android resources to apk: " + e.getMessage());
-        }
-    }
-
     public static void createAndroidResourceFolders(File dir) throws IOException {
         FileUtils.forceMkdir(new File(dir, "drawable"));
         FileUtils.forceMkdir(new File(dir, "drawable-ldpi"));
@@ -465,31 +370,6 @@ public class BundleHelper {
         FileUtils.forceMkdir(new File(dir, "drawable-xhdpi"));
         FileUtils.forceMkdir(new File(dir, "drawable-xxhdpi"));
         FileUtils.forceMkdir(new File(dir, "drawable-xxxhdpi"));
-    }
-
-    private File getAndroidResourceDir(File appDir) {
-        return new File(appDir, "res");
-    }
-
-    public File copyAndroidResources(Platform platform) throws IOException {
-        if (ExtenderUtil.hasNativeExtensions(project)) {
-            return null;
-        }
-
-        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-        packagesDir.mkdir();
-
-        File resDir = new File(packagesDir, "com.defold.android/res");
-        resDir.mkdirs();
-
-        BundleHelper.createAndroidResourceFolders(resDir);
-        copyAndroidIcons(resDir);
-        return resDir;
-    }
-
-    public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {
-        File manifestFile = getAppManifestFile(platform, appDir);
-        aaptMakePackageInternal(platform, manifestFile, apk);
     }
 
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
@@ -542,22 +422,6 @@ public class BundleHelper {
             }
         }
         return items;
-    }
-
-    public static void findAndroidAssetDirs(File dir, List<String> result) {
-        if (!dir.isDirectory()) {
-            return;
-        }
-        if (ExtenderUtil.matchesAndroidAssetDirectoryName(dir.getName())) {
-            String parent = dir.getParentFile().getAbsolutePath();
-            if (!result.contains(parent)) {
-                result.add(parent);
-            }
-            return;
-        }
-        for (File file : dir.listFiles()) {
-            findAndroidAssetDirs(file, result);
-        }
     }
 
     private BufferedImage resizeImage(BufferedImage originalImage, int size) {
@@ -1090,7 +954,7 @@ public class BundleHelper {
         }
     }
 
-    public static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
+    private static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
         Set<String> uniquePaths = new HashSet<>();
         for (ExtenderResource resource : resources) {
             String path = resource.getPath(); // The relative path
