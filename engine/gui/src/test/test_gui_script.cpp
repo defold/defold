@@ -792,7 +792,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
         params.m_UserData = this;
         //params.m_RigContext = m_RigContext;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
-    	dmGui::SetSceneResolution(scene, 1, 1);
+        dmGui::SetSceneResolution(scene, 1, 1);
         dmGui::SetSceneScript(scene, script);
 
         // Set position
@@ -860,7 +860,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
         params.m_UserData = this;
         //params.m_RigContext = m_RigContext;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
-    	dmGui::SetSceneResolution(scene, 1, 1);
+        dmGui::SetSceneResolution(scene, 1, 1);
         dmGui::SetSceneScript(scene, script);
 
         // Set position
