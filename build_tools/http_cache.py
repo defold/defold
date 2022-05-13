@@ -14,9 +14,10 @@
 
 import sys, os, os.path, glob, urllib
 from urllib.error import HTTPError
+from urllib.parse import urlparse
 
 def mangle(url):
-    url = urlparse.urlparse(url)
+    url = urlparse(url)
     #return '%s%s' % (url.hostname.replace('.', '_'), url.path.replace('/', '-'))
     return 'defold%s' % url.path.replace('/', '-') # we avoid putting the possibly secret url in the output messages
 
