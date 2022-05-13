@@ -78,9 +78,9 @@ def download(url, cb = None, cb_count = 10):
     headers = {}
     if hit:
         headers = {'If-None-Match' : '%s' % (hit[1])}
-    req = urllib2.Request(url, None, headers)
+    req = urllib.Request(url, None, headers)
     try:
-        response = urllib2.urlopen(req)
+        response = urllib.urlopen(req)
         if response.code == 200:
             size = int(response.headers.get('Content-Length', 0))
             key = response.headers.get('ETag', '')
@@ -103,7 +103,7 @@ def download(url, cb = None, cb_count = 10):
             return path
         else:
             return None
-    except urllib2.HTTPError as e:
+    except urllib.HTTPError as e:
         if e.code == 304:
             return hit and hit[0]
         else:

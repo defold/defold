@@ -80,11 +80,11 @@ def shutdown(sht):
                 server_sockets.read(server_config_path)
                 server_socket = server_sockets.getint("server", "socket")
 
-                urllib2.urlopen('http://localhost:%d' % server_socket)
+                urllib.urlopen('http://localhost:%d' % server_socket)
                 break
             except IOError:
                 print('Waiting for HTTP testserver to start')
-            except urllib2.URLError:
+            except urllib.URLError:
                 print('Waiting for HTTP testserver to start on port %d...' % server_socket)
 
             sys.stdout.flush()
