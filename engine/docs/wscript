@@ -6,13 +6,18 @@ APPNAME='docs'
 srcdir = '.'
 blddir = 'build'
 
-import Utils
+import waflib.Utils
 import sys, os, re, fnmatch
 import waflib.Options
 import waf_dynamo
+import TestContext
+
+test_context = None
 
 def init(ctx):
-    pass
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
 
 def configure(conf):
     conf.recurse('src')
@@ -25,6 +30,7 @@ def clean(conf):
         os.remove(os.path.join('src', filename))
 
 def build(bld):
+    global test_context
     # Clean up src
     files = os.listdir('src')
     for filename in fnmatch.filter(files, '*.apidoc_'):
@@ -43,10 +49,11 @@ def build(bld):
             namespace_files[namespace] = []
         namespace_files[namespace].append(apidoc_file)
     for ns, files in namespace_files.items():
-        comments = '\n'.join([Utils.readf(f) for f in files])
+        comments = '\n'.join([waflib.Utils.readf(f) for f in files])
         with open('src/%s.apidoc_' % ns, 'w') as out_f:
             out_f.write(comments)
     bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
 def options(opt):
     opt.recurse('src')
@@ -54,9 +61,9 @@ def options(opt):
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
 
 def shutdown(self):
-    if not Options.commands['build']:
+    if not TestContext.is_valid(test_context):
         return
-    if not getattr(Options.options, 'skip_tests', False):
+    if not getattr(waflib.Options.options, 'skip_tests', False):
         python_path = os.environ.get('PYTHONPATH', '')
         os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/src' + os.pathsep + python_path
         ret = os.system('python %s' % 'src/test/test_script_doc.py')

@@ -18,16 +18,23 @@
 import re
 import logging
 import sys
-import StringIO
+import io
 from optparse import OptionParser
 from markdown import Markdown
 from markdown import Extension
 from markdown.util import etree, AtomicString
 from markdown.inlinepatterns import Pattern
 from pprint import pprint
-import yaml
+from google.protobuf.descriptor import FieldDescriptor
+from google.protobuf.message import Message
 
+import json
+import yaml
 import script_doc_ddf_pb2
+
+
+# JG: reference pattern is 15 in blockprocessors.py, so I'm guessing it's supposed to be lower?
+REF_PATTERN_PRIORITY_VALUE = 14
 
 #
 #   This extension allows the use of [ref:go.animate] or [ref:animate] reference tags in source
@@ -41,8 +48,9 @@ class RefExtension(Extension):
         tp = RefPattern(pattern)
         tp.md = md
         tp.ext = self
+
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("ref", tp, "<reference")
+        md.inlinePatterns.register(tp, "ref", REF_PATTERN_PRIORITY_VALUE)
 
 class RefPattern(Pattern):
     def getCompiledRegExp(self):
@@ -73,7 +81,8 @@ class IconExtension(Extension):
         tp.md = md
         tp.ext = self
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("icon", tp, "<reference")
+        #md.inlinePatterns.register("icon", tp, "<reference")
+        md.inlinePatterns.register(tp, "icon", REF_PATTERN_PRIORITY_VALUE)
 
 class IconPattern(Pattern):
     def getCompiledRegExp(self):
@@ -97,7 +106,8 @@ class TypeExtension(Extension):
         tp.md = md
         tp.ext = self
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("type", tp, "<reference")
+        #md.inlinePatterns.register("type", tp, "<reference")
+        md.inlinePatterns.register(tp, "type", REF_PATTERN_PRIORITY_VALUE)
 
 class TypePattern(Pattern):
     def getCompiledRegExp(self):
@@ -127,7 +137,9 @@ class ClassExtension(Extension):
         cp.md = md
         cp.ext = self
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("class", cp, "<reference")
+        #md.inlinePatterns.register("class", cp, "<reference")
+
+        md.inlinePatterns.register(cp, "class", REF_PATTERN_PRIORITY_VALUE)
 
 class ClassPattern(Pattern):
     def getCompiledRegExp(self):
@@ -476,10 +488,6 @@ def parse_document(doc_str):
 
     return doc
 
-from google.protobuf.descriptor import FieldDescriptor
-from google.protobuf.message import Message
-import json
-
 # add a ref doc group to each document
 # this can be used to build a menu with the ref docs grouped in a certain way
 def add_group_to_doc_dict(doc_dict):
@@ -620,16 +628,16 @@ if __name__ == '__main__':
 
     doc_str = ''
     for name in args[:-1]:
-        f = open(name, 'rb')
+        f = open(name, 'r')
         doc_str += f.read()
         f.close()
 
     doc = parse_document(doc_str)
     if doc:
         output_file = args[-1]
-        f = open(output_file, "wb")
+        f = open(output_file, "w")
         if options.type == 'protobuf':
-            f.write(doc.SerializeToString())
+            f.write(str(doc))
         elif options.type == 'json':
             doc_dict = message_to_dict(doc)
             add_group_to_doc_dict(doc_dict)
@@ -638,9 +646,8 @@ if __name__ == '__main__':
             info, elements = parse_document_yaml(doc_str)
             doc_dict = doc_to_ydict(info, elements)
             yaml.dump(doc_dict, f, default_flow_style = False)
-            # print(yaml.dump(doc_dict, default_flow_style = False))
         else:
-            print 'Unknown type: %s' % options.type
+            print ('Unknown type: %s' % options.type)
             sys.exit(5)
         f.close()
 

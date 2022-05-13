@@ -54,7 +54,7 @@ def gen_doc(filename):
     doc = json.load(open(filename, 'rb'))
 
     for c in doc:
-        print c['type']
+        print (c['type'])
         values = c['values'][:-1] # Remove last duplicated sample
         plot(c['type'], values)
 

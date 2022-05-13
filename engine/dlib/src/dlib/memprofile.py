@@ -136,11 +136,11 @@ def fmt_memory(x):
 
 if __name__ == '__main__':
     if not os.path.exists(sys.argv[1]):
-        print >>sys.stderr, 'Executable %s not found' % sys.argv[1]
+        print ('Executable %s not found' % sys.argv[1], file=sys.stderr)
         sys.exit(5)
 
     if not os.path.exists(sys.argv[2]):
-        print >>sys.stderr, 'Trace file %s not found' % sys.argv[2]
+        print ('Trace file %s not found' % sys.argv[2], file=sys.stderr)
         sys.exit(5)
 
     profile = load(sys.argv[2], sys.argv[1])
@@ -152,11 +152,11 @@ if __name__ == '__main__':
         if s.nmalloc > 0:
             active_total += s.active_total
 
-    print '<html>'
-    print '<b>Active total: %s</b>' % fmt_memory(active_total)
-    print '<p>'
-    print '<table border="1">'
-    print '<td><b>Backtrace</b></td><td><b>Allocations</b></td><td><b>Total</b></td><td><b>Active</b></td><tr/>'
+    print ('<html>')
+    print ('<b>Active total: %s</b>' % fmt_memory(active_total))
+    print ('<p>')
+    print ('<table border="1">')
+    print ('<td><b>Backtrace</b></td><td><b>Allocations</b></td><td><b>Total</b></td><td><b>Active</b></td><tr/>')
     for s in lst:
         if s.nmalloc > 0:
             bt = ''
@@ -178,8 +178,8 @@ if __name__ == '__main__':
             elif s.active_total > 1024:
                 active = '%d K' % (s.active_total / (1024.0))
 
-            print '<td>%s</td><td>%d</td><td>%s</td><td>%s</td><tr/>' % (bt, s.nmalloc, tot, active)
+            print ('<td>%s</td><td>%d</td><td>%s</td><td>%s</td><tr/>' % (bt, s.nmalloc, tot, active))
 
-    print '</table>'
-    print '</html>'
+    print ('</table>')
+    print ('</html>')
 

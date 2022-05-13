@@ -24,9 +24,6 @@ def configure(conf):
     pass
 
 def transform_properties(properties, out_properties):
-
-    print("transform_properties")
-
     for property in properties:
         entry = None
         if property.type == gameobject_ddf_pb2.PROPERTY_TYPE_NUMBER:
@@ -178,7 +175,7 @@ def compile_model(task):
 
         return 0
     except (google.protobuf.text_format.ParseError,e):
-        print ('asd %s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
+        print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
 waflib.Task.task_factory('model',
@@ -193,9 +190,6 @@ def model_file(self, node):
     task.set_inputs(node)
     out_model    = node.change_ext(obj_ext)
     out_rigscene = node.change_ext(rig_ext)
-
-    print("RIG", out_rigscene.abspath())
-
     task.set_outputs([out_model, out_rigscene])
 
 
@@ -329,7 +323,6 @@ def transform_label(task, msg):
     return msg
 
 def write_embedded(task):
-    print("write_embedded")
     try:
         import gameobject_ddf_pb2
         import google.protobuf.text_format
@@ -347,7 +340,7 @@ def write_embedded(task):
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError) as e:
         stderr_lock.acquire()
         try:
-            print ('WOWOW %s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
+            print ('%s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
@@ -359,8 +352,6 @@ task = waflib.Task.task_factory('write_embedded',
                                 before='c cxx')
 
 def compile_go(task):
-
-    print("compile_go")
     try:
         import gameobject_ddf_pb2
         import google.protobuf.text_format
@@ -399,7 +390,7 @@ def compile_go(task):
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print ('WASDL %s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
+            print ('%s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
@@ -412,8 +403,6 @@ task = waflib.Task.task_factory('gameobject',
 
 @extension('.go')
 def gofile(self, node):
-    
-    print("gofile")
     try:
         import gameobject_ddf_pb2
         import google.protobuf.text_format
@@ -440,7 +429,7 @@ def gofile(self, node):
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print ('DFASF %s: %s' % (node.srcpath(), str(e)), file=sys.stderr)
+            print ('%s: %s' % (node.srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
