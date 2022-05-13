@@ -24,10 +24,17 @@ from waflib.Task import RUN_ME
 #from waflib.Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import sdk
+import importlib.util
 
 if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
+
+def load_module_from_path(name, root):
+    spec = importlib.util.spec_from_file_location(name, '%s/%s.py' % (root, name))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 def is_platform_private(platform):
     return platform in ['arm64-nx64']

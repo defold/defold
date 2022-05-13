@@ -43,8 +43,10 @@ def configure(conf):
 
 def build(bld):
     global test_context
+
     sys.path.insert(0, os.path.abspath('build/proto'))
     sys.path.insert(0, os.path.abspath('build/proto/gameobject'))
+
     bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)
 

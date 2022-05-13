@@ -104,8 +104,6 @@ def build(bld):
 
     main_cpp = 'common/main.cpp'
 
-    bld.recurse('test')
-
     bld.add_group()
 
     obj = bld.program(

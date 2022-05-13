@@ -28,8 +28,6 @@ import ddf.ddf_extensions_pb2
 def apply_content_root(self):
     waflib.Utils.def_attrs(self, content_root = '.')
 
-    #print("CONTENT ROOT", self.path, self.content_root, self.path.find_dir(self.content_root))
-
     #if not self.path.find_dir(self.content_root):
     #    raise waflib.Errors.WafError('content_root "%s" not found (relative to %s)' % (self.content_root, self.path))
 

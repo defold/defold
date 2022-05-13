@@ -24,6 +24,9 @@ def configure(conf):
     pass
 
 def transform_properties(properties, out_properties):
+
+    print("transform_properties")
+
     for property in properties:
         entry = None
         if property.type == gameobject_ddf_pb2.PROPERTY_TYPE_NUMBER:
@@ -326,9 +329,10 @@ def transform_label(task, msg):
     return msg
 
 def write_embedded(task):
+    print("write_embedded")
     try:
-        import google.protobuf.text_format
         import gameobject_ddf_pb2
+        import google.protobuf.text_format
         msg = gameobject_ddf_pb2.PrototypeDesc()
         with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
@@ -343,7 +347,7 @@ def write_embedded(task):
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError) as e:
         stderr_lock.acquire()
         try:
-            print ('%s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
+            print ('WOWOW %s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
@@ -355,9 +359,11 @@ task = waflib.Task.task_factory('write_embedded',
                                 before='c cxx')
 
 def compile_go(task):
+
+    print("compile_go")
     try:
-        import google.protobuf.text_format
         import gameobject_ddf_pb2
+        import google.protobuf.text_format
         msg = gameobject_ddf_pb2.PrototypeDesc()
         with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
@@ -393,7 +399,7 @@ def compile_go(task):
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print ('%s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
+            print ('WASDL %s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
@@ -406,9 +412,11 @@ task = waflib.Task.task_factory('gameobject',
 
 @extension('.go')
 def gofile(self, node):
+    
+    print("gofile")
     try:
-        import google.protobuf.text_format
         import gameobject_ddf_pb2
+        import google.protobuf.text_format
         msg = gameobject_ddf_pb2.PrototypeDesc()
         with open(node.abspath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)

@@ -27,7 +27,7 @@ def transform_material(task, msg):
 
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
 
-waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ../${CONTENT_ROOT} ${TGT}',
+waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
                          color='PINK',
                          after='proto_gen_py',
                          before='c cxx',

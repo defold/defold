@@ -59,8 +59,9 @@ def apply_ddf_jar(self):
         self.bld.install_files('${PREFIX}/share/java', out)
 
 def scan_file_import(self, path):
-    f = open(path, 'r')
+    f = open(path, 'r', encoding='utf8')
     ret = set()
+
     for line in f:
         m = re.match('\s*import\s*"([^"]*?)"\s*;', line)
         if m:
@@ -302,7 +303,6 @@ def proto_file(self, node):
             task.set_outputs([cc_out, h_out])
             if hasattr(self, "proto_compile_cc") and self.proto_compile_cc:
                 self.source += [cc_out]
-                #self.allnodes.append(cc_out)
 
         if hasattr(self, "proto_gen_py") and self.proto_gen_py:
             task = self.create_task('proto_gen_py')

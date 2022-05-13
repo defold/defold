@@ -30,13 +30,12 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_DDF'] = 'ddf'
 
     platform = conf.env['PLATFORM']
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="PARTICLE"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="PARTICLE"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PARTICLE"')
 
 def build(bld):
     global test_context

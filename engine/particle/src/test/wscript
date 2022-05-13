@@ -1,7 +1,6 @@
 import waflib.Task, waflib.TaskGen
 from waflib.TaskGen import extension, extension
 
-"""
 def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/particle/particle_ddf.proto'):
     def create(self, node):
         task = self.create_task(name)
@@ -11,21 +10,8 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
 
     cmd = 'protoc --encode=%s -I ../proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
-    extension([ext], create)
+    extension(ext)(create)
 create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='c cxx')
-"""
-
-waflib.Task.task_factory('particle_fx',
-                         'protoc --encode=dmParticleDDF.ParticleFX -I ../proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ../proto/particle/particle_ddf.proto < ${SRC} > ${TGT}',
-                         color='PINK',
-                         before='c cxx')
-
-@extension('.particlefx')
-def particlefx_file(self, node):
-    task = self.create_task('particle_fx')
-    task.set_inputs(node)
-    out = node.change_ext('.particlefxc')
-    task.set_outputs(out)
 
 def build(bld):
     test_particle = bld(features = 'c cxx cprogram test',
@@ -35,8 +21,3 @@ def build(bld):
                         source = bld.path.ant_glob(['*.particlefx', '*.cpp']),
                         target = 'test_particle')
     test_particle.install_path = None
-
-    print(test_particle.tasks)
-
-    for x in test_particle.tasks:
-        print(x)
