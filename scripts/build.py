@@ -19,7 +19,7 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes
-import optparse, subprocess, urllib, tempfile, time
+import optparse, subprocess, urllib, urllib.parse, tempfile, time
 import imp
 import github
 import run
@@ -561,7 +561,7 @@ class Configuration(object):
             print("Could not find local file:", path)
             sys.exit(1)
         dirname, basename = os.path.split(path)
-        path = dirname + "/" + urllib.quote(basename)
+        path = dirname + "/" + urllib.parse.quote(basename)
         path = self._download(path) # it should be an url
         if path is None:
             print("Error. Could not download %s" % path)
