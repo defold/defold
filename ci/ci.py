@@ -32,7 +32,7 @@ def call(args, failonerror = True):
 
     output = ''
     while True:
-        line = process.stdout.readline()
+        line = process.stdout.readline().decode('utf-8')
         if line != '':
             output += line
             print(line.rstrip())

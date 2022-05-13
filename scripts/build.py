@@ -1993,7 +1993,6 @@ class Configuration(object):
                                       '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
-        env['PATH'] = "/SO_COOL_PATH/:" + env['PATH']
 
         # This trickery is needed for the bash to properly inherit the PATH that we've set here
         # See /etc/profile for further details
