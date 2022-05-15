@@ -320,7 +320,7 @@ def default_flags(self):
     # Common for all platforms
     flags = []
     if Options.options.ndebug:
-        flags += [self.env.CXXDEFINES_ST % 'NDEBUG']
+        flags += [self.env.DEFINES_ST % 'NDEBUG']
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
@@ -341,8 +341,8 @@ def default_flags(self):
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CFLAGS', 'CXXFLAGS']:
-           self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
-           self.env.append_value(f, self.env.CXXDEFINES_ST % "JC_TEST_USE_COLORS=1")
+           self.env.append_value(f, self.env.DEFINES_ST % "GITHUB_CI")
+           self.env.append_value(f, self.env.DEFINES_ST % "JC_TEST_USE_COLORS=1")
 
     for f in ['CFLAGS', 'CXXFLAGS']:
         if '64' in build_util.get_target_architecture():

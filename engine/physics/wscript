@@ -33,8 +33,7 @@ def configure(conf):
     conf.env['STLIB_DLIB']   = 'dlib'
     conf.env['STLIB_BULLET'] = ['BulletDynamics', 'BulletCollision', 'LinearMath']
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
 
 def build(bld):
     global test_context
