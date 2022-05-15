@@ -40,6 +40,7 @@ class Cache(object):
         path = self._url_to_path(url)
         pattern = '%s-*' % (path)
         matches = glob.glob(pattern)
+
         if matches:
             match = matches[0]
             if match.endswith('_tmp'):
@@ -70,7 +71,7 @@ class Cache(object):
             except Exception as e:
                 log(str(e))
         self._accomodate(size)
-        return '%s-%s' % (path, codecs.encode(key, 'hex').decode('ascii'))
+        return '%s-%s' % (path, codecs.encode(key.encode(), 'hex').decode('ascii'))
 
 def download(url, cb = None, cb_count = 10):
     c = Cache('~/.dcache', 10**9 * 4)
