@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import sys, os, os.path, glob, urllib, urllib.request
+import sys, os, os.path, glob, urllib, urllib.request, codecs
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
@@ -47,7 +47,7 @@ class Cache(object):
                 return None
             key = match.rsplit('-', 1)[1]
             os.utime(match, None)
-            return (match, key.decode('hex'))
+            return (match, codecs.decode(key, 'hex'))
         else:
             return None
 
@@ -70,7 +70,7 @@ class Cache(object):
             except Exception as e:
                 log(str(e))
         self._accomodate(size)
-        return '%s-%s' % (path, key.encode('hex'))
+        return '%s-%s' % (path, codecs.encode(key, 'hex').decode('ascii'))
 
 def download(url, cb = None, cb_count = 10):
     c = Cache('~/.dcache', 10**9 * 4)
@@ -103,7 +103,7 @@ def download(url, cb = None, cb_count = 10):
             return path
         else:
             return None
-    except urllib.HTTPError as e:
+    except HTTPError as e:
         if e.code == 304:
             return hit and hit[0]
         else:
