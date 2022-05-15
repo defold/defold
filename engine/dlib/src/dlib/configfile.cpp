@@ -255,6 +255,20 @@ namespace dmConfigFile
         buf[i] = '\0';
     }
 
+    static int SizeOfLiteral(Context* context)
+    {
+        int pos = context->m_BufferPos;
+        int c = GetChar(context);
+        int i = 0;
+        while (c != '\n' && c != '\r')
+        {
+            c = GetChar(context);
+            ++i;
+        }
+        context->m_BufferPos = pos;
+        return i;
+    }
+
     static void ParseKey(Context* context, char* buf, int buf_len)
     {
         int c = GetChar(context);
@@ -287,9 +301,9 @@ namespace dmConfigFile
         Expect(context, '=');
         EatBlank(context);
 
-        char value_buf[2048];
-
-        ParseLiteral(context, value_buf, sizeof(value_buf));
+        int value_len = SizeOfLiteral(context) + 1;
+        char* value_buf = new char[value_len];
+        ParseLiteral(context, value_buf, value_len);
 
         for (int i = 0; i < context->m_Argc; ++i)
         {
@@ -307,12 +321,14 @@ namespace dmConfigFile
                 if (strncmp(key_buf, eq + 1, eq2 - (eq+1)) == 0)
                 {
                     AddEntry(context, key_buf, eq2 + 1);
+                    delete[] value_buf;
                     return;
                 }
             }
         }
 
         AddEntry(context, key_buf, value_buf);
+        delete[] value_buf;
     }
 
     void ParseSection(Context* context)
