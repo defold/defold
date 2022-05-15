@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import sys, os, os.path, glob, urllib
+import sys, os, os.path, glob, urllib, urllib.request
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
@@ -78,9 +78,9 @@ def download(url, cb = None, cb_count = 10):
     headers = {}
     if hit:
         headers = {'If-None-Match' : '%s' % (hit[1])}
-    req = urllib.Request(url, None, headers)
+    req = urllib.request.Request(url, None, headers)
     try:
-        response = urllib.urlopen(req)
+        response = urllib.request.urlopen(req)
         if response.code == 200:
             size = int(response.headers.get('Content-Length', 0))
             key = response.headers.get('ETag', '')
