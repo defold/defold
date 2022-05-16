@@ -247,6 +247,7 @@ namespace dmConfigFile
             buf[i] = c;
             if (i >= (int) buf_len - 1)
                 ParseError(context, RESULT_LITERAL_TOO_LONG);
+
             c = GetChar(context);
             ++i;
         }
