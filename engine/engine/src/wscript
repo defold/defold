@@ -108,6 +108,8 @@ def build(bld):
 
     bld.add_group()
 
+    platform_bin_install_path = os.path.join(bld.env["PREFIX"], 'bin', bld.env['PLATFORM'])
+
     obj = bld.program(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'engine_rs WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CARES CRASH X engine engine_service'.split() + graphics_lib + sound_lib + additional_libs,
@@ -122,6 +124,7 @@ def build(bld):
         bundleid = 'com.defold.engine',
         source=main_cpp.split(),
         proguard = ['../content/builtins/manifests/android/dmengine.pro'],
+        install_path = platform_bin_install_path,
         jars = android_jar_paths)
 
     if 'win32' in bld.env.PLATFORM:
@@ -132,7 +135,7 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
-        
+
     bld.add_group()
 
     obj = bld.program(
@@ -147,6 +150,7 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine_release',
         source = main_cpp.split(),
+        install_path = platform_bin_install_path,
         jars   = android_jar_paths)
 
     if 'win32' in bld.env.PLATFORM:
@@ -172,6 +176,7 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_headless',
+        install_path = platform_bin_install_path,
         source = main_cpp.split())
 
     if 'win32' in bld.env.PLATFORM:

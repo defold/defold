@@ -156,7 +156,7 @@ proto_gen_cc = waflib.Task.task_factory('proto_gen_cc', 'protoc --cpp_out=${PROT
                                       shell=True)
 proto_gen_cc.scan = scan
 
-proto_gen_py = waflib.Task.task_factory('proto_gen_py', 'protoc --python_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_py = waflib.Task.task_factory('proto_gen_py', 'protoc --python_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${PROTOC_FLAGS} ${SRC[0].abspath()}',
                                      color='RED',
                                      before='c cxx',
                                      after='proto_b',

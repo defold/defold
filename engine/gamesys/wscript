@@ -58,7 +58,7 @@ def configure(conf):
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
     conf.env['STLIB_INPUT'] = 'input'
-    conf.env['STLIB_HID'] = 'hidd'
+    conf.env['STLIB_HID'] = 'hid'
     conf.env['STLIB_HID_NULL'] = 'hid_null'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
