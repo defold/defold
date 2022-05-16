@@ -247,26 +247,10 @@ namespace dmConfigFile
             buf[i] = c;
             if (i >= (int) buf_len - 1)
                 ParseError(context, RESULT_LITERAL_TOO_LONG);
-
-            c = GetChar(context);
             ++i;
         }
         BufferUngetChar(c, context);
         buf[i] = '\0';
-    }
-
-    static int SizeOfLiteral(Context* context)
-    {
-        int pos = context->m_BufferPos;
-        int c = GetChar(context);
-        int i = 0;
-        while (c != '\n' && c != '\r')
-        {
-            c = GetChar(context);
-            ++i;
-        }
-        context->m_BufferPos = pos;
-        return i;
     }
 
     static void ParseKey(Context* context, char* buf, int buf_len)
@@ -286,7 +270,7 @@ namespace dmConfigFile
         buf[i] = '\0';
     }
 
-    static void ParseEntry(Context* context)
+    static void ParseEntry(Context* context, char* value_buf, int value_len)
     {
         char key_buf[CATEGORY_MAX_SIZE + 512];
         int category_len = strlen(context->m_CategoryBuffer);
@@ -301,8 +285,6 @@ namespace dmConfigFile
         Expect(context, '=');
         EatBlank(context);
 
-        int value_len = SizeOfLiteral(context) + 1;
-        char* value_buf = new char[value_len];
         ParseLiteral(context, value_buf, value_len);
 
         for (int i = 0; i < context->m_Argc; ++i)
@@ -321,14 +303,12 @@ namespace dmConfigFile
                 if (strncmp(key_buf, eq + 1, eq2 - (eq+1)) == 0)
                 {
                     AddEntry(context, key_buf, eq2 + 1);
-                    delete[] value_buf;
                     return;
                 }
             }
         }
 
         AddEntry(context, key_buf, value_buf);
-        delete[] value_buf;
     }
 
     void ParseSection(Context* context)
@@ -340,11 +320,14 @@ namespace dmConfigFile
 
     static void Parse(Context* context)
     {
+        int value_len = context->m_BufferSize;
+        char* value_buf = new char[value_len];
+
         while (true)
         {
             EatSpace(context);
             if (BufferEof(context))
-                return;
+                break;
 
             if (PeekChar(context) == '[')
             {
@@ -352,9 +335,10 @@ namespace dmConfigFile
             }
             else
             {
-                ParseEntry(context);
+                ParseEntry(context, value_buf, value_len);
             }
         }
+        delete[] value_buf;
     }
 
     struct HttpContext
