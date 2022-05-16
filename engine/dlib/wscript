@@ -54,7 +54,7 @@ def shutdown(sht):
 
     # TODO: Fix support for win32
     from waflib.Logs import warn, error
-    import urllib, time, atexit
+    import urllib, urllib.request, time, atexit
 
     server_sockets = None
 
@@ -79,7 +79,7 @@ def shutdown(sht):
                 server_sockets.read(server_config_path)
                 server_socket = server_sockets.getint("server", "socket")
 
-                urllib.urlopen('http://localhost:%d' % server_socket)
+                urllib.request.urlopen('http://localhost:%d' % server_socket)
                 break
             except IOError:
                 print('Waiting for HTTP testserver to start')
@@ -100,7 +100,7 @@ def shutdown(sht):
         config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
 
     configfilepath = os.path.basename(tempfile.mktemp(".cfg", "unittest_"))
-    with open(configfilepath, 'wb') as f:
+    with open(configfilepath, 'w') as f:
         config.write(f)
         print("Wrote test config file: %s" % configfilepath)
 

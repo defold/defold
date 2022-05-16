@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import sys, os, httplib
+import sys, os, http.client
 sys.path.append(os.path.join(os.environ['DYNAMO_HOME'], 'lib', 'python', 'gameobject'))
 sys.path.append(os.path.join('build', 'default', 'proto', 'engine'))
 import engine_ddf_pb2, lua_ddf_pb2
@@ -24,7 +24,7 @@ m.module.source.bytecode = ''
 m.module.resources.extend(['/init_script/init.luac'])
 m.module.modules.extend(['init_script.init'])
 
-conn = httplib.HTTPConnection("localhost", int(sys.argv[1]))
+conn = http.client.HTTPConnection("localhost", int(sys.argv[1]))
 conn.request("POST", "/post/@system/run_script", m.SerializeToString())
 response = conn.getresponse()
 data = response.read()

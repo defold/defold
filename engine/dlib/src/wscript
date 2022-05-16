@@ -34,6 +34,7 @@ def build(bld):
         source_dirs.append('dlib/linux/**/*.cpp')
     elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin/**/*.cpp')
+        source_dirs.append('dlib/*.mm')
     elif 'win32' in bld.env.PLATFORM:
         source_dirs.append('dlib/win32/**/*.cpp')
     elif ('linux'  in bld.env.PLATFORM) or ('android' in bld.env.PLATFORM):

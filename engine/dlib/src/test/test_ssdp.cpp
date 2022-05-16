@@ -399,7 +399,7 @@ TEST_F(dmSSDPTest, JavaClient)
     char* dynamo_home = getenv("DYNAMO_HOME");
     char command[2048];
     dmSnPrintf(command, sizeof(command),
-            "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
+            "java -cp build/src/java:build/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
 
 #if !defined(__EMSCRIPTEN__) // no support for popen
     const char* mode = "r";

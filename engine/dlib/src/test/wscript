@@ -73,9 +73,10 @@ def configure(conf):
     conf.env.append_value('CLASSPATH', '../ext/servlet-api-2.5.jar')
 
 def build(bld):
-    bld.__call__(features='javac seq',
-                 #classpath='../ext/jetty-all-7.0.2.v20100331.jar:../ext/servlet-api-2.5.jar',
-                 source_root='http_server')
+    bld(features='javac seq',
+        #classpath='../ext/jetty-all-7.0.2.v20100331.jar:../ext/servlet-api-2.5.jar',
+        outdir='http_server',
+        source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
@@ -121,7 +122,7 @@ def build(bld):
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
-    bld.__call__(rule = 'echo generated data > ${TGT}',
+    bld(rule = 'echo generated data > ${TGT}',
                      target = 'generated.embed')
 
     bld.add_group()
