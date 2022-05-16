@@ -21,7 +21,7 @@ def options(opt):
 def configure(conf):
     conf.check_tool('waf_dynamo')
 
-    conf.env.append_unique('CXXDEFINES', 'NDEBUG')
+    conf.env.append_unique('DEFINES', 'NDEBUG')
 
 def build(bld):
 

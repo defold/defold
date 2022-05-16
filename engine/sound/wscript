@@ -30,11 +30,10 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_TREMOLO'] = 'tremolo'
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_TREMOLO'] = 'tremolo'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
 
 def build(bld):
     global test_context

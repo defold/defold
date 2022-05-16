@@ -27,7 +27,7 @@ import sdk
 import importlib.util
 
 if not 'DYNAMO_HOME' in os.environ:
-    print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
+    print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
 def load_module_from_path(name, root):
@@ -320,7 +320,7 @@ def default_flags(self):
     # Common for all platforms
     flags = []
     if Options.options.ndebug:
-        flags += [self.env.CXXDEFINES_ST % 'NDEBUG']
+        flags += [self.env.DEFINES_ST % 'NDEBUG']
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
@@ -341,8 +341,8 @@ def default_flags(self):
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
        for f in ['CFLAGS', 'CXXFLAGS']:
-           self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
-           self.env.append_value(f, self.env.CXXDEFINES_ST % "JC_TEST_USE_COLORS=1")
+           self.env.append_value(f, self.env.DEFINES_ST % "GITHUB_CI")
+           self.env.append_value(f, self.env.DEFINES_ST % "JC_TEST_USE_COLORS=1")
 
     for f in ['CFLAGS', 'CXXFLAGS']:
         if '64' in build_util.get_target_architecture():
@@ -1027,16 +1027,16 @@ def android_package(task):
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
-        print >>f, 'APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture())
+        print ('APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture()), file=f)
 
     with open(task.application_mk.abspath(task.env), 'wb') as f:
-        print >>f, ''
+        print ('', file=f)
 
     with open(task.gdb_setup.abspath(task.env), 'wb') as f:
         if 'arm64' == build_util.get_target_architecture():
-            print >>f, 'set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/'
+            print ('set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/', file=f)
         else:
-            print >>f, 'set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/'
+            print ('set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/', file=f)
 
     return 0
 

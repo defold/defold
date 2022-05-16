@@ -40,8 +40,7 @@ def configure(conf):
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
 
 def build(bld):
     global test_context

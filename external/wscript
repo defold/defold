@@ -5,7 +5,7 @@ blddir = 'build'
 
 import os, sys, re
 import waf_dynamo, waf_package
-import Task
+import waflib.Task
 
 PACKAGES='bullet3d'.split()
 

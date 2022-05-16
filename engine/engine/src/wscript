@@ -31,6 +31,8 @@ def build(bld):
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     use = 'engine_service')
 
+    bld.add_group()
+
     bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
                     target = 'engine_release',

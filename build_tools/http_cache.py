@@ -12,11 +12,12 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import sys, os, os.path, glob, urllib
+import sys, os, os.path, glob, urllib, urllib.request, codecs
 from urllib.error import HTTPError
+from urllib.parse import urlparse
 
 def mangle(url):
-    url = urlparse.urlparse(url)
+    url = urlparse(url)
     #return '%s%s' % (url.hostname.replace('.', '_'), url.path.replace('/', '-'))
     return 'defold%s' % url.path.replace('/', '-') # we avoid putting the possibly secret url in the output messages
 
@@ -39,6 +40,7 @@ class Cache(object):
         path = self._url_to_path(url)
         pattern = '%s-*' % (path)
         matches = glob.glob(pattern)
+
         if matches:
             match = matches[0]
             if match.endswith('_tmp'):
@@ -46,7 +48,7 @@ class Cache(object):
                 return None
             key = match.rsplit('-', 1)[1]
             os.utime(match, None)
-            return (match, key.decode('hex'))
+            return (match, codecs.decode(key, 'hex'))
         else:
             return None
 
@@ -69,7 +71,7 @@ class Cache(object):
             except Exception as e:
                 log(str(e))
         self._accomodate(size)
-        return '%s-%s' % (path, key.encode('hex'))
+        return '%s-%s' % (path, codecs.encode(key.encode(), 'hex').decode('ascii'))
 
 def download(url, cb = None, cb_count = 10):
     c = Cache('~/.dcache', 10**9 * 4)
@@ -77,9 +79,9 @@ def download(url, cb = None, cb_count = 10):
     headers = {}
     if hit:
         headers = {'If-None-Match' : '%s' % (hit[1])}
-    req = urllib2.Request(url, None, headers)
+    req = urllib.request.Request(url, None, headers)
     try:
-        response = urllib2.urlopen(req)
+        response = urllib.request.urlopen(req)
         if response.code == 200:
             size = int(response.headers.get('Content-Length', 0))
             key = response.headers.get('ETag', '')
@@ -102,7 +104,7 @@ def download(url, cb = None, cb_count = 10):
             return path
         else:
             return None
-    except urllib2.HTTPError as e:
+    except HTTPError as e:
         if e.code == 304:
             return hit and hit[0]
         else:

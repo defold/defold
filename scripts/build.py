@@ -19,7 +19,7 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes
-import optparse, subprocess, urllib, tempfile, time
+import optparse, subprocess, urllib, urllib.parse, tempfile, time
 import imp
 import github
 import run
@@ -28,6 +28,7 @@ import sdk
 import release_to_github
 import BuildUtility
 import http_cache
+from urllib.parse import urlparse
 from tarfile import TarFile
 from glob import glob
 from threading import Thread, Event
@@ -532,7 +533,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==19.3.1'])
+        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==19.3.1', '--user'])
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
@@ -561,7 +562,7 @@ class Configuration(object):
             print("Could not find local file:", path)
             sys.exit(1)
         dirname, basename = os.path.split(path)
-        path = dirname + "/" + urllib.quote(basename)
+        path = dirname + "/" + urllib.parse.quote(basename)
         path = self._download(path) # it should be an url
         if path is None:
             print("Error. Could not download %s" % path)
@@ -1024,7 +1025,7 @@ class Configuration(object):
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install -v' % (self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1235,10 +1236,10 @@ class Configuration(object):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
 
         sha1 = self._git_sha1()
-        u = urlparse.urlparse(self.get_archive_path())
+        u = urlparse(self.get_archive_path())
         bucket = s3.get_bucket(u.netloc)
 
-        root = urlparse.urlparse(self.get_archive_path()).path[1:]
+        root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
         platforms = get_target_platforms()
@@ -1507,11 +1508,11 @@ class Configuration(object):
         else:
             editor_channel = self.channel or "stable"
 
-        u = urlparse.urlparse(self.get_archive_path())
+        u = urlparse(self.get_archive_path())
         hostname = u.hostname
         bucket = s3.get_bucket(hostname)
 
-        editor_archive_path = urlparse.urlparse(self.get_archive_path(editor_channel)).path
+        editor_archive_path = urlparse(self.get_archive_path(editor_channel)).path
 
         release_sha1 = releases[0]['sha1']
 
@@ -1635,7 +1636,7 @@ class Configuration(object):
         self.channel = channel
 
     def sync_archive(self):
-        u = urlparse.urlparse(self.get_archive_path())
+        u = urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
 
@@ -1838,7 +1839,7 @@ class Configuration(object):
 
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
-        u = urlparse.urlparse(old_url)
+        u = urlparse(old_url)
         return u.path
 
     def download_from_archive(self, src_path, dst_file):
@@ -1853,7 +1854,7 @@ class Configuration(object):
 
         # create redirect so that the old s3 paths still work
         # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
-        bucket = s3.get_bucket(urlparse.urlparse(url).netloc)
+        bucket = s3.get_bucket(urlparse(url).netloc)
         redirect_key = self.get_archive_redirect_key(url)
         redirect_url = url.replace("s3://", "http://")
         key = bucket.new_key(redirect_key)
@@ -1863,7 +1864,7 @@ class Configuration(object):
     def download_from_s3(self, path, url):
         url = url.replace('\\', '/')
         self._log('Downloading %s -> %s' % (url, path))
-        u = urlparse.urlparse(url)
+        u = urlparse(url)
 
         if u.scheme == 's3':
             self._mkdirs(os.path.dirname(path))
@@ -1882,7 +1883,7 @@ class Configuration(object):
         url = url.replace('\\', '/')
         self._log('Uploading %s -> %s' % (path, url))
 
-        u = urlparse.urlparse(url)
+        u = urlparse(url)
 
         if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
@@ -1993,7 +1994,6 @@ class Configuration(object):
                                       '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
-        env['PATH'] = "/SO_COOL_PATH/:" + env['PATH']
 
         # This trickery is needed for the bash to properly inherit the PATH that we've set here
         # See /etc/profile for further details

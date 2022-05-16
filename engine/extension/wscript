@@ -27,10 +27,9 @@ def configure(conf):
 
     conf.env.append_value('INCLUDES', "src")
     conf.env.append_value('INCLUDES', "../src")
-    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_DLIB'] = 'dlib'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="EXTENSION"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="EXTENSION"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="EXTENSION"')
 
 def build(bld):
     global test_context
