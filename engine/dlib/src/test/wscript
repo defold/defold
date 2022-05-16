@@ -36,7 +36,6 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     req_features.append('test')
     if skip_run:
         req_features.append('skip_test')
-        
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:
@@ -52,8 +51,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     task_args = {
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp' + platform_source,
-        'uselib': ' '.join(req_libs),
-        'use': 'dlib mbedtls zip',
+        'use': 'dlib mbedtls zip ' + ' '.join(req_libs),
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,

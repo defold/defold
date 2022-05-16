@@ -1603,9 +1603,9 @@ def detect(conf):
             for t in ['CC', 'CXX']:
                 c = conf.env[t]
                 if type(c) == list:
-                    conf.env[t] = [conf.env.CCACHE] + c
+                    conf.env[t] = [conf.env.CCACHE[0]] + c
                 else:
-                    conf.env[t] = [conf.env.CCACHE, c]
+                    conf.env[t] = [conf.env.CCACHE[0], c]
         else:
             Logs.info('ccache disabled')
 
@@ -1613,7 +1613,7 @@ def detect(conf):
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
     if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
-        conf.check_tool('waf_objectivec')
+        conf.load('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
         conf.env['STATICLIB_MARKER']=''
