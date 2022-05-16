@@ -16,7 +16,7 @@ import sys
 
 def log(msg):
     if type(msg) == bytes:
-        print (msg.decode('ascii'))
+        print (msg.decode('utf-8'))
     else:
         print(msg)
     sys.stdout.flush()
