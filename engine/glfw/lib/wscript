@@ -12,7 +12,7 @@ def build(bld):
     platform = bld.env.PLATFORM
 
     if platform == 'darwin' or platform == 'x86_64-darwin':
-        sources  = bld.path.ant_glob(['*', 'cocoa/*.m'])
+        sources  = bld.path.ant_glob(['*.c', 'cocoa/*.m'])
         includes = '. cocoa'
     elif platform in ('arm64-darwin', 'x86_64-ios'):
         sources  = bld.path.ant_glob(['*.c', 'ios/*.m', 'ios/app/*.m'])

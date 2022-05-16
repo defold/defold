@@ -17,6 +17,8 @@ def build(bld):
               use             = 'DDF DLIB PLATFORM_SOCKET',
               source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
 
+    bld.add_group()
+
     # We only need this library in the editor
     is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
 
