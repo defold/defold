@@ -1640,9 +1640,9 @@ def detect(conf):
     else:
         conf.env['STLIB_LUA'] = 'luajit-5.1'
         if '64' in build_util.get_target_platform():
-            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_64']
+            conf.env['DEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_64']
         else:
-            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_32']
+            conf.env['DEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_32']
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
