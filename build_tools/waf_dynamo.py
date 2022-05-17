@@ -1214,6 +1214,10 @@ def embed_file(self):
     for name in Utils.to_list(self.embed_source):
         Logs.info("Embedding '%s' ..." % name)
         node = self.path.find_resource(name)
+
+        if node == None:
+            Logs.info("File %s was not found in %s" % (name, self.path.abspath()))
+
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
