@@ -6,7 +6,7 @@ from waf_dynamo import is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None, skip_run = False):
+                extra_includes = None, extra_defines = None, skip_run = False, extra_source = None):
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
@@ -48,9 +48,13 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_includes != None:
         req_includes.extend(extra_includes)
 
+    extra_source_str = ''
+    if extra_source != None:
+        extra_source_str = ' ' + extra_source
+
     task_args = {
         'features': ' '.join(req_features),
-        'source': name + '.cpp' + ' testutil.cpp' + platform_source,
+        'source': name + '.cpp' + ' testutil.cpp' + platform_source + extra_source_str,
         'use': 'dlib mbedtls zip ' + ' '.join(req_libs),
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
@@ -74,12 +78,11 @@ def configure(conf):
 
 def build(bld):
     bld(features='javac seq',
-        #classpath='../ext/jetty-all-7.0.2.v20100331.jar:../ext/servlet-api-2.5.jar',
         outdir='http_server',
+        name='test_http_server',
         source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
-    bld.add_group()
 
     extra_defines = []
     if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
@@ -116,11 +119,11 @@ def build(bld):
     create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
 
-    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 

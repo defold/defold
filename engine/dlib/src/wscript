@@ -244,8 +244,6 @@ def build(bld):
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)
 
-    print("PATHING", bld.path)
-
     bld(features='javac seq',
         classpath=classpath,
         srcdir='java',
@@ -256,8 +254,6 @@ def build(bld):
     bld(features='jar seq',
         basedir='java',
         destfile='dlib.jar')
-
-    # PATHING c:\dev\defold\engine\dlib\src
 
     bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
