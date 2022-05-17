@@ -60,9 +60,6 @@ def build(bld):
                         'ComponentTypeGui',
                         'ResourceTypeGui','ResourceTypeGuiScript']
 
-    # Add file extensions to filter out
-    excl = ['**/*.ttf']
-
     test_task_gen = bld.program(features = 'cxx cprogram test',
                                 includes = '../../../src ../../../proto',
                                 use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB CARES gamesys',
@@ -70,7 +67,7 @@ def build(bld):
                                 web_libs = ['library_sys.js', 'library_script.js'],
                                 proto_gen_py = True,
                                 content_root='../test',
-                                source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob(dirs, excl=excl), 
+                                source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob(dirs, excl=['**/*.ttf']), 
                                 target = 'test_gamesys')
 
     if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-darwin', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:

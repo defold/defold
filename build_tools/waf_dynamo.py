@@ -1450,24 +1450,6 @@ def detect(conf):
     if Options.options.with_vulkan and build_util.get_target_platform() in ('x86_64-ios','js-web','wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
-    if 'win32' in platform:
-        includes = sdkinfo['includes']['path']
-        libdirs = sdkinfo['lib_paths']['path']
-        bindirs = sdkinfo['bin_paths']['path']
-
-        # jg: not 100% sure this is correct
-        bindirs.append(build_util.get_binary_path())
-        bindirs.append(build_util.get_dynamo_ext_bin())
-
-        conf.env['PATH']     = bindirs + sys.path
-        conf.env['INCLUDES'] = includes
-        conf.env['LIBPATH']  = libdirs
-
-        conf.load('msvc', funs='no_autodetect')
-
-        if not Options.options.skip_codesign:
-            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
-
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
@@ -1728,6 +1710,23 @@ def detect(conf):
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+
+    if 'win32' in platform:
+        includes = sdkinfo['includes']['path']
+        libdirs = sdkinfo['lib_paths']['path']
+        bindirs = sdkinfo['bin_paths']['path']
+
+        # jg: not 100% sure this is correct
+        bindirs.append(build_util.get_binary_path())
+        bindirs.append(build_util.get_dynamo_ext_bin())
+
+        conf.env['PATH']     = bindirs + conf.env['PATH']
+        conf.env['INCLUDES'] = includes
+        conf.env['LIBPATH']  = libdirs
+        conf.load('msvc', funs='no_autodetect')
+
+        if not Options.options.skip_codesign:
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
 def configure(conf):
     detect(conf)
