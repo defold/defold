@@ -79,6 +79,7 @@ def build(bld):
         source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.add_group()
 
     extra_defines = []
     if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
@@ -116,6 +117,7 @@ def build(bld):
     create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
     create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+
     create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
