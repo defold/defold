@@ -1456,9 +1456,13 @@ def detect(conf):
         bindirs = sdkinfo['bin_paths']['path']
 
         if platform == 'x86_64-win32':
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (bindirs, includes, libdirs)))])]
+            conf.env['MSVC_TARGETS'] = "x64"
+            # This is not supported anymore!
+            #conf.env['MSVC_VERSIONS'] = # [('msvc 14.0',[('x64', ('amd64', (bindirs, includes, libdirs)))])]
         else:
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
+            conf.env['MSVC_TARGETS'] = "x86"
+            # This is not supported anymore!
+            #conf.env['MSVC_VERSIONS'] = # [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
 
         if not Options.options.skip_codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
