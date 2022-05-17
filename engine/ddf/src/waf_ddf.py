@@ -309,7 +309,7 @@ def proto_file(self, node):
             task.env['PROTOC_FLAGS'] = protoc_flags
             task.set_inputs(node)
             py_out = node.change_ext('_pb2.py')
-            
+
             task.env['PROTOC_CC_FLAGS'] = get_protoc_cc_flags(self)
             task.env['PROTO_OUT_DIR'] = proto_out_dir(self, py_out, n_parent)
 
