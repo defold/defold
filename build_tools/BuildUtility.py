@@ -26,6 +26,7 @@ class BuildUtility:
     _build_platform = None
     _dynamo_home = None
     _dynamo_ext = None
+    _dynamo_ext_bin = None
     _library_path = None
     _binary_path = None
 
@@ -56,6 +57,10 @@ class BuildUtility:
 
     def get_dynamo_ext(self, *subdir):
         return self._build_path(self._dynamo_ext, *subdir)
+    # get_dynamo_ext
+
+    def get_dynamo_ext_bin(self, *subdir):
+        return self._build_path(self._dynamo_ext_bin, *subdir)
     # get_dynamo_ext
 
     def get_target_platform(self):
@@ -122,7 +127,8 @@ class BuildUtility:
             raise BuildUtilityException("DYNAMO_HOME not set")
         self._dynamo_home = dynamo_home
         self._dynamo_ext = os.path.join(self._dynamo_home, 'ext')
-        self._library_path = os.path.join(self._dynamo_home, "lib", self._platform['platform'])
+        self._dynamo_ext_bin = os.path.join(self._dynamo_home, 'ext', 'bin', self._platform['platform'])
+        self._library_path = os.path.join(self._dynamo_home, 'lib', self._platform['platform'])
         self._binary_path = os.path.join(self._dynamo_home, 'bin', self._platform['platform'])
     # _initialise_paths
 

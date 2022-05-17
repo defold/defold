@@ -126,7 +126,7 @@ def new_copy_task(name, input_ext, output_ext):
         task.set_outputs(out)
 
 def copy_file_task(bld, src, name=None):
-    copy = 'cp' # 'copy /Y' if sys.platform == 'win32' else 'cp'
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
     parts = src.split('/')
     filename = parts[-1]
     src_path = src.replace('/', os.sep)
@@ -1455,14 +1455,15 @@ def detect(conf):
         libdirs = sdkinfo['lib_paths']['path']
         bindirs = sdkinfo['bin_paths']['path']
 
-        if platform == 'x86_64-win32':
-            conf.env['MSVC_TARGETS'] = "x64"
-            # This is not supported anymore!
-            #conf.env['MSVC_VERSIONS'] = # [('msvc 14.0',[('x64', ('amd64', (bindirs, includes, libdirs)))])]
-        else:
-            conf.env['MSVC_TARGETS'] = "x86"
-            # This is not supported anymore!
-            #conf.env['MSVC_VERSIONS'] = # [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
+        # jg: not 100% sure this is correct
+        bindirs.append(build_util.get_binary_path())
+        bindirs.append(build_util.get_dynamo_ext_bin())
+
+        conf.env['PATH']     = bindirs + sys.path
+        conf.env['INCLUDES'] = includes
+        conf.env['LIBPATH']  = libdirs
+
+        conf.load('msvc', funs='no_autodetect')
 
         if not Options.options.skip_codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
