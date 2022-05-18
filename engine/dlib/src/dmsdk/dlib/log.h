@@ -154,6 +154,10 @@ enum Severity
 #define dmLogOnceError(format, args... ) do {} while(0);
 #define dmLogOnceFatal(format, args... ) do {} while(0);
 
+#define dmLogRegisterListener(listener)
+#define dmLogUnregisterListener(listener)
+#define dmLogSetlevel(severity)
+
 #else
 
 #ifndef DLIB_LOG_DOMAIN
@@ -237,33 +241,41 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
  */
 typedef void (*LogListener)(Severity severity, const char* domain, const char* formatted_string);
 
-/*# register dmLog listener.
+void RegisterLogListenerInternal(LogListener listener);
+void UnregisterLogListenerInternal(LogListener listener);
+void SetlevelInternal(Severity severity);
+
+// deprecated
+void RegisterLogListener(LogListener listener);
+void UnregisterLogListener(LogListener listener);
+void Setlevel(Severity severity);
+
+/*# register log listener.
  *
- * Registers a dmLog listener.
+ * Registers a log listener.
  * This listener recieve logs even in release bundle.
  *
- * @name dmLog::RegisterLogListener
- * @param listener [type:dmLog::LogListener] 
+ * @name dmLogRegisterListener
+ * @param [type:function] function of type cbk(Severity severity, const char* domain, const char* formatted_string)
  */
-void RegisterLogListener(LogListener listener);
+#define dmLogRegisterListener(listener)  RegisterLogListenerInternal(LogListener listener)
 
-/*# unregister dmLog listener.
+/*# unregister log listener.
+ * Unregisters a log listener.
  *
- * Unregisters a dmLog listener.
- *
- * @name dmLog::UnregisterLogListener
- * @param [type:dmLog::LogListener] listener
+ * @name dmLogUnregisterListener
+ * @param [type:function] function of type cbk(Severity severity, const char* domain, const char* formatted_string)
  */
-void UnregisterLogListener(LogListener listener);
+#define dmLogUnregisterListener(listener)  UnregisterLogListenerInternal(LogListener listener)
 
 /*# set log system severity level.
  *
  * set log system severity level.
  *
- * @name dmLog::Setlevel
+ * @name dmLogSetlevel
  * @param [type:dmLog::Severity] severity
  */
-void Setlevel(Severity severity);
+#define dmLogSetlevel(severity) SetlevelInternal(severity)
 
 #endif
 } //namespace dmLog

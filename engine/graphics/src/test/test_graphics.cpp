@@ -124,9 +124,9 @@ TEST_F(dmGraphicsTest, CloseOpenWindow)
     params.m_Height = HEIGHT;
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = true;
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_INFO);
+    dmLogSetlevel(dmLog::LOG_SEVERITY_INFO);
     ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, dmGraphics::OpenWindow(m_Context, &params));
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetlevel(dmLog::LOG_SEVERITY_WARNING);
 }
 
 TEST_F(dmGraphicsTest, TestWindowState)
