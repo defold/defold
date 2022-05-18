@@ -13,7 +13,7 @@
 # specific language governing permissions and limitations under the License.
 
 import sys
-sys.path = ['../script/build/default/src/script'] + sys.path
+sys.path = ['../script/build/src/script'] + sys.path
 import sys_ddf_pb2, http.client
 
 m = sys_ddf_pb2.Reboot()
