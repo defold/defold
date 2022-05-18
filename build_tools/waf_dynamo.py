@@ -1556,7 +1556,7 @@ def detect(conf):
 
     platform_setup_tools(conf, build_util)
 
-    # jg: this whole thing is a dirty hack to be able to pick up our own SDKs
+    # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
     if 'win32' in platform:
         includes = sdkinfo['includes']['path']
         libdirs = sdkinfo['lib_paths']['path']
@@ -1564,7 +1564,13 @@ def detect(conf):
 
         bindirs.append(build_util.get_binary_path())
         bindirs.append(build_util.get_dynamo_ext_bin())
+
+        # The JDK dir doesn't get added since we use no_autodetect
         bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
+
+        # there's no lib prefix anymore so we need to set our our lib dir first so we don't
+        # pick up the wrong hid.lib from the windows sdk
+        libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
 
         conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
         conf.env['INCLUDES'] = includes
@@ -1735,8 +1741,6 @@ def detect(conf):
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
-
-    #print(conf.env)
 
 def configure(conf):
     detect(conf)
