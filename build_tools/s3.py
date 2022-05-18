@@ -21,8 +21,6 @@ import urllib
 from datetime import datetime
 from configparser import ConfigParser
 
-
-
 s3buckets = {}
 
 def get_archive_prefix(archive_path, sha1):
