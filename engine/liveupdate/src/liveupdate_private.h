@@ -51,6 +51,7 @@ namespace dmLiveUpdate
         const char*                 m_Path;
         void*                       m_CallbackData;
         uint8_t                     m_IsArchive:1;
+        uint8_t                     m_VerifyArchive:1;
         void (*m_Callback)(bool,void*);
     };
 
@@ -100,7 +101,7 @@ namespace dmLiveUpdate
 
     // zip archive implementation
     // Verifies and stores a zip archive
-    Result StoreZipArchive(const char* path);
+    Result StoreZipArchive(const char* path, bool verify_archive);
     dmResourceArchive::Result LULoadManifest_Zip(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** out);
     dmResourceArchive::Result LULoadArchive_Zip(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out);
     dmResourceArchive::Result LUUnloadArchive_Zip(dmResourceArchive::HArchiveIndexContainer archive);

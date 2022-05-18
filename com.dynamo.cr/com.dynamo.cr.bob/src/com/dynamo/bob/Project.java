@@ -88,6 +88,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.HttpUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
@@ -396,12 +397,16 @@ public class Project {
         if (task != null) {
             return task;
         }
+        TimeProfiler.start();
+        TimeProfiler.addData("type", "createTask");
         Builder<?> builder;
         try {
             builder = builderClass.newInstance();
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
+                TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("name", task.getName());
                 tasks.put(key, task);
             }
             return task;
@@ -410,6 +415,8 @@ public class Project {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            TimeProfiler.stop();
         }
     }
 
@@ -475,7 +482,7 @@ public class Project {
             if (!skipped) {
                 Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
                 if (!ignoreTaskAutoCreation.contains(builderClass)) {
-                    createTask(input, builderClass);
+                    Task<?> task = createTask(input, builderClass);
                 }
             }
         }
@@ -1057,6 +1064,7 @@ public class Project {
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
+            TimeProfiler.start(command);
             switch (command) {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
@@ -1067,12 +1075,15 @@ public class Project {
                     boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
                     if (buildRemoteEngine) {
                         logInfo("Build Remote Engine...");
-
+                        TimeProfiler.start("Build Remote Engine");
                         final String variant = this.option("variant", Bob.VARIANT_RELEASE);
 
                         Map<String, String> appmanifestOptions = new HashMap<>();
                         appmanifestOptions.put("baseVariant", variant);
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
+
+                        TimeProfiler.addData("withSymbols", withSymbols);
+                        TimeProfiler.addData("variant", variant);
 
                         if (this.hasOption("build-artifacts")) {
                             String s = this.option("build-artifacts", "");
@@ -1094,6 +1105,7 @@ public class Project {
 
                         long tend = System.currentTimeMillis();
                         Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
+                        TimeProfiler.stop();
 
                         if (!shouldBuildEngine()) {
                             // If we only wanted to build the extensions, we simply continue here
@@ -1140,20 +1152,23 @@ public class Project {
 
                     mrep = m.subProgress(1);
                     mrep.beginTask("Reading tasks...", 1);
+                    TimeProfiler.start("Create tasks");
                     pruneSources();
                     createTasks();
                     validateBuildResourceMapping();
+                    TimeProfiler.addData("TasksCount", tasks.size());
+                    TimeProfiler.stop();
                     mrep.done();
 
                     BundleHelper.throwIfCanceled(monitor);
                     m.beginTask("Building...", tasks.size());
-                    long tstart = System.currentTimeMillis();
+                    TimeProfiler.start("Build tasks");
+                    TimeProfiler.addData("TasksCount", tasks.size());
 
                     result = runTasks(m);
                     m.done();
 
-                    long tend = System.currentTimeMillis();
-                    Bob.verbose("Content tasks took %f s\n", (tend-tstart)/1000.0);
+                    TimeProfiler.stop();
 
                     if (anyFailing(result)) {
                         break loop;
@@ -1161,6 +1176,7 @@ public class Project {
                     BundleHelper.throwIfCanceled(monitor);
 
                     // Generate and save build report
+                    TimeProfiler.start("Generating build size report");
                     if (generateReport) {
                         mrep = monitor.subProgress(1);
                         mrep.beginTask("Generating report...", 1);
@@ -1181,6 +1197,7 @@ public class Project {
                         }
                         mrep.done();
                     }
+                    TimeProfiler.stop();
 
                     break;
                 }
@@ -1215,6 +1232,7 @@ public class Project {
                 }
                 default: break;
             }
+            TimeProfiler.stop();
         }
 
         monitor.done();
@@ -1312,6 +1330,9 @@ run:
                     continue;
                 }
 
+                TimeProfiler.start(task.getName());
+                TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("type", "buildTask");
                 completedTasks.add(task);
 
                 TaskResult taskResult = new TaskResult(task);
@@ -1372,12 +1393,15 @@ run:
                         }
                     }
                     completedOutputs.addAll(outputResources);
+                    TimeProfiler.stop();
 
                 } catch (CompileExceptionError e) {
+                    TimeProfiler.stop();
                     ok = false;
                     lineNumber = e.getLineNumber();
                     message = e.getMessage();
                 } catch (Throwable e) {
+                    TimeProfiler.stop();
                     ok = false;
                     message = e.getMessage();
                     exception = e;
@@ -1470,12 +1494,13 @@ run:
             subProgress.beginTask("Download archive(s)", count);
             logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
+                TimeProfiler.startF("Lib %2d", i);
                 BundleHelper.throwIfCanceled(progress);
                 URL url = libUrls.get(i);
                 File f = libFiles.get(url.toString());
 
                 logInfo("%2d: Downloading %s", i, url);
-
+                TimeProfiler.addData("url", url.toString());
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
                 String etag = null;
@@ -1513,6 +1538,7 @@ run:
                     connection.connect();
                     int code = connection.getResponseCode();
 
+                    TimeProfiler.addData("status code", code);
                     if (code == 304) {
                         logInfo("%2d: Status %d: Already cached", i, code);
                     } else if (code >= 400) {
@@ -1565,6 +1591,7 @@ run:
                 }
 
                 BundleHelper.throwIfCanceled(subProgress);
+                TimeProfiler.stop();
             }
         }
         catch(IOException ioe) {

@@ -232,7 +232,7 @@
         (g/transact
           (concat
             (g/connect node-id :_node-id view :resource-node)
-            (g/connect node-id :valid-node-id+resource view :node-id+resource)
+            (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])

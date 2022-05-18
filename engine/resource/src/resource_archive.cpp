@@ -59,7 +59,6 @@ namespace dmResourceArchive
     }
 
     void RegisterResourceDecryption(FDecryptResource decrypt_resource) {
-        assert(g_ResourceDecryption == 0);
         g_ResourceDecryption = decrypt_resource;
     }
 

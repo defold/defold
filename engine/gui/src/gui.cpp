@@ -3746,11 +3746,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return PlayNodeFlipbookAnim(scene, node, dmHashString64(anim), offset, playback_rate, anim_complete_callback, callback_userdata1, callback_userdata2);
     }
 
-    void CancelNodeFlipbookAnim(HScene scene, HNode node)
+    void CancelNodeFlipbookAnim(HScene scene, HNode node, bool keep_anim_hash)
     {
         InternalNode* n = GetNode(scene, node);
         CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        if (keep_anim_hash)
+            return;
         n->m_Node.m_FlipbookAnimHash = 0;
+    }
+
+    void CancelNodeFlipbookAnim(HScene scene, HNode node)
+    {
+        CancelNodeFlipbookAnim(scene, node, false);
     }
 
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical)

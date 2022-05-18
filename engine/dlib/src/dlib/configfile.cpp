@@ -272,7 +272,7 @@ namespace dmConfigFile
         buf[i] = '\0';
     }
 
-    static void ParseEntry(Context* context)
+    static void ParseEntry(Context* context, char* value_buf, int value_len)
     {
         char key_buf[CATEGORY_MAX_SIZE + 512];
         int category_len = strlen(context->m_CategoryBuffer);
@@ -287,9 +287,7 @@ namespace dmConfigFile
         Expect(context, '=');
         EatBlank(context);
 
-        char value_buf[2048];
-
-        ParseLiteral(context, value_buf, sizeof(value_buf));
+        ParseLiteral(context, value_buf, value_len);
 
         for (int i = 0; i < context->m_Argc; ++i)
         {
@@ -324,11 +322,14 @@ namespace dmConfigFile
 
     static void Parse(Context* context)
     {
+        int value_len = context->m_BufferSize;
+        char* value_buf = new char[value_len];
+
         while (true)
         {
             EatSpace(context);
             if (BufferEof(context))
-                return;
+                break;
 
             if (PeekChar(context) == '[')
             {
@@ -336,9 +337,10 @@ namespace dmConfigFile
             }
             else
             {
-                ParseEntry(context);
+                ParseEntry(context, value_buf, value_len);
             }
         }
+        delete[] value_buf;
     }
 
     struct HttpContext

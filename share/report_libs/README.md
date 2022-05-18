@@ -9,3 +9,6 @@ Running the script will print the concatenation of all JS and CSS files (under `
     $ ./inline_libraries.py
 
 The output should be used when updating the libraries for `com.dynamo.cr/com.dynamo.cr.bob/lib/report_template.html`.
+
+# Build time report
+Build time report is avaliable here: https://github.com/defold/build-time-report

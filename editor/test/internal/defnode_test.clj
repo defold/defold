@@ -828,8 +828,8 @@
       :_declared-properties)))
 
 #_(deftest overriding-outputs-dont-automatically-inherit-dependencies-of-corresponding-property
-  ;; TODO: This test fails. The error it suggests does not cause any serious problems - at worst, some output gets unnecessarily invalidated.
-  (is (not (affected-by? :overridden :input-three))))
+    ;; TODO: This test fails. The error it suggests does not cause any serious problems - at worst, some output gets unnecessarily invalidated.
+    (is (not (affected-by? :overridden :input-three))))
 
 (g/defnode CustomPropertiesOutput
   (output _properties g/Properties :cached
@@ -899,13 +899,13 @@
 (g/defnk produce-all [test :as all]
   all)
 
-(g/defnk produce-all-intrinsics [test _node-id _basis :as all]
+(g/defnk produce-all-intrinsics [test _node-id _this :as all]
   all)
 
 (g/defnode AsAllNode
   (property test g/Str (default "test"))
   (output inline g/Any (g/fnk [test :as all] all))
-  (output inline-intrinsics g/Any (g/fnk [test _node-id _basis :as all] all))
+  (output inline-intrinsics g/Any (g/fnk [test _node-id _this :as all] all))
   (output defnk g/Any produce-all)
   (output defnk-intrinsics g/Any produce-all-intrinsics))
 
@@ -913,6 +913,6 @@
   (with-clean-system
     (let [[n] (tx-nodes (g/make-node world AsAllNode))]
       (is (= {:test "test"} (g/node-value n :inline)))
-      (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :inline-intrinsics)))))
+      (is (= #{:test :_node-id :_this} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
-      (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :defnk-intrinsics))))))))
+      (is (= #{:test :_node-id :_this} (set (keys (g/node-value n :defnk-intrinsics))))))))

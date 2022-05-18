@@ -55,6 +55,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.TimeProfiler;
 
 import com.defold.extender.client.ExtenderResource;
 
@@ -202,6 +203,25 @@ public class AndroidBundler implements IBundler {
             }
         }
         return alias;
+    }
+    
+    /**
+     * Get key password. This loads the key password file and returns
+     * the password stored in the file.
+     */
+    private static String getKeyPassword(Project project) throws IOException, CompileExceptionError {
+        return readFile(getKeyPasswordFile(project)).trim();
+    }
+    
+    /**
+     * Get key password file. Uses the keystore password file if none specified
+     */
+    private static String getKeyPasswordFile(Project project) throws IOException, CompileExceptionError {
+        String keyPassword = project.option("key-pass", "");
+        if (keyPassword.length() == 0) {
+            return getKeystorePasswordFile(project);
+        }
+        return keyPassword;
     }
 
     private static String getProjectTitle(Project project) {
@@ -515,7 +535,12 @@ public class AndroidBundler implements IBundler {
             for(File asset : getExtenderAssets(project)) {
                 File dest = new File(assetsDir, asset.getName());
                 log("Copying asset " + asset + " to " + dest);
-                FileUtils.copyFile(asset, dest);
+                if (asset.isDirectory()) {
+                    FileUtils.copyDirectory(asset, dest);
+                }
+                else {
+                    FileUtils.copyFile(asset, dest);
+                }
                 BundleHelper.throwIfCanceled(canceled);
             }
 
@@ -612,11 +637,13 @@ public class AndroidBundler implements IBundler {
         String keystore = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
+        String keyPassword = getKeyPassword(project);
 
         Result r = exec(getJavaBinFile("jarsigner"),
             "-verbose",
             "-keystore", keystore,
             "-storepass", keystorePassword,
+            "-keypass", keyPassword,
             signFile.getAbsolutePath(),
             keystoreAlias);
         if (r.ret != 0) {
@@ -667,6 +694,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         FileUtils.deleteDirectory(new File(outDir, "aab"));
+        FileUtils.deleteDirectory(new File(outDir, "res"));
     }
 
     private static File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
@@ -722,6 +750,7 @@ public class AndroidBundler implements IBundler {
         String keystore = getKeystore(project);
         String keystorePasswordFile = getKeystorePasswordFile(project);
         String keystoreAlias = getKeystoreAlias(project);
+        String keyPasswordFile = getKeyPasswordFile(project);
 
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
@@ -740,6 +769,7 @@ public class AndroidBundler implements IBundler {
             args.add("--ks"); args.add(keystore);
             args.add("--ks-pass"); args.add("file:" + keystorePasswordFile);
             args.add("--ks-key-alias"); args.add(keystoreAlias);
+            args.add("--key-pass"); args.add("file:" + keyPasswordFile);
 
             Result res = exec(args);
             if (res.ret != 0) {
@@ -789,7 +819,9 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        Bob.initAndroid(); // extract resources
+        TimeProfiler.start("Init Android");
+        Bob.initAndroid(); // extract 
+        TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
@@ -800,15 +832,21 @@ public class AndroidBundler implements IBundler {
 
 
         String bundleFormat = project.option("bundle-format", "apk");
-        if (bundleFormat.equals("aab")) {
-            createAAB(project, outDir, helper, canceled);
-        }
-        else if (bundleFormat.equals("apk")) {
-            File aab = createAAB(project, outDir, helper, canceled);
+        TimeProfiler.start("Create AAB");
+        File aab = createAAB(project, outDir, helper, canceled);
+        TimeProfiler.stop();
+
+        if (bundleFormat.contains("apk")) {
+            TimeProfiler.start("Create APK");
             File apk = createAPK(aab, project, outDir, canceled);
+            TimeProfiler.stop();
+        }
+
+        if (!bundleFormat.contains("aab")) {
             aab.delete();
         }
-        else {
+
+        if (!bundleFormat.contains("aab") && !bundleFormat.contains("apk")) {
             throw new CompileExceptionError("Unknown bundle format: " + bundleFormat);
         }
     }
