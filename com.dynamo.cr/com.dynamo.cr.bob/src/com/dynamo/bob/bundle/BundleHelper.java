@@ -108,6 +108,7 @@ public class BundleHelper {
 
     public BundleHelper(Project project, Platform platform, File bundleDir, String variant) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
+        this.propertiesMap = this.projectProperties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
 
         this.project = project;
         this.platform = platform;
@@ -120,12 +121,6 @@ public class BundleHelper {
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
-
-        try {
-            this.propertiesMap = createPropertiesMap(project.getProjectProperties());
-        } catch (IOException e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
-        }
 
         this.variant = variant;
     }
@@ -148,70 +143,10 @@ public class BundleHelper {
         return output;
     }
 
-    private static Object convertToType(String value, String type) {
-        if (type != null && type.equals("bool")) {
-            if (value != null) {
-                return value.equals("1");
-            } else {
-                return false;
-            }
-        }
-        return value;
-    }
-
-    public static Map<String, Map<String, Object>> createPropertiesMap(BobProjectProperties projectProperties) throws IOException {
-        BobProjectProperties meta = new BobProjectProperties();
-        InputStream is = Bob.class.getResourceAsStream("meta.properties");
-        try {
-            meta.load(is);
-        } catch (ParseException e) {
-            throw new RuntimeException("Failed to parse meta.properties", e);
-        } finally {
-            IOUtils.closeQuietly(is);
-        }
-
-        Map<String, Map<String, Object>> map = new HashMap<>();
-
-        for (String c : meta.getCategoryNames()) {
-            map.put(c, new HashMap<String, Object>());
-
-            for (String k : meta.getKeys(c)) {
-                if (k.endsWith(".default")) {
-                    String k2 = k.split("\\.")[0];
-                    String v = meta.getStringValue(c, k);
-                    Object v2 = convertToType(v, meta.getStringValue(c, k2 + ".type"));
-                    map.get(c).put(k2, v2);
-                }
-            }
-        }
-
-        for (String c : projectProperties.getCategoryNames()) {
-            if (!map.containsKey(c)) {
-                map.put(c, new HashMap<String, Object>());
-            }
-
-            for (String k : projectProperties.getKeys(c)) {
-                String def = meta.getStringValue(c, k + ".default");
-                map.get(c).put(k, def);
-                String v = projectProperties.getStringValue(c, k);
-                Object v2 = convertToType(v, meta.getStringValue(c, k + ".type"));
-                map.get(c).put(k, v2);
-            }
-        }
-
-        return map;
-    }
-
-    public IResource getResource(String category, String key) throws IOException {
-        Map<String, Object> c = propertiesMap.get(category);
-        if (c != null) {
-            Object o = c.get(key);
-            if (o != null && o instanceof String) {
-                String s = (String)o;
-                if (s != null && s.trim().length() > 0) {
-                    return project.getResource(s);
-                }
-            }
+    private IResource getResource(String category, String key) throws IOException {
+        String val = this.projectProperties.getStringValue(category, key);
+        if (val != null && val.trim().length() > 0) {
+            return project.getResource(val);
         }
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
@@ -577,7 +512,7 @@ public class BundleHelper {
         // it is harder to distinguish what is a user defined value.
         // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
         if (projectProperties.isDefault("android", "debuggable")) {
-            Map<String, Object> propGroup = propertiesMap.get("android");
+            Map<String, Object> propGroup = this.propertiesMap.get("android");
             if (propGroup != null && propGroup.containsKey("debuggable")) {
                 boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG);
                 propGroup.put("debuggable", debuggable ? "true":"false");

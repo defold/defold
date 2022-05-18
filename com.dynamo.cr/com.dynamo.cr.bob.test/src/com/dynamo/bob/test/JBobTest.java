@@ -466,17 +466,4 @@ public class JBobTest {
         assertThat(result.size(), is(1));
         assertTrue(result.get(0).isOk());
     }
-
-    @Test
-    public void testUrlParsing() throws Exception {
-        List<URL> urls = LibraryUtil.parseLibraryUrls(" http://localhost ,http://localhost,,");
-        assertThat(urls.size(), is(2));
-        assertTrue(urls.get(0).toString().equals("http://localhost"));
-        assertTrue(urls.get(1).toString().equals("http://localhost"));
-    }
-
-    @Test(expected=LibraryException.class)
-    public void testUrlParsingInvalid() throws Exception {
-        LibraryUtil.parseLibraryUrls(" http://localhost ,http://localhost,,httpinvalid");
-    }
 }

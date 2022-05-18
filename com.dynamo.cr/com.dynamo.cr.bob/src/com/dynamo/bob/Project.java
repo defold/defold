@@ -534,7 +534,7 @@ public class Project {
         projectProperties = new BobProjectProperties();
     }
 
-    public static void loadPropertyFile(BobProjectProperties properties, String filepath) throws IOException {
+    private static void loadPropertyFile(BobProjectProperties properties, String filepath) throws IOException {
         Path pathHandle = Paths.get(filepath);
         if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
             throw new IOException(filepath + " is not a file");
@@ -556,7 +556,7 @@ public class Project {
 
         BobProjectProperties properties = new BobProjectProperties();
         try {
-            properties.loadDefaults();
+            properties.loadDefaultMetaFile();
             Project.loadPropertyFile(properties, projectFile.getAbsPath());
         } catch(ParseException e) {
             throw new IOException("Could not parse: " + projectFile.getAbsPath());

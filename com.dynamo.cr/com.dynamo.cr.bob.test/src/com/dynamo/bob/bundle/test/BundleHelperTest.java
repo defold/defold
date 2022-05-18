@@ -56,8 +56,9 @@ public class BundleHelperTest {
 
     void testValue(String p, String c, String k, Object expected) throws IOException, ParseException {
         BobProjectProperties properties = new BobProjectProperties();
+        properties.loadDefaultMetaFile();
         properties.load(new ByteArrayInputStream(p.getBytes()));
-        Map<String, Map<String, Object>> map = BundleHelper.createPropertiesMap(properties);
+        Map<String, Map<String, Object>> map = properties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
 
         Object actual = map.get(c).get(k);
         assertEquals(expected, actual);

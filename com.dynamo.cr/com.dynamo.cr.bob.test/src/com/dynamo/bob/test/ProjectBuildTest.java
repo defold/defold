@@ -189,6 +189,19 @@ public class ProjectBuildTest {
         checkProjectSettingArray(outputProps, "custom", "list2", new String[]{"a", "b", "c"});
     }
 
+    @Test
+    public void testStringArray() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        projectName = "String Array";
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +
+            "\ncustom_string_list#0 = http://test.com/test.zip\ncustom_string_list#2 = http://test.com/test2.zip\ncustom_string_list#1 = http://test.com/test1.zip\n");
+        build();
+        BobProjectProperties outputProps = new BobProjectProperties();
+        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+
+        checkProjectSettingArray(outputProps, "project", "custom_string_list", new String[]{"http://test.com/test.zip", "http://test.com/test1.zip", "http://test.com/test2.zip"});
+    }
+
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
         file.deleteOnExit();
