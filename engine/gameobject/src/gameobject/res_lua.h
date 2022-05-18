@@ -17,4 +17,9 @@
 
 #include <dmsdk/gameobject/res_lua.h>
 
+namespace dmGameObject
+{
+    void PatchLuaBytecode(dmLuaDDF::LuaModule* lua_module);
+}
+
 #endif // DM_GAMEOBJECT_RES_LUA_H

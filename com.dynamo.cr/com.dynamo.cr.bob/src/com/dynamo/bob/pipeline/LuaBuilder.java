@@ -29,6 +29,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.net.URLClassLoader;
 import java.net.URL;
+import java.lang.Math;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -249,14 +250,56 @@ public abstract class LuaBuilder extends Builder<Void> {
         if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         } else {
-            byte[] bytecode = constructBytecode(task, "luajit-32", script);
-            if (bytecode != null) {
-                srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
-            }
+            byte[] bytecode32 = constructBytecode(task, "luajit-32", script);
             byte[] bytecode64 = constructBytecode(task, "luajit-64", script);
-            if (bytecode64 != null) {
-                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+
+            if (bytecode32.length != bytecode64.length) {
+                Bob.verbose("%s bytecode32.length != bytecode64.length", task.input(0).getPath());
+                throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
             }
+
+            srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
+
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            Bob.verbose("%s 32bit length: %d 64bit length: %d", task.input(0).getPath(), bytecode32.length, bytecode64.length);
+            int previousDiffIndex = 0;
+            int previousDiff = 0;
+            int maxDiffStep = 0;
+            int maxConsecutive = 0;
+            int consecutive = 0;
+            int diffCount = 0;
+            for(int i = 0; i < bytecode32.length; i++) {
+                byte b32 = bytecode32[i];
+                byte b64 = bytecode64[i];
+                if (b32 != b64) {
+                    int diff = b64 - b32;
+                    //Bob.verbose("i = %d b32 = %d b64 = %d diff = %d", i, b32, b64, b64-b32);
+                    bos.write(i);
+                    if (bytecode32.length > 255) {
+                        bos.write((i & 0xFF00) >> 8);
+                    }
+                    if (bytecode32.length > 65535) {
+                        bos.write((i & 0xFF0000) >> 16);
+                        bos.write((i & 0xFF000000) >> 24);
+                    }
+                    bos.write(diff);
+
+                    if (previousDiffIndex == (i - 1)) {
+                        consecutive++;
+                    }
+                    else {
+                        consecutive = 0;
+                    }
+                    maxDiffStep = Math.max(maxDiffStep, i - previousDiffIndex);
+                    maxConsecutive = Math.max(maxConsecutive, consecutive);
+                    previousDiffIndex = i;
+                    previousDiff = diff;
+                    diffCount++;
+                }
+            }
+            byte[] delta = bos.toByteArray();
+            Bob.verbose("%s delta size: %d diffCount: %d maxDiffStep: %d maxConsecutive: %d", task.input(0).getPath(), delta.length, diffCount, maxDiffStep, maxConsecutive);
+            srcBuilder.setDelta(ByteString.copyFrom(delta));
         }
 
         builder.setSource(srcBuilder);

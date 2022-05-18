@@ -30,6 +30,8 @@ namespace dmGameObject
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
+        PatchLuaBytecode(lua_module);
+
         uint32_t n_modules = lua_module->m_Modules.m_Count;
         for (uint32_t i = 0; i < n_modules; ++i)
         {
@@ -97,6 +99,8 @@ namespace dmGameObject
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
+
+        PatchLuaBytecode(lua_module);
 
         dmScript::HContext script_context = (dmScript::HContext) params.m_Context;
         if (!RegisterSubModules(params.m_Factory, script_context, lua_module))
