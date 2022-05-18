@@ -133,7 +133,7 @@ def new_copy_task(name, input_ext, output_ext):
         task.set_outputs(out)
 
 def copy_file_task(bld, src, name=None):
-    copy = 'cp' # 'copy /Y' if sys.platform == 'win32' else 'cp'
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
     parts = src.split('/')
     filename = parts[-1]
     src_path = src.replace('/', os.sep)
@@ -1457,23 +1457,6 @@ def detect(conf):
     if Options.options.with_vulkan and build_util.get_target_platform() in ('x86_64-ios','js-web','wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
-    if 'win32' in platform:
-        includes = sdkinfo['includes']['path']
-        libdirs = sdkinfo['lib_paths']['path']
-        bindirs = sdkinfo['bin_paths']['path']
-
-        if platform == 'x86_64-win32':
-            conf.env['MSVC_TARGETS'] = "x64"
-            # This is not supported anymore!
-            #conf.env['MSVC_VERSIONS'] = # [('msvc 14.0',[('x64', ('amd64', (bindirs, includes, libdirs)))])]
-        else:
-            conf.env['MSVC_TARGETS'] = "x86"
-            # This is not supported anymore!
-            #conf.env['MSVC_VERSIONS'] = # [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
-
-        if not Options.options.skip_codesign:
-            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
-
     if build_util.get_target_os() in ('osx', 'ios'):
         path_list = None
         if 'linux' in build_platform:
@@ -1573,8 +1556,26 @@ def detect(conf):
 
     platform_setup_tools(conf, build_util)
 
-    conf.load('compiler_c')
-    conf.load('compiler_cxx')
+    # jg: this whole thing is a dirty hack to be able to pick up our own SDKs
+    if 'win32' in platform:
+        includes = sdkinfo['includes']['path']
+        libdirs = sdkinfo['lib_paths']['path']
+        bindirs = sdkinfo['bin_paths']['path']
+
+        bindirs.append(build_util.get_binary_path())
+        bindirs.append(build_util.get_dynamo_ext_bin())
+        bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
+
+        conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
+        conf.env['INCLUDES'] = includes
+        conf.env['LIBPATH']  = libdirs
+        conf.load('msvc', funs='no_autodetect')
+
+        if not Options.options.skip_codesign:
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
+    else:
+        conf.load('compiler_c')
+        conf.load('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)
@@ -1734,6 +1735,8 @@ def detect(conf):
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+
+    #print(conf.env)
 
 def configure(conf):
     detect(conf)
