@@ -27,6 +27,7 @@ create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.R
 create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='c cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
 
 def transform_properties(properties, out_properties):
+    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
     gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
     for property in properties:
         entry = None
@@ -78,6 +79,7 @@ def merge_collections(msg, sub_msg, sub_id):
         new_inst.id = sub_id + "/" + inst.id
 
 def read_collection(path):
+    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
     gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
 
     msg = gameobject_ddf_pb2.CollectionDesc()
@@ -129,6 +131,7 @@ def transform_gameobject(task, msg):
     return msg
 
 def compile_go(task):
+    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
     gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
 
     try:
@@ -225,6 +228,7 @@ def parse_properties(props):
             key = "%s.%s" % (id, e)
             entry.element_ids.append(dlib.dmHashBuffer64(key))
 
+    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
     properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject')
 
     declarations = properties_ddf_pb2.PropertyDeclarations()
@@ -314,10 +318,9 @@ def parse_properties(props):
 
     return declarations
 
-def compile_lua(task):            
+def compile_lua(task):
+    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
     lua_ddf_pb2 = waf_dynamo.load_module_from_path('lua_ddf_pb2', 'build/proto/gameobject')
-
-    print("ASDKOASD", lua_ddf_pb2)
 
     with open(task.inputs[0].srcpath(), 'r') as in_f:
         script = in_f.read()

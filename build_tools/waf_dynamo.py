@@ -30,6 +30,13 @@ if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
+def load_package_from_path(name, root):
+    spec = importlib.util.spec_from_file_location(name, '%s/__init__.py' % (root))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
 def load_module_from_path(name, root):
     spec = importlib.util.spec_from_file_location(name, '%s/%s.py' % (root, name))
     module = importlib.util.module_from_spec(spec)

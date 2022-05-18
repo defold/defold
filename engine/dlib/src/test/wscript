@@ -34,6 +34,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         platform_source = ' ' + platform_source_path
 
     req_features.append('test')
+    req_features.append('test_http_server')
     if skip_run:
         req_features.append('skip_test')
     if extra_features != None:
@@ -120,10 +121,10 @@ def build(bld):
     create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
 
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD', 'test_http_server'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 

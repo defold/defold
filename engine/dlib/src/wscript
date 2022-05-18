@@ -19,7 +19,7 @@ def options(opt):
 @feature('config_neon')
 @after('configure')
 def config_neon(conf):
-    conf.env.append_unique('CCFLAGS', '-mfpu=neon')
+    conf.env.append_unique('CFLAGS', '-mfpu=neon')
 
 def configure(conf):
     conf.recurse('test')
@@ -129,8 +129,8 @@ def build(bld):
     FLAG_ST = '/O%s' if ('win32' in bld.env.BUILD_PLATFORM) else '-O%s'
     remove_flags = {}
     if opt_level in ['3','2']:
-        remove_flags['CCFLAGS'] = []
-        remove_flags['CCFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        remove_flags['CFLAGS'] = []
+        remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
         # if in release mode we'll only keep a (non verbose) print function
         extra_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
     else:
@@ -143,7 +143,7 @@ def build(bld):
                   remove_flags= remove_flags,
                   install_path = build_util.get_library_path(),
                   defines     = ['VALGRIND'] + extra_defines)
-    mbedtls.env.append_unique('CCFLAGS', FLAG_ST % 's')
+    mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
     mbedtls_noasan = bld.stlib(features     = ' '.join(mbedtls.features) + ' skip_asan',
@@ -153,7 +153,7 @@ def build(bld):
                          install_path = build_util.get_library_path(),
                          target       = 'mbedtls_noasan')
     mbedtls_noasan.source = [x for x in mbedtls.source]
-    mbedtls_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+    mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     libzip_dirs = ['zip/**/*.cpp']
     libzip = bld.stlib(features    = 'c cxx cstaticlib',
@@ -169,7 +169,7 @@ def build(bld):
                         install_path = build_util.get_library_path(),
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
-    libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+    libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:
@@ -216,11 +216,11 @@ def build(bld):
     basis_encoder = bld.stlib(features = 'c cxx cstaticlib skip_asan remove_flags',
                             includes = ['basis'],
                             target = 'basis_encoder',
-                            source = bld.path.ant_glob(["basis/**/*.cpp", "basis/**/*.c"]), 
+                            source = bld.path.ant_glob(["basis/**/*.cpp", "basis/**/*.c"]),
                             install_path = build_util.get_library_path(),
                             remove_flags = remove_flags,
                             defines = ['DM_BASIS_ENCODER'] + basis_flags)
-    #basis_encoder.find_sources_in_dirs(["basis/encoder", "basis/transcoder"], ['.cpp'])
+
     basis_encoder.env.append_unique('CXXFLAGS', extra_encoder_flags)
 
     if new_opt_level:
@@ -235,7 +235,7 @@ def build(bld):
                             install_path = build_util.get_library_path(),
                             defines = ['DM_BASIS_TRANSCODER_UASTC', 'BASISD_SUPPORT_KTX2=0'] + basis_flags,
                             use = 'dlib')
-    #basis_transcoder.find_sources_in_dirs(["basis/transcoder"], ['.cpp'])
+
     if new_opt_level:
         basis_transcoder.env.append_unique('CXXFLAGS', ['-Os'])
 
