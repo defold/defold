@@ -395,6 +395,11 @@ uint16_t GetPort()
     return g_dmLogServer->m_Port;
 }
 
+void Setlevel(Severity severity)
+{
+    g_LogLevel = severity;
+}
+
 #ifdef ANDROID
 static android_LogPriority ToAndroidPriority(Severity severity)
 {
@@ -424,21 +429,12 @@ static android_LogPriority ToAndroidPriority(Severity severity)
 }
 #endif
 
-#if defined(NDEBUG)
-typedef void (*LogListener)(Severity severity, const char* domain, const char* formatted_string);
-#endif
-
 #define MAX_LISTENERS (32)
 static LogListener g_dmLog_Listeners[MAX_LISTENERS];
 static int g_dmLog_ListenersCount = 0;
 static bool g_isSendingLogs = false;
 
-void SetlevelInternal(Severity severity)
-{
-    g_LogLevel = severity;
-}
-
-void RegisterLogListenerInternal(LogListener listener)
+void RegisterLogListener(LogListener listener)
 {
     if (g_dmLog_ListenersCount >= MAX_LISTENERS) {
         dmLogWarning("Max dmLog listeners reached (%d)", MAX_LISTENERS);
@@ -447,7 +443,7 @@ void RegisterLogListenerInternal(LogListener listener)
     }
 }
 
-void UnregisterLogListenerInternal(LogListener listener)
+void UnregisterLogListener(LogListener listener)
 {
     for (int i = 0; i < g_dmLog_ListenersCount; ++i)
     {
@@ -460,11 +456,6 @@ void UnregisterLogListenerInternal(LogListener listener)
     }
     dmLogWarning("dmLog listener not found");
 }
-
-// Deprecated
-void RegisterLogListener(LogListener listener)      { RegisterLogListenerInternal(listener); }
-void UnregisterLogListener(LogListener listener)    { UnregisterLogListenerInternal(listener); }
-void Setlevel(Severity severity)                    { SetlevelInternal(severity); }
 
 #undef MAX_LISTENERS
 
@@ -622,4 +613,3 @@ void SetCustomLogCallback(CustomLogCallback callback, void* user_data)
 }
 
 } //namespace dmLog
-

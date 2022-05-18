@@ -335,7 +335,7 @@ TEST_F(CollectionTest, PostCollection)
 
 TEST_F(CollectionTest, CollectionFail)
 {
-    dmLogSetlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
@@ -351,12 +351,12 @@ TEST_F(CollectionTest, CollectionFail)
         ASSERT_NE(dmResource::RESULT_OK, r);
         dmGameObject::PostUpdate(m_Register);
     }
-    dmLogSetlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
 }
 
 TEST_F(CollectionTest, CollectionComponentFail)
 {
-    dmLogSetlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
     for (int i = 0; i < 4; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
@@ -371,7 +371,7 @@ TEST_F(CollectionTest, CollectionComponentFail)
         ASSERT_NE(dmResource::RESULT_OK, r);
         dmGameObject::PostUpdate(m_Register);
     }
-    dmLogSetlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
 }
 
 TEST_F(CollectionTest, CollectionInCollection)
@@ -439,7 +439,7 @@ TEST_F(CollectionTest, CollectionInCollection)
 
 TEST_F(CollectionTest, CollectionInCollectionChildFail)
 {
-    dmLogSetlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
@@ -451,7 +451,7 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
             r = PreloaderGet(m_Factory, "root2.collection", (void**) &coll);
         ASSERT_NE(dmResource::RESULT_OK, r);
     }
-    dmLogSetlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
 }
 
 TEST_F(CollectionTest, DefaultValues)

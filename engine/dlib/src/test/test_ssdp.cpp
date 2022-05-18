@@ -445,7 +445,7 @@ TEST_F(dmSSDPTest, JavaClient)
 int main(int argc, char **argv)
 {
     srand(time(NULL));
-    dmLogSetlevel(dmLog::LOG_SEVERITY_DEBUG);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
     dmSocket::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

@@ -193,7 +193,7 @@ int Launch(int argc, char **argv) {
     }
 
     if (dmConfigFile::GetInt(config, "launcher.debug", 0)) {
-        dmLogSetlevel(dmLog::LOG_SEVERITY_DEBUG);
+        dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
     }
 
     ReplaceContext context;

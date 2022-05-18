@@ -419,7 +419,7 @@ TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
 int main(int argc, char **argv)
 {
     srand(time(NULL));
-    dmLogSetlevel(dmLog::LOG_SEVERITY_DEBUG);
+    dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
