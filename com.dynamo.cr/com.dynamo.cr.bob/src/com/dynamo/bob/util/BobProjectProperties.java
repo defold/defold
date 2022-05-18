@@ -337,9 +337,9 @@ public class BobProjectProperties {
     public String getStringValue(String category, String key, String defaultValue) {
         ProjectProperty val = getValue(category, key);
         if (val != null) {
-            String value = val.getValue();
-            if (value != null) {
-                return value;
+            String result = val.getValue();
+            if (result != null) {
+                return result;
             }
         }
         return defaultValue;
@@ -368,7 +368,10 @@ public class BobProjectProperties {
     public Boolean getBooleanValue(String category, String key, Boolean defaultValue) {
         ProjectProperty val = getValue(category, key);
         if (val != null) {
-            return (Boolean)val.getTypedValue(BobProjectProperties.PropertyType.BOOL);
+            Boolean result = (Boolean)val.getTypedValue(BobProjectProperties.PropertyType.BOOL);
+            if (result != null) {
+                return result;
+            }
         }
         return defaultValue;
     }

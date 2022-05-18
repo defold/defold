@@ -58,15 +58,23 @@ public class BobProjectPropertiesTest {
     }
 
     @Test
-    public void testProperties() throws IOException, ParseException {
-        testValue("", "project", "title", "unnamed");
-    }
-
-    @Test
     public void testTypedProperties() throws IOException, ParseException {
         testValue("[project]\nwrite_log=0", "project", "write_log", false);
         testValue("[project]\nwrite_log=1", "project", "write_log", true);
         testValue("", "project", "write_log", false);
+        testValue("", "project", "title", "unnamed");
+    }
+
+    @Test
+    public void testProperties() throws IOException, ParseException {
+        BobProjectProperties properties = createProperties();
+
+        assertEquals(false, properties.getBooleanValue("html5", "doesn't_exist", false));
+        assertEquals(new Integer(834), properties.getIntValue("html5", "doesn't_exist", 834));
+
+        assertEquals(false, properties.getBooleanValue("display", "fullscreen"));
+        assertEquals(true, properties.getBooleanValue("sound", "use_thread"));
+        assertEquals(new Integer(960), properties.getIntValue("display", "width"));
     }
 
     @Test
