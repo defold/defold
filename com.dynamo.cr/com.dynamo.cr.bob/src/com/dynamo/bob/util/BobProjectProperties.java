@@ -238,17 +238,28 @@ public class BobProjectProperties {
     /**
      * Load properties in-place from {@link InputStream}
      * @param in {@link InputStream} to load from
+     * @param isMeta if loads meta file or not
      * @throws IOException
      * @throws ParseException
      */
-    public void load(InputStream in) throws IOException, ParseException {
+    public void load(InputStream in, boolean isMeta) throws IOException, ParseException {
         try {
-            Map<String, Map<String, ProjectProperty>> props = doLoad(in);
+            Map<String, Map<String, ProjectProperty>> props = doLoad(in, isMeta);
             // merge into properties
             BobProjectProperties.mergeProperties(properties, props);
         } finally {
             IOUtils.closeQuietly(in);
         }
+    }
+
+    /**
+     * Load properties in-place from {@link InputStream} as non-meta file
+     * @param in {@link InputStream} to load from
+     * @throws IOException
+     * @throws ParseException
+     */
+    public void load(InputStream in) throws IOException, ParseException {
+        load(in, false);
     }
 
     /**
@@ -259,7 +270,7 @@ public class BobProjectProperties {
     public void loadDefaultMetaFile()  throws IOException, ParseException {
         InputStream is = Bob.class.getResourceAsStream("meta.properties");
         try {
-            load(is);
+            load(is, true);
         } catch (ParseException e) {
             throw new RuntimeException("Failed to parse meta.properties", e);
         } finally {
@@ -489,7 +500,7 @@ public class BobProjectProperties {
         }
     }
 
-    private Map<String, Map<String, ProjectProperty>> doLoad(InputStream in) throws IOException, ParseException {
+    private Map<String, Map<String, ProjectProperty>> doLoad(InputStream in, boolean isMeta) throws IOException, ParseException {
         Map<String, Map<String, ProjectProperty>> properties = new LinkedHashMap<String, Map<String, ProjectProperty>>();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         Map<String, ProjectProperty> propGroup = null;
@@ -527,7 +538,7 @@ public class BobProjectProperties {
                             prop.setAttribute(keyAndAttr[1], value);
                             propGroup.put(key, prop);
                         }
-                        else if (fullKey.contains("#")) {
+                        else if (!isMeta && fullKey.contains("#")) {
                             String[] keyAndIndex = fullKey.split("#");
                             String key = keyAndIndex[0];
                             ProjectProperty prop = propGroup.get(key);
@@ -537,7 +548,7 @@ public class BobProjectProperties {
                             prop.addArrayValue(keyAndIndex[1], value);
                             propGroup.put(key, prop);
                         }
-                        else
+                        else if (!isMeta)
                         {
                             String key = fullKey;
                             ProjectProperty prop = propGroup.get(key);
