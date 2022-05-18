@@ -69,6 +69,7 @@ public class BobProjectProperties {
         private String defaultValue;
         PropertyType type;
         private Boolean isPrivate;
+
         private Map<Integer, String> valuesArray;
 
         public ProjectProperty() {
@@ -144,6 +145,10 @@ public class BobProjectProperties {
                     Object v = f.get(prop);
                     if ((v != null) && (t.isEnum() || t.equals(String.class) || t.equals(Boolean.class))) {
                         f.set(this, v);
+                        if (f.getName() == "value") {
+                            // it's important to reset old parsed values from value Array in value overwritten
+                            valuesArray = null;
+                        }
                     }
                 }
             }
