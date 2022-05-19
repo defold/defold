@@ -448,7 +448,7 @@ def _is_64bit_machine():
 
 def get_host_platform():
     if _is_64bit_machine():
-        if sys.platform == 'linux2':
+        if sys.platform == 'linux':
             return 'x86_64-linux'
         elif sys.platform == 'win32':
             return 'x86_64-win32'

@@ -870,7 +870,7 @@ def _strip_executable(bld, platform, target_arch, path):
     strip = "strip"
     if 'android' in platform:
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-        ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+        ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
         build_tool = getAndroidBuildtoolName(target_arch)
         strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, ANDROID_GCC_VERSION, ANDROID_HOST, build_tool)
 

@@ -22,7 +22,7 @@ if platform.architecture()[0] == '32bit':
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
     libdir = "lib/x86_64-darwin"
-elif sys.platform == "linux2":
+elif sys.platform == "linux":
     libname = "libdlib_shared.so"
     libdir = "lib/x86_64-linux"
 elif sys.platform == "win32":

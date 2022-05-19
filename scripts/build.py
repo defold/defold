@@ -131,7 +131,7 @@ def is_64bit_machine():
 # Legacy format, should be removed eventually
 # Returns: [linux|x86_64-linux|win32|x86_64-win32|darwin]
 def get_host_platform():
-    if sys.platform == 'linux2':
+    if sys.platform == 'linux':
         arch = platform.architecture()[0]
         if arch == '64bit':
             return 'x86_64-linux'
@@ -145,7 +145,7 @@ def get_host_platform():
 # The difference from get_host_platform is that it returns the correct platform
 # Returns: [x86|x86_64][win32|linux|darwin]
 def get_host_platform2():
-    if sys.platform == 'linux2':
+    if sys.platform == 'linux':
         arch = platform.architecture()[0]
         if arch == '64bit':
             return 'x86_64-linux'
@@ -907,10 +907,10 @@ class Configuration(object):
             elif target_platform == 'arm64-android':
                 ANDROID_PLATFORM = 'aarch64-linux-android'
 
-            ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+            ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
-        if self.target_platform in ('x86_64-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
+        if self.target_platform in ('x86_64-darwin','arm64-darwin','x86_64-ios') and 'linux' == sys.platform:
             strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))

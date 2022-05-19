@@ -59,7 +59,7 @@ platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86_64-darwin': 'osx-x64',
                     'x86_64-win32': 'windows-x64'}
 
-python_platform_to_java = {'linux2': 'linux-x64',
+python_platform_to_java = {'linux': 'linux-x64',
                            'win32': 'windows-x64',
                            'darwin': 'osx-x64'}
 
