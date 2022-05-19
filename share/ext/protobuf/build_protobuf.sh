@@ -76,6 +76,8 @@ echo **********************
 
 echo "$PWD"
 
+#export LDFLAGS="-llog"
+
 set -e
 ./autogen.sh
 ./configure

@@ -555,13 +555,13 @@ def web_exported_functions(self):
 def android_link_flags(self):
     build_util = create_build_utility(self.env)
     if 'android' == build_util.get_target_os():
-        self.link_task.env.append_value('LINKFLAGS', ['-lm', '-llog', '-lc'])
-        self.link_task.env.append_value('LINKFLAGS', '-Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now'.split())
+        self.env.append_value('LINKFLAGS', ['-lm', '-llog', '-lc'])
+        self.env.append_value('LINKFLAGS', '-Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now'.split())
 
         if 'apk' in self.features:
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
-            self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+            self.env.append_value('LINKFLAGS', ['-shared'])
 
 @feature('cprogram', 'cxxprogram')
 @before('process_source')
@@ -915,7 +915,7 @@ Task.task_factory('authenticode_sign',
 @feature('authenticode')
 def authenticode(self):
     exe_file = self.link_task.outputs[0].abspath(self.env)
-    sign_task = self.create_task('authenticode_sign', self.env)
+    sign_task = self.create_task('authenticode_sign')
     sign_task.set_inputs(self.link_task.outputs)
     sign_task.set_outputs([self.link_task.outputs[0].change_ext('_signed.exe')])
 
@@ -983,7 +983,7 @@ def android_package(task):
         package = task.android_package
 
     try:
-        build_util = create_build_utility()
+        build_util = create_build_utility(task.env)
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
 
@@ -992,20 +992,25 @@ def android_package(task):
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
     dex_dir = os.path.dirname(task.classes_dex.abspath())
-    root = os.path.normpath(os.path.join(dex_dir, '..', '..'))
+    root = os.path.normpath(dex_dir) #os.path.join(dex_dir, '..'))
     libs = os.path.join(root, 'libs')
     bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
     dx_libs = os.path.join(bin, 'dexedLibs')
     gen = os.path.join(root, 'gen')
-    native_lib = task.native_lib.abspath()
+    jni_dir = os.path.join(root, 'jni')
+    native_lib = task.native_lib.get_bld().abspath()
+    native_lib_dir = task.native_lib.get_bld().parent.abspath()
 
     bld.exec_command('mkdir -p %s' % (libs))
     bld.exec_command('mkdir -p %s' % (bin))
     bld.exec_command('mkdir -p %s' % (bin_cls))
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
-    shutil.copy(task.native_lib_in.abspath(), native_lib)
+    bld.exec_command('mkdir -p %s' % (native_lib_dir))
+    bld.exec_command('mkdir -p %s' % (jni_dir))
+
+    shutil.copy(task.native_lib_in.get_bld().abspath(), native_lib)
 
     dx_jars = []
     for jar in task.jars:
@@ -1036,13 +1041,13 @@ def android_package(task):
         error('Error stripping file %s' % path)
         return 1
 
-    with open(task.android_mk.abspath(), 'wb') as f:
+    with open(task.android_mk.abspath(), 'w') as f:
         print ('APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture()), file=f)
 
-    with open(task.application_mk.abspath(), 'wb') as f:
+    with open(task.application_mk.abspath(), 'w') as f:
         print ('', file=f)
 
-    with open(task.gdb_setup.abspath(), 'wb') as f:
+    with open(task.gdb_setup.abspath(), 'w') as f:
         if 'arm64' == build_util.get_target_architecture():
             print ('set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/', file=f)
         else:
@@ -1063,7 +1068,7 @@ def create_android_package(self):
         return
     Utils.def_attrs(self, android_package = None)
 
-    android_package_task = self.create_task('android_package', self.env)
+    android_package_task = self.create_task('android_package')
     android_package_task.set_inputs(self.link_task.outputs)
     android_package_task.android_package = self.android_package
 
@@ -1084,20 +1089,20 @@ def create_android_package(self):
         android_package_task.fatal(ex.msg)
 
     if 'arm64' == build_util.get_target_architecture():
-        native_lib = self.path.make_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
+        native_lib = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
     else:
-        native_lib = self.path.make_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+        native_lib = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
-    android_package_task.classes_dex = self.path.make_node("%s.android/classes.dex" % (exe_name))
+    android_package_task.classes_dex = self.path.get_bld().make_node("%s.android/classes.dex" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
-    android_package_task.android_mk = self.path.make_node("%s.android/jni/Android.mk" % (exe_name))
-    android_package_task.application_mk = self.path.make_node("%s.android/jni/Application.mk" % (exe_name))
+    android_package_task.android_mk = self.path.get_bld().make_node("%s.android/jni/Android.mk" % (exe_name))
+    android_package_task.application_mk = self.path.get_bld().make_node("%s.android/jni/Application.mk" % (exe_name))
     if 'arm64' == build_util.get_target_architecture():
-        android_package_task.gdb_setup = self.path.make_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
+        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
     else:
-        android_package_task.gdb_setup = self.path.make_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
     android_package_task.set_outputs([native_lib,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
@@ -1105,7 +1110,7 @@ def create_android_package(self):
     self.android_package_task = android_package_task
 
 def copy_stub(task):
-    with open(task.outputs[0].bldpath(), 'wb') as out_f:
+    with open(task.outputs[0].abspath(), 'w') as out_f:
         out_f.write(ANDROID_STUB)
 
     return 0
@@ -1124,8 +1129,8 @@ def create_copy_glue(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
         return
 
-    stub = self.path.find_or_declare('android_stub.c')
-    self.allnodes.append(stub)
+    stub = self.path.get_bld().find_or_declare('android_stub.c')
+    #self.source.append(stub.abspath())
 
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
@@ -1734,7 +1739,8 @@ def detect(conf):
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
     elif platform in ('armv7-android', 'arm64-android'):
-        conf.env['STLIB_TESTAPP'] += ['android']
+        pass
+        #conf.env['STLIB_TESTAPP'] += ['android']
     elif platform in ('x86_64-linux',):
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):

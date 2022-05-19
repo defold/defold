@@ -16,10 +16,10 @@ def build(bld):
     platform_folder = _get_native_file(build_util.get_target_os(), '../glfw')
 
     obj = bld.program(features = 'cxx test',
-              includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-              use = 'TESTMAIN DLIB DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT hid_null',
-              target = 'test_hid',
-              source = 'test_hid.cpp')
+                      includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
+                      use      = 'TESTMAIN DLIB DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT hid_null',
+                      target   = 'test_hid',
+                      source   = 'test_hid.cpp')
 
     graphics_lib = ['GRAPHICS', 'DMGLFW']
     graphics_lib_symbols = 'GraphicsAdapterOpenGL'
@@ -39,7 +39,7 @@ def build(bld):
     exported_symbols = [graphics_lib_symbols]
 
     web_libs = ['library_glfw.js', 'library_sys.js']
-    bld.program(features = 'cxx test skip_test',
+    bld.program(features = 'cxx cprogram test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
         use = 'TESTMAIN TESTAPP DLIB PLATFORM PLATFORM_SOCKET LUA SCRIPT hid'.split() + graphics_lib,
         web_libs = web_libs,

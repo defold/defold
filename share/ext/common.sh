@@ -323,6 +323,8 @@ function cmi() {
             export AS=${bin}/aarch64-linux-android-as
             export LD=${bin}/aarch64-linux-android-ld
             export RANLIB=${bin}/aarch64-linux-android-ranlib
+            export LDFLAGS="-llog"
+
             cmi_cross $1 arm-linux
             ;;
 

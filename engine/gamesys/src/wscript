@@ -17,11 +17,12 @@ def build(bld):
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)
 
-        bld.__call__(features='javac seq',
-                         classpath=classpath,
-                         source_root='java')
+        bld(features='javac seq',
+            classpath=classpath,
+            outdir='java',
+            source_root='java')
 
-        bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
+        bld.env['JAVACFLAGS'] = '-g -source 1.7 -target 1.7'.split()
 
         bld(features='jar seq',
             basedir='java',
