@@ -18,8 +18,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.fs.DefaultFileSystem;
 
+import java.nio.file.Files;
+import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.text.ParseException;
@@ -29,13 +35,21 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.io.FileUtils;
+
 public class BobProjectPropertiesTest {
+
+    private String contentRoot;
+
     @Before
     public void setUp() throws Exception {
+        contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() throws IOException {
+        FileUtils.deleteDirectory(new File(contentRoot));
     }
 
     BobProjectProperties createProperties() throws IOException, ParseException {
@@ -78,19 +92,36 @@ public class BobProjectPropertiesTest {
     }
 
     @Test
-    public void testPropertiesOverride() throws IOException, ParseException {
-        BobProjectProperties properties = createProperties();
-        String main = "[project]\ntitle = Title one\ncustom_string_list#0 = http://test.com/test.zip\ncustom_string_list#2 = http://test.com/test2.zip\ncustom_string_list#1 = http://test.com/test1.zip\n";
-        String override = "[project]\ntitle = Title two\ncustom_string_list=http://test.com/new.zip,http://test.com/new1.zip";
-        load(properties, main);
-        load(properties, override);
+    public void testExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
 
-        assertEquals("Title two", properties.getStringValue("project", "title"));
-        assertEquals("http://test.com/new.zip,http://test.com/new1.zip", properties.getStringValue("project", "custom_string_list"));
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.loadProjectFile();
+        BobProjectProperties properties = project.getProjectProperties();
 
-        String[] array = properties.getStringArrayValue("project", "custom_string_list");
-        assertEquals(2, array.length);
-        assertEquals("http://test.com/new.zip", array[0]);
-        assertEquals("http://test.com/new1.zip", array[1]);
+        assertEquals(true, properties.isPrivate("project", "custom_property"));
+    }
+
+    @Test
+    public void testOverrideExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
+        createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 0");
+
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.loadProjectFile();
+        BobProjectProperties properties = project.getProjectProperties();
+
+        assertEquals(false, properties.isPrivate("project", "custom_property"));
+    }
+
+    private String createFile(String root, String name, String content) throws IOException {
+        File file = new File(root, name);
+        file.deleteOnExit();
+        FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
+        return file.getAbsolutePath();
     }
 }

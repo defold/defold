@@ -417,10 +417,24 @@ public class BobProjectProperties {
      * @param key category key
      * @return return true if default value;
      */
-    public boolean isDefault(String category, String key) {
+    public Boolean isDefault(String category, String key) {
         Map<String, ProjectProperty> group = this.properties.get(category);
         if (group != null && group.containsKey(key)) {
             return group.get(key).isDefault();
+        }
+        return false;
+    }
+
+    /**
+     * Check if value is private
+     * @param category property category
+     * @param key category key
+     * @return return true if private value;
+     */
+    public Boolean isPrivate(String category, String key) {
+        Map<String, ProjectProperty> group = this.properties.get(category);
+        if (group != null && group.containsKey(key)) {
+            return group.get(key).isPrivate();
         }
         return false;
     }
