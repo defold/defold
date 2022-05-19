@@ -67,9 +67,10 @@ def build(bld):
 
         bld(features    = 'javac seq',
             classpath   = classpath,
+            outdir      ='java',
             source_root = 'java')
 
-        bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
+        bld.env['JAVACFLAGS'] = '-g -source 1.7 -target 1.7'.split()
 
         bld(features = 'jar seq',
             basedir  = 'java',

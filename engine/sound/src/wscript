@@ -43,9 +43,14 @@ def build(bld):
     elif re.match('arm.*?android', bld.env['PLATFORM']):
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)
-        bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
-        bld.__call__(features='javac seq', classpath=classpath, source_root='java')
-        bld.__call__(features='jar seq', basedir='java', destfile='sound_android.jar')
+        bld.env['JAVACFLAGS'] = '-g -source 1.7 -target 1.7'.split()
+        bld(features='javac seq',
+            classpath=classpath,
+            outdir='java',
+            source_root='java')
+        bld(features='jar seq',
+            basedir='java',
+            destfile='sound_android.jar')
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
 
 
