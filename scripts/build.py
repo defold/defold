@@ -1913,7 +1913,7 @@ class Configuration(object):
                 chunkcount = int(math.ceil(source_size / float(chunksize)))
 
                 def upload_part(filepath, part, offset, size):
-                    with open(filepath, 'r') as fhandle:
+                    with open(filepath, 'rb') as fhandle:
                         fhandle.seek(offset)
                         mp.upload_part_from_file(fp=fhandle, part_num=part, size=size)
 
