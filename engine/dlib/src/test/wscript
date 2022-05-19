@@ -34,7 +34,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         platform_source = ' ' + platform_source_path
 
     req_features.append('test')
-    req_features.append('test_http_server')
+    #req_features.append('test_http_server')
     if skip_run:
         req_features.append('skip_test')
     if extra_features != None:
