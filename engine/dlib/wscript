@@ -49,7 +49,7 @@ def build(bld):
     TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(sht):
-    if not TestContext.is_valid(test_context) or Options.options.skip_build_tests:
+    if not TestContext.is_valid(test_context) or Options.options.skip_build_tests or Options.options.skip_tests:
         return
 
     # TODO: Fix support for win32

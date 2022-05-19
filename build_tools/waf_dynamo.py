@@ -757,8 +757,8 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 def codesign(task):
     bld = task.generator.bld
 
-    exe_path = task.exe.bldpath(task.env)
-    signed_exe_path = task.signed_exe.bldpath(task.env)
+    exe_path = task.exe.abspath()
+    signed_exe_path = task.signed_exe.abspath()
     shutil.copy(exe_path, signed_exe_path)
 
     signed_exe_dir = os.path.dirname(signed_exe_path)
@@ -777,7 +777,7 @@ def codesign(task):
     if not entitlements:
         entitlements = 'engine_profile.xcent'
     entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
-    resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
+    resource_rules_plist_file = task.resource_rules_plist.abspath()
 
     if not hasattr(task.generator, 'sdkinfo'):
         task.generator.sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env['PLATFORM'])
@@ -795,14 +795,16 @@ Task.task_factory('codesign',
                          after  = 'app_bundle')
 
 def app_bundle(task):
-    info_plist_file = open(task.info_plist.bldpath(task.env), 'wb')
+    task.info_plist.parent.mkdir()
+
+    info_plist_file = open(task.info_plist.abspath(), 'w')
     bundleid = 'com.defold.%s' % task.exe_name
     if task.bundleid:
         bundleid = task.bundleid
     info_plist_file.write(INFO_PLIST % { 'executable' : task.exe_name, 'bundleid' : bundleid })
     info_plist_file.close()
 
-    resource_rules_plist_file = open(task.resource_rules_plist.bldpath(task.env), 'wb')
+    resource_rules_plist_file = open(task.resource_rules_plist.abspath(), 'w')
     resource_rules_plist_file.write(RESOURCE_RULES_PLIST)
     resource_rules_plist_file.close()
 
@@ -884,9 +886,9 @@ def authenticode_certificate_installed(task):
 def authenticode_sign(task):
     if Options.options.skip_codesign:
         return
-    exe_file = task.inputs[0].abspath(task.env)
-    exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
-    exe_file_signed = task.outputs[0].abspath(task.env)
+    exe_file = task.inputs[0].abspath()
+    exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath()
+    exe_file_signed = task.outputs[0].abspath()
 
     ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), stdout=True, stderr=True)
     if ret != 0:
@@ -923,19 +925,20 @@ def authenticode(self):
 def create_app_bundle(self):
     if not re.match('arm.*?darwin', self.env['PLATFORM']):
         return
+
     Utils.def_attrs(self, bundleid = None, provision = None, entitlements = None)
 
-    app_bundle_task = self.create_task('app_bundle', self.env)
+    app_bundle_task = self.create_task('app_bundle')
     app_bundle_task.bundleid = self.bundleid
     app_bundle_task.set_inputs(self.link_task.outputs)
 
     exe_name = self.link_task.outputs[0].name
     app_bundle_task.exe_name = exe_name
 
-    info_plist = self.path.exclusive_build_node("%s.app/Info.plist" % exe_name)
+    info_plist = self.path.get_bld().make_node("%s.app/Info.plist" % exe_name)
     app_bundle_task.info_plist = info_plist
 
-    resource_rules_plist = self.path.exclusive_build_node("%s.app/ResourceRules.plist" % exe_name)
+    resource_rules_plist = self.path.get_bld().make_node("%s.app/ResourceRules.plist" % exe_name)
     app_bundle_task.resource_rules_plist = resource_rules_plist
 
     app_bundle_task.set_outputs([info_plist, resource_rules_plist])
@@ -943,9 +946,9 @@ def create_app_bundle(self):
     self.app_bundle_task = app_bundle_task
 
     if not Options.options.skip_codesign and not self.env["CODESIGN_UNSUPPORTED"]:
-        signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
+        signed_exe = self.path.get_bld().make_node("%s.app/%s" % (exe_name, exe_name))
 
-        codesign = self.create_task('codesign', self.env)
+        codesign = self.create_task('codesign')
         codesign.provision = self.provision
         codesign.entitlements = self.entitlements
         codesign.resource_rules_plist = resource_rules_plist
@@ -980,7 +983,7 @@ def android_package(task):
         package = task.android_package
 
     try:
-        build_util = create_build_utility(task.env)
+        build_util = create_build_utility()
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
 
@@ -988,21 +991,21 @@ def android_package(task):
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-    dex_dir = os.path.dirname(task.classes_dex.abspath(task.env))
+    dex_dir = os.path.dirname(task.classes_dex.abspath())
     root = os.path.normpath(os.path.join(dex_dir, '..', '..'))
     libs = os.path.join(root, 'libs')
     bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
     dx_libs = os.path.join(bin, 'dexedLibs')
     gen = os.path.join(root, 'gen')
-    native_lib = task.native_lib.abspath(task.env)
+    native_lib = task.native_lib.abspath()
 
     bld.exec_command('mkdir -p %s' % (libs))
     bld.exec_command('mkdir -p %s' % (bin))
     bld.exec_command('mkdir -p %s' % (bin_cls))
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
-    shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
+    shutil.copy(task.native_lib_in.abspath(), native_lib)
 
     dx_jars = []
     for jar in task.jars:
@@ -1027,19 +1030,19 @@ def android_package(task):
             return 1
 
     # strip the executable
-    path = task.native_lib.abspath(task.env)
+    path = task.native_lib.abspath()
     ret = _strip_executable(bld, task.env.PLATFORM, build_util.get_target_architecture(), path)
     if ret != 0:
         error('Error stripping file %s' % path)
         return 1
 
-    with open(task.android_mk.abspath(task.env), 'wb') as f:
+    with open(task.android_mk.abspath(), 'wb') as f:
         print ('APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture()), file=f)
 
-    with open(task.application_mk.abspath(task.env), 'wb') as f:
+    with open(task.application_mk.abspath(), 'wb') as f:
         print ('', file=f)
 
-    with open(task.gdb_setup.abspath(task.env), 'wb') as f:
+    with open(task.gdb_setup.abspath(), 'wb') as f:
         if 'arm64' == build_util.get_target_architecture():
             print ('set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/', file=f)
         else:
@@ -1081,20 +1084,20 @@ def create_android_package(self):
         android_package_task.fatal(ex.msg)
 
     if 'arm64' == build_util.get_target_architecture():
-        native_lib = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
+        native_lib = self.path.make_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
     else:
-        native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+        native_lib = self.path.make_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
-    android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
+    android_package_task.classes_dex = self.path.make_node("%s.android/classes.dex" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
-    android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))
-    android_package_task.application_mk = self.path.exclusive_build_node("%s.android/jni/Application.mk" % (exe_name))
+    android_package_task.android_mk = self.path.make_node("%s.android/jni/Android.mk" % (exe_name))
+    android_package_task.application_mk = self.path.make_node("%s.android/jni/Application.mk" % (exe_name))
     if 'arm64' == build_util.get_target_architecture():
-        android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
+        android_package_task.gdb_setup = self.path.make_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
     else:
-        android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+        android_package_task.gdb_setup = self.path.make_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
     android_package_task.set_outputs([native_lib,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
@@ -1102,7 +1105,7 @@ def create_android_package(self):
     self.android_package_task = android_package_task
 
 def copy_stub(task):
-    with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+    with open(task.outputs[0].bldpath(), 'wb') as out_f:
         out_f.write(ANDROID_STUB)
 
     return 0
@@ -1183,7 +1186,7 @@ unsigned char DM_ALIGNED(16) %s[] =
     else:
         m.update(data.encode('utf-8'))
 
-    #task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
+    #task.generator.bld.node_sigs[task.inputs[0].variant()][task.inputs[0].id] = m.digest()
     task.generator.bld.node_sigs[task.inputs[0]] = m.digest()
 
     return 0
