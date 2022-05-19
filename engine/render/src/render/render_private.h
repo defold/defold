@@ -322,11 +322,12 @@ namespace dmRender
         T prev = m_Iterator;
         while (m_Iterator < m_EntriesEnd)
         {
-            if (!m_TestEqFn(prev, ++m_Iterator))
+            T next = ++m_Iterator;
+            if ((next >= m_EntriesEnd) || !m_TestEqFn(prev, next))
             {
                 break;
             }
-            prev = m_Iterator;
+            prev = next;
         }
 
         return m_BatchStart < m_EntriesEnd;

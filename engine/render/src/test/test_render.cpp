@@ -877,6 +877,34 @@ dmHashEnableReverseHash(true);
     dmRender::DeleteNamedConstantBuffer(buffer);
 }
 
+static bool BatchEntryTestEq(int* a, int* b)
+{
+    return *a == *b;
+}
+
+TEST(Render, BatchIterator)
+{
+    int array1[] = {1, 1, 1, 2, 2, 5, 5, 5, 5};
+    dmRender::BatchIterator<int*> iterator1(DM_ARRAY_SIZE(array1), array1, BatchEntryTestEq);
+
+    ASSERT_TRUE(iterator1.Next());
+    ASSERT_EQ(3U, iterator1.Length());
+    ASSERT_EQ(array1+0, iterator1.Begin());
+    ASSERT_EQ(1U, *iterator1.Begin());
+
+    ASSERT_TRUE(iterator1.Next());
+    ASSERT_EQ(2U, iterator1.Length());
+    ASSERT_EQ(array1+3, iterator1.Begin());
+    ASSERT_EQ(2U, *iterator1.Begin());
+
+    ASSERT_TRUE(iterator1.Next());
+    ASSERT_EQ(4U, iterator1.Length());
+    ASSERT_EQ(array1+5, iterator1.Begin());
+    ASSERT_EQ(5U, *iterator1.Begin());
+
+    ASSERT_FALSE(iterator1.Next());
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
