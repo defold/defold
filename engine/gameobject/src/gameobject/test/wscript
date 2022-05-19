@@ -28,6 +28,7 @@ create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac',
 
 def transform_properties(properties, out_properties):
     gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
+    gameobject_properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject', module_name = 'gameobject.properties_ddf_pb2')
     gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
     for property in properties:
         entry = None
@@ -80,6 +81,7 @@ def merge_collections(msg, sub_msg, sub_id):
 
 def read_collection(path):
     gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
+    gameobject_properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject', module_name = 'gameobject.properties_ddf_pb2')
     gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
 
     msg = gameobject_ddf_pb2.CollectionDesc()
@@ -131,8 +133,9 @@ def transform_gameobject(task, msg):
     return msg
 
 def compile_go(task):
-    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
-    gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
+    gameobject                    = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
+    gameobject_properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject', module_name = 'gameobject.properties_ddf_pb2')
+    gameobject_ddf_pb2            = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
 
     try:
         msg = gameobject_ddf_pb2.PrototypeDesc()
