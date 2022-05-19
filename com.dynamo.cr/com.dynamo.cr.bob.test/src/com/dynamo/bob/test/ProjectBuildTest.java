@@ -191,6 +191,9 @@ public class ProjectBuildTest {
 
     @Test
     public void testStringArray() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+       /* This test helps to make sure that any array of strings that uses # for indices may be parsed,
+        * build into a comma separated string and then be parsed again in the same order.
+        */
         projectName = "String Array";
         createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +
