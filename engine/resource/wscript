@@ -51,7 +51,7 @@ def kill_proc(proc):
     proc.kill()
 
 def shutdown(self):
-    if not TestContext.is_valid(test_context):
+    if not TestContext.is_valid(test_context) or Options.options.skip_build_tests or Options.options.skip_tests:
         return
 
     proc = subprocess.Popen(["python", "-m", "http.server", "6123"],
