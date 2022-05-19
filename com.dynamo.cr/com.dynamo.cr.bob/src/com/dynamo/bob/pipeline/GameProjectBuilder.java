@@ -526,7 +526,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         IResource input = task.input(0);
 
-        BobProjectProperties properties = Project.loadProperties(input, project.getPropertyFiles());
+        BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles());
 
         try {
             if (project.option("archive", "false").equals("true")) {

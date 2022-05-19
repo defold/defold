@@ -45,6 +45,9 @@ import com.dynamo.bob.Bob;
  */
 public class BobProjectProperties {
 
+    public final static String PROPERTIES_PROJECT_FILE = "game.properties";
+    public final static String PROPERTIES_EXTENSION_FILE = "ext.properties";
+
     public enum PropertyType {
         BOOL("bool"),
         STRING("string"),

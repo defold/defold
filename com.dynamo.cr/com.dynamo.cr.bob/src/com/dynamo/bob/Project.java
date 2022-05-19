@@ -534,14 +534,14 @@ public class Project {
         projectProperties = new BobProjectProperties();
     }
 
-    private static void loadPropertyFile(BobProjectProperties properties, String filepath) throws IOException {
+    private static void loadPropertyFile(BobProjectProperties properties, String filepath, Boolean isMeta) throws IOException {
         Path pathHandle = Paths.get(filepath);
         if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
             throw new IOException(filepath + " is not a file");
         byte[] data = Files.readAllBytes(pathHandle);
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         try {
-            properties.load(is);
+            properties.load(is, isMeta);
         } catch(ParseException e) {
             throw new IOException("Could not parse: " + filepath);
         }
@@ -549,21 +549,38 @@ public class Project {
 
     // Loads the properties from a game project settings file
     // Also adds any properties specified with the "--settings" flag
-    public static BobProjectProperties loadProperties(IResource projectFile, List<String> settingsFiles) throws IOException {
+    public static BobProjectProperties loadProperties(Project project, IResource projectFile, List<String> settingsFiles) throws IOException {
         if (!projectFile.exists()) {
             throw new IOException(String.format("Project file not found: %s", projectFile.getAbsPath()));
         }
 
         BobProjectProperties properties = new BobProjectProperties();
         try {
+            // load meta.properties embeded in bob.jar
             properties.loadDefaultMetaFile();
-            Project.loadPropertyFile(properties, projectFile.getAbsPath());
+            // load property files from extensions
+            List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
+            if (!extensionFolders.isEmpty()) {
+                for (String extension : extensionFolders) {
+                    IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
+                    if (resource.exists()) {
+                        loadPropertyFile(properties, resource.getAbsPath(), true);
+                    }
+                }
+            }
+            // load property file from the project
+            IResource gameProjectProperties = projectFile.getResource(BobProjectProperties.PROPERTIES_PROJECT_FILE);
+            if (gameProjectProperties.exists()) {
+               loadPropertyFile(properties, gameProjectProperties.getAbsPath(), true);
+            }
+            // load game.project file
+            Project.loadPropertyFile(properties, projectFile.getAbsPath(), false);
         } catch(ParseException e) {
             throw new IOException("Could not parse: " + projectFile.getAbsPath());
         }
-
+        // load settings file specified in `--settings` for bob.jar
         for (String filepath : settingsFiles) {
-            Project.loadPropertyFile(properties, filepath);
+            Project.loadPropertyFile(properties, filepath, false);
         }
 
         return properties;
@@ -572,7 +589,7 @@ public class Project {
     public void loadProjectFile() throws IOException {
         IResource gameProject = getGameProjectResource();
         if (gameProject.exists()) {
-            projectProperties = Project.loadProperties(gameProject, this.getPropertyFiles());
+            projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles());
         }
     }
 
