@@ -2589,6 +2589,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             parent_adjust_scale.setX(uniform);
             parent_adjust_scale.setY(uniform);
         }
+        else if (adjust_mode == dmGui::ADJUST_MODE_NONE)
+        {
+            parent_adjust_scale.setX(1.0f);
+            parent_adjust_scale.setY(1.0f);
+        }
         parent_adjust_scale.setZ(1.0f);
         parent_adjust_scale.setW(1.0f);
         return parent_adjust_scale;

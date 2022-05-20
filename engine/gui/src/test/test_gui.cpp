@@ -2860,6 +2860,17 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
     ASSERT_EQ( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale );
     ASSERT_EQ( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale );
     ASSERT_EQ( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale );
+
+    //
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_NONE);
+    dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_NONE);
+    dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_NONE);
+
+    dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+
+    ASSERT_EQ( Vector4(1, 1, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(1, 1, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(1, 1, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransformCached)

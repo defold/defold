@@ -78,6 +78,7 @@ message NodeDesc
         ADJUST_MODE_FIT = 0 [(displayName) = "Fit"];
         ADJUST_MODE_ZOOM = 1 [(displayName) = "Zoom"];
         ADJUST_MODE_STRETCH = 2 [(displayName) = "Stretch"];
+        ADJUST_MODE_NONE = 3 [(displayName) = "None"];
     };
 
     // NOTE: Enum values must correspond to the enum values in dmGui

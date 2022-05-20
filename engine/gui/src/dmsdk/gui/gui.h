@@ -313,12 +313,14 @@ namespace dmGui
      * @member ADJUST_MODE_FIT     //!< 0
      * @member ADJUST_MODE_ZOOM    //!< 1
      * @member ADJUST_MODE_STRETCH //!< 2
+     * @member ADJUST_MODE_NONE    //!< 3
      */
     enum AdjustMode
     {
         ADJUST_MODE_FIT     = 0,
         ADJUST_MODE_ZOOM    = 1,
         ADJUST_MODE_STRETCH = 2,
+        ADJUST_MODE_NONE    = 3,
     };
 
     /*#
