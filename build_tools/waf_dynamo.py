@@ -1334,7 +1334,7 @@ def run_tests(ctx, valgrind = False, configfile = None):
 def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if re.match('.*?linux', platform):
-        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
+        self.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
@@ -1342,7 +1342,7 @@ def js_web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
-        self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
+        self.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
 @task_gen
 @before('process_source')
