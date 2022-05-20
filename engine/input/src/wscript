@@ -1,21 +1,24 @@
 #! /usr/bin/env python
 import os
 from BuildUtility import create_build_utility
+import waflib.Options
 
 def configure(conf):
     pass
 
 def build(bld):
     build_util = create_build_utility(bld.env)
-    script = bld.stlib(features = 'cxx ddf',
-                       includes = '../proto .',
-                       target = 'input',
-                       source = bld.path.ant_glob('*.cpp') + bld.path.parent.ant_glob('proto/input/*'),
-                       install_path = build_util.get_library_path(),
-                       proto_gen_py = True,
-                       protoc_includes = '../proto')
+
+    lib = bld.stlib(features        = 'cxx c ddf',
+                    includes        = '../proto .',
+                    target          = 'input',
+                    source          = bld.path.ant_glob('input.cpp') + bld.path.parent.ant_glob('proto/input/*'),
+                    install_path    = build_util.get_library_path(),
+                    proto_gen_py    = True,
+                    protoc_includes = '../proto')
 
     bld.install_files('${PREFIX}/include/input', 'input.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/input/input_ddf.proto')
 
-    bld.recurse('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')
