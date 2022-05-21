@@ -94,7 +94,7 @@ PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sass
 PACKAGES_LINUX_64="luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
 PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
+PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()

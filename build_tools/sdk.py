@@ -404,7 +404,7 @@ def _get_local_sdk_info(platform):
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
         info[platform]['path'] = get_local_darwin_sdk_path(platform)
-    
+
     elif platform in ('x86_64-linux',):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()

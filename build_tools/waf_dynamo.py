@@ -537,7 +537,7 @@ def web_exported_functions(self):
     if 'web' not in self.env.PLATFORM:
         return
 
-    use_crash = 'CRASH' in self.uselib or self.name in ('crashext', 'crashext_null')
+    use_crash = hasattr(self, 'use') and 'CRASH' in self.use or self.name in ('crashext', 'crashext_null')
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
@@ -1342,7 +1342,7 @@ def js_web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
-        self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
+        self.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
 @task_gen
 @before('process_source')
@@ -1373,7 +1373,7 @@ def js_web_web_link_flags(self):
                 js = os.path.join(lib_dirs[lib], lib)
             else:
                 js = os.path.join(jsLibHome, lib)
-            self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
+            self.env.append_value('LINKFLAGS', ['--js-library', js])
 
 Task.task_factory('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
                       color='YELLOW',
