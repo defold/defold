@@ -1615,7 +1615,7 @@ def detect(conf):
         conf.env['program_PATTERN']='%s.js'
 
         # Unknown argument: -Bstatic, -Bdynamic
-        conf.env['STATICLIB_MARKER']=''
+        conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
     if Options.options.static_analyze:
@@ -1647,7 +1647,7 @@ def detect(conf):
         conf.load('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
-        conf.env['STATICLIB_MARKER']=''
+        conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
     if re.match('.*?linux', platform):
