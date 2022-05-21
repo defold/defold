@@ -1612,7 +1612,8 @@ def detect(conf):
         conf.env['AR'] = '%s/emar' % (bin)
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
-        conf.env['program_PATTERN']='%s.js'
+        conf.env['cprogram_PATTERN']='%s.js'
+        conf.env['cxxprogram_PATTERN']='%s.js'
 
         # Unknown argument: -Bstatic, -Bdynamic
         conf.env['STLIB_MARKER']=''
