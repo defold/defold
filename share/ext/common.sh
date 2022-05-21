@@ -295,7 +295,7 @@ function cmi() {
             export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
             export CPPFLAGS=${CFLAGS}
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
-            export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
+            export LDFLAGS="-llog -isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
             export CC="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang"
@@ -304,6 +304,7 @@ function cmi() {
             export AS=${bin}/arm-linux-androideabi-as
             export LD=${bin}/arm-linux-androideabi-ld
             export RANLIB=${bin}/arm-linux-androideabi-ranlib
+
             cmi_cross $1 arm-linux
             ;;
 
