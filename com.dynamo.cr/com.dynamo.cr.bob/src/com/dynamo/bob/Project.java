@@ -534,17 +534,20 @@ public class Project {
         projectProperties = new BobProjectProperties();
     }
 
-    private static void loadPropertyFile(BobProjectProperties properties, String filepath, Boolean isMeta) throws IOException {
-        Path pathHandle = Paths.get(filepath);
-        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
-            throw new IOException(filepath + " is not a file");
-        byte[] data = Files.readAllBytes(pathHandle);
+    private static void loadPropertiesData(BobProjectProperties properties, byte[] data, Boolean isMeta, String filepath) throws IOException {
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         try {
             properties.load(is, isMeta);
         } catch(ParseException e) {
             throw new IOException("Could not parse: " + filepath);
         }
+    }
+
+    private static void loadPropertiesFile(BobProjectProperties properties, String filepath, Boolean isMeta) throws IOException {
+        Path pathHandle = Paths.get(filepath);
+        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
+            throw new IOException(filepath + " is not a file");
+        loadPropertiesData(properties, Files.readAllBytes(pathHandle), isMeta, filepath);
     }
 
     // Loads the properties from a game project settings file
@@ -564,23 +567,24 @@ public class Project {
                 for (String extension : extensionFolders) {
                     IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
                     if (resource.exists()) {
-                        loadPropertyFile(properties, resource.getAbsPath(), true);
+                        // resources from extensions in ZIP files can't be read as files, but getContent() wroks fine
+                        loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
                     }
                 }
             }
             // load property file from the project
             IResource gameProjectProperties = projectFile.getResource(BobProjectProperties.PROPERTIES_PROJECT_FILE);
             if (gameProjectProperties.exists()) {
-               loadPropertyFile(properties, gameProjectProperties.getAbsPath(), true);
+               loadPropertiesFile(properties, gameProjectProperties.getAbsPath(), true);
             }
             // load game.project file
-            Project.loadPropertyFile(properties, projectFile.getAbsPath(), false);
+            Project.loadPropertiesFile(properties, projectFile.getAbsPath(), false);
         } catch(ParseException e) {
             throw new IOException("Could not parse: " + projectFile.getAbsPath());
         }
         // load settings file specified in `--settings` for bob.jar
         for (String filepath : settingsFiles) {
-            Project.loadPropertyFile(properties, filepath, false);
+            Project.loadPropertiesFile(properties, filepath, false);
         }
 
         return properties;
