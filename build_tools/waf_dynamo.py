@@ -1334,7 +1334,7 @@ def run_tests(ctx, valgrind = False, configfile = None):
 def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if re.match('.*?linux', platform):
-        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
+        self.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
