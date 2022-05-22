@@ -122,7 +122,7 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine',
         bundleid = 'com.defold.engine',
-        source=main_cpp.split(),
+        source = main_cpp.split(),
         proguard = ['../content/builtins/manifests/android/dmengine.pro'],
         install_path = platform_bin_install_path,
         jars = android_jar_paths)
