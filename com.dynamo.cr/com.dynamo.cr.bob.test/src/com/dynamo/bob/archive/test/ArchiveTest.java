@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,6 +35,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
@@ -119,7 +122,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testBuilderAndReader() throws IOException
+    public void testBuilderAndReader() throws IOException, CompileExceptionError
     {
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, true, 4);
@@ -143,7 +146,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testEntriesOrder() throws IOException {
+    public void testEntriesOrder() throws IOException, CompileExceptionError {
 
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true, 4);
@@ -183,7 +186,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testArchiveIndexAlignment() throws IOException {
+    public void testArchiveIndexAlignment() throws IOException, CompileExceptionError {
     	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, true, 4);
     	for (int i = 1; i < 50; ++i) {
 			String filename = "dummy" + Integer.toString(i);

@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -232,6 +234,32 @@ TEST_F(AnimTest, Cancel)
 
     ASSERT_EQ(0u, this->m_FinishCount);
     ASSERT_EQ(1u, this->m_CancelCount);
+
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+TEST_F(AnimTest, CancelAll)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id1 = hash("position");
+    dmhash_t id2 = hash("scale");
+    dmGameObject::PropertyVar var1(Vectormath::Aos::Vector3(10.f, 0.f, 0.f));
+    dmGameObject::PropertyVar var2(2.f);
+    float duration = 1.0f;
+    float delay = 0.f;
+
+    Animate(m_Collection, go, 0, id1, dmGameObject::PLAYBACK_ONCE_FORWARD, var1, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
+    Animate(m_Collection, go, 0, id2, dmGameObject::PLAYBACK_ONCE_FORWARD, var2, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, 0));
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_EQ(0.0f, X(go));
+    ASSERT_EQ(1.0f, dmGameObject::GetUniformScale(go));
+
+    ASSERT_EQ(0u, this->m_FinishCount);
+    ASSERT_EQ(2u, this->m_CancelCount);
 
     dmGameObject::Delete(m_Collection, go, false);
 }
@@ -547,6 +575,18 @@ TEST_F(AnimTest, ScriptedCancel)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+}
+
+TEST_F(AnimTest, ScriptedCancelAll)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel_all.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)

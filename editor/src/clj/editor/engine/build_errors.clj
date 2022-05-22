@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -482,15 +484,25 @@
 (defn- compile-exception-error-causes [project evaluation-context exception]
   [(error-info-provider->cause project evaluation-context exception)])
 
+(defn- output-log-path [project evaluation-context ^MultipleCompileException exception]
+  (let [log-path (.getLogPath exception)]
+    [(g/map->error
+      {:_node-id nil ;; The editor cannot currently reference files in the /build folder
+       :message (str "For the full log, see " log-path)
+       :severity :warning})]))
+
 (defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
   (let [log (.getRawLog exception)
         ext-manifest-file (find-ext-manifest-relative-to-resource
                             project
                             (buildpath->projpath (.getPath (.getContextResource exception)))
                             evaluation-context)]
-    (or (try-parse-invalid-lib-error-causes project evaluation-context log)
-        (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
-        (generic-extension-error-causes project evaluation-context log))))
+    (into [] (concat
+              (or (try-parse-invalid-lib-error-causes project evaluation-context log)
+                  (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
+                  (generic-extension-error-causes project evaluation-context log))
+              
+              (output-log-path project evaluation-context exception)))))
 
 (defn- library-exception-error-causes [project evaluation-context ^Throwable exception]
   [(g/map->error

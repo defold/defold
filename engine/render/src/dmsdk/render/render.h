@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +20,11 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
+
+namespace dmIntersection
+{
+    struct Frustum;
+}
 
 /*# Render API documentation
  * [file:<dmsdk/render/render.h>]
@@ -213,13 +220,15 @@ namespace dmRender
     struct RenderListEntry
     {
         dmVMath::Point3 m_WorldPosition;
+        uint64_t m_UserData; // E.g. component type instance pointer
         uint32_t m_Order;
         uint32_t m_BatchKey;
         uint32_t m_TagListKey;
-        uint64_t m_UserData;
-        uint32_t m_MinorOrder:4;
-        uint32_t m_MajorOrder:2;
-        uint32_t m_Dispatch:8;
+        uint32_t m_MinorOrder : 4;
+        uint32_t m_MajorOrder : 2;
+        uint32_t m_Dispatch   : 8;
+        uint32_t m_Visibility : 1; // See enum Visibility
+        uint32_t              : 17;
     };
 
     /*#
@@ -250,6 +259,43 @@ namespace dmRender
         RENDER_ORDER_WORLD        = 1,
         RENDER_ORDER_AFTER_WORLD  = 2,
     };
+
+    /*#
+     * Visibility status
+     * @enum
+     * @name Visibility
+     * @member VISIBILITY_NONE
+     * @member VISIBILITY_FULL
+     */
+    enum Visibility
+    {
+        VISIBILITY_NONE = 0,
+        VISIBILITY_FULL = 1, // Not sure if we ever need partial ?
+    };
+
+    /*#
+     * Visibility dispatch function callback.
+     * @struct
+     * @name RenderListVisibilityParams
+     * @member m_UserData [type: void*] the callback user data (registered with RenderListMakeDispatch())
+     * @member m_Entries [type: dmRender::RenderListEntry] the render entry array
+     * @member m_NumEntries [type: uint32_t] the number of render entries in the array
+     */
+    struct RenderListVisibilityParams
+    {
+        const dmIntersection::Frustum*  m_Frustum;
+        void*                           m_UserData;
+        RenderListEntry*                m_Entries;
+        uint32_t                        m_NumEntries;
+    };
+
+    /*#
+     * Render dispatch function callback.
+     * @typedef
+     * @name RenderListDispatchFn
+     * @param params [type: dmRender::RenderListDispatchParams] the params
+     */
+    typedef void (*RenderListVisibilityFn)(RenderListVisibilityParams const &params);
 
     /*#
      * Render dispatch function callback.
@@ -291,10 +337,14 @@ namespace dmRender
      * Register a render dispatch function
      * @name RenderListMakeDispatch
      * @param context [type: dmRender::HRenderContext] the context
-     * @param fn [type: dmRender::RenderListDispatchFn] the render batch callback function
+     * @param dispatch_fn [type: dmRender::RenderListDispatchFn] the render batch callback function
+     * @param visibility_fn [type: dmRender::RenderListVisibilityFn] the render list visibility callback function. May be 0
      * @param user_data [type: void*] userdata to the callback
      * @return dispatch [type: dmRender::HRenderListDispatch] the render dispatch function handle
      */
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data);
+
+    // Deprecated, left for backwards compatibility until extensions have been updated
     HRenderListDispatch RenderListMakeDispatch(HRenderContext context, RenderListDispatchFn fn, void* user_data);
 
     /*#

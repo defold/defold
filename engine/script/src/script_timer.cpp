@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -242,7 +244,8 @@ namespace dmScript
             float wrapped_count = ((-timer->m_Remaining) / timer->m_Delay) + 1.f;
             float offset_to_next_trigger  = floor(wrapped_count) * timer->m_Delay;
             timer->m_Remaining += offset_to_next_trigger;
-            assert(timer->m_Remaining >= 0.f);
+            if (timer->m_Remaining < 0) // If the delay is very small, the floating point precision might produce issues
+                timer->m_Remaining = timer->m_Delay; // reset the timer
         }
 
         timer_world->m_InUpdate = 0;
@@ -705,6 +708,7 @@ namespace dmScript
         sl.NewScriptWorld = TimerNewScriptWorld;
         sl.DeleteScriptWorld = TimerDeleteScriptWorld;
         sl.UpdateScriptWorld = TimerUpdateScriptWorld;
+        sl.FixedUpdateScriptWorld = 0;
         sl.InitializeScriptInstance = TimerInitializeInstance;
         sl.FinalizeScriptInstance = TimerFinalizeInstance;
         RegisterScriptExtension(context, &sl);

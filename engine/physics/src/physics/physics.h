@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -346,6 +348,8 @@ namespace dmPhysics
 
         /// Time step
         float                   m_DT;
+        bool                    m_FixedTimeStep;
+        uint32_t                m_MaxFixedTimeSteps;
         /// Collision callback function
         CollisionCallback       m_CollisionCallback;
         /// Collision callback user data
@@ -509,15 +513,17 @@ namespace dmPhysics
      * @param row row
      * @param column column
      * @param hull hull index. Use GRIDSHAPE_EMPTY_CELL to clear the cell.
+     * @return true if successful
      */
-    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags);
+    bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags);
 
     /**
      * Enable or disable a grid shape (layer)
      * @param shape_index index of the collision shape
      * @param enable true if the layer should be enabled
+     * @return true if successful
      */
-    void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable);
+    bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable);
 
     /**
      * Set group and mask for collision object

@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -233,20 +235,23 @@
   {:architecture-32bit? "armv7-android"
    :architecture-64bit? "arm64-android"})
 
-(defn- android-bundle-bob-args [{:keys [^File keystore ^File keystore-pass bundle-format] :as bundle-options}]
+(defn- android-bundle-bob-args [{:keys [^File keystore ^File keystore-pass ^File key-pass bundle-format] :as bundle-options}]
   (let [bob-architectures
         (for [[option-key bob-architecture] android-architecture-option->bob-architecture-string
               :when (bundle-options option-key)]
           bob-architecture)
         bob-args {"architectures" (string/join "," bob-architectures)}]
     (assert (or (and (nil? keystore)
-                     (nil? keystore-pass))
+                     (nil? keystore-pass)
+                     (nil? key-pass))
                 (and (.isFile keystore)
-                     (.isFile keystore-pass))))
+                     (.isFile keystore-pass)
+                     (or (nil? key-pass) (.isFile key-pass)))))
     (cond-> bob-args
             bundle-format (assoc "bundle-format" bundle-format)
             keystore (assoc "keystore" (.getAbsolutePath keystore))
-            keystore-pass (assoc "keystore-pass" (.getAbsolutePath keystore-pass)))))
+            keystore-pass (assoc "keystore-pass" (.getAbsolutePath keystore-pass))
+            key-pass (assoc "key-pass" (.getAbsolutePath key-pass)))))
 
 (def ^:private ios-architecture-option->bob-architecture-string
   {:architecture-64bit? "arm64-darwin"

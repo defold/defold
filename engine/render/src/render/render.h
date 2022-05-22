@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -131,10 +133,10 @@ namespace dmRender
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix);
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
-    Result DrawDebug3d(HRenderContext context);
+    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix);
     Result DrawDebug2d(HRenderContext context);
 
     /**

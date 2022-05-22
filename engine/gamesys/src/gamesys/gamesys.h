@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,6 +39,10 @@ namespace dmGameSystem
     extern const char* PHYSICS_MAX_COLLISIONS_KEY;
     /// Config key to use for tweaking maximum number of contacts reported
     extern const char* PHYSICS_MAX_CONTACTS_KEY;
+    /// Config key to use for tweaking the physics frame rate
+    extern const char* PHYSICS_USE_FIXED_TIMESTEP;
+    /// Config key for using max updates during a single step
+    extern const char* PHYSICS_MAX_FIXED_TIMESTEPS;
     /// Config key to use for tweaking maximum number of collection proxies
     extern const char* COLLECTION_PROXY_MAX_COUNT_KEY;
     /// Config key to use for tweaking maximum number of factories
@@ -73,10 +79,12 @@ namespace dmGameSystem
             dmPhysics::HContext3D m_Context3D;
             dmPhysics::HContext2D m_Context2D;
         };
-        uint32_t m_MaxCollisionCount;
-        uint32_t m_MaxContactPointCount;
-        bool m_Debug;
-        bool m_3D;
+        uint32_t    m_MaxCollisionCount;
+        uint32_t    m_MaxContactPointCount;
+        bool        m_Debug;
+        bool        m_3D;
+        bool        m_UseFixedTimestep;
+        uint32_t    m_MaxFixedTimesteps;
     };
 
     struct ParticleFXContext

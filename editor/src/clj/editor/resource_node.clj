@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -78,7 +80,7 @@
   (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
                           (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
-  (output valid-node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource])) ; Jammed when defective.
+  (output valid-node-id+type+resource g/Any (g/fnk [_node-id _this resource] [_node-id (g/node-type _this) resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
@@ -107,7 +109,7 @@
                                      (DigestUtils/sha256Hex ^String content))))))
 
 (defn defective? [resource-node]
-  (let [value (g/node-value resource-node :valid-node-id+resource)]
+  (let [value (g/node-value resource-node :valid-node-id+type+resource)]
     (and (g/error? value)
          (g/error-fatal? value))))
 

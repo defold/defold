@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -35,7 +37,7 @@
   (property virt-property g/Str
             (value (g/fnk [a-property] a-property)))
   (property dyn-property g/Str
-            (dynamic override? (g/fnk [_node-id _basis] (some? (g/override-original _basis _node-id)))))
+            (dynamic override? (g/fnk [_this] (g/node-override? _this))))
   (input sub-nodes g/NodeID :array :cascade-delete)
   (output sub-nodes [g/NodeID] (g/fnk [sub-nodes] sub-nodes))
   (output cached-output g/Str :cached (g/fnk [a-property] a-property))

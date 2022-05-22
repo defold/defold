@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -119,6 +121,8 @@ namespace dmScript
         void (*DeleteScriptWorld)(HScriptWorld script_world);
         // Called once a frame for the world, dt is local time delta (affected by slo-mo etc)
         void (*UpdateScriptWorld)(HScriptWorld script_world, float dt);
+        // Called once a frame for the world, dt is local time delta (affected by slo-mo etc)
+        void (*FixedUpdateScriptWorld)(HScriptWorld script_world, float dt);
         // Called when a script instance has been created
         void (*InitializeScriptInstance)(HScriptWorld script_world);
         // Called just before a script instance is deleted
@@ -365,12 +369,20 @@ namespace dmScript
     void DeleteScriptWorld(HScriptWorld script_world);
 
     /**
-     * Update the script world
+     * Update the script extensions
      *
      * @param script_world the script world created with NewScriptWorld
      * @param dt the delta time in the world in seconds
      */
     void UpdateScriptWorld(HScriptWorld script_world, float dt);
+
+    /**
+     * Update the script extensions using the fixed timestep
+     *
+     * @param script_world the script world created with NewScriptWorld
+     * @param dt the delta time in the world in seconds
+     */
+    void FixedUpdateScriptWorld(HScriptWorld script_world, float dt);
 
     /**
      * Sets up the instance with associated data, expects SetInstance to have been

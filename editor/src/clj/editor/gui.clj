@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -478,8 +480,8 @@
 (g/deftype ^:private NodeIndex [(s/one s/Int "node-id") (s/one s/Int "index")])
 (g/deftype ^:private NameIndex [(s/one s/Str "name") (s/one s/Int "index")])
 
-(g/defnk override-node? [_basis _node-id] (g/override? _basis _node-id))
-(g/defnk not-override-node? [_basis _node-id] (not (g/override? _basis _node-id)))
+(g/defnk override-node? [_this] (g/node-override? _this))
+(g/defnk not-override-node? [_this] (not (g/node-override? _this)))
 
 (defn- validate-contains [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id
@@ -2107,13 +2109,15 @@
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
   (input names g/Str :array)
+  (input unused-display-profiles g/Any)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" "Layouts" 4 false []))
   (output add-handler-info g/Any
-          (g/fnk [_node-id]
-                 [_node-id "Layout" layout-icon add-layout-handler {}])))
+          (g/fnk [_node-id unused-display-profiles]
+            (mapv #(vector _node-id % layout-icon add-layout-handler {:display-profile %})
+                  unused-display-profiles))))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2294,6 +2298,11 @@
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
 
+(defn- one-or-many-handler-infos-to-vec [one-or-many-handler-infos]
+  (if (g/node-id? (first one-or-many-handler-infos))
+    [one-or-many-handler-infos]
+    one-or-many-handler-infos))
+
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
@@ -2347,6 +2356,8 @@
   (input textures-node g/NodeID) ; for tests
   (input particlefx-resources-node g/NodeID) ; for tests
   (input handler-infos g/Any :array)
+  (output handler-infos g/Any (g/fnk [handler-infos]
+                                (into [] (mapcat one-or-many-handler-infos-to-vec) handler-infos)))
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
   (input default-tex-params g/Any)
@@ -2458,7 +2469,14 @@
                                                     h (get project-settings ["display" "height"])]
                                                 {:width w :height h}))))
   (input id-prefix g/Str)
-  (output id-prefix g/Str (gu/passthrough id-prefix)))
+  (output id-prefix g/Str (gu/passthrough id-prefix))
+  (output unused-display-profiles g/Any (g/fnk [layout-msgs display-profiles]
+                                          (let [layouts (into #{} (map :name) layout-msgs)]
+                                            (into []
+                                                  (comp
+                                                    (map :name)
+                                                    (remove layouts))
+                                                  display-profiles)))))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
@@ -2466,7 +2484,7 @@
 (defn- tx-node-id [tx-entry]
   (get-in tx-entry [:node :_node-id]))
 
-(defn- attach-resource 
+(defn- attach-resource
   ([self resources-node resource-node]
    (attach-resource self resources-node resource-node false))
   ([self resources-node resource-node internal?]
@@ -2539,21 +2557,21 @@
                        [])
         handler-options (when (empty? node-options)
                           (when (g/has-output? (g/node-type* node) :add-handler-info)
-                            (let [[parent menu-label menu-icon add-fn opts] (g/node-value node :add-handler-info)
-                                  parent (if (= node scene) parent node)]
-                              (make-add-handler scene parent menu-label menu-icon add-fn opts))))]
-      (filter some? (conj node-options handler-options))))
-
-(defn- unused-display-profiles [scene]
-  (let [layouts (set (map :name (g/node-value scene :layout-msgs)))]
-    (filter (complement layouts) (map :name (g/node-value scene :display-profiles)))))
+                            (->> (g/node-value node :add-handler-info)
+                                 one-or-many-handler-infos-to-vec
+                                 (map (fn [[parent menu-label menu-icon add-fn opts]]
+                                        (let [parent (if (= node scene) parent node)]
+                                          (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
+      (filter some? (into node-options handler-options))))
 
 (defn- add-layout-options [node user-data]
-  (let [scene (node->gui-scene node)
-        parent (if (= node scene)
-                 (g/node-value scene :layouts-node)
-                 node)]
-    (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %}) (unused-display-profiles scene))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [scene (node->gui-scene node)
+          parent (if (= node scene)
+                   (g/node-value scene :layouts-node evaluation-context)
+                   node)]
+      (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
+            (g/node-value scene :unused-display-profiles evaluation-context)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
@@ -2754,7 +2772,7 @@
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
                                         (cond->
-                                         (= :type-template (:type node-desc))
+                                          (= :type-template (:type node-desc))
                                           (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
                                                             :overrides (get template-data (:id node-desc) {})})))
 
@@ -2769,6 +2787,7 @@
       (g/make-nodes graph-id [layouts-node LayoutsNode]
                     (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
                     (g/connect layouts-node :_node-id self :nodes)
+                    (g/connect self :unused-display-profiles layouts-node :unused-display-profiles)
                     (g/connect layouts-node :build-errors self :build-errors)
                     (g/connect layouts-node :node-outline self :child-outlines)
                     (g/connect layouts-node :add-handler-info self :handler-infos)
@@ -2782,7 +2801,7 @@
                         (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
                                       (attach-layout self layouts-node layout)
                                       (g/set-property layout :nodes (:nodes layout-desc)))))))
-    custom-data)))
+     custom-data)))
 
 (defn- color-alpha [node-desc color-field alpha-field]
   ;; The alpha field replaced the fourth component of color,
@@ -2951,25 +2970,25 @@
                                       :custom-type 0
                                       :icon box-icon}
                                      {:node-type :type-pie
-                                     :node-cls PieNode
-                                     :display-name "Pie"
-                                     :custom-type 0
-                                     :icon pie-icon}
+                                      :node-cls PieNode
+                                      :display-name "Pie"
+                                      :custom-type 0
+                                      :icon pie-icon}
                                      {:node-type :type-text
-                                     :node-cls TextNode
-                                     :display-name "Text"
-                                     :custom-type 0
-                                     :icon text-icon}
+                                      :node-cls TextNode
+                                      :display-name "Text"
+                                      :custom-type 0
+                                      :icon text-icon}
                                      {:node-type :type-template
-                                     :node-cls TemplateNode
-                                     :display-name "Template"
-                                     :custom-type 0
-                                     :icon template-icon}
+                                      :node-cls TemplateNode
+                                      :display-name "Template"
+                                      :custom-type 0
+                                      :icon template-icon}
                                      {:node-type :type-particlefx
-                                     :node-cls ParticleFXNode
-                                     :display-name "ParticleFX"
-                                     :custom-type 0
-                                     :icon particlefx/particle-fx-icon}])
+                                      :node-cls ParticleFXNode
+                                      :display-name "ParticleFX"
+                                      :custom-type 0
+                                      :icon particlefx/particle-fx-icon}])
 
 (def ^:private custom-node-type-infos (atom []))
 

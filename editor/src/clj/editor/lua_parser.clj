@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -436,7 +438,7 @@
 
 (defn- parse-requires [node-path node]
   (lazy-seq
-    (if-some [[module-name] (matching-args one-string-arg (matching-functioncall "require" node))]
+    (if-some [[module-name] (matching-args one-string-arg (or (matching-functioncall "_G" "require" node) (matching-functioncall "require" node)))]
       (list [(parse-exp-binding node-path) module-name])
       (when (seq? node)
         (mapcat (partial parse-requires (cons node node-path))

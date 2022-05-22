@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -254,6 +256,13 @@ namespace dmGameObject
      * @return UPDATE_RESULT_OK on success
      */
     typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
+
+    /*#
+     * Component fixed update function. Updates all component of this type for all game objects
+     * @param params Input parameters
+     * @return UPDATE_RESULT_OK on success
+     */
+    typedef UpdateResult (*ComponentsFixedUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     /*#
      * Parameters to ComponentsRender callback.
@@ -530,6 +539,14 @@ namespace dmGameObject
      * @param fn [type: ComponentsUpdate] callback
      */
     void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn);
+
+    /*# set the component update callback
+     * Set the component update callback. Called when it's time to update all component instances.
+     * @name ComponentTypeSetFixedUpdateFn
+     * @param type [type: ComponentType*] the type
+     * @param fn [type: ComponentsFixedUpdate] callback
+     */
+    void ComponentTypeSetFixedUpdateFn(ComponentType* type, ComponentsFixedUpdate fn);
 
     /*# set the component post update callback
      * Set the component post update callback. Called for each collection after the update, before the render.

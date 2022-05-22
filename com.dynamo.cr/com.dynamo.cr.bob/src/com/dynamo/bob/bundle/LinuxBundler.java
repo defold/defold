@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -35,9 +37,14 @@ public class LinuxBundler implements IBundler {
             throws IOException, CompileExceptionError {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         if (bundleExes == null) {
-            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
+        } else {
+            if (variant.equals("debug")) {
+                File debugEngine = new File(bundleExes.get(0).getParent(), "dmengine_unstripped");
+                bundleExes.set(0, debugEngine);
+            }
         }
         if (bundleExes.size() > 1) {
             throw new IOException("Invalid number of binaries for Linux when bundling: " + bundleExes.size());

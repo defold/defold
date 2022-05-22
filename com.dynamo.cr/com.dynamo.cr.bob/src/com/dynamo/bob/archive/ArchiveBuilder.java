@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,8 +36,8 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.ResourceNode;
-import com.dynamo.crypt.Crypt;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
@@ -49,8 +51,6 @@ public class ArchiveBuilder {
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
     public static final int HASH_LENGTH = 20;
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
-
-    private static final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
 
     private static final List<String> ENCRYPTED_EXTS = Arrays.asList("luac", "scriptc", "gui_scriptc", "render_scriptc");
 
@@ -128,8 +128,8 @@ public class ArchiveBuilder {
         return ratio <= 0.95;
     }
 
-    public byte[] encryptResourceData(byte[] buffer) {
-        return Crypt.encryptCTR(buffer, KEY);
+    public byte[] encryptResourceData(byte[] buffer) throws CompileExceptionError {
+        return ResourceEncryption.encrypt(buffer);
     }
 
     public void writeResourcePack(String filename, String directory, byte[] buffer, byte flags, int size) throws IOException {
@@ -178,7 +178,7 @@ public class ArchiveBuilder {
         return result;
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
         // INDEX
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
@@ -315,7 +315,7 @@ public class ArchiveBuilder {
         System.exit(1);
     }
 
-    public static void main(String[] args) throws IOException, NoSuchAlgorithmException {
+    public static void main(String[] args) throws IOException, NoSuchAlgorithmException, CompileExceptionError {
         // Validate input
         if (args.length < 3) {
             printUsageAndTerminate("Too few arguments");

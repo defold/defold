@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1100,7 +1102,7 @@ public class BundleHelper {
         }
     }
 
-    public static File buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
+    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -1129,7 +1131,12 @@ public class BundleHelper {
                     buildError = FileUtils.readFileToString(logFile);
                     parseLog(platform, buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
+                    IResource projectResource = project.getGameProjectResource();
                     IResource extManifestResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+                    if (extManifestResource == null) {
+                        extManifestResource = projectResource;
+                    }
+
                     IResource contextResource = null;
 
                     for (ResourceInfo info : issues) {
@@ -1160,10 +1167,12 @@ public class BundleHelper {
                         }
                     }
 
-                    // If we do not yet have a context resource - fall back on an ext.manifest (possibly the wrong one!)
+                    // If we do not yet have a context resource - fall back on the project resource
                     if (contextResource == null) {
-                        contextResource = extManifestResource;
+                        contextResource = projectResource;
                     }
+
+                    exception.setLogPath(logFile.getAbsolutePath());
 
                     exception.attachLog(contextResource, buildError);
                     throw exception;

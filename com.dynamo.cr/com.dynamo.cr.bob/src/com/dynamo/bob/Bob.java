@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,6 +54,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.cache.ResourceCacheKey;
 
 public class Bob {
@@ -62,6 +65,7 @@ public class Bob {
 
     private static boolean verbose = false;
     private static File rootFolder = null;
+    private static boolean luaInitialized = false;
 
     public Bob() {
     }
@@ -91,6 +95,9 @@ public class Bob {
                     // For now we just issue a warning that we don't fully clean up.
                     System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
+                finally {
+                    luaInitialized = false;
+                }
             }
         }));
       }
@@ -99,7 +106,7 @@ public class Bob {
         if (rootFolder != null) {
             return;
         }
-
+        TimeProfiler.start("Create root folder");
         try {
             String envRootFolder = System.getenv("DM_BOB_ROOTFOLDER");
             if (envRootFolder != null) {
@@ -119,12 +126,17 @@ public class Bob {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        TimeProfiler.stop();
     }
 
     public static void initLua() {
+        if (luaInitialized) {
+            return;
+        }
         init();
         try {
             extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
+            luaInitialized = true;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -227,6 +239,28 @@ public class Bob {
         return exes.get(0);
     }
 
+    public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
+        init();
+
+        TimeProfiler.start("unpackSharedLibraries");
+        String libSuffix = platform.getLibSuffix();
+        for (String name : names) {
+            TimeProfiler.start(name);
+            String depName = platform.getPair() + "/" + name + libSuffix;
+            File f = new File(rootFolder, depName);
+            if (!f.exists()) {
+                URL url = Bob.class.getResource("/libexec/" + depName);
+                if (url == null) {
+                    throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
+                }
+
+                atomicCopy(url, f, true);
+            }
+            TimeProfiler.stop();
+        }
+        TimeProfiler.stop();
+    }
+
     // https://stackoverflow.com/a/30755071/468516
     private static final String ENOTEMPTY = "Directory not empty";
     private static void move(final File source, final File target) throws FileAlreadyExistsException, IOException {
@@ -268,7 +302,7 @@ public class Bob {
 
     public static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-
+        TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
@@ -279,12 +313,14 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
-
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
+        TimeProfiler.startF("getLibExecPath %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/libexec/" + filename);
@@ -294,11 +330,14 @@ public class Bob {
 
             atomicCopy(url, f, false);
         }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
     public static String getJarFile(String filename) throws IOException {
         init();
+        TimeProfiler.startF("getJarFile %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/share/java/" + filename);
@@ -307,6 +346,8 @@ public class Bob {
             }
             atomicCopy(url, f, false);
         }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
@@ -356,6 +397,7 @@ public class Bob {
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
+        TimeProfiler.startF("getLib %s", name);
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
@@ -366,6 +408,8 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
@@ -431,7 +475,7 @@ public class Bob {
 
         addOption(options, "p", "platform", true, "Platform (when bundling)", true);
         addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
-        addOption(options, "bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')", false);
+        addOption(options, "bf", "bundle-format", true, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false);
 
         addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
         addOption(options, null, "identity", true, "Sign identity (iOS)", false);
@@ -440,8 +484,9 @@ public class Bob {
         addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", false);
 
         addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
-        addOption(options, "ksp", "keystore-pass", true, "Pasword of the deployment keystore (Android)", false);
+        addOption(options, "ksp", "keystore-pass", true, "Password of the deployment keystore (Android)", false);
         addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
+        addOption(options, "kp", "key-pass", true, "Password of the deployment key if different from the keystore password (Android)", false);
 
         addOption(options, "d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead", false);
         addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
@@ -543,7 +588,9 @@ public class Bob {
         List<URL> libUrls = LibraryUtil.parseLibraryUrls(dependencies);
         project.setLibUrls(libUrls);
         if (resolveLibraries) {
+            TimeProfiler.start("Resolve libs");
             project.resolveLibUrls(new ConsoleProgress());
+            TimeProfiler.stop();
         }
         project.mount(new ClassLoaderResourceScanner());
 
@@ -587,6 +634,17 @@ public class Bob {
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
         verbose = cmd.hasOption('v');
+
+        if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
+            String path = cmd.getOptionValue("build-report");
+            TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
+            if (path == null) {
+                path = cmd.getOptionValue("build-report-html");
+                format = TimeProfiler.ReportFormat.HTML;
+            }
+            File report = new File(path);
+            TimeProfiler.init(report.getParent(), report.getName(), format);
+        }
 
         if (cmd.hasOption("version")) {
             System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
@@ -746,7 +804,13 @@ public class Bob {
             {
                 errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
             }
-            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+
+            String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
+            errors.append(msg);
+
+            if (verbose) {
+                errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+            }
         }
         for (TaskResult taskResult : result) {
             if (!taskResult.isOk()) {
@@ -785,15 +849,26 @@ public class Bob {
         System.exit(ret ? 0 : 1);
     }
 
+    private static void logErrorAndExit(Exception e) {
+        System.err.println(e.getMessage());
+        if (e.getCause() != null) {
+            System.err.println("Cause: " + e.getCause());
+        }
+        if (verbose) {
+            e.printStackTrace();
+        }
+        System.exit(1);
+    }
+
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         try {
             mainInternal(args);
-        } catch (LibraryException e) {
-            System.err.println(e.getMessage());
-            System.err.println("Cause: " + e.getCause());
-            e.printStackTrace();
-            System.exit(1);
+        } catch (LibraryException|CompileExceptionError e) {
+            logErrorAndExit(e);
+        } catch (Exception e) {
+            logErrorAndExit(e);
         }
+
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {

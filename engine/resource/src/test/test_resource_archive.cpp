@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -854,6 +856,37 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
+}
+
+
+static dmResourceArchive::Result TestDecryption(void* buffer, uint32_t buffer_len)
+{
+    uint8_t* b = (uint8_t*)buffer;
+    for (int i=0; i<buffer_len; i++)
+    {
+        b[i] = i;
+    }
+    return dmResourceArchive::RESULT_OK;
+}
+
+TEST(dmResourceArchive, ResourceDecryption)
+{
+    uint8_t buffer[] = { 0x00, 0x00, 0x00 };
+    uint32_t buffer_len = 3;
+    // test the default decryption (using Xtea)
+    dmResourceArchive::Result result = dmResourceArchive::DecryptBuffer(buffer, buffer_len);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(0xE7, buffer[0]);
+    ASSERT_EQ(0xF0, buffer[1]);
+    ASSERT_EQ(0x00, buffer[2]);
+
+    // set a custom decryption function and test that it works
+    dmResourceArchive::RegisterResourceDecryption(TestDecryption);
+    result = dmResourceArchive::DecryptBuffer(buffer, buffer_len);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(0x00, buffer[0]);
+    ASSERT_EQ(0x01, buffer[1]);
+    ASSERT_EQ(0x02, buffer[2]);
 }
 
 int main(int argc, char **argv)

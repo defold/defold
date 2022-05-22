@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -119,7 +121,7 @@ namespace dmGameObject
                 lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
                 ++arg_count;
             }
-            if (script_function == SCRIPT_FUNCTION_UPDATE)
+            if (script_function == SCRIPT_FUNCTION_UPDATE || script_function == SCRIPT_FUNCTION_FIXED_UPDATE)
             {
                 lua_pushnumber(L, params.m_UpdateContext->m_DT);
                 ++arg_count;
@@ -210,7 +212,8 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+
+    static UpdateResult CompScriptUpdateInternal(const ComponentsUpdateParams& params, ScriptFunction function, ComponentsUpdateResult& update_result)
     {
         lua_State* L = GetLuaState(params.m_Context);
         int top = lua_gettop(L);
@@ -219,14 +222,12 @@ namespace dmGameObject
         RunScriptParams run_params;
         run_params.m_UpdateContext = params.m_UpdateContext;
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
-        dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
-
         uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
             if (script_instance->m_Update) {
-                ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
+                ScriptResult ret = RunScript(L, script_instance->m_Script, function, script_instance, run_params);
                 if (ret == SCRIPT_RESULT_FAILED)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -239,6 +240,20 @@ namespace dmGameObject
 
         assert(top == lua_gettop(L));
         return result;
+    }
+
+    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    {
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
+        dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+        return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_UPDATE, update_result);
+    }
+
+    UpdateResult CompScriptFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    {
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
+        dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+        return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_FIXED_UPDATE, update_result);
     }
 
     static UpdateResult HandleMessage(void* context, ScriptInstance* script_instance, dmMessage::Message* message, int function_ref, bool is_callback, bool deref_function_ref)

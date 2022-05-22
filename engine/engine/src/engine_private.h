@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -82,6 +84,7 @@ namespace dmEngine
         Stats();
 
         uint32_t m_FrameCount;
+        float    m_TotalTime;   // Total running time of the game
     };
 
     struct RecordData
@@ -96,13 +99,6 @@ namespace dmEngine
         uint32_t            m_FrameCount;
         uint32_t            m_FramePeriod;
         uint32_t            m_Fps;
-    };
-
-    enum Vsync
-    {
-        VSYNC_SOFTWARE = 0,
-        VSYNC_HARDWARE = 1,
-
     };
 
     struct Engine
@@ -156,22 +152,19 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
-        bool                                        m_UseSwVsync;
-        bool                                        m_UseVariableDt;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
-        uint64_t                                    m_PreviousFrameTime;
-        uint64_t                                    m_PreviousRenderTime;
-        uint64_t                                    m_FlipTime;
+        uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
+        float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
+        uint32_t                                    m_FixedUpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
-        Vsync                                       m_VsyncMode;
 
         RecordData                                  m_RecordData;
     };
@@ -216,6 +209,9 @@ namespace dmEngine
      *
      */
     int RunLoop(const RunLoopParams* params);
+
+    // For unit testing
+    void GetStats(HEngine engine, Stats& stats);
 }
 
 #endif // DM_ENGINE_PRIVATE_H

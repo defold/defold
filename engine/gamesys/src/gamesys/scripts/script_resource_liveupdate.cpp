@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -236,13 +238,31 @@ namespace dmLiveUpdate
     {
         DM_LUA_STACK_CHECK(L, 0);
 
+        int top = lua_gettop(L);
+
         const char* path = luaL_checkstring(L, 1);
 
         StoreArchiveCallbackData* cb = new StoreArchiveCallbackData;
         cb->m_Callback = dmScript::CreateCallback(L, 2);
         cb->m_Path = strdup(path);
 
-        dmLiveUpdate::Result res = dmLiveUpdate::StoreArchiveAsync(path, Callback_StoreArchive, cb);
+        bool verify_archive = true;
+        if (top > 2 && !lua_isnil(L, 3)) {
+            luaL_checktype(L, 3, LUA_TTABLE);
+            lua_pushvalue(L, 3);
+            lua_pushnil(L);
+            while (lua_next(L, -2)) {
+                const char* attr = lua_tostring(L, -2);
+                if (strcmp(attr, "verify") == 0)
+                {
+                    verify_archive = lua_toboolean(L, -1);
+                }
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+        }
+
+        dmLiveUpdate::Result res = dmLiveUpdate::StoreArchiveAsync(path, Callback_StoreArchive, cb, verify_archive);
 
         if (dmLiveUpdate::RESULT_OK != res)
         {

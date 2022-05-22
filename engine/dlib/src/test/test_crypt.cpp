@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,11 +21,15 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/crypt.h"
 
-TEST(dmCrypt, SameAsLibMCrypt)
+
+TEST(dmCrypt, XTea)
 {
-    uint8_t buf[19];
+    uint8_t original[19];
     const char* s = "ABCDEFGH12345678XYZ";
     int n = strlen(s);
+    memcpy(original, s, n);
+
+    uint8_t buf[19];
     memcpy(buf, s, n);
 
     uint8_t key[16] = {0};
@@ -32,9 +38,11 @@ TEST(dmCrypt, SameAsLibMCrypt)
     Encrypt(dmCrypt::ALGORITHM_XTEA, buf, n, key, 16);
     uint8_t expected[] = { 0x81, 0xb4, 0xa1, 0x04, 0x2d, 0xac, 0xe5, 0xcb, 0x77,
                            0x89, 0xec, 0x11, 0x61, 0xc3, 0xdc, 0xfa, 0xb9, 0xa3, 0x25 };
-
     ASSERT_EQ(sizeof(expected), (size_t)n);
     ASSERT_ARRAY_EQ(expected, buf);
+
+    Decrypt(dmCrypt::ALGORITHM_XTEA, buf, n, key, 16);
+    ASSERT_ARRAY_EQ(original, buf);
 }
 
 TEST(dmCrypt, Random)

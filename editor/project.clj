@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,10 +23,10 @@
                      [codox "0.9.3"]]
 
   :dependencies     [[org.clojure/clojure                         "1.10.0"]
-                     [org.clojure/core.cache                      "0.6.5"]
+                     [org.clojure/core.cache                      "0.7.1"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
-                     [org.clojure/tools.namespace                 "0.2.11"]
+                     [org.clojure/tools.namespace                 "1.2.0"]
                      [org.clojure/data.int-map                    "0.2.4"]
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
@@ -76,36 +78,36 @@
 
                      [org.luaj/luaj-jse "3.0.1"]
 
-                     [cljfx "1.7.16"]
+                     [cljfx "1.7.19"]
 
-                     [org.openjfx/javafx-base "18-ea+6"]
-                     [org.openjfx/javafx-base "18-ea+6" :classifier "linux"]
-                     [org.openjfx/javafx-base "18-ea+6" :classifier "mac"]
-                     [org.openjfx/javafx-base "18-ea+6" :classifier "win"]
-                     [org.openjfx/javafx-controls "18-ea+6"]
-                     [org.openjfx/javafx-controls "18-ea+6" :classifier "linux"]
-                     [org.openjfx/javafx-controls "18-ea+6" :classifier "mac"]
-                     [org.openjfx/javafx-controls "18-ea+6" :classifier "win"]
-                     [org.openjfx/javafx-graphics "18-ea+6"]
-                     [org.openjfx/javafx-graphics "18-ea+6" :classifier "linux"]
-                     [org.openjfx/javafx-graphics "18-ea+6" :classifier "mac"]
-                     [org.openjfx/javafx-graphics "18-ea+6" :classifier "win"]
-                     [org.openjfx/javafx-media "18-ea+6"]
-                     [org.openjfx/javafx-media "18-ea+6" :classifier "linux"]
-                     [org.openjfx/javafx-media "18-ea+6" :classifier "mac"]
-                     [org.openjfx/javafx-media "18-ea+6" :classifier "win"]
-                     [org.openjfx/javafx-web "18-ea+6"]
-                     [org.openjfx/javafx-web "18-ea+6" :classifier "linux"]
-                     [org.openjfx/javafx-web "18-ea+6" :classifier "mac"]
-                     [org.openjfx/javafx-web "18-ea+6" :classifier "win"]
-                     [org.openjfx/javafx-fxml "18-ea+6"]
-                     [org.openjfx/javafx-fxml "18-ea+6" :classifier "linux"]
-                     [org.openjfx/javafx-fxml "18-ea+6" :classifier "mac"]
-                     [org.openjfx/javafx-fxml "18-ea+6" :classifier "win"]
-                     [org.openjfx/javafx-swing "18-ea+6"]
-                     [org.openjfx/javafx-swing "18-ea+6" :classifier "linux"]
-                     [org.openjfx/javafx-swing "18-ea+6" :classifier "mac"]
-                     [org.openjfx/javafx-swing "18-ea+6" :classifier "win"]
+                     [org.openjfx/javafx-base "18"]
+                     [org.openjfx/javafx-base "18" :classifier "linux"]
+                     [org.openjfx/javafx-base "18" :classifier "mac"]
+                     [org.openjfx/javafx-base "18" :classifier "win"]
+                     [org.openjfx/javafx-controls "18"]
+                     [org.openjfx/javafx-controls "18" :classifier "linux"]
+                     [org.openjfx/javafx-controls "18" :classifier "mac"]
+                     [org.openjfx/javafx-controls "18" :classifier "win"]
+                     [org.openjfx/javafx-graphics "18"]
+                     [org.openjfx/javafx-graphics "18" :classifier "linux"]
+                     [org.openjfx/javafx-graphics "18" :classifier "mac"]
+                     [org.openjfx/javafx-graphics "18" :classifier "win"]
+                     [org.openjfx/javafx-media "18"]
+                     [org.openjfx/javafx-media "18" :classifier "linux"]
+                     [org.openjfx/javafx-media "18" :classifier "mac"]
+                     [org.openjfx/javafx-media "18" :classifier "win"]
+                     [org.openjfx/javafx-web "18"]
+                     [org.openjfx/javafx-web "18" :classifier "linux"]
+                     [org.openjfx/javafx-web "18" :classifier "mac"]
+                     [org.openjfx/javafx-web "18" :classifier "win"]
+                     [org.openjfx/javafx-fxml "18"]
+                     [org.openjfx/javafx-fxml "18" :classifier "linux"]
+                     [org.openjfx/javafx-fxml "18" :classifier "mac"]
+                     [org.openjfx/javafx-fxml "18" :classifier "win"]
+                     [org.openjfx/javafx-swing "18"]
+                     [org.openjfx/javafx-swing "18" :classifier "linux"]
+                     [org.openjfx/javafx-swing "18" :classifier "mac"]
+                     [org.openjfx/javafx-swing "18" :classifier "win"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -198,7 +200,10 @@
                       :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
-                      :dev     {:dependencies      [[clj-async-profiler-mg "0.4.1"]
+                      :reveal {:source-paths ["src/reveal"]
+                               :injections [(require 'editor.reveal)]
+                               :dependencies [[vlaaad/reveal "1.3.273"]]}
+                      :dev     {:dependencies      [[com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
                                                     [org.clojure/test.check   "0.9.0"]

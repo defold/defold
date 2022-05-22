@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -12,6 +14,7 @@
 
 #include <stdio.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/intersection.h>
 #include "render_command.h"
 #include "render_private.h"
 
@@ -165,17 +168,23 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0], (dmRender::HNamedConstantBuffer)c->m_Operands[1]);
+                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[2];
+                    dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
+                                                             (dmRender::HNamedConstantBuffer)c->m_Operands[1],
+                                                             matrix);
+                    delete matrix;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG3D:
                 {
-                    dmRender::DrawDebug3d(render_context);
+                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
+                    dmRender::DrawDebug3d(render_context, matrix);
+                    delete matrix;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG2D:
                 {
-                    dmRender::DrawDebug2d(render_context);
+                    dmRender::DrawDebug2d(render_context); // Deprecated
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_MATERIAL:

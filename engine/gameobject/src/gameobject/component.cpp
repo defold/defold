@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -111,6 +113,7 @@ void ComponentTypeSetAddToUpdateFn(ComponentType* type, ComponentAddToUpdate fn)
 void ComponentTypeSetGetFn(ComponentType* type, ComponentGet fn)                            { type->m_GetFunction = fn; }
 void ComponentTypeSetRenderFn(ComponentType* type, ComponentsRender fn)                     { type->m_RenderFunction = fn; }
 void ComponentTypeSetUpdateFn(ComponentType* type, ComponentsUpdate fn)                     { type->m_UpdateFunction = fn; }
+void ComponentTypeSetFixedUpdateFn(ComponentType* type, ComponentsFixedUpdate fn)           { type->m_FixedUpdateFunction = fn; }
 void ComponentTypeSetPostUpdateFn(ComponentType* type, ComponentsPostUpdate fn)             { type->m_PostUpdateFunction = fn; }
 void ComponentTypeSetOnMessageFn(ComponentType* type, ComponentOnMessage fn)                { type->m_OnMessageFunction = fn; }
 void ComponentTypeSetOnInputFn(ComponentType* type, ComponentOnInput fn)                    { type->m_OnInputFunction = fn; }

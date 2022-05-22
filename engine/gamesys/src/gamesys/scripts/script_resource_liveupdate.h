@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -151,8 +153,11 @@ namespace dmLiveUpdate
 
     /*# register and store a live update zip file
      *
-     * Stores a zip file and uses it for live update content.
-     * The path is renamed and stored in the (internal) live update location
+     * Stores a zip file and uses it for live update content. The contents of the
+     * zip file will be verified against the manifest to ensure file integrity.
+     * It is possible to opt out of the resource verification using an option passed
+     * to this function.
+     * The path is stored in the (internal) live update location.
      *
      * @name resource.store_archive
      * @param path [type:string] the path to the original file on disc
@@ -164,6 +169,10 @@ namespace dmLiveUpdate
      *
      * `status`
      * : [type:constant] the status of the store operation (See resource.store_manifest)
+     *
+     * @param [options] [type:table] optional table with extra parameters. Supported entries:
+     *
+     * - [type:boolean] `verify`: if archive should be verified as well as stored (defaults to true)
      *
      * @examples
      *

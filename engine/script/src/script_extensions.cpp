@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -65,14 +67,17 @@ namespace dmScript
         const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
         uint32_t i = 0;
         while (ed) {
-            dmExtension::Params p;
-            p.m_ConfigFile = GetConfigFile(context);
-            p.m_L = L;
-            dmExtension::Result r = ed->Initialize(&p);
-            if (r == dmExtension::RESULT_OK) {
-                extension_data->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-            } else {
-                dmLogError("Failed to initialize extension: %s", ed->m_Name);
+            if (ed->Initialize)
+            {
+                dmExtension::Params p;
+                p.m_ConfigFile = GetConfigFile(context);
+                p.m_L = L;
+                dmExtension::Result r = ed->Initialize(&p);
+                if (r == dmExtension::RESULT_OK) {
+                    extension_data->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
+                } else {
+                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
+                }
             }
             ++i;
             ed = ed->m_Next;
@@ -164,6 +169,7 @@ namespace dmScript
         sl.NewScriptWorld = 0x0;
         sl.DeleteScriptWorld = 0x0;
         sl.UpdateScriptWorld = 0x0;
+        sl.FixedUpdateScriptWorld = 0x0;
         sl.InitializeScriptInstance = 0x0;
         sl.FinalizeScriptInstance = 0x0;
         RegisterScriptExtension(context, &sl);

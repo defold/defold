@@ -60,7 +60,7 @@ var LibraryGLFW = {
  * DOM EVENT CALLBACKS
  ******************************************************************************/
 
-    DOMToGLFWKeyCode: function(keycode) {
+    DOMToGLFWKeyCode: function(keycode, code) {
       switch (keycode) {
         case 0x08: return 295 ; // DOM_VK_BACKSPACE -> GLFW_KEY_BACKSPACE
         case 0x09: return 293 ; // DOM_VK_TAB -> GLFW_KEY_TAB
@@ -111,8 +111,29 @@ var LibraryGLFW = {
         case 103 : return 309 ; // GLFW_KEY_KP_7
         case 104 : return 310 ; // GLFW_KEY_KP_8
         case 105 : return 311 ; // GLFW_KEY_KP_9
-        default  : return keycode;
       }
+
+      // Map additional keys not already mapped to any GLFW keys
+      // We use KeyEvent.code here as it represents a physical key on the keyboard
+      switch (code) {
+        case "Minus":         return 45  ; // -
+        case "Period":        return 46  ; // .
+        case "Comma":         return 44  ; // ,
+        case "Slash":         return 47  ; // /
+        case "Backslash":     return 92  ; // \
+        case "IntlRo":        return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-104
+        case "IntlYen":       return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-101alt
+        case "IntlBackslash": return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-102
+        case "Backquote":     return 96  ; // `
+        case "BracketLeft":   return 91  ; // [
+        case "BracketRight":  return 93  ; // ]
+        case "Equal":         return 61  ; // =
+        case "Quote":         return 39  ; // '
+        case "Semicolon":     return 59  ; // ;
+        case "NumpadComma":   return 316 ; // GLFW_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
+      }
+
+      return keycode;
     },
 
     // The button ids for right and middle are swapped between GLFW and JS.
@@ -158,11 +179,11 @@ var LibraryGLFW = {
           }
       },
 
-      removeEventListenerCanvas:function (type, listener, useCapture) {
-          if (typeof Module['canvas'] !== 'undefined') {
-              Module['canvas'].removeEventListener(type, listener, useCapture);
-          }
-      },
+    removeEventListenerCanvas:function (type, listener, useCapture) {
+        if (typeof Module['canvas'] !== 'undefined') {
+            Module['canvas'].removeEventListener(type, listener, useCapture);
+        }
+    },
 
     isCanvasActive: function(event) {
       var res = (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
@@ -198,7 +219,7 @@ var LibraryGLFW = {
     onKeyChanged: function(event, status) {
       if (!GLFW.isCanvasActive(event)) { return; }
 
-      var key = GLFW.DOMToGLFWKeyCode(event.keyCode);
+      var key = GLFW.DOMToGLFWKeyCode(event.keyCode, event.code);
       if (key) {
         GLFW.keys[key] = status;
         if (GLFW.keyFunc) {
@@ -209,6 +230,14 @@ var LibraryGLFW = {
 
     onKeydown: function(event) {
       if (!GLFW.isCanvasActive(event)) { return; }
+
+      // prevent navigation within the page using arrow keys and space
+      switch(event.keyCode) {
+        case 37: case 38: case 39:  case 40: // Arrow keys
+        case 32: event.preventDefault(); event.stopPropagation(); // Space
+        default: break; // do not block other keys
+      }
+
 
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       if (event.keyCode === 32) {
@@ -420,9 +449,26 @@ var LibraryGLFW = {
     },
 
     onFocusChanged: function(focus) {
+      // If a key is pressed while the game lost focus and that key is released while
+      // not in focus the event will not be received for the key release. This will
+      // result in the key remaining in the pressed state when the game regains focus.
+      // To fix this we set all pressed keys to released when focus is lost.
+      if (focus == 0) {
+        for (var i = 0; i < GLFW.keys.length; i++) {
+          GLFW.keys[i] = 0;
+        }
+      }
       if (GLFW.focusFunc) {
         {{{ makeDynCall('vi', 'GLFW.focusFunc') }}}(focus);
       }
+    },
+
+    onFocus: function(event) {
+      GLFW.onFocusChanged(1);
+    },
+
+    onBlur: function(event) {
+      GLFW.onFocusChanged(0);
     },
 
     onFullScreenEventChange: function(event) {
@@ -548,6 +594,8 @@ var LibraryGLFW = {
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
     GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+    GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
+    GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
 
     __ATEXIT__.push({ func: function() {
         GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
@@ -564,6 +612,8 @@ var LibraryGLFW = {
         GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+        GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
+        GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
 
         var canvas = Module["canvas"];
         if (typeof canvas !== 'undefined') {

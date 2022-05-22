@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -298,6 +300,20 @@ namespace dmGameSystem
                     {
                         dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
                         result = false;
+                    }
+                    // Fix for https://github.com/defold/defold/issues/6384
+                    // If the animation is a single frame there's no point in actually playing the
+                    // animation. Instead we can immediately cancel the animation and the node will
+                    // still have the correct image.
+                    // By doing this we'll not take up an animation slot (there's a max animation cap).
+                    // Even though we cancel animation we still need flipbook hash:
+                    // https://github.com/defold/defold/issues/6551
+                    // We can't move this logic into dmGui::PlayNodeFlipbookAnim()
+                    // because if we do so we will never play all the one-frame animations which is a breaking 
+                    // change. In this case, we cancel one-frame animation ONLY when we initially setup node.
+                    if (dmGui::GetNodeAnimationFrameCount(scene, n) == 1)
+                    {
+                        dmGui::CancelNodeFlipbookAnim(scene, n, true);
                     }
                 }
             }
@@ -2763,6 +2779,7 @@ namespace dmGameSystem
         }
 
         comp_gui_context->m_CustomNodeTypes.Clear();
+        g_CompGuiNodeTypesInitialized = false;
         return dmGameObject::RESULT_OK;
     }
 

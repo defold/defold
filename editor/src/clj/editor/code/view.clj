@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -765,8 +767,8 @@
           (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.selection.occurrence.outline") nil)
                (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil)))))))
 
-(g/defnk produce-execution-markers [lines debugger-execution-locations node-id+resource]
-  (when-some [path (some-> node-id+resource second resource/proj-path)]
+(g/defnk produce-execution-markers [lines debugger-execution-locations node-id+type+resource]
+  (when-some [path (some-> node-id+type+resource (get 2) resource/proj-path)]
     (into []
           (comp (filter #(= path (:file %)))
                 (map (fn [{:keys [^long line type]}]

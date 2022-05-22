@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -184,7 +186,7 @@ namespace dmParticle
         emitter->m_OriginalSeed = original_seed;
 
         uint32_t seed = original_seed;
-        emitter->m_Duration = emitter_ddf->m_Duration + dmMath::Rand11(&seed) * emitter_ddf->m_DurationSpread;
+        emitter->m_Duration = dmMath::Max(0.0f, emitter_ddf->m_Duration + dmMath::Rand11(&seed) * emitter_ddf->m_DurationSpread);
         emitter->m_StartDelay = emitter_ddf->m_StartDelay + dmMath::Rand11(&seed) * emitter_ddf->m_StartDelaySpread;
         emitter->m_SpawnRateSpread = dmMath::Rand11(&seed) * ((dmParticleDDF::Emitter::Property&)emitter_ddf->m_Properties[EMITTER_KEY_SPAWN_RATE]).m_Spread;
     }

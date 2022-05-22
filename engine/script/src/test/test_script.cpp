@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -716,12 +718,14 @@ struct TestScriptExtension
 {
     int m_SelfRef;
     float m_DeltaT;
+    float m_FixedDeltaT;
     static uint32_t m_InitializeCalled;
     static uint32_t m_UpdateCalled;
     static uint32_t m_FinalizedCalled;
     static uint32_t m_NewScriptWorldCalled;
     static uint32_t m_DeleteScriptWorldCalled;
     static uint32_t m_UpdateScriptWorldCalled;
+    static uint32_t m_FixedUpdateScriptWorldCalled;
     static uint32_t m_InitializeScriptInstancedCalled;
     static uint32_t m_FinalizeScriptInstancedCalled;
 };
@@ -732,6 +736,7 @@ uint32_t TestScriptExtension::m_FinalizedCalled = 0;
 uint32_t TestScriptExtension::m_NewScriptWorldCalled = 0;
 uint32_t TestScriptExtension::m_DeleteScriptWorldCalled = 0;
 uint32_t TestScriptExtension::m_UpdateScriptWorldCalled = 0;
+uint32_t TestScriptExtension::m_FixedUpdateScriptWorldCalled = 0;
 uint32_t TestScriptExtension::m_InitializeScriptInstancedCalled = 0;
 uint32_t TestScriptExtension::m_FinalizeScriptInstancedCalled = 0;
 
@@ -791,9 +796,11 @@ struct TestScriptWorldContext
     TestScriptExtension* m_Extension;
     int m_SelfRef;
     float m_DeltaT;
+    float m_FixedDeltaT;
     static uint32_t m_NewScriptWorldCalled;
     static uint32_t m_DeleteScriptWorldCalled;
     static uint32_t m_UpdateScriptWorldCalled;
+    static uint32_t m_FixedUpdateScriptWorldCalled;
     static uint32_t m_InitializeScriptInstancedCalled;
     static uint32_t m_FinalizeScriptInstancedCalled;
 };
@@ -801,6 +808,7 @@ struct TestScriptWorldContext
 uint32_t TestScriptWorldContext::m_NewScriptWorldCalled = 0;
 uint32_t TestScriptWorldContext::m_DeleteScriptWorldCalled = 0;
 uint32_t TestScriptWorldContext::m_UpdateScriptWorldCalled = 0;
+uint32_t TestScriptWorldContext::m_FixedUpdateScriptWorldCalled = 0;
 uint32_t TestScriptWorldContext::m_InitializeScriptInstancedCalled = 0;
 uint32_t TestScriptWorldContext::m_FinalizeScriptInstancedCalled = 0;
 
@@ -854,6 +862,22 @@ static void TestScriptExtensionUpdateScriptWorld(dmScript::HScriptWorld script_w
     ++extension_world->m_Extension->m_DeltaT += dt;
 }
 
+static void TestScriptExtensionFixedUpdateScriptWorld(dmScript::HScriptWorld script_world, float dt)
+{
+    dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    dmScript::GetScriptWorldContextValue(script_world);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    ++extension_world->m_FixedUpdateScriptWorldCalled;
+    extension_world->m_FixedDeltaT += dt;
+    ++extension_world->m_Extension->m_FixedUpdateScriptWorldCalled;
+    ++extension_world->m_Extension->m_FixedDeltaT += dt;
+}
+
 static void TestScriptExtensionInitializeScriptInstance(dmScript::HScriptWorld script_world)
 {
     dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
@@ -898,6 +922,7 @@ TEST_F(ScriptTest, ScriptExtension)
         TestScriptExtensionNewScriptWorld,
         TestScriptExtensionDeleteScriptWorld,
         TestScriptExtensionUpdateScriptWorld,
+        TestScriptExtensionFixedUpdateScriptWorld,
         TestScriptExtensionInitializeScriptInstance,
         TestScriptExtensionFinalizeScriptInstance
     };
@@ -928,8 +953,11 @@ TEST_F(ScriptTest, ScriptExtension)
         ASSERT_EQ(0u, TestScriptExtension::m_UpdateScriptWorldCalled);
         ASSERT_EQ(0u, TestScriptWorldContext::m_UpdateScriptWorldCalled);
         dmScript::UpdateScriptWorld(script_world, 0.16f);
+        dmScript::FixedUpdateScriptWorld(script_world, 0.16f);
         ASSERT_EQ(1u, TestScriptExtension::m_UpdateScriptWorldCalled);
         ASSERT_EQ(1u, TestScriptWorldContext::m_UpdateScriptWorldCalled);
+        ASSERT_EQ(1u, TestScriptExtension::m_FixedUpdateScriptWorldCalled);
+        ASSERT_EQ(1u, TestScriptWorldContext::m_FixedUpdateScriptWorldCalled);
 
         int instanceref = CreateAndPushInstance(L);
 

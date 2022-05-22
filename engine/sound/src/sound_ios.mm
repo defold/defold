@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +18,7 @@
 
 #include <dmsdk/graphics/glfw/glfw.h>
 
-#import <AVFAudio/AVFAudio.h>
+#import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 
 // ---------------------------------------------------------------------------
@@ -163,10 +165,7 @@ namespace {
 // ---------------------------------------------------------------------------
 namespace dmSound
 {
-    bool AudioSessionInitialized = false;
-
-    Result PlatformInitialize(dmConfigFile::HConfig config,
-            const InitializeParams* params)
+    Result PlatformInitialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
         ::g_soundApplicationDelegate = [[SoundApplicationDelegate alloc] init];
         glfwRegisterUIApplicationDelegate(::g_soundApplicationDelegate);
@@ -186,11 +185,7 @@ namespace dmSound
 
         NSError *error = nil;
         BOOL success = [[AVAudioSession sharedInstance] setCategory: AVAudioSessionCategoryAmbient error: &error];
-        if (success)
-        {
-            AudioSessionInitialized = false;
-        }
-        else
+        if (!success)
         {
             dmLogError("Failed to initialize AudioSession (%d)", (int)error.code);
         }

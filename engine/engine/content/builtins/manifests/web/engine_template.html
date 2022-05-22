@@ -204,6 +204,7 @@
 	</script>
 
 	<script id='engine-start' type='text/javascript'>
+		EngineLoader.stream_wasm = "{{html5.wasm_streaming}}" === "true";
 		EngineLoader.load("canvas", "{{exe-name}}");
 	</script>
 </body>

@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -230,7 +232,7 @@
         (g/transact
           (concat
             (g/connect node-id :_node-id view :resource-node)
-            (g/connect node-id :valid-node-id+resource view :node-id+resource)
+            (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])

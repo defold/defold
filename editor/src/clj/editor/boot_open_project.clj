@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -89,6 +91,7 @@
         (cljfx-form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
 
+    (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
@@ -300,7 +303,7 @@
           (g/connect app-view :selected-node-ids outline-view :selection)
           (g/connect app-view :hidden-node-outline-key-paths outline-view :hidden-node-outline-key-paths)
           (g/connect app-view :active-resource asset-browser :active-resource)
-          (g/connect app-view :active-resource-node scene-visibility :active-resource-node)
+          (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)

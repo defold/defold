@@ -1,4 +1,6 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;; 
@@ -213,10 +215,10 @@
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node4 :produces-value node3 :discards-value)])
       [node3 (g/copy [node1] {:traverse? (comp stop-at-stoppers)
-                              :serializer (fn [basis node]
+                              :serializer (fn [node]
                                             (if (g/node-instance? StopperNode (g/node-id node))
                                               (serialize-stopper node)
-                                              (g/default-node-serializer basis node)))})]))
+                                              (g/default-node-serializer node)))})]))
 
 (deftest serialization-uses-predicates
   (ts/with-clean-system

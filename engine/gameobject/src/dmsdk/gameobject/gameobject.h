@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -356,11 +358,22 @@ namespace dmGameObject
      * Update context
      * @struct
      * @name UpdateContext
+     * @member m_TimeScale [type: float] the scaling factor what was applied on the dt (i.e. the collection update time scale)
      * @member m_DT [type: float] the delta time elapsed since last frame (seconds)
+     * @member m_FixedUpdateFrequency [type: uint32_t] Number of of calls per second to the FixedUpdate of each component
      */
     struct UpdateContext
     {
-        float m_DT;
+        float    m_TimeScale;
+        float    m_DT;
+        float    m_AccumFrameTime;          // Unscaled time. Amount of time left after last fixed update tick
+        uint32_t m_FixedUpdateFrequency;    // Hz
+
+        UpdateContext()
+        : m_TimeScale(1.0f)
+        , m_DT(0.0f)
+        , m_AccumFrameTime(0.0f)
+        , m_FixedUpdateFrequency(0) {}
     };
 
     /*#

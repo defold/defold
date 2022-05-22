@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -206,6 +208,8 @@ namespace dmGameObject
         m_ScaleAlongZ = 0;
         m_DirtyTransforms = 1;
         m_Initialized = 0;
+        m_FixedAccumTime = 0.0f;
+        m_FirstUpdate = 1;
 
         m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
         m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
@@ -246,7 +250,7 @@ namespace dmGameObject
         return regist->m_DefaultInputStackCapacity;
     }
 
-    void DeleteRegister(HRegister regist)
+    void DeleteCollections(HRegister regist)
     {
         uint32_t collection_count = regist->m_Collections.Size();
         for (uint32_t i = 0; i < collection_count; ++i)
@@ -257,6 +261,12 @@ namespace dmGameObject
             FinalCollection(collection);
             DeleteCollection(collection);
         }
+        regist->m_Collections.SetSize(0);
+    }
+
+    void DeleteRegister(HRegister regist)
+    {
+        DeleteCollections(regist);
         delete regist;
     }
 
@@ -1253,21 +1263,6 @@ namespace dmGameObject
             }
         }
 
-        if (success)
-        {
-            // Update the transform for all parent-less objects
-            for (uint32_t i=0;i!=new_instances.Size();i++)
-            {
-                if (!GetParent(new_instances[i]))
-                {
-                    new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
-                }
-
-                // world transforms need to be up to date in time for the script init calls
-                collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
-            }
-        }
-
         // Exit point 1: Before components are created.
         if (!success)
         {
@@ -1278,6 +1273,18 @@ namespace dmGameObject
             }
             id_mapping->Clear();
             return false;
+        }
+
+        // Update the transform for all parent-less objects
+        for (uint32_t i=0;i!=new_instances.Size();i++)
+        {
+            if (!GetParent(new_instances[i]))
+            {
+                new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
+            }
+
+            // world transforms need to be up to date in time for the script init calls
+            collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
         }
 
         // Create components and set properties
@@ -2353,6 +2360,11 @@ namespace dmGameObject
         return ctx.m_Success;
     }
 
+    bool DispatchMessages(HCollection hcollection, dmMessage::HSocket* sockets, uint32_t socket_count)
+    {
+        return DispatchMessages(hcollection->m_Collection, sockets, socket_count);
+    }
+
     static void UpdateEulerToRotation(HInstance instance);
 
     static inline bool Vec3Equals(const uint32_t* a, const uint32_t* b)
@@ -2453,6 +2465,20 @@ namespace dmGameObject
 
         bool ret = true;
 
+
+        UpdateContext dynamic_update_context;
+        dynamic_update_context = *update_context;
+
+        // pass it as unscaled time
+        if (update_context->m_TimeScale > 0.001f )
+        {
+            dynamic_update_context.m_AccumFrameTime = collection->m_FixedAccumTime / update_context->m_TimeScale;
+        }
+        else
+        {
+            dynamic_update_context.m_AccumFrameTime = collection->m_FixedAccumTime;
+        }
+
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
@@ -2471,7 +2497,7 @@ namespace dmGameObject
                 DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
                 ComponentsUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
-                params.m_UpdateContext = update_context;
+                params.m_UpdateContext = &dynamic_update_context;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
 
@@ -2487,7 +2513,75 @@ namespace dmGameObject
             }
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+            {
                 ret = false;
+            }
+        }
+
+        if (update_context->m_FixedUpdateFrequency != 0 && update_context->m_TimeScale > 0.001f)
+        {
+            if (collection->m_FirstUpdate)
+            {
+                collection->m_FirstUpdate = 0;
+                collection->m_FixedAccumTime = update_context->m_AccumFrameTime * update_context->m_TimeScale;
+            }
+
+            const float time = collection->m_FixedAccumTime + update_context->m_DT; // Add the scaled time
+            const float fixed_frequency = update_context->m_FixedUpdateFrequency;
+            // If the proxy is slowed down, we want e.g. the physics to be slowed down as well
+            const float fixed_dt = (1.0f / (float)fixed_frequency) * update_context->m_TimeScale;
+            uint32_t num_fixed_steps = (uint32_t)(time / fixed_dt);
+            // Store the remainder for the next frame
+            collection->m_FixedAccumTime = time - (num_fixed_steps * fixed_dt);
+
+            if (num_fixed_steps != 0)
+            {
+                UpdateContext fixed_update_context;
+                fixed_update_context = dynamic_update_context;
+                fixed_update_context.m_DT = fixed_dt;
+
+                for (uint32_t step = 0; step < num_fixed_steps; ++step)
+                {
+                    for (uint32_t i = 0; i < component_types; ++i)
+                    {
+                        uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+                        ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+
+                        DM_COUNTER_DYN(collection->m_Register->m_ComponentProfileCounterIndex[update_index], collection->m_ComponentInstanceCount[update_index]);
+
+                        // Avoid to call UpdateTransforms for each/all component types.
+                        if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
+                            UpdateTransforms(collection);
+                        }
+
+                        if (component_type->m_FixedUpdateFunction)
+                        {
+                            DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                            ComponentsUpdateParams params;
+                            params.m_Collection = collection->m_HCollection;
+                            params.m_UpdateContext = &fixed_update_context;
+                            params.m_World = collection->m_ComponentWorlds[update_index];
+                            params.m_Context = component_type->m_Context;
+
+                            ComponentsUpdateResult update_result;
+                            update_result.m_TransformsUpdated = false;
+                            UpdateResult res = component_type->m_FixedUpdateFunction(params, update_result);
+                            if (res != UPDATE_RESULT_OK)
+                                ret = false;
+
+                            // Mark the collections transforms as dirty if this component has updated
+                            // them in its update function.
+                            collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+                        }
+
+                        if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+                        {
+                            ret = false;
+                        }
+                    }
+                }
+
+            }
         }
 
         collection->m_InUpdate = 0;

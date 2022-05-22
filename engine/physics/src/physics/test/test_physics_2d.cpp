@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -198,6 +200,41 @@ TYPED_TEST(PhysicsTest, UseBullet)
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
+
+TYPED_TEST(PhysicsTest, SetGridShapeHull)
+{
+    int32_t rows = 1;
+    int32_t columns = 2;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(0, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    const float hull_vertices[] = {-0.5f, -0.5f,
+                                    0.5f, -0.5f,
+                                    0.5f,  0.5f,
+                                   -0.5f,  0.5f};
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 2);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    ASSERT_TRUE(dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS));
+    ASSERT_FALSE(dmPhysics::SetGridShapeHull(grid_co, 1, 0, 0, 0, EMPTY_FLAGS));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
+    dmPhysics::DeleteHullSet2D(hull_set);
 }
 
 

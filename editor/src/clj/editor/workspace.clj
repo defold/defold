@@ -1,10 +1,12 @@
-;; Copyright 2020 The Defold Foundation
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +18,7 @@ ordinary paths."
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
-            [clojure.tools.reader.edn :as edn]
+            [clojure.edn :as edn]
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.library :as library]
@@ -271,10 +273,12 @@ ordinary paths."
 
 (defn- load-plugin! [workspace resource]
   ; TODO Handle Exceptions!
-  (log/info :msg (str "Loading plugin" (resource/path resource)))
-  (let [plugin-fn (load-string (slurp resource))]
-    (plugin-fn workspace))
-  (log/info :msg (str "Loaded plugin" (resource/path resource))))
+  (log/info :msg (str "Loading plugin " (resource/path resource)))
+  (if-let [plugin-fn (load-string (slurp resource))]
+    (do
+      (plugin-fn workspace)
+      (log/info :msg (str "Loaded plugin " (resource/path resource))))
+    (log/info :msg (str "Unable to load plugin " (resource/path resource)))))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))
@@ -344,7 +348,27 @@ ordinary paths."
 ; TODO: Only add files for the current platform (e.g. dylib on macOS)
     (add-to-path-property "jna.library.path" parent-dir)
     (add-to-path-property "java.library.path" parent-dir)))
-  
+
+(defn- delete-directory-recursive [^java.io.File file]
+  ;; Recursively delete a directory. // https://gist.github.com/olieidel/c551a911a4798312e4ef42a584677397
+  ;; when `file` is a directory, list its entries and call this
+  ;; function with each entry. can't `recur` here as it's not a tail
+  ;; position, sadly. could cause a stack overflow for many entries?
+  ;; thanks to @nikolavojicic for the idea to use `run!` instead of
+  ;; `doseq` :)
+  (when (.isDirectory file)
+    (run! delete-directory-recursive (.listFiles file)))
+  ;; delete the file or directory. if it it's a file, it's easily
+  ;; deletable. if it's a directory, we already have deleted all its
+  ;; contents with the code above (remember?)
+  (io/delete-file file))
+
+(defn clean-editor-plugins! [workspace]
+  ; At startup, we want to remove the plugins in order to avoid having issues copying the .dll on Windows
+  (let [dir (plugin-path workspace)]
+    (if (.exists dir)
+      (delete-directory-recursive dir))))
+
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
@@ -354,7 +378,10 @@ ordinary paths."
         changed-shared-library-resources (filter is-shared-library? changed-plugin-resources)
         changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
     (doseq [x changed-plugin-resources]
-      (unpack-resource! workspace x))
+      (try
+        (unpack-resource! workspace x)
+        (catch java.io.FileNotFoundException error
+          (throw (java.io.IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!")))))
     (doseq [x changed-jar-resources]
       (register-jar-file! workspace x))
     (doseq [x changed-shared-library-resources]

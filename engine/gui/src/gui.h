@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -877,11 +879,13 @@ namespace dmGui
     void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor);
     float GetNodeFlipbookPlaybackRate(HScene scene, HNode node);
     void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate);
+    void CancelNodeFlipbookAnim(HScene scene, HNode node, bool keep_anim_hash);
     void CancelNodeFlipbookAnim(HScene scene, HNode node);
     dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical);
     int32_t GetNodeAnimationFrame(HScene scene, HNode node);
+    int32_t GetNodeAnimationFrameCount(HScene scene, HNode node);
     TextureSetAnimDesc* GetNodeTextureSet(HScene scene, HNode node);
 
     void* GetNodeFont(HScene scene, HNode node);
@@ -1047,6 +1051,10 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+    
+    void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
+
+    dmVMath::Point3 ScreenToLocalPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node);
 

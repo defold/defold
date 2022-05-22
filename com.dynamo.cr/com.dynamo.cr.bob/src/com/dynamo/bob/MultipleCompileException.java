@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -53,6 +55,7 @@ public class MultipleCompileException extends Exception {
     public final List<Info> issues = new ArrayList<>();
     private IResource contextResource;
     private String rawLog;
+    private String logPath;
 
     public MultipleCompileException(String message, Throwable e) {
         super(message, e);
@@ -94,6 +97,14 @@ public class MultipleCompileException extends Exception {
 
         this.contextResource = contextResource;
         this.rawLog = rawLog;
+    }
+
+    public void setLogPath(String path) {
+        this.logPath = path;
+    }
+
+    public String getLogPath() {
+        return this.logPath;
     }
 
     public String getRawLog() {

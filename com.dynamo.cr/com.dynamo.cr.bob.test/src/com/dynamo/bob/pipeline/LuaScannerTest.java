@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -40,7 +42,9 @@ public class LuaScannerTest {
     }
 
     private void assertValidRequire(String test, String expected) {
-        List<String> modules = LuaScanner.scan(test);
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(test);
+        List<String> modules = scanner.getModules();
         assertTrue(modules.size() == 1);
         assertEquals(expected, modules.get(0));
     }
@@ -48,7 +52,9 @@ public class LuaScannerTest {
     @Test
     public void testScanner() throws Exception {
         String file = getFile("test_scanner.lua");
-        List<String> modules = LuaScanner.scan(file);
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(file);
+        List<String> modules = scanner.getModules();
 
         assertEquals("a", modules.get(0));
         assertEquals("b", modules.get(1));
@@ -77,7 +83,8 @@ public class LuaScannerTest {
         assertEquals("foo13", modules.get(24));
         assertEquals("foo14", modules.get(25));
         assertEquals("foo15", modules.get(26));
-        assertTrue(modules.size() == 27);
+        assertEquals("foo16", modules.get(27));
+        assertTrue(modules.size() == 28);
 
         // test require detection with a trailing comment
         assertValidRequire("require \"foo.bar\" -- some comment", "foo.bar");
@@ -122,14 +129,19 @@ public class LuaScannerTest {
         assertTrue(property != null && property.status == status && property.line == line);
     }
 
-    private List<Property> scanProperties(String path) throws IOException {
-        String source = getFile(path);
-        return LuaScanner.scanProperties(source);
+    private List<Property> getPropertiesFromString(String s) throws IOException {
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(s);
+        return scanner.getProperties();
+    }
+
+    private List<Property> getPropertiesFromFile(String path) throws IOException {
+        return getPropertiesFromString(getFile(path));
     }
 
     @Test
     public void testProps() throws Exception {
-        List<Property> properties = scanProperties("test_props.lua");
+        List<Property> properties = getPropertiesFromFile("test_props.lua");
 
         assertEquals(8, properties.size());
         assertProperty(properties, "prop1", new Double(0), 10);
@@ -145,7 +157,9 @@ public class LuaScannerTest {
     @Test
     public void testPropsStripped() throws Exception {
         String source = getFile("test_props.lua");
-        List<Property> properties = LuaScanner.scanProperties(source);
+        LuaScanner scanner = new LuaScanner();
+        source = scanner.parse(source);
+        List<Property> properties = scanner.getProperties();
         assertEquals(8, properties.size());
         assertProperty(properties, "prop1", new Double(0), 10);
         assertProperty(properties, "prop2", new Double(0), 13);
@@ -155,14 +169,17 @@ public class LuaScannerTest {
         assertEquals(Status.INVALID_ARGS, properties.get(5).status);
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
-        source = LuaScanner.stripProperties(source);
-        properties = LuaScanner.scanProperties(source);
+        
+        // parse the already stripped source
+        // there should be no properties left
+        scanner.parse(source);
+        properties = scanner.getProperties();
         assertEquals(0, properties.size());
     }
 
     @Test
     public void testPropsNumber() throws Exception {
-        List<Property> properties = scanProperties("test_props_number.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_number.lua");
 
         assertEquals(4, properties.size());
         assertProperty(properties, "prop1", new Double(12), 0);
@@ -173,7 +190,7 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsHash() throws Exception {
-        List<Property> properties = scanProperties("test_props_hash.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_hash.lua");
 
         assertEquals(4, properties.size());
         assertProperty(properties, "prop1", "hash", 0);
@@ -184,7 +201,7 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsUrl() throws Exception {
-        List<Property> properties = scanProperties("test_props_url.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_url.lua");
 
         assertEquals(4, properties.size());
         assertProperty(properties, "prop1", "url", 0);
@@ -195,7 +212,7 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsVec3() throws Exception {
-        List<Property> properties = scanProperties("test_props_vec3.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_vec3.lua");
 
         assertEquals(3, properties.size());
         assertProperty(properties, "prop1", new Vector3d(), 0);
@@ -205,7 +222,7 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsVec4() throws Exception {
-        List<Property> properties = scanProperties("test_props_vec4.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_vec4.lua");
 
         assertEquals(3, properties.size());
         assertProperty(properties, "prop1", new Vector4d(), 0);
@@ -215,7 +232,7 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsQuat() throws Exception {
-        List<Property> properties = scanProperties("test_props_quat.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_quat.lua");
 
         assertEquals(2, properties.size());
         assertProperty(properties, "prop1", new Quat4d(), 0);
@@ -226,7 +243,7 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsBool() throws Exception {
-        List<Property> properties = scanProperties("test_props_bool.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_bool.lua");
 
         assertEquals(2, properties.size());
         assertProperty(properties, "prop1", true, 0);
@@ -235,7 +252,7 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsMaterial() throws Exception {
-        List<Property> properties = scanProperties("test_props_material.lua");
+        List<Property> properties = getPropertiesFromFile("test_props_material.lua");
 
         assertEquals(4, properties.size());
         assertProperty(properties, "prop1", "material", 0);

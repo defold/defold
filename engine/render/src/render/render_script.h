@@ -1,4 +1,6 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -17,6 +19,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
+#include <graphics/graphics.h>
 #include <script/script.h>
 
 #include "render.h"
@@ -57,7 +60,7 @@ namespace dmRender
         int                         m_ContextTableReference;
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size);
+    void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size);
     void FinalizeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context);
 }
 

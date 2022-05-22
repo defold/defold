@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -158,6 +160,7 @@ namespace dmGameObject
         "init",
         "final",
         "update",
+        "fixed_update",
         "on_message",
         "on_input",
         "on_reload"
@@ -1729,21 +1732,33 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# cancels all animations of the named property of the specified game object or component
+    /*# cancels all or specified property animations of the game object or component
      *
-     * By calling this function, all stored animations of the given property will be canceled.
+     * By calling this function, all or specified stored property animations of the game object or component will be canceled.
      *
      * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how to animate them.
      *
      * @name go.cancel_animations
-     * @param url [type:string|hash|url] url of the game object or component having the property
-     * @param property [type:string|hash] id of the property to cancel
+     * @param url [type:string|hash|url] url of the game object or component
+     * @param [property] [type:string|hash] optional id of the property to cancel
      * @examples
      *
      * Cancel the animation of the position of a game object:
      *
      * ```lua
      * go.cancel_animations(go.get_id(), "position")
+     * ```
+     * 
+     * Cancel all property animations of the current game object:
+     * 
+     * ```lua
+     * go.cancel_animations(".")
+     * ```
+     * 
+     * Cancel all property animations of the sprite component of the current game object:
+     * 
+     * ```lua
+     * go.cancel_animations("#sprite")
      * ```
      */
     int Script_CancelAnimations(lua_State* L)
@@ -1763,13 +1778,16 @@ namespace dmGameObject
             luaL_error(L, "go.animate can only animate instances within the same collection.");
         }
         dmhash_t property_id = 0;
-        if (lua_isstring(L, 2))
+        if (top >= 2 && !lua_isnil(L, 2))
         {
-            property_id = dmHashString64(lua_tostring(L, 2));
-        }
-        else
-        {
-            property_id = dmScript::CheckHash(L, 2);
+            if (lua_isstring(L, 2))
+            {
+                property_id = dmHashString64(lua_tostring(L, 2));
+            }
+            else
+            {
+                property_id = dmScript::CheckHash(L, 2);
+            }
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)

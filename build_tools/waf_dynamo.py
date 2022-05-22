@@ -1,3 +1,17 @@
+# Copyright 2020-2022 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+# 
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+# 
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 import os, sys, subprocess, shutil, re, stat, glob, zipfile
 import Build, Options, Utils, Task, Logs
 import Configure
@@ -69,11 +83,11 @@ def transform_runnable_path(platform, path):
 SDK_ROOT=sdk.SDK_ROOT
 
 ANDROID_ROOT=SDK_ROOT
-ANDROID_BUILD_TOOLS_VERSION = '30.0.3'
+ANDROID_BUILD_TOOLS_VERSION = '32.0.0'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
 ANDROID_NDK_ROOT=os.path.join(SDK_ROOT,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
-ANDROID_TARGET_API_LEVEL='30' # Android 11.0
-ANDROID_MIN_API_LEVEL='14'
+ANDROID_TARGET_API_LEVEL='31' # Android 12.0
+ANDROID_MIN_API_LEVEL='16'
 ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
@@ -353,7 +367,7 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFAudio'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFoundation'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
@@ -951,12 +965,12 @@ def android_package(task):
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
 
-    dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    d8 = '%s/android-sdk/build-tools/%s/d8' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-
-    root = os.path.normpath(os.path.join(os.path.dirname(task.classes_dex.abspath(task.env)), '..', '..'))
+    dex_dir = os.path.dirname(task.classes_dex.abspath(task.env))
+    root = os.path.normpath(os.path.join(dex_dir, '..', '..'))
     libs = os.path.join(root, 'libs')
     bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
@@ -988,9 +1002,9 @@ def android_package(task):
         dex_input = dx_jars
 
     if dex_input:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
+        ret = bld.exec_command('%s --output %s %s' % (d8, dex_dir, ' '.join(dex_input)))
         if ret != 0:
-            error('Error running dx')
+            error('Error running d8')
             return 1
 
     # strip the executable

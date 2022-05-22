@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -84,6 +86,7 @@ namespace dmScript
      * - [type:number] `timeout`: timeout in seconds
      * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200
      * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304
+     * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true.
      *
      *
      * @examples
@@ -182,6 +185,7 @@ namespace dmScript
             uint64_t timeout = g_Timeout;
             const char* path = 0;
             bool ignore_cache = false;
+            bool chunked_transfer = true;
             if (top > 5 && !lua_isnil(L, 6)) {
                 luaL_checktype(L, 6, LUA_TTABLE);
                 lua_pushvalue(L, 6);
@@ -199,6 +203,10 @@ namespace dmScript
                     else if (strcmp(attr, "ignore_cache") == 0)
                     {
                         ignore_cache = lua_toboolean(L, -1);
+                    }
+                    else if (strcmp(attr, "chunked_transfer") == 0)
+                    {
+                        chunked_transfer = lua_toboolean(L, -1);
                     }
 
                     lua_pop(L, 1);
@@ -222,6 +230,7 @@ namespace dmScript
             request->m_Timeout = timeout;
             request->m_Path = path;
             request->m_IgnoreCache = ignore_cache;
+            request->m_ChunkedTransfer = chunked_transfer;
 
             uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1;
             dmMessage::URL receiver;
@@ -301,6 +310,7 @@ namespace dmScript
         sl.NewScriptWorld = 0x0;
         sl.DeleteScriptWorld = 0x0;
         sl.UpdateScriptWorld = 0x0;
+        sl.FixedUpdateScriptWorld = 0x0;
         sl.InitializeScriptInstance = 0x0;
         sl.FinalizeScriptInstance = 0x0;
         RegisterScriptExtension(context, &sl);

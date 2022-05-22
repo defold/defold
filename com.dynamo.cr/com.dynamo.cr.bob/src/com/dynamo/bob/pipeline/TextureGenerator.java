@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -47,6 +49,7 @@ import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
 import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
@@ -401,20 +404,26 @@ public class TextureGenerator {
     // It will always try to flip on Y axis since this is the byte order that OpenGL expects for regular/most textures,
     // for those methods without this argument.
     public static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
+        TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
+        TimeProfiler.stop();
         return generate(origImage, null, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
     public static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+        TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
+        TimeProfiler.stop();
         return generate(origImage, texProfile, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
     public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
+        TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
+        TimeProfiler.stop();
         if (origImage == null) {
             throw new TextureGeneratorException("Unknown texture format.");
         }
@@ -422,8 +431,10 @@ public class TextureGenerator {
     }
 
     public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+        TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
+        TimeProfiler.stop();
         return generate(origImage, texProfile, compress, flipAxis);
     }
 
@@ -436,6 +447,7 @@ public class TextureGenerator {
     public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
+        TimeProfiler.start("generateTexture");
         BufferedImage image;
         if (origImage.getType() != BufferedImage.TYPE_4BYTE_ABGR) {
             image = convertImage(origImage, BufferedImage.TYPE_4BYTE_ABGR);
@@ -490,7 +502,9 @@ public class TextureGenerator {
         }
 
         textureBuilder.setType(Type.TYPE_2D);
-        return textureBuilder.build();
+        TextureImage textureImage = textureBuilder.build();
+        TimeProfiler.stop();
+        return textureImage;
 
     }
 

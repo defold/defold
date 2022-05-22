@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,17 +40,26 @@
 
 namespace dmResourceArchive
 {
+
+    static Result DecryptWithXtea(void* buffer, uint32_t buffer_len);
+
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
-    int             g_NumArchiveLoaders = 0;
-    ArchiveLoader   g_ArchiveLoader[4];
+    int              g_NumArchiveLoaders = 0;
+    ArchiveLoader    g_ArchiveLoader[4];
+    FDecryptResource g_ResourceDecryption = DecryptWithXtea;
+
 
     ArchiveIndex::ArchiveIndex()
     {
         memset(this, 0, sizeof(ArchiveIndex));
         m_EntryDataOffset = dmEndian::ToHost((uint32_t)sizeof(ArchiveIndex));
         m_HashOffset = dmEndian::ToHost((uint32_t)sizeof(ArchiveIndex));
+    }
+
+    void RegisterResourceDecryption(FDecryptResource decrypt_resource) {
+        g_ResourceDecryption = decrypt_resource;
     }
 
     void ClearArchiveLoaders()
@@ -398,7 +409,7 @@ namespace dmResourceArchive
         return RESULT_NOT_FOUND;
     }
 
-    Result DecryptBuffer(void* buffer, uint32_t buffer_len)
+    static Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
     {
         dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
         if (cr != dmCrypt::RESULT_OK)
@@ -406,6 +417,11 @@ namespace dmResourceArchive
             return RESULT_UNKNOWN;
         }
         return RESULT_OK;
+    }
+
+    Result DecryptBuffer(void* buffer, uint32_t buffer_len)
+    {
+        return g_ResourceDecryption(buffer, buffer_len);
     }
 
     Result DecompressBuffer(const void* compressed_buf, uint32_t compressed_size, void* buffer, uint32_t buffer_len)
@@ -498,12 +514,13 @@ namespace dmResourceArchive
         if(encrypted)
         {
             assert(temp_buffer || compressed_buf == buffer);
-            dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) compressed_buf, compressed_size, (const uint8_t*) KEY, strlen(KEY));
-            if (cr != dmCrypt::RESULT_OK)
+
+            Result r = DecryptBuffer(compressed_buf, compressed_size);
+            if (r != RESULT_OK)
             {
                 if (temp_buffer)
                     free(compressed_buf);
-                return RESULT_UNKNOWN;
+                return r;
             }
         }
 

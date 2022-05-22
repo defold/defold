@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -222,6 +224,8 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
 #define dmLogOnceFatal(format, args... ) dmLogOnceInternal(dmLogFatal, format, ## args )
 #endif
 
+#endif // NDEBUG
+
 /*# dmLog:LogListener callback typedef
  *
  * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
@@ -241,7 +245,7 @@ typedef void (*LogListener)(Severity severity, const char* domain, const char* f
  * This listener recieve logs even in release bundle.
  *
  * @name dmLog::RegisterLogListener
- * @param listener [type:dmLog::LogListener] 
+ * @param listener [type:dmLog::LogListener]
  */
 void RegisterLogListener(LogListener listener);
 
@@ -263,7 +267,6 @@ void UnregisterLogListener(LogListener listener);
  */
 void Setlevel(Severity severity);
 
-#endif
 } //namespace dmLog
 
 #endif // DMSDK_LOG_H

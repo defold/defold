@@ -73,6 +73,10 @@
    :default false,
    :path ["engine" "run_while_iconified"]}
   {:type :integer,
+   :help "enables some components to use a fixed frame rate. 0 means it's disabled. (Hz)",
+   :default 60,
+   :path ["engine" "fixed_update_frequency"]}
+  {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
    :default 960,
@@ -107,10 +111,13 @@
    :default false,
    :path ["display" "dynamic_orientation"]}
   {:type :integer,
-   :help "if Vsync checked, snaps to the closest matching swap interval for the set frame cap. Otherwise uses timers to respect the set value, 0 means no cap. For deprecated 'variable_dt' behavior, set to 0 and uncheck 'Vsync'",
-   :label "Frame cap"
+   :help "Number of game loop updates per seconds. Set to 0 for variable frame rate. Set to e.g. 30 to throttle the update frequency.",
    :default 0,
    :path ["display" "update_frequency"]}
+  {:type :integer,
+   :help "the vsync interval. 0 means it's disabled",
+   :default 1,
+   :path ["display" "swap_interval"]}
   {:type :boolean,
    :help "Vertical sync, rely on hardware vsync for frame timing. Can be overridden depending on graphics driver and platform specifics. For deprecated 'variable_dt' behavior, uncheck this setting and set frame cap 0",
    :default true,
@@ -151,6 +158,10 @@
    :default "2D",
    :path ["physics" "type"]
    :options [["2D" "2D"] ["3D" "3D"]]}
+  {:type :boolean,
+   :help "If the physics should use fixed time steps. See engine.fixed_update_frequency",
+   :default false,
+   :path ["physics" "use_fixed_timestep"]}
   {:type :boolean,
    :help
    "visualize physics for debugging",
@@ -228,7 +239,11 @@
    :help
    "minimum velocity that will result in ellastic collisions",
    :default 1.0,
-   :path ["physics" "velocity_threshold"]},   
+   :path ["physics" "velocity_threshold"]},
+  {:type :integer,
+   :help "max number of steps in the simulation when using fixed timestep (3D only)",
+   :default 2,
+   :path ["physics" "max_fixed_timesteps"]},
   {:type :string,
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
@@ -613,7 +628,7 @@
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 30,
+   :default 31,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",
@@ -750,7 +765,11 @@
    :help "comma separated list of engine arguments",
    :default "",
    :path ["html5" "engine_arguments"]}
-   {:type :boolean,
+  {:type :boolean,
+   :help "set to true to enable streaming of the wasm file (faster and uses less memory, but requires MIME type 'application/wasm')",
+   :default false
+   :path ["html5" "wasm_streaming"]}
+  {:type :boolean,
    :help "set to true if you want to have the fullscreen button",
    :default true
    :path ["html5" "show_fullscreen_button"]}
@@ -806,6 +825,7 @@
   "resource" {:help "Resource loading and management related settings"},
   "factory" {:help "GameObject factory related settings"},
   "graphics" {:help "Graphics related settings"},
+  "engine" {:help "Runtime settings for the engine"},
   "bootstrap" {:help "Initial settings for the engine"},
   "label" {:help "Label related settings"},
   "collection" {:help "Collection related settings"},

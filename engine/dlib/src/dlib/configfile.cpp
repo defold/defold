@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2022 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -270,7 +272,7 @@ namespace dmConfigFile
         buf[i] = '\0';
     }
 
-    static void ParseEntry(Context* context)
+    static void ParseEntry(Context* context, char* value_buf, int value_len)
     {
         char key_buf[CATEGORY_MAX_SIZE + 512];
         int category_len = strlen(context->m_CategoryBuffer);
@@ -285,9 +287,7 @@ namespace dmConfigFile
         Expect(context, '=');
         EatBlank(context);
 
-        char value_buf[2048];
-
-        ParseLiteral(context, value_buf, sizeof(value_buf));
+        ParseLiteral(context, value_buf, value_len);
 
         for (int i = 0; i < context->m_Argc; ++i)
         {
@@ -322,11 +322,14 @@ namespace dmConfigFile
 
     static void Parse(Context* context)
     {
+        int value_len = context->m_BufferSize;
+        char* value_buf = new char[value_len];
+
         while (true)
         {
             EatSpace(context);
             if (BufferEof(context))
-                return;
+                break;
 
             if (PeekChar(context) == '[')
             {
@@ -334,9 +337,10 @@ namespace dmConfigFile
             }
             else
             {
-                ParseEntry(context);
+                ParseEntry(context, value_buf, value_len);
             }
         }
+        delete[] value_buf;
     }
 
     struct HttpContext
