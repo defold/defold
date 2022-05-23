@@ -323,7 +323,7 @@
           build-artifacts (project-build-artifacts project main-collection (g/make-evaluation-context))
           textures-by-texture-set (into {}
                                         (keep (fn [{:keys [resource] :as artifact}]
-                                                (when (= "texturesetc" (resource/ext resource))
+                                                (when (or (= "t.texturesetc" (resource/ext resource)) (= "a.texturesetc" (resource/ext resource)))
                                                   [(resource/proj-path resource)
                                                    (:texture
                                                      (protobuf/bytes->map TextureSetProto$TextureSet
@@ -605,7 +605,7 @@
       (is (contains? content-by-source "/graphics/atlas.atlas"))
       (is (contains? content-by-source "/fonts/big_score.font"))
       (let [textures (zipmap (map :name (:textures desc)) (map :texture (:textures desc)))]
-        (is (= "/gui/gui.t.texturesetc" (get textures "main")))
+        (is (= "/gui/gui.a.texturesetc" (get textures "main")))
         (is (= "/graphics/atlas.a.texturesetc" (get textures "sub_main"))))
       (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
         (is (= "/builtins/fonts/system_font.fontc" (get fonts "system_font")))
