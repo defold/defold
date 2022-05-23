@@ -2906,8 +2906,10 @@
   (active? [selection] (or (selection->gui-node selection)
                            (selection->layer-node selection)))
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
-                              node-child-index (g/node-value selected-node-id :child-index)]
-                          (pos? node-child-index)))
+                              parent (core/scope selected-node-id)
+                              node-child-index (g/node-value selected-node-id :child-index)
+                              first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices))]
+                          (< first-index node-child-index)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected -1))))
 
@@ -2917,8 +2919,8 @@
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
                               parent (core/scope selected-node-id)
                               node-child-index (g/node-value selected-node-id :child-index)
-                              child-indices (g/node-value parent :child-indices)]
-                          (< node-child-index (dec (count child-indices)))))
+                              last-index (transduce (map second) max 0 (g/node-value parent :child-indices))]
+                          (< node-child-index last-index)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected 1))))
 
