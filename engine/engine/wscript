@@ -178,7 +178,7 @@ def build(bld):
         conf.fatal(ex.msg)
 
     if build_util.get_target_os() == 'web':
-        srcPath = os.path.join('build', 'default', 'src')
+        srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
             for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map'):

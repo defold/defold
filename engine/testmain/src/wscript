@@ -24,5 +24,4 @@ def build(bld):
                   source       = bld.path.ant_glob(source_dirs),
                   target       = 'testmain',
                   install_path = build_util.get_library_path())
-    #b.find_sources_in_dirs(source_dirs)
 

@@ -110,7 +110,7 @@ def build(bld):
 
     platform_bin_install_path = os.path.join(bld.env["PREFIX"], 'bin', bld.env['PLATFORM'])
 
-    obj = bld.program(
+    obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'engine_rs WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CARES CRASH X engine engine_service'.split() + graphics_lib + sound_lib + additional_libs,
         web_libs = web_libs,
@@ -122,7 +122,7 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine',
         bundleid = 'com.defold.engine',
-        source=main_cpp.split(),
+        source = main_cpp.split(),
         proguard = ['../content/builtins/manifests/android/dmengine.pro'],
         install_path = platform_bin_install_path,
         jars = android_jar_paths)
@@ -138,7 +138,7 @@ def build(bld):
 
     bld.add_group()
 
-    obj = bld.program(
+    obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CARES CRASH X engine_release engine_service_null'.split() + graphics_lib + sound_lib + additional_libs,
         web_libs = web_libs,
@@ -167,7 +167,7 @@ def build(bld):
 
     bld.add_group()
 
-    obj = bld.program(
+    obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF Psapi LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CARES CRASH engine engine_service'.split() + graphics_lib.split() + additional_libs,
         exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,

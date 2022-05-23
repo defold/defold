@@ -14,6 +14,4 @@ def build(bld):
                     use          = 'DLIB BASIS_ENCODER texc',
                     proto_gen_py = True,
                     target       = 'test_texc')
-    # test_texc.find_sources_in_dirs(['.'])
-
     test_texc.install_path = None

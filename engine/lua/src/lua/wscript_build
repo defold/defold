@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os, re
+from BuildUtility import create_build_utility
 
 EXTRA_DEFINES = []
 
@@ -7,13 +8,24 @@ if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
     # Note: LUA_NO_SYSTEM is our own invention, mimicking the LJ_NO_SYSTEM
     EXTRA_DEFINES = ['LUA_NO_SYSTEM']
 
+build_util = create_build_utility(bld.env)
+
+lua_lib_source = ['lapi.c', 'lcode.c', 'ldebug.c', 'ldo.c',
+                  'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c',
+                  'lmem.c', 'lobject.c', 'lopcodes.c', 'lparser.c',
+                  'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c',
+                  'lundump.c', 'lvm.c', 'lzio.c', 'lauxlib.c',
+                  'lbaselib.c', 'ldblib.c', 'liolib.c',
+                  'lmathlib.c', 'loslib.c', 'ltablib.c',
+                  'lstrlib.c', 'loadlib.c', 'linit.c']
+
 lua_lib = bld.stlib(features = 'c cxx cstaticlib',
                     name = 'lua_static',
                     includes = '. ../',
                     target = 'lua',
+                    source = lua_lib_source,
+                    install_path = build_util.get_library_path(),
                     defines = ['LUA_ANSI'] + EXTRA_DEFINES)
-
-lua_lib.source = ['lapi.c', 'lcode.c', 'ldebug.c', 'ldo.c', 'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c', 'lmem.c', 'lobject.c', 'lopcodes.c', 'lparser.c', 'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c', 'lundump.c', 'lvm.c', 'lzio.c', 'lauxlib.c', 'lbaselib.c', 'ldblib.c', 'liolib.c', 'lmathlib.c', 'loslib.c', 'ltablib.c', 'lstrlib.c', 'loadlib.c', 'linit.c']
 
 is_desktop = bld.env.PLATFORM  in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
 if is_desktop:

@@ -537,7 +537,7 @@ def web_exported_functions(self):
     if 'web' not in self.env.PLATFORM:
         return
 
-    use_crash = 'CRASH' in self.uselib or self.name in ('crashext', 'crashext_null')
+    use_crash = hasattr(self, 'use') and 'CRASH' in self.use or self.name in ('crashext', 'crashext_null')
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
@@ -1373,7 +1373,7 @@ def js_web_web_link_flags(self):
                 js = os.path.join(lib_dirs[lib], lib)
             else:
                 js = os.path.join(jsLibHome, lib)
-            self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
+            self.env.append_value('LINKFLAGS', ['--js-library', js])
 
 Task.task_factory('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
                       color='YELLOW',
@@ -1612,10 +1612,11 @@ def detect(conf):
         conf.env['AR'] = '%s/emar' % (bin)
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
-        conf.env['program_PATTERN']='%s.js'
+        conf.env['cprogram_PATTERN']='%s.js'
+        conf.env['cxxprogram_PATTERN']='%s.js'
 
         # Unknown argument: -Bstatic, -Bdynamic
-        conf.env['STATICLIB_MARKER']=''
+        conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
     if Options.options.static_analyze:
@@ -1647,7 +1648,7 @@ def detect(conf):
         conf.load('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
-        conf.env['STATICLIB_MARKER']=''
+        conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
     if re.match('.*?linux', platform):

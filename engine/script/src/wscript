@@ -31,7 +31,7 @@ def build(bld):
 
     # luabitop
     if 'lua' in waflib.Utils.to_list(script.env['STLIB_LUA']):
-        script.find_sources_in_dirs('bitop')
+        script.source += bld.path.ant_glob('bitop/*.c')
 
     # luasocket
     if platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
