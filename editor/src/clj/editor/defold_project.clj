@@ -37,6 +37,7 @@
             [internal.cache :as c]
             [schema.core :as s]
             [service.log :as log]
+            [util.coll :refer [pair]]
             [util.debug-util :as du]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
@@ -45,6 +46,9 @@
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *load-cache* nil)
+
+(defonce load-metrics-atom (du/when-metrics (atom nil)))
+(defonce resource-change-metrics-atom (du/when-metrics (atom nil)))
 
 (def ^:private TBreakpoint
   {:resource s/Any
@@ -171,7 +175,7 @@
                                                     ^long start-time @resource-metrics-load-timer]
                                                 (du/update-metrics resource-metrics resource-path :process-load-tx-data (- end-time start-time)))))
         load-txs (doall
-                   (for [[node-index node-id] (map-indexed #(clojure.lang.MapEntry/create (inc %1) %2) node-ids)]
+                   (for [[node-index node-id] (map-indexed #(pair (inc %1) %2) node-ids)]
                      (let [resource (node-id->resource node-id)
                            resource-path (resource/resource->proj-path resource)
                            loading-progress (progress/make (str "Loading " resource-path)
@@ -248,11 +252,16 @@
   ([project resources]
    (load-project project resources progress/null-render-progress!))
   ([project resources render-progress!]
-   (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
+   (assert (empty? (g/node-value project :nodes)) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
-     (let [nodes (make-nodes! project resources)
+     (let [process-metrics (du/make-metrics-collector)
+           resource-metrics (du/make-metrics-collector)
+           transaction-metrics (du/make-metrics-collector)
+           nodes (du/measuring process-metrics :make-new-nodes
+                   (make-nodes! project resources))
            script-intel (script-intelligence project)]
-       (load-nodes! project nodes render-progress! {} nil nil)
+       (du/measuring process-metrics :load-new-nodes
+         (load-nodes! project nodes render-progress! {} resource-metrics transaction-metrics))
        (when-let [game-project (get-resource-node project "/game.project")]
          (g/transact
            (concat
@@ -260,6 +269,12 @@
              (g/connect game-project :display-profiles-data project :display-profiles)
              (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
+       (du/when-metrics
+         (reset! load-metrics-atom
+                 {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
+                  :process-metrics @process-metrics
+                  :resource-metrics @resource-metrics
+                  :transaction-metrics @transaction-metrics}))
        project))))
 
 (defn make-embedded-resource [project type data]
@@ -452,8 +467,6 @@
 
 (def ^:private make-resource-nodes-by-path-map
   (partial into {} (map (juxt (comp resource/proj-path second) first))))
-
-(defonce ^:private resource-change-metrics-atom (du/when-metrics (atom nil)))
 
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]

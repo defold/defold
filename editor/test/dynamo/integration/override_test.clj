@@ -284,7 +284,7 @@
       (let [[main cache-node or-main] (ts/tx-nodes (g/make-nodes world [main StringInput
                                                                         cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                      (g/connect cache :cached-value main :value)
-                                                     (g/override main {:traverse? (constantly false)})))]
+                                                     (g/override main {:traverse-fn g/never-override-traverse-fn})))]
         (is (= cache-node (ffirst (g/sources-of main :value))))
         (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
   (testing "existing override"
@@ -924,7 +924,7 @@
     (let [[script] (ts/tx-nodes (g/make-nodes world [script Script]))
           [go comp or-script] (ts/tx-nodes (g/make-nodes world [go GameObject
                                                                 comp Component]
-                                             (g/override script {:traverse? (constantly true)}
+                                             (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                          (fn [evaluation-context id-mapping]
                                                            (let [or-script (id-mapping script)]
                                                              (concat
@@ -932,14 +932,14 @@
                                                                (g/connect or-script :_node-id comp :instance)))))))
           [coll inst or-go] (ts/tx-nodes (g/make-nodes world [coll Collection
                                                               inst GameObjectInstance]
-                                           (g/override go {:traverse? (constantly true)}
+                                           (g/override go {:traverse-fn g/always-override-traverse-fn}
                                                        (fn [evaluation-context id-mapping]
                                                          (let [or-go (id-mapping go)]
                                                            (concat
                                                              (g/connect inst :_node-id coll :instances)
                                                              (g/connect or-go :_node-id inst :source)))))))
           [comp-2 or-script-2] (ts/tx-nodes (g/make-nodes world [comp Component]
-                                              (g/override script {:traverse? (constantly true)}
+                                              (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                           (fn [evaluation-context id-mapping]
                                                             (let [or-script (id-mapping script)]
                                                               (g/connect or-script :_node-id comp :instance))))))
@@ -952,7 +952,7 @@
     (let [[script] (ts/tx-nodes (g/make-nodes world [script Script]))
           [go comp or-script] (ts/tx-nodes (g/make-nodes world [go GameObject
                                                                 comp Component]
-                                             (g/override script {:traverse? (constantly true)}
+                                             (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                          (fn [evaluation-context id-mapping]
                                                            (let [or-script (id-mapping script)]
                                                              (concat
@@ -960,7 +960,7 @@
                                                                (g/connect or-script :_node-id comp :instance)))))))
           [coll inst or-go] (ts/tx-nodes (g/make-nodes world [coll Collection
                                                               inst GameObjectInstance]
-                                           (g/override go {:traverse? (constantly false)}
+                                           (g/override go {:traverse-fn g/never-override-traverse-fn}
                                                        (fn [evaluation-context id-mapping]
                                                          (let [or-go (id-mapping go)]
                                                            (concat
@@ -985,12 +985,12 @@
                                       (ts/tx-nodes (g/make-nodes world [coll Collection
                                                                         go-inst GameObjectInstance]
                                                      (g/connect go-inst :_node-id coll :instances)
-                                                     (g/override go {:traverse? (constantly true)}
+                                                     (g/override go {:traverse-fn g/always-override-traverse-fn}
                                                                  (fn [evaluation-context id-mapping]
                                                                    (let [or-go (id-mapping go)]
                                                                      (g/connect or-go :_node-id go-inst :source)))))))
           [comp or-script] (ts/tx-nodes (g/make-nodes world [comp Component]
-                                          (g/override script {:traverse? (constantly true)}
+                                          (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                       (fn [evaluation-context id-mapping]
                                                         (let [or-script (id-mapping script)]
                                                           (concat
@@ -1062,4 +1062,3 @@
         (let [output-freqs (frequencies (mapcat g/outputs all-nodes))
               input-freqs (frequencies (mapcat g/inputs all-nodes))]
           (is (= output-freqs input-freqs)))))))
-

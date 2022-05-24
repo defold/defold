@@ -11,14 +11,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph
-  (:require [clojure.set :as set]
-            [clojure.core.reducers :as r]
+  (:require [clojure.core.reducers :as r]
+            [clojure.set :as set]
             [internal.graph.types :as gt]
-            [internal.util :as util]
             [internal.node :as in]
+            [internal.util :as util]
             [util.coll :refer [pair]])
-  (:import [internal.graph.types Arc]
-           [clojure.lang IPersistentSet]))
+  (:import [clojure.lang IPersistentSet]
+           [internal.graph.types Arc]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -359,11 +359,14 @@
   `(Arc. ~source-id ~source-label ~target-id ~target-label))
 
 (defn arcs->tuples [arcs]
-  (mapv (fn [^Arc arc] [(.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)]) arcs))
+  ;; TODO: Get rid of this and expose Arc instances directly.
+  (mapv (fn [^Arc arc]
+          [(.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)])
+        arcs))
 
-(defn arc-endpoints-p [p arc]
-  (and (p (.source-id ^Arc arc))
-       (p (.target-id ^Arc arc))))
+(defn arc-endpoints-p [p ^Arc arc]
+  (and (p (.source-id arc))
+       (p (.target-id arc))))
 
 (defn empty-graph
   []
@@ -425,7 +428,7 @@
 
 (defn basis-remove-node
   ([basis node-id]
-   (basis-remove-node basis node-id (some-> (get-in basis [:graphs (gt/node-id->graph-id node-id) :nodes node-id]) gt/original)))
+   (basis-remove-node basis node-id (gt/original-node basis node-id) false))
   ([basis node-id original-id]
    (basis-remove-node basis node-id original-id false))
   ([basis node-id original-id original-deleted?]
@@ -520,9 +523,9 @@
 ;; ---------------------------------------------------------------------------
 
 (defn pre-traverse
-  "Traverses a graph depth-first preorder from start, successors being
+  "Traverses a graph depth-first preorder from start, succ being
   a function that returns direct successors for the node. Returns a
-  lazy seq of nodes."
+  vector of node-ids."
   [basis start succ & {:keys [seen] :or {seen #{}}}]
   (loop [stack start
          next []
@@ -530,12 +533,19 @@
          result (transient [])]
     (if-let [nxt (first stack)]
       (if (contains? seen nxt)
-        (recur (rest stack) next seen result)
-        (let [seen (conj seen nxt)]
-          (recur (succ basis nxt) (conj next (rest stack))
-                 seen (conj! result nxt))))
+        (recur (rest stack)
+               next
+               seen
+               result)
+        (recur (succ basis nxt)
+               (conj next (rest stack))
+               (conj seen nxt)
+               (conj! result nxt)))
       (if-let [next-stack (peek next)]
-        (recur next-stack (pop next) seen result)
+        (recur next-stack
+               (pop next)
+               seen
+               result)
         (persistent! result)))))
 
 (defn get-overrides [basis node-id]
@@ -548,8 +558,11 @@
 (defn override-originals [basis node-id]
   (into '() (take-while some? (iterate (partial override-original basis) node-id))))
 
-(defn- override-of [graph node-id override-id]
-  (some #(and (= override-id (gt/override-id (node-id->node graph %))) %) (overrides graph node-id)))
+(defn override-of [graph node-id override-id]
+  (some (fn [override-node-id]
+          (when (= override-id (gt/override-id (node-id->node graph override-node-id)))
+            override-node-id))
+        (overrides graph node-id)))
 
 (defn- node-id->arcs [graph node-id arc-kw]
   (into [] cat (vals (-> graph (get arc-kw) (get node-id)))))
@@ -622,8 +635,8 @@
 
 (defn cascade-delete-sources
   "Successors function for use with pre-traverse that produces all the node ids
-  that will will be deleted along with the original node. Duplicates produced by
-  this function will be discarded by pre-traverse."
+  that will be deleted along with the original node. Duplicates produced by this
+  function will be discarded by pre-traverse."
   [basis node-id]
   (when-some [node (gt/node-by-id-at basis node-id)]
     (let [override-id (gt/override-id node)]
@@ -754,15 +767,16 @@
 (defn- lift-target-arcs [basis target-id target-override-chain arcs]
   (loop [override-chain target-override-chain
          arcs arcs]
-    (if (empty? override-chain)
-      (mapv #(assoc % :target-id target-id) arcs)
-      (recur (rest override-chain)
-             (mapv (fn [^Arc arc]
-                     (let [source (.source-id arc)]
-                       (if-some [source-override-node (override-of (node-id->graph basis source) source (first override-chain))]
-                         (assoc arc :source-id source-override-node)
-                         arc)))
-                   arcs)))))
+    (let [override-id (first override-chain)]
+      (if (nil? override-id)
+        (mapv #(assoc % :target-id target-id) arcs)
+        (recur (rest override-chain)
+               (mapv (fn [^Arc arc]
+                       (let [source-id (.source-id arc)]
+                         (if-some [source-override-node-id (override-of (node-id->graph basis source-id) source-id override-id)]
+                           (assoc arc :source-id source-override-node-id)
+                           arc)))
+                     arcs))))))
 
 (defn- collect-override-chains+explicit-arcs
   "Used by arcs-by-source to find explicit arcs from all original nodes
@@ -893,7 +907,7 @@
                                            (let [arcs (graph-explicit-arcs-by-target graph node-id label)
                                                  node (gt/node-by-id-at this node-id)
                                                  original (gt/original node)]
-                                             (if (and (empty? arcs) original)
+                                             (if (and original (empty? arcs))
                                                (recur original (conj chain (gt/override-id node)))
                                                [chain arcs])))]
       (lift-target-arcs this node-id override-chain explicit-arcs)))

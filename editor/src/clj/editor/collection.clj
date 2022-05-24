@@ -264,12 +264,14 @@
     :tags
     (contains? :overridable-properties)))
 
-(defn- or-go-traverse? [basis ^Arc arc]
-  (let [source-node-id (.source-id arc)]
-    (or (overridable-component? basis source-node-id)
-        (g/node-instance-of-any? basis source-node-id
-                                 [resource-node/ResourceNode
-                                  script/ScriptPropertyNode]))))
+(def ^:private or-go-traverse-fn
+  (g/make-override-traverse-fn
+    (fn or-go-traverse-fn [basis ^Arc arc]
+      (let [source-node-id (.source-id arc)]
+        (or (overridable-component? basis source-node-id)
+            (g/node-instance-of-any? basis source-node-id
+                                     [resource-node/ResourceNode
+                                      script/ScriptPropertyNode]))))))
 
 (defn- path-error [node-id resource]
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
@@ -304,7 +306,7 @@
                        (when-some [{connect-tx-data :tx-data go-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                          (concat
                            connect-tx-data
-                           (g/override go-node {:traverse? or-go-traverse?}
+                           (g/override go-node {:traverse-fn or-go-traverse-fn}
                                        (fn [evaluation-context id-mapping]
                                          (let [or-go-node (get id-mapping go-node)
                                                comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
@@ -558,13 +560,15 @@
              :outline-reference? true
              :alt-outline source-outline))))
 
-(defn- or-coll-traverse? [basis ^Arc arc]
-  (let [source-node-id (.source-id arc)]
-    (or (overridable-component? basis source-node-id)
-        (g/node-instance-of-any? basis source-node-id
-                                 [resource-node/ResourceNode
-                                  script/ScriptPropertyNode
-                                  InstanceNode]))))
+(def ^:private or-coll-traverse-fn
+  (g/make-override-traverse-fn
+    (fn or-coll-traverse-fn [basis ^Arc arc]
+      (let [source-node-id (.source-id arc)]
+        (or (overridable-component? basis source-node-id)
+            (g/node-instance-of-any? basis source-node-id
+                                     [resource-node/ResourceNode
+                                      script/ScriptPropertyNode
+                                      InstanceNode]))))))
 
 (g/defnode CollectionInstanceNode
   (inherits scene/SceneNode)
@@ -586,7 +590,7 @@
                (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                  (concat
                    connect-tx-data
-                   (g/override coll-node {:traverse? or-coll-traverse?}
+                   (g/override coll-node {:traverse-fn or-coll-traverse-fn}
                                (fn [evaluation-context id-mapping]
                                  (let [or-coll-node (get id-mapping coll-node)
                                        go-name->go-node (comp #(g/node-value % :source-id evaluation-context)

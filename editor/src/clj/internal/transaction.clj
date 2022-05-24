@@ -19,6 +19,7 @@
             [internal.node :as in]
             [internal.system :as is]
             [schema.core :as s]
+            [util.coll :refer [pair]]
             [util.debug-util :as du])
   (:import [internal.graph.types Arc]))
 
@@ -308,24 +309,25 @@
   (let [successors (get ctx :successors-changed)]
     (assoc ctx :successors-changed (reduce (fn [successors node-id]
                                              (assoc successors node-id nil))
-                                           successors node-ids))))
+                                           successors
+                                           node-ids))))
 
 (defn- flag-successors-changed [ctx changes]
   (let [successors (get ctx :successors-changed)]
     (assoc ctx :successors-changed (reduce (fn [successors [node-id label]]
                                              (if-let [node-succ (get successors node-id #{})]
                                                (assoc successors node-id (conj node-succ label))
-                                               successors))
-                                           successors changes))))
+                                               successors)) ; Found nil - all successors already flagged as changed.
+                                           successors
+                                           changes))))
 
 (defn- ctx-override-node [ctx original-node-id override-node-id]
   (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
           "Override nodes must belong to the same graph as the original")
   (let [basis (:basis ctx)
-        original (gt/node-by-id-at basis original-node-id)
         all-originals (ig/override-originals basis original-node-id)]
     (-> ctx
-        (update :basis gt/override-node original-node-id override-node-id)
+        (assoc :basis (gt/override-node basis original-node-id override-node-id))
         (flag-all-successors-changed all-originals)
         (flag-successors-changed (mapcat #(gt/sources basis %) all-originals)))))
 
@@ -402,22 +404,30 @@
 
 (defmethod perform :transfer-overrides
   [ctx {:keys [from-id->to-id]}]
+  ;; This method updates the existing override layer to use the to-id as the
+  ;; root of the override layer. It also updates the "first level" (i.e. direct)
+  ;; override nodes that have from-id as their original to instead have to-id as
+  ;; their original. It then deletes every other override node that was produced
+  ;; from the existing override layer and re-runs the populate-overrides
+  ;; function for the updated graph state. This will cause any missing override
+  ;; nodes to be re-created from the structure of to-id.
   (let [basis (:basis ctx)
-        from-id->override-node-ids (into {}
-                                         (map (juxt identity (partial ig/get-overrides basis)))
-                                         (keys from-id->to-id)) ; "first level" override nodes
-        override-node-ids (into #{} cat (vals from-id->override-node-ids))
+        override-node-ids (into #{}
+                                (mapcat (partial ig/get-overrides basis))
+                                (keys from-id->to-id)) ; "first level" override nodes
         retained override-node-ids
         override-node-id->override-id (into {}
                                             (map (fn [override-node-id]
-                                                   [override-node-id (gt/override-id (gt/node-by-id-at basis override-node-id))]))
+                                                   (pair override-node-id
+                                                         (gt/override-id (gt/node-by-id-at basis override-node-id)))))
                                             override-node-ids)
         override-id->override (into {}
                                     (comp
                                       (map val)
                                       (distinct)
                                       (map (fn [override-id]
-                                             [override-id (ig/override-by-id basis override-id)])))
+                                             (pair override-id
+                                                   (ig/override-by-id basis override-id)))))
                                     override-node-id->override-id)
         override-node-id->override (comp override-id->override override-node-id->override-id)
         overrides-to-fix (into []
@@ -435,6 +445,11 @@
                               override-node-ids)]
     (-> ctx
         (update :basis (fn [basis]
+                         ;; Clear out the original to override node-id mappings
+                         ;; from the graph. Normally entries are removed from
+                         ;; this mapping inside basis-remove-node as nodes are
+                         ;; deleted, but since we're transferring overrides, we
+                         ;; must do it manually here.
                          (reduce (fn [basis from-node-id]
                                    (gt/override-node-clear basis from-node-id))
                                  basis
@@ -444,21 +459,26 @@
                                    (gt/replace-override basis override-id (update override :root-id from-id->to-id)))
                                  basis
                                  overrides-to-fix))) ; re-root overrides that used to have a from node id as root
-        ((partial reduce ctx-delete-node) nodes-to-delete)
+        (as-> ctx
+              (reduce ctx-delete-node ctx nodes-to-delete))
+
         ;; * repoint the first level override nodes to use to-node as original
         ;; * add as override nodes of to-node
-        ((partial reduce (fn [ctx override-node-id]
-                           (let [basis (:basis ctx)
-                                 override-node (gt/node-by-id-at basis override-node-id)
-                                 old-original (gt/original override-node)
-                                 new-original (from-id->to-id old-original)
-                                 [new-basis new-node] (gt/replace-node basis override-node-id (gt/set-original override-node new-original))]
-                             (-> ctx
-                                 (assoc :basis new-basis)
-                                 (mark-all-outputs-activated override-node-id)
-                                 (ctx-override-node new-original override-node-id)))))
-         override-node-ids)
-        ((partial reduce populate-overrides) (vals from-id->to-id)))))
+        (as-> ctx
+              (reduce (fn [ctx override-node-id]
+                        (let [basis (:basis ctx)
+                              override-node (gt/node-by-id-at basis override-node-id)
+                              old-original (gt/original override-node)
+                              new-original (from-id->to-id old-original)
+                              [new-basis] (gt/replace-node basis override-node-id (gt/set-original override-node new-original))]
+                          (-> ctx
+                              (assoc :basis new-basis)
+                              (mark-all-outputs-activated override-node-id)
+                              (ctx-override-node new-original override-node-id))))
+                      ctx
+                      override-node-ids))
+        (as-> ctx
+              (reduce populate-overrides ctx (vals from-id->to-id))))))
 
 (defmethod metrics-key :transfer-overrides
   [{:keys [from-id->to-id]}]
@@ -594,7 +614,7 @@
     (disconnect-inputs ctx target-id target-label)
     ctx))
 
-(defn- ctx-add-overrides [ctx source-id source source-label target target-label]
+(defn- ctx-add-overrides-from-connection [ctx source-id source-label target target-label]
   (let [basis (:basis ctx)
         target-id (gt/node-id target)]
     (if ((in/cascade-deletes (gt/node-type target basis)) target-label)
@@ -634,7 +654,7 @@
             (mark-input-activated target-id target-label)
             (update :basis gt/connect source-id source-label target-id target-label)
             (flag-successors-changed [[source-id source-label]])
-            (ctx-add-overrides source-id source source-label target target-label)))
+            (ctx-add-overrides-from-connection source-id source-label target target-label)))
       ctx)
     ctx))
 

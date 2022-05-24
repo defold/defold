@@ -1003,14 +1003,15 @@
      (transit/write writer fragment)
      (.toString out "UTF-8"))))
 
-(defn- serialize-arc [id-dictionary arc]
-  (let [[source-id source-label]  (gt/source arc)
-        [target-id target-label]  (gt/target arc)]
-    [(id-dictionary source-id) source-label (id-dictionary target-id) target-label]))
+(defn- serialize-arc [id-dictionary ^Arc arc]
+  [(id-dictionary (.source-id arc))
+   (.source-label arc)
+   (id-dictionary (.target-id arc))
+   (.target-label arc)])
 
 (defn- in-same-graph? [_ ^Arc arc]
-  (let [^long source-node-id (.source-id arc)
-        ^long target-node-id (.target-id arc)]
+  (let [source-node-id (.source-id arc)
+        target-node-id (.target-id arc)]
     (= (node-id->graph-id source-node-id)
        (node-id->graph-id target-node-id))))
 
@@ -1025,11 +1026,56 @@
 
 (defn- predecessors [pred basis node-id]
   (into []
-        (comp (filter (fn [^Arc arc]
-                        (pred basis arc)))
-              (map (fn [^Arc arc]
-                     (.source-id arc))))
+        (keep (fn [^Arc arc]
+                (when (pred basis arc)
+                  (.source-id arc))))
         (ig/inputs basis node-id)))
+
+(defn override-predecessors [pred basis ^long target-id]
+  (when-some [target-node (gt/node-by-id-at basis target-id)]
+    (let [graph-id (gt/node-id->graph-id target-id)
+          graph (ig/node-id->graph basis target-id)
+          graph-tarcs (:tarcs graph)]
+      (loop [result []
+             node-id target-id
+             override-chain '()
+             followed-inputs (in/cascade-deletes (gt/node-type target-node basis))]
+        (let [arcs-by-input-label (graph-tarcs node-id)
+              explicit-arcs (when arcs-by-input-label
+                              (into []
+                                    (comp
+                                      (mapcat arcs-by-input-label)
+                                      (filter (fn [^Arc arc]
+                                                (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
+                                                     (pred basis arc)))))
+                                    followed-inputs))
+              source-node-ids (into []
+                                    (comp
+                                      (map gt/source-id)
+                                      (distinct))
+                                    explicit-arcs)
+              result' (if (zero? (count source-node-ids))
+                        result
+                        (into result
+                              (reduce (fn [source-node-ids override-id]
+                                        (mapv (fn [source-node-id]
+                                                (or (ig/override-of graph source-node-id override-id)
+                                                    source-node-id))
+                                              source-node-ids))
+                                      source-node-ids
+                                      override-chain)))
+              node (ig/node-id->node graph node-id)
+              original-node-id (gt/original node)]
+          (if (nil? original-node-id)
+            result'
+            (recur result'
+                   (long original-node-id)
+                   (conj override-chain (gt/override-id node))
+                   (persistent!
+                     (transduce (map gt/target-label)
+                                disj!
+                                (transient followed-inputs)
+                                explicit-arcs)))))))))
 
 (defn- input-traverse
   [basis pred root-ids]
@@ -1176,17 +1222,35 @@
 ;; ---------------------------------------------------------------------------
 ;; Sub-graph instancing
 ;; ---------------------------------------------------------------------------
-(defn- traverse-cascade-delete [basis ^Arc arc]
-  (get (cascade-deletes (node-type* basis (.target-id arc)))
-       (.target-label arc)))
+
+(defn make-override-traverse-fn [traverse?]
+  (partial override-predecessors traverse?))
+
+(def always-override-traverse-fn
+  (make-override-traverse-fn
+    (fn always-override-traverse-fn [_basis ^Arc _arc]
+      true)))
+
+(def never-override-traverse-fn
+  (make-override-traverse-fn
+    (fn never-override-traverse-fn [_basis ^Arc _arc]
+      false)))
+
+(defn default-override-init-fn [_evaluation-context _original-node-id->override-node-id]
+  [])
+
+(defn default-override-properties-by-node-id [_node-id]
+  {})
 
 (defn override
   ([root-id]
-   (override root-id {}))
+   (override root-id {} default-override-init-fn))
   ([root-id opts]
-   (override root-id opts (clojure.core/constantly [])))
-  ([root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}} init-fn]
-   (let [traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))]
+   (override root-id opts default-override-init-fn))
+  ([root-id opts init-fn]
+   (let [{:keys [traverse-fn properties-by-node-id]
+          :or {traverse-fn always-override-traverse-fn
+               properties-by-node-id default-override-properties-by-node-id}} opts]
      (it/override root-id traverse-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
