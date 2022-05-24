@@ -339,6 +339,12 @@ class Configuration(object):
             print('ERROR: Pending futures (%d)' % len(self.futures))
             os._exit(5)
 
+    def get_python(self):
+        if 'x86_64-darwin' in self.host2:
+            if 'x86_64-darwin' == self.target_platform:
+                return 'arch -x86_64 python'
+        return 'python'
+
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
@@ -532,11 +538,11 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==20.3.4'])
-        run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
+        run.env_command(self._form_env(), [self.get_python(), './packages/get-pip.py', 'pip==20.3.4'])
+        run.env_command(self._form_env(), [self.get_python(), '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
-            run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), whl])
+            run.env_command(self._form_env(), [self.get_python(), '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), whl])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
@@ -1024,7 +1030,7 @@ class Configuration(object):
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.get_python(), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1106,7 +1112,7 @@ class Configuration(object):
         if '--static-analyze' in self.waf_options:
             scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
             report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
-            run.command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            run.command([self.get_python(), './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
@@ -1290,7 +1296,7 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
-        cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
+        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.get_python(), self.dynamo_home, self.dynamo_home, skip_tests)
         run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
@@ -1329,7 +1335,7 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
-        cmd = ['python', './scripts/bundle.py',
+        cmd = [self.get_python(), './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
                'build']
@@ -1343,7 +1349,7 @@ class Configuration(object):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
-        cmd = ['python', './scripts/bundle.py',
+        cmd = [self.get_python(), './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
@@ -1354,7 +1360,7 @@ class Configuration(object):
 
     def sign_editor2(self):
         editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = ['python', './scripts/bundle.py',
+        cmd = [self.get_python(), './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
                '--archive-domain=%s' % self.archive_domain,
