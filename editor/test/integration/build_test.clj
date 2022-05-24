@@ -240,7 +240,6 @@
            ~'_                 (when-not (contains? ~'build-results :error)
                                  (workspace/artifact-map! ~'workspace (:artifact-map ~'build-results))
                                  (workspace/etags! ~'workspace (:etags ~'build-results)))
-           ~'_                 (g/update-cache-from-evaluation-context! evaluation-context#)
            ~'content-by-source (into {} (keep #(when-let [~'r (:resource (:resource %))]
                                                  [(resource/proj-path ~'r) (content-bytes %)])
                                               ~'build-artifacts))
@@ -438,7 +437,6 @@
             resource-node (test-util/resource-node project path)
             evaluation-context (g/make-evaluation-context)
             first-time    (measure (project-build-artifacts project resource-node evaluation-context))
-            _ (g/update-cache-from-evaluation-context! evaluation-context)
             evaluation-context (g/make-evaluation-context)
             second-time   (measure (project-build-artifacts project resource-node evaluation-context))]
         (is (< (* 20 second-time) first-time))

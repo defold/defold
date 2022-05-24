@@ -639,8 +639,8 @@
 
   (output packed-image     BufferedImage       :cached (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 
-  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
-                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  (output texture-image    g/Any               :cached (g/fnk [packed-image texture-profile]
+                                                         (tex-gen/make-preview-texture-image packed-image texture-profile)))
   
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 

@@ -270,30 +270,10 @@
   (-> ctx
       (update :basis gt/add-override override-id (ig/make-override root-id traverse-fn))))
 
-(defn- flag-all-successors-changed [ctx node-ids]
-  (let [successors (get ctx :successors-changed)]
-    (assoc ctx :successors-changed (reduce (fn [successors node-id]
-                                             (assoc successors node-id nil))
-                                           successors node-ids))))
-
-(defn- flag-successors-changed [ctx changes]
-  (let [successors (get ctx :successors-changed)]
-    (assoc ctx :successors-changed (reduce (fn [successors [node-id label]]
-                                             (if-let [node-succ (get successors node-id #{})]
-                                               (assoc successors node-id (conj node-succ label))
-                                               successors))
-                                           successors changes))))
-
 (defn- ctx-override-node [ctx original-node-id override-node-id]
   (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
           "Override nodes must belong to the same graph as the original")
-  (let [basis (:basis ctx)
-        original (gt/node-by-id-at basis original-node-id)
-        all-originals (ig/override-originals basis original-node-id)]
-    (-> ctx
-        (update :basis gt/override-node original-node-id override-node-id)
-        (flag-all-successors-changed all-originals)
-        (flag-successors-changed (mapcat #(gt/sources basis %) all-originals)))))
+  (update ctx :basis gt/override-node original-node-id override-node-id))
 
 (defmethod perform :override-node
   [ctx {:keys [original-node-id override-node-id]}]
@@ -568,7 +548,6 @@
             (ctx-disconnect-single target target-id target-label)
             (mark-input-activated target-id target-label)
             (update :basis gt/connect source-id source-label target-id target-label)
-            (flag-successors-changed [[source-id source-label]])
             (ctx-add-overrides source-id source source-label target target-label)))
       ctx)
     ctx))
@@ -600,7 +579,6 @@
   (-> ctx
       (mark-input-activated target-id target-label)
       (update :basis gt/disconnect source-id source-label target-id target-label)
-      (flag-successors-changed [[source-id source-label]])
       (ctx-remove-overrides source-id source-label target-id target-label)))
 
 (defmethod perform :disconnect
@@ -687,10 +665,6 @@
    :tx-data-context (atom {})
    :deferred-setters []})
 
-(defn- update-successors
-  [{:keys [successors-changed] :as ctx}]
-  (update ctx :basis ig/update-successors successors-changed))
-
 (defn- trace-dependencies
   [ctx]
   ;; at this point, :outputs-modified contains [node-id output] pairs.
@@ -708,7 +682,6 @@
   (-> ctx
       (apply-tx actions)
       mark-nodes-modified
-      update-successors
       trace-dependencies
       apply-tx-label
       finalize-update))

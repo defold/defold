@@ -67,8 +67,8 @@
   {:new (vec resources)
    :transfer-overrides (into [] (keep (fn [resource] (when-let [old-node (resource->old-node resource)] [resource old-node]))) resources)
    :transfer-outgoing-arcs (into [] (keep (fn [resource] (when-let [old-node (resource->old-node resource)] [resource (gu/explicit-outputs old-node)]))) resources)
-   :delete (into [] (keep resource->old-node) resources)
-   })
+   :delete (into [] (keep resource->old-node) resources)})
+
 
 (defn- resource-added-plan [{:keys [added]} {:keys [move-target-paths] :as plan-info}]
   (let [non-moved-added (remove (comp move-target-paths resource/proj-path) added)]
@@ -86,8 +86,8 @@
         {loadable-removed true stateless-removed false} (group-by stateful? non-moved-removed)
         {stateless-embedded true stateless-external false} (group-by resource-data-embedded? stateless-removed)]
     {:mark-deleted (mapv resource->old-node (concat loadable-removed stateless-embedded))
-     :invalidate-outputs (mapv resource->old-node stateless-external)
-     }))
+     :invalidate-outputs (mapv resource->old-node stateless-external)}))
+
 
 (defn- resource-changed-plan [{:keys [changed]}
                               {:keys [move-source-paths

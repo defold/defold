@@ -43,6 +43,7 @@
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
                      [potemkin                                    "0.4.3"]
+                     [com.github.ben-manes.caffeine/caffeine      "3.1.0"]
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
                      [com.sun.jersey/jersey-client                "1.19"]

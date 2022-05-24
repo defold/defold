@@ -85,19 +85,16 @@
   (let [evaluation-context (g/make-evaluation-context)]
     (future
       (try
-        (let [save-data (->> (into []
-                                     (keep (fn [node-id]
-                                             (let [save-data (g/node-value node-id :save-data evaluation-context)
-                                                   resource (:resource save-data)]
-                                               (when (and (some? resource)
-                                                          (not (resource/internal? resource))
-                                                          (= :file (resource/source-type resource)))
-                                                 save-data))))
-                                     (g/node-value project :nodes evaluation-context))
-                               (sort-by save-data-sort-key))]
-          (ui/run-later
-            (project/update-system-cache-save-data! evaluation-context))
-          save-data)
+        (->> (into []
+                   (keep (fn [node-id]
+                           (let [save-data (g/node-value node-id :save-data evaluation-context)
+                                 resource (:resource save-data)]
+                             (when (and (some? resource)
+                                        (not (resource/internal? resource))
+                                        (= :file (resource/source-type resource)))
+                               save-data))))
+                   (g/node-value project :nodes evaluation-context))
+             (sort-by save-data-sort-key))
         (catch Throwable error
           (report-error! error)
           nil)))))

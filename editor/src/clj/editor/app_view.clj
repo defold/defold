@@ -760,15 +760,6 @@
         (error-reporting/report-exception! error)
         nil))))
 
-(defn- cached-build-target-output? [node-id label evaluation-context]
-  (and (= :build-targets label)
-       (project/project-resource-node? node-id evaluation-context)))
-
-(defn- update-system-cache-build-targets! [evaluation-context]
-  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
-  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-build-target-output?)]
-    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
-
 (defn async-build! [project prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
   (let [;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
@@ -792,13 +783,7 @@
               (reset! engine-build-future-atom
                       (future
                         (try
-                          (let [engine (engine/get-engine project evaluation-context prefs platform)]
-                            (ui/run-later
-                              ;; This potentially saves us from having to
-                              ;; re-calculate native extension file hashes the
-                              ;; next time we build the project.
-                              (g/update-cache-from-evaluation-context! evaluation-context))
-                            engine)
+                          (engine/get-engine project evaluation-context prefs platform)
                           (catch Throwable error
                             error))))
               nil)))
@@ -884,7 +869,6 @@
                         (debug-view/build-targets project evaluation-context))]
                   (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
-                (update-system-cache-build-targets! evaluation-context)
                 (phase-4-run-post-build-hook! project-build-results)))))
 
         phase-2-start-engine-build!

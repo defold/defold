@@ -170,7 +170,6 @@
                                                                                  (count node-ids)
                                                                                  node-index))
                           (load-node project node-id (g/node-type* basis node-id) (node-id->resource node-id))]))))]
-    (g/update-cache-from-evaluation-context! evaluation-context)
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
@@ -291,9 +290,6 @@
         save-data
         render-progress!
         (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
-
-(defn invalidate-save-data-source-values! [save-data]
-  (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))
 
 (defn workspace
   ([project]
@@ -478,8 +474,6 @@
 
       (load-nodes! project new-nodes render-progress! old-resource-node-dependencies)
 
-      (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context)
-
       (g/transact
         (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
           (let [source-node (resource->node source-resource)
@@ -502,11 +496,6 @@
         (for [node (:mark-deleted plan)]
           (let [flaw (resource-io/file-not-found-error node nil :fatal (g/node-value node :resource))]
             (g/mark-defective node flaw))))
-
-      (let [all-outputs (mapcat (fn [node]
-                                  (map (fn [[output _]] [node output]) (gu/explicit-outputs node)))
-                                (:invalidate-outputs plan))]
-        (g/invalidate-outputs! all-outputs))
 
       ;; restore overridden properties.
       (let [restore-properties-tx-data
@@ -742,16 +731,6 @@
     (and (g/node-instance? basis resource-node/ResourceNode node-id)
          (not (embedded-resource? (g/node-value node-id :resource evaluation-context))))))
 
-(defn- cached-save-data-output? [node-id label evaluation-context]
-  (case label
-    (:save-data :source-value) (project-resource-node? node-id evaluation-context)
-    false))
-
-(defn update-system-cache-save-data! [evaluation-context]
-  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
-  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-save-data-output?)]
-    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
-
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature so we pull
   ;; it in the background here to cache it.
@@ -759,9 +738,7 @@
     (future
       (error-reporting/catch-all!
         ;; TODO: Progress reporting.
-        (g/node-value project :save-data evaluation-context)
-        (ui/run-later
-          (update-system-cache-save-data! evaluation-context))))))
+        (g/node-value project :save-data evaluation-context)))))
 
 (defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)

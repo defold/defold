@@ -169,8 +169,6 @@
                                (when (:report-exceptions options)
                                  (error-reporting/report-exception! e))
                                [e nil]))]
-                   (when-not (contains? options :evaluation-context)
-                     (g/update-cache-from-evaluation-context! evaluation-context))
                    (when @(:request-sync *execution-context*)
                      (reload-resources! (:ui state)))
                    (result-promise ret))))

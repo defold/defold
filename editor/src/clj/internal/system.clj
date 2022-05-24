@@ -14,12 +14,12 @@
 
 (ns internal.system
   (:require [internal.util :as util]
-            [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.history :as h]
             [internal.node :as in]
-            [service.log :as log])
+            [service.log :as log]
+            [internal.cache2 :as c2])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -41,21 +41,16 @@
 (defn- new-history []
   {:tape (conj (h/paper-tape history-size-max) [])})
 
-(defrecord HistoryState [label graph sequence-label cache-keys])
+(defrecord HistoryState [label graph sequence-label])
 
-(defn history-state [graph outputs-modified]
-  (->HistoryState (:tx-label graph) graph (:tx-sequence-label graph) outputs-modified))
-
-(defn- history-state-merge-cache-keys
-  [new old]
-  (update new :cache-keys into (:cache-keys old)))
+(defn history-state [graph]
+  (->HistoryState (:tx-label graph) graph (:tx-sequence-label graph)))
 
 (defn- merge-into-top
   [tape new-state]
-  (let [old-state (h/ivalue tape)]
-    (conj
-      (h/truncate (h/iprev tape))
-      (history-state-merge-cache-keys new-state old-state))))
+  (conj
+    (h/truncate (h/iprev tape))
+    new-state))
 
 (defn- =*
   "Comparison operator that treats nil as not equal to anything."
@@ -64,8 +59,8 @@
   ([x y & more] (reduce =* (=* x y) more)))
 
 (defn merge-or-push-history
-  [history old-graph new-graph outputs-modified]
-  (let [new-state (history-state new-graph (set outputs-modified))
+  [history old-graph new-graph]
+  (let [new-state (history-state new-graph)
         tape-op (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
                   merge-into-top
                   conj)]
@@ -78,23 +73,15 @@
        next
        vec))
 
-(defn- time-warp [system graph outputs-to-refresh]
+(defn- time-warp [system graph]
   (let [graph-id (:_graph-id graph)
         graphs (graphs system)]
     (let [pseudo-basis (ig/multigraph-basis graphs)
-          {hydrated-basis :basis
-           hydrated-outputs-to-refresh :outputs-to-refresh} (ig/hydrate-after-undo pseudo-basis graph)
-          outputs-to-refresh (into (or outputs-to-refresh #{}) hydrated-outputs-to-refresh)
-          changes (->> outputs-to-refresh
-                       (group-by first)
-                       (map (fn [[node-id labels]] [node-id (set (map second labels))]))
-                       (into {}))
-          warped-basis (ig/update-successors hydrated-basis changes)]
-      {:graph (get-in warped-basis [:graphs graph-id])
-       :outputs-to-refresh outputs-to-refresh})))
+          hydrated-basis (ig/hydrate-after-undo pseudo-basis graph)]
+      (get-in hydrated-basis [:graphs graph-id]))))
 
 (defn last-graph            [system]          (-> system :last-graph))
-(defn system-cache          [system]          (some-> system :cache))
+(defn system-cache          [system]          (-> system :cache))
 (defn graphs                [system]          (-> system :graphs))
 (defn graph                 [system graph-id] (some-> system :graphs (get graph-id)))
 (defn graph-time            [system graph-id] (some-> system :graphs (get graph-id) :tx-id))
@@ -103,45 +90,18 @@
 (defn id-generators         [system]          (-> system :id-generators))
 (defn override-id-generator [system]          (-> system :override-id-generator))
 
-(defn- bump-invalidate-counters
-  [invalidate-map entries]
-  (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
-
-(defn invalidate-outputs
-  "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as pairs of [node-id label]
-  for both the argument and return value."
-  [system outputs]
-  ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
-  (let [basis (basis system)
-        cache-entries (->> outputs
-                           ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
-                           (reduce (fn [m [node-id label]]
-                                     (update m node-id (fn [label-set label] (if label-set (conj label-set label) #{label})) label))
-                                   {})
-                           (gt/dependencies basis)
-                           ;; map -> vec
-                           (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
-    (-> system
-        (update :cache c/cache-invalidate cache-entries)
-        (update :invalidate-counters bump-invalidate-counters cache-entries))))
-
 (defn- step-through-history
   [step-function system graph-id]
   (let [history (graph-history system graph-id)
         {:keys [tape]} history
-        prior-state (h/ivalue tape)
         tape (step-function tape)
-        next-state (h/ivalue tape)
-        outputs-to-refresh (into (:cache-keys prior-state)
-                                 (:cache-keys next-state))]
+        next-state (h/ivalue tape)]
     (if-not next-state
       system
-      (let [{:keys [graph outputs-to-refresh]} (time-warp system (:graph next-state) outputs-to-refresh)]
+      (let [graph (time-warp system (:graph next-state))]
         (-> system
             (assoc-in [:graphs graph-id] graph)
-            (assoc-in [:history graph-id :tape] tape)
-            (invalidate-outputs outputs-to-refresh))))))
+            (assoc-in [:history graph-id :tape] tape))))))
 
 (def undo-history (partial step-through-history h/iprev))
 (def cancel-history (partial step-through-history h/drop-current))
@@ -156,7 +116,7 @@
 (defn clear-history
   [system graph-id]
   (let [graph (get-in system [:graphs graph-id])
-        initial-state (history-state graph #{})]
+        initial-state (history-state graph)]
     (update-in system [:history graph-id :tape] (fn [tape] (conj (empty tape) initial-state)))))
 
 (defn cancel
@@ -171,10 +131,6 @@
 (defn- make-initial-graph
   [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_graph-id 0)}}]
   graph)
-
-(defn make-cache
-  [{cache-size :cache-size :or {cache-size maximum-cached-items}}]
-  (c/make-cache cache-size))
 
 (defn- next-available-graph-id
   [system]
@@ -225,12 +181,11 @@
 
 (defn make-system
   [configuration]
-  (let [initial-graph (make-initial-graph configuration)
-        cache (make-cache configuration)]
+  (let [initial-graph (make-initial-graph configuration)]
     (-> {:graphs {}
          :id-generators {}
          :override-id-generator (integer-counter)
-         :cache cache
+         :cache (c2/make (:cache-size configuration maximum-cached-items))
          :invalidate-counters {}
          :user-data {}}
         (attach-graph initial-graph))))
@@ -239,13 +194,12 @@
 (def ^:private meaningful-change? contains?)
 
 (defn- remember-change
-  [system graph-id before after outputs-modified]
-  (update-in system [:history graph-id] merge-or-push-history before after outputs-modified))
+  [system graph-id before after]
+  (update-in system [:history graph-id] merge-or-push-history before after))
 
 (defn merge-graphs
   [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
-  (let [graph-id->outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)
-        post-system (reduce (fn [system [graph-id graph]]
+  (let [post-system (reduce (fn [system [graph-id graph]]
                               (let [start-tx (:tx-id graph -1)
                                     sidereal-tx (graph-time system graph-id)]
                                 (if (< start-tx sidereal-tx)
@@ -259,19 +213,17 @@
                                                       graph-after)
                                         system-after (if (and (has-history? system graph-id)
                                                               (meaningful-change? significantly-modified-graphs graph-id))
-                                                       (remember-change system graph-id graph-before graph-after (graph-id->outputs-modified graph-id))
+                                                       (remember-change system graph-id graph-before graph-after)
                                                        system)]
                                     (assoc-in system-after [:graphs graph-id] graph-after)))))
                             system
                             post-tx-graphs)]
     (-> post-system
-        (update :cache c/cache-invalidate outputs-modified)
         (update :user-data (fn [user-data]
                              (reduce (fn [user-data [graph-id deleted-node-ids]]
                                        (update user-data graph-id (partial apply dissoc) deleted-node-ids))
                                      user-data
-                                     (group-by gt/node-id->graph-id (keys nodes-deleted)))))
-        (update :invalidate-counters bump-invalidate-counters outputs-modified))))
+                                     (group-by gt/node-id->graph-id (keys nodes-deleted))))))))
 
 (defn basis-graphs-identical? [basis1 basis2]
   (let [graph-ids (keys (:graphs basis1))]
@@ -282,8 +234,7 @@
 
 (defn default-evaluation-context [system]
   (in/default-evaluation-context (basis system)
-                                 (system-cache system)
-                                 (:invalidate-counters system)))
+                                 (system-cache system)))
 
 (defn custom-evaluation-context
   ;; Basis & cache options:
@@ -299,8 +250,7 @@
   [system options]
   (assert (not (and (some? (:cache options)) (nil? (:basis options)))))
   (let [system-options {:basis (basis system)
-                        :cache (system-cache system)
-                        :initial-invalidate-counters (:invalidate-counters system)}
+                        :cache (system-cache system)}
         options (merge
                   options
                   (cond
@@ -327,30 +277,7 @@
   ;; that differed from the system basis at the time, there is no
   ;; initial-invalidate-counters to compare with, and we dont even try to
   ;; update the cache.
-  (if-some [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
-    (let [cache (:cache system)
-          invalidate-counters (:invalidate-counters system)
-          evaluation-context-hits @(:hits evaluation-context)
-          evaluation-context-misses @(:local evaluation-context)]
-      (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
-        (cond-> system
-                (seq evaluation-context-hits)
-                (update :cache c/cache-hit evaluation-context-hits)
-
-                (seq evaluation-context-misses)
-                (update :cache c/cache-encache evaluation-context-misses))
-        (let [invalidated-during-node-value? (fn [node-id+output]
-                                               (not= (get initial-invalidate-counters node-id+output 0)
-                                                     (get invalidate-counters node-id+output 0)))
-              safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
-              safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
-          (cond-> system
-                  (seq safe-cache-hits)
-                  (update :cache c/cache-hit safe-cache-hits)
-
-                  (seq safe-cache-misses)
-                  (update :cache c/cache-encache safe-cache-misses)))))
-    system))
+  system)
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -383,7 +310,6 @@
    :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator system)))
    :cache (:cache system)
    :user-data (:user-data system)
-   :invalidate-counters (:invalidate-counters system)
    :last-graph (:last-graph system)})
 
 (defn system= [s1 s2]
@@ -395,5 +321,4 @@
           (.longValue ^AtomicLong (:override-id-generator s2)))
        (= (:cache s1) (:cache s2))
        (= (:user-data s1) (:user-data s2))
-       (= (:invalidate-counters s1) (:invalidate-counters s2))
        (= (:last-graph s1) (:last-graph s2))))

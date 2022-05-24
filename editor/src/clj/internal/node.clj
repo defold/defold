@@ -17,11 +17,11 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [internal.util :as util]
-            [internal.cache :as c]
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
-            [schema.core :as s])
+            [schema.core :as s]
+            [internal.cache2 :as c2])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
@@ -347,20 +347,16 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context} (keys options)) (str (keys options)))
+  (assert (every? #{:basis :cache :dry-run :no-local-temp :tracer :tx-data-context} (keys options)) (str (keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
-  [basis cache initial-invalidate-counters]
+  [basis cache]
   (assert (gt/basis? basis))
-  (assert (c/cache? cache))
-  (assert (map? initial-invalidate-counters))
+  (assert (c2/cache? cache))
   {:basis basis
    :cache cache ; cache from the system
-   :initial-invalidate-counters initial-invalidate-counters
-   :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
    :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
-   :hits (atom [])
    :in-production #{}
    :tx-data-context (atom {})})
 
@@ -368,8 +364,6 @@
   [options]
   (validate-evaluation-context-options options)
   (cond-> (assoc options
-                 :local (atom {})
-                 :hits (atom [])
                  :in-production #{})
 
           (not (:no-local-temp options))
@@ -378,39 +372,14 @@
           (not (contains? options :tx-data-context))
           (assoc :tx-data-context (atom {}))))
 
-(defn pruned-evaluation-context
-  "Selectively filters out cache entries from the supplied evaluation context.
-  Returns a new evaluation context with only the cache entries that passed the
-  cache-entry-pred predicate. The predicate function will be called with
-  node-id, output-label, evaluation-context and should return true if the
-  cache entry for the output-label should remain in the cache."
-  [evaluation-context cache-entry-pred]
-  (let [unfiltered-hits @(:hits evaluation-context)
-        unfiltered-local @(:local evaluation-context)
-        filtered-hits (into []
-                            (filter (fn [[node-id label]]
-                                      (cache-entry-pred node-id label evaluation-context)))
-                            unfiltered-hits)
-        filtered-local (into {}
-                             (filter (fn [[[node-id label]]]
-                                       (cache-entry-pred node-id label evaluation-context)))
-                             unfiltered-local)]
-    (assoc evaluation-context
-      :hits (atom filtered-hits)
-      :local (atom filtered-local))))
-
 (defn- validate-evaluation-context [evaluation-context]
   (assert (some? (:basis evaluation-context)))
-  (assert (some? (:in-production evaluation-context)))
-  (assert (some? (:local evaluation-context)))
-  (assert (some? (:hits evaluation-context))))
+  (assert (some? (:in-production evaluation-context))))
 
 (defn- apply-dry-run-cache [evaluation-context]
   (cond-> evaluation-context
           (:dry-run evaluation-context)
-          (assoc :local (atom @(:local evaluation-context))
-                 :local-temp (some-> (:local-temp evaluation-context) deref atom)
-                 :hits (atom @(:hits evaluation-context)))))
+          (assoc :local-temp (some-> (:local-temp evaluation-context) deref atom))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -1201,8 +1170,14 @@
     input-array))
 
 (defn argument-error-aggregate [node-id label input-value]
-  (when-some [input-errors (not-empty (filter #(instance? ErrorValue %) (vals input-value)))]
-    (ie/error-aggregate input-errors :_node-id node-id :_label label)))
+  (when (reduce-kv (fn [acc _ v]
+                     (if (instance? ErrorValue v)
+                       (reduced true)
+                       acc))
+                   false
+                   input-value)
+    (ie/error-aggregate (not-empty (filter #(instance? ErrorValue %) (vals input-value)))
+                        :_node-id node-id :_label label)))
 
 (defn- call-with-error-checked-fnky-arguments-form
   [description label node-sym node-id-sym evaluation-context-sym arguments runtime-fnk-expr & [supplied-arguments]]
@@ -1331,36 +1306,32 @@
 (defn nil->cached-nil [v]
   (if (nil? v) ::cached-nil v))
 
-(defn check-caches! [node-id label evaluation-context]
-  (let [local @(:local evaluation-context)
-        global (:cache evaluation-context)
-        cache-key [node-id label]]
-    (cond
-      (contains? local cache-key)
-      (trace-expr node-id label evaluation-context :cache (fn [] (nil->cached-nil (get local cache-key))))
-
-      (contains? global cache-key)
-      (trace-expr node-id label evaluation-context :cache
-                   (fn []
-                     (when-some [cached-result (get global cache-key)]
-                       (swap! (:hits evaluation-context) conj cache-key)
-                       (nil->cached-nil cached-result)))))))
-
 (defn check-local-temp-cache [node-id label evaluation-context]
   (let [local-temp (some-> (:local-temp evaluation-context) deref)
         weak-cached-value ^WeakReference (get local-temp [node-id label])]
     (and weak-cached-value (.get weak-cached-value))))
 
-(defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
+(defn- check-local-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
   (let [result-sym 'result]
     (if (get-in description [:output label :flags :cached])
-      `(if-some [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
-         (cached-nil->nil ~result-sym)
-         ~forms)
+      forms
       `(if-some [~result-sym (check-local-temp-cache ~node-id-sym ~label-sym ~evaluation-context-sym)]
          ~(with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :cache
             `(cached-nil->nil ~result-sym))
          ~forms))))
+
+(defn check-global-cache! [node-id label args evaluation-context]
+  (let [k [node-id label]]
+    (when-let [[cache-args cache-val] (some-> (:cache evaluation-context) (c2/lookup k))]
+      (when (= cache-args args)
+        cache-val))))
+
+(defn- check-global-caches-forms [description label node-id-sym label-sym arguments-sym evaluation-context-sym forms]
+  (if (get-in description [:output label :flags :cached])
+    `(if-some [v# (check-global-cache! ~node-id-sym ~label-sym ~arguments-sym ~evaluation-context-sym)]
+       v#
+       ~forms)
+    forms))
 
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
   (let [arg-names (get-in description [:output label :arguments])
@@ -1385,17 +1356,17 @@
                                                                          `((var ~(symbol (dollar-name (:name description) [:output label]))) ~arguments-sym))))]
        ~forms)))
 
-(defn update-local-cache! [node-id label evaluation-context value]
-  (swap! (:local evaluation-context) assoc [node-id label] value))
-
 (defn update-local-temp-cache! [node-id label evaluation-context value]
   (when-let [local-temp (:local-temp evaluation-context)]
     (swap! local-temp assoc [node-id label] (WeakReference. (nil->cached-nil value)))))
 
-(defn- cache-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
+(defn update-global-cache! [node-id label args evaluation-context result]
+  (some-> (:cache evaluation-context) (c2/put! [node-id label] [args result])))
+
+(defn- cache-result-form [description label node-id-sym label-sym args-sym evaluation-context-sym result-sym forms]
   (if (contains? (get-in description [:output label :flags]) :cached)
     `(do
-       (update-local-cache! ~node-id-sym ~label-sym ~evaluation-context-sym ~result-sym)
+       (update-global-cache! ~node-id-sym ~label-sym ~args-sym ~evaluation-context-sym ~result-sym)
        ~forms)
     `(do
        (update-local-temp-cache! ~node-id-sym ~label-sym ~evaluation-context-sym ~result-sym)
@@ -1456,13 +1427,14 @@
            ~(check-jammed-form description label node-sym node-id-sym label-sym evaluation-context-sym
               (apply-default-property-shortcut-form description label node-sym node-id-sym label-sym evaluation-context-sym
                 (mark-in-production-form node-id-sym label-sym evaluation-context-sym
-                  (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                  (check-local-caches-form description label node-id-sym label-sym evaluation-context-sym
                     (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym tracer-label-type
                       (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym
-                        (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym
-                          (schema-check-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
-                            (cache-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
-                              result-sym))))))))))))))
+                        (check-global-caches-forms description label node-id-sym label-sym arguments-sym evaluation-context-sym
+                          (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym
+                            (schema-check-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
+                              (cache-result-form description label node-id-sym label-sym arguments-sym evaluation-context-sym result-sym
+                                result-sym)))))))))))))))
   
 (defn- assemble-properties-map-form
   [node-id-sym value-sym display-order-sym]

@@ -12,6 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
+;; TODO vlaaad: new cache
 (ns internal.cache-test
   (:require [clojure.test :refer :all]
             [support.test-support :refer :all]

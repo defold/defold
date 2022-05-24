@@ -17,7 +17,7 @@
   (:refer-clojure :exclude [deftype constantly])
   (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
-            [internal.cache :as c]
+            [internal.cache2 :as c2]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.low-memory :as low-memory]
@@ -102,13 +102,8 @@
   "Clears a cache (default *the-system* cache), useful when debugging"
   ([] (clear-system-cache! *the-system*))
   ([sys-atom]
-   (swap! sys-atom assoc :cache (is/make-cache {}))
-   nil)
-  ([sys-atom node-id]
-   (let [outputs (cached-outputs (node-type* node-id))
-         entries (map (partial vector node-id) outputs)]
-     (swap! sys-atom update :cache c/cache-invalidate entries)
-     nil)))
+   (c2/clear! (:cache @sys-atom))
+   nil))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
@@ -771,25 +766,9 @@
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
-(defn pruned-evaluation-context
-  "Selectively filters out cache entries from the supplied evaluation context.
-  Returns a new evaluation context with only the cache entries that passed the
-  cache-entry-pred predicate. The predicate function will be called with
-  node-id, output-label, evaluation-context and should return true if the
-  cache entry for the output-label should remain in the cache."
-  [evaluation-context cache-entry-pred]
-  (in/pruned-evaluation-context evaluation-context cache-entry-pred))
-
-(defn update-cache-from-evaluation-context!
-  [evaluation-context]
-  (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
-  nil)
-
 (defmacro with-auto-evaluation-context [ec & body]
-  `(let [~ec (make-evaluation-context)
-         result# (do ~@body)]
-     (update-cache-from-evaluation-context! ~ec)
-     result#))
+  `(let [~ec (make-evaluation-context)]
+     ~@body))
 
 (def fake-system (is/make-system {:cache-size 0}))
 
@@ -797,8 +776,6 @@
   `(let [real-system# @*the-system*
          ~ec (is/default-evaluation-context (or real-system# fake-system))
          result# (do ~@body)]
-     (when (some? real-system#)
-       (update-cache-from-evaluation-context! ~ec))
      result#))
 
 (defn- do-node-value [node-id label evaluation-context]
@@ -915,14 +892,6 @@
   some properties."
   [basis property-label expected-value]
   (gt/node-by-property basis property-label expected-value))
-
-(defn invalidate-outputs!
-  "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as pairs of [node-id label]
-  for both the argument and return value."
-  ([outputs]
-   (swap! *the-system* is/invalidate-outputs outputs)
-   nil))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including

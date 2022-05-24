@@ -167,8 +167,8 @@
 
 (defn- save-all! [project]
   (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
+    ;; TODO vlaaad: use sync
+    (project/write-save-data-to-disk! save-data nil)))
 
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)

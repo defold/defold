@@ -140,9 +140,7 @@
               (render-save-progress! progress/done)
               (ui/run-later
                 (try
-                  (project/update-system-cache-save-data! evaluation-context)
                   (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status updated-file-resource-status-map-entries)
-                  (project/invalidate-save-data-source-values! save-data)
                   (when (some? changes-view)
                     (changes-view/refresh! changes-view render-reload-progress!))
                   (complete! true)
@@ -233,8 +231,7 @@
                                            (when (some? callback!)
                                              (callback! successful?)))
                                          (finally
-                                           (disk-availability/pop-busy!)
-                                           (g/update-cache-from-evaluation-context! evaluation-context)))))
+                                           (disk-availability/pop-busy!)))))
                                    (catch Throwable error
                                      (disk-availability/pop-busy!)
                                      (render-build-progress! progress/done)

@@ -212,7 +212,6 @@
         (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
         (g/node-value n2 :str-out init-ec)
         (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
-        (g/update-cache-from-evaluation-context! init-ec)
         (is (= "initial" (cc/lookup (g/cache) [n2 :str-out]))))))
 
   (testing "Updating cache does not change entries for invalidated outputs"
@@ -226,8 +225,6 @@
 
         (g/transact (g/set-property n :val "change that invalidates n2 :str-out"))
 
-        (g/update-cache-from-evaluation-context! init-ec)
-
         (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss))))))
 
   (testing "Update cache does not add entries for deleted nodes"
@@ -240,8 +237,6 @@
         (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
 
         (g/transact (g/delete-node n2))
-
-        (g/update-cache-from-evaluation-context! init-ec)
 
         (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))))))
 
