@@ -803,8 +803,8 @@ namespace dmGameSystem
             }
         }
 
-        if (render_list != write_ptr)
-            dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
