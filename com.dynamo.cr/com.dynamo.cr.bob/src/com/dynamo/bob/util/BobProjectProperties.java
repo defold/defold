@@ -47,6 +47,7 @@ public class BobProjectProperties {
 
     public final static String PROPERTIES_PROJECT_FILE = "game.properties";
     public final static String PROPERTIES_EXTENSION_FILE = "ext.properties";
+    public final static String PROPERTIES_INTERNAL_FILE = "meta.properties";
 
     public enum PropertyType {
         BOOL("bool"),
@@ -149,7 +150,7 @@ public class BobProjectProperties {
                     if ((v != null) && (t.isEnum() || t.equals(String.class) || t.equals(Boolean.class))) {
                         f.set(this, v);
                         if (f.getName() == "value") {
-                            // it's important to reset old parsed values from value Array in value overwritten
+                            // it's important to reset old parsed values from value Array if value is overwritten
                             valuesArray = null;
                         }
                     }
@@ -276,7 +277,7 @@ public class BobProjectProperties {
      * @throws ParseException
      */
     public void loadDefaultMetaFile()  throws IOException, ParseException {
-        InputStream is = Bob.class.getResourceAsStream("meta.properties");
+        InputStream is = Bob.class.getResourceAsStream(PROPERTIES_INTERNAL_FILE);
         try {
             load(is, true);
         } catch (ParseException e) {

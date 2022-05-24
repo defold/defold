@@ -567,7 +567,7 @@ public class Project {
                 for (String extension : extensionFolders) {
                     IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
                     if (resource.exists()) {
-                        // resources from extensions in ZIP files can't be read as files, but getContent() wroks fine
+                        // resources from extensions in ZIP files can't be read as files, but getContent() works fine
                         loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
                     }
                 }
