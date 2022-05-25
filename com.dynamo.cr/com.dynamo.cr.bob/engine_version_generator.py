@@ -25,7 +25,7 @@ def git_sha1():
     if process.returncode != 0:
         sys.exit(process.returncode)
 
-    line = str(out).split('\n')[0].strip()
+    line = str(out.decode()).split('\n')[0].strip()
     sha1 = line.split()[0]
     return sha1
 
