@@ -259,8 +259,27 @@ public abstract class LuaBuilder extends Builder<Void> {
                 throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
             }
 
-            srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
+            srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
 
+            /**
+             * Calculate the difference/delta between the 64-bit and 32-bit
+             * bytecode.
+             * The delta is stored together with the 64-bit bytecode and when
+             * the 32-bit bytecode is needed the delta is applied to the 64-bit
+             * bytecode to transform it to the equivalent 32-bit version.
+             * 
+             * The delta is stored in the following format:
+             * 
+             * * index - The index where to apply the next change. 1-4 bytes.
+             *           The size depends on the size of the entire bytecode:
+             *           1 byte - Size less than 2^8
+             *           2 bytes - Size less than 2^16
+             *           3 bytes - Size less than 2^24
+             *           4 bytes - Size more than or equal to 2^24
+             * * count - The number of consecutive bytes to alter. 1 byte (ie max 255 changes)
+             * * bytes - The 32-bit bytecode values to apply to the 64-bit bytecode starting
+             *           at the index.
+             */
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             int i = 0;
             while(i < bytecode32.length) {
