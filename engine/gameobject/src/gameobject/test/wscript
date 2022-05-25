@@ -1,4 +1,5 @@
-import os, re, sys
+import os, re, sys, time
+import importlib
 import waf_dynamo
 import waflib.Task, waflib.TaskGen, waflib.Errors
 from waflib.TaskGen import extension
@@ -27,9 +28,9 @@ create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.R
 create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='c cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
 
 def transform_properties(properties, out_properties):
-    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
-    gameobject_properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject', module_name = 'gameobject.properties_ddf_pb2')
-    gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
+    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    import gameobject_ddf_pb2
+
     for property in properties:
         entry = None
         if property.type == gameobject_ddf_pb2.PROPERTY_TYPE_NUMBER:
@@ -80,9 +81,8 @@ def merge_collections(msg, sub_msg, sub_id):
         new_inst.id = sub_id + "/" + inst.id
 
 def read_collection(path):
-    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
-    gameobject_properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject', module_name = 'gameobject.properties_ddf_pb2')
-    gameobject_ddf_pb2 = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
+    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    import gameobject_ddf_pb2
 
     msg = gameobject_ddf_pb2.CollectionDesc()
     with open(path, 'rb') as in_f:
@@ -133,9 +133,8 @@ def transform_gameobject(task, msg):
     return msg
 
 def compile_go(task):
-    gameobject                    = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
-    gameobject_properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject', module_name = 'gameobject.properties_ddf_pb2')
-    gameobject_ddf_pb2            = waf_dynamo.load_module_from_path('gameobject_ddf_pb2', 'build/proto/gameobject')
+    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    import gameobject_ddf_pb2
 
     try:
         msg = gameobject_ddf_pb2.PrototypeDesc()
@@ -157,7 +156,7 @@ def compile_go(task):
 task = waflib.Task.task_factory('gameobject',
                                 func    = compile_go,
                                 color   = 'RED',
-                                after='proto_gen_py',
+                                after=['proto_gen_py_package','proto_gen_py'],
                                 before='c cxx')
 
 @extension('.go_pb')
@@ -231,8 +230,8 @@ def parse_properties(props):
             key = "%s.%s" % (id, e)
             entry.element_ids.append(dlib.dmHashBuffer64(key))
 
-    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
-    properties_ddf_pb2 = waf_dynamo.load_module_from_path('properties_ddf_pb2', 'build/proto/gameobject')
+    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    import properties_ddf_pb2
 
     declarations = properties_ddf_pb2.PropertyDeclarations()
     if props:
@@ -322,8 +321,8 @@ def parse_properties(props):
     return declarations
 
 def compile_lua(task):
-    gameobject = waf_dynamo.load_package_from_path('gameobject', 'build/proto/gameobject')
-    lua_ddf_pb2 = waf_dynamo.load_module_from_path('lua_ddf_pb2', 'build/proto/gameobject')
+    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    import lua_ddf_pb2
 
     with open(task.inputs[0].srcpath(), 'r') as in_f:
         script = in_f.read()
