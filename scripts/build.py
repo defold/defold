@@ -340,9 +340,8 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        if 'x86_64-darwin' in self.host2:
-            if 'x86_64-darwin' == self.target_platform:
-                return 'arch -x86_64 python'
+        if 'x86_64-darwin' in self.host2 and 'arm64' == platform.machine():
+            return 'arch -x86_64 python'
         return 'python'
 
     def _create_common_dirs(self):
