@@ -18,7 +18,7 @@ ordinary paths."
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
-            [clojure.tools.reader.edn :as edn]
+            [clojure.edn :as edn]
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.library :as library]

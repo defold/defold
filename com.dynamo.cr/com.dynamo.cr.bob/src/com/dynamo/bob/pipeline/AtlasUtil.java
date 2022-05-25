@@ -31,6 +31,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
@@ -200,6 +201,7 @@ public class AtlasUtil {
     }
 
     public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
+        TimeProfiler.start("generateTextureSet");
         Atlas.Builder builder = Atlas.newBuilder();
         ProtoUtil.merge(atlasResource, builder);
         Atlas atlas = builder.build();
@@ -225,9 +227,11 @@ public class AtlasUtil {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
-        return TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
+        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()), true, false, null);
+        TimeProfiler.stop();
+        return result;
     }
 }

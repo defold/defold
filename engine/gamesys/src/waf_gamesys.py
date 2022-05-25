@@ -61,8 +61,8 @@ def transform_texture_name(task, name):
     return name
 
 def transform_tilesource_name(name):
-    name = name.replace('.tileset', '.texturesetc')
-    name = name.replace('.tilesource', '.texturesetc')
+    name = name.replace('.tileset', '.t.texturesetc')
+    name = name.replace('.tilesource', '.t.texturesetc')
     return name
 
 def transform_textureset_filename(task, name):
@@ -140,8 +140,8 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.label', '.labelc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
-        c.component = c.component.replace('.tileset', '.texturesetc')
-        c.component = c.component.replace('.tilesource', '.texturesetc')
+        c.component = c.component.replace('.tileset', '.t.texturesetc')
+        c.component = c.component.replace('.tilesource', '.t.texturesetc')
         c.component = c.component.replace('.tilemap', '.tilemapc')
         c.component = c.component.replace('.tilegrid', '.tilemapc')
         transform_properties(c.properties, c.property_decls)
@@ -314,7 +314,7 @@ def transform_rig_scene(task, msg):
     msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
     msg.animation_set = msg.animation_set.replace('.animationset', '.animationsetc')
     msg.mesh_set = msg.mesh_set.replace('.meshset', '.meshsetc')
-    msg.texture_set = msg.texture_set.replace('.atlas', '.texturesetc')
+    msg.texture_set = msg.texture_set.replace('.atlas', '.a.texturesetc')
     return msg
 
 def transform_label(task, msg):
@@ -626,7 +626,7 @@ def tileset_file(self, node):
     tileset = self.create_task('tileset')
     tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
     tileset.set_inputs(node)
-    obj_ext = '.texturesetc'
+    obj_ext = '.t.texturesetc'
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)
 

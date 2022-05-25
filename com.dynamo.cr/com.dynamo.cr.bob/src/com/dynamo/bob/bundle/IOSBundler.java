@@ -514,11 +514,33 @@ public class IOSBundler implements IBundler {
 
                     Process process = processBuilder.start();
                     logProcess(process);
-
                 }
             } else {
                 System.out.printf("No ./Framework folder to sign\n");
             }
+
+            // Sign any .appex files in the PlugIns folder
+            File pluginsDir = new File(appDir, "PlugIns");
+            if (pluginsDir.exists()) {
+                logger.log(Level.INFO, "Signing ./PlugIns folder");
+                for (File file : pluginsDir.listFiles()) {
+
+                    BundleHelper.throwIfCanceled(canceled);
+
+                    if (!file.getName().endsWith(".appex")) {
+                        continue;
+                    }
+
+                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());
+                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
+
+                    Process process = processBuilder.start();
+                    logProcess(process);
+                }
+            } else {
+                System.out.printf("No ./PlugIns folder to sign\n");
+            }
+
 
             BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",

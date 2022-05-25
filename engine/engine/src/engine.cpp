@@ -1335,6 +1335,8 @@ namespace dmEngine
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
 
+        engine->m_PreviousFrameTime = dmTime::GetTime();
+
         return true;
 
 bail:
@@ -1543,6 +1545,7 @@ bail:
                 update_context.m_TimeScale = 1.0f;
                 update_context.m_DT = dt;
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
+                update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                 // Don't render while iconified
@@ -1725,6 +1728,7 @@ bail:
             if (!engine->m_Alive)
                 break;
         }
+
     }
 
     static int IsRunning(void* context)

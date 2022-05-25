@@ -314,7 +314,7 @@ namespace dmLiveUpdate
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
-    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data)
+    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive)
     {
         struct stat file_stat;
         bool exists = stat(path, &file_stat) == 0;
@@ -328,6 +328,7 @@ namespace dmLiveUpdate
         request.m_Callback = callback;
         request.m_Path = path;
         request.m_IsArchive = 1;
+        request.m_VerifyArchive = verify_archive;
         request.m_Manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
         bool res = AddAsyncResourceRequest(request);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;

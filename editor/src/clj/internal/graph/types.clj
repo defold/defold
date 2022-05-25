@@ -30,10 +30,10 @@
 
 (defprotocol Node
   (node-id               [this]                          "Return an ID that can be used to get this node (or a future value of it).")
-  (node-type             [this basis]                    "Return the node type that created this node.")
+  (node-type             [this]                          "Return the node type that created this node.")
   (get-property          [this basis property]           "Return the value of the named property")
   (set-property          [this basis property value]     "Set the named property")
-  (overridden-properties [this basis]                    "Return a map of property name to override value")
+  (overridden-properties [this]                          "Return a map of property name to override value")
   (property-overridden?  [this property]))
 
 (defprotocol OverrideNode
