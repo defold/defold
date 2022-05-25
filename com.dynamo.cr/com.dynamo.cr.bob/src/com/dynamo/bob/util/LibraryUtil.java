@@ -169,26 +169,4 @@ public class LibraryUtil {
         }
         return includeDirs;
     }
-
-    /**
-     * Parse a comma separated string of URLs.
-     * @param urls
-     * @return a list of the parsed URLs
-     */
-    public static List<URL> parseLibraryUrls(String urls) throws LibraryException {
-        List<URL> result = new ArrayList<URL>();
-        String[] libUrls = urls.split("[,\\s]");
-        for (String urlStr : libUrls) {
-            urlStr = urlStr.trim();
-            if (!urlStr.isEmpty()) {
-                try {
-                    URL url = new URL(urlStr);
-                    result.add(url);
-                } catch (MalformedURLException e) {
-                    throw new LibraryException(String.format("The library URL %s is not valid", urlStr), e);
-                }
-            }
-        }
-        return result;
-    }
 }

@@ -256,6 +256,24 @@ const TestParam params_command_line[] = {
 INSTANTIATE_TEST_CASE_P(CommandLine, CommandLine, jc_test_values_in(params_command_line));
 
 
+class LongValue : public ConfigTest {};
+
+TEST_P(LongValue, LongValue)
+{
+    ASSERT_EQ(dmConfigFile::RESULT_OK, r);
+    int expected_length = (50 * 200) + 49;
+    const char* long_value = dmConfigFile::GetString(config, "section.long", 0);
+    int length = strlen(long_value);
+    ASSERT_EQ(expected_length, length);
+}
+
+const TestParam params_long_value[] = {
+    TestParam("src/test/data/long_value.config"),
+};
+
+INSTANTIATE_TEST_CASE_P(LongValue, LongValue, jc_test_values_in(params_long_value));
+
+
 static void Usage()
 {
     dmLogError("Usage: <exe> <config>");

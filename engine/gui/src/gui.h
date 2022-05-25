@@ -879,6 +879,7 @@ namespace dmGui
     void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor);
     float GetNodeFlipbookPlaybackRate(HScene scene, HNode node);
     void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate);
+    void CancelNodeFlipbookAnim(HScene scene, HNode node, bool keep_anim_hash);
     void CancelNodeFlipbookAnim(HScene scene, HNode node);
     dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);

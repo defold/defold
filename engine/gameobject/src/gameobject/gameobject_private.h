@@ -284,7 +284,7 @@ namespace dmGameObject
         // Tail of the same list, for O(1) appending
         uint16_t                 m_InstancesToAddTail;
 
-        float                    m_FixedAccumTime;
+        float                    m_FixedAccumTime;  // Accumulated time between fixed updates. Scaled time.
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
@@ -294,6 +294,7 @@ namespace dmGameObject
         uint32_t                 m_ScaleAlongZ : 1;
         uint32_t                 m_DirtyTransforms : 1;
         uint32_t                 m_Initialized : 1;
+        uint32_t                 m_FirstUpdate : 1;
     };
 
     struct CollectionHandle

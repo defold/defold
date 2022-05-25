@@ -501,8 +501,7 @@ public class GameProjectBuilder extends Builder<Void> {
     // Used to transform an input game.project properties map to a game.projectc representation.
     // Can be used for doing build time properties conversion.
     static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
-        // Remove project dependencies list for security.
-        properties.remove("project", "dependencies");
+        properties.removePrivateFields();
 
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
@@ -527,7 +526,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         IResource input = task.input(0);
 
-        BobProjectProperties properties = Project.loadProperties(input, project.getPropertyFiles());
+        BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles());
 
         try {
             if (project.option("archive", "false").equals("true")) {

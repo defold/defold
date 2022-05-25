@@ -141,9 +141,9 @@ TEST_P(ResourceTest, TestPreload)
 
 TEST_F(ResourceTest, TestReloadTextureSet)
 {
-    const char* texture_set_path_a   = "/textureset/valid_a.texturesetc";
-    const char* texture_set_path_b   = "/textureset/valid_b.texturesetc";
-    const char* texture_set_path_tmp = "/textureset/tmp.texturesetc";
+    const char* texture_set_path_a   = "/textureset/valid_a.t.texturesetc";
+    const char* texture_set_path_b   = "/textureset/valid_b.t.texturesetc";
+    const char* texture_set_path_tmp = "/textureset/tmp.t.texturesetc";
 
     dmGameSystem::TextureSetResource* resource = NULL;
 
@@ -948,7 +948,7 @@ TEST_P(FactoryTest, Test)
     const char* resource_path[] = {
             "/factory/factory_resource.goc",
             "/sprite/valid.spritec",
-            "/tile/valid.texturesetc",
+            "/tile/valid.t.texturesetc",
             "/sprite/sprite.materialc",
     };
     dmHashEnableReverseHash(true);
@@ -1125,7 +1125,7 @@ TEST_P(CollectionFactoryTest, Test)
             "/collection_factory/collectionfactory_test.collectionc", // prototype resource (loaded in collection factory resource)
             "/collection_factory/collectionfactory_resource.goc", // two instances referenced in factory collection protoype
             "/sprite/valid.spritec", // single instance (subresource of go's)
-            "/tile/valid.texturesetc", // single instance (subresource of sprite)
+            "/tile/valid.t.texturesetc", // single instance (subresource of sprite)
             "/sprite/sprite.materialc", // single instance (subresource of sprite)
     };
     dmHashEnableReverseHash(true);
@@ -2129,7 +2129,7 @@ const char* invalid_sprite_gos[] = {"/sprite/invalid_sprite.goc"};
 INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, jc_test_values_in(invalid_sprite_gos));
 
 /* TileSet */
-const char* valid_tileset_resources[] = {"/tile/valid.texturesetc"};
+const char* valid_tileset_resources[] = {"/tile/valid.t.texturesetc"};
 INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, jc_test_values_in(valid_tileset_resources));
 
 /* TileGrid */
@@ -2254,10 +2254,10 @@ ResourcePropParams res_prop_params[] =
     // property, val, val-not-found, val-invalid-ext, component0, ..., componentN
     {"material", "/resource/resource_alt.materialc", "/not_found.materialc", "/resource/res_getset_prop.goc", "label", "model", "gui", "tilemap", 0},
     {"font", "/resource/font.fontc", "/not_found.fontc", "/resource/res_getset_prop.goc", "label", 0},
-    {"image", "/tile/valid2.texturesetc", "", "/resource/res_getset_prop.goc", "sprite", 0},
+    {"image", "/tile/valid2.t.texturesetc", "", "/resource/res_getset_prop.goc", "sprite", 0},
     {"texture0", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
     {"texture1", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
-    {"tile_source", "/tile/valid2.texturesetc", "", "/resource/res_getset_prop.goc", "tilemap", 0},
+    {"tile_source", "/tile/valid2.t.texturesetc", "", "/resource/res_getset_prop.goc", "tilemap", 0},
 };
 
 INSTANTIATE_TEST_CASE_P(ResourceProperty, ResourcePropTest, jc_test_values_in(res_prop_params));

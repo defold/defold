@@ -126,7 +126,7 @@ namespace dmGameObject
             while (index != INVALID_INDEX)
             {
                 Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
-                if (anim->m_ComponentId == component_id && anim->m_PropertyId == property_id)
+                if (anim->m_ComponentId == component_id && (property_id == 0 || anim->m_PropertyId == property_id))
                 {
                     StopAnimation(anim, false);
                 }
@@ -605,6 +605,14 @@ namespace dmGameObject
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
+
+        AnimWorld* world = GetWorld(collection);
+        uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
+        if (property_id == 0)
+        {
+            StopAnimations(world, head_ptr, component_id, 0);
+            return PROPERTY_RESULT_OK;
+        }
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
         property_opt.m_Index = 0;
@@ -618,8 +626,6 @@ namespace dmGameObject
         {
             return PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
-        AnimWorld* world = GetWorld(collection);
-        uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
         StopAnimations(world, head_ptr, component_id, property_id);
         if (element_count > 1)
         {

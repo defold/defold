@@ -1017,7 +1017,7 @@ namespace dmPhysics
     void Wakeup3D(HCollisionObject3D collision_object)
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
-        co->activate();
+        co->activate(true);
     }
 
     void SetLockedRotation3D(HCollisionObject3D collision_object, bool locked_rotation) {

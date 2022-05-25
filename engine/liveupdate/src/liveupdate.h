@@ -73,7 +73,7 @@ namespace dmLiveUpdate
 
     /*# Registers an archive (.zip) on disc
      */
-    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data);
+    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive);
 
     Result StoreManifest(dmResource::Manifest* manifest);
 

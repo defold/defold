@@ -4,7 +4,12 @@
 
 ### Required Software - Java JDK 11
 
-[Download and install release 11.0.1 from OpenJDK](https://jdk.java.net/archive/). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+Download and install the latest JDK 11 release from either of these locations:
+
+* [Adoptium/Temurin](https://github.com/adoptium/temurin11-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
+* [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-11) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
+
+When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
 
 ```sh
 > nano ~/.bashrc
