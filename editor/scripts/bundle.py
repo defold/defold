@@ -90,7 +90,7 @@ def extract_zip(file, path, is_mac):
         # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
         exec_command(['unzip', file, '-d', path])
     else:
-        with zipfile.ZipFile.open(file, 'r') as zf:
+        with zipfile.ZipFile(file, 'r') as zf:
             zf.extractall(path)
 
 def extract(file, path, is_mac):
