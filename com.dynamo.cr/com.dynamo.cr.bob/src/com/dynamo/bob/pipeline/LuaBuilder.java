@@ -299,13 +299,13 @@ public abstract class LuaBuilder extends Builder<Void> {
 
                     // write index of diff
                     bos.write(i);
-                    if (bytecode32.length >= 2^8) {
+                    if (bytecode32.length >= 2>>8) {
                         bos.write((i & 0xFF00) >> 8);
                     }
-                    if (bytecode32.length >= 2^16) {
+                    if (bytecode32.length >= 2>>16) {
                         bos.write((i & 0xFF0000) >> 16);
                     }
-                    if (bytecode32.length >= 2^24) {
+                    if (bytecode32.length >= 2>>24) {
                         bos.write((i & 0xFF000000) >> 24);
                     }
 
