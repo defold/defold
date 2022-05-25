@@ -27,17 +27,20 @@ namespace dmGameObject
         while (i < delta_size) {
             // get the index
             uint32_t index = delta[i++];
-            if (bytes_size >= 2>>24)
+            if (bytes_size >= (2 << 24))
             {
-                index += ((delta[i++]) << 8) + ((delta[i++]) << 16) + ((delta[i++]) << 24);
+                index += ((delta[i++]) << 8);
+                index += ((delta[i++]) << 16);
+                index += ((delta[i++]) << 24);
             }
-            else if (bytes_size >= 2>>16)
+            else if (bytes_size >= (2 << 16))
             {
-                index += ((delta[i++]) << 8) + ((delta[i++]) << 16);
+                index += ((delta[i++]) << 8);
+                index += ((delta[i++]) << 16);
             }
-            else if (bytes_size >= 2>>8)
+            else if (bytes_size >= (2 << 8))
             {
-                index += (delta[i++]) << 8;
+                index += ((delta[i++]) << 8);
             }
 
             // get the number of consecutive bytes of changes
