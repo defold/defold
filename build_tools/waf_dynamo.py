@@ -13,7 +13,6 @@
 # specific language governing permissions and limitations under the License.
 
 import os, sys, subprocess, shutil, re, stat, glob, zipfile
-#import cc # for supporting LIBDIR
 from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
@@ -21,28 +20,10 @@ from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import sdk
-import importlib.util
 
 if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
-
-def load_package_from_path(name, root):
-    spec = importlib.util.spec_from_file_location(name, '%s/__init__.py' % (root))
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-def load_module_from_path(name, root, module_name = None):
-    had_no_module_name = module_name == None
-    if module_name == None:
-        module_name = name
-    spec = importlib.util.spec_from_file_location(name, '%s/%s.py' % (root, name))
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
 
 def is_platform_private(platform):
     return platform in ['arm64-nx64']
