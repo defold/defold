@@ -255,7 +255,6 @@ public abstract class LuaBuilder extends Builder<Void> {
             byte[] bytecode64 = constructBytecode(task, "luajit-64", script);
 
             if (bytecode32.length != bytecode64.length) {
-                Bob.verbose("%s bytecode32.length != bytecode64.length", task.input(0).getPath());
                 throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
             }
 
@@ -321,27 +320,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
 
             byte[] delta = bos.toByteArray();
-            float ratio = (float)delta.length / (float)bytecode64.length;
-            Bob.verbose("%s bytecode size: %d delta size: %d ratio: %f", task.input(0).getPath(), bytecode64.length, delta.length, ratio);
             srcBuilder.setDelta(ByteString.copyFrom(delta));
-
-            try {
-                File deltaFile = new File(task.input(0).getPath() + ".delta");
-                try (FileOutputStream outputStream = new FileOutputStream(deltaFile)) {
-                    outputStream.write(delta);
-                }
-                File bytecode64File = new File(task.input(0).getPath() + ".bc64");
-                try (FileOutputStream outputStream = new FileOutputStream(bytecode64File)) {
-                    outputStream.write(bytecode64);
-                }
-                File bytecode32File = new File(task.input(0).getPath() + ".bc32");
-                try (FileOutputStream outputStream = new FileOutputStream(bytecode32File)) {
-                    outputStream.write(bytecode32);
-                }
-            }
-            catch(Exception e) {
-                Bob.verbose(e.getMessage());
-            }
         }
 
         builder.setSource(srcBuilder);
