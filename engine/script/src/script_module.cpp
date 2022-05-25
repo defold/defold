@@ -45,14 +45,12 @@ namespace dmScript
     // and in reality, if linking happens against LuaJIT.
     static void GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
     {
-#if defined(LUA_BYTECODE_ENABLE_32) || defined(LUA_BYTECODE_ENABLE_64)
         if (source->m_Bytecode.m_Count > 0)
         {
             *buf = (const char*)source->m_Bytecode.m_Data;
             *size = source->m_Bytecode.m_Count;
             return;
         }
-#endif
         *buf = (const char*)source->m_Script.m_Data;
         *size = source->m_Script.m_Count;
     }

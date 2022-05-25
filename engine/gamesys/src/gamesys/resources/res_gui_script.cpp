@@ -50,7 +50,7 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmGameObject::PatchLuaBytecode(lua_module);
+        dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
 
         uint32_t n_modules = lua_module->m_Modules.m_Count;
         for (uint32_t i = 0; i < n_modules; ++i)
@@ -107,7 +107,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmGameObject::PatchLuaBytecode(lua_module);
+        dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
 
         if (!dmGameObject::RegisterSubModules(params.m_Factory, gui_context->m_ScriptContext, lua_module))
         {

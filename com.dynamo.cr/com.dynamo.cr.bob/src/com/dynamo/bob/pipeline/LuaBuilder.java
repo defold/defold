@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.io.FileOutputStream;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -258,48 +259,70 @@ public abstract class LuaBuilder extends Builder<Void> {
                 throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
             }
 
-            srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
+            srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
 
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            Bob.verbose("%s 32bit length: %d 64bit length: %d", task.input(0).getPath(), bytecode32.length, bytecode64.length);
-            int previousDiffIndex = 0;
-            int previousDiff = 0;
-            int maxDiffStep = 0;
-            int maxConsecutive = 0;
-            int consecutive = 0;
-            int diffCount = 0;
-            for(int i = 0; i < bytecode32.length; i++) {
-                byte b32 = bytecode32[i];
-                byte b64 = bytecode64[i];
-                if (b32 != b64) {
-                    int diff = b64 - b32;
-                    //Bob.verbose("i = %d b32 = %d b64 = %d diff = %d", i, b32, b64, b64-b32);
+            int i = 0;
+            while(i < bytecode32.length) {
+                // find sequences of consecutive bytes that differ
+                // max 255 at a time
+                int count = 0;
+                while(count < 256 && (i + count) < bytecode32.length) {
+                    if (bytecode32[i + count] == bytecode64[i + count]) {
+                        break;
+                    }
+                    count++;
+                }
+
+                // found a sequence of bytes
+                // write index, count and bytes
+                if (count > 0) {
+
+                    // write index of diff
                     bos.write(i);
-                    if (bytecode32.length > 255) {
+                    if (bytecode32.length >= 2^8) {
                         bos.write((i & 0xFF00) >> 8);
                     }
-                    if (bytecode32.length > 65535) {
+                    if (bytecode32.length >= 2^16) {
                         bos.write((i & 0xFF0000) >> 16);
+                    }
+                    if (bytecode32.length >= 2^24) {
                         bos.write((i & 0xFF000000) >> 24);
                     }
-                    bos.write(diff);
 
-                    if (previousDiffIndex == (i - 1)) {
-                        consecutive++;
-                    }
-                    else {
-                        consecutive = 0;
-                    }
-                    maxDiffStep = Math.max(maxDiffStep, i - previousDiffIndex);
-                    maxConsecutive = Math.max(maxConsecutive, consecutive);
-                    previousDiffIndex = i;
-                    previousDiff = diff;
-                    diffCount++;
+                    bos.write(count);
+
+                    // write consecutive bytes that differ
+                    bos.write(bytecode32, i, count);
+                    i += count;
+                }
+                else {
+                    i += 1;
                 }
             }
+
             byte[] delta = bos.toByteArray();
-            Bob.verbose("%s delta size: %d diffCount: %d maxDiffStep: %d maxConsecutive: %d", task.input(0).getPath(), delta.length, diffCount, maxDiffStep, maxConsecutive);
+            float ratio = (float)delta.length / (float)bytecode64.length;
+            Bob.verbose("%s bytecode size: %d delta size: %d ratio: %f", task.input(0).getPath(), bytecode64.length, delta.length, ratio);
             srcBuilder.setDelta(ByteString.copyFrom(delta));
+
+            try {
+                File deltaFile = new File(task.input(0).getPath() + ".delta");
+                try (FileOutputStream outputStream = new FileOutputStream(deltaFile)) {
+                    outputStream.write(delta);
+                }
+                File bytecode64File = new File(task.input(0).getPath() + ".bc64");
+                try (FileOutputStream outputStream = new FileOutputStream(bytecode64File)) {
+                    outputStream.write(bytecode64);
+                }
+                File bytecode32File = new File(task.input(0).getPath() + ".bc32");
+                try (FileOutputStream outputStream = new FileOutputStream(bytecode32File)) {
+                    outputStream.write(bytecode32);
+                }
+            }
+            catch(Exception e) {
+                Bob.verbose(e.getMessage());
+            }
         }
 
         builder.setSource(srcBuilder);
