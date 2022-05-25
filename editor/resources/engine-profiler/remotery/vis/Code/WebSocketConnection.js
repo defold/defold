@@ -15,10 +15,14 @@ WebSocketConnection = (function()
 	}
 
 
+	WebSocketConnection.prototype.Connecting = function()
+	{
+		return this.Socket != null && this.Socket.readyState == WebSocket.CONNECTING;
+	}
+
 	WebSocketConnection.prototype.Connected = function()
 	{
-		// Will return true if the socket is also in the process of connecting
-		return this.Socket != null;
+		return this.Socket != null && this.Socket.readyState == WebSocket.OPEN;
 	}
 
 
@@ -45,9 +49,8 @@ WebSocketConnection = (function()
 
 	WebSocketConnection.prototype.Connect = function(address)
 	{
-		// Disconnect if already connected
-		if (this.Connected())
-			this.Disconnect();
+		// Abandon previous connection attempt
+		this.Disconnect();
 
 		Log(this, "Connecting to " + address);
 
@@ -63,8 +66,11 @@ WebSocketConnection = (function()
 	WebSocketConnection.prototype.Disconnect = function()
 	{
 		Log(this, "Disconnecting");
-		if (this.Connected())
+		if (this.Socket != null)
+		{
 			this.Socket.close();
+			this.Socket = null;
+		}
 	}
 
 

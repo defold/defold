@@ -123,6 +123,25 @@ body
 	background: #222;
 }
 
+.PropertyTitleValueCell
+{
+    width:132px;
+    
+	padding: 1px 1px 1px 2px;
+	border: 1px solid;
+	border-radius: 2px;
+
+	border-top-color:#555;
+	border-left-color:#555;
+	border-bottom-color:#111;
+	border-right-color:#111;
+
+	background: #222;
+}
+.PropertyValueCell
+{
+    width:137px;
+}
 
 .TimelineBox
 {

@@ -118,12 +118,12 @@ class TraceDrop
             remotery.ProcessorTimelineWindow.DrawAllRows();
             
             // Set the last frame of each thread sample history on the sample windows
-            for (let name in remotery.SampleWindows)
+            for (let name in remotery.gridWindows)
             {
-                let sample_window = remotery.SampleWindows[name];
+                let sample_window = remotery.gridWindows[name];
                 let frame_history = remotery.FrameHistory[name];
                 let frame = frame_history[frame_history.length - 1];
-                sample_window.OnSamples(frame.NbSamples, frame.SampleDigest, frame.Samples);
+                sample_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
             }
 
             // Pause for viewing

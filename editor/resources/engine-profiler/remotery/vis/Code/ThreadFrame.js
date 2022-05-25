@@ -27,3 +27,14 @@ ThreadFrame = (function()
 
 	return ThreadFrame;
 })();
+
+PropertySnapshotFrame = (function()
+{
+	function PropertySnapshotFrame(message)
+	{
+		this.nbSnapshots = message.nbSnapshots;
+		this.snapshots = message.snapshots;
+	}
+
+	return PropertySnapshotFrame;
+})();

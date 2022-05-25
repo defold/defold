@@ -72,10 +72,11 @@ Remotery = (function()
 
         this.TraceDrop = new TraceDrop(this);
 
-        this.NbSampleWindows = 0;
-        this.SampleWindows = { };
+        this.nbGridWindows = 0;
+        this.gridWindows = { };
         this.FrameHistory = { };
         this.ProcessorFrameHistory = { };
+        this.PropertyFrameHistory = [ ];
         this.SelectedFrames = { };
         this.sampleNames = new NameMap(this.SampleTimelineWindow.textBuffer);
         this.threadNames = new NameMap(this.ProcessorTimelineWindow.textBuffer);
@@ -84,6 +85,7 @@ Remotery = (function()
         this.Server.AddMessageHandler("SSMP", Bind(OnSampleName, this));
         this.Server.AddMessageHandler("PRTH", Bind(OnProcessorThreads, this));
         this.Server.AddMessageHandler("THRN", Bind(OnThreadNames, this));
+        this.Server.AddMessageHandler("PSNP", Bind(OnPropertySnapshots, this));
 
         // Kick-off the auto-connect loop
         AutoConnect(this);
@@ -111,17 +113,20 @@ Remotery = (function()
         this.ProcessorTimelineWindow.Clear();
 
         // Close and clear all sample windows
-        for (var i in this.SampleWindows)
+        for (var i in this.gridWindows)
         {
-            var sample_window = this.SampleWindows[i];
-            sample_window.Close();
+            const grid_window = this.gridWindows[i];
+            grid_window.Close();
         }
-        this.NbSampleWindows = 0;
-        this.SampleWindows = { };
+        this.nbGridWindows = 0;
+        this.gridWindows = { };
 
+        this.AddGridWindow("__rmt__global__properties__", "Global Properties", new PropertyGridConfig());
+        
         // Clear runtime data
         this.FrameHistory = { };
         this.ProcessorFrameHistory = { };
+        this.PropertyFrameHistory = [ ];
         this.SelectedFrames = { };
         this.sampleNames = new NameMap(this.SampleTimelineWindow.textBuffer);
         this.threadNames = new NameMap(this.ProcessorTimelineWindow.textBuffer);
@@ -134,8 +139,10 @@ Remotery = (function()
     function AutoConnect(self)
     {
         // Only attempt to connect if there isn't already a connection or an attempt to connect
-        if (!self.Server.Connected())
+        if (!self.Server.Connected() && !self.Server.Connecting())
+        {
             self.Server.Connect(self.ConnectionAddress);
+        }
 
         // Always schedule another check
         window.setTimeout(Bind(AutoConnect, self), 2000);
@@ -227,27 +234,6 @@ Remotery = (function()
         sample.us_self = data_view_reader.GetUInt64();
         sample.call_count = data_view_reader.GetUInt32();
         sample.recurse_depth = data_view_reader.GetUInt32();
-        sample.stat_type = data_view_reader.GetStringOfLength(3);
-        if (sample.stat_type == "I32")
-            sample.stat_value = data_view_reader.GetInt32();
-        else if (sample.stat_type == "F32")
-            sample.stat_value = data_view_reader.GetFloat32();
-        else {
-            data_view_reader.GetUInt32();
-            sample.stat_value = null;
-        }
-        sample.stat_desc_hash = data_view_reader.GetUInt32();
-        let [ desc_name_exists, desc_name ] = self.sampleNames.Get(sample.stat_desc_hash);
-        sample.stat_desc = desc_name;
-
-        // If the name doesn't exist in the map yet, request it from the server
-        if (!desc_name_exists)
-        {
-            if (self.Server.Connected())
-            {
-                self.Server.Send("GSMP" + sample.stat_desc_hash);
-            }
-        }
 
         // TODO(don): Get the profiler to pass these directly instead of hex colour
         const colour = parseInt(sample.colour.slice(1), 16);
@@ -297,6 +283,15 @@ Remotery = (function()
     }
 
 
+    Remotery.prototype.AddGridWindow = function(name, display_name, config)
+    {
+        this.gridWindows[name] = new GridWindow(this.WindowManager, display_name, this.nbGridWindows, config);
+        this.gridWindows[name].WindowResized(this.SampleTimelineWindow.Window, this.Console.Window);
+        this.nbGridWindows++;
+        MoveGridWindows(this);
+}
+
+
     function OnSamples(self, socket, data_view_reader)
     {
         // Discard any new samples while paused and connected
@@ -332,18 +327,15 @@ Remotery = (function()
             frame_history.splice(0, extra_frames);
 
         // Create sample windows on-demand
-        if (!(name in self.SampleWindows))
+        if (!(name in self.gridWindows))
         {
-            self.SampleWindows[name] = new SampleWindow(self.WindowManager, name, self.NbSampleWindows);
-            self.SampleWindows[name].WindowResized(self.SampleTimelineWindow.Window, self.Console.Window);
-            self.NbSampleWindows++;
-            MoveSampleWindows(this);
+            self.AddGridWindow(name, name, new SampleGridConfig());
         }
 
         // Set on the window and timeline if connected as this implies a trace is being loaded, which we want to speed up
         if (self.Server.Connected())
         {
-            self.SampleWindows[name].OnSamples(message.nb_samples, message.sample_digest, message.samples);
+            self.gridWindows[name].UpdateEntries(message.nb_samples, message.sample_digest, message.samples);
             self.SampleTimelineWindow.OnSamples(name, frame_history);
         }
     }
@@ -463,25 +455,132 @@ Remotery = (function()
     }
 
 
+    function DecodeSnapshot(self, data_view_reader)
+    {
+        var snapshot = {};
+
+        // Dispatch value decode on type
+        snapshot.type = data_view_reader.GetUInt32();
+        switch (snapshot.type)
+        {
+            case 0:
+                // Groups have no value
+                break;
+            case 1:
+                snapshot.value = data_view_reader.GetBool();
+                break;
+            case 2:
+                snapshot.value = data_view_reader.GetInt32();
+                break;
+            case 3:
+                snapshot.value = data_view_reader.GetUInt32();
+                break;
+            case 4:
+                snapshot.value = data_view_reader.GetFloat32();
+                break;
+            case 5:
+                snapshot.value = data_view_reader.GetInt64();
+                break;
+            case 6:
+                snapshot.value = data_view_reader.GetUInt64();
+                break;
+            case 7:
+                snapshot.value = data_view_reader.GetFloat64();
+                 break;
+        }
+
+        // Get name hash and look it up in the name map
+        snapshot.name_hash = data_view_reader.GetUInt32();
+        let [ name_exists, name ] = self.sampleNames.Get(snapshot.name_hash);
+        snapshot.name = name;
+
+        // Assign the unique ID
+        sample.id = data_view_reader.GetUInt32();
+
+        // If the name doesn't exist in the map yet, request it from the server
+        if (!name_exists)
+        {
+            if (self.Server.Connected())
+            {
+                self.Server.Send("GSMP" + snapshot.name_hash);
+            }
+        }
+
+        // Recurse into children
+        snapshot.children = [];
+        DecodeSnapshotArray(self, data_view_reader, snapshot.children);
+
+        return snapshot;
+    }
+
+    function DecodeSnapshotArray(self, data_view_reader, snapshots)
+    {
+        const nb_snapshots = data_view_reader.GetUInt32();
+        for (var i = 0; i < nb_snapshots; i++)
+        {
+            const snapshot = DecodeSnapshot(self, data_view_reader);
+            snapshots.push(snapshot)
+        }
+    }
+
+
+    function DecodeSnapshots(self, data_view_reader)
+    {
+        // Message-specific header
+        let message = { };
+        message.nbSnapshots = data_view_reader.GetUInt32();
+        message.snapshotDigest = data_view_reader.GetUInt32();
+
+        // Read snapshots
+        message.snapshots = [];
+        message.snapshots.push(DecodeSnapshot(self, data_view_reader));
+
+        return message;
+    }
+
+
+    function OnPropertySnapshots(self, socket, data_view_reader)
+    {
+        // Binary decode incoming snapshot data
+        const message = DecodeSnapshots(self, data_view_reader);
+
+        // Add to frame history
+        const thread_frame = new PropertySnapshotFrame(message);
+        const frame_history = self.PropertyFrameHistory;
+        frame_history.push(thread_frame);
+
+        // Discard old frames to keep memory-use constant
+        var max_nb_frames = 10000;
+        var extra_frames = frame_history.length - max_nb_frames;
+        if (extra_frames > 0)
+            frame_history.splice(0, extra_frames);
+
+        // Set on the window if connected as this implies a trace is being loaded, which we want to speed up
+        if (self.Server.Connected())
+        {
+            //self.gridWindows[name].UpdateEntries(message.nb_samples, message.sample_digest, message.samples);
+        }
+    }
+
     function OnTimelineCheck(self, name, evt)
     {
         // Show/hide the equivalent sample window and move all the others to occupy any left-over space
         var target = DOM.Event.GetNode(evt);
-        self.SampleWindows[name].SetVisible(target.checked);
-        MoveSampleWindows(self);
+        self.gridWindows[name].SetVisible(target.checked);
+        MoveGridWindows(self);
     }
 
 
-    function MoveSampleWindows(self)
+    function MoveGridWindows(self)
     {
         // Stack all windows next to each other
-        var xpos = 0;
-        for (var i in self.SampleWindows)
+        let xpos = 0;
+        for (let i in self.gridWindows)
         {
-            var sample_window = self.SampleWindows[i];
-            if (sample_window.Visible)
+            const grid_window = self.gridWindows[i];
+            if (grid_window.visible)
             {
-                sample_window.SetXPos(xpos++, self.SampleTimelineWindow.Window, self.Console.Window);
+                grid_window.SetXPos(xpos++, self.SampleTimelineWindow.Window, self.Console.Window);
             }
         }
     }
@@ -494,15 +593,15 @@ Remotery = (function()
             return;
         }
 
-        for (let window_thread_name in self.SampleWindows)
+        for (let window_thread_name in self.gridWindows)
         {
-            let sample_window = self.SampleWindows[window_thread_name];
+            const grid_window = self.gridWindows[window_thread_name];
 
             if (window_thread_name == thread_name && hover != null)
             {
                 // Populate with sample under hover
                 let frame = hover[0];
-                sample_window.OnSamples(frame.NbSamples, frame.SampleDigest, frame.Samples);
+                grid_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
             }
             else
             {
@@ -510,7 +609,7 @@ Remotery = (function()
                 if (self.SelectedFrames[window_thread_name])
                 {
                     const frame = self.SelectedFrames[window_thread_name];
-                    sample_window.OnSamples(frame.NbSamples, frame.SampleDigest, frame.Samples);
+                    grid_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
                 }
             }
         }
@@ -520,12 +619,12 @@ Remotery = (function()
     function OnSampleSelected(self, thread_name, select)
     {
         // Lookup sample window set the frame samples on it
-        if (select && thread_name in self.SampleWindows)
+        if (select && thread_name in self.gridWindows)
         {
-            var sample_window = self.SampleWindows[thread_name];
-            var frame = select[0];
+            const grid_window = self.gridWindows[thread_name];
+            const frame = select[0];
             self.SelectedFrames[thread_name] = frame;
-            sample_window.OnSamples(frame.NbSamples, frame.SampleDigest, frame.Samples);
+            grid_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
         }
     }
 
@@ -539,9 +638,9 @@ Remotery = (function()
         self.TitleWindow.WindowResized(w, h);
         self.SampleTimelineWindow.WindowResized(10, w / 2 - 5, self.TitleWindow.Window);
         self.ProcessorTimelineWindow.WindowResized(w / 2 + 5, w / 2 - 5, self.TitleWindow.Window);
-        for (var i in self.SampleWindows)
+        for (var i in self.gridWindows)
         {
-            self.SampleWindows[i].WindowResized(self.SampleTimelineWindow.Window, self.Console.Window);
+            self.gridWindows[i].WindowResized(self.SampleTimelineWindow.Window, self.Console.Window);
         }
     }
 
