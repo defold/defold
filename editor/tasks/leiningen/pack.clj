@@ -107,15 +107,13 @@
                 "/" (name artifact) "-" version
                 (some->> classifier name (str "-")) ".jar")))
 
-(defn jogl-native-dep?
-  [[artifact version & {:keys [classifier]}]]
-  (and (#{'org.jogamp.gluegen/gluegen-rt
-          'org.jogamp.jogl/jogl-all} artifact)
-       classifier))
+(defn jogl-native-dep? [[artifact version & {:keys [classifier]}]]
+  (or (str/starts-with? (str artifact) "org.jogamp.jogl/jogl-all-natives-")
+      (str/starts-with? (str artifact) "org.jogamp.gluegen/gluegen-rt-natives-")))
 
 (defn extract-jogl-native-dep
-  [[artifact version & {:keys [classifier]} :as dependency] pack-path]
-  (let [java-platform (str/replace-first classifier "natives-" "")
+  [[artifact version :as dependency] pack-path]
+  (let [java-platform (str/replace-first (str artifact) #"^.+natives-" "")
         natives-path (str "natives/" java-platform)]
     (with-open [zip-file (ZipFile. (jar-file dependency))]
       (doseq [entry (enumeration-seq (.entries zip-file))]

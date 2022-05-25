@@ -16,7 +16,9 @@
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
+                     "jzy3d" {:url "https://maven.jzy3d.org/releases/"
+                              :checksum :ignore}}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [lein-sass "0.4.0"]
@@ -42,6 +44,7 @@
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
+                     [com.github.ben-manes.caffeine/caffeine      "3.1.0"]
                      [potemkin                                    "0.4.3"]
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
@@ -109,16 +112,16 @@
                      [org.openjfx/javafx-swing "18" :classifier "mac"]
                      [org.openjfx/javafx-swing "18" :classifier "win"]
 
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-macosx-universal"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-i586"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
+                     [org.jogamp.gluegen/gluegen-rt               "v2.4.0-rc4"]
+                     [org.jogamp.gluegen/gluegen-rt-natives-linux-amd64               "v2.4.0-rc4"]
+                     [org.jogamp.gluegen/gluegen-rt-natives-macosx-universal               "v2.4.0-rc4"]
+                     [org.jogamp.gluegen/gluegen-rt-natives-windows-amd64               "v2.4.0-rc4"]
+                     [org.jogamp.gluegen/gluegen-rt-natives-windows-i586               "v2.4.0-rc4"]
+                     [org.jogamp.jogl/jogl-all                    "v2.4.0-rc4"]
+                     [org.jogamp.jogl/jogl-all-natives-linux-amd64                    "v2.4.0-rc4"]
+                     [org.jogamp.jogl/jogl-all-natives-macosx-universal                    "v2.4.0-rc4"]
+                     [org.jogamp.jogl/jogl-all-natives-windows-amd64                    "v2.4.0-rc4"]
+                     [org.jogamp.jogl/jogl-all-natives-windows-i586                    "v2.4.0-rc4"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]]
 
