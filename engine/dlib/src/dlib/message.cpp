@@ -28,6 +28,9 @@
 
 namespace dmMessage
 {
+    DM_PROPERTY_GROUP(rmtp_Message, "dmMessage");
+    DM_PROPERTY_U32(rmtp_Messages, 0, FrameReset, "# messages/frame", &rmtp_Message);
+
     // Alignment of allocations
     const uint32_t DM_MESSAGE_ALIGNMENT = 16U;
 
@@ -400,7 +403,7 @@ namespace dmMessage
                     uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
         DM_PROFILE(Message, "Post")
-        DM_COUNTER("Messages", 1)
+        DM_PROPERTY_ADD_U32(rmtp_Messages, 1);
 
         if (receiver == 0x0)
         {

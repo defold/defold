@@ -68,8 +68,9 @@ static void TraverseSampleTree(TestCtx* ctx, int indent, dmProfile::HSample samp
 {
     ProcessSample(ctx, sample);
 
-    dmProfile::SampleIterator iter = dmProfile::IterateChildren(sample);
-    while (dmProfile::IterateNext(&iter))
+    dmProfile::SampleIterator iter;
+    dmProfile::SampleIterateChildren(sample, &iter);
+    while (dmProfile::SampleIterateNext(&iter))
     {
         TraverseSampleTree(ctx, indent + 1, iter.m_Sample);
     }

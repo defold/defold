@@ -299,8 +299,11 @@ DM_DLLEXPORT void *malloc(size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            if (dmMemProfile::g_AddCounter)
+            {
+                dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
+                dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            }
         }
     }
     else

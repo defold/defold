@@ -17,7 +17,7 @@
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
-#include <dlib/mutex.h>
+#include <dlib/profile.h>
 
 namespace dmRender
 {
@@ -58,6 +58,15 @@ namespace dmProfileRender
         uint8_t  m_Indent; // The stack depth
     };
 
+    struct ProfilerProperty
+    {
+        const char*                 m_Name;
+        dmhash_t                    m_NameHash;
+        dmProfile::PropertyValue    m_Value;
+        dmProfile::PropertyType     m_Type;
+        uint8_t                     m_Indent; // The stack depth
+    };
+
     struct ProfilerThread
     {
         dmArray<ProfilerSample>     m_Samples;
@@ -73,7 +82,8 @@ namespace dmProfileRender
     struct ProfilerFrame
     {
         dmArray<ProfilerThread*>    m_Threads;
-        uint64_t                    m_Time;         // The time of the last update for this frame
+        dmArray<ProfilerProperty>   m_Properties;
+        uint64_t                    m_Time;           // The time of the last update for this frame
     };
 
 
@@ -95,6 +105,8 @@ namespace dmProfileRender
     void DeleteProfilerFrame(ProfilerFrame* frame);
     //void ClearProfilerFrame(ProfilerFrame* frame);
     void PruneProfilerThreads(ProfilerFrame* ctx, uint64_t time);
+
+    void AddProperty(ProfilerFrame* frame, const char* name, dmhash_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent);
 }
 
 #endif

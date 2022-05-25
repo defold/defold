@@ -97,6 +97,14 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         std::sort(g_ProfilerCurrentFrame->m_Threads.Begin(), g_ProfilerCurrentFrame->m_Threads.End(), ThreadSortPred(&g_ProfilerThreadSortOrder));
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
+
+        for (uint32_t i = 0; i < g_ProfilerCurrentFrame->m_Properties.Size(); ++i)
+        {
+            dmProfileRender::ProfilerProperty& property = g_ProfilerCurrentFrame->m_Properties[i];
+            free((void*)property.m_Name);
+        }
+        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
+
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -481,13 +489,14 @@ static int ProfilerLogText(lua_State* L)
 */
 
 
-static void printIndent(int indent)
-{
-    for (int i = 0; i < indent; ++i) {
-        printf("  ");
-    }
-}
+// static void PrintIndent(int indent)
+// {
+//     for (int i = 0; i < indent; ++i) {
+//         printf("  ");
+//     }
+// }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
 {
@@ -506,24 +515,15 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     if (thread->m_Samples.Full())
         thread->m_Samples.OffsetCapacity(32);
     thread->m_Samples.Push(out);
-
-    if (strcmp("Post", name) == 0)
-    {
-        printf("Sample name: '%s'  %p\n", name, name);
-        printf("Thread name: '%s'  %p\n", thread->m_Name, thread->m_Name);
-    }
-
-    //printIndent(indent); printf("%s %u  time: %llu  self: %llu\n", name, out.m_Count, out.m_Time, out.m_SelfTime);
 }
 
 static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
 {
     ProcessSample(thread, indent, sample);
 
-    const dmProfileRender::ProfilerSample& last = thread->m_Samples.Back();
-
-    dmProfile::SampleIterator iter = dmProfile::IterateChildren(sample);
-    while (dmProfile::IterateNext(&iter))
+    dmProfile::SampleIterator iter;
+    dmProfile::SampleIterateChildren(sample, &iter);
+    while (dmProfile::SampleIterateNext(&iter))
     {
         TraverseSampleTree(thread, indent + 1, iter.m_Sample);
     }
@@ -531,10 +531,6 @@ static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int inde
 
 static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
 {
-    // Since the profiling internals may be threaded, we want to gather the statistics into a ready-to-use place for the
-    // our internal profile renderer
-    //dmProfile::IterateSamples(root, void* context, void (*callback)(void* context, const Sample* sample));
-
     if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
         return;
 
@@ -560,6 +556,68 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     TraverseSampleTree(thread, 0, root);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// static void PrintProperty(dmProfile::HProperty property, int indent)
+// {
+//     const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
+//     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
+
+//     PrintIndent(indent); printf("%s: ", name);
+
+//     switch(type)
+//     {
+//     case dmProfile::PROPERTY_TYPE_BOOL:  printf("%s\n", value.m_Bool?"true":"false"); break;
+//     case dmProfile::PROPERTY_TYPE_S32:   printf("%d\n", value.m_S32); break;
+//     case dmProfile::PROPERTY_TYPE_U32:   printf("%u\n", value.m_U32); break;
+//     case dmProfile::PROPERTY_TYPE_F32:   printf("%f\n", value.m_F32); break;
+//     case dmProfile::PROPERTY_TYPE_S64:   printf("%lld\n", value.m_S64); break;
+//     case dmProfile::PROPERTY_TYPE_U64:   printf("%llx\n", value.m_U64); break;
+//     case dmProfile::PROPERTY_TYPE_F64:   printf("%g\n", value.m_F64); break;
+//     case dmProfile::PROPERTY_TYPE_GROUP: printf("\n"); break;
+//     default: break;
+//     }
+// }
+
+static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
+{
+    const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
+    dmhash_t name_hash = dmProfile::PropertyGetNameHash(property);
+    dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
+    dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
+
+    dmProfileRender::AddProperty(frame, name, name_hash, type, value, indent);
+}
+
+static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
+{
+    ProcessProperty(frame, indent, property);
+
+    dmProfile::PropertyIterator iter;
+    dmProfile::PropertyIterateChildren(property, &iter);
+    while (dmProfile::PropertyIterateNext(&iter))
+    {
+        TraversePropertyTree(frame, indent + 1, iter.m_Property);
+    }
+}
+
+static void PropertyTreeCallback(void* _ctx, dmProfile::HProperty root)
+{
+    if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
+        return;
+
+    DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+
+    dmProfile::PropertyIterator iter;
+    dmProfile::PropertyIterateChildren(root, &iter);
+    while (dmProfile::PropertyIterateNext(&iter))
+    {
+        TraversePropertyTree(g_ProfilerCurrentFrame, 0, iter.m_Property);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 {
@@ -643,6 +701,7 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
     g_ProfilerMutex = dmMutex::New();
     dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
+    dmProfile::SetPropertyTreeCallback(g_ProfilerCurrentFrame, PropertyTreeCallback);
 
     g_ProfilerThreadSortOrder.SetCapacity(7, 8);
     g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);

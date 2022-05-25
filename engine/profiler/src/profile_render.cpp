@@ -80,10 +80,6 @@ namespace dmProfileRender
     static const int BORDER_SIZE  = 8;
     static const int INDENT_WIDTH = 2 * CHARACTER_WIDTH;
 
-    static const int SCOPES_NAME_WIDTH  = 17 * CHARACTER_WIDTH;
-    static const int SCOPES_TIME_WIDTH  = 6 * CHARACTER_WIDTH;
-    static const int SCOPES_COUNT_WIDTH = 3 * CHARACTER_WIDTH;
-
     static const int PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH = 40;
     static const int LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH = 60;
     static const int PORTRAIT_SAMPLE_FRAMES_NAME_WIDTH  = PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH * CHARACTER_WIDTH;
@@ -91,8 +87,8 @@ namespace dmProfileRender
     static const int SAMPLE_FRAMES_TIME_WIDTH  = 6 * CHARACTER_WIDTH;
     static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHARACTER_WIDTH;
 
-    static const int COUNTERS_NAME_WIDTH  = 15 * CHARACTER_WIDTH;
-    static const int COUNTERS_COUNT_WIDTH = 12 * CHARACTER_WIDTH;
+    static const int COUNTERS_NAME_WIDTH  = 24 * CHARACTER_WIDTH;
+    static const int COUNTERS_COUNT_WIDTH = 8 * CHARACTER_WIDTH;
 
     enum DisplayMode
     {
@@ -110,10 +106,6 @@ namespace dmProfileRender
 
     static ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame);
     static ProfilerThread* GetSelectedThread(HRenderProfile render_profile, ProfilerFrame* frame);
-
-    // // These hashes are used so we can filter out the time the engine is waiting for frame buffer flip
-    // static const uint32_t VSYNC_WAIT_NAME_HASH   = 0123;//GetCombinedHash(dmProfile::GetNameHash("VSync", (uint32_t)strlen("VSync")), dmProfile::GetNameHash("Wait", (uint32_t)strlen("Wait")));
-    // static const uint32_t ENGINE_FRAME_NAME_HASH = 4567;//GetCombinedHash(dmProfile::GetNameHash("Engine", (uint32_t)strlen("Engine")), dmProfile::GetNameHash("Frame", (uint32_t)strlen("Frame")));
 
     ProfilerThread::ProfilerThread()
     : m_NameHash(0)
@@ -166,140 +158,58 @@ namespace dmProfileRender
         render_profile->m_PlaybackFrame = -1;
     }
 
-    // static void BuildScope(void* context, const dmProfile::ScopeData* scope_data)
-    // {
-    //     if (scope_data->m_Count == 0)
-    //     {
-    //         return;
-    //     }
-    //     RenderProfile* render_profile = (RenderProfile*)context;
-    //     dmProfile::Scope* scope       = scope_data->m_Scope;
-    //     if (!AddName(render_profile, scope->m_NameHash, scope->m_Name))
-    //     {
-    //         render_profile->m_ScopeOverflow = 1;
-    //         return;
-    //     }
-    //     AddScope(render_profile, scope->m_NameHash, scope_data->m_Elapsed, scope_data->m_Count);
-    // }
+    //  float *r, *g, *b; /* red, green, blue in [0,1] */
+    //  float h, s, l;    /* hue in [0,360]; saturation, light in [0,1] */
+    static void hsl_to_rgb(float* r, float* g, float* b, float h, float s, float l)
+    {
+        float c      = (1.0f - dmMath::Abs(2.0f * l - 1.0f)) * s;
+        float hp     = h / 60.0f;
+        int hpi      = (int)hp;
+        float hpmod2 = (hpi % 2) + (hp - hpi);
+        float x      = c * (1.0f - dmMath::Abs(hpmod2 - 1.0f));
+        switch (hpi)
+        {
+            case 0:
+                *r = c;
+                *g = x;
+                *b = 0;
+                break;
+            case 1:
+                *r = x;
+                *g = c;
+                *b = 0;
+                break;
+            case 2:
+                *r = 0;
+                *g = c;
+                *b = x;
+                break;
+            case 3:
+                *r = 0;
+                *g = x;
+                *b = c;
+                break;
+            case 4:
+                *r = x;
+                *g = 0;
+                *b = c;
+                break;
+            case 5:
+                *r = c;
+                *g = 0;
+                *b = x;
+                break;
+        }
+        float m = l - 0.5f * c;
+        *r += m;
+        *g += m;
+        *b += m;
+    }
 
-    // static void BuildSampleAggregate(void* context, const dmProfile::Sample* sample)
-    // {
-    //     if (sample->m_Elapsed == 0u)
-    //     {
-    //         return;
-    //     }
-    //     RenderProfile* render_profile = (RenderProfile*)context;
-    //     if (!AddName(render_profile, sample->m_NameHash, sample->m_Name))
-    //     {
-    //         render_profile->m_SampleAggregateOverflow = 1;
-    //         return;
-    //     }
-    //     AddSample(render_profile, sample->m_NameHash, sample->m_Scope->m_NameHash, sample->m_Start, sample->m_Elapsed);
-    // }
-
-    // static void BuildCounter(void* context, const dmProfile::CounterData* counter_data)
-    // {
-    //     if (counter_data->m_Value == 0)
-    //     {
-    //         return;
-    //     }
-    //     RenderProfile* render_profile = (RenderProfile*)context;
-    //     dmProfile::Counter* counter   = counter_data->m_Counter;
-    //     if (!AddName(render_profile, counter->m_NameHash, counter->m_Name))
-    //     {
-    //         render_profile->m_CounterOverflow = 1;
-    //         return;
-    //     }
-    //     AddCounter(render_profile, counter->m_NameHash, counter_data->m_Value);
-    // }
-
-    // static uint32_t GetWaitTicks(HRenderProfile render_profile)
-    // {
-    //     // TIndex* wait_time_ptr = render_profile->m_SampleAggregateLookup.m_HashLookup.Get(VSYNC_WAIT_NAME_HASH);
-    //     // if (wait_time_ptr != 0x0)
-    //     // {
-    //     //     SampleAggregate* sample_aggregate = &render_profile->m_ActiveFrame->m_SampleAggregates[*wait_time_ptr];
-    //     //     return sample_aggregate->m_Elapsed;
-    //     // }
-    //     return 0;
-    // }
-
-    // static float GetWaitTime(HRenderProfile render_profile)
-    // {
-    //     uint32_t wait_ticks       = GetWaitTicks(render_profile);
-    //     uint64_t ticks_per_second = render_profile->m_TicksPerSecond;
-    //     double elapsed_s          = (double)(wait_ticks) / ticks_per_second;
-    //     float elapsed_ms          = (float)(elapsed_s * 1000.0);
-    //     return elapsed_ms;
-    // }
-
-    // static uint32_t GetFrameTicks(HRenderProfile render_profile)
-    // {
-    //     TIndex* frame_time_ptr = render_profile->m_SampleAggregateLookup.m_HashLookup.Get(ENGINE_FRAME_NAME_HASH);
-    //     if (frame_time_ptr != 0x0)
-    //     {
-    //         SampleAggregate* sample_aggregate = &render_profile->m_ActiveFrame->m_SampleAggregates[*frame_time_ptr];
-    //         return sample_aggregate->m_Elapsed;
-    //     }
-    //     return 0;
-    // }
-
-    // static uint32_t GetActiveFrameTicks(HRenderProfile render_profile, uint32_t frame_ticks)
-    // {
-    //     return frame_ticks - GetWaitTicks(render_profile);
-    // }
-
-    // static void BuildStructure(dmProfileRender::ProfilerFrame* frame_context, RenderProfile* render_profile)
-    // {
-    //     DM_MUTEX_SCOPED_LOCK(g_ProfilerFrameContext->m_Mutex);
-
-    //     if (frame_context->m_Threads.Empty())
-    //         return;
-
-    //     // TODO: Find the main thread
-    //     ProfilerThread* thread = frame_context->m_Threads[0]; // Hopefully the main thread
-
-    //     if (thread->m_Samples.Empty())
-    //         return;
-
-    //     ProfilerSample* root_sample = thread->m_Samples[0];
-
-    //     render_profile->m_NowTick                    = dmTime::GetTime();
-
-    //     //render_profile->m_BuildFrame->m_WaitTime = GetWaitTime(render_profile);
-    // }
-
-    // struct CounterSortPred
-    // {
-    //     CounterSortPred(RenderProfile* render_profile)
-    //         : m_RenderProfile(render_profile)
-    //     {
-    //     }
-
-    //     bool operator()(TIndex a_index, TIndex b_index) const
-    //     {
-    //         const ProfilerFrame* frame         = m_RenderProfile->m_ActiveFrame;
-    //         const Counter& counter_a          = frame->m_Counters[a_index];
-    //         const char* const* counter_a_name = m_RenderProfile->m_NameLookupTable.Get(counter_a.m_NameHash);
-    //         const Counter& counter_b          = frame->m_Counters[b_index];
-    //         const char* const* counter_b_name = m_RenderProfile->m_NameLookupTable.Get(counter_b.m_NameHash);
-    //         return dmStrCaseCmp(*counter_a_name, *counter_b_name) < 0;
-    //     }
-
-    //     const RenderProfile* m_RenderProfile;
-    // };
-
-    // static void SortStructure(RenderProfile* render_profile)
-    // {
-    //     uint32_t scope_count = render_profile->m_ScopeLookup.m_HashLookup.Size();
-    //     std::stable_sort(&render_profile->m_ScopeLookup.m_SortOrder[0], &render_profile->m_ScopeLookup.m_SortOrder[scope_count], ScopeSortPred(render_profile));
-
-    //     uint32_t sample_aggregate_count = render_profile->m_SampleAggregateLookup.m_HashLookup.Size();
-    //     std::stable_sort(&render_profile->m_SampleAggregateLookup.m_SortOrder[0], &render_profile->m_SampleAggregateLookup.m_SortOrder[sample_aggregate_count], SampleAggregateSortPred(render_profile));
-
-    //     uint32_t counter_count = render_profile->m_CounterLookup.m_HashLookup.Size();
-    //     std::sort(&render_profile->m_CounterLookup.m_SortOrder[0], &render_profile->m_CounterLookup.m_SortOrder[counter_count], CounterSortPred(render_profile));
-    // }
+    static void HslToRgb2(float h, float s, float l, float* c)
+    {
+        hsl_to_rgb(&c[0], &c[1], &c[2], h * 360, s, l);
+    }
 
     static void GotoRecordedFrame(HRenderProfile render_profile, int recorded_frame_index)
     {
@@ -386,51 +296,43 @@ namespace dmProfileRender
         return Area(p, s);
     }
 
-    static Area GetScopesArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
+    static Area GetPropertiesArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
     {
-        // const int count = dmMath::Max(scopes_count, counters_count);
-
-        // Size s(SCOPES_NAME_WIDTH + CHARACTER_WIDTH + SCOPES_TIME_WIDTH + CHARACTER_WIDTH + SCOPES_COUNT_WIDTH, LINE_SPACING * (1 + count));
-        // if (display_mode == DISPLAYMODE_LANDSCAPE)
+        // int max_indent = 0;
+        // for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
         // {
-        //     Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
-        //     return Area(p, s);
+        //     const ProfilerProperty& property = frame->m_Properties[i];
+        //     if (property.m_Indent > max_indent)
+        //         max_indent = property.m_Indent;
         // }
-        // else if (display_mode == DISPLAYMODE_PORTRAIT)
-        // {
-        //     Position p(details_area.p.x + details_area.s.w - s.w, details_area.p.y);
-        //     return Area(p, s);
-        // }
-        return Area(Position(0, 0), Size(0, 0));
-    }
 
-    static Area GetCountersArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
-    {
         if (display_mode == DISPLAYMODE_LANDSCAPE || display_mode == DISPLAYMODE_PORTRAIT)
         {
             const int count = dmMath::Max(scopes_count, counters_count);
             Size s(COUNTERS_NAME_WIDTH + CHARACTER_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + count));
-            Position p(details_area.p.x, details_area.p.y);
+            Position p(details_area.p.x + details_area.s.w - s.w, details_area.p.y + s.h);
             return Area(p, s);
         }
         return Area(Position(0, 0), Size(0, 0));
     }
 
-    static Area GetSamplesArea(DisplayMode display_mode, const Area& details_area, const Area& scopes_area, const Area& counters_area)
+    static Area GetSamplesArea(DisplayMode display_mode, const Area& details_area)
     {
         if (display_mode == DISPLAYMODE_LANDSCAPE)
         {
-            Size s(details_area.s.w - (scopes_area.s.w + CHARACTER_WIDTH), details_area.s.h);
-            Position p(scopes_area.p.x + scopes_area.s.w + CHARACTER_WIDTH, details_area.p.y + details_area.s.h - s.h);
-            return Area(p, s);
+            // Size s(details_area.s.w, details_area.s.h);
+            // Position p(scopes_area.p.x + scopes_area.s.w + CHARACTER_WIDTH, details_area.p.y + details_area.s.h - s.h);
+            // return Area(p, s);
+            return details_area;
         }
         else if (display_mode == DISPLAYMODE_PORTRAIT)
         {
-            int lower_clip = dmMath::Max(scopes_area.p.y + scopes_area.s.h, counters_area.p.y + counters_area.s.h);
-            int max_height = details_area.p.y + details_area.s.h - lower_clip;
-            Size s(details_area.s.w, max_height);
-            Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
-            return Area(p, s);
+            // int lower_clip = dmMath::Max(scopes_area.p.y + scopes_area.s.h, properties_area.p.y + properties_area.s.h);
+            // int max_height = details_area.p.y + details_area.s.h - lower_clip;
+            // Size s(details_area.s.w, max_height);
+            // Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
+            // return Area(p, s);
+            return details_area;
         }
         return Area(Position(0, 0), Size(0, 0));
     }
@@ -473,7 +375,6 @@ namespace dmProfileRender
             batch_key = dmHashFinal64(&key_state);
         }
 
-        const int SAMPLE_FRAMES_NAME_LENGTH = display_mode == DISPLAYMODE_LANDSCAPE ? LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH : PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH;
         const int SAMPLE_FRAMES_NAME_WIDTH = display_mode == DISPLAYMODE_LANDSCAPE ? LANDSCAPE_SAMPLE_FRAMES_NAME_WIDTH : PORTRAIT_SAMPLE_FRAMES_NAME_WIDTH;
 
         const Area profiler_area = GetProfilerArea(display_mode, display_size);
@@ -483,7 +384,6 @@ namespace dmProfileRender
         const Area details_area = GetDetailsArea(display_mode, profiler_area, header_area);
 
         char buffer[256];
-        float col[3];
 
         dmRender::DrawTextParams params;
         params.m_FaceColor   = TITLE_FACE_COLOR;
@@ -536,111 +436,14 @@ namespace dmProfileRender
             return;
         }
 
-        const uint32_t scope_count            = 0;//(uint32_t)render_profile->m_ScopeLookup.m_HashLookup.Size();
-        const uint32_t counter_count          = 0;//(uint32_t)render_profile->m_CounterLookup.m_HashLookup.Size();
-        //const uint32_t sample_aggregate_count = (uint32_t)render_profile->m_SampleAggregateLookup.m_HashLookup.Size();
+        const uint32_t counter_count  = frame->m_Properties.Size();
 
-        // We don't support scopes anymore
-        const Area scopes_area        = GetScopesArea(display_mode, details_area, scope_count, counter_count);
-        const Area counters_area      = GetCountersArea(display_mode, details_area, scope_count, counter_count);
-        const Area samples_area       = GetSamplesArea(display_mode, details_area, scopes_area, counters_area);
+        const Area properties_area    = GetPropertiesArea(display_mode, details_area, 0, counter_count);
+        const Area samples_area       = GetSamplesArea(display_mode, details_area);
         const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area);
 
         FillArea(render_context, sample_frames_area, SAMPLES_BG_COLOR);
 
-        // We don't support scopes anymore
-        // {
-        //     // Scopes
-        //     int y = scopes_area.p.y + scopes_area.s.h;
-
-        //     params.m_WorldTransform.setElem(3, 1, y);
-
-        //     int name_x  = scopes_area.p.x;
-        //     int time_x  = name_x + SCOPES_NAME_WIDTH + CHARACTER_WIDTH;
-        //     int count_x = time_x + SCOPES_TIME_WIDTH + CHARACTER_WIDTH;
-
-        //     params.m_FaceColor = TITLE_FACE_COLOR;
-        //     params.m_Text      = render_profile->m_ScopeOverflow ? "*Scopes:" : "Scopes:";
-        //     params.m_WorldTransform.setElem(3, 0, name_x);
-        //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-        //     params.m_Text = "    ms";
-        //     params.m_WorldTransform.setElem(3, 0, time_x);
-        //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-        //     params.m_Text = "  #";
-        //     params.m_WorldTransform.setElem(3, 0, count_x);
-        //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-        //     HslToRgb2(4 / 16.0f, 1.0f, 0.65f, col);
-        //     params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
-
-        //     for (TIndex sort_index = 0; sort_index < scope_count; ++sort_index)
-        //     {
-        //         TIndex index = render_profile->m_ScopeLookup.m_SortOrder[sort_index];
-        //         Scope* scope = &frame->m_Scopes[index];
-
-        //         y -= LINE_SPACING;
-
-        //         if ((display_mode == DISPLAYMODE_LANDSCAPE) && (y < (counters_area.p.y + counters_area.s.h + LINE_SPACING)))
-        //         {
-        //             break;
-        //         }
-
-        //         double e = (double)(scope->m_Elapsed) / ticks_per_second;
-
-        //         params.m_WorldTransform.setElem(3, 1, y);
-
-        //         params.m_Text = *render_profile->m_NameLookupTable.Get(scope->m_NameHash);
-        //         params.m_WorldTransform.setElem(3, 0, name_x);
-        //         dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-        //         params.m_Text = buffer;
-        //         dmSnPrintf(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
-        //         params.m_WorldTransform.setElem(3, 0, time_x);
-        //         dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-        //         params.m_Text = buffer;
-        //         dmSnPrintf(buffer, sizeof(buffer), "%3u", scope->m_Count);
-        //         params.m_WorldTransform.setElem(3, 0, count_x);
-        //         dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-        //     }
-        // }
-        // {
-        //     // Counters
-        //     int y = counters_area.p.y + counters_area.s.h;
-
-        //     params.m_WorldTransform.setElem(3, 1, y);
-
-        //     int name_x  = counters_area.p.x;
-        //     int count_x = name_x + COUNTERS_NAME_WIDTH + CHARACTER_WIDTH;
-
-        //     params.m_FaceColor = TITLE_FACE_COLOR;
-        //     params.m_Text      = render_profile->m_CounterOverflow ? "*Counters:" : "Counters:";
-        //     params.m_WorldTransform.setElem(3, 0, name_x);
-        //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-        //     params.m_Text = "           #";
-        //     params.m_WorldTransform.setElem(3, 0, count_x);
-        //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-        //     HslToRgb2(4 / 16.0f, 1.0f, 0.65f, col);
-        //     params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
-        //     for (TIndex sort_index = 0; sort_index < counter_count; ++sort_index)
-        //     {
-        //         TIndex index     = render_profile->m_CounterLookup.m_SortOrder[sort_index];
-        //         Counter* counter = &frame->m_Counters[index];
-
-        //         y -= LINE_SPACING;
-
-        //         params.m_WorldTransform.setElem(3, 1, y);
-        //         params.m_Text = *render_profile->m_NameLookupTable.Get(counter->m_NameHash);
-        //         params.m_WorldTransform.setElem(3, 0, name_x);
-        //         dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-        //         params.m_Text = buffer;
-        //         dmSnPrintf(buffer, sizeof(buffer), "%12u", counter->m_Count);
-        //         params.m_WorldTransform.setElem(3, 0, count_x);
-        //         dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-        //     }
-        // }
         {
             // Samples
             int y = samples_area.p.y + samples_area.s.h;
@@ -671,11 +474,6 @@ namespace dmProfileRender
             dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
             uint32_t sample_frame_width         = sample_frames_area.s.w;
-
-            // const uint32_t frame_ticks          = GetFrameTicks(render_profile);
-            // const uint32_t active_frame_ticks   = GetActiveFrameTicks(render_profile, frame_ticks);
-            // const uint32_t frame_time           = (frame_ticks == 0) ? (uint32_t)(ticks_per_second / render_profile->m_FPS) : render_profile->m_IncludeFrameWait ? frame_ticks : active_frame_ticks;
-
 
             uint32_t num_samples = thread->m_Samples.Size();
 
@@ -732,14 +530,6 @@ namespace dmProfileRender
                 x = frames_x + unit_start * sample_frame_width;
                 float w = unit_length * sample_frame_width;
 
-                bool debug = false;
-
-                //if (sample.m_Indent <= 1)
-                if (debug)
-                {
-                    printf("Coord: %s frames_x: %d  x: %f  width: %f  m_StartTime: %llu  m_Time: %llu  unit start/length: %f %f\n", sample.m_Name, frames_x, x - frames_x, w, sample.m_StartTime, sample.m_Time, unit_start, unit_length);
-                }
-
                 if (w < 0.5f)
                 {
                     w = 0.5f;
@@ -748,101 +538,71 @@ namespace dmProfileRender
                 dmRender::Square2d(render_context, x, y - CHARACTER_HEIGHT, x + w, y, Vector4(r, g, b, 1.0f));
 
             }
+        }
 
-            // for (TIndex sort_index = 0; sort_index < sample_aggregate_count; ++sort_index)
-            // {
-            //     TIndex index          = render_profile->m_SampleAggregateLookup.m_SortOrder[sort_index];
-            //     SampleAggregate* sample_aggregate = &frame->m_SampleAggregates[index];
-            //     TNameHash name_hash   = GetCombinedHash(sample_aggregate->m_ScopeNameHash, sample_aggregate->m_SampleNameHash);
-            //     if (render_profile->m_IncludeFrameWait == 0)
-            //     {
-            //         if (name_hash == VSYNC_WAIT_NAME_HASH ||
-            //             name_hash == ENGINE_FRAME_NAME_HASH)
-            //         {
-            //             continue;
-            //         }
-            //     }
+        {
+            // Properties
+            int y = properties_area.p.y + properties_area.s.h;
 
-            //     y -= LINE_SPACING;
+            int name_x  = properties_area.p.x;
+            int count_x = name_x + COUNTERS_NAME_WIDTH + CHARACTER_WIDTH;
 
-            //     if (y < (samples_area.p.y + LINE_SPACING))
-            //     {
-            //         break;
-            //     }
+            params.m_FaceColor = TITLE_FACE_COLOR;
+            params.m_Text      = "Properties:";
+            params.m_WorldTransform.setElem(3, 0, name_x);
+            params.m_WorldTransform.setElem(3, 1, y);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
-            //     double e = ((double)(sample_aggregate->m_Elapsed)) / ticks_per_second;
+            for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
+            {
+                const ProfilerProperty& property = frame->m_Properties[i];
 
-            //     uint32_t color_index = (name_hash >> 6) & 0x1f;
-            //     HslToRgb2(color_index / 31.0f, 1.0f, 0.65f, col);
+                y -= LINE_SPACING;
 
-            //     params.m_WorldTransform.setElem(3, 1, y);
-            //     params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
+                if (y < (properties_area.p.y + LINE_SPACING))
+                {
+                    break;
+                }
 
-            //     params.m_Text = buffer;
+                float col[3];
+                uint32_t color_index = (property.m_NameHash >> 6) & 0x1f;
+                HslToRgb2(color_index / 31.0f, 1.0f, 0.65f, col);
 
-            //     TIndex* scope_index_ptr          = render_profile->m_ScopeLookup.m_HashLookup.Get(sample_aggregate->m_ScopeNameHash);
-            //     Scope* scope                     = &frame->m_Scopes[*scope_index_ptr];
-            //     const char* scope_name           = *render_profile->m_NameLookupTable.Get(scope->m_NameHash);
-            //     const char* sample_name          = *render_profile->m_NameLookupTable.Get(sample_aggregate->m_SampleNameHash);
+                if (property.m_Type == dmProfile::PROPERTY_TYPE_GROUP)
+                    params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
+                else
+                    params.m_FaceColor = Vector4(1.0f);
 
-            //     int buffer_offset = dmSnPrintf(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.", scope_name);
+                float x = property.m_Indent * INDENT_WIDTH;
+                params.m_WorldTransform.setElem(3, 0, name_x + x);
+                params.m_WorldTransform.setElem(3, 1, y);
 
-            //     // Do truncation of sample name if needed, we add some knowledge on the sample name format for names that
-            //     // we know tend to be long. The script call scopes tend to be long and we try to truncate the file path of
-            //     // that string removing the beginnig of the file path and keeping as much as possible of the end.
-            //     while (buffer_offset <= SAMPLE_FRAMES_NAME_LENGTH)
-            //     {
-            //         if (*sample_name == 0)
-            //         {
-            //             break;
-            //         }
-            //         else if (*sample_name == '@')
-            //         {
-            //             buffer[buffer_offset++] = *sample_name++;
-            //             if (buffer_offset == (SAMPLE_FRAMES_NAME_LENGTH + 1))
-            //             {
-            //                 break;
-            //             }
-            //             const uint32_t remaining_sample_name_length = (uint32_t)strlen(sample_name);
-            //             const uint32_t remaining_buffer_length = (SAMPLE_FRAMES_NAME_LENGTH + 1) - buffer_offset;
-            //             if (remaining_sample_name_length > remaining_buffer_length)
-            //             {
-            //                 sample_name += (remaining_sample_name_length - remaining_buffer_length);
-            //             }
-            //             continue;
-            //         }
-            //         buffer[buffer_offset++] = *sample_name++;
-            //     }
-            //     buffer[buffer_offset] = 0;
+                const char* name = property.m_Name;
+                if (name[0]=='r' && name[1]=='m' && name[2]=='t' && name[3]=='p' && name[4]=='_')
+                {
+                    name = name + 5;
+                }
+                params.m_Text = name;
 
-            //     params.m_WorldTransform.setElem(3, 0, name_x);
-            //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
-            //     dmSnPrintf(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
-            //     params.m_WorldTransform.setElem(3, 0, time_x);
-            //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+                switch(property.m_Type)
+                {
+                case dmProfile::PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
+                case dmProfile::PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
+                case dmProfile::PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
+                case dmProfile::PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
+                case dmProfile::PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", property.m_Value.m_S64); break;
+                case dmProfile::PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", property.m_Value.m_U64); break;
+                case dmProfile::PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
+                case dmProfile::PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
+                default: break;
+                }
 
-            //     dmSnPrintf(buffer, sizeof(buffer), "%3u", sample_aggregate->m_Count);
-            //     params.m_WorldTransform.setElem(3, 0, count_x);
-            //     dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-            //     TIndex sample_index = sample_aggregate->m_LastSampleIndex;
-            //     while (sample_index != max_sample_count)
-            //     {
-            //         Sample* sample = &frame->m_Samples[sample_index];
-
-            //         float x = frames_x + sample->m_StartTick * tick_length;
-            //         float w = sample->m_Elapsed * tick_length;
-            //         if (w < 0.5f)
-            //         {
-            //             w = 0.5f;
-            //         }
-
-            //         dmRender::Square2d(render_context, x, y - CHARACTER_HEIGHT, x + w, y, Vector4(col[0], col[1], col[2], 1.0f));
-
-            //         sample_index = sample->m_PreviousSampleIndex;
-            //     }
-            // }
+                params.m_Text = buffer;
+                params.m_WorldTransform.setElem(3, 0, count_x);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+            }
         }
     }
 
@@ -905,7 +665,7 @@ namespace dmProfileRender
             render_profile->m_MaxFrameTime = 0;
         }
 
-        uint64_t last_frame_time = last_thread ? last_thread->m_SamplesTotalTime : 0;
+        //uint64_t last_frame_time = last_thread ? last_thread->m_SamplesTotalTime : 0;
         uint64_t this_frame_time = current_thread->m_SamplesTotalTime;
 
         bool new_peak_frame = render_profile->m_MaxFrameTime < this_frame_time;
@@ -1056,7 +816,13 @@ namespace dmProfileRender
         {
             DeleteProfilerThread(frame->m_Threads[i]);
         }
+        for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
+        {
+            ProfilerProperty& property = frame->m_Properties[i];
+            free((void*)property.m_Name);
+        }
         frame->m_Threads.SetSize(0);
+        frame->m_Properties.SetSize(0);
         delete frame;
     }
 
@@ -1078,10 +844,13 @@ namespace dmProfileRender
 
             cpy->m_Samples.Push(sample);
         }
-        dmhash_t                    m_NameHash;
-        const char*                 m_Name;
-        dmArray<ProfilerSample>     m_Samples;
+        return cpy;
+    }
 
+    static ProfilerProperty DuplicateProfilerProperty(const ProfilerProperty& property)
+    {
+        ProfilerProperty cpy = property;
+        cpy.m_Name = strdup(property.m_Name);
         return cpy;
     }
 
@@ -1096,12 +865,18 @@ namespace dmProfileRender
         {
             cpy->m_Threads.Push(DuplicateProfilerThread(frame->m_Threads[i]));
         }
+
+        uint32_t num_properties = frame->m_Properties.Size();
+        cpy->m_Properties.SetCapacity(num_properties);
+        for (uint32_t i = 0; i < num_properties; ++i)
+        {
+            cpy->m_Properties.Push(DuplicateProfilerProperty(frame->m_Properties[i]));
+        }
         return cpy;
     }
 
     void PruneProfilerThreads(ProfilerFrame* frame, uint64_t time)
     {
-        uint32_t num_threads = frame->m_Threads.Size();
         for (uint32_t i = 0; i < frame->m_Threads.Size(); )
         {
             ProfilerThread* thread = frame->m_Threads[i];
@@ -1116,5 +891,20 @@ namespace dmProfileRender
             }
         }
     }
+
+    void AddProperty(ProfilerFrame* frame, const char* name, dmhash_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent)
+    {
+        ProfilerProperty prop;
+        prop.m_Name = strdup(name);
+        prop.m_NameHash = name_hash;
+        prop.m_Value = value;
+        prop.m_Type = type;
+        prop.m_Indent = (uint8_t)indent;
+
+        if (frame->m_Properties.Full())
+            frame->m_Properties.OffsetCapacity(32);
+        frame->m_Properties.Push(prop);
+    }
+
 
 } // namespace dmProfileRender

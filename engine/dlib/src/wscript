@@ -222,7 +222,7 @@ def build(bld):
     if desktop:
         dlib_shared = bld.new_task_gen( features = 'cc cxx cshlib skip_asan',
                                         includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                                        uselib_local = 'mbedtls_noasan zip_noasan profile_null_noasan',
+                                        uselib_local = 'mbedtls_noasan zip_noasan profile_null_noasan remotery_noasan',
                                         target = 'dlib_shared',
                                         defines= ['VALGRIND'] + extra_defines,
                                         uselib = ['PLATFORM_SOCKET', 'CARES'])

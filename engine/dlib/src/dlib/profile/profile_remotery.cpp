@@ -21,25 +21,35 @@
 
 #include "dlib/hash.h"
 
-#if !(defined(_WIN32))
-    #define RMT_USE_POSIX_THREADNAMES 1
+#if defined(DM_PLATFORM_64BIT) && !defined(RMT_ARCH_64BIT)
+    #define RMT_ARCH_64BIT
 #endif
+
 #include "remotery/Remotery.h"
 
 namespace dmProfile
 {
     static Remotery* g_Remotery = 0;
-    static FSampleTreeCallback  g_SampleTreeCallback = 0;
-    static void*                g_SampleTreeCallbackCtx = 0;
+    static FSampleTreeCallback      g_SampleTreeCallback = 0;
+    static void*                    g_SampleTreeCallbackCtx = 0;
+    static FPropertyTreeCallback    g_PropertyTreeCallback = 0;
+    static void*                    g_PropertyTreeCallbackCtx = 0;
 
-    static inline rmtSample* FromHandle(HSample sample)
+    static inline rmtSample* SampleFromHandle(HSample sample)
     {
         return (rmtSample*)sample;
     }
-
-    static inline HSample ToHandle(rmtSample* sample)
+    static inline HSample SampleToHandle(rmtSample* sample)
     {
         return (HSample)sample;
+    }
+    static inline rmtProperty* PropertyFromHandle(HProperty property)
+    {
+        return (rmtProperty*)property;
+    }
+    static inline HProperty PropertyToHandle(rmtProperty* property)
+    {
+        return (HProperty)property;
     }
 
     static void SampleTreeCallback(void* ctx, rmtSampleTree* sample_tree)
@@ -49,7 +59,15 @@ namespace dmProfile
             const char* thread_name = rmt_SampleTreeGetThreadName(sample_tree);
             rmtSample* root = rmt_SampleTreeGetRootSample(sample_tree);
 
-            g_SampleTreeCallback(g_SampleTreeCallbackCtx, thread_name, ToHandle(root));
+            g_SampleTreeCallback(g_SampleTreeCallbackCtx, thread_name, SampleToHandle(root));
+        }
+    }
+
+    static void PropertyTreeCallback(void* ctx, rmtProperty* root)
+    {
+        if (g_PropertyTreeCallback)
+        {
+            g_PropertyTreeCallback(g_SampleTreeCallbackCtx, PropertyToHandle(root));
         }
     }
 
@@ -69,6 +87,8 @@ namespace dmProfile
         }
         settings->sampletree_handler = SampleTreeCallback;
         settings->sampletree_context = 0;
+        settings->snapshot_callback = PropertyTreeCallback;
+        settings->snapshot_context = 0;
 
         rmtError result = rmt_CreateGlobalInstance(&g_Remotery);
         if (result != RMT_ERROR_NONE)
@@ -118,6 +138,15 @@ namespace dmProfile
 
         if (!profile)
             return;
+
+        rmt_PropertySnapshotAll();
+        rmt_PropertyFrameResetAll();
+    }
+
+    void AddCounter(const char* name, uint32_t amount)
+    {
+        // Not supported currently.
+        // Used by mem profiler to dynamically insert a property at runtime
     }
 
     uint64_t GetTicksPerSecond()
@@ -125,12 +154,7 @@ namespace dmProfile
         return 1000000;
     }
 
-    void AddCounter(const char* name, uint32_t amount)
-    {
-
-    }
-
-    void LogText(const char* text)
+    void LogText(const char* text, ...)
     {
         rmt_LogText(text);
     }
@@ -139,6 +163,12 @@ namespace dmProfile
     {
         g_SampleTreeCallback = callback;
         g_SampleTreeCallbackCtx = ctx;
+    }
+
+    void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
+    {
+        g_PropertyTreeCallback = callback;
+        g_PropertyTreeCallbackCtx = ctx;
     }
 
     void ProfileScope::StartScope(const char* name, uint32_t* name_hash)
@@ -164,56 +194,149 @@ namespace dmProfile
         delete (rmtSampleIterator*)m_IteratorImpl;
     }
 
-    SampleIterator IterateChildren(HSample sample)
+    SampleIterator* SampleIterateChildren(HSample sample, SampleIterator* iter)
     {
-        SampleIterator iter;
-        iter.m_Sample = 0;
+        iter->m_Sample = 0;
 
         rmtSampleIterator* rmt_iter = new rmtSampleIterator;
-        rmt_IterateChildren(rmt_iter, FromHandle(sample));
+        rmt_IterateChildren(rmt_iter, SampleFromHandle(sample));
 
-        iter.m_IteratorImpl = (void*)rmt_iter;
+        iter->m_IteratorImpl = (void*)rmt_iter;
         return iter;
     }
 
-    bool IterateNext(SampleIterator* iter)
+    bool SampleIterateNext(SampleIterator* iter)
     {
         rmtSampleIterator* rmt_iter = (rmtSampleIterator*)iter->m_IteratorImpl;
-        bool result = _rmt_IterateNext(rmt_iter);
-        iter->m_Sample = ToHandle(rmt_iter->sample);
+        bool result = rmt_IterateNext(rmt_iter);
+        iter->m_Sample = SampleToHandle(rmt_iter->sample);
         return result;
     }
 
     const char* SampleGetName(HSample sample)
     {
-        return rmt_SampleGetName(FromHandle(sample));
+        return rmt_SampleGetName(SampleFromHandle(sample));
     }
 
     uint64_t SampleGetStart(HSample sample)
     {
-        return rmt_SampleGetStart(FromHandle(sample));
+        return rmt_SampleGetStart(SampleFromHandle(sample));
     }
 
     uint64_t SampleGetTime(HSample sample)
     {
-        return rmt_SampleGetTime(FromHandle(sample));
+        return rmt_SampleGetTime(SampleFromHandle(sample));
     }
 
     uint64_t SampleGetSelfTime(HSample sample)
     {
-        return rmt_SampleGetSelfTime(FromHandle(sample));
+        return rmt_SampleGetSelfTime(SampleFromHandle(sample));
     }
 
     uint32_t SampleGetCallCount(HSample sample)
     {
-        return rmt_SampleGetCallCount(FromHandle(sample));
+        return rmt_SampleGetCallCount(SampleFromHandle(sample));
     }
 
     uint32_t SampleGetColor(HSample sample)
     {
         uint8_t r, g, b;
-        rmt_SampleGetColour(FromHandle(sample), &r, &g, &b);
+        rmt_SampleGetColour(SampleFromHandle(sample), &r, &g, &b);
         return r << 16 | g << 8 | b;
+    }
+
+    // *******************************************************************
+
+
+    PropertyIterator::PropertyIterator()
+    : m_Property(0)
+    , m_IteratorImpl(0)
+    {
+    }
+
+    PropertyIterator::~PropertyIterator()
+    {
+        delete (rmtPropertyIterator*)m_IteratorImpl;
+    }
+
+    PropertyIterator* PropertyIterateChildren(HProperty property, PropertyIterator* iter)
+    {
+        iter->m_Property = 0;
+
+        rmtPropertyIterator* rmt_iter = new rmtPropertyIterator;
+        rmt_PropertyIterateChildren(rmt_iter, PropertyFromHandle(property));
+
+        iter->m_IteratorImpl = (void*)rmt_iter;
+        return iter;
+    }
+
+    bool PropertyIterateNext(PropertyIterator* iter)
+    {
+        rmtPropertyIterator* rmt_iter = (rmtPropertyIterator*)iter->m_IteratorImpl;
+        bool result = rmt_PropertyIterateNext(rmt_iter);
+        iter->m_Property = PropertyToHandle(rmt_iter->property);
+        return result;
+    }
+
+    // Property accessors
+
+    const char* PropertyGetName(HProperty hproperty)
+    {
+        rmtProperty* property = PropertyFromHandle(hproperty);
+        return property->name;
+    }
+
+    const char* PropertyGetDesc(HProperty hproperty)
+    {
+        rmtProperty* property = PropertyFromHandle(hproperty);
+        return property->description;
+    }
+
+    uint64_t PropertyGetNameHash(HProperty hproperty)
+    {
+        rmtProperty* property = PropertyFromHandle(hproperty);
+        return property->nameHash | ((uint64_t)(~property->nameHash) << 32);
+    }
+
+    PropertyType PropertyGetType(HProperty hproperty)
+    {
+        rmtProperty* property = PropertyFromHandle(hproperty);
+
+        switch(property->type)
+        {
+        case RMT_PropertyType_rmtGroup: return PROPERTY_TYPE_GROUP;
+        case RMT_PropertyType_rmtBool:  return PROPERTY_TYPE_BOOL;
+        case RMT_PropertyType_rmtS32:   return PROPERTY_TYPE_S32;
+        case RMT_PropertyType_rmtU32:   return PROPERTY_TYPE_U32;
+        case RMT_PropertyType_rmtF32:   return PROPERTY_TYPE_F32;
+        case RMT_PropertyType_rmtS64:   return PROPERTY_TYPE_S64;
+        case RMT_PropertyType_rmtU64:   return PROPERTY_TYPE_U64;
+        case RMT_PropertyType_rmtF64:   return PROPERTY_TYPE_F64;
+        default:
+            dmLogError("Unknown property type: %d", property->type);
+            return PROPERTY_TYPE_GROUP;
+        }
+    }
+
+    PropertyValue PropertyGetValue(HProperty hproperty)
+    {
+        PropertyValue out = {};
+        rmtProperty* property = PropertyFromHandle(hproperty);
+
+        switch(property->type)
+        {
+        case RMT_PropertyType_rmtBool:  out.m_Bool = property->value.Bool; break;
+        case RMT_PropertyType_rmtS32:   out.m_S32 = property->value.S32; break;
+        case RMT_PropertyType_rmtU32:   out.m_U32 = property->value.U32; break;
+        case RMT_PropertyType_rmtF32:   out.m_F32 = property->value.F32; break;
+        case RMT_PropertyType_rmtS64:   out.m_S64 = property->value.S64; break;
+        case RMT_PropertyType_rmtU64:   out.m_U64 = property->value.U64; break;
+        case RMT_PropertyType_rmtF64:   out.m_F64 = property->value.F64; break;
+        case RMT_PropertyType_rmtGroup: break;
+        default:
+            dmLogError("Unknown property type: %d", property->type); break;
+        }
+        return out;
     }
 
     // *******************************************************************

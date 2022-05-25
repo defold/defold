@@ -29,6 +29,8 @@
 
 namespace dmParticle
 {
+    DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, FrameReset, "#");
+
     using namespace dmParticleDDF;
     using namespace dmVMath;
 
@@ -706,7 +708,7 @@ namespace dmParticle
             }
         }
 
-        DM_COUNTER("Particles alive", TotalAliveParticles);
+        DM_PROPERTY_SET_U32(rmtp_ParticlesAlive, TotalAliveParticles);
     }
 
     static void FetchAnimation(Emitter* emitter, EmitterPrototype* prototype, FetchAnimationCallback fetch_animation_callback)

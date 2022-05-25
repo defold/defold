@@ -341,9 +341,9 @@ def default_flags(self):
 
     for f in ['CCFLAGS', 'CXXFLAGS']:
         if '64' in build_util.get_target_architecture():
-            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
+            self.env.append_value(f, [self.env.CXXDEFINES_ST % 'DM_PLATFORM_64BIT'])
         else:
-            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
+            self.env.append_value(f, [self.env.CXXDEFINES_ST % 'DM_PLATFORM_32BIT'])
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -1620,7 +1620,7 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip', 'remotery']
     conf.env['STATICLIB_DDF'] = 'ddf'
 
     conf.env['STATICLIB_PROFILE'] = ['profile', 'remotery']
