@@ -387,8 +387,6 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, platform)
 
-        print ("MAWE", info)
-
     if platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
