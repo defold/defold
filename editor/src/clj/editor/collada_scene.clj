@@ -344,7 +344,7 @@
                     :select-batch-key _node-id
                     :user-data {:meshes meshes
                                 :shader shader-pos-nrm-tex
-                                :textures {"texture" texture/white-pixel}
+                                :textures {"texture" @texture/white-pixel}
                                 :scratch-arrays (gen-scratch-arrays meshes)}
                     :passes [pass/opaque pass/opaque-selection]}
        :children [{:node-id _node-id

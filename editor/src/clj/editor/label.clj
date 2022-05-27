@@ -130,7 +130,7 @@
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
-        gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
+        gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
