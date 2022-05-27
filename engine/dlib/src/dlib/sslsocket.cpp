@@ -416,6 +416,7 @@ dmSocket::Result Send(SSLSocket* socket, const void* buffer, int length, int* se
     }
 
     if (r < 0) {
+        mbedtls_ssl_session_reset(socket->m_SSLContext);
         return SSLToSocket(r);
     }
 
@@ -439,6 +440,7 @@ dmSocket::Result Receive(SSLSocket* socket, void* buffer, int length, int* recei
 
     if( ret <= 0 )
     {
+        mbedtls_ssl_session_reset(socket->m_SSLContext);
         return SSLToSocket(ret);
     }
 
