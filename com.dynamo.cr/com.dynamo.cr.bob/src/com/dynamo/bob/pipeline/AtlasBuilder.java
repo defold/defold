@@ -32,7 +32,7 @@ import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 
-@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".texturesetc")
+@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
 public class AtlasBuilder extends Builder<Void>  {
 
     @Override

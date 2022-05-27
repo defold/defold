@@ -1003,7 +1003,7 @@
   (resource-node/register-ddf-resource-type workspace
                                     :ext ["tilesource" "tileset"]
                                     :label "Tile Source"
-                                    :build-ext "texturesetc"
+                                    :build-ext "t.texturesetc"
                                     :node-type TileSourceNode
                                     :ddf-type Tile$TileSet
                                     :load-fn load-tile-source

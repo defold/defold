@@ -224,6 +224,8 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
 #define dmLogOnceFatal(format, args... ) dmLogOnceInternal(dmLogFatal, format, ## args )
 #endif
 
+#endif // NDEBUG
+
 /*# dmLog:LogListener callback typedef
  *
  * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
@@ -243,7 +245,7 @@ typedef void (*LogListener)(Severity severity, const char* domain, const char* f
  * This listener recieve logs even in release bundle.
  *
  * @name dmLog::RegisterLogListener
- * @param listener [type:dmLog::LogListener] 
+ * @param listener [type:dmLog::LogListener]
  */
 void RegisterLogListener(LogListener listener);
 
@@ -265,7 +267,6 @@ void UnregisterLogListener(LogListener listener);
  */
 void Setlevel(Severity severity);
 
-#endif
 } //namespace dmLog
 
 #endif // DMSDK_LOG_H

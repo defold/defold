@@ -260,9 +260,15 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
     (->TextureLifecycle request-id ::texture unit params (->texture-data width height data-format nil false))))
 
-(def white-pixel (image-texture ::white (-> (image-util/blank-image 1 1) (image-util/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
-                                                                                                                :min-filter GL2/GL_NEAREST
-                                                                                                                :mag-filter GL2/GL_NEAREST)))
+(defonce white-pixel
+  (delay
+    (image-texture
+      ::white
+      (-> (image-util/blank-image 1 1)
+          (image-util/flood 1.0 1.0 1.0))
+      (assoc default-image-texture-params
+        :min-filter GL2/GL_NEAREST
+        :mag-filter GL2/GL_NEAREST))))
 
 (defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h data-format]
   (let [tex (->texture texture gl)

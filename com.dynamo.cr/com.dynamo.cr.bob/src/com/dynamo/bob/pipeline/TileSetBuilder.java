@@ -41,7 +41,7 @@ import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".texturesetc")
+@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc")
 public class TileSetBuilder extends Builder<Void>  {
 
     @Override

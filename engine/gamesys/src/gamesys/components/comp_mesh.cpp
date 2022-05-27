@@ -435,6 +435,9 @@ namespace dmGameSystem
             {
                 dmGameSystem::BufferResource* br = GetVerticesBuffer(&component, component.m_Resource);
 
+                // Needs to be calculated here, since the buffer resource might have been changed since the last update
+                component.m_BufferVersion = CalcBufferVersion(&component, br);
+
                 VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
                 assert(info != 0);
 

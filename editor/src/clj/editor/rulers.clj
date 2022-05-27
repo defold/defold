@@ -48,7 +48,7 @@
 (defonce ^:private img-dims [(.getWidth numbers-image) (.getHeight numbers-image)])
 (defonce ^:private img-dims-recip (mapv #(/ 1 %) img-dims))
 (defonce ^:private numbers-texture-params (merge texture/default-image-texture-params {:min-filter gl/nearest :mag-filter gl/nearest}))
-(defonce ^:private numbers-texture (texture/image-texture ::number-texture numbers-image numbers-texture-params))
+(defonce ^:private numbers-texture (delay (texture/image-texture ::number-texture numbers-image numbers-texture-params)))
 
 (def ^:private max-ticks 100)
 (def ^:private max-label-chars 15)
@@ -150,7 +150,7 @@
           :let [user-data (:user-data renderable)
                 {:keys [vb tri-count line-count]} user-data]]
     (let [vertex-binding (vtx/use-with ::vertex-buffer vb tex-shader)]
-      (gl/with-gl-bindings gl render-args [tex-shader vertex-binding numbers-texture]
+      (gl/with-gl-bindings gl render-args [tex-shader vertex-binding @numbers-texture]
         (shader/set-uniform tex-shader gl "texture_sampler" 0)
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 tri-count)
         (gl/gl-draw-arrays gl GL/GL_LINES tri-count line-count)))))

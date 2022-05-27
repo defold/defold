@@ -81,7 +81,7 @@ public class JarTest {
 
     @Test
     public void testBuild() throws Exception {
-        String[] outputs = new String[] {"atlas.texturec", "atlas.texturesetc", "simple_box_2bones_generated_0.animationsetc"};
+        String[] outputs = new String[] {"atlas.texturec", "atlas.a.texturesetc", "simple_box_2bones_generated_0.animationsetc"};
         int result = bob("distclean");
         assertEquals(0, result);
         for (String output : outputs) {
