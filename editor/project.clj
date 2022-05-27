@@ -182,7 +182,10 @@
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))]
+  :profiles          {:test    {:injections [(defonce force-toolkit-init
+                                               (javafx.application.Platform/startup
+                                                 (fn []
+                                                   (com.jogamp.opengl.GLProfile/initSingleton))))]
                                 :resource-paths ["test/resources"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
