@@ -35,53 +35,72 @@ import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 public class Start extends Application {
 
     private static Logger logger = LoggerFactory.getLogger(Start.class);
 
     private void kickLoading(Splash splash) {
-        // Do this work in a different thread or it will stop the splash screen from showing/animating.
+        // Do this work in a different thread, or it will stop the splash screen from showing/animating.
         Thread kickThread = new Thread(() -> {
-                try {
-                    // A terrible hack as an attempt to avoid a deadlock when loading native libraries.
-                    // Prism might be loading native libraries at this point, although we kick this loading after the splash has been shown.
-                    // The current hypothesis is that the splash is "onShown" before the loading has finished and rendering can start.
-                    // Ocular inspection shows the splash as grey for a few frames (1-3?) before filled in with graphics. That grey-time also seems to differ between runs.
-                    // This is an attempt to make the deadlock less likely to happen and hopefully avoid it altogether. No guarantees.
-                    Thread.sleep(200);
-                    ResourceUnpacker.unpackResources();
-                    ClassLoader parent = ClassLoader.getSystemClassLoader();
-                    Class<?> glprofile = parent.loadClass("com.jogamp.opengl.GLProfile");
-                    Method init = glprofile.getMethod("initSingleton");
-                    init.invoke(null);
-                    final EditorApplication app = new EditorApplication(Thread.currentThread().getContextClassLoader());
+            try {
+                // A terrible hack as an attempt to avoid a deadlock when loading native libraries.
+                // Prism might be loading native libraries at this point, although we kick this loading after the splash has been shown.
+                // The current hypothesis is that the splash is "onShown" before the loading has finished and rendering can start.
+                // Ocular inspection shows the splash as grey for a few frames (1-3?) before filled in with graphics. That grey-time also seems to differ between runs.
+                // This is an attempt to make the deadlock less likely to happen and hopefully avoid it altogether. No guarantees.
+                Thread.sleep(200);
+                ResourceUnpacker.unpackResources();
+
+                // Init the GLProfile singleton on the UI thread.
+                CountDownLatch latch = new CountDownLatch(1);
+
+                Platform.runLater(() -> {
                     try {
-                        app.waitForClojureNamespaces();
-                        Platform.runLater(() -> {
-                                try {
-                                    List<String> params = getParameters().getRaw();
-                                    app.run(params.toArray(new String[params.size()]));
-                                    splash.close();
-                                } catch (Throwable t) {
-                                    t.printStackTrace();
-                                    logger.error("failed to open editor", t);
-                                }
-                            });
+                        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+                        Class<?> glprofile = classLoader.loadClass("com.jogamp.opengl.GLProfile");
+                        Method init = glprofile.getMethod("initSingleton");
+                        init.invoke(null);
                     } catch (Throwable t) {
                         t.printStackTrace();
-                        final String message = t.getMessage();
-                        logger.error(message, t);
-                        Platform.runLater(() -> {
-                                splash.setLaunchError(message);
-                                splash.setErrorShowing(true);
-                            });
+                        logger.error("failed to initialize GLProfile singleton", t);
+                    } finally {
+                        latch.countDown();
                     }
+                });
+
+                // Wait for the UI thread task to complete before proceeding.
+                latch.await();
+
+                // Boot the editor.
+                final EditorApplication app = new EditorApplication(Thread.currentThread().getContextClassLoader());
+                try {
+                    app.waitForClojureNamespaces();
+                    Platform.runLater(() -> {
+                        try {
+                            List<String> params = getParameters().getRaw();
+                            app.run(params.toArray(new String[0]));
+                            splash.close();
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                            logger.error("failed to open editor", t);
+                        }
+                    });
                 } catch (Throwable t) {
                     t.printStackTrace();
-                    logger.error("failed to extract native libs", t);
+                    final String message = t.getMessage();
+                    logger.error(message, t);
+                    Platform.runLater(() -> {
+                        splash.setLaunchError(message);
+                        splash.setErrorShowing(true);
+                    });
                 }
-            });
+            } catch (Throwable t) {
+                t.printStackTrace();
+                logger.error("failed to extract native libs", t);
+            }
+        });
         kickThread.start();
     }
 
